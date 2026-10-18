@@ -170,6 +170,20 @@ describe('tauriVaultFs writes', () => {
     expect(invoke).toHaveBeenCalledWith('trash_entry', { path: 'notes.md', vault: '/vaults/a' });
   });
 
+  it('hands back the time the host reports for a new note, as a save does (#258)', async () => {
+    invoke.mockResolvedValue(1_760_000_000_123);
+    await expect(
+      tauriVaultFs.createNote({ path: notes, contents: '# New\n', vault: '/vaults/a' }),
+    ).resolves.toBe(1_760_000_000_123);
+  });
+
+  it('surfaces a refused create as an error, never as a time', async () => {
+    invoke.mockImplementation(() => Promise.reject('a note with that name already exists'));
+    await expect(
+      tauriVaultFs.createNote({ path: notes, contents: '', vault: '/vaults/a' }),
+    ).rejects.toThrow('already exists');
+  });
+
   it('surfaces a refused delete as an error, never as success', async () => {
     invoke.mockImplementation(() => Promise.reject('cannot move to the Trash: denied'));
     await expect(tauriVaultFs.trashEntry({ path: notes, vault: '/a' })).rejects.toThrow(

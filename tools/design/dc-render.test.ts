@@ -94,6 +94,20 @@ describe('renderBoard', () => {
     expect(missing).toEqual([]);
   });
 
+  it('reads no hole from the design tool hints on sc-if and sc-for', () => {
+    // The tool's placeholder hints are literal `{{true}}` / `{{false}}` and counts, not props.
+    const { document, missing } = render({
+      Main: board(
+        '<sc-if value="{{on}}" hint-placeholder-val="{{true}}"><b id="kept"></b></sc-if><sc-if value="{{off}}" hint-placeholder-val="{{false}}"><b id="dropped"></b></sc-if><sc-for list="{{rows}}" as="row" hint-placeholder-count="3"><i>{{row}}</i></sc-for>',
+        { logic: "renderVals() { return { on: true, off: false, rows: ['a'] }; }" },
+      ),
+    });
+    expect(document.getElementById('kept')).not.toBeNull();
+    expect(document.getElementById('dropped')).toBeNull();
+    expect(document.querySelectorAll('i')).toHaveLength(1);
+    expect(missing).toEqual([]);
+  });
+
   it('uses a prop default from data-props when nothing is passed', () => {
     const files = {
       Main: board('<p id="out">{{theme}}/{{mode}}</p>', {

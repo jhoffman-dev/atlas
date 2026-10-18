@@ -71,7 +71,9 @@ function vault(initial: Record<string, string>) {
     },
     createNote: async ({ path, contents }) => {
       if (files.has(path)) throw new Error('a note with that name already exists');
-      files.set(path, { text: contents, modified: (clock += 1) });
+      const modified = (clock += 1);
+      files.set(path, { text: contents, modified });
+      return modified;
     },
     trashEntry: async ({ path }) => {
       if (!files.delete(path)) throw new Error(`no such entry: ${path}`);

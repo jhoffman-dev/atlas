@@ -47,6 +47,7 @@ function memoryFs(files: Record<string, string>) {
     readTextFile: async (path) => ({ text: notes.get(path) ?? '', modified: 1 }),
     createNote: async ({ path, contents }) => {
       notes.set(path, contents);
+      return 0;
     },
     moveEntry: async ({ from, to }) => {
       const text = notes.get(from);

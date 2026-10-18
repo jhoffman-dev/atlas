@@ -14,6 +14,7 @@ function vault(template: (path: string) => string = (path) => `from ${path}`) {
     readTextFile: async (path) => ({ text: template(path), modified: 1 }),
     createNote: async ({ path, contents }) => {
       created.push({ path, contents });
+      return 0;
     },
   });
   return { fs, created };

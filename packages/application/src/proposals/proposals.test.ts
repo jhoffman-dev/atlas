@@ -175,6 +175,7 @@ describe('acceptProposalNote — refusals', () => {
           if (before !== undefined) {
             setup.fixture.files.set(PROPOSAL, { ...before, modified: before.modified + 1000 });
           }
+          return 0;
         },
       },
     };

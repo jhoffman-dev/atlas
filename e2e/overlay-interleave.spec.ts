@@ -194,3 +194,39 @@ for (const [palette, name, key, shift] of [
     expect(await vault.exists('Untitled 2.md')).toBe(false);
   });
 }
+
+// #266 attack: ⌘K's state moved into a store, read at the key press. Shortcuts
+// that change the window — split, sidebar, back — still act behind the palette.
+test('Shift+Cmd+\\ with the search palette open does not split the window behind it', async ({
+  page,
+}) => {
+  await openVault(page);
+  await page.getByRole('treeitem', { name: 'recipes' }).click();
+  await expect(page.getByRole('article', { name: 'recipes' })).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Search notes' });
+  await chord(page, 'k');
+  await expect(dialog).toBeVisible();
+
+  await chord(page, '\\', { shift: true });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  await expect(page.getByRole('region', { name: 'Pane 1' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Pane 2' })).toHaveCount(0);
+});
+
+test('Cmd+K opened again after a note was picked from it starts empty', async ({ page }) => {
+  await openVault(page);
+  const dialog = page.getByRole('dialog', { name: 'Search notes' });
+  await chord(page, 'k');
+  await page.getByLabel('Search the vault').fill('sourdough');
+  await page.getByRole('option', { name: /Recipes/ }).click();
+  await expect(page.getByRole('article', { name: 'recipes' })).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+
+  await chord(page, 'k');
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel('Search the vault')).toHaveValue('');
+  await expect(page.getByRole('option')).toHaveCount(0);
+});

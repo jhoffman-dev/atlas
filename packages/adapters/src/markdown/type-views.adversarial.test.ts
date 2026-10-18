@@ -37,6 +37,7 @@ function vaultWith(files: Record<string, string>) {
     createNote: async ({ path, contents }) => {
       if (files[path] !== undefined) throw new Error(`already exists: ${path}`);
       files[path] = contents;
+      return 0;
     },
   });
   const ports: TypeViewPorts = {

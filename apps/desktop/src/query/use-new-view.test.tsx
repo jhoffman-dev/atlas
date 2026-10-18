@@ -16,6 +16,7 @@ function dialog({ refuse = null }: { refuse?: string | null } = {}) {
   const fs = fakeVaultFs({
     createNote: async () => {
       if (refuse !== null) throw new Error(refuse);
+      return 0;
     },
   });
   const onCreated = vi.fn();

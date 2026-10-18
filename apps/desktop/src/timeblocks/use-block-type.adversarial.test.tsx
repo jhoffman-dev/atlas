@@ -45,7 +45,7 @@ describe('useBlockType, while the types are read again', () => {
           return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
         }),
       createNote: (args) =>
-        new Promise<void>((resolve, reject) => {
+        new Promise<number>((resolve, reject) => {
           writes.push(() => memory.fs.createNote(args).then(resolve, reject));
         }),
     });

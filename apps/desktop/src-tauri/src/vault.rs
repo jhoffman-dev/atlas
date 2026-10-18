@@ -256,21 +256,26 @@ pub(crate) fn resolve_new(root: &Path, relative: &str) -> Result<PathBuf, String
 /// finds the note empty while its text is still being written. The rename is
 /// exclusive, so an existing note is never overwritten and two creations
 /// racing cannot both win.
-fn create_note_at(root: &Path, relative: &str, contents: &str) -> Result<(), String> {
+///
+/// Reports the new note's modification time, as `write_text` does a save's: a
+/// rename keeps the time the temporary was given, so it is the note's own.
+fn create_note_at(root: &Path, relative: &str, contents: &str) -> Result<u64, String> {
     let _turn = change_turn();
     let file = resolve_new(root, relative)?;
     let temporary = temporary_beside(&file)?;
 
     // Nothing is replaced, so the time the clock gives is kept.
-    write_temporary(&temporary, contents.as_bytes(), 0)
+    let modified = write_temporary(&temporary, contents.as_bytes(), 0)
         .map_err(|error| format!("cannot write the note: {error}"))?;
-    rename_exclusive(&temporary, &file).map_err(|error| {
-        let _ = fs::remove_file(&temporary); // Best effort; the creation already failed.
-        match error.kind() {
-            ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
-            _ => format!("cannot create the note: {error}"),
-        }
-    })
+    rename_exclusive(&temporary, &file)
+        .map(|()| modified)
+        .map_err(|error| {
+            let _ = fs::remove_file(&temporary); // Best effort; the creation already failed.
+            match error.kind() {
+                ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
+                _ => format!("cannot create the note: {error}"),
+            }
+        })
 }
 
 /// The name a note's new text is written under before it is renamed into place.
@@ -337,13 +342,13 @@ pub async fn create_note(
     path: String,
     contents: String,
     vault: String,
-) -> Result<(), String> {
+) -> Result<u64, String> {
     off_main(move || {
-        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+        let modified = change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
             create_note_at(root, &path, &contents)
         })?;
         log::info!("created {path}");
-        Ok(())
+        Ok(modified)
     })
     .await
 }
@@ -1775,9 +1780,32 @@ mod batch_tests {
 
 #[cfg(test)]
 mod create_tests {
-    use super::{create_note_at, read_text};
+    use super::{create_note_at, read_text, write_text};
     use std::fs;
     use tempfile::tempdir;
+
+    /// #258: the time reported is the new note's own, as a read of it finds,
+    /// so the app can know the watcher's report of it as its own write.
+    #[test]
+    fn reports_the_time_the_new_note_was_left_at() {
+        let vault = tempdir().unwrap();
+        let modified = create_note_at(vault.path(), "Untitled.md", "# Untitled\n").unwrap();
+        assert_eq!(
+            read_text(vault.path(), "Untitled.md").unwrap().modified,
+            modified
+        );
+    }
+
+    /// The reported time is the version a first save is checked against, as a
+    /// save's own reported time is: one the note was not at is refused.
+    #[test]
+    fn a_save_checked_against_the_reported_time_lands() {
+        let vault = tempdir().unwrap();
+        let modified = create_note_at(vault.path(), "a.md", "first").unwrap();
+        assert!(write_text(vault.path(), "a.md", "second", Some(modified + 1)).is_err());
+        write_text(vault.path(), "a.md", "second", Some(modified)).unwrap();
+        assert_eq!(read_text(vault.path(), "a.md").unwrap().text, "second");
+    }
 
     #[test]
     fn creates_a_note_with_the_given_contents() {
@@ -2455,5 +2483,189 @@ mod version_tests {
             remembered.path()
         );
         assert_eq!(state.get(), Some(remembered.path().to_path_buf()));
+    }
+}
+
+/// Attacks on PR #264 (#258): the time `create_note` reports is the one the
+/// app records as its own new note's, so it must be the time on disk once the
+/// note is in place, every time, however many creates race.
+#[cfg(test)]
+mod attack_264_tests {
+    use super::{create_note_at, modified_ms, read_notes_at, write_text};
+    use crate::vault_entries::create_folder_at;
+    use std::fs;
+    use std::path::Path;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+    use tempfile::tempdir;
+
+    const CREATORS: usize = 8;
+    const ROUNDS: usize = 25;
+
+    fn on_disk(root: &Path, relative: &str) -> u64 {
+        modified_ms(&fs::metadata(root.join(relative)).unwrap()).unwrap()
+    }
+
+    fn read_back(root: &Path, relative: &str) -> (String, u64) {
+        let note = read_notes_at(root, &[relative.to_string()]).pop().unwrap();
+        (note.text, note.modified)
+    }
+
+    fn temporaries_in(folder: &Path) -> Vec<String> {
+        fs::read_dir(folder)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.ends_with(".atlas-tmp"))
+            .collect()
+    }
+
+    #[test]
+    fn the_reported_time_is_the_time_on_disk_for_200_creates_in_a_row() {
+        let vault = tempdir().unwrap();
+        for at in 0..200 {
+            let name = format!("Capture {at}.md");
+            let reported = create_note_at(vault.path(), &name, "# Capture\n").unwrap();
+            assert_eq!(reported, on_disk(vault.path(), &name), "create {at}");
+            assert_eq!(
+                read_back(vault.path(), &name).1,
+                reported,
+                "create {at}, read back"
+            );
+        }
+    }
+
+    #[test]
+    fn the_reported_time_is_the_time_on_disk_under_concurrent_creates() {
+        let vault = Arc::new(tempdir().unwrap());
+        fs::create_dir(vault.path().join("Inbox")).unwrap();
+        let start = Arc::new(Barrier::new(CREATORS));
+        let creators: Vec<_> = (0..CREATORS)
+            .map(|creator| {
+                let (vault, start) = (Arc::clone(&vault), Arc::clone(&start));
+                thread::spawn(move || {
+                    start.wait();
+                    (0..ROUNDS)
+                        .map(|round| {
+                            let name = format!("Inbox/{creator}-{round}.md");
+                            let made = create_note_at(vault.path(), &name, &name);
+                            (name, made.unwrap())
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let made: Vec<_> = creators
+            .into_iter()
+            .flat_map(|each| each.join().unwrap())
+            .collect();
+        for (name, reported) in made {
+            assert_eq!(
+                read_back(vault.path(), &name),
+                (name.clone(), reported),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn of_concurrent_creates_at_one_path_the_winner_reports_the_time_on_disk() {
+        for round in 0..ROUNDS {
+            let vault = Arc::new(tempdir().unwrap());
+            let start = Arc::new(Barrier::new(CREATORS));
+            let creators: Vec<_> = (0..CREATORS)
+                .map(|creator| {
+                    let (vault, start) = (Arc::clone(&vault), Arc::clone(&start));
+                    thread::spawn(move || {
+                        start.wait();
+                        let text = format!("creator {creator}");
+                        (
+                            text.clone(),
+                            create_note_at(vault.path(), "Block type.md", &text),
+                        )
+                    })
+                })
+                .collect();
+            let results: Vec<_> = creators
+                .into_iter()
+                .map(|each| each.join().unwrap())
+                .collect();
+            let winners: Vec<_> = results
+                .iter()
+                .filter_map(|(text, made)| made.as_ref().ok().map(|time| (text.clone(), *time)))
+                .collect();
+            assert_eq!(winners.len(), 1, "round {round}: {results:?}");
+            assert_eq!(
+                read_back(vault.path(), "Block type.md"),
+                winners[0],
+                "round {round}"
+            );
+            assert!(results.iter().all(|(_, made)| match made {
+                Ok(_) => true,
+                Err(error) => error.contains("already exists"),
+            }));
+            assert_eq!(
+                temporaries_in(vault.path()),
+                Vec::<String>::new(),
+                "round {round}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_refused_create_leaves_the_note_there_as_it_was_and_no_temporary() {
+        let vault = tempdir().unwrap();
+        let first = create_note_at(vault.path(), "Untitled.md", "theirs").unwrap();
+        let refused = create_note_at(vault.path(), "Untitled.md", "ours");
+        assert!(refused.unwrap_err().contains("already exists"));
+        assert_eq!(
+            read_back(vault.path(), "Untitled.md"),
+            ("theirs".to_string(), first)
+        );
+        assert_eq!(temporaries_in(vault.path()), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_create_into_a_folder_just_made_reports_the_time_on_disk() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("Projects")).unwrap();
+        for at in 0..50 {
+            let folder = format!("Projects/Area {at}");
+            create_folder_at(vault.path(), &folder).unwrap();
+            let name = format!("{folder}/Plan.md");
+            let reported = create_note_at(vault.path(), &name, "# Plan\n").unwrap();
+            assert_eq!(reported, on_disk(vault.path(), &name), "folder {at}");
+        }
+    }
+
+    #[test]
+    fn a_create_over_a_dead_saves_temporary_reports_the_time_on_disk() {
+        let vault = tempdir().unwrap();
+        fs::write(
+            vault.path().join(".Untitled.md.atlas-tmp"),
+            "left by a save that died",
+        )
+        .unwrap();
+        let reported = create_note_at(vault.path(), "Untitled.md", "# Untitled\n").unwrap();
+        assert_eq!(
+            read_back(vault.path(), "Untitled.md"),
+            ("# Untitled\n".to_string(), reported)
+        );
+        assert_eq!(temporaries_in(vault.path()), Vec::<String>::new());
+    }
+
+    /// A quick capture creates, then writes at once: two versions, and the
+    /// second must be timed other than the first or its echo and its version
+    /// check cannot tell them apart.
+    #[test]
+    fn a_save_straight_after_a_create_leaves_another_time_200_times() {
+        let vault = tempdir().unwrap();
+        for at in 0..200 {
+            let name = format!("Capture {at}.md");
+            let created = create_note_at(vault.path(), &name, "# Capture\n").unwrap();
+            let saved = write_text(vault.path(), &name, "# Capture\n\nMore.\n", Some(created));
+            let saved = saved.unwrap();
+            assert_ne!(saved, created, "capture {at}");
+            assert_eq!(saved, on_disk(vault.path(), &name), "capture {at}");
+        }
     }
 }

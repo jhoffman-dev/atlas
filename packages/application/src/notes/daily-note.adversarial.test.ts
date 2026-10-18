@@ -21,6 +21,7 @@ describe("today's note already in the vault under another spelling", () => {
       ],
       createNote: async ({ path }) => {
         created.push(path);
+        return 0;
       },
     });
 

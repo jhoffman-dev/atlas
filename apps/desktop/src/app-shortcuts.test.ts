@@ -5,6 +5,11 @@ import { useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
 import type { Overlay } from './overlay.ts';
 
 function listen(overlay: Overlay | null = null): AppShortcuts {
+  return listenTo(() => overlay);
+}
+
+/** The shortcuts, reading what is up from `overlay` at each key press. */
+function listenTo(overlay: () => Overlay | null): AppShortcuts {
   const shortcuts: AppShortcuts = {
     overlay,
     save: vi.fn(),
@@ -62,6 +67,15 @@ describe('a shortcut that makes a note, pressed behind an open palette (A14-08)'
     expect(shortcuts.quickAdd).not.toHaveBeenCalled();
   });
 
+  it('does nothing behind a palette opened since the window last drew (#261)', () => {
+    let up: Overlay | null = null;
+    const shortcuts = listenTo(() => up);
+    // ⌘K opens from the store; the window is not drawn again to hand it over.
+    up = 'search';
+    chord({ key: 'n', code: 'KeyN' });
+    expect(shortcuts.newNote).not.toHaveBeenCalled();
+  });
+
   it('still acts with only a menu up, which gives way to it (control)', () => {
     const shortcuts = listen('new-note-menu');
     chord({ key: 'n', code: 'KeyN' });
@@ -91,5 +105,42 @@ describe('Cmd+J, Claude', () => {
     cmd({ key: 'J', shiftKey: true });
     cmd({ key: 'j', altKey: true });
     expect(free.toggleChat).not.toHaveBeenCalled();
+  });
+});
+
+describe('the shortcuts that change the window, behind a dialog (#266)', () => {
+  const chord = (init: KeyboardEventInit) =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, ...init }));
+  const mouseButton = (button: number) =>
+    window.dispatchEvent(new MouseEvent('mouseup', { button }));
+
+  /** Every window-changing key, and the mouse's back and forward buttons. */
+  function pressAll(): void {
+    chord({ key: '[' });
+    chord({ key: ']' });
+    chord({ key: '\\' });
+    chord({ key: '|', shiftKey: true });
+    mouseButton(3);
+    mouseButton(4);
+  }
+
+  it.each(['search', 'capture', 'settings'] as const)('do nothing while %s is up', (overlay) => {
+    const shortcuts = listen(overlay);
+    pressAll();
+    expect(shortcuts.back).not.toHaveBeenCalled();
+    expect(shortcuts.forward).not.toHaveBeenCalled();
+    expect(shortcuts.toggleSidebar).not.toHaveBeenCalled();
+    expect(shortcuts.toggleSplit).not.toHaveBeenCalled();
+  });
+
+  it('act with nothing up, or only a menu (control)', () => {
+    for (const overlay of [null, 'new-note-menu'] as const) {
+      const shortcuts = listen(overlay);
+      pressAll();
+      expect(shortcuts.back).toHaveBeenCalledTimes(2);
+      expect(shortcuts.forward).toHaveBeenCalledTimes(2);
+      expect(shortcuts.toggleSidebar).toHaveBeenCalledTimes(1);
+      expect(shortcuts.toggleSplit).toHaveBeenCalledTimes(1);
+    }
   });
 });

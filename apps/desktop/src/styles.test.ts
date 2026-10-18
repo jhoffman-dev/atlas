@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { STATUS_TONES } from '@atlas/domain';
 import { describe, expect, it } from 'vitest';
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
@@ -38,8 +39,12 @@ const declared = new Set(
   [...withoutComments.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((match) => match[1] ?? ''),
 );
 
-/** Every `var(--name)` it reads, with the fallback (if any) alongside. */
-const used = [...css.matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,)?/g)].map((match) => ({
+/**
+ * Every `var(--name)` the app's sheet and the gallery's read, with the
+ * fallback (if any) alongside. The gallery's sheet is loaded beside the
+ * app's, so it reads the same tokens and is held to the same declarations.
+ */
+const used = [...(css + galleryCss).matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,)?/g)].map((match) => ({
   name: match[1] ?? '',
   hasFallback: match[2] === ',',
 }));
@@ -75,6 +80,28 @@ function rawColourOffenders(source: string): string[] {
       ),
   );
 }
+
+/** The tokens declared by the palette blocks whose selector `chosen` picks out. */
+function declaredBy(chosen: (selector: string) => boolean): ReadonlySet<string> {
+  return new Set(
+    rules
+      .filter(({ selector }) => isTokenBlock(selector) && chosen(selector))
+      .flatMap(({ body }) => [...body.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1] ?? '')),
+  );
+}
+
+/**
+ * The three palettes: light, the dark the app chose, and the dark the system
+ * asked for. The alias block names light and dark together, so it is none of
+ * these — an alias is one line that serves every theme.
+ */
+const PALETTES = {
+  light: declaredBy((s) => s.includes("[data-theme='light']") && !s.includes('dark')),
+  dark: declaredBy((s) => s === "[data-theme='dark']"),
+  'system dark': declaredBy((s) => s.includes(":not([data-theme='light'])")),
+};
+
+const BUTTON_KINDS = ['primary', 'positive', 'destructive', 'secondary', 'ghost'] as const;
 
 describe('the stylesheet', () => {
   /**
@@ -171,4 +198,53 @@ describe('the stylesheet', () => {
 
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * A palette token with a light value and no dark one keeps its light value
+   * on a dark surface — pale text on a pale tint — and nobody notices until
+   * the theme is switched. So the three palettes declare the same tokens,
+   * and each is checked to hold something, or an empty set would pass.
+   */
+  it('declares every palette token in light, dark and the system dark', () => {
+    for (const [palette, tokens] of Object.entries(PALETTES)) {
+      expect(tokens.has('--ink'), `${palette} declares --ink`).toBe(true);
+    }
+    const union = new Set(Object.values(PALETTES).flatMap((tokens) => [...tokens]));
+    const gaps = Object.entries(PALETTES).flatMap(([palette, tokens]) =>
+      [...union].filter((token) => !tokens.has(token)).map((token) => `${palette} lacks ${token}`),
+    );
+    expect(gaps).toEqual([]);
+  });
+
+  /**
+   * Every tone a status can take is drawn three ways — its dot, its pill's
+   * text and its pill's tint — and the list is the domain's, so a tone added
+   * there without its colours fails here rather than drawing in nothing.
+   */
+  it.each(STATUS_TONES)('gives the %s tone a dot, an ink and a tint in every palette', (tone) => {
+    const missing = Object.entries(PALETTES).flatMap(([palette, tokens]) =>
+      ['dot', 'ink', 'tint']
+        .map((part) => `--status-${tone}-${part}`)
+        .filter((token) => !tokens.has(token))
+        .map((token) => `${palette} lacks ${token}`),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it.each(STATUS_TONES)('draws the %s tone somewhere', (tone) => {
+    expect(rules.some(({ selector }) => selector.includes(`[data-tone='${tone}']`))).toBe(true);
+  });
+
+  it.each(BUTTON_KINDS)(
+    'gives the %s button a fill, an ink and a line in every palette',
+    (kind) => {
+      const missing = Object.entries(PALETTES).flatMap(([palette, tokens]) =>
+        ['bg', 'ink', 'line']
+          .map((part) => `--btn-${kind}-${part}`)
+          .filter((token) => !tokens.has(token))
+          .map((token) => `${palette} lacks ${token}`),
+      );
+      expect(missing).toEqual([]);
+    },
+  );
 });

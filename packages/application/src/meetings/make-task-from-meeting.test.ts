@@ -307,6 +307,7 @@ describe('makeTaskFromMeeting — when a write fails', () => {
           if (before !== undefined) {
             setup.fixture.files.set(MEETING, { ...before, modified: before.modified + 1000 });
           }
+          return 0;
         },
       },
     };
