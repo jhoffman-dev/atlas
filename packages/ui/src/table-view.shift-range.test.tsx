@@ -18,6 +18,7 @@ import {
 } from '@atlas/domain';
 import type { RowSelection } from './row-selection.tsx';
 import { TableView, type TableResult, type TableViewProps } from './table-view.tsx';
+import { tableRowsMeasured } from './testing/table-rows-measured.ts';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';
 
 // Before React loads, so every commit is handed to the counter.
@@ -82,6 +83,8 @@ async function shiftClick(element: HTMLElement): Promise<void> {
 }
 
 describe('TableView — Shift-click on a row’s box', () => {
+  tableRowsMeasured();
+
   it('toggles the one row on a plain click, with no range', async () => {
     const selection = recording();
     render(<TableView {...props(read(420), { selection })} />);

@@ -15,6 +15,7 @@ import {
   type RowGroup,
 } from '@atlas/domain';
 import { TableView, type TableGrouping, type TableResult } from '@atlas/ui';
+import { tableRowsMeasured } from '@atlas/ui/testing';
 import { useRowSelection } from './use-row-selection.ts';
 
 const TASK = parseObjectType({
@@ -99,6 +100,7 @@ async function clickWith(key: string, element: HTMLElement): Promise<void> {
 const shiftClick = (element: HTMLElement) => clickWith('Shift', element);
 
 describe('where a Shift-click run starts once the choice is let go of', () => {
+  tableRowsMeasured();
   it('chooses its own row alone after the choice was cleared', async () => {
     render(<Choosing result={read(12)} />);
     await userEvent.click(box('Task 2'));
@@ -144,6 +146,7 @@ describe('where a Shift-click run starts once the choice is let go of', () => {
 });
 
 describe('a Shift-click run, as the table is drawn', () => {
+  tableRowsMeasured();
   it('runs either way round, from the row last clicked', async () => {
     render(<Choosing result={read(12)} />);
     await userEvent.click(box('Task 8'));
@@ -200,6 +203,7 @@ describe('a Shift-click run, as the table is drawn', () => {
 });
 
 describe('a Shift-click among other keys', () => {
+  tableRowsMeasured();
   it('toggles one row on a ⌘-click, without a run', async () => {
     render(<Choosing result={read(12)} />);
     await userEvent.click(box('Task 1'));

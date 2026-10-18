@@ -82,7 +82,7 @@
 
 .table__choose {
   text-align: center;
-  width: 36px;
+  width: 28px;
 }
 
 .select-box {
@@ -149,10 +149,11 @@
   outline: none;
 }
 
-/* The box column is only as wide as its box, whatever the table's columns do. */
+/* The box column is only as wide as its box, whatever the table's columns do:
+   28px in all, as Table.dc.html's select mode draws it. */
 .table__grid th.table__choose,
 .table__grid td.table__choose {
   min-width: 0;
-  padding-left: 10px;
-  width: 36px;
+  padding-left: 8px;
+  width: 28px;
 }

@@ -275,7 +275,6 @@ function TabItem({
           onClick={onOpen}
           onKeyDown={onKeyDown}
         >
-          <Icon name={sidebarGlyph(tab.icon)} size={15} />
           {tab.title}
         </button>
       )}

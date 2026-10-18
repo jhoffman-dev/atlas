@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { PropertyKind } from '@atlas/domain';
 import { TableView, type TableResult, type TableViewProps } from './table-view.tsx';
+import { ROW_ESTIMATE } from './grouped-rows.tsx';
 import { scrollableSheet } from './testing/scrollable-sheet.ts';
 
 afterEach(cleanup);
@@ -249,7 +250,7 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     expect(document.activeElement).toBe(first);
 
     // The reader now scrolls to the bottom by hand, with the focus left on row 0.
-    scrollSheet(sheet, 300 * 44);
+    scrollSheet(sheet, 300 * ROW_ESTIMATE);
 
     expect(document.querySelector('tr[data-index="299"]')).not.toBeNull();
     // Home was the last key: the focus must not jump to row 299 by itself.
@@ -272,7 +273,8 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     expect(document.activeElement).toBe(input);
 
     // Any redraw that brings that row in — a little scroll — must leave the edit alone.
-    scrollSheet(sheet, 400);
+    // A few rows: enough to draw the next line, not so far that the edited row leaves the page.
+    scrollSheet(sheet, 4 * ROW_ESTIMATE);
     expect(document.querySelector(`tr[data-index="${edge + 1}"]`)).not.toBeNull();
     expect(document.activeElement).toBe(input);
   });
@@ -288,7 +290,7 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     last.blur();
     expect(document.activeElement).toBe(document.body);
 
-    scrollSheet(sheetOf(), 300 * 44);
+    scrollSheet(sheetOf(), 300 * ROW_ESTIMATE);
     expect(document.querySelector('tr[data-index="299"]')).not.toBeNull();
     expect(document.activeElement).toBe(document.body);
   });
@@ -297,7 +299,7 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     const model = startModel(300);
     const view = render(<TableView {...propsOf(model)} />);
     const sheet = sheetOf();
-    scrollSheet(sheet, 250 * 44);
+    scrollSheet(sheet, 250 * ROW_ESTIMATE);
     expect(document.querySelector('tr[data-index="0"]')).toBeNull();
     (model.rows[0] as unknown[])[col(model, 'title')] = 'Row zero, renamed';
     view.rerender(<TableView {...propsOf(model)} />);
@@ -310,7 +312,7 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     const view = render(<TableView {...propsOf(model)} />);
     model.selected = model.rows.map((row) => String(row[0]));
     view.rerender(<TableView {...propsOf(model)} />);
-    scrollSheet(sheetOf(), 280 * 44);
+    scrollSheet(sheetOf(), 280 * ROW_ESTIMATE);
     const box = screen.getByRole('checkbox', { name: 'Select Row 290' }) as HTMLInputElement;
     expect(box.checked).toBe(true);
   });
@@ -322,7 +324,7 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     fireEvent.click(screen.getAllByRole('button', { name: '2026-03-01' })[0] as HTMLElement);
     const input = document.querySelector('.table__input') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '2026-04-01' } });
-    scrollSheet(sheetOf(), 250 * 44);
+    scrollSheet(sheetOf(), 250 * ROW_ESTIMATE);
     expect(document.querySelector('tr[data-index="0"]')).toBeNull();
     expect(edits).toEqual([{ path: 'r0.md', column: 'due', value: '2026-04-01' }]);
   });

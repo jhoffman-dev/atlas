@@ -17,6 +17,7 @@ import {
   type RowGroup,
 } from '@atlas/domain';
 import { TableView, type TableResult } from './table-view.tsx';
+import { ROW_ESTIMATE } from './grouped-rows.tsx';
 import { scrollableSheet } from './testing/scrollable-sheet.ts';
 
 afterEach(cleanup);
@@ -114,8 +115,8 @@ describe('#252 attack — a move waiting for its line while the lines change', (
    * re-aimed at the new last line would scroll next.
    */
   const landScroll = (asked: number) => {
-    scrollSheet(sheetOf(), asked * 44 - 400);
-    scrollSheet(sheetOf(), 400 * 44);
+    scrollSheet(sheetOf(), asked * ROW_ESTIMATE - 400);
+    scrollSheet(sheetOf(), 400 * ROW_ESTIMATE);
   };
 
   it('End, then the folded group above it unfolded from the keyboard, still ends on the last row', () => {
@@ -143,7 +144,7 @@ describe('#252 attack — a move waiting for its line while the lines change', (
     fireEvent.click(headerAt(0));
 
     // The scroll lands where End asked, around line 151.
-    scrollSheet(sheetOf(), 151 * 44 - 400);
+    scrollSheet(sheetOf(), 151 * ROW_ESTIMATE - 400);
     // Unfolded, line 151 is Doing's header: the move takes the focus there,
     // a line End never names.
     expect(focused()).not.toMatch(/^doing/i);
@@ -232,7 +233,7 @@ describe('#252 attack — probes of what held', () => {
     render(<Grouped result={result} folded={[groupsOf(result)[1]?.id ?? '']} />);
     headerAt(0).focus();
     fireEvent.keyDown(headerAt(0), { key: 'End' });
-    scrollSheet(sheetOf(), 400 * 44);
+    scrollSheet(sheetOf(), 400 * ROW_ESTIMATE);
     expect(focused()).toMatch(/^doing/i);
   });
 
@@ -325,7 +326,7 @@ describe('#252 attack — the flat table shares the hook (behaviour since #244)'
     // Ten notes are deleted before the scroll lands: row 299 is gone.
     view.rerender(table(flat(290)));
 
-    scrollSheet(sheetOf(), 400 * 44);
+    scrollSheet(sheetOf(), 400 * ROW_ESTIMATE);
     expect(screen.getByRole('button', { name: 'Row 289' })).toBeDefined();
     expect(focused()).not.toBe('<body>');
   });

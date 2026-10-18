@@ -4,9 +4,10 @@ import type { OverlaySlot } from './overlay-slot.ts';
 import { ToolbarPopover } from './view-query-popovers.tsx';
 
 /**
- * What the toolbar offers while the view on screen differs from the view note:
- * keep the changes in this view, keep them in a new one, or drop them. Shown
- * only then, so its appearing is itself the sign that something is unsaved.
+ * The notice bar under the nav bar while the view on screen differs from the
+ * view note: keep the changes in this view, keep them in a new one, or drop
+ * them. Shown only then, so its appearing is itself the sign that something
+ * is unsaved.
  */
 export function ViewSaveControls({
   suggestedName,
@@ -27,11 +28,12 @@ export function ViewSaveControls({
 }) {
   return (
     <div className="view-save" role="group" aria-label="Unsaved view changes">
-      <button type="button" className="view-save__reset" onClick={onReset}>
+      <span className="view-save__text">This view has unsaved changes.</span>
+      <button type="button" className="btn btn--ghost view-save__reset" onClick={onReset}>
         Reset
       </button>
       <SaveAsNew suggestedName={suggestedName} error={error} onSaveAs={onSaveAs} slot={slot} />
-      <button type="button" className="view-save__save" onClick={onSave}>
+      <button type="button" className="btn btn--primary view-save__save" onClick={onSave}>
         Save view
       </button>
     </div>
