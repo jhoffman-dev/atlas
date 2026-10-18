@@ -53,8 +53,17 @@ function today() {
   const answer = (sql: string): QueryResult => {
     if (sql.startsWith(REVIEW_TASKS_QUERY_MARK)) {
       return {
-        columns: ['path', 'title', 'modified', 'status', 'due', 'defer'],
-        rows: [...indexed].map(([at, status]) => [at, at.slice(6, -3), NOW, status, null, null]),
+        // As the index answers the page's statement: how each task repeats, too (none here).
+        columns: ['path', 'title', 'modified', 'status', 'due', 'defer', 'recurrence'],
+        rows: [...indexed].map(([at, status]) => [
+          at,
+          at.slice(6, -3),
+          NOW,
+          status,
+          null,
+          null,
+          null,
+        ]),
         truncated: false,
       };
     }
@@ -207,6 +216,31 @@ describe('useToday — an action shows at once (#260)', () => {
     page.refresh('ready:2');
 
     await waitFor(() => expect(page.titlesIn('inProgress')).toEqual(['Ship the page']));
+  });
+
+  it('keeps a moved task the same object through a same-key re-read, so its row is not drawn again', async () => {
+    const page = today();
+    await READY(page);
+    await act(async () =>
+      page.hook.result.current.page.onSetStatus({
+        path: CALL,
+        title: 'Call the bank',
+        status: 'in-progress',
+      }),
+    );
+    await waitFor(() => expect(page.files.get(CALL)).toContain('status: in-progress'));
+    const movedOf = () =>
+      page.hook.result.current.page.today?.sections
+        .flatMap((section) => section.groups)
+        .flatMap((group) => group.tasks)
+        .find((task) => task.path === CALL);
+    const before = movedOf();
+    expect(before?.status).toBe('in-progress');
+
+    const readBefore = page.hook.result.current.page.today;
+    page.readAgain();
+    await waitFor(() => expect(page.hook.result.current.page.today).not.toBe(readBefore));
+    expect(movedOf()).toBe(before);
   });
 
   it('puts the row back, saying why, when its write fails', async () => {

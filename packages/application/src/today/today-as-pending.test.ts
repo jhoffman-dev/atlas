@@ -27,6 +27,7 @@ function task(title: string, fields: Partial<ReviewTask>): ReviewTask {
     status: 'next-action',
     due: null,
     defer: null,
+    recurrence: null,
     waitingOn: '',
     contexts: [],
     project: null,
@@ -185,8 +186,46 @@ describe('todayAsPending', () => {
       report: report(),
       pending: pending(['Send the figures', rule]),
     });
-    expect(seen).toEqual([{ status: 'next-action', due: TODAY, defer: null }]);
+    expect(seen).toEqual([{ status: 'next-action', due: TODAY, defer: null, recurrence: null }]);
     // Someday promises no day, so a task due today that is put to Someday leaves the page.
     expect(titlesIn(shown, 'dueToday')).toEqual([]);
   });
 });
+
+describe('todayAsPending — repeating work (#260, PR #274)', () => {
+  it('draws a repeating task ticked done where its roll puts it: back in play, due next time', () => {
+    const daily = task('Water the plants', {
+      status: 'in-progress',
+      due: '2026-10-10',
+      recurrence: 'daily',
+    });
+    const read = reportOf([daily]);
+    const shown = todayAsPending({
+      report: read,
+      pending: pending(['Water the plants', archiveTaskChange()]),
+    });
+    const drawn = tasksOf(shown).find((each) => each.path === daily.path);
+    expect(drawn).toMatchObject({ status: 'next-action', due: '2026-10-11' });
+    expect(titlesIn(shown, 'overdue')).toEqual(['Water the plants']);
+  });
+
+  it('leaves a task as read when the row did not say whether it repeats', () => {
+    const unread: ReviewTask = { ...task('Water the plants', { status: 'in-progress' }) };
+    delete (unread as { recurrence?: string | null }).recurrence;
+    const read = reportOf([unread]);
+    const shown = todayAsPending({
+      report: read,
+      pending: pending(['Water the plants', archiveTaskChange()]),
+    });
+    expect(titlesIn(shown, 'inProgress')).toEqual(['Water the plants']);
+  });
+});
+
+function reportOf(tasks: readonly ReviewTask[]): TodayReport {
+  return {
+    ...todayLists({ tasks, projects: [], at: { today: TODAY, now: NOW } }),
+    today: TODAY,
+    inbox: { count: 0, toFile: 0, toAnswer: 0, more: false },
+    truncated: false,
+  };
+}

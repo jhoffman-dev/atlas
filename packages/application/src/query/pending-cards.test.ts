@@ -154,6 +154,17 @@ describe('rowsAsPending', () => {
     expect(rowsAsPending({ rows: ROWS, pending, read })[0]?.values['status']).toBe('done');
   });
 
+  it('lays a second move over the first: what the first alone changed is still drawn', () => {
+    const pending: PendingCard[] = [
+      { path: 'One.md', values: { status: 'backlog', due: '2026-01-12' }, landed: null },
+      { path: 'One.md', values: { status: 'doing' }, landed: null },
+    ];
+    expect(rowsAsPending({ rows: ROWS, pending, read })[0]?.values).toMatchObject({
+      status: 'doing',
+      due: '2026-01-12',
+    });
+  });
+
   it('is the rows themselves when the card being written is not among them', () => {
     const pending: PendingCard[] = [{ path: 'Gone.md', values: { status: 'done' }, landed: null }];
     expect(rowsAsPending({ rows: ROWS, pending, read })).toBe(ROWS);

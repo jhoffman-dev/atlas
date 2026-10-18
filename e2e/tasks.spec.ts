@@ -229,7 +229,7 @@ test('a repeating task dropped on done is drawn back in play at once, not on don
   await expect(cardIn(page, 'backlog', 'water the plants.md')).toBeVisible();
 });
 
-test('a card whose write fails is not left in the column it was dropped in, and the board says why (#260)', async ({
+test('a card whose write fails goes back to its column on the board, and the board says why (#260)', async ({
   page,
 }) => {
   const { vault, host } = await openTaskVaultOn(page);
@@ -244,6 +244,8 @@ test('a card whose write fails is not left in the column it was dropped in, and 
   release({ fail: 'The disk is full.' });
 
   await expect(page.getByText(/The disk is full/)).toBeVisible();
+  // The board stays drawn, with the card back in the column it was moved from.
+  await expect(cardIn(page, 'doing', 'one off.md')).toBeVisible();
   await expect(cardIn(page, 'done', 'one off.md')).toHaveCount(0);
   expect(await vault.read('one off.md')).toContain('status: doing');
 });

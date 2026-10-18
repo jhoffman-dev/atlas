@@ -256,7 +256,9 @@ describe('useSavedView — a card moved on a board shows at once (#260)', () => 
     expect(page.cardsIn('done')).toEqual([ONE_OFF]);
 
     release();
-    await waitFor(() => expect(page.view.result.current.error).toMatch(/disk is full/));
+    await waitFor(() => expect(page.view.result.current.board.failure).toMatch(/disk is full/));
+    // Said on the board, which stays drawn: not the view's error, which a run of it clears.
+    expect(page.view.result.current.error).toBeNull();
     expect(page.cardsIn('doing')).toEqual([ONE_OFF, WATER]);
     expect(page.cardsIn('done')).toEqual([]);
   });
