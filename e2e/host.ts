@@ -980,6 +980,10 @@ export async function installHost(
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
         }
+        // What a write changed of the graph and the tags (#259): the notes' own rows, run for real.
+        if (statement.startsWith('/* index facets */')) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
         // The weekly review (P30-07): tasks and projects, over files, props and relations, run for real.
         if (statement.startsWith('/* weekly review:')) {
           return runAtlasQuery(statement, bound, indexed.values());

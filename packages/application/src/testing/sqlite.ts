@@ -6,3 +6,4 @@
  */
 export { atlasQueryIndex } from './query-index.ts';
 export { automationVault } from './automation-vault.ts';
+export { sqliteIndexPort } from './sqlite-index.ts';
