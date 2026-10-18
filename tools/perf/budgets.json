@@ -77,7 +77,6 @@
     },
     "Tick a task on Today": {
       "commits": 37,
-      "commitsFromCi": true,
       "renders": 3754,
       "calls": {
         "index_manifest": 4,
@@ -94,7 +93,8 @@
       },
       "rows": {
         "TaskRow": 1
-      }
+      },
+      "commitsFromCi": true
     },
     "Open the Inbox": {
       "commits": 12,
