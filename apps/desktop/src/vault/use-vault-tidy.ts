@@ -62,6 +62,7 @@ export function useVaultTidy({
 
   useEffect(() => {
     if (!indexReady || vaultKey === null || dismissed) return;
+    // Read ahead once per vault, not again on the index's news: by design, a note dropped in while the Inbox is shut lands as it opens, held still like any late arrival (#130).
     if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
     // Read ahead from the index's list of notes: walking the vault then would be

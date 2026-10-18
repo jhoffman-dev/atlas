@@ -17,7 +17,16 @@ import {
 import { remarkMarkdown } from '@atlas/adapters';
 import { useVaultTidy } from './use-vault-tidy.ts';
 
-function setup({ files, open = true }: { files: Record<string, string>; open?: boolean }) {
+function setup({
+  files,
+  open = true,
+  indexed = true,
+}: {
+  files: Record<string, string>;
+  open?: boolean;
+  /** Whether the index lists the vault's notes; false, it lists none. */
+  indexed?: boolean;
+}) {
   const memory = memoryVault(files);
   let walked = 0;
   let release: () => void = () => {};
@@ -44,7 +53,7 @@ function setup({ files, open = true }: { files: Record<string, string>; open?: b
   // The index lists what the walk would: read ahead, the tidy asks it instead of walking.
   const index = fakeIndexPort({
     manifest: async () =>
-      [...memory.files.entries()].map(([path, text]) => ({
+      [...(indexed ? memory.files.entries() : [])].map(([path, text]) => ({
         path,
         modified: 0,
         size: text.length,
@@ -69,6 +78,22 @@ function setup({ files, open = true }: { files: Record<string, string>; open?: b
 }
 
 describe('useVaultTidy — while its preview is read (#130)', () => {
+  it('leaves an index that lists nothing for the walk as the Inbox opens, still reading till then', async () => {
+    const { hook, release, walks } = setup({
+      files: { 'Loose idea.md': 'A thought.\n' },
+      open: false,
+      indexed: false,
+    });
+    await act(async () => release());
+    await act(async () => {});
+    hook.rerender({ open: true });
+    // Read ahead from nothing, it would say there is nothing to tidy: it says it is still reading.
+    expect(hook.result.current?.reading).toBe(true);
+    expect(hook.result.current?.preview).toBeNull();
+    await waitFor(() => expect(hook.result.current?.preview?.moves).toHaveLength(1));
+    expect(walks()).toBe(1);
+  });
+
   it('says it is still reading until the preview is back, then offers the move', async () => {
     const { hook, release } = setup({ files: { 'Loose idea.md': 'A thought.\n' } });
     expect(hook.result.current?.reading).toBe(true);
