@@ -550,12 +550,33 @@ test('the copy of a board card being dragged stands out from the cards at rest',
   await PAGES['board']!(page);
   const card = page.locator(`[data-path="Tasks/${title('backlog')}.md"]`).first();
   const at = (await card.boundingBox())!;
-  await page.mouse.move(at.x + 20, at.y + 10);
+  // From the card's middle: its done box, at the top left, swallows a press.
+  const grab = { x: at.x + at.width / 2, y: at.y + at.height / 2 };
+  await page.mouse.move(grab.x, grab.y);
   await page.mouse.down();
-  await page.mouse.move(at.x + 30, at.y + 20, { steps: 3 });
-  await page.mouse.move(at.x + 200, at.y + 120, { steps: 8 });
+  await page.mouse.move(grab.x + 10, grab.y + 10, { steps: 3 });
+  await page.mouse.move(grab.x + 200, grab.y + 120, { steps: 8 });
   const lifted = page.locator('.board__card--lifted');
   await expect(lifted).toBeVisible();
+  // The column under the pointer is lit by a ring, not a fill: the text in
+  // it keeps the contrast it has at rest, and the ring itself clears 3:1.
+  const target = await page.locator('.board__column--over').evaluate((element) => {
+    const { over, ratio, groundOf, indicatorColours } = (
+      globalThis as unknown as { attackContrast: Contrast }
+    ).attackContrast;
+    const rest = document.querySelector('.board__column:not(.board__column--over)');
+    const ground = groundOf(element)!;
+    return {
+      fill: getComputedStyle(element).backgroundColor,
+      restFill: rest === null ? null : getComputedStyle(rest).backgroundColor,
+      ring: Math.max(
+        1,
+        ...indicatorColours(element).map((colour) => ratio(over(colour, ground), ground)),
+      ),
+    };
+  });
+  expect(target.fill).toBe(target.restFill);
+  expect(target.ring, `drop target ring ${target.ring.toFixed(2)}`).toBeGreaterThanOrEqual(3);
   // How strongly each one's edge (its ring, or a shadow) stands off the
   // board behind it.
   const edge = (selector: string) =>

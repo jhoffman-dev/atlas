@@ -1,14 +1,6 @@
 import { Fragment, memo, useState, type ReactNode } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import {
-  cardChips,
-  cardFields,
-  optionLabel,
-  plainText,
-  type BoardRow,
-  type NoteNames,
-  type PropertyKind,
-} from '@atlas/domain';
+import { cardMeta, plainText, type BoardRow, type PropertyKind } from '@atlas/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import { ChecklistProgress } from './checklist-progress.tsx';
@@ -161,22 +153,22 @@ function CardFace({
   );
 }
 
-/** One value on the metadata line, and whether it names notes that are not there. */
-interface MetaItem {
-  readonly key: string;
-  readonly text: string;
-  readonly missing: boolean;
-}
-
 /**
  * A card's fields as one line of words joined by `·` — "Phase 14 · From you ·
- * 3h" — with no chip and no icon per value (brief rule 4). A choice is written
- * as its label; empty values are left off; a line with nothing on it is not
- * drawn. The separators are decoration: a screen reader hears the values alone.
+ * 3h" — with no chip and no icon per value (brief rule 4); `cardMeta` decides
+ * the words. A line with nothing on it is not drawn. Only the dot is hidden
+ * from a screen reader, so the spaces round it keep neighbouring values apart.
  */
 function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
   const names = useNoteNames();
-  const items = metaItems({ row, look, names });
+  const items = cardMeta({
+    fields: look.fields,
+    groupBy: look.groupBy,
+    ...(look.laneBy !== undefined && { laneBy: look.laneBy }),
+    kinds: look.kinds,
+    values: row.values,
+    names,
+  });
   if (items.length === 0) return null;
 
   return (
@@ -184,9 +176,12 @@ function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
       {items.map((item, at) => (
         <Fragment key={item.key}>
           {at > 0 && (
-            <span className="board__meta-sep" aria-hidden="true">
-              {' · '}
-            </span>
+            <>
+              {' '}
+              <span className="board__meta-sep" aria-hidden="true">
+                ·
+              </span>{' '}
+            </>
           )}
           <span className="board__meta-item" data-missing={item.missing}>
             {item.text}
@@ -195,39 +190,6 @@ function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
       ))}
     </p>
   );
-}
-
-/** The line's values in the view's order, each field written once however often it is listed. */
-function metaItems({
-  row,
-  look,
-  names,
-}: {
-  row: BoardRow;
-  look: CardLook;
-  names: NoteNames;
-}): MetaItem[] {
-  const { pills, chips } = cardFields(look);
-  const byKey = new Map<string, MetaItem>();
-  for (const field of pills) {
-    const text = choiceLabel(row.values[field]);
-    if (text !== '') byKey.set(field, { key: field, text, missing: false });
-  }
-  for (const chip of cardChips({ fields: chips, values: row.values, kinds: look.kinds, names })) {
-    byKey.set(chip.key, { key: chip.key, text: chip.text, missing: chip.missing === true });
-  }
-  return look.fields.flatMap((field) => {
-    const item = byKey.get(field);
-    if (item === undefined) return [];
-    byKey.delete(field);
-    return [item];
-  });
-}
-
-/** A choice as it is written: its label — or nothing, for a value that is not a choice. */
-function choiceLabel(value: unknown): string {
-  if (typeof value === 'number') return String(value);
-  return typeof value === 'string' ? optionLabel(value) : '';
 }
 
 /**
