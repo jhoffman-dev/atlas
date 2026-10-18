@@ -128,7 +128,7 @@ describe('a grouped table', () => {
   it('reads a status group’s name once: the dot is decoration beside the label', () => {
     render(<Grouped />);
     const header = screen.getByRole('button', { name: /^Doing/ });
-    expect(header.querySelector('[aria-hidden="true"] .status-pill--dot')).not.toBeNull();
+    expect(header.querySelector('.status-pill--dot[aria-hidden="true"]')).not.toBeNull();
     expect(header.textContent).toBe('Doing2');
   });
 

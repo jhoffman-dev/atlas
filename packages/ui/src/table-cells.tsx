@@ -163,7 +163,7 @@ function CellFor({
   if (onCommit === undefined) {
     const text = value === null || value === undefined ? '' : String(value);
     return (
-      <span className="table__cell" title={fullValue(text, look)}>
+      <span className="table__cell" title={fullValue(text)}>
         <CellFace text={text} look={look} />
       </span>
     );
@@ -192,7 +192,7 @@ function RelationCell({
     );
   }
   return (
-    <span className="table__cell table__links">
+    <span className="table__cell table__links" title={names.join(', ')}>
       {names.map((name, at) => (
         <LinkedNote key={at} name={name} className="table__note" onOpen={onOpenNote} />
       ))}
@@ -226,7 +226,7 @@ function Cell({
         type="button"
         className="table__cell"
         aria-label={text === '' ? EMPTY_CELL_NAME : undefined}
-        title={fullValue(text, look)}
+        title={fullValue(text)}
         onClick={() => {
           setDraft(text);
           setEditing(true);
@@ -298,9 +298,9 @@ function useUnsavedEdit({
 /** What an empty editable cell's button is called, since it shows nothing. */
 export const EMPTY_CELL_NAME = 'Empty value';
 
-/** A text cell is cut short at the cell's measure, so its whole value is its title. */
-function fullValue(text: string, look: 'pill' | 'you' | 'text'): string | undefined {
-  return look === 'text' && text !== '' ? text : undefined;
+/** A cell is cut short at its measure, so its whole value is its title. */
+function fullValue(text: string): string | undefined {
+  return text === '' ? undefined : text;
 }
 
 function CellFace({ text, look }: { text: string; look: 'pill' | 'you' | 'text' }) {

@@ -18,7 +18,9 @@
 .table__sheet {
   overflow: auto;
   /* A row the arrow keys focus is scrolled clear of the sticky headings
-     (.table__grid th: 32px and its 1px rule), not under them (#244). */
+     (.table__grid th: 32px and its 1px rule), not under them (#244), and
+     clear of the floating "+" at the window's foot. */
+  scroll-padding-bottom: 70px;
   scroll-padding-top: 33px;
 }
 
@@ -128,14 +130,19 @@ td[data-kind='number'] .table__cell {
   max-width: 160px;
 }
 
-/* `break-all` with `nowrap` never breaks the line; it only stops one long
-   unbreakable word — thirty digits — from setting the cell's least width. */
 .table__text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  word-break: break-all;
+}
+
+/* A long option's pill is cut short inside the cell's measure too, keeping its own padding. */
+.table__cell .status-pill {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .table__cell:focus-visible,

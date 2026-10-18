@@ -263,10 +263,7 @@ function GroupHeader({
           />
           {group.tone !== null && group.value !== null ? (
             <>
-              {/* The dot names the status for a screen reader; the label beside it already does. */}
-              <span aria-hidden="true">
-                <StatusPill value={group.label} tone={group.tone} variant="dot" />
-              </span>
+              <StatusPill value={group.label} tone={group.tone} variant="dot" decorative />
               <span className="table__group-label">{optionLabel(group.label)}</span>
             </>
           ) : (

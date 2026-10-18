@@ -255,7 +255,11 @@ function focusPlacement(page: Page) {
     const box = sheetEl.getBoundingClientRect();
     const head = sheetEl.querySelector('thead th')!.getBoundingClientRect();
     const row = line.getBoundingClientRect();
-    const clear = row.top >= head.bottom - 0.5 && row.bottom <= box.bottom + 0.5;
+    // Wholly in the window, and its last cell not under the floating "+".
+    const cell = line.lastElementChild!.getBoundingClientRect();
+    const hit = document.elementFromPoint(cell.right - 20, (cell.top + cell.bottom) / 2);
+    const uncovered = hit !== null && line.contains(hit);
+    const clear = row.top >= head.bottom - 0.5 && row.bottom <= box.bottom + 0.5 && uncovered;
     return { inTable: true, clear, text: focused.textContent ?? '' };
   });
 }

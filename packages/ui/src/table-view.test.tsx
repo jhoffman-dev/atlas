@@ -103,8 +103,10 @@ describe('TableView', () => {
         schema={{ kinds: { status: 'select' }, labels: {}, noun: 'Task' }}
       />,
     );
-    const pill = screen.getByRole('button', { name: 'Doing' }).querySelector('.status-pill');
-    expect(pill?.getAttribute('data-tone')).toBe('doing');
+    const cell = screen.getByRole('button', { name: 'Doing' });
+    expect(cell.querySelector('.status-pill')?.getAttribute('data-tone')).toBe('doing');
+    // The pill is cut short at the cell's measure, so the value is the cell's title.
+    expect(cell.getAttribute('title')).toBe('doing');
   });
 
   it('draws a source of "you" as a You chip, and any other source as text', () => {
