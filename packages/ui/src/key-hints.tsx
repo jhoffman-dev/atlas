@@ -1,4 +1,4 @@
-/** A key, or a chord of keys, drawn as a small chip: ⌘K, ↵, esc. */
+/** A key, or a chord of keys, as plain metadata text: ⌘K, ↵, esc. */
 export function Key({ children }: { children: string }) {
   return <kbd className="key">{children}</kbd>;
 }

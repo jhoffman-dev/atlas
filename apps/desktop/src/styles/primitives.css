@@ -1,19 +1,13 @@
-/* Primitives: buttons, fields, chips, pills, the shared vocabulary.
-   One of the section files styles/index.css imports in cascade order; the
-   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+/* Primitives: buttons, fields, chips, pills, keys, the toast — the shared
+   vocabulary. One of the section files styles/index.css imports in cascade
+   order; the section-to-file table is in docs/design/ui-v2-plan.md under
+   slice 0b. */
 
 /* ---- Primitives ---------------------------------------------------------
-   The vocabulary everything else in the app is drawn from. Separation comes
-   from a lifted surface with a soft shadow and a large radius, never a 1px
-   rule.
-
-   Elevation is a hierarchy rather than decoration. If everything is raised,
-   nothing is:
-
-     no shadow    the ground: the page, the sidebar, a row in a list
-     --shadow-1   a resting card — grouped content, sitting on the ground
-     --shadow-2   raised — interactive, or the thing meant to be read first
-     --shadow-3   foremost — overlays that float above the whole app
+   The vocabulary everything else in the app is drawn from. Separation is a
+   1px hairline, never a shadow: only a popover, a menu, the peek and a toast
+   float. Controls are 28px tall with a 6px radius; chips and pills 20px with
+   a 4px radius. One kind of thing is drawn one way.
    -------------------------------------------------------------------------- */
 
 .card {
@@ -35,18 +29,14 @@
   box-shadow: var(--shadow-tile);
 }
 
-/* A card that is itself a control. It rests at 1 and lifts to 2 under the
-   pointer, which is the whole reason the other cards stay at 1. */
+/* A card that is itself a control. */
 .card--interactive {
   cursor: pointer;
-  transition:
-    box-shadow 120ms ease,
-    transform 120ms ease;
+  transition: background 120ms ease;
 }
 
 .card--interactive:hover {
-  box-shadow: var(--shadow-tile);
-  transform: translateY(-1px);
+  background: var(--hover);
 }
 
 .card--interactive:focus-visible {
@@ -65,26 +55,40 @@
   text-transform: uppercase;
 }
 
+/* A button is one of five kinds, each a fill, an ink and a line from the
+   palette: primary (the one thing to do, pastel blue), positive, destructive,
+   secondary (white with a hairline) and ghost (bare). Every kind carries a
+   border, transparent where it has none, so they all measure the same. */
 .btn {
+  --btn-bg: transparent;
+  --btn-ink: var(--ink);
+  --btn-line: transparent;
   align-items: center;
   appearance: none;
-  background: none;
-  border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--ink);
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-line);
+  border-radius: var(--radius-button);
+  color: var(--btn-ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-weight: 600;
-  gap: var(--space-2);
+  font-size: var(--text-column);
+  font-weight: 500;
+  gap: 6px;
+  height: 28px;
   justify-content: center;
   line-height: 1;
-  padding: 9px 18px;
+  padding: 0 10px;
   transition:
     background 120ms ease,
-    box-shadow 120ms ease,
     color 120ms ease;
   white-space: nowrap;
+}
+
+/* Mixing a little ink into the fill darkens in light and lightens in dark,
+   and tints a bare button, so one rule serves every kind. */
+.btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--btn-bg) 88%, var(--btn-ink));
 }
 
 .btn:focus-visible {
@@ -97,34 +101,47 @@
   opacity: 0.5;
 }
 
+/* Inside a row or a band, where 28px would crowd the line. 22px is what a
+   standard Inbox row is placed by (inbox-rows.tsx ROW_HEIGHT, pinned in
+   e2e/row-estimates.spec.ts), so this one does not move on its own. */
 .btn--sm {
   font-size: var(--text-small);
-  padding: 5px 12px;
+  height: 22px;
+  padding: 0 8px;
 }
 
 .btn--primary {
-  background: var(--accent);
-  box-shadow: var(--shadow-tile);
-  color: var(--accent-ink);
+  --btn-bg: var(--btn-primary-bg);
+  --btn-ink: var(--btn-primary-ink);
+  --btn-line: var(--btn-primary-line);
 }
 
-/* Mixing towards the text colour darkens in light and lightens in dark, so
-   one rule reads correctly in both themes. */
-.btn--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 86%, var(--ink));
+.btn--positive {
+  --btn-bg: var(--btn-positive-bg);
+  --btn-ink: var(--btn-positive-ink);
+  --btn-line: var(--btn-positive-line);
 }
 
-.btn--secondary {
-  background: var(--raised);
-  box-shadow: var(--shadow-card);
+.btn--destructive {
+  --btn-bg: var(--btn-destructive-bg);
+  --btn-ink: var(--btn-destructive-ink);
+  --btn-line: var(--btn-destructive-line);
 }
 
-.btn--secondary:hover:not(:disabled) {
-  box-shadow: var(--shadow-tile);
+/* `--tinted` was the second action on a raised card; v2 has no tint, so it
+   is drawn as secondary until the clean-up slice renames its callers. */
+.btn--secondary,
+.btn--tinted {
+  --btn-bg: var(--btn-secondary-bg);
+  --btn-ink: var(--btn-secondary-ink);
+  --btn-line: var(--btn-secondary-line);
 }
 
 .btn--ghost {
-  color: var(--ink-2);
+  --btn-bg: var(--btn-ghost-bg);
+  --btn-ink: var(--btn-ghost-ink);
+  --btn-line: var(--btn-ghost-line);
+  padding: 0 8px;
 }
 
 .btn--ghost:hover:not(:disabled) {
@@ -132,40 +149,29 @@
   color: var(--ink);
 }
 
-/* A secondary action on a raised card, where a second raised pill would sit
-   on its own colour: a tinted pill instead. */
-.btn--tinted {
-  background: var(--chip);
-  color: var(--chip-ink);
-  font-weight: 700;
-}
-
-.btn--tinted:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--ink);
-}
-
-/* Tabs and mode switches: a pill track, with the chosen one filled. */
+/* Mode switches: a well as the track, the chosen option lifted onto the
+   surface with a hairline. */
 .segmented {
   background: var(--track);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-control);
   display: inline-flex;
   gap: 2px;
-  padding: 3px;
+  padding: 2px;
 }
 
 .segmented__option {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--ink-2);
   cursor: pointer;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 600;
+  font-size: var(--text-column);
+  font-weight: 500;
+  height: 24px;
   line-height: 1;
-  padding: 7px 16px;
+  padding: 0 10px;
   white-space: nowrap;
 }
 
@@ -174,30 +180,22 @@
 }
 
 .segmented__option--on {
-  background: var(--accent);
+  background: var(--raised);
   box-shadow: var(--shadow-card);
-  color: var(--accent-ink);
+  color: var(--ink);
 }
 
-/* A preference rather than a mode: a tinted track, and the chosen option
-   lifted as a plain raised pill instead of filled with the accent. */
-.segmented--quiet {
-  background: var(--chip);
-}
-
+/* A preference rather than a mode: the same track, square options. */
 .segmented--quiet .segmented__option {
   align-items: center;
   color: var(--ink-3);
   display: flex;
-  height: 26px;
   justify-content: center;
   padding: 0;
-  width: 30px;
+  width: 28px;
 }
 
 .segmented--quiet .segmented__option--on {
-  background: var(--raised);
-  box-shadow: var(--shadow-soft);
   color: var(--ink);
 }
 
@@ -206,33 +204,40 @@
   outline: none;
 }
 
+/* A field is a 28px box on the surface with a hairline, and the focus ring
+   when it is being written in. */
 .field {
   appearance: none;
-  background: var(--track);
-  border: 0;
-  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
   color: var(--ink);
   font: inherit;
-  padding: 9px 16px;
+  font-size: var(--text-column);
+  height: 28px;
+  padding: 0 8px;
   width: 100%;
 }
 
-/* A well for several lines of text is not a pill. */
+/* Several lines of text: the box grows with them. */
 .field--block {
-  border-radius: var(--radius-button);
+  height: auto;
+  padding: 6px 8px;
 }
 
 .field::placeholder {
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
 .field:focus {
+  border-color: var(--focus);
   box-shadow: var(--ring);
   outline: none;
 }
 
 .field--invalid {
-  box-shadow: 0 0 0 2px var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
 }
 
 /* The chevron is drawn by the wrapper, since a styled `select` cannot draw
@@ -243,24 +248,23 @@
 }
 
 .select__control {
-  padding-right: 36px;
+  padding-right: 24px;
 }
 
 .select::after {
-  color: var(--ink-2);
+  color: var(--ink-3);
   content: '▾';
   font-size: var(--text-small);
   pointer-events: none;
   position: absolute;
-  right: 16px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
 }
 
-/* A switch in the sidebar's segmented language: a tinted pill track with the
-   knob lifted on it as a raised pill. State is carried by the knob's position
-   as well as the track's colour, so it still reads without colour; the inset
-   ring gives the track an edge on a raised card as well as on the ground. */
+/* A switch: a track with the knob on it. State is carried by the knob's
+   position as well as the track's colour, so it still reads without colour;
+   the inset ring gives the track an edge on any surface. */
 .toggle {
   align-items: center;
   appearance: none;
@@ -305,25 +309,213 @@
   opacity: 0.5;
 }
 
+/* A chip is a 20px tinted box of 12px text, with no icon: a value's kind is
+   said by its words. */
 .chip {
   align-items: center;
   background: var(--track);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--ink-2);
   display: inline-flex;
-  font-size: var(--text-label);
+  font-size: var(--text-small);
+  font-weight: 500;
   gap: 6px;
+  height: 20px;
   line-height: 1;
-  padding: 5px 10px;
+  padding: 0 6px;
   white-space: nowrap;
 }
 
 .chip--accent {
-  background: color-mix(in srgb, var(--cyan) 16%, var(--raised));
-  color: var(--accent-text);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-ink);
 }
 
 .chip--danger {
-  background: color-mix(in srgb, var(--danger) 16%, var(--raised));
-  color: var(--danger);
+  background: var(--btn-destructive-bg);
+  color: var(--btn-destructive-ink);
+}
+
+/* A status as a 20px pill on its tint, with a 6px dot: a table's cell, a
+   filter, a peek's strip. A board column's head keeps only the dot. */
+.status-pill {
+  --pill: var(--status-backlog-tint);
+  --pill-ink: var(--status-backlog-ink);
+  --pill-dot: var(--status-backlog-dot);
+  align-items: center;
+  background: var(--pill);
+  border-radius: var(--radius-chip);
+  color: var(--pill-ink);
+  display: inline-flex;
+  flex: none;
+  font-size: var(--text-small);
+  font-weight: 500;
+  gap: 6px;
+  height: 20px;
+  line-height: 1;
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.status-pill__dot {
+  background: var(--pill-dot);
+  border-radius: 50%;
+  flex: none;
+  height: 6px;
+  width: 6px;
+}
+
+/* The bare 8px dot: nothing round it, and the label beside it is the
+   column's own. */
+.status-pill--dot {
+  background: none;
+  height: auto;
+  padding: 0;
+}
+
+.status-pill--dot .status-pill__dot {
+  height: 8px;
+  width: 8px;
+}
+
+.status-pill[data-tone='inbox'] {
+  --pill: var(--status-inbox-tint);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
+.status-pill[data-tone='next'] {
+  --pill: var(--status-next-tint);
+  --pill-ink: var(--status-next-ink);
+  --pill-dot: var(--status-next-dot);
+}
+
+.status-pill[data-tone='doing'] {
+  --pill: var(--status-doing-tint);
+  --pill-ink: var(--status-doing-ink);
+  --pill-dot: var(--status-doing-dot);
+}
+
+.status-pill[data-tone='waiting'] {
+  --pill: var(--status-waiting-tint);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
+}
+
+.status-pill[data-tone='review'] {
+  --pill: var(--status-review-tint);
+  --pill-ink: var(--status-review-ink);
+  --pill-dot: var(--status-review-dot);
+}
+
+.status-pill[data-tone='done'] {
+  --pill: var(--status-done-tint);
+  --pill-ink: var(--status-done-ink);
+  --pill-dot: var(--status-done-dot);
+}
+
+/* A key, or a chord, is plain 11.5px metadata text: ⌘K, ↵, esc. No box. */
+.key {
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: var(--text-header);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The keys an overlay answers to, along its foot: one 34px line of
+   metadata text above a hairline. */
+.key-hints {
+  align-items: center;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  font-size: var(--text-header);
+  gap: var(--space-2) var(--space-4);
+  min-height: 34px;
+  padding: 0 var(--space-4);
+}
+
+.key-hints__hint {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* A toast is the one word that something happened, top right, on a dark
+   surface in both themes, with Undo and a dismiss ×. It floats over the
+   content and never takes the focus. */
+.toast {
+  align-items: center;
+  background: var(--toast-bg);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-popover);
+  color: var(--toast-ink);
+  display: flex;
+  font-size: var(--text-column);
+  gap: 10px;
+  /* As wide as its words up to 340px, then they wrap: a long error carries
+     its remedy, and the remedy is the point. */
+  max-width: min(340px, 100% - 24px);
+  padding: 10px 10px 10px 14px;
+  position: absolute;
+  right: calc(var(--shell-inset) + 12px);
+  top: calc(var(--shell-inset) + 46px);
+  width: max-content;
+  z-index: 21;
+}
+
+.toast__message {
+  flex: 1;
+  line-height: var(--leading-body);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast__action {
+  align-items: center;
+  background: var(--toast-control);
+  border: 0;
+  border-radius: 5px;
+  color: var(--toast-ink);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font: inherit;
+  font-size: var(--text-small);
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+}
+
+.toast__action:hover,
+.toast__action:focus-visible {
+  box-shadow: 0 0 0 1px var(--toast-ink-2);
+  outline: none;
+}
+
+.toast__dismiss {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  color: var(--toast-ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 22px;
+  justify-content: center;
+  padding: 0;
+  width: 22px;
+}
+
+.toast__dismiss:hover,
+.toast__dismiss:focus-visible {
+  box-shadow: 0 0 0 1px var(--toast-ink-2);
+  color: var(--toast-ink);
+  outline: none;
 }

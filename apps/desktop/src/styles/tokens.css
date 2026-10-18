@@ -100,26 +100,28 @@
   --chart-bar: #d4d4d8;
 
   /* Status: the dot, the pill's text and the pill's tint. Every status also
-     carries its label — the pastel dots alone do not separate for everyone. */
-  --status-inbox-dot: #9db4c8;
+     carries its label — the dots alone do not separate for everyone. A dot
+     is drawn bare on a board column's head, so each holds 3:1 against the
+     surface and the bg (the brief's pastels did not; #328). */
+  --status-inbox-dot: #6e90ad;
   --status-inbox-ink: #3d5a70;
   --status-inbox-tint: #eaf0f5;
-  --status-backlog-dot: #a1a1aa;
+  --status-backlog-dot: #8a8a95;
   --status-backlog-ink: #52525b;
   --status-backlog-tint: #f1f1f3;
-  --status-next-dot: #7ea2dd;
+  --status-next-dot: #608cd5;
   --status-next-ink: #2d4f8a;
   --status-next-tint: #e8effb;
-  --status-doing-dot: #dda54e;
+  --status-doing-dot: #bb8024;
   --status-doing-ink: #7a5312;
   --status-doing-tint: #fbf1df;
-  --status-waiting-dot: #c9a0b8;
+  --status-waiting-dot: #b47b9c;
   --status-waiting-ink: #6e3f5c;
   --status-waiting-tint: #f6ecf2;
-  --status-review-dot: #a595e3;
+  --status-review-dot: #907ddd;
   --status-review-ink: #4e3f8f;
   --status-review-tint: #efebfb;
-  --status-done-dot: #7dbf93;
+  --status-done-dot: #4c9b67;
   --status-done-ink: #2f6b45;
   --status-done-tint: #e6f3ea;
   --status-done-tick: #ffffff; /* the tick on a finished card, on the done dot */
@@ -156,10 +158,18 @@
   /* Behind a saved artifact: white in both themes, since a page made
      elsewhere assumes a white canvas and would be unreadable on dark. */
   --artifact-canvas: #ffffff;
+  /* A toast sits on a dark surface in both themes (the brief, §3): white
+     words, a quieter grey for its dismiss, and a translucent fill for its
+     Undo so the button reads on the same dark ground. */
+  --toast-bg: #18181b;
+  --toast-ink: #ffffff;
+  --toast-ink-2: #b4b4bc;
+  --toast-control: rgba(255, 255, 255, 0.12);
 }
 
 /* Dark follows the system unless a choice has been made in the app. The dots
-   keep their colour; the text lightens and a tint is its dot at 14–16%. */
+   are the brief's pastels, which hold 3:1 on a dark ground; the text
+   lightens and a tint is its dot at 14–16%. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
@@ -231,6 +241,10 @@
     --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
     --scrim: rgba(0, 0, 0, 0.55);
     --artifact-canvas: #ffffff;
+    --toast-bg: #18181b;
+    --toast-ink: #ffffff;
+    --toast-ink-2: #b4b4bc;
+    --toast-control: rgba(255, 255, 255, 0.12);
   }
 }
 
@@ -303,6 +317,10 @@
   --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
   --scrim: rgba(0, 0, 0, 0.55);
   --artifact-canvas: #ffffff;
+  --toast-bg: #18181b;
+  --toast-ink: #ffffff;
+  --toast-ink-2: #b4b4bc;
+  --toast-control: rgba(255, 255, 255, 0.12);
 }
 
 /* The older roles, as the v2 primitives, and the mixes built from them.

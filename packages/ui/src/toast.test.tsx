@@ -21,14 +21,40 @@ describe('Toast', () => {
     expect(onDismiss).toHaveBeenCalled();
   });
 
-  it('goes by itself after a while', () => {
+  it('offers Undo for a change, which undoes and then goes', () => {
+    const onUndo = vi.fn();
+    const onDismiss = vi.fn();
+    render(<Toast message="Moved to Done" onUndo={onUndo} onDismiss={onDismiss} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onUndo.mock.invocationCallOrder[0]).toBeLessThan(onDismiss.mock.invocationCallOrder[0]!);
+  });
+
+  it('has no Undo unless there is something to undo', () => {
+    render(<Toast message="Task added" onDismiss={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
+  it('is sent away by its ×, without doing anything else', () => {
+    const onUndo = vi.fn();
+    const onDismiss = vi.fn();
+    render(<Toast message="Moved to Done" onUndo={onUndo} onDismiss={onDismiss} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onUndo).not.toHaveBeenCalled();
+  });
+
+  it('goes by itself after five seconds', () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     render(<Toast message="Task added" onDismiss={onDismiss} />);
 
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => vi.advanceTimersByTime(4999));
     expect(onDismiss).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(2000));
+    act(() => vi.advanceTimersByTime(1));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
@@ -37,35 +63,34 @@ describe('Toast', () => {
     const onDismiss = vi.fn();
     render(<Toast message="Task added" onDismiss={onDismiss} />);
 
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => vi.advanceTimersByTime(4000));
     fireEvent.pointerEnter(screen.getByRole('status'));
     act(() => vi.advanceTimersByTime(60_000));
     expect(onDismiss).not.toHaveBeenCalled();
 
     fireEvent.pointerLeave(screen.getByRole('status'));
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => vi.advanceTimersByTime(4999));
     expect(onDismiss).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(2000));
+    act(() => vi.advanceTimersByTime(1));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it('waits while the focus is on its action, as a keyboard reaches it', () => {
+  it('waits while the focus is on a button of its, as a keyboard reaches it', () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
-    render(
-      <Toast
-        message="Task added"
-        action={{ label: 'Open', onClick: vi.fn() }}
-        onDismiss={onDismiss}
-      />,
-    );
+    render(<Toast message="Moved to Done" onUndo={vi.fn()} onDismiss={onDismiss} />);
 
-    act(() => screen.getByRole('button', { name: 'Open' }).focus());
+    act(() => screen.getByRole('button', { name: 'Undo' }).focus());
     act(() => vi.advanceTimersByTime(60_000));
     expect(onDismiss).not.toHaveBeenCalled();
 
-    act(() => screen.getByRole('button', { name: 'Open' }).blur());
-    act(() => vi.advanceTimersByTime(7000));
+    // Focus moving from Undo to the × stays inside the toast, so it still waits.
+    act(() => screen.getByRole('button', { name: 'Dismiss' }).focus());
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    act(() => screen.getByRole('button', { name: 'Dismiss' }).blur());
+    act(() => vi.advanceTimersByTime(5000));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
