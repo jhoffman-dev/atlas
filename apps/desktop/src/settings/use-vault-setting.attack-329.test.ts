@@ -59,8 +59,10 @@ describe('useVaultSetting across a vault switch with a write still under way (at
 
     act(() => hook.result.current.save('new in A'));
     hook.rerender({ fs: vaultSaying('from B'), vaultKey: 'b' });
-    // B's note is read while A's write is still out.
+    // B's note is read while A's write is still out, and shown: A's write is A's.
     for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    expect(hook.result.current.value).toBe('from B');
+    expect(hook.result.current.loaded).toBe(true);
     // The write lands (or is refused by the switch, as the bound ports do): either way it is over.
     await act(async () => writes.land());
     for (let turn = 0; turn < 5; turn += 1) await act(async () => {});

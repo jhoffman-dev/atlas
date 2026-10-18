@@ -78,8 +78,6 @@ export function useVaultSetting<Value>({
   const writing = useRef(new Map<string, number>());
   // Once a vault's writes land, the read they wait for: the vault's next after this answer.
   const waitingPast = useRef<{ vault: string; answer: object | null } | null>(null);
-  // Bumped when a vault's writes land, so whichever vault is open now takes its answer again.
-  const [landed, setLanded] = useState(0);
 
   const { settings, unreadable: failure, answer } = read;
   useEffect(() => {
@@ -104,7 +102,7 @@ export function useVaultSetting<Value>({
     setUnreadable(null);
     setLoadedFrom(vaultKey);
     setAnsweredFor(vaultKey);
-  }, [settings, failure, answer, parse, vaultKey, landed]);
+  }, [settings, failure, answer, parse, vaultKey]);
 
   const { readAgain, latestAnswer } = read;
   const write = useCallback(
@@ -136,8 +134,9 @@ export function useVaultSetting<Value>({
           // The newest answer in the cache, not this render's: one read just before
           // the write landed may not have been drawn yet, and predates the write.
           waitingPast.current = { vault, answer: latestAnswer() };
+          // Every read is a new answer (no structural sharing), so the one after
+          // this read runs the effect again; another vault's reads were never held.
           void readAgain();
-          setLanded((count) => count + 1);
         });
     },
     [store, vaultKey, value, activity, readAgain, latestAnswer],

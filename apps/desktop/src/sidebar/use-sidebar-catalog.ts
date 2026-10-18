@@ -62,6 +62,8 @@ export function useSidebarCatalog({
 } {
   const catalog = useCatalog({ fs, markdown, index, vaultKey });
   const typeNames = useMemo(() => types.map((type) => type.name), [types]);
+  // Spelled once per read of the types, not hashed by the cache on every render.
+  const typesSpelled = useMemo(() => JSON.stringify(types), [types]);
   const vault = vaultKey ?? '';
   const counts = useQuery({
     queryKey: [...vaultReadKey(vault, 'type-counts'), typeNames],
@@ -75,7 +77,7 @@ export function useSidebarCatalog({
   const quickCounts = useQuery({
     // The definitions, not only their names: a query view is checked against them,
     // so a type defined anew under the same name is counted with the new one.
-    queryKey: [...vaultReadKey(vault, 'quick-counts'), quickPaths, types],
+    queryKey: [...vaultReadKey(vault, 'quick-counts'), quickPaths, typesSpelled],
     queryFn: async () =>
       Object.fromEntries(
         await countQuickViews({
