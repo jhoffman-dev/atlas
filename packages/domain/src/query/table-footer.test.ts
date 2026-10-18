@@ -23,10 +23,26 @@ describe('tableArrangement', () => {
     expect(tableArrangement({ groupedBy: null, sortedBy: [] })).toBeNull();
   });
 
-  it('keeps a label that is not a sentence-case word as it is written', () => {
+  it('keeps a label that is not plain words as it is written', () => {
     expect(tableArrangement({ groupedBy: 'GitHub repo', sortedBy: ['ID'] })).toBe(
       'Grouped by GitHub repo · sorted by ID',
     );
+  });
+
+  it('lowers a title-case label whole, never half of it', () => {
+    expect(tableArrangement({ groupedBy: 'Due Date', sortedBy: [] })).toBe('Grouped by due date');
+  });
+
+  it('says which way a sort runs: descending is said, ascending is the plain reading', () => {
+    expect(
+      tableArrangement({
+        groupedBy: null,
+        sortedBy: [
+          { label: 'Phase', direction: 'asc' },
+          { label: 'Due date', direction: 'desc' },
+        ],
+      }),
+    ).toBe('Sorted by phase, then due date (descending)');
   });
 });
 
@@ -37,11 +53,23 @@ describe('groupTotals', () => {
     rows: Array.from({ length: count }, (_, at) => ({ path: `${label}-${at}.md` })),
   });
 
-  it('counts each group under its value, a select’s in lower case', () => {
-    expect(groupTotals([group('Done', 174), group('Backlog', 10), group('In review', 2)])).toEqual([
+  it('counts each group under its value, a select’s read as its header reads it', () => {
+    expect(groupTotals([group('done', 174), group('backlog', 10), group('in-review', 2)])).toEqual([
       '174 done',
       '10 backlog',
-      '2 in review',
+      '2 in-review',
+    ]);
+  });
+
+  it('keeps an option that is an initialism or a name as written', () => {
+    expect(groupTotals([group('QA', 4), group('GitHub', 2)])).toEqual(['4 QA', '2 GitHub']);
+  });
+
+  it('tells apart two options that read the same, by their values as written', () => {
+    expect(groupTotals([group('Done', 2), group('done', 2), group('backlog', 1)])).toEqual([
+      '2 Done',
+      '2 done',
+      '1 backlog',
     ]);
   });
 

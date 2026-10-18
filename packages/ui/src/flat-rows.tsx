@@ -4,6 +4,7 @@ import type { BoardRow } from '@atlas/domain';
 import {
   OVERSCAN,
   ROW_ESTIMATE,
+  rowsPerPage,
   SCROLLER_ESTIMATE,
   Spacer,
   type LinePlace,
@@ -45,6 +46,7 @@ export function FlatRows({
     body,
     count: rows.length,
     stopKey: (index) => rows[index]?.path ?? null,
+    pageSize: () => rowsPerPage(scroller),
     scrollTo: (index) => virtualizer.scrollToIndex(index),
   });
 

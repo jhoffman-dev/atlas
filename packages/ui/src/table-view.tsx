@@ -229,7 +229,7 @@ function TableFooter({
   const groupedBy = grouping?.groups[0]?.field;
   const arrangement = tableArrangement({
     groupedBy: groupedBy === undefined ? null : label(groupedBy),
-    sortedBy: sorts.map((sort) => label(sort.key)),
+    sortedBy: sorts.map((sort) => ({ label: label(sort.key), direction: sort.direction })),
   });
   return (
     <footer className="table__footer">
@@ -244,8 +244,9 @@ function TableFooter({
         {result.truncated && ' (more were left out)'}
       </span>
       {grouping !== undefined &&
-        groupTotals(grouping.groups).map((total) => (
-          <span key={total} className="table__total">
+        groupTotals(grouping.groups).map((total, at) => (
+          // By place: two groups can read the same ("Done" and "done").
+          <span key={at} className="table__total">
             {total}
           </span>
         ))}
@@ -352,7 +353,7 @@ function TableGrid({
   const lead = leadCellCount(look);
   return (
     <table
-      className="table__grid"
+      className={grouping !== undefined ? 'table__grid table__grid--grouped' : 'table__grid'}
       aria-rowcount={(grouping !== undefined ? lines.length : rows.length) + 1}
     >
       {head}
@@ -375,6 +376,12 @@ function TableGrid({
           scroller={scroller}
         />
       )}
+      <tfoot>
+        {/* Room under the last row, so it scrolls clear of the floating "+". */}
+        <tr className="table__room" aria-hidden="true">
+          <td colSpan={lead + look.shown.length} />
+        </tr>
+      </tfoot>
     </table>
   );
 }
@@ -408,11 +415,14 @@ function TableHead({
         {columns.map((column) => {
           const sort = sorts.find((candidate) => candidate.key === column);
           const label = columnLabel(column, schema);
+          // ARIA allows one aria-sort per table: the primary sort's heading carries it.
+          const primary = sort !== undefined && sort === sorts[0];
           return (
             <th
               key={column}
+              className={column === TITLE ? 'table__name-head' : undefined}
               aria-sort={
-                sort === undefined
+                !primary || sort === undefined
                   ? undefined
                   : sort.direction === 'asc'
                     ? 'ascending'

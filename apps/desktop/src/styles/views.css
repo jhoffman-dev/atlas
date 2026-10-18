@@ -22,11 +22,14 @@
 }
 
 /* Lines break on each part's full width, so the tabs keep theirs and the
-   actions drop to a second line, still on the right, when both cannot fit. */
+   actions drop to a second line, still on the right, when both cannot fit;
+   the actions wrap among themselves in a window too narrow for them all. */
 .view-toolbar__actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
+  justify-content: flex-end;
   margin-left: auto;
   min-height: 44px;
 }

@@ -27,6 +27,12 @@
   width: 100%;
 }
 
+/* Room under the last row, so it scrolls clear of the floating "+" (56px, 44px up from the window's foot). */
+.table__grid tr.table__room td {
+  border: 0;
+  height: 56px;
+}
+
 .table__grid th,
 .table__grid td {
   padding: 0;
@@ -53,13 +59,14 @@
   background: var(--hover);
 }
 
+/* Above the rows' own stacking — a done box's tick paints at 1. */
 .table__grid th {
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   height: 32px;
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
 }
 
 .table__heading {
@@ -108,17 +115,47 @@
   width: 100%;
 }
 
+/* A cell keeps a measure: a 300-character note is cut short with an ellipsis
+   (its whole value is the cell's title) rather than widening the table past
+   the sheet. A number is narrower still: thirty digits are not a number
+   anyone reads across. */
+.table__cell {
+  max-width: 240px;
+  min-width: 0;
+}
+
+td[data-kind='number'] .table__cell {
+  max-width: 160px;
+}
+
+/* `break-all` with `nowrap` never breaks the line; it only stops one long
+   unbreakable word — thirty digits — from setting the cell's least width. */
+.table__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: break-all;
+}
+
 .table__cell:focus-visible,
 .table__link:focus-visible {
   box-shadow: var(--ring);
   outline: none;
 }
 
-/* A relation's cell: the notes it links, each opening its note. */
+/* A relation's cell: the notes it links, each opening its note, on one line
+   — the row stays 34px however many there are; the rest are cut at the
+   cell's measure. */
 .table__links {
   cursor: default;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
+  overflow: hidden;
+}
+
+.table__links .table__note {
+  flex: none;
 }
 
 .table__note,
@@ -223,6 +260,7 @@ button.props__link-title:focus-visible {
   width: 100%;
 }
 
+/* The right padding keeps the footer's words clear of the floating "+". */
 .table__footer {
   align-items: center;
   border-top: 1px solid var(--line);
@@ -232,7 +270,7 @@ button.props__link-title:focus-visible {
   font-variant-numeric: tabular-nums;
   gap: 14px;
   height: 30px;
-  padding: 0 20px;
+  padding: 0 120px 0 20px;
   white-space: nowrap;
 }
 

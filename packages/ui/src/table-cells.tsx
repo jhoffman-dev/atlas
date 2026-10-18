@@ -95,7 +95,11 @@ export const TableRow = memo(function TableRow({
         </td>
       )}
       {look.shown.map((column) => (
-        <td key={column} className={column === TITLE ? 'table__name' : undefined}>
+        <td
+          key={column}
+          className={column === TITLE ? 'table__name' : undefined}
+          data-kind={look.kinds[column]}
+        >
           <CellFor
             column={column}
             kind={look.kinds[column]}
@@ -157,9 +161,10 @@ function CellFor({
   const look =
     kind === 'select' ? 'pill' : propertyRole(column) === 'person' && isYou(value) ? 'you' : 'text';
   if (onCommit === undefined) {
+    const text = value === null || value === undefined ? '' : String(value);
     return (
-      <span className="table__cell">
-        <CellFace text={value === null || value === undefined ? '' : String(value)} look={look} />
+      <span className="table__cell" title={fullValue(text, look)}>
+        <CellFace text={text} look={look} />
       </span>
     );
   }
@@ -221,6 +226,7 @@ function Cell({
         type="button"
         className="table__cell"
         aria-label={text === '' ? EMPTY_CELL_NAME : undefined}
+        title={fullValue(text, look)}
         onClick={() => {
           setDraft(text);
           setEditing(true);
@@ -292,6 +298,11 @@ function useUnsavedEdit({
 /** What an empty editable cell's button is called, since it shows nothing. */
 export const EMPTY_CELL_NAME = 'Empty value';
 
+/** A text cell is cut short at the cell's measure, so its whole value is its title. */
+function fullValue(text: string, look: 'pill' | 'you' | 'text'): string | undefined {
+  return look === 'text' && text !== '' ? text : undefined;
+}
+
 function CellFace({ text, look }: { text: string; look: 'pill' | 'you' | 'text' }) {
   if (text === '') return null;
   if (look === 'pill') return <StatusPill value={text} />;
@@ -303,5 +314,5 @@ function CellFace({ text, look }: { text: string; look: 'pill' | 'you' | 'text' 
       </span>
     );
   }
-  return <>{text}</>;
+  return <span className="table__text">{text}</span>;
 }

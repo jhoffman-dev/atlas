@@ -100,6 +100,59 @@ const titles = () =>
 describe('a grouped table', () => {
   tableRowsMeasured();
 
+  it('marks the grid as grouped, with the name column’s heading, so the names indent under the headers', () => {
+    render(<Grouped />);
+    const grid = screen.getByRole('table');
+    expect(grid.classList.contains('table__grid--grouped')).toBe(true);
+    expect(
+      screen.getByRole('columnheader', { name: 'Name' }).classList.contains('table__name-head'),
+    ).toBe(true);
+    // The name cell, not the first cell, is what the indent lands on.
+    expect(screen.getByText('Alpha').closest('td')?.classList.contains('table__name')).toBe(true);
+  });
+
+  it('does not mark a flat table as grouped', () => {
+    render(
+      <TableView
+        result={result}
+        sorts={[]}
+        error={null}
+        schema={schema}
+        onOpenNote={() => {}}
+        onToggleSort={() => {}}
+      />,
+    );
+    expect(screen.getByRole('table').classList.contains('table__grid--grouped')).toBe(false);
+  });
+
+  it('reads a status group’s name once: the dot is decoration beside the label', () => {
+    render(<Grouped />);
+    const header = screen.getByRole('button', { name: /^Doing/ });
+    expect(header.querySelector('[aria-hidden="true"] .status-pill--dot')).not.toBeNull();
+    expect(header.textContent).toBe('Doing2');
+  });
+
+  it('moves a window of lines with Page Down and Page Up, landing on a stop', async () => {
+    const many: TableResult = {
+      ...result,
+      rows: Array.from({ length: 120 }, (_, at) => [
+        `n${at}.md`,
+        `Note ${at}`,
+        at < 60 ? 'backlog' : 'doing',
+        1,
+        'true',
+      ]),
+    };
+    render(<Grouped rows={many} />);
+    const page = Math.floor(880 / 34) - 1;
+    screen.getByRole('button', { name: /^Backlog/ }).focus();
+    await userEvent.keyboard('{PageDown}');
+    // Line 0 is Backlog's header; line n is Note n-1.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: `Note ${page - 1}` }));
+    await userEvent.keyboard('{PageUp}');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Backlog/ }));
+  });
+
   it('totals each group in the footer, and says what it is grouped by', () => {
     render(<Grouped />);
     const footer = screen.getByText('4 tasks').parentElement as HTMLElement;

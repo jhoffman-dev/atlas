@@ -85,9 +85,18 @@
   padding: 0 8px;
 }
 
-/* A grouped table's rows sit under the group's label, past its chevron and dot. */
-.table__grid tr.table__group ~ tr.table__row td:first-child {
-  padding-left: 36px;
+/* A sum is cut short at a number cell's measure, as the numbers under it are. */
+.table__summary .table__text {
+  display: block;
+  max-width: 160px;
+}
+
+/* A grouped table's names sit under the group's label, past its chevron and
+   dot — on the name cell and its heading, whatever boxes lead the row and
+   whether or not the header above is drawn. */
+.table__grid--grouped td.table__name .table__link,
+.table__grid--grouped th.table__name-head .table__heading {
+  padding-left: 32px;
 }
 
 .table__grid tr.table__group-new td {

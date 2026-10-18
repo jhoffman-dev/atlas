@@ -67,6 +67,16 @@ export const ariaRowIndex = (index: number): number => index + 2;
 export const SCROLLER_ESTIMATE = { width: 960, height: 880 };
 
 /**
+ * How many rows a window of the scroller holds under its sticky header, less
+ * one, so a Page Down lands on a row already wholly in view.
+ */
+export function rowsPerPage(scroller: HTMLElement | null): number {
+  const height = scroller?.clientHeight || SCROLLER_ESTIMATE.height;
+  const header = scroller?.querySelector('thead')?.clientHeight ?? 0;
+  return Math.max(1, Math.floor((height - header) / ROW_ESTIMATE) - 1);
+}
+
+/**
  * The lines a grouped table draws, its header rows among them: worked out by
  * the table, which says how many rows it has, and handed to `GroupedRows`.
  */
@@ -141,6 +151,7 @@ export function GroupedRows({
     body,
     count: lines.length,
     stopKey: (index) => stopKeyOf(lines[index]),
+    pageSize: () => rowsPerPage(scroller),
     scrollTo: (index) => virtualizer.scrollToIndex(index),
   });
 
@@ -252,7 +263,10 @@ function GroupHeader({
           />
           {group.tone !== null && group.value !== null ? (
             <>
-              <StatusPill value={group.label} tone={group.tone} variant="dot" />
+              {/* The dot names the status for a screen reader; the label beside it already does. */}
+              <span aria-hidden="true">
+                <StatusPill value={group.label} tone={group.tone} variant="dot" />
+              </span>
               <span className="table__group-label">{optionLabel(group.label)}</span>
             </>
           ) : (
@@ -267,7 +281,11 @@ function GroupHeader({
         const summary = columnSummary({ rows: group.rows, key: column.key, kind: column.kind });
         return (
           <td key={column.key} className="table__summary">
-            {summary}
+            {summary !== null && (
+              <span className="table__text" title={summary}>
+                {summary}
+              </span>
+            )}
           </td>
         );
       })}

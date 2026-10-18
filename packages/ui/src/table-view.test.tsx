@@ -79,6 +79,13 @@ describe('TableView', () => {
     expect(blank.closest('td')?.textContent).toBe('');
   });
 
+  it('names a text cell’s whole value in its title, since the cell may cut it short', () => {
+    render(<TableView {...props} result={result} />);
+    const cell = screen.getByRole('button', { name: 'doing' });
+    expect(cell.getAttribute('title')).toBe('doing');
+    expect(cell.querySelector('.table__text')?.textContent).toBe('doing');
+  });
+
   it('leaves a read-only empty cell blank too', () => {
     const readOnly = { sorts: [], error: null, onOpenNote: noop, onToggleSort: noop };
     render(<TableView {...readOnly} result={result} />);
@@ -285,7 +292,7 @@ describe('TableView', () => {
         schema={{ kinds: {}, labels: { status: 'Stage' }, noun: 'Task' }}
       />,
     );
-    expect(screen.getByText('Sorted by stage, then due date')).toBeDefined();
+    expect(screen.getByText('Sorted by stage, then due date (descending)')).toBeDefined();
   });
 
   it('says nothing of its arrangement when it is neither grouped nor sorted', () => {

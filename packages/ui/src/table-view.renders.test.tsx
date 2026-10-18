@@ -266,6 +266,29 @@ describe('TableView — a long table', () => {
     expect(document.activeElement).toBe(name('Task 0'));
   });
 
+  it('moves a window of rows with Page Down and Page Up, stopping at the ends', async () => {
+    // jsdom's scroller measures no height, so a window is the estimate's: 880 / 34 rows, less one.
+    const page = Math.floor(880 / 34) - 1;
+    const name = (title: string) => screen.getByRole('button', { name: title });
+    const long = render(<TableView {...props(read(page + 6))} />);
+    name('Task 0').focus();
+    await userEvent.keyboard('{PageDown}');
+    expect(document.activeElement).toBe(name(`Task ${page}`));
+    await userEvent.keyboard('{PageUp}');
+    expect(document.activeElement).toBe(name('Task 0'));
+    await userEvent.keyboard('{PageUp}');
+    expect(document.activeElement).toBe(name('Task 0'));
+    long.unmount();
+
+    // Fewer rows than a window: Page Down lands on the last, and stays there.
+    render(<TableView {...props(read(10))} />);
+    name('Task 3').focus();
+    await userEvent.keyboard('{PageDown}');
+    expect(document.activeElement).toBe(name('Task 9'));
+    await userEvent.keyboard('{PageDown}');
+    expect(document.activeElement).toBe(name('Task 9'));
+  });
+
   it('leaves a chord to the app: Shift, Alt, Ctrl or Cmd with an arrow does not move between rows', async () => {
     render(<TableView {...props(read(3))} />);
     const first = screen.getByRole('button', { name: 'Task 0' });
