@@ -6,12 +6,19 @@ import {
   newNoteLabel,
   toBoardRows,
   type BoardRow,
+  type GroupLine,
   type PropertyKind,
   type QuerySort,
 } from '@atlas/domain';
 import type { DoneTicks } from './done-checkbox.tsx';
 import { FlatRows } from './flat-rows.tsx';
-import { GroupedRows, useGroupLines, type LinePlace, type TableGrouping } from './grouped-rows.tsx';
+import {
+  GroupedRows,
+  rowOrder,
+  useGroupLines,
+  type LinePlace,
+  type TableGrouping,
+} from './grouped-rows.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { SelectAllBox, type RowSelection } from './row-selection.tsx';
 import { useSteadyCallback } from './steady-callback.ts';
@@ -140,6 +147,12 @@ function TableSheet({
     sameItems,
   );
   const paths = pathAt === -1 ? [] : result.rows.map((row) => String(row[pathAt] ?? ''));
+  // Once per result: the window draws the open table again for whatever else
+  // happens in it — every key typed in ⌘K — and a table can hold hundreds (#217).
+  const { columns, rows: read } = result;
+  const rows = useMemo(() => toBoardRows({ columns, rows: read }), [columns, read]);
+  const grouped = grouping !== undefined && grouping.groups.length > 0;
+  const lines = useGroupLines(grouped ? grouping : undefined);
   const look = useRowLook({
     shown,
     kinds: useSteadyValue(schema.kinds, sameEntries),
@@ -147,6 +160,8 @@ function TableSheet({
     onEditCell,
     ticks,
     selection,
+    // Read on a shift-click only, so the rows are not drawn again for it.
+    order: () => (grouped ? rowOrder(lines) : rows.map((row) => row.path)),
   });
 
   return (
@@ -170,13 +185,14 @@ function TableSheet({
                 }
               />
             }
-            result={result}
+            rows={rows}
+            lines={lines}
             look={look}
             noun={schema.noun}
             scroller={sheet}
             {...(ticks !== undefined && { ticks })}
             {...(selection !== undefined && { selection })}
-            {...(grouping !== undefined && { grouping })}
+            {...(grouped && { grouping })}
           />
         )}
         <footer className="table__footer">
@@ -209,6 +225,7 @@ function useRowLook({
   onEditCell,
   ticks,
   selection,
+  order,
 }: {
   shown: readonly string[];
   kinds: RowLook['kinds'];
@@ -216,13 +233,18 @@ function useRowLook({
   onEditCell: TableViewProps['onEditCell'];
   ticks: DoneTicks | undefined;
   selection: RowSelection | undefined;
+  /** The rows' paths in the order the table shows them, for a shift-click's range. */
+  order: () => readonly string[];
 }): RowLook {
   const open = useSteadyCallback(onOpenNote);
   const edit = useSteadyCallback((args: { path: string; column: string; value: string }) =>
     onEditCell?.(args),
   );
   const tick = useSteadyCallback((args: { path: string; done: boolean }) => ticks?.onToggle(args));
-  const choose = useSteadyCallback((path: string) => selection?.onToggle(path));
+  const choose = useSteadyCallback((path: string, how: { readonly shift: boolean }) => {
+    if (how.shift) selection?.onToggle(path, { order: order() });
+    else selection?.onToggle(path);
+  });
   const editable = onEditCell !== undefined;
   const ticked = ticks !== undefined;
   const choosing = selection !== undefined;
@@ -246,7 +268,8 @@ function useRowLook({
  */
 function TableGrid({
   head,
-  result,
+  rows,
+  lines,
   look,
   noun,
   scroller,
@@ -255,7 +278,9 @@ function TableGrid({
   grouping,
 }: {
   head: ReactNode;
-  result: TableResult;
+  rows: readonly BoardRow[];
+  /** The lines `useGroupLines` worked out, while the table groups. */
+  lines: readonly GroupLine[];
   look: RowLook;
   noun: string;
   scroller: HTMLElement | null;
@@ -263,10 +288,6 @@ function TableGrid({
   selection?: RowSelection;
   grouping?: TableGrouping;
 }) {
-  // Once per result: the window draws the open table again for whatever else
-  // happens in it — every key typed in ⌘K — and a table can hold hundreds (#217).
-  const { columns, rows: read } = result;
-  const rows = useMemo(() => toBoardRows({ columns, rows: read }), [columns, read]);
   // Each row is told whether it is done and chosen, rather than handed the
   // sets: a tick or a choice then draws the one row it changed.
   const row = (found: BoardRow, place: LinePlace) => (
@@ -282,12 +303,13 @@ function TableGrid({
     />
   );
   const lead = leadCellCount(look);
-  const grouped = grouping !== undefined && grouping.groups.length > 0;
-  const lines = useGroupLines(grouped ? grouping : undefined);
   return (
-    <table className="table__grid" aria-rowcount={(grouped ? lines.length : rows.length) + 1}>
+    <table
+      className="table__grid"
+      aria-rowcount={(grouping !== undefined ? lines.length : rows.length) + 1}
+    >
       {head}
-      {grouped ? (
+      {grouping !== undefined ? (
         <GroupedRows
           grouping={grouping}
           lines={lines}

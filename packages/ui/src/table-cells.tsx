@@ -26,8 +26,11 @@ export interface RowLook {
     ((args: { path: string; column: string; value: string }) => void) | undefined;
   /** Given when the view's type can be ticked done: each row leads with a box. */
   readonly onTick?: DoneTicks['onToggle'] | undefined;
-  /** Given while rows can be chosen: each row leads with a box that toggles it. */
-  readonly onChoose?: ((path: string) => void) | undefined;
+  /**
+   * Given while rows can be chosen: each row leads with a box that toggles it,
+   * or, with Shift held, extends the choice to it.
+   */
+  readonly onChoose?: ((path: string, how: { readonly shift: boolean }) => void) | undefined;
 }
 
 /** The cells a row leads with before its name: a box to choose it, a box to tick it done. */
@@ -77,7 +80,7 @@ export const TableRow = memo(function TableRow({
           <SelectBox
             label={`Select ${String(values[TITLE] ?? path)}`}
             checked={chosen}
-            onChange={() => onChoose(path)}
+            onChange={(_checked, how) => onChoose(path, how)}
           />
         </td>
       )}
