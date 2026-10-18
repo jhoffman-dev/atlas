@@ -67,6 +67,16 @@ const ACCEPTED: &[&[&str]] = &[
         "--allow-unrelated-histories",
         "origin/main",
     ],
+    &[
+        "-c",
+        "user.name=Atlas on Work Mac",
+        "-c",
+        "user.email=atlas@work-mac.local",
+        "merge",
+        "--no-edit",
+        "--allow-unrelated-histories",
+        "origin/main",
+    ],
     &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
     &["remote", "get-url", "origin"],
     &[
@@ -260,6 +270,30 @@ fn an_author_is_only_a_name_and_an_email_without_line_breaks() {
     assert!(!with("user.email=a@b", "user.name=A"));
     assert!(!with("core.sshCommand=sh", "user.email=a@b"));
     assert!(!with("user.name=A", "core.hooksPath=/tmp"));
+}
+
+#[test]
+fn a_merge_author_is_only_a_name_and_an_email_without_line_breaks() {
+    let with = |name: &str, email: &str| {
+        vault_ok(&[
+            "-c",
+            name,
+            "-c",
+            email,
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ])
+    };
+    assert!(with("user.name=A", "user.email=a@b"));
+    assert!(!with("user.name=", "user.email=a@b"));
+    assert!(!with("user.name=A", "user.email="));
+    assert!(!with("user.name=A\n[core]", "user.email=a@b"));
+    assert!(!with("user.email=a@b", "user.name=A"));
+    assert!(!with("core.sshCommand=sh", "user.email=a@b"));
+    assert!(!with("user.name=A", "core.hooksPath=/tmp"));
+    assert!(!with("user.name=A", "merge.ff=only"));
 }
 
 #[test]
