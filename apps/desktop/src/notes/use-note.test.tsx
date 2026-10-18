@@ -56,13 +56,20 @@ function gate() {
   };
 }
 
-function fakeVault(text: string = ORIGINAL) {
+/**
+ * `coarse`: a disk whose clock keeps whole seconds, so every write lands in
+ * the one tick and leaves the time as it was (#245).
+ */
+function fakeVault(text: string = ORIGINAL, { coarse = false }: { coarse?: boolean } = {}) {
   const files = new Map<string, { text: string; modified: number }>([
     [NOTE, { text, modified: 1 }],
   ]);
   let clock = 1;
+  const tick = () => (coarse ? clock : (clock += 1));
   const reads = gate();
   const writes = gate();
+  /** Holds a read's answer once its bytes are taken: what it hands back is the file as it was then. */
+  const answers = gate();
 
   const fs: VaultFsPort = {
     listDirectory: async () => [],
@@ -78,19 +85,22 @@ function fakeVault(text: string = ORIGINAL) {
       await reads.pass();
       const file = files.get(path);
       if (file === undefined) throw new Error(`no such file: ${path}`);
-      return { text: file.text, modified: file.modified };
+      const taken = { text: file.text, modified: file.modified };
+      await answers.pass();
+      return taken;
     },
-    writeTextFile: async ({ path, contents, expectedModified }) => {
+    writeTextFile: async ({ path, contents, expectedModified, expectedText }) => {
       await writes.pass();
       const file = files.get(path);
       if (file === undefined) throw new Error(`no such file: ${path}`);
       // The same refusal the Rust host gives: the file has moved on since it
-      // was read, so this write would be writing over someone else's.
-      if (expectedModified !== null && file.modified !== expectedModified) {
+      // was read — its time, or its bytes — so this write would be writing
+      // over someone else's.
+      const otherTime = expectedModified !== null && file.modified !== expectedModified;
+      if (otherTime || (expectedText !== undefined && file.text !== expectedText)) {
         throw new Error('the note changed on disk since it was opened');
       }
-      clock += 1;
-      files.set(path, { text: contents, modified: clock });
+      files.set(path, { text: contents, modified: tick() });
       return clock;
     },
   };
@@ -99,12 +109,12 @@ function fakeVault(text: string = ORIGINAL) {
     fs,
     reads,
     writes,
+    answers,
     contents: (): string => files.get(NOTE)?.text ?? '',
     modified: (): number => files.get(NOTE)?.modified ?? 0,
     /** Something else writes the file: the other pane, the board, another app. */
     writeOutside: (contents: string) => {
-      clock += 1;
-      files.set(NOTE, { text: contents, modified: clock });
+      files.set(NOTE, { text: contents, modified: tick() });
     },
   };
 }
@@ -429,6 +439,35 @@ describe('properties written through a pane', () => {
       'tasks:\n  - "[[Write report]]"\n  - "[[Book flights]]"\npages: 412\n',
     );
     expect(view.result.current.state).toMatchObject({ kind: 'ready', saveError: null });
+  });
+
+  it('lands two property changes a moment apart on a disk that keeps whole seconds (#245)', async () => {
+    // The first write leaves the time as it was, so the second has to know
+    // it is behind the first by more than the time.
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await readyPane(vault);
+    vault.writes.hold();
+    act(() => view.result.current.setProperty('tasks', ['[[Write report]]']));
+    act(() => view.result.current.setProperty('pages', 412));
+    vault.writes.release();
+    await settle();
+    await settle();
+
+    expect(vault.contents()).toContain('tasks:\n  - "[[Write report]]"\npages: 412\n');
+    expect(view.result.current.state).toMatchObject({ kind: 'ready', saveError: null });
+  });
+
+  it('refuses a save from a note another program rewrote within the same second (#245)', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await readyPane(vault);
+    const theirs = ORIGINAL.replace('First', 'Fifth');
+    vault.writeOutside(theirs);
+    expect(vault.modified()).toBe(1);
+
+    await expect(act(() => view.result.current.setProperties({ status: 'done' }))).rejects.toThrow(
+      'the note changed on disk since it was opened',
+    );
+    expect(vault.contents()).toBe(theirs);
   });
 
   it('works a change given as a rule out against the value the write before it left', async () => {
@@ -949,6 +988,7 @@ describe('a pane open when another vault is opened', () => {
     ]);
     const host = { open: A };
     const reads = gate();
+    const answers = gate();
     const fileIn = (vault: string) => {
       const file = disk.get(vault);
       if (file === undefined) throw new Error(`no vault at ${vault}`);
@@ -969,10 +1009,12 @@ describe('a pane open when another vault is opened', () => {
           throw new Error('the note changed on disk since it was opened');
         }
         disk.set(host.open, { text: contents, modified: file.modified + 1 });
+        // Landed on disk; the answer may still be on its way back.
+        await answers.pass();
         return file.modified + 1;
       },
     });
-    return { fs, host, reads, textIn: (vault: string) => fileIn(vault).text };
+    return { fs, host, reads, answers, textIn: (vault: string) => fileIn(vault).text };
   }
 
   /** A pane over one note, in whichever vault the app has open. */
@@ -1011,6 +1053,34 @@ describe('a pane open when another vault is opened', () => {
     expect(kept.reason).toMatch(/another vault was opened/);
     // A's file as it was opened, not B's time: B's file says nothing about A's.
     expect(kept.modified).toBe(1);
+  });
+
+  // Verification of #281: a write's answer from A that comes back once the
+  // pane holds B's note of the same name is A's, and says nothing of B's.
+  it("starts B's save from B's note, not from a write of A's answered after the switch", async () => {
+    const { fs, host, answers, textIn } = twoVaults({ modifiedInB: 1 });
+    const view = paneIn(fs, vi.fn());
+    await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
+    answers.hold();
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nSaved in A.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    expect(textIn(A)).toBe('# Note\n\nSaved in A.\n');
+
+    host.open = B;
+    view.rerender({ vault: B, path: NOTE });
+    await waitFor(() => expect(shownText(view)).toContain('In vault B.'));
+    answers.release();
+    await settle();
+    await settle();
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nIn vault B, typed.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    await settle();
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(textIn(B)).toBe('# Note\n\nIn vault B, typed.\n');
   });
 
   it("autosaves none of A's typing into B's note of the same name while it is being read", async () => {
@@ -1076,6 +1146,8 @@ describe('a pane on a note that is moved or deleted', () => {
     let reads = 0;
     let writes = 0;
     let clock = 1;
+    /** Holds a write's answer once it is on disk. */
+    const answers = gate();
     const fs: VaultFsPort = {
       ...vault.fs,
       readTextFile: async (path) => {
@@ -1092,12 +1164,15 @@ describe('a pane on a note that is moved or deleted', () => {
           throw new Error('the note changed on disk since it was opened');
         }
         clock += 1;
-        files.set(path, { text: contents, modified: clock });
-        return clock;
+        const landed = clock;
+        files.set(path, { text: contents, modified: landed });
+        await answers.pass();
+        return landed;
       },
     };
     return {
       fs,
+      answers,
       move: () => {
         const file = files.get(NOTE);
         if (file !== undefined) files.set(MOVED, file);
@@ -1142,6 +1217,32 @@ describe('a pane on a note that is moved or deleted', () => {
     expect(view.result.current.dirty).toBe(false);
   });
 
+  // Verification of #281: the answer to a write made before a move names the
+  // path the note had then; it is still this pane's note, under its new path.
+  it('saves again after a property write whose answer came back once the note had moved', async () => {
+    const vault = movableVault();
+    const view = paneOn(vault.fs);
+    await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
+    vault.answers.hold();
+    act(() => view.result.current.setProperty('status', 'open'));
+    await settle();
+    expect(vault.text(NOTE)).toContain('status: open');
+
+    vault.move();
+    act(() => view.result.current.repoint(MOVED));
+    view.rerender({ path: MOVED });
+    await settle();
+    vault.answers.release();
+    await settle();
+    await settle();
+
+    await act(() => view.result.current.setProperties({ status: 'done' }));
+    expect(vault.text(MOVED)).toContain('status: done');
+    expect(vault.text(NOTE)).toBeUndefined();
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+  });
+
   it('writes nothing on the way out once told its note was deleted', async () => {
     const vault = movableVault();
     const view = paneOn(vault.fs);
@@ -1154,5 +1255,142 @@ describe('a pane on a note that is moved or deleted', () => {
     await settle();
 
     expect(vault.writes()).toBe(0);
+  });
+});
+
+/**
+ * Attack on #281 (#245): `startFrom` gives a tie of times to the pane's last
+ * write. On a coarse clock a read the pane made after that write — a reload
+ * for another program's edit, another pane's save, or an overwrite — has the
+ * same time, so the save starts from the older write's bytes and is refused.
+ */
+describe('attack #281: a pane on a coarse clock whose note was read again after its own write', () => {
+  const THEIRS = '# Note\n\nWritten by the other app.\n';
+
+  /** Saves once from the pane, so it has a write of its own to start from. */
+  async function paneThatSaved(vault: ReturnType<typeof fakeVault>) {
+    const view = await readyPane(vault);
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nMine.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    expect(vault.contents()).toContain('Mine.');
+    return view;
+  }
+
+  it('saves an edit made on top of a re-read of another writer’s same-tick change', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await paneThatSaved(vault);
+    vault.writeOutside(THEIRS);
+    act(() => view.result.current.reload());
+    await settle();
+    expect(shownText(view)).toContain('Written by the other app.');
+
+    act(() =>
+      view.result.current.changeDoc(docOf('# Note\n\nWritten by the other app. And me.\n')),
+    );
+    act(() => view.result.current.save());
+    await settle();
+
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toContain('And me.');
+  });
+
+  it('saves the next edit after overwriting a refused save in the same tick', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await paneThatSaved(vault);
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped before the refusal.\n')));
+    vault.writeOutside(THEIRS);
+    act(() => view.result.current.save());
+    await settle();
+    act(() => view.result.current.overwrite());
+    await settle();
+    expect(vault.contents()).toContain('Typed before the refusal.');
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped after the overwrite.\n')));
+    act(() => view.result.current.save());
+    await settle();
+
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toContain('Typed after the overwrite.');
+  });
+
+  it('two panes on one note, saving in turn within one tick, are never refused', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const one = await readyPane(vault);
+    const two = await readyPane(vault);
+
+    act(() => one.result.current.changeDoc(docOf('# Note\n\nOne.\n')));
+    act(() => one.result.current.save());
+    await settle();
+    act(() => two.result.current.reload());
+    await settle();
+    act(() => two.result.current.changeDoc(docOf('# Note\n\nOne. Two.\n')));
+    act(() => two.result.current.save());
+    await settle();
+    act(() => one.result.current.reload());
+    await settle();
+    expect(shownText(one)).toContain('Two.');
+    act(() => one.result.current.changeDoc(docOf('# Note\n\nOne. Two. One again.\n')));
+    act(() => one.result.current.save());
+    await settle();
+
+    const state = one.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toContain('One again.');
+  });
+});
+
+/**
+ * Verification of #281: a re-read the pane began before one of its own writes
+ * landed holds the file from before that write. Applied after it, it puts the
+ * older text back on screen, and the next save writes it over the landed edit.
+ */
+describe('a re-read begun before the pane’s own write landed (#281)', () => {
+  it.each([
+    ['a fine clock', false],
+    ['a coarse clock', true],
+  ])('is dropped on %s: the landed text stays on screen and on disk', async (_, coarse) => {
+    const vault = fakeVault(ORIGINAL, { coarse });
+    const view = await readyPane(vault);
+    vault.answers.hold();
+    act(() => view.result.current.reload());
+    await settle();
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    expect(vault.contents()).toBe('# Note\n\nTyped.\n');
+
+    vault.answers.release();
+    await settle();
+    await settle();
+    expect(shownText(view)).toContain('Typed.');
+    expect(shownText(view)).not.toContain('First line.');
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped. More.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toBe('# Note\n\nTyped. More.\n');
+  });
+
+  it('still shows another writer’s change that came after the dropped read', async () => {
+    const vault = fakeVault(ORIGINAL);
+    const view = await readyPane(vault);
+    vault.answers.hold();
+    act(() => view.result.current.reload());
+    await settle();
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    vault.writeOutside('# Note\n\nTyped. And theirs.\n');
+
+    vault.answers.release();
+    await settle();
+    await settle();
+    expect(shownText(view)).toContain('And theirs.');
   });
 });

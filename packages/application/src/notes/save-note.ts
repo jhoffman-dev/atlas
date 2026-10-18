@@ -16,7 +16,8 @@ export interface SavedNote {
  *
  * The frontmatter is re-attached exactly as it was read, and blocks the user did
  * not touch keep their original bytes. The save is refused outright if the file
- * changed on disk since it was opened, rather than overwriting the other change.
+ * changed on disk since it was opened — its time, or its bytes when the time
+ * stood still (#245) — rather than overwriting the other change.
  */
 export async function saveNote({
   fs,
@@ -61,6 +62,7 @@ export async function saveNote({
     path: note.path,
     contents: text,
     expectedModified: note.modified,
+    expectedText: note.onDisk,
   });
 
   // Re-parse so the next save compares against what is now on disk.
@@ -75,6 +77,7 @@ export async function saveNote({
       parsed,
       doc: parsed.doc,
       modified,
+      onDisk: text,
     },
   };
 }
