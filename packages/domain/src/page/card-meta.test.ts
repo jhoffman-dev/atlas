@@ -41,6 +41,12 @@ describe('cardMeta', () => {
     expect(texts(cardMeta({ fields: ['stage'], kinds, values: { stage: 3 } }))).toEqual(['3']);
   });
 
+  it('writes a ticked boolean with no declared kind as its name, as a chip does', () => {
+    expect(texts(cardMeta({ fields: ['flagged'], kinds, values: { flagged: true } }))).toEqual([
+      'Flagged',
+    ]);
+  });
+
   it('writes a field listed twice once', () => {
     expect(texts(cardMeta({ fields: ['phase', 'phase'], kinds, values: { phase: 2 } }))).toEqual([
       'Phase 2',
