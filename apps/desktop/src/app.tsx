@@ -136,7 +136,7 @@ import {
   QuickAddSettingsCard,
   SecretsSettingsCard,
   SyncSettingsCard,
-} from './pages-on-first-use.ts';
+} from './settings/settings-sections.ts';
 import { browserImagePlacementStore } from './notes/browser-image-placement-store.ts';
 import { useTickMemory } from './query/tick-memory.ts';
 import { useViewDrafts } from './query/use-view-drafts.ts';

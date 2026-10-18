@@ -29,4 +29,15 @@ describe('PageFrameFallback', () => {
     expect(screen.queryByRole('group', { name: 'History' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Show sidebar' })).toBeNull();
   });
+
+  it('holds what it is given in the body, which is then no longer loading', () => {
+    const { container } = render(
+      <PageFrameFallback>
+        <p>Inside</p>
+      </PageFrameFallback>,
+    );
+    const body = container.querySelector('.panel__body');
+    expect(body?.textContent).toBe('Inside');
+    expect(body?.hasAttribute('aria-busy')).toBe(false);
+  });
 });

@@ -19,6 +19,7 @@ import {
 } from './composition.ts';
 import { guardStrayFileDrops } from './file-drop-guard.ts';
 import { preloadPages } from './pages-on-first-use.ts';
+import { PreloadAfterStart } from './preload-after-start.tsx';
 import '@fontsource-variable/manrope';
 import './styles.css';
 
@@ -45,10 +46,7 @@ createRoot(root).render(
       granola={resolveGranola()}
       globalCapture={resolveGlobalCapture()}
     />
+    {/* What start-up does not draw loads once it has committed, so pages open with no fallback. */}
+    <PreloadAfterStart preload={preloadPages} />
   </StrictMode>,
 );
-
-// The pages not on the start path load after start-up, so they open without a
-// fallback yet never hold up the first paint.
-if (document.readyState === 'complete') void preloadPages();
-else window.addEventListener('load', () => void preloadPages(), { once: true });
