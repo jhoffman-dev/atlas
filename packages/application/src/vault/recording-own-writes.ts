@@ -5,7 +5,7 @@ import type { VaultFsPort } from './ports.ts';
  * The vault, with every write it makes kept in `ownWrites` as what it left
  * behind, so the watcher's report of it can be known as the app's own
  * (#254). A write whose result the host does not report in full — a new
- * note, a folder, an artifact's bytes — and a write that fails are forgotten instead:
+ * note, an artifact's bytes — and a write that fails are forgotten instead:
  * what is there is not known, so a report of it is refreshed for.
  */
 export function recordingOwnWrites({
@@ -49,9 +49,11 @@ export function recordingOwnWrites({
         });
         return modified;
       }),
-    // A folder is never taken as its own echo: another program can put a whole
-    // folder of notes in its place, and the watcher reports only the folder.
-    createFolder: (args) => forgetAfter(args.path, () => fs.createFolder(args)),
+    createFolder: (args) =>
+      forgetOnFailure([args.path], async () => {
+        await fs.createFolder(args);
+        ownWrites.record({ ...at(args.path), left: { kind: 'folder' } });
+      }),
     trashEntry: (args) =>
       forgetOnFailure([args.path], async () => {
         await fs.trashEntry(args);

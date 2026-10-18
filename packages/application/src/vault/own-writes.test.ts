@@ -42,15 +42,27 @@ describe('isEchoOf: what counts as the echo of the app’s own write (#254)', ()
   });
 
   it('is not a note that is gone, a folder now, or could not be read', () => {
-    for (const kind of ['absent', 'directory', 'file', 'unknown'] as const) {
-      expect(isEchoOf(saved, { kind }), kind).toBe(false);
+    const found = [
+      { kind: 'absent' },
+      { kind: 'directory', ownContents: true },
+      { kind: 'file' },
+      { kind: 'unknown' },
+    ] as const;
+    for (const each of found) expect(isEchoOf(saved, each), each.kind).toBe(false);
+  });
+
+  it('is a folder the app made only while all it holds is the app’s own', () => {
+    expect(isEchoOf({ kind: 'folder' }, { kind: 'directory', ownContents: true })).toBe(true);
+    expect(isEchoOf({ kind: 'folder' }, { kind: 'directory', ownContents: false })).toBe(false);
+    for (const kind of ['absent', 'file', 'unknown'] as const) {
+      expect(isEchoOf({ kind: 'folder' }, { kind }), kind).toBe(false);
     }
   });
 
   it('is a path the app moved or trashed only while nothing is there', () => {
     expect(isEchoOf({ kind: 'absent' }, { kind: 'absent' })).toBe(true);
     expect(isEchoOf({ kind: 'absent' }, { kind: 'file' })).toBe(false);
-    expect(isEchoOf({ kind: 'absent' }, { kind: 'directory' })).toBe(false);
+    expect(isEchoOf({ kind: 'absent' }, { kind: 'directory', ownContents: true })).toBe(false);
     expect(isEchoOf({ kind: 'absent' }, { kind: 'unknown' })).toBe(false);
     expect(isEchoOf({ kind: 'absent' }, { kind: 'text', text: '', modified: 1 })).toBe(false);
   });

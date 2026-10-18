@@ -6,16 +6,17 @@ import type { Clock } from '../ports.ts';
  */
 export type LeftVersion =
   | { readonly kind: 'text'; readonly text: string; readonly modified: number }
-  | { readonly kind: 'absent' };
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'folder' };
 
 /**
- * What is at a path when the watcher's report of it arrives. `file` is a file
- * whose text was not read; `unknown` is whatever could not be told: a file
+ * What is at a path when the watcher's report of it arrives. A `directory`
+ * says whether all it holds is the app's own; `file` is a file whose text was not read; `unknown` is whatever could not be told: a file
  * that is not text, or a read that failed.
  */
 export type FoundVersion =
   | LeftVersion
-  | { readonly kind: 'directory' }
+  | { readonly kind: 'directory'; readonly ownContents: boolean }
   | { readonly kind: 'file' }
   | { readonly kind: 'unknown' };
 
@@ -27,7 +28,10 @@ export type FoundVersion =
  * leaves the same time but other bytes, and its report is kept. (The refresh
  * it asks for re-reads only a note whose time or size moved, so a same-time,
  * same-size change can still slip past the index: #245.) A path the app
- * emptied is an echo only while nothing is there.
+ * emptied is an echo only while nothing is there. A folder the app made is
+ * one only while everything in it is the app's own, as it left it: another
+ * program can put a whole folder of notes in its place, and the watcher then
+ * reports the folder alone.
  */
 export function isEchoOf(left: LeftVersion, found: FoundVersion): boolean {
   switch (left.kind) {
@@ -35,6 +39,8 @@ export function isEchoOf(left: LeftVersion, found: FoundVersion): boolean {
       return found.kind === 'text' && found.modified === left.modified && found.text === left.text;
     case 'absent':
       return found.kind === 'absent';
+    case 'folder':
+      return found.kind === 'directory' && found.ownContents;
   }
 }
 

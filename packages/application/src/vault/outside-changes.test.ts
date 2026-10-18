@@ -19,6 +19,15 @@ type OnDisk = { readonly text: string; readonly modified: number } | 'folder';
  */
 function aVault() {
   const files = new Map<string, OnDisk>();
+  /** Every folder that has held anything, until another program takes it away: the disk keeps an emptied folder. */
+  const folders = new Set<string>();
+  const put = (at: string, file: OnDisk) => {
+    files.set(at, file);
+    for (let slash = at.indexOf('/'); slash > 0; slash = at.indexOf('/', slash + 1)) {
+      folders.add(at.slice(0, slash));
+    }
+    if (file === 'folder') folders.add(at);
+  };
   const disk = { mtime: 1_000, reads: 0, failReads: false };
   let wallClock = 50_000;
   const host: VaultFsPort = fakeVaultFs({
@@ -34,6 +43,8 @@ function aVault() {
     listDirectory: async (folder) => {
       disk.reads += 1;
       if (disk.failReads) throw new Error('the host is busy');
+      // Listing a folder that is not there fails, as the host's does.
+      if (folder !== '' && !folders.has(folder)) throw new Error('no such folder');
       return [...files]
         .filter(([each]) => parentVaultPath(path(each)) === folder)
         .map(([each, file]): VaultEntry => ({
@@ -43,30 +54,33 @@ function aVault() {
         }));
     },
     writeTextFile: async ({ path: at, contents }) => {
-      files.set(at, { text: contents, modified: disk.mtime });
+      put(at, { text: contents, modified: disk.mtime });
       return disk.mtime;
     },
     createNote: async ({ path: at, contents }) => {
-      files.set(at, { text: contents, modified: disk.mtime });
+      put(at, { text: contents, modified: disk.mtime });
     },
-    createFolder: async ({ path: at }) => void files.set(at, 'folder'),
+    createFolder: async ({ path: at }) => void put(at, 'folder'),
     moveEntry: async ({ from, to }) => {
       const moving = files.get(from);
       if (moving === undefined) throw new Error('nothing to move');
       files.delete(from);
-      files.set(to, moving);
+      put(to, moving);
     },
     trashEntry: async ({ path: at }) => void files.delete(at),
   });
   const ownWrites = createOwnWrites({ clock: { now: () => wallClock } });
   const fs = recordingOwnWrites({ fs: host, ownWrites, vault: VAULT });
   const outside = {
-    write: (at: string, text: string) => files.set(at, { text, modified: disk.mtime }),
-    remove: (at: string) => files.delete(at),
-    folder: (at: string) => files.set(at, 'folder'),
+    write: (at: string, text: string) => put(at, { text, modified: disk.mtime }),
+    remove: (at: string) => {
+      files.delete(at);
+      folders.delete(at);
+    },
+    folder: (at: string) => put(at, 'folder'),
     move: (from: string, to: string) => {
       const moving = files.get(from);
-      if (moving !== undefined) files.set(to, moving);
+      if (moving !== undefined) put(to, moving);
       files.delete(from);
     },
   };
@@ -224,8 +238,8 @@ describe('outsideChanges: renames, deletes and creates', () => {
     await vault.fs.createFolder({ path: path('Projects') });
     await vault.fs.moveEntry({ from: path('Inbox/Call.md'), to: path('Projects/Call.md') });
     const report = [...saveReport('Inbox/Call.md'), 'Projects', 'Projects/Call.md'];
-    // The new folder is refreshed for; the note's move is the app's own.
-    expect(await vault.reported(report)).toEqual(['Projects']);
+    // The new folder holds only the note the app moved in, as it left it.
+    expect(await vault.reported(report)).toEqual([]);
   });
 
   it('keeps the moved note when the app never saw its bytes', async () => {
@@ -269,15 +283,58 @@ describe('outsideChanges: renames, deletes and creates', () => {
     expect(await vault.reported(['Old.md'])).toEqual(['Old.md']);
   });
 
-  it('keeps the app’s own new folder, which another program can replace whole', async () => {
+  it('drops the app’s own new folder while it is empty or holds only the app’s notes', async () => {
     const vault = aVault();
     await vault.fs.createFolder({ path: path('Projects/Larkspur') });
+    expect(await vault.reported(['Projects/Larkspur'])).toEqual([]);
+    await save(vault.fs, 'Projects/Larkspur/Plan.md', '# Plan\n');
+    expect(await vault.reported(['Projects/Larkspur'])).toEqual([]);
+  });
+
+  it('keeps the app’s own new folder once another program has put anything in it', async () => {
+    const vault = aVault();
+    await vault.fs.createFolder({ path: path('Projects/Larkspur') });
+    await save(vault.fs, 'Projects/Larkspur/Plan.md', '# Plan\n');
+    vault.outside.write('Projects/Larkspur/Notes.md', '# Notes\n');
     expect(await vault.reported(['Projects/Larkspur'])).toEqual(['Projects/Larkspur']);
+    vault.outside.remove('Projects/Larkspur/Notes.md');
+    vault.outside.write('Projects/Larkspur/Plan.md', '# Plan, theirs\n');
+    expect(await vault.reported(['Projects/Larkspur'])).toEqual(['Projects/Larkspur']);
+    vault.outside.remove('Projects/Larkspur/Plan.md');
+    vault.outside.remove('Projects/Larkspur');
+    expect(await vault.reported(['Projects/Larkspur'])).toEqual(['Projects/Larkspur']);
+  });
+
+  it('drops the folders a filing made inside one another, holding only the note it filed', async () => {
+    const vault = aVault();
+    await save(vault.fs, 'Inbox/Call.md', '# Call\n');
+    for (const each of ['Tasks', 'Tasks/2026', 'Tasks/2026/10']) {
+      await vault.fs.createFolder({ path: path(each) });
+    }
+    await vault.fs.moveEntry({ from: path('Inbox/Call.md'), to: path('Tasks/2026/10/Call.md') });
+    const report = [
+      'Tasks',
+      'Tasks/2026',
+      'Tasks/2026/10',
+      'Inbox/Call.md',
+      'Tasks/2026/10/Call.md',
+    ];
+    expect(await vault.reported(report)).toEqual([]);
+    // A note from elsewhere in the deepest one makes every folder above it someone else's too.
+    vault.outside.write('Tasks/2026/10/Theirs.md', '# Theirs\n');
+    expect(await vault.reported(report)).toEqual(['Tasks', 'Tasks/2026', 'Tasks/2026/10']);
+  });
+
+  it('keeps a new folder past what it lists, rather than list more', async () => {
+    const vault = aVault();
+    const made = ['A', 'B', 'C', 'D', 'E'];
+    for (const each of made) await vault.fs.createFolder({ path: path(each) });
+    expect(await vault.reported(made)).toEqual(made);
   });
 
   it('takes a burst of trashes across many folders as empty by one read, and keeps the folders among them', async () => {
     const vault = aVault();
-    const trashed = ['A/Old.md', 'B/Old.md', 'C/Old.md', 'D/Scans'];
+    const trashed = ['A/Old.md', 'B/Old.md', 'C/Old.md', 'D/Old.md', 'E/Scans'];
     for (const each of trashed) {
       vault.outside.write(each, '# Old\n');
       await vault.fs.trashEntry({ path: path(each) });
@@ -285,7 +342,7 @@ describe('outsideChanges: renames, deletes and creates', () => {
     vault.outside.write('B/Old.md', '# Old, back again\n');
     vault.disk.reads = 0;
     // Too many folders to list: a note's path is read, anything else is refreshed for.
-    expect(await vault.reported(trashed)).toEqual(['B/Old.md', 'D/Scans']);
+    expect(await vault.reported(trashed)).toEqual(['B/Old.md', 'E/Scans']);
     expect(vault.disk.reads).toBe(1);
   });
 
