@@ -99,7 +99,9 @@ test('attack #281: after a refused save is discarded in the same tick, the next 
   // to replace.
   const line = page.getByText('Ship on zig');
   const box = await line.boundingBox();
-  await line.click({ position: { x: (box?.width ?? 2) - 2, y: (box?.height ?? 2) / 2 } });
+  expect(box).not.toBeNull();
+  if (box === null) return;
+  await line.click({ position: { x: box.width - 2, y: box.height / 2 } });
   await page.keyboard.press('End');
   await page.keyboard.type(' After.');
   await saveNow(page);
