@@ -661,4 +661,202 @@ mod tests {
         );
         assert_eq!(control.broker.waiting(), 0);
     }
+
+    /// While turning on waits out a copy of the listener it released, the
+    /// Settings page still asks for the status: it must be answered, not held
+    /// for the whole wait behind the lock the toggle keeps (#89).
+    #[cfg(unix)]
+    #[test]
+    fn the_status_is_answered_while_turning_on_waits_for_the_released_port() {
+        let (_dir, control) = loaded();
+        let port = control.set_enabled(true, echo(&control)).unwrap().port;
+        let held = copy_of_the_listener_on(port.unwrap());
+        control.set_enabled(false, echo(&control)).unwrap();
+
+        let toggling = control.clone();
+        let forward = echo(&control);
+        let turning_on = std::thread::spawn(move || toggling.set_enabled(true, forward));
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let asked = std::time::Instant::now();
+        control.status();
+        let waited = asked.elapsed();
+        turning_on.join().unwrap().unwrap();
+        drop(held);
+
+        assert!(
+            waited < std::time::Duration::from_millis(500),
+            "status() was held {waited:?} behind the release wait"
+        );
+    }
+
+    /// Off, on, off, on in quick succession, a child's copy of the listener
+    /// open across the first off and closing during the wait, keeps the port
+    /// and the token every time.
+    #[cfg(unix)]
+    #[test]
+    fn quick_toggles_with_a_child_s_copy_keep_the_port_and_the_token() {
+        let (_dir, control) = loaded();
+        let port = control.set_enabled(true, echo(&control)).unwrap().port;
+        let token = control.token();
+        for _ in 0..3 {
+            let held = copy_of_the_listener_on(port.unwrap());
+            control.set_enabled(false, echo(&control)).unwrap();
+            let child_execs = std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(30));
+                drop(held);
+            });
+            let status = control.set_enabled(true, echo(&control)).unwrap();
+            child_execs.join().unwrap();
+            assert_eq!(status.port, port, "moved port");
+            assert_eq!(control.token(), token, "replaced token");
+        }
+        assert!(get_status(port.unwrap(), &token)
+            .unwrap()
+            .starts_with("HTTP/1.1 200"));
+    }
+
+    /// Off pressed while on is still waiting for the released port ends off:
+    /// the last choice wins, and the file says so.
+    #[cfg(unix)]
+    #[test]
+    fn turning_off_during_the_wait_ends_off() {
+        let (dir, control) = loaded();
+        let port = control.set_enabled(true, echo(&control)).unwrap().port;
+        let held = copy_of_the_listener_on(port.unwrap());
+        control.set_enabled(false, echo(&control)).unwrap();
+
+        let toggling = control.clone();
+        let forward = echo(&control);
+        let turning_on = std::thread::spawn(move || toggling.set_enabled(true, forward));
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let off = control.set_enabled(false, echo(&control)).unwrap();
+        turning_on.join().unwrap().unwrap();
+        drop(held);
+
+        assert!(!off.enabled && !off.running);
+        assert!(!control.status().running);
+        let file = connection::load_or_create(&dir.path().join("app")).unwrap();
+        assert!(!file.enabled);
+    }
+
+    /// Something that takes the port in the moment between a child's copy
+    /// closing and Atlas trying again is a squatter: if Atlas did not get its
+    /// port, the token is replaced and the old one is refused where Atlas now
+    /// listens. Atlas getting it first keeps both. Either way, port moved if
+    /// and only if token replaced.
+    #[cfg(unix)]
+    #[test]
+    fn a_squatter_that_binds_during_the_wait_never_inherits_the_token() {
+        let (_dir, control) = loaded();
+        let port = control
+            .set_enabled(true, echo(&control))
+            .unwrap()
+            .port
+            .unwrap();
+        let token = control.token();
+        let held = copy_of_the_listener_on(port);
+        control.set_enabled(false, echo(&control)).unwrap();
+
+        let squatting = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            drop(held);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+            while std::time::Instant::now() < deadline {
+                if let Ok(listener) = std::net::TcpListener::bind(("127.0.0.1", port)) {
+                    return Some(listener);
+                }
+                // Faster than Atlas's 5 ms, without exhausting the socket table.
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            None
+        });
+        let status = control.set_enabled(true, echo(&control)).unwrap();
+        let squatter = squatting.join().unwrap();
+
+        let now_on = status.port.unwrap();
+        assert_eq!(
+            squatter.is_some(),
+            now_on != port,
+            "squatter and Atlas share {port}"
+        );
+        assert_eq!(
+            now_on != port,
+            control.token() != token,
+            "port moved without the token"
+        );
+        if now_on != port {
+            assert!(get_status(now_on, &token)
+                .unwrap()
+                .starts_with("HTTP/1.1 401"));
+        }
+    }
+
+    /// Two threads toggling against each other, a child's copy closing during
+    /// the first wait: what runs and what the file says agree at the end, and
+    /// the port and token are never given up with nobody else on the port.
+    #[cfg(unix)]
+    #[test]
+    fn concurrent_toggles_never_give_up_the_port() {
+        let (dir, control) = loaded();
+        let port = control.set_enabled(true, echo(&control)).unwrap().port;
+        let token = control.token();
+        let held = copy_of_the_listener_on(port.unwrap());
+        let child_execs = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            drop(held);
+        });
+        let togglers: Vec<_> = [true, false]
+            .into_iter()
+            .map(|first| {
+                let control = control.clone();
+                let forward = echo(&control);
+                std::thread::spawn(move || {
+                    for step in 0..40 {
+                        let on = (step % 2 == 0) == first;
+                        let status = control.set_enabled(on, forward.clone()).unwrap();
+                        if status.running {
+                            assert_eq!(status.port, port, "moved port");
+                        }
+                    }
+                })
+            })
+            .collect();
+        for toggler in togglers {
+            toggler.join().unwrap();
+        }
+        child_execs.join().unwrap();
+
+        assert_eq!(control.token(), token, "replaced token");
+        let status = control.status();
+        let file = connection::load_or_create(&dir.path().join("app")).unwrap();
+        assert_eq!(file.enabled, status.running);
+        assert_eq!(status.enabled, status.running);
+    }
+
+    /// `released` is this run's memory: a new launch with the recorded port
+    /// held does not wait for it, but moves at once under a new token.
+    #[test]
+    fn a_new_launch_does_not_wait_for_the_port_the_last_one_released() {
+        let (dir, control) = loaded();
+        let port = control
+            .set_enabled(true, echo(&control))
+            .unwrap()
+            .port
+            .unwrap();
+        control.set_enabled(false, echo(&control)).unwrap();
+        let token = control.token();
+        let mut file = connection::load_or_create(&dir.path().join("app")).unwrap();
+        file.enabled = true;
+        connection::save(&dir.path().join("app"), &file).unwrap();
+        drop(control);
+        let _squatter = std::net::TcpListener::bind(("127.0.0.1", port)).unwrap();
+
+        let relaunched = Arc::new(ApiControl::load(dir.path().join("app")).unwrap());
+        let started = std::time::Instant::now();
+        relaunched.resume(echo(&relaunched)).unwrap();
+
+        assert!(started.elapsed() < std::time::Duration::from_millis(500));
+        assert_ne!(relaunched.status().port, Some(port));
+        assert_ne!(relaunched.token(), token);
+    }
 }
