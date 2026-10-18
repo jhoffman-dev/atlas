@@ -53,6 +53,12 @@ async function openProposals(page: Page): Promise<FakeVault> {
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: /^Inbox/ }).click();
+  // The offers are read after the cards and land above them, moving every
+  // button down: a click begun before they land can miss (#130).
+  await expect(
+    page.getByRole('complementary', { name: 'Set your types up for the Inbox' }),
+  ).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   return vault;
 }
 

@@ -156,6 +156,8 @@ test('every note waiting can be reached past the first 500, and the page says ho
   await expect(table).toHaveAttribute('aria-rowcount', '501', { timeout: 15_000 });
   await expect(inbox.getByText(/^505 to process/)).toBeVisible();
   await expect(inbox.getByText('Showing the newest 500 of 505.')).toBeVisible();
+  // Not before the GTD offer has landed above the list, moving "Show more" down.
+  await expect(inbox.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
 
   await inbox.getByRole('button', { name: 'Show more' }).click();
 
