@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath } from '@atlas/domain';
 import { fakeIndexPort, type SearchHit } from '@atlas/application';
+import { createOverlayStore } from '../overlay-store.ts';
 import { useSearch } from './use-search.ts';
 
 const hit = (title: string): SearchHit => ({
@@ -34,10 +35,11 @@ function ledgerIndex() {
 
 function palette(index: ReturnType<typeof ledgerIndex>['index']) {
   let renders = 0;
+  const store = createOverlayStore();
   const hook = renderHook(
     ({ changeKey }: { changeKey: string }) => {
       renders += 1;
-      return useSearch({ index, changeKey });
+      return useSearch({ index, changeKey, store });
     },
     { initialProps: { changeKey: 'ready:1' } },
   );
@@ -101,8 +103,9 @@ describe('useSearch — the index changes while the palette is open', () => {
           answers.push(() => resolve([hit(`for ${query}`)]));
         }),
     });
+    const store = createOverlayStore();
     const hook = renderHook(
-      ({ changeKey }: { changeKey: string }) => useSearch({ index, changeKey }),
+      ({ changeKey }: { changeKey: string }) => useSearch({ index, changeKey, store }),
       { initialProps: { changeKey: 'ready:1' } },
     );
     act(() => hook.result.current.setQuery('led'));

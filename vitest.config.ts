@@ -13,6 +13,10 @@ export default defineConfig({
       '@atlas/ui/graph': fileURLToPath(
         new URL('./packages/ui/src/graph/index.ts', import.meta.url),
       ),
+      // Test support (the render counter), kept out of the barrel the app is built from.
+      '@atlas/ui/testing': fileURLToPath(
+        new URL('./packages/ui/src/testing/render-counter.ts', import.meta.url),
+      ),
       // Before '@atlas/application', for the same reason: test support that needs
       // node:sqlite, kept out of the barrel the app's browser bundle is built from.
       '@atlas/application/testing/sqlite': fileURLToPath(

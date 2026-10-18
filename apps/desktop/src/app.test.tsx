@@ -30,16 +30,12 @@ import type { ChatPorts } from './chat/use-chat.ts';
 import type { LocalApiPorts } from './api/use-local-api.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { createBrowserGlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
-import {
-  startCountingRenders,
-  stopCountingRenders,
-} from '../../../packages/ui/src/testing/render-counter.ts';
+import { startCountingRenders, stopCountingRenders } from '@atlas/ui/testing';
 
 // Before React loads, so every commit is handed to the counter. It counts
 // nothing until a test switches it on.
 await vi.hoisted(async () => {
-  const { installRenderCounter } =
-    await import('../../../packages/ui/src/testing/render-counter.ts');
+  const { installRenderCounter } = await import('@atlas/ui/testing');
   installRenderCounter();
 });
 

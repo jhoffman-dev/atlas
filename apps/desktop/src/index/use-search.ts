@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { matchingCommands, toSearchQuery, type PaletteCommand } from '@atlas/domain';
 import { searchNotes, type IndexPort, type SearchHit } from '@atlas/application';
-import { NO_INPUT, withArchived, withMoved, withQuery } from '../overlay.ts';
-import {
-  changePalette,
-  createOverlayStore,
-  usePaletteInput,
-  type OverlayStore,
-} from '../overlay-store.ts';
+import { withArchived, withMoved, withQuery } from '../overlay.ts';
+import { changePalette, usePaletteInput, type OverlayStore } from '../overlay-store.ts';
 
 const LIMIT = 20;
 
@@ -36,7 +31,7 @@ export function useSearch({
   commands = NO_COMMANDS,
   offerFor = noOffers,
   changeKey,
-  store: given,
+  store,
 }: {
   index: IndexPort;
   commands?: readonly PaletteCommand[];
@@ -47,11 +42,9 @@ export function useSearch({
    * it opens, so a search typed in between would otherwise stay empty.
    */
   changeKey?: string;
-  /** Where the query and the chosen row are kept (#261); without one, the search keeps its own. */
-  store?: OverlayStore;
+  /** Where the query and the chosen row are kept (#261). */
+  store: OverlayStore;
 }) {
-  const [own] = useState(createOverlayStore);
-  const store = given ?? own;
   const { query, selected, includeArchived } = usePaletteInput(store);
   const [answer, setAnswer] = useState<Answer>(NO_ANSWER);
   const prepared = toSearchQuery(query);
@@ -115,11 +108,6 @@ export function useSearch({
     [store, count],
   );
 
-  const reset = useCallback(() => {
-    changePalette(store, () => NO_INPUT);
-    setAnswer(NO_ANSWER);
-  }, [store]);
-
   const changeQuery = useCallback(
     (next: string) => changePalette(store, (input) => withQuery(input, next)),
     [store],
@@ -137,7 +125,6 @@ export function useSearch({
     hits,
     selected,
     move,
-    reset,
     /** Archived notes are left out of a search unless this is on (U-22). */
     includeArchived,
     setIncludeArchived: changeArchived,
