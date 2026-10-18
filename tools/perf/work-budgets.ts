@@ -34,6 +34,12 @@ export interface ActionBudget {
    * so a Mac run cannot lower them below what CI counts.
    */
   readonly commitsFromCi?: true;
+  /**
+   * As `commitsFromCi`, for the renders: an action whose draws land a few
+   * more on CI than on a Mac — the focus settling after a pane closes —
+   * keeps the renders set from CI's count.
+   */
+  readonly rendersFromCi?: true;
 }
 
 /** `budgets.json`: a note for the reader, and each action's budget by name. */
@@ -201,10 +207,11 @@ export function lowered(
   );
   return {
     commits: was.commitsFromCi === true ? was.commits : lower(was.commits, now.commits),
-    renders: lower(was.renders, now.renders),
+    renders: was.rendersFromCi === true ? was.renders : lower(was.renders, now.renders),
     calls,
     ...(was.rows === undefined ? {} : { rows: was.rows }),
     ...(was.commitsFromCi === true ? { commitsFromCi: true } : {}),
+    ...(was.rendersFromCi === true ? { rendersFromCi: true } : {}),
   };
 }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   flattenVaultTree,
   isWithin,
@@ -31,6 +32,8 @@ export interface VaultView {
   rows: readonly VaultTreeRow[];
   /** Every note in the vault, for resolving links and offering completions. */
   notePaths: readonly VaultPath[];
+  /** The vault `notePaths` is the listing of, or null while a vault's listing is still on its way. */
+  notesListedFor: string | null;
   error: string | null;
   chooseVault: () => void;
   /** Shows a vault another way of opening has already chosen and remembered — a clone from GitHub. */
@@ -66,14 +69,23 @@ export function useVault(
   { fs, picker, store }: VaultPorts,
   {
     beforeSwitch,
+    onSwitched,
   }: {
     /** Settles the vault being left, once another is chosen and before the host moves. */
     beforeSwitch?: () => Promise<void>;
+    /**
+     * Told the vault adopted, in the same event as the location changes, for
+     * state that belongs to a vault and must change hands in the same render
+     * (R14-01): the tabs, whose paths mean nothing in another vault.
+     */
+    onSwitched?: (next: VaultLocation) => void;
   } = {},
 ): VaultView {
-  /** Read when a vault is chosen, so the callback need not be stable to be current. */
+  /** Read when a vault is chosen, so the callbacks need not be stable to be current. */
   const settle = useRef(beforeSwitch);
   settle.current = beforeSwitch;
+  const switched = useRef(onSwitched);
+  switched.current = onSwitched;
 
   const [location, setLocation] = useState<VaultLocation | null>(null);
   const [children, setChildren] = useState<ReadonlyMap<VaultPath, readonly VaultEntry[]>>(
@@ -81,6 +93,10 @@ export function useVault(
   );
   const [expanded, setExpanded] = useState<ReadonlySet<VaultPath>>(new Set());
   const [notePaths, setNotePaths] = useState<readonly VaultPath[]>([]);
+  /** The vault `notePaths` lists, once its listing has come back; null until then. */
+  const [notesListedFor, setNotesListedFor] = useState<string | null>(null);
+  /** The vault adopted last, so a listing that lands after a switch is known for the vault it was asked of. */
+  const adopted = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
    * Folders forgotten since the last render — moved or deleted — which a
@@ -103,14 +119,29 @@ export function useVault(
 
   const adoptVault = useCallback(
     (next: VaultLocation) => {
-      setLocation(next);
-      setChildren(new Map());
+      // One synchronous commit for the location and everything that changes
+      // hands with it: `onSwitched` moves a store, whose readers React draws
+      // at once, while a state change made here, after an await, is drawn
+      // later. Left to that order, one render would show the next vault's
+      // tabs against this vault's ports (R14-01).
+      adopted.current = next.absolutePath;
+      flushSync(() => {
+        switched.current?.(next);
+        setLocation(next);
+        setChildren(new Map());
+        setExpanded(new Set());
+        setNotesListedFor(null);
+        setError(null);
+      });
       forgotten.current.clear();
-      setExpanded(new Set());
-      setError(null);
       void loadDirectory(VAULT_ROOT);
       listVaultNotes({ fs })
-        .then(setNotePaths)
+        .then((paths) => {
+          // Landed after another vault was adopted: its notes, not this one's.
+          if (adopted.current !== next.absolutePath) return;
+          setNotePaths(paths);
+          setNotesListedFor(next.absolutePath);
+        })
         .catch((cause: unknown) => setError(message(cause)));
     },
     [fs, loadDirectory],
@@ -180,8 +211,11 @@ export function useVault(
     const gone = (path: VaultPath) =>
       [...forgotten.current].some((folder) => isWithin(path, folder));
     const paths = [...children.keys()].filter((path) => !gone(path));
+    const askedOf = adopted.current;
     listVaultNotes({ fs })
-      .then(setNotePaths)
+      .then((notes) => {
+        if (adopted.current === askedOf) setNotePaths(notes);
+      })
       .catch((cause: unknown) => setError(message(cause)));
     const listings = await Promise.allSettled(
       paths.map((path) => listVaultDirectory({ fs, path })),
@@ -210,6 +244,7 @@ export function useVault(
     location,
     rows,
     notePaths,
+    notesListedFor,
     error,
     chooseVault,
     showVault: adoptVault,

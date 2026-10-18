@@ -181,7 +181,7 @@ describe('VaultTree — what one commit draws', () => {
     view.rerender(tree({ onSelectFile: latest }));
     await userEvent.click(screen.getByRole('treeitem', { name: 'Harbour' }));
     expect(first).not.toHaveBeenCalled();
-    expect(latest).toHaveBeenCalledWith('Harbour.md');
+    expect(latest).toHaveBeenCalledWith('Harbour.md', 'here');
   });
 });
 

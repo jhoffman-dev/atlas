@@ -35,6 +35,7 @@ import {
   type OverlaySlots,
   type ViewField,
   type ViewTabEditing,
+  type OpenHow,
 } from '@atlas/ui';
 import type { TabLanding } from '../types/use-type-views.ts';
 import { calendarView, feedView, timelineView } from '../pages-on-first-use.ts';
@@ -306,7 +307,8 @@ export function ViewBody({
   folds: GroupFolds;
   /** What a calendar shows, changed from the toolbar. */
   calendar: CalendarNavigation;
-  onOpenNote: (path: string) => void;
+  /** Opens a row's or a card's note; `how` is where the click asked for it, when it said. */
+  onOpenNote: (path: string, how?: OpenHow) => void;
   /** Follows a `[[link]]` in a feed's bodies. */
   onFollowLink: (target: string) => void;
   /** Opens the tags page on a `#tag` in a feed's bodies. */

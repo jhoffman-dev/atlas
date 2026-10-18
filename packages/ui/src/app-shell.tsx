@@ -10,7 +10,7 @@ export function AppShell({
   sidebar,
   main = null,
   notices = null,
-  panes = [],
+  panes = null,
   status = null,
   overlay = null,
   floating = null,
@@ -27,12 +27,10 @@ export function AppShell({
   /** Problems to report, above the panels rather than inside any one of them. */
   notices?: ReactNode;
   /**
-   * The split, as equal columns.
-   *
-   * A grid rather than anything positioned: the panes share the width the
-   * window has, and neither one knows how much of it the other took.
+   * The panes, drawn by the app inside a `PaneSplit` of its own, since how
+   * many there are is the app's to know. Null shows nothing.
    */
-  panes?: readonly ReactNode[];
+  panes?: ReactNode;
   /**
    * What the app is doing in the background — indexing, say. Announced to a
    * screen reader rather than drawn: it is not something to read while working,
@@ -52,7 +50,14 @@ export function AppShell({
   /** A side pane beside the work — the chat — or null for none. */
   aside?: ReactNode;
 }) {
-  const panels = main === null ? panes : [<MainPanel key="main">{main}</MainPanel>];
+  const work =
+    main === null ? (
+      panes
+    ) : (
+      <PaneSplit count={1}>
+        <MainPanel>{main}</MainPanel>
+      </PaneSplit>
+    );
 
   return (
     <div className={sidebarOpen ? 'shell' : 'shell shell--narrow'}>
@@ -63,11 +68,7 @@ export function AppShell({
       )}
       <main className="shell__main">
         {notices}
-        {panels.length > 0 && (
-          <div className="shell__split" data-panes={panels.length}>
-            {panels}
-          </div>
-        )}
+        {work}
         {!sidebarOpen && onShowSidebar !== undefined && (
           <button
             className="icon-button shell__show"
@@ -86,6 +87,21 @@ export function AppShell({
         {status}
       </div>
       {overlay}
+    </div>
+  );
+}
+
+/**
+ * The split, as equal columns.
+ *
+ * A grid rather than anything positioned: the panes share the width the
+ * window has, and neither one knows how much of it the other took. `count`
+ * is how many columns the grid draws, which is how many panes it is given.
+ */
+export function PaneSplit({ count, children }: { count: number; children: ReactNode }) {
+  return (
+    <div className="shell__split" data-panes={count}>
+      {children}
     </div>
   );
 }

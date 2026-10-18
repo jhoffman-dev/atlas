@@ -60,3 +60,24 @@ describe('PaneFrame', () => {
     expect(pane('Pane 1').className).not.toContain('pane--focused');
   });
 });
+
+describe('the pane focus a frame hands down', () => {
+  it('names the close shortcut on the focused pane’s Close alone', async () => {
+    const { PageBar } = await import('./page-bar.tsx');
+    const crumb = { icon: 'doc', parent: 'Pages' } as const;
+    render(
+      <>
+        <PaneFrame label="Pane 1" focused onFocus={() => {}}>
+          <PageBar crumb={crumb} name="alpha" onClose={() => {}} />
+        </PaneFrame>
+        <PaneFrame label="Pane 2" focused={false} onFocus={() => {}}>
+          <PageBar crumb={crumb} name="beta" onClose={() => {}} />
+        </PaneFrame>
+      </>,
+    );
+    const titles = screen
+      .getAllByRole('button', { name: 'Close pane' })
+      .map((button) => button.getAttribute('title'));
+    expect(titles).toEqual(['Close pane (⇧⌘\\)', 'Close pane']);
+  });
+});

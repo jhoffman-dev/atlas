@@ -246,7 +246,7 @@ describe('Sidebar', () => {
     const onOpen = vi.fn();
     show({ onOpen });
     await userEvent.click(screen.getByRole('button', { name: 'Board' }));
-    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Board.md');
+    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Board.md', 'here');
   });
 
   it('says what to do with an empty section rather than showing nothing', () => {
@@ -351,7 +351,7 @@ describe('the Inbox row (P30-01)', () => {
     const onOpen = vi.fn();
     show({ quick: [inboxView], onOpen });
     await userEvent.click(goTo().getByRole('button', { name: /^Inbox/ }));
-    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Inbox.md');
+    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Inbox.md', 'here');
   });
 });
 
@@ -389,7 +389,7 @@ describe('the Today row (#111)', () => {
     const onOpen = vi.fn();
     show({ quick: [todayView], onOpen });
     await userEvent.click(goTo().getByRole('button', { name: /^Today/ }));
-    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Today.md');
+    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Today.md', 'here');
   });
 
   it('is marked while the page is open', () => {
@@ -443,7 +443,7 @@ describe('Sidebar quick rows', () => {
     expect(row.textContent).toContain('4');
 
     await userEvent.click(row);
-    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Today.md');
+    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Today.md', 'here');
   });
 
   it('shows no count while it is not known', () => {

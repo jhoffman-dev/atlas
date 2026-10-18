@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { PaneFocusContext } from './pane-focus.ts';
 
 /**
  * One half of a split window: a page in a panel of its own.
@@ -33,7 +34,7 @@ export function PaneFrame({
       onMouseDownCapture={onFocus}
       onFocusCapture={onFocus}
     >
-      {children}
+      <PaneFocusContext.Provider value={focused}>{children}</PaneFocusContext.Provider>
     </section>
   );
 }

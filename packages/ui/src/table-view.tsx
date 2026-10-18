@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import type { OpenHow } from './open-how.ts';
 import {
   countLabel,
   groupTotals,
@@ -53,7 +54,8 @@ export interface TableViewProps {
   readonly sorts: readonly QuerySort[];
   readonly error: string | null;
   readonly schema?: TableSchema;
-  readonly onOpenNote: (path: string) => void;
+  /** Opens a row's note; `how` is where the click asked for it, when it said. */
+  readonly onOpenNote: (path: string, how?: OpenHow) => void;
   /** Left out, the cells are read-only: a SQL result's columns need not be properties. */
   readonly onEditCell?: (args: { path: string; column: string; value: string }) => void;
   readonly onToggleSort: (column: string) => void;

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
+import { runsOnMac, useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
 import type { Overlay } from './overlay.ts';
 
-function listen(overlay: Overlay | null = null): AppShortcuts {
-  return listenTo(() => overlay);
+function listen(overlay: Overlay | null = null, onMac = true): AppShortcuts {
+  return listenTo(() => overlay, onMac);
 }
 
 /** The shortcuts, reading what is up from `overlay` at each key press. */
-function listenTo(overlay: () => Overlay | null): AppShortcuts {
+function listenTo(overlay: () => Overlay | null, onMac = true): AppShortcuts {
   const shortcuts: AppShortcuts = {
     overlay,
     save: vi.fn(),
@@ -22,8 +22,16 @@ function listenTo(overlay: () => Overlay | null): AppShortcuts {
     forward: vi.fn(),
     show: vi.fn(),
     toggleChat: vi.fn(),
+    tabs: {
+      newTab: vi.fn(),
+      closeTab: vi.fn(),
+      nextTab: vi.fn(),
+      previousTab: vi.fn(),
+      nthTab: vi.fn(),
+      reopenClosedTab: vi.fn(),
+    },
   };
-  renderHook(() => useAppShortcuts(shortcuts));
+  renderHook(() => useAppShortcuts(shortcuts, { onMac }));
   return shortcuts;
 }
 
@@ -142,5 +150,87 @@ describe('the shortcuts that change the window, behind a dialog (#266)', () => {
       expect(shortcuts.toggleSidebar).toHaveBeenCalledTimes(1);
       expect(shortcuts.toggleSplit).toHaveBeenCalledTimes(1);
     }
+  });
+});
+
+describe('the tab shortcuts (tab-model.md)', () => {
+  const chord = (init: KeyboardEventInit) => {
+    const event = new KeyboardEvent('keydown', { cancelable: true, ...init });
+    window.dispatchEvent(event);
+    return event;
+  };
+
+  it('opens a tab with ⌘T, reopens the last closed with ⌘⇧T, and closes with ⌘W', () => {
+    const { tabs } = listen();
+    chord({ metaKey: true, key: 't' });
+    expect(tabs.newTab).toHaveBeenCalledTimes(1);
+    chord({ metaKey: true, shiftKey: true, key: 'T' });
+    expect(tabs.reopenClosedTab).toHaveBeenCalledTimes(1);
+    expect(tabs.newTab).toHaveBeenCalledTimes(1);
+    const close = chord({ metaKey: true, key: 'w' });
+    expect(tabs.closeTab).toHaveBeenCalledTimes(1);
+    // Never left to the host, which would close the window.
+    expect(close.defaultPrevented).toBe(true);
+  });
+
+  it('walks the tabs with ⌃Tab and ⌃⇧Tab, and numbers them with ⌘1–9', () => {
+    const { tabs } = listen();
+    chord({ ctrlKey: true, key: 'Tab' });
+    expect(tabs.nextTab).toHaveBeenCalledTimes(1);
+    chord({ ctrlKey: true, shiftKey: true, key: 'Tab' });
+    expect(tabs.previousTab).toHaveBeenCalledTimes(1);
+    chord({ metaKey: true, key: '3' });
+    chord({ metaKey: true, key: '9' });
+    expect(vi.mocked(tabs.nthTab).mock.calls).toEqual([[3], [9]]);
+    chord({ metaKey: true, key: '0' });
+    chord({ metaKey: true, shiftKey: true, key: '3' });
+    expect(tabs.nthTab).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps ⌘W from the host behind a dialog too, closing no tab there', () => {
+    const { tabs } = listen('settings');
+    const close = chord({ metaKey: true, key: 'w' });
+    expect(close.defaultPrevented).toBe(true);
+    expect(tabs.closeTab).not.toHaveBeenCalled();
+    chord({ metaKey: true, key: 't' });
+    chord({ ctrlKey: true, key: 'Tab' });
+    chord({ metaKey: true, key: '2' });
+    expect(tabs.newTab).not.toHaveBeenCalled();
+    expect(tabs.nextTab).not.toHaveBeenCalled();
+    expect(tabs.nthTab).not.toHaveBeenCalled();
+  });
+
+  it('leaves Tab alone without Ctrl, and ⌘T alone with Alt', () => {
+    const { tabs } = listen();
+    chord({ key: 'Tab' });
+    chord({ metaKey: true, altKey: true, key: 't' });
+    expect(tabs.nextTab).not.toHaveBeenCalled();
+    expect(tabs.newTab).not.toHaveBeenCalled();
+  });
+
+  it('leaves ⌃T, ⌃W and ⌃1 to the Mac’s text system, and takes them as Ctrl off a Mac', () => {
+    const mac = listen();
+    const transpose = chord({ ctrlKey: true, key: 't' });
+    chord({ ctrlKey: true, key: 'w' });
+    chord({ ctrlKey: true, key: '1' });
+    expect(mac.tabs.newTab).not.toHaveBeenCalled();
+    expect(mac.tabs.closeTab).not.toHaveBeenCalled();
+    expect(mac.tabs.nthTab).not.toHaveBeenCalled();
+    expect(transpose.defaultPrevented).toBe(false);
+
+    const other = listen(null, false);
+    chord({ ctrlKey: true, key: 't' });
+    chord({ ctrlKey: true, key: 'w' });
+    chord({ ctrlKey: true, key: '2' });
+    chord({ metaKey: true, key: 't' });
+    expect(other.tabs.newTab).toHaveBeenCalledTimes(1);
+    expect(other.tabs.closeTab).toHaveBeenCalledTimes(1);
+    expect(other.tabs.nthTab).toHaveBeenCalledWith(2);
+  });
+
+  it('reads the platform string for a Mac', () => {
+    expect(runsOnMac('MacIntel')).toBe(true);
+    expect(runsOnMac('Win32')).toBe(false);
+    expect(runsOnMac('Linux x86_64')).toBe(false);
   });
 });

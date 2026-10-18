@@ -200,7 +200,7 @@ pnpm tauri:dev</pre>
       <div class="note"><b>If <code>.atlas/settings.md</code> can't be read</b> (say its frontmatter was broken by a hand edit), Atlas shows a notice naming the file and leaves it alone until it is fixed; the sections can't be moved until then. If a move can't be saved, a notice says <b>The sidebar's order could not be saved</b> and why.</div>
       <h3>The top bar of a page</h3>
       <ul>
-        <li><b>← →</b> Back and Forward, or <kbd>⌘[</kbd> <kbd>⌘]</kbd>, or your mouse's side buttons. Each panel keeps its own history.</li>
+        <li><b>← →</b> Back and Forward, or <kbd>⌘[</kbd> <kbd>⌘]</kbd>, or your mouse's side buttons. Each tab keeps its own history.</li>
         <li><b>Breadcrumb</b> shows where the page lives, and beside the name a quiet count says what it holds — <b>5 to process</b>, <b>3 templates</b>. A page's own buttons (<b>New template</b>, <b>Open the Inbox view</b>) sit in the bar too. Only a note, a template or a type keeps a title on the page itself; press it to rename.</li>
         <li><b>Saved / Saving… / Unsaved</b> is the save status. Notes save as you type; <kbd>⌘S</kbd> saves at once.</li>
         <li><b>Spark</b> button: <b>Ask Claude (⌘J)</b> — see <a href="#claude">Claude in Atlas</a>.</li>
@@ -209,14 +209,25 @@ pnpm tauri:dev</pre>
         <li><b>×</b> <b>Close pane</b>, at the very end of the bar, once the window is split.</li>
       </ul>
       <p><b>In a narrow window</b> the bar gives way a step at a time: first the folder goes and the note's name shortens, then <b>Saved</b> hides, then the Back and Forward arrows (<kbd>⌘[</kbd> <kbd>⌘]</kbd> still work). The <b>×</b> and the <b>…</b> always stay.</p>
+      <h3 id="tabs">Tabs</h3>
+      <p>Every pane has a row of tabs above its page. Each tab is one place — a note, Today, the Inbox, a type's table, the graph — with its own Back and Forward and, for a note, its own undo.</p>
+      <ul>
+        <li><b>A plain click</b> on a note in the sidebar opens it in the tab you're in. If a tab in that pane already shows it, that tab comes to the front instead.</li>
+        <li><b><kbd>⌘</kbd>-click</b> opens it in a new tab just after the one you're in, and switches to it. <b><kbd>⌘⇧</kbd>-click</b> opens it beside you — see <a href="#two-panes">Two pages side by side</a>.</li>
+        <li><b><kbd>⌘T</kbd></b> adds an empty tab (so does the <b>+</b> at the end of the row). <b><kbd>⌘W</kbd></b> closes the tab you're in — never the window; closing the last tab leaves an empty one. <b><kbd>⌘⇧T</kbd></b> brings back the tab you closed last, with its history. A middle-click closes a tab too, and so does the <b>×</b> on the one at the front.</li>
+        <li><b><kbd>⌃Tab</kbd></b> and <b><kbd>⌃⇧Tab</kbd></b> walk along the tabs; <b><kbd>⌘1</kbd>…<kbd>⌘8</kbd></b> jump to a tab by its place and <b><kbd>⌘9</kbd></b> to the last. The arrow keys walk the row without turning the pages; Enter or Space shows the one under the focus, Delete closes it.</li>
+        <li><b>Switching tabs keeps your place.</b> A note you leave is written as you go, and its editor waits behind the tab you moved to — with its undo — so <kbd>⌘Z</kbd> on the way back undoes what you typed there and nothing else. Up to four notes per pane wait like this; the one you looked at longest ago is let go first, saved.</li>
+        <li><b>Everything comes back after a restart:</b> the tabs, the one at the front, which pane you were in, and each tab's Back and Forward. Tabs you closed are not kept across a restart.</li>
+        <li>There is no limit on tabs. They narrow to make room, then the row scrolls.</li>
+      </ul>
       <h3 id="two-panes">Two pages side by side</h3>
       <ul>
-        <li><b>Split</b> with the split button in the page's bar, next to the <b>…</b>; its tooltip says <b>Split right (⇧⌘\)</b>. The new pane opens on the same note. Or press <kbd>⇧⌘\</kbd>, or choose <b>Split right</b> from the <b>…</b> menu.</li>
+        <li><b>Split</b> with the split button in the page's bar, next to the <b>…</b>; its tooltip says <b>Split right (⇧⌘\)</b>. The new pane opens on a copy of the tab you're in, with its history. Or press <kbd>⇧⌘\</kbd>, choose <b>Split right</b> from the <b>…</b> menu, or <kbd>⌘⇧</kbd>-click a note in the sidebar to open it on the other side.</li>
         <li><b>Two panes at most.</b> Once the window is split, the split button goes.</li>
-        <li><b>Each pane has a × at the end of its bar</b> that closes that pane. The other pane keeps its note; close the left one and the right one moves over.</li>
+        <li><b>Each pane has a × at the end of its bar</b> that closes that pane with all its tabs (<kbd>⌘⇧T</kbd> brings them back one by one, the front one first). The other pane keeps its tabs; close the left one and the right one moves over. The tab at the front of the pane you're in has an ink line along its top; the other pane's has a grey one, so a glance says where the next note will open.</li>
         <li><b><kbd>⇧⌘\</kbd> closes the pane you're in</b>, so its hint shows on that pane's × only. <b>Close pane</b> in the <b>…</b> menu does the same.</li>
         <li><b>Nothing you type is lost.</b> What you typed in a pane as it closes is saved, and if the other pane shows the same note, it picks the change up.</li>
-        <li>Each pane keeps its own Back and Forward, and the split is still there after a restart.</li>
+        <li>Each tab keeps its own Back and Forward, and the split and its tabs are still there after a restart.</li>
       </ul>
       <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings and the light/dark switch sit at the bottom of the sidebar (<kbd>⌘,</kbd>), beside the <a href="#sync">sync</a> light once sync is set up. <kbd>⌘J</kbd> opens <a href="#claude">Claude</a> in a pane beside the page.</p>
     </section>

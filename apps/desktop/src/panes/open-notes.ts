@@ -3,17 +3,17 @@ import type { LinkUpdatePanes, OpenEditorsPort, OpenNotes } from '@atlas/applica
 import type { PaneEditors } from './open-editors.ts';
 
 /**
- * No pane: a write from outside the app was made by none of them, so every pane
+ * No tab: a write from outside the app was made by none of them, so every tab
  * holding the note is one of the "others" that should catch up.
  */
-const NO_PANE = -1;
+const NO_TAB = '';
 
 /** The panes, as a request from outside the app reaches them (ADR-0016). */
 export function openNotesIn(editors: PaneEditors): OpenNotes {
   return {
     state: (path) => editors.stateOf(path),
     setPropertiesIfOpen: (args) => editors.setPropertiesIfOpen(args),
-    reload: (path) => editors.reloadOthers({ paneId: NO_PANE, path }),
+    reload: (path) => editors.reloadOthers({ tabId: NO_TAB, path }),
   };
 }
 
@@ -34,6 +34,6 @@ export function movingEditorsIn(
       followLayout(move);
     },
     abandon: (paths) => editors.abandon(paths),
-    reload: (path) => editors.reloadOthers({ paneId: NO_PANE, path }),
+    reload: (path) => editors.reloadOthers({ tabId: NO_TAB, path }),
   };
 }

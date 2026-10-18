@@ -103,7 +103,7 @@ describe('BoardView — what changes reaches the cards (#260)', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'First' }));
 
-    expect(latest).toHaveBeenCalledExactlyOnceWith('a.md');
+    expect(latest).toHaveBeenCalledExactlyOnceWith('a.md', 'here');
     expect(first).not.toHaveBeenCalled();
   });
 
