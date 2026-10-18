@@ -153,7 +153,10 @@ test('resizing the window, at the top of the Inbox, says nothing is "New above" 
   await page.setViewportSize({ width: 760, height: 720 });
   await settle(page, 20);
   await expect(newAbove(page)).toHaveCount(0);
-  await expect(inbox(page).getByRole('heading', { name: 'Inbox' })).toBeInViewport();
+  // UI slice 3b moved the page's heading into its bar, out of the scroller: the top
+  // of the page is now its first block, kept in view by the scroller staying at 0.
+  expect(await scrollTop(page)).toBe(0);
+  await expect(inbox(page).locator('.inbox__offer').first()).toBeInViewport();
 });
 
 test('content arriving and going above at ten moments of a 2 s wheel scroll never moves the rows against the wheel (#130 attack)', async ({
