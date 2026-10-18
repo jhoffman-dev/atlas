@@ -30,7 +30,12 @@ export type { SetUpMac, SetUpSyncPorts, SyncRemoteChoice } from './set-up-sync.t
 export { inspectSync } from './inspect-sync.ts';
 export type { SyncSetup } from './inspect-sync.ts';
 export { openVaultFromGitHub } from './open-from-github.ts';
-export { automationsSettingsReading, loadSyncSettings, saveSyncSettings } from './sync-settings.ts';
+export {
+  automationsSettingsReading,
+  loadSyncSettings,
+  saveSyncSettings,
+  syncSettingsOf,
+} from './sync-settings.ts';
 export type { SyncSettings } from './sync-settings.ts';
 export { checkRemote } from './check-remote.ts';
 export { listGitHubRepositories } from './list-repositories.ts';

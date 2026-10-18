@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useProfileSetting } from './use-profile-setting.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 /** Where the hooks under test record what they give up on; these tests do not read it. */
 const ACTIVITY = recordingActivity();
@@ -45,14 +46,15 @@ function vaultWithSettings(text: string) {
 }
 
 function renderProfile(fs: ReturnType<typeof vaultWithSettings>['fs']) {
-  return renderHook(() =>
-    useProfileSetting({
-      fs,
-      markdown: remarkMarkdown,
-      vaultKey: 'v',
-      changeKey: '0',
-      activity: ACTIVITY,
-    }),
+  return renderHook(
+    () =>
+      useProfileSetting({
+        fs,
+        markdown: remarkMarkdown,
+        vaultKey: 'v',
+        activity: ACTIVITY,
+      }),
+    { wrapper: queryWrapper().wrapper },
   );
 }
 

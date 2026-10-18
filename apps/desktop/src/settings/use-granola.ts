@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { granolaCountsLine, granolaFailureWords, type GranolaSettings } from '@atlas/domain';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  granolaCountsLine,
+  granolaFailureWords,
+  parseGranolaSettings,
+  type GranolaSettings,
+} from '@atlas/domain';
 import {
   GranolaError,
-  loadGranolaSettings,
   type ExternalLinkPort,
   type GranolaPort,
   type GranolaPullReport,
@@ -13,6 +17,7 @@ import type { GranolaKeyState, GranolaNoteLine, GranolaView } from '@atlas/ui';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { clockTime } from '../sync/sync-view.ts';
+import { useVaultSettingsRead } from './use-vault-settings-read.ts';
 
 /** Settings → Granola as the card draws it, and what it can ask for. */
 export interface GranolaSettingState {
@@ -94,38 +99,25 @@ function addressesUnreadableOf({
   return unreadable.length === 0 ? null : unreadable.join(' ');
 }
 
-/** The vault's Granola settings, read again whenever its files change, for what the card says of them. */
+/** The vault's Granola settings, from the window's one read of its settings note, for what the card says of them. */
 function useSettingsRead({
   fs,
   markdown,
   vault,
-  changeKey,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vault: string | null;
-  changeKey: string;
 }): SettingsRead {
-  const [said, setSaid] = useState<Said<SettingsRead> | null>(null);
-  useEffect(() => {
-    if (vault === null) return;
-    let live = true;
-    loadGranolaSettings({ fs, markdown }).then(
-      (read) =>
-        live &&
-        setSaid({
-          vault,
-          value: { addressesUnreadable: addressesUnreadableOf(read), problem: null },
-        }),
-      (cause: unknown) =>
-        live &&
-        setSaid({ vault, value: { addressesUnreadable: null, problem: errorMessage(cause) } }),
-    );
-    return () => {
-      live = false;
+  const { settings, unreadable } = useVaultSettingsRead({ fs, markdown, vaultKey: vault });
+  return useMemo(() => {
+    if (unreadable !== null) return { addressesUnreadable: null, problem: unreadable };
+    if (settings === undefined) return NOTHING_UNREADABLE;
+    return {
+      addressesUnreadable: addressesUnreadableOf(parseGranolaSettings(settings)),
+      problem: null,
     };
-  }, [fs, markdown, vault, changeKey]);
-  return said?.vault === vault ? said.value : NOTHING_UNREADABLE;
+  }, [settings, unreadable]);
 }
 
 /**
@@ -148,7 +140,6 @@ export function useGranola({
   links: ExternalLinkPort;
   fs: VaultFsPort;
   markdown: MarkdownPort;
-  changeKey: string;
 }): GranolaSettingState {
   const read = useSettingsRead({ ...settings, vault });
   const [pending, setPending] = useState(false);

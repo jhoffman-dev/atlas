@@ -5,6 +5,7 @@ import { fakeVaultFs, type VaultFsPort, recordingActivity } from '@atlas/applica
 import { remarkMarkdown } from '@atlas/adapters';
 import { chatSystemPrompt, type ProfileState } from '@atlas/domain';
 import { useProfileSetting } from './use-profile-setting.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 /** Where the hooks under test record what they give up on; these tests do not read it. */
 const ACTIVITY = recordingActivity();
@@ -46,8 +47,8 @@ function slowVault(text: string) {
 function renderProfile(initial: { fs: VaultFsPort; vaultKey: string }) {
   return renderHook(
     (props: { fs: VaultFsPort; vaultKey: string }) =>
-      useProfileSetting({ ...props, markdown: remarkMarkdown, changeKey: '0', activity: ACTIVITY }),
-    { initialProps: initial },
+      useProfileSetting({ ...props, markdown: remarkMarkdown, activity: ACTIVITY }),
+    { wrapper: queryWrapper().wrapper, initialProps: initial },
   );
 }
 

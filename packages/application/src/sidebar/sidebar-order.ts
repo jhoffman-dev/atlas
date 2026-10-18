@@ -12,7 +12,13 @@ export async function loadSidebarOrder(args: {
   fs: VaultFsPort;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
 }): Promise<readonly SidebarSectionId[] | null> {
-  const settings = await readVaultSettings(args);
+  return sidebarOrderOf(await readVaultSettings(args));
+}
+
+/** The sidebar's section order in settings already read; null when it was never set. */
+export function sidebarOrderOf(
+  settings: Readonly<Record<string, unknown>>,
+): readonly SidebarSectionId[] | null {
   return parseSectionOrder(settings[SIDEBAR_ORDER_KEY]);
 }
 

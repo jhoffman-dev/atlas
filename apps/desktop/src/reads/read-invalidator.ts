@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { VaultRead } from '@atlas/application';
+import { READS_ON_INDEX_NEWS, type VaultRead } from '@atlas/application';
 import { readAgain, vaultQueries, vaultReadKey } from './query-client.ts';
 
 /**
@@ -19,9 +19,10 @@ export interface ReadInvalidator {
   invalidateWithIndex(vault: string, reads: Iterable<VaultRead>): void;
   /**
    * The index of `vault` has news: a sync settled having found something, a
-   * build finished, or one failed. What waited for it is read again, and so
-   * is every read of the vault whose last read failed: whatever failed it
-   * (a busy disk, a locked index) may have passed.
+   * build finished, or one failed. What waited for it is read again, so are
+   * the reads made again on any news (`READS_ON_INDEX_NEWS`), and so is every
+   * read of the vault whose last read failed: whatever failed it (a busy
+   * disk, a locked index) may have passed.
    */
   indexMoved(vault: string): void;
   /** The reads of the vault waiting for the index's news. */
@@ -43,9 +44,9 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
       if (held.size > 0) waiting.set(vault, held);
     },
     indexMoved(vault) {
-      const due = waiting.get(vault);
+      const due = new Set([...(waiting.get(vault) ?? []), ...READS_ON_INDEX_NEWS]);
       waiting.delete(vault);
-      if (due !== undefined) invalidate(vault, due);
+      invalidate(vault, due);
       const failed = client.getQueryCache().findAll({
         queryKey: vaultQueries(vault),
         predicate: (query) => query.state.status === 'error',

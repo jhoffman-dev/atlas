@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { granolaFailureWords, granolaIndexWaitReport, type GranolaPullMode } from '@atlas/domain';
+import {
+  granolaFailureWords,
+  granolaIndexWaitReport,
+  parseGranolaSettings,
+  type GranolaPullMode,
+} from '@atlas/domain';
 import {
   createGranolaPuller,
   GranolaError,
-  loadGranolaSettings,
   type ActivityLog,
   type Clock,
   type GranolaKeyStatus,
@@ -15,6 +19,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import { errorMessage } from '../query/error-message.ts';
+import { useVaultSettingsRead } from '../settings/use-vault-settings-read.ts';
 
 /** How often an open vault is pulled while its settings allow it (`granola_periodic`). */
 export const GRANOLA_PULL_INTERVAL_MS = 15 * 60_000;
@@ -32,8 +37,6 @@ export interface GranolaPullOptions {
   readonly index: IndexPort;
   /** The open vault's root; null with none open. */
   readonly vaultKey: string | null;
-  /** Changes when the vault's files do, so an edit to its settings is read. */
-  readonly changeKey: string;
   /** The vaults sync has pulled this session, or found not to sync (ADR-0034). */
   readonly syncedThisSession: ReadonlySet<string>;
   /** How many syncs this session have brought other Macs' files into each vault. */
@@ -136,7 +139,7 @@ function toastOf(report: GranolaPullReport): string | null {
  * One puller for the window, so a pull of a vault never runs twice at once.
  */
 export function useGranolaPull(options: GranolaPullOptions): GranolaPullController {
-  const { granola, records, fs, markdown, vaultKey, changeKey } = options;
+  const { granola, records, fs, markdown, vaultKey } = options;
   const latest = useRef(options);
   latest.current = options;
   const caughtUp = useCaughtUp(options);
@@ -190,23 +193,19 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
     if (vaultKey !== null) void readKey(vaultKey);
   }, [vaultKey, records, readKey]);
 
+  const { settings, unreadable } = useVaultSettingsRead({ fs, markdown, vaultKey });
   useEffect(() => {
     if (vaultKey === null) return;
-    // Reads land out of order; only the one asked for last may say what the settings are.
-    let live = true;
-    loadGranolaSettings({ fs, markdown }).then(
-      ({ periodic }) => live && update(vaultKey, () => ({ periodic })),
-      (cause: unknown) => {
-        if (!live) return;
-        // The pull reads the settings too, and records in Activity why it could not.
-        console.error('The vault’s Granola settings could not be read:', cause);
-        update(vaultKey, () => ({ periodic: null }));
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [fs, markdown, vaultKey, changeKey, update]);
+    if (unreadable !== null) {
+      // The pull reads the settings too, and records in Activity why it could not.
+      console.error('The vault’s Granola settings could not be read:', unreadable);
+      update(vaultKey, () => ({ periodic: null }));
+      return;
+    }
+    if (settings === undefined) return;
+    const { periodic } = parseGranolaSettings(settings);
+    update(vaultKey, () => ({ periodic }));
+  }, [settings, unreadable, vaultKey, update]);
 
   // Each pull under way, by the vault it pulls: Sync now asked for during another pull runs after it.
   const [flights, setFlights] = useState<readonly Flight[]>([]);

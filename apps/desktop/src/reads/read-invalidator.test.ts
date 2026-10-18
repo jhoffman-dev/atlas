@@ -5,12 +5,15 @@ import { createWindowQueryClient, vaultReadKey } from './query-client.ts';
 import { createReadInvalidator } from './read-invalidator.ts';
 
 /** A window's cache with one vault's reads shown, counting how often each is read. */
-function shownReads(vaults: readonly string[] = ['/one']) {
+function shownReads(
+  vaults: readonly string[] = ['/one'],
+  shown: readonly VaultRead[] = ['graph', 'tags', 'types', 'templates'],
+) {
   const client = createWindowQueryClient();
   const reads = new Map<string, number>();
   const unsubscribes: (() => void)[] = [];
   for (const vault of vaults) {
-    for (const read of ['graph', 'tags', 'types', 'templates'] as const) {
+    for (const read of shown) {
       const name = `${vault}:${read}`;
       const observer = new QueryObserver(client, {
         queryKey: vaultReadKey(vault, read),
@@ -177,5 +180,32 @@ describe('a read that failed', () => {
     expect(client.getQueryData(vaultReadKey('/one', 'types'))).toBe('types');
     expect(graphReads).toBe(1);
     stops.forEach((stop) => stop());
+  });
+
+  it('reads the sidebar’s marks and counts again on every news of their vault', async () => {
+    const shown: readonly VaultRead[] = [
+      'sidebar-marks',
+      'quick-counts',
+      'type-counts',
+      'settings',
+    ];
+    const { client, settledReads, stop } = shownReads(['/one', '/two'], shown);
+    const reads = createReadInvalidator({ client });
+    await settledReads();
+
+    reads.indexMoved('/one');
+    reads.indexMoved('/one');
+
+    expect(await settledReads()).toEqual({
+      '/one:sidebar-marks': 3,
+      '/one:quick-counts': 3,
+      '/one:type-counts': 3,
+      '/one:settings': 1,
+      '/two:sidebar-marks': 1,
+      '/two:quick-counts': 1,
+      '/two:type-counts': 1,
+      '/two:settings': 1,
+    });
+    stop();
   });
 });

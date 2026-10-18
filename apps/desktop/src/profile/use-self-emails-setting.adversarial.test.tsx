@@ -11,6 +11,7 @@ import {
 import { remarkMarkdown } from '@atlas/adapters';
 import { ProfileSettingsCard } from './profile-settings-card.tsx';
 import { useSelfEmailsSetting } from './use-self-emails-setting.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 /** Adversarial (#173): Settings → Profile's emails when the vault refuses the write. */
 
@@ -56,7 +57,7 @@ function Card({ vault }: { vault: ReturnType<typeof refusingVault> }) {
 describe('Settings → Profile → Your emails, when the write is refused', () => {
   it('keeps what was typed in the field, to try again, and says why it was not saved', async () => {
     const user = userEvent.setup();
-    render(<Card vault={refusingVault()} />);
+    render(<Card vault={refusingVault()} />, { wrapper: queryWrapper().wrapper });
     const field = await screen.findByRole('textbox', { name: 'Your emails' });
     await waitFor(() => expect(field).toHaveProperty('value', 'mara@example.com'));
 
