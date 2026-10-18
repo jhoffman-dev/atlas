@@ -66,14 +66,23 @@ export function useVault(
   { fs, picker, store }: VaultPorts,
   {
     beforeSwitch,
+    onSwitched,
   }: {
     /** Settles the vault being left, once another is chosen and before the host moves. */
     beforeSwitch?: () => Promise<void>;
+    /**
+     * Told the vault adopted, in the same event as the location changes, for
+     * state that belongs to a vault and must change hands in the same render
+     * (R14-01): the tabs, whose paths mean nothing in another vault.
+     */
+    onSwitched?: (next: VaultLocation) => void;
   } = {},
 ): VaultView {
-  /** Read when a vault is chosen, so the callback need not be stable to be current. */
+  /** Read when a vault is chosen, so the callbacks need not be stable to be current. */
   const settle = useRef(beforeSwitch);
   settle.current = beforeSwitch;
+  const switched = useRef(onSwitched);
+  switched.current = onSwitched;
 
   const [location, setLocation] = useState<VaultLocation | null>(null);
   const [children, setChildren] = useState<ReadonlyMap<VaultPath, readonly VaultEntry[]>>(
@@ -103,6 +112,7 @@ export function useVault(
 
   const adoptVault = useCallback(
     (next: VaultLocation) => {
+      switched.current?.(next);
       setLocation(next);
       setChildren(new Map());
       forgotten.current.clear();

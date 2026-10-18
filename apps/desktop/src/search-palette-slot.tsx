@@ -1,9 +1,10 @@
-import { memo } from 'react';
-import type { PaletteCommand } from '@atlas/domain';
+import { memo, useMemo } from 'react';
+import type { NavigationPlace, PaletteCommand } from '@atlas/domain';
 import type { IndexPort } from '@atlas/application';
 import { SearchPalette } from '@atlas/ui';
 import { useSearch } from './index/use-search.ts';
 import { hideOverlay, useOverlayUp, type OverlayStore } from './overlay-store.ts';
+import { useFocusedPlace, type WorkspaceStore } from './workspace/workspace-store.ts';
 
 /**
  * The search palette, drawn while ⌘K has it up. It watches the overlay store
@@ -18,8 +19,14 @@ export const SearchPaletteSlot = memo(function SearchPaletteSlot(props: SearchPa
 
 export interface SearchPaletteSlotProps {
   readonly store: OverlayStore;
+  readonly workspace: WorkspaceStore;
   readonly index: IndexPort;
-  readonly commands: readonly PaletteCommand[];
+  /**
+   * The commands on offer, given the place the focused pane shows: a note
+   * can be archived or unarchived from here. Read while the palette is up,
+   * so the window is not drawn for a switch between notes.
+   */
+  readonly commandsFor: (focused: NavigationPlace | null) => readonly PaletteCommand[];
   /** Commands the query itself calls for — a pasted link, say — listed first. */
   readonly offerFor: (query: string) => readonly PaletteCommand[];
   /** Changes whenever the index does: see `useSearch`. */
@@ -33,14 +40,17 @@ export interface SearchPaletteSlotProps {
 
 function OpenSearchPalette({
   store,
+  workspace,
   index,
-  commands,
+  commandsFor,
   offerFor,
   changeKey,
   onCommand,
   onPick,
   fallbackFocus,
 }: SearchPaletteSlotProps) {
+  const focused = useFocusedPlace(workspace);
+  const commands = useMemo(() => commandsFor(focused), [commandsFor, focused]);
   const search = useSearch({ index, commands, offerFor, changeKey, store });
   return (
     <SearchPalette

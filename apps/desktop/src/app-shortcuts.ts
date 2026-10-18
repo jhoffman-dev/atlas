@@ -28,10 +28,57 @@ export interface AppShortcuts {
   /** Back and Forward in the pane being worked in. */
   readonly back: () => void;
   readonly forward: () => void;
+  /** The tabs of the pane being worked in (tab-model.md): ⌘T, ⌘W, ⌃Tab, ⌃⇧Tab, ⌘1–9, ⌘⇧T. */
+  readonly tabs: TabShortcuts;
   /** Puts up one of the window's overlays. */
   readonly show: (overlay: Overlay) => void;
   /** Opens or closes Claude, beside the work. */
   readonly toggleChat: () => void;
+}
+
+export interface TabShortcuts {
+  readonly newTab: () => void;
+  /** Closes the shown tab, and never the window: that is what ⌘W means in an app with tabs. */
+  readonly closeTab: () => void;
+  readonly nextTab: () => void;
+  readonly previousTab: () => void;
+  /** Shows the nth tab, counting from 1; 9 is the last. */
+  readonly nthTab: (n: number) => void;
+  readonly reopenClosedTab: () => void;
+}
+
+/**
+ * The tab shortcuts, as browsers have them. ⌘W is taken whether or not a
+ * dialog is up, and always prevented: left to the host it would close the
+ * window, which no tab should. The rest are left alone behind a dialog, as
+ * Back and Forward are. ⌃Tab is read by its key, since Ctrl stands in for
+ * nothing there; the others take Ctrl for ⌘ off a Mac.
+ */
+function onTabKey(event: KeyboardEvent, tabs: TabShortcuts, held: boolean): void {
+  const command = event.metaKey || event.ctrlKey;
+  if (command && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'w') {
+    event.preventDefault();
+    if (!held) tabs.closeTab();
+    return;
+  }
+  if (command && !event.altKey && event.key.toLowerCase() === 't') {
+    event.preventDefault();
+    if (held) return;
+    if (event.shiftKey) tabs.reopenClosedTab();
+    else tabs.newTab();
+    return;
+  }
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'Tab') {
+    event.preventDefault();
+    if (held) return;
+    if (event.shiftKey) tabs.previousTab();
+    else tabs.nextTab();
+    return;
+  }
+  if (command && !event.shiftKey && !event.altKey && /^[1-9]$/.test(event.key)) {
+    event.preventDefault();
+    if (!held) tabs.nthTab(Number(event.key));
+  }
 }
 
 /** The window's keyboard shortcuts, listened for as long as the app is open. */
@@ -128,6 +175,7 @@ export function useAppShortcuts(shortcuts: AppShortcuts): void {
         event.preventDefault();
         if (!held) latest.current.forward();
       }
+      onTabKey(event, latest.current.tabs, held);
     };
     // A mouse's own back and forward buttons do the same.
     const onMouseUp = (event: MouseEvent) => {

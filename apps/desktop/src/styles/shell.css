@@ -122,6 +122,16 @@
   width: 36px;
 }
 
+/* A tab's content sits in the pane as the page did, with no box of its own;
+   a hidden tab's is kept mounted behind the shown one and takes no room. */
+.pane__tab {
+  display: contents;
+}
+
+.pane__tab[hidden] {
+  display: none;
+}
+
 /* A pane takes the focus only from script, when what held it has gone; the
    marker above already says which pane it is, so no ring is drawn round it. */
 .pane:focus {

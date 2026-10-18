@@ -4,6 +4,7 @@ import type { PageCrumb } from '@atlas/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { ChatToggleButton } from './chat/chat-toggle.tsx';
+import { usePaneFocus } from './pane-focus.ts';
 
 /** One command in a page's "…" menu. */
 export type PageMenuItem = MenuCommand;
@@ -46,7 +47,7 @@ export function PageBar({
   history,
   onSplit,
   onClose,
-  closesFromShortcut = false,
+  closesFromShortcut,
 }: {
   /** Null while there is no page to place — an empty pane. */
   crumb: PageCrumb | null;
@@ -77,6 +78,7 @@ export function PageBar({
   /**
    * Whether the split shortcut closes this pane — it closes the focused one —
    * so the Close button's tooltip names it only where pressing it would.
+   * Left out, the pane's frame says whether it is the focused one.
    */
   closesFromShortcut?: boolean;
 }) {
@@ -132,11 +134,9 @@ export function PageBar({
           <PageMenu items={menu} open={menuOpen} onOpenChange={onMenuOpenChange} />
         )}
         {onClose !== undefined && (
-          <PaneButton
-            label="Close pane"
-            icon="close"
-            shortcut={closesFromShortcut ? SPLIT_SHORTCUT : null}
+          <CloseButton
             onPress={onClose}
+            {...(closesFromShortcut !== undefined && { closesFromShortcut })}
           />
         )}
       </div>
@@ -146,6 +146,30 @@ export function PageBar({
 
 /** Splits an unsplit window and closes the focused pane of a split one. */
 const SPLIT_SHORTCUT = '⇧⌘\\';
+
+/**
+ * Close, naming the shortcut only on the pane the shortcut closes: the focused
+ * one, read from the frame unless the page says so itself. Its own component,
+ * so a change of focus draws this button and not the page.
+ */
+function CloseButton({
+  onPress,
+  closesFromShortcut,
+}: {
+  onPress: () => void;
+  closesFromShortcut?: boolean;
+}) {
+  const focused = usePaneFocus();
+  const named = closesFromShortcut ?? focused;
+  return (
+    <PaneButton
+      label="Close pane"
+      icon="close"
+      shortcut={named ? SPLIT_SHORTCUT : null}
+      onPress={onPress}
+    />
+  );
+}
 
 /** Splitting or closing, as an icon with its command, and its shortcut if it has one, as the tooltip. */
 function PaneButton({

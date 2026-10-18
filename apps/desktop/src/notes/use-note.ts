@@ -106,6 +106,7 @@ export function useNote({
   recoverStranded,
   settleStranded,
   onSaveFailed,
+  paused = false,
 }: {
   ports: NotePorts;
   /**
@@ -137,6 +138,11 @@ export function useNote({
    * for someone else: its rejection tells them.
    */
   onSaveFailed?: (failure: { path: VaultPath; cause: unknown }) => void;
+  /**
+   * Whether the autosave stands down: a tab hidden behind another one flushes
+   * as it hides and cannot be typed in, so no timer need run for it.
+   */
+  paused?: boolean;
 }): NoteView {
   const [note, setNote] = useState<OpenNote | null>(null);
   const [doc, setDoc] = useState<EditorDocument | null>(null);
@@ -541,10 +547,10 @@ export function useNote({
   // Writing after a pause means an edit is never more than a moment from being on
   // disk, which is what people expect of a notes app.
   useEffect(() => {
-    if (!dirty || note === null || doc === null) return;
+    if (!dirty || paused || note === null || doc === null) return;
     const timer = setTimeout(() => void write().catch(shownInPane(path)), AUTOSAVE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [dirty, doc, note, write, shownInPane, path]);
+  }, [dirty, paused, doc, note, write, shownInPane, path]);
 
   // Leaving a note with unsaved changes must not discard them. This writes the
   // note being left, not the one being opened, which is why it reads the ref.

@@ -117,7 +117,7 @@ describe('VaultTree', () => {
     const onSelectFile = vi.fn();
     show({ rows: [fileRow('Notes/today.md')], onSelectFile });
     await userEvent.click(screen.getByText('today.md'));
-    expect(onSelectFile).toHaveBeenCalledWith('Notes/today.md');
+    expect(onSelectFile).toHaveBeenCalledWith('Notes/today.md', 'here');
   });
 
   it('names a row by its file, not by what its star would do', () => {
@@ -240,7 +240,7 @@ describe('VaultTree keyboard navigation', () => {
     show({ rows: threeNotes, onSelectFile });
     row('b.md').focus();
     await userEvent.keyboard('{Enter}');
-    expect(onSelectFile).toHaveBeenCalledWith('b.md');
+    expect(onSelectFile).toHaveBeenCalledWith('b.md', 'here');
   });
 
   it('opens the focused note on Space', async () => {
@@ -248,7 +248,7 @@ describe('VaultTree keyboard navigation', () => {
     show({ rows: threeNotes, onSelectFile });
     row('b.md').focus();
     await userEvent.keyboard('[Space]');
-    expect(onSelectFile).toHaveBeenCalledWith('b.md');
+    expect(onSelectFile).toHaveBeenCalledWith('b.md', 'here');
   });
 
   it('toggles the focused folder on Enter', async () => {

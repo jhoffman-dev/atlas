@@ -29,7 +29,7 @@ function fakeEditor(path: VaultPath, { dirty = false } = {}) {
 
 function panes(...open: OpenEditor[]) {
   const registry = renderHook(() => useOpenEditors()).result.current;
-  open.forEach((editor, pane) => registry.register(pane, editor));
+  open.forEach((editor, pane) => registry.register(`t${pane}`, editor));
   return openNotesIn(registry);
 }
 
@@ -119,7 +119,7 @@ describe('the open notes, as the API reaches them', () => {
 describe('the panes as a move or a delete reaches them', () => {
   function registry(...open: OpenEditor[]) {
     const editors = renderHook(() => useOpenEditors()).result.current;
-    open.forEach((editor, pane) => editors.register(pane, editor));
+    open.forEach((editor, pane) => editors.register(`t${pane}`, editor));
     return editors;
   }
 
