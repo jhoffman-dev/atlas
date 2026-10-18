@@ -25,8 +25,8 @@ import { installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
 import { installRenderCounter } from '../../packages/ui/src/testing/render-counter.ts';
 import { BUDGETED_ACTIONS, type BudgetedAction } from './budgeted-actions.ts';
 import type { FixtureFile } from './fixture-vault.ts';
-import { measure, waitForQuiet } from './probe.ts';
-import { EVERY_NOTE_INDEXED, openFixtureVault, writeFixtureVault } from './session.ts';
+import { installProbe, measure, waitForQuiet } from './probe.ts';
+import { EVERY_NOTE_INDEXED, writeFixtureVault } from './session.ts';
 import {
   installWorkClock,
   oneInput,
@@ -247,22 +247,30 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
       await runUntil(page, { ready, arg: arg as never, settleMs: 0 });
     },
   };
-  // The whole vault, not the first count the status shows.
-  await pass.setUp(
-    phase(
-      () => page.getByRole('button', { name: 'Choose folder…' }).click(),
-      (source) => new RegExp(source, 'm').test(document.body.innerText),
-      EVERY_NOTE_INDEXED.source,
-    ),
-  );
+  await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)], { settleFirst: false });
   return pass;
 }
+
+/**
+ * Choosing the fixture's folder, until the whole vault is indexed — not the
+ * first count the status shows — and then the settle every action is given,
+ * in which the Inbox's offers are read ahead (#130).
+ */
+const OPEN_THE_VAULT = (page: Page): Phase =>
+  phase(
+    () => page.getByRole('button', { name: 'Choose folder…' }).click(),
+    (source) => new RegExp(source, 'm').test(document.body.innerText),
+    EVERY_NOTE_INDEXED.source,
+  );
 
 /** A fresh page on the fixture in real time, with only its date fixed, for the times. */
 async function timedPass(browser: Browser): Promise<Pass> {
   const page = await newPage(browser);
   await page.addInitScript(installWorkClock, clockAt({ virtual: false }));
-  const vault = await openFixtureVault(page, [PROJECT_BOARD], { echoWrites: true });
+  const vault = await writeFixtureVault([PROJECT_BOARD]);
+  await installHost(page, vault, { keepsManifest: true, echoWrites: true });
+  await installProbe(page);
+  await page.goto('/');
   const time = async (
     action: BudgetedAction,
     phases: readonly Phase[],
@@ -278,6 +286,8 @@ async function timedPass(browser: Browser): Promise<Pass> {
     }
     timed.set(action, { inputToReady, longestFrame });
   };
+  await time('Open a vault', [OPEN_THE_VAULT(page)], { settleFirst: false });
+  await waitForQuiet(page);
   return {
     page,
     vault,

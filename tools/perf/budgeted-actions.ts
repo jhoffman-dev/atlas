@@ -3,6 +3,7 @@
  * them: each starts from where the one before left the app.
  */
 export const BUDGETED_ACTIONS = [
+  'Open a vault',
   'Click a sidebar note',
   'Switch notes',
   'Type 10 characters in a note',
