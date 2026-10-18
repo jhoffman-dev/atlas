@@ -55,17 +55,6 @@ export const ariaRowIndex = (index: number): number => index + 2;
 export const SCROLLER_ESTIMATE = { width: 960, height: 880 };
 
 /**
- * A table's rows in their groups and sub-groups, as Coda draws them: each
- * group a full-width header row — disclosure arrow, the value (a pill for a
- * select), how many rows, and a summary under every column that adds up — with
- * its sub-groups one step in, and "+ New" at the foot of each innermost group.
- *
- * Virtualised: only the lines near the scroller's window are in the page, and
- * a folded group is a header and nothing else. Up, Down, Home and End move
- * between the rows' names and the headers, as the flat table's do, skipping
- * "+ New"; Enter and Space fold a header, as a button does.
- */
-/**
  * The lines a grouped table draws, its header rows among them: worked out by
  * the table, which says how many rows it has, and handed to `GroupedRows`.
  */
@@ -83,6 +72,25 @@ export function useGroupLines(grouping: TableGrouping | undefined): readonly Gro
   );
 }
 
+/**
+ * The rows' paths in the order a grouped table shows them, group by group; a
+ * folded group's rows are not shown, so are not among them.
+ */
+export function rowOrder(lines: readonly GroupLine[]): readonly string[] {
+  return lines.flatMap((line) => (line.kind === 'row' ? [line.row.path] : []));
+}
+
+/**
+ * A table's rows in their groups and sub-groups, as Coda draws them: each
+ * group a full-width header row — disclosure arrow, the value (a pill for a
+ * select), how many rows, and a summary under every column that adds up — with
+ * its sub-groups one step in, and "+ New" at the foot of each innermost group.
+ *
+ * Virtualised: only the lines near the scroller's window are in the page, and
+ * a folded group is a header and nothing else. Up, Down, Home and End move
+ * between the rows' names and the headers, as the flat table's do, skipping
+ * "+ New"; Enter and Space fold a header, as a button does.
+ */
 export function GroupedRows({
   grouping,
   lines,
