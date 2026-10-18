@@ -22,6 +22,7 @@ import {
 } from '@atlas/application';
 import type { TaskMigrationPreviewData, TaskMigrationProps } from '@atlas/ui';
 import { localClock, localDayOf, localToday } from '../today.ts';
+import { keepIfSame } from '../same-reading.ts';
 
 const files = (count: number) => (count === 1 ? '1 file' : `${count} files`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -115,7 +116,8 @@ export function useTaskMigration({
     previewIfNeeded(migrationPorts, chosen)
       .then((read) => {
         if (cancelled) return;
-        setPreview(read !== null && hasMigrationWork(read) ? read : null);
+        const now = read !== null && hasMigrationWork(read) ? read : null;
+        setPreview((was) => keepIfSame(was, now));
         setPreviewedFor(vaultKey);
         prefetched.current = vaultKey;
       })

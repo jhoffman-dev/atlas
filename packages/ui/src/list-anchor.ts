@@ -174,14 +174,18 @@ function contentTop(element: Element, area: HTMLElement): number {
   return element.getBoundingClientRect().top - area.getBoundingClientRect().top + area.scrollTop;
 }
 
-/** How much room the page's answers take, with the gap the page leaves after each. */
+/** How much room the page's answers take: each with its margins, and the gap the page leaves after it. */
 function answersHeight(parts: ListAnchorParts): number {
   const answers = parts.answers.current;
   const page = parts.page.current;
   if (answers === null || page === null) return 0;
   const gap = Number.parseFloat(getComputedStyle(page).rowGap) || 0;
   let height = 0;
-  for (const child of answers.children) height += child.getBoundingClientRect().height + gap;
+  for (const child of answers.children) {
+    const { marginTop, marginBottom } = getComputedStyle(child);
+    height += child.getBoundingClientRect().height + gap;
+    height += (Number.parseFloat(marginTop) || 0) + (Number.parseFloat(marginBottom) || 0);
+  }
   return height;
 }
 

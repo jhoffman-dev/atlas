@@ -9,6 +9,7 @@ import {
   type ParaMigrationPreview,
 } from '@atlas/application';
 import type { ParaMigrationProps } from '@atlas/ui';
+import { keepIfSame } from '../same-reading.ts';
 
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
@@ -71,7 +72,8 @@ export function useParaMigration({
     previewParaMigration(migrationPorts)
       .then((read) => {
         if (cancelled) return;
-        setPreview(hasParaMigrationWork(read) ? read : null);
+        const now = hasParaMigrationWork(read) ? read : null;
+        setPreview((was) => keepIfSame(was, now));
         setPreviewedFor(vaultKey);
         prefetched.current = vaultKey;
       })

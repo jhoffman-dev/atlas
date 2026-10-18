@@ -17,6 +17,7 @@ import {
 } from '@atlas/application';
 import type { MeetingProjectRow, MeetingProjectsProps } from '@atlas/ui';
 import { localToday } from '../today.ts';
+import { keepIfSame } from '../same-reading.ts';
 
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
@@ -87,10 +88,10 @@ export function useMeetingProjects({
     previewProjectBackfill({ ports, owner: latestOwner.current })
       .then((read) => {
         if (cancelled) return;
-        setRows(read.length === 0 ? null : read);
+        setRows((was) => keepIfSame(was, read.length === 0 ? null : read));
         const before = shown.current;
         shown.current = new Set(read.map(rowKey));
-        setChosen((ticked) => ticksAfterPreview({ read, ticked, before }));
+        setChosen((ticked) => keepIfSame(ticked, ticksAfterPreview({ read, ticked, before })));
         setPreviewedFor(vaultKey);
         prefetched.current = vaultKey;
       })

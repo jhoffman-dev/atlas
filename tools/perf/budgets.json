@@ -97,8 +97,8 @@
       }
     },
     "Open the Inbox": {
-      "commits": 12,
-      "renders": 999,
+      "commits": 7,
+      "renders": 563,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
@@ -108,8 +108,8 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 52,
-      "renders": 4213,
+      "commits": 49,
+      "renders": 3701,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,

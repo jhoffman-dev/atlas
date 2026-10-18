@@ -14,6 +14,7 @@ import {
 } from '@atlas/application';
 import type { MeetingCleanupProps } from '@atlas/ui';
 import { localToday } from '../today.ts';
+import { keepIfSame } from '../same-reading.ts';
 
 const tasks = (count: number) => (count === 1 ? '1 task' : `${count} tasks`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -90,7 +91,7 @@ export function useMeetingCleanup({
       .then(async (read) => {
         const unjudged = read.length === 0 && (await meetingCleanupNeedsOwner({ ports, owner }));
         if (cancelled) return;
-        setListed(read);
+        setListed((was) => keepIfSame(was, read));
         setNeedsOwner(unjudged);
         setPreviewedFor(vaultKey);
         prefetched.current = vaultKey;

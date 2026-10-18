@@ -8,6 +8,7 @@ import {
 } from '@atlas/application';
 import type { VaultTidyProps } from '@atlas/ui';
 import { localToday } from '../today.ts';
+import { keepIfSame } from '../same-reading.ts';
 
 const notes = (count: number) => (count === 1 ? '1 note' : `${count} notes`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -66,7 +67,7 @@ export function useVaultTidy({
     previewVaultTidy(ports, localToday())
       .then((read) => {
         if (cancelled) return;
-        setPlan(read);
+        setPlan((was) => keepIfSame(was, read));
         setPreviewedFor(vaultKey);
         prefetched.current = vaultKey;
       })

@@ -1,5 +1,6 @@
 import {
   Fragment,
+  memo,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -232,7 +233,13 @@ function slot<Offer extends InboxOfferReading>(
  * taking room, so saying so moves nothing; the region is always there, so a
  * screen reader hears it arrive.
  */
-function NewAbove({ newAbove, showNewAbove }: { newAbove: boolean; showNewAbove: () => void }) {
+const NewAbove = memo(function NewAbove({
+  newAbove,
+  showNewAbove,
+}: {
+  newAbove: boolean;
+  showNewAbove: () => void;
+}) {
   return (
     <div style={NEW_ABOVE_HANGER} aria-live="polite">
       {newAbove && (
@@ -247,7 +254,7 @@ function NewAbove({ newAbove, showNewAbove }: { newAbove: boolean; showNewAbove:
       )}
     </div>
   );
-}
+});
 
 /** The room the list anchor gives below the page; its height is set there, never here. */
 const ROOM = { flexShrink: 0 } as const;
