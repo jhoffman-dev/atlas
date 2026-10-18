@@ -83,7 +83,9 @@
   align-items: baseline;
   color: var(--ink-2);
   display: flex;
-  font-size: var(--text-column);
+  /* 12px, not the 12.5px column label: the list places rows by this line's
+     height (row-estimates.spec.ts), so the size stays what it estimates. */
+  font-size: var(--text-small);
   font-weight: 600;
   gap: var(--space-2);
   margin: 0 0 var(--space-1);
