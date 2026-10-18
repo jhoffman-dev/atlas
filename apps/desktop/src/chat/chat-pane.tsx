@@ -1,6 +1,12 @@
-import { ChatPanel, ClaudeSettings, type ChatNameHint } from '@atlas/ui';
+import { Suspense } from 'react';
+import type { ChatNameHint } from '@atlas/ui';
 import { DEFAULT_CHAT_MODEL } from '@atlas/domain';
+import { chatPanel, claudeSettings } from '../pages-on-first-use.ts';
 import type { ChatController } from './use-chat.ts';
+
+// Loaded on first use: the panel opens on demand, the card only inside Settings.
+const ChatPanel = chatPanel.Component;
+const ClaudeSettings = claudeSettings.Component;
 
 /** The chat panel, wired to its controller. */
 export function ChatPane({
@@ -17,27 +23,30 @@ export function ChatPane({
 }) {
   const { session } = chat;
   return (
-    <ChatPanel
-      state={chat.state}
-      model={chat.model}
-      problem={chat.problem}
-      history={chat.history}
-      loadImage={loadImage}
-      nameHint={nameHint}
-      actions={{
-        onSend: (text) => void session.send(text),
-        onStop: () => session.stop(),
-        onRetry: () => void session.retry(),
-        onNewChat: () => session.newChat(),
-        onClose: chat.close,
-        onRemoveContext: () => session.removeContext(),
-        onAccept: (id) => void session.accept(id),
-        onReject: (id) => session.reject(id),
-        onUndo: (id) => void session.undo(id),
-        onCopy: chat.copy,
-        onFollowLink,
-      }}
-    />
+    // The panel's own frame while its chunk arrives, so the panes do not move twice.
+    <Suspense fallback={<aside className="chat" aria-label="Claude" aria-busy="true" />}>
+      <ChatPanel
+        state={chat.state}
+        model={chat.model}
+        problem={chat.problem}
+        history={chat.history}
+        loadImage={loadImage}
+        nameHint={nameHint}
+        actions={{
+          onSend: (text) => void session.send(text),
+          onStop: () => session.stop(),
+          onRetry: () => void session.retry(),
+          onNewChat: () => session.newChat(),
+          onClose: chat.close,
+          onRemoveContext: () => session.removeContext(),
+          onAccept: (id) => void session.accept(id),
+          onReject: (id) => session.reject(id),
+          onUndo: (id) => void session.undo(id),
+          onCopy: chat.copy,
+          onFollowLink,
+        }}
+      />
+    </Suspense>
   );
 }
 

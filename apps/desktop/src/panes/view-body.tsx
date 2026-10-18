@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { Suspense, useMemo, type ReactNode } from 'react';
 import {
   calendarEndKey,
   thumbnailPropertyOf,
@@ -19,8 +19,6 @@ import {
   ArtifactCardFace,
   BoardView,
   CalendarNav,
-  CalendarView,
-  FeedView,
   GalleryView,
   LayoutMenu,
   GroupByPopover,
@@ -29,7 +27,6 @@ import {
   ViewSaveControls,
   ListView,
   TableView,
-  TimelineView,
   ViewToolbar,
   type CalendarNavigation,
   type CoverSource,
@@ -40,6 +37,7 @@ import {
   type ViewTabEditing,
 } from '@atlas/ui';
 import type { TabLanding } from '../types/use-type-views.ts';
+import { calendarView, feedView, timelineView } from '../pages-on-first-use.ts';
 import { remadeCover, useThumbnailSnapshot } from '../artifacts/use-thumbnails.ts';
 import { PageGallery } from '../thumbnails/page-gallery.tsx';
 import type { ThumbnailBackfill } from '../artifacts/use-thumbnail-backfill.ts';
@@ -49,6 +47,14 @@ import { localToday } from '../today.ts';
 import { useMinuteNow } from './use-minute-now.ts';
 import { schemaOf } from './table-schema.ts';
 import type { ViewChoosing } from '../archive/use-view-choosing.ts';
+
+// The rarer layouts load on first use; a table, a list and a board are drawn at start-up.
+const CalendarView = calendarView.Component;
+const FeedView = feedView.Component;
+const TimelineView = timelineView.Component;
+
+/** A layout loaded on first use: nothing under the toolbar until it arrives, then the layout. */
+const layoutOnFirstUse = (layout: ReactNode) => <Suspense fallback={null}>{layout}</Suspense>;
 
 type SavedView = ReturnType<typeof useSavedView>;
 
@@ -390,7 +396,7 @@ export function ViewBody({
   }
 
   if (view.display.layout === 'timeline' && view.display.startKey !== null) {
-    return (
+    return layoutOnFirstUse(
       <TimelineView
         rows={view.rows}
         startKey={view.display.startKey}
@@ -398,12 +404,12 @@ export function ViewBody({
         today={localToday()}
         onOpenNote={onOpenNote}
         onReschedule={view.moveBar}
-      />
+      />,
     );
   }
 
   if (view.display.layout === 'feed') {
-    return (
+    return layoutOnFirstUse(
       <FeedView
         rows={view.rows}
         fields={fields}
@@ -415,7 +421,7 @@ export function ViewBody({
         onFollowLink={onFollowLink}
         {...(onOpenTag !== undefined && { onOpenTag })}
         {...ticks}
-      />
+      />,
     );
   }
 
@@ -475,7 +481,7 @@ function ViewCalendar({
 }) {
   const now = useMinuteNow();
   const { startKey, endKey } = view.display;
-  return (
+  return layoutOnFirstUse(
     <CalendarView
       rows={view.rows}
       dateKey={dateKey}
@@ -490,7 +496,7 @@ function ViewCalendar({
       onCreate={view.addOnDate}
       planner={planner}
       {...(ticks !== undefined && { ticks })}
-    />
+    />,
   );
 }
 

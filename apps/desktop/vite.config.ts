@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -20,8 +20,36 @@ const entityTable = createRequire(fromAdapters.resolve('micromark-util-decode-st
   'decode-named-character-reference',
 );
 
+/**
+ * Writes where each chunk loaded on first use landed into index.html, by the
+ * chunk's name, for `src/chunk-files.ts`: a chunk that failed to parse or run
+ * can then be imported again under a fresh address. A meta tag, not a script,
+ * since it is only data.
+ */
+function chunkFilesMeta(): Plugin {
+  return {
+    name: 'atlas-chunk-files',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler: (_html, context) => {
+        const files = Object.values(context.bundle ?? {}).flatMap((output) =>
+          output.type === 'chunk' && output.isDynamicEntry ? [[output.name, output.fileName]] : [],
+        );
+        return [
+          {
+            tag: 'meta',
+            attrs: { name: 'atlas-chunks', content: JSON.stringify(Object.fromEntries(files)) },
+            injectTo: 'head',
+          },
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), chunkFilesMeta()],
   // The MCP server's path in this checkout, so Settings can offer a command that
   // runs it. Only right for a build made from source, which is how Atlas is run.
   define: {
@@ -47,6 +75,18 @@ export default defineConfig({
   },
   // Tauri drives the dev server, so the port is fixed and failures must be loud.
   server: { port: 1420, strictPort: true },
-  build: { outDir: 'dist', emptyOutDir: true, target: 'safari17' },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    target: 'safari17',
+    // Everything start-up loads in one chunk. Left alone, the bundler splits the code
+    // the main chunk shares with a page loaded on first use (`pages-on-first-use.ts`)
+    // into chunks of their own, which start-up then fetches anyway, compressed worse.
+    // The pages can leave the main chunk at all because @atlas/ui declares no side
+    // effects: its index file then no longer keeps every page it exports there.
+    rolldownOptions: {
+      output: { codeSplitting: { groups: [{ name: 'start', tags: ['$initial'] }] } },
+    },
+  },
   clearScreen: false,
 });
