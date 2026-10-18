@@ -1,14 +1,15 @@
 import { expect, test } from '@playwright/test';
+import { basename } from 'node:path';
 import { createVault, installHost } from './host.ts';
 
 /*
  * A page whose chunk will not load in place, however often Reload asks: the
- * window can be loaded again, and Atlas starts afresh (#262).
+ * window can be loaded again, and Atlas starts afresh with its vault (#262).
  */
 
 const GRAPH_PAGE = /\/assets\/graph-page-[^/]+\.js/;
 
-test('offers to reload the window once Reload has failed too, and reloading starts Atlas again', async ({
+test('offers to reload the window once Reload has failed too, and reloading starts Atlas again on its vault', async ({
   page,
 }) => {
   const vault = await createVault();
@@ -34,9 +35,18 @@ test('offers to reload the window once Reload has failed too, and reloading star
   await failed.getByRole('button', { name: 'Reload' }).click();
   await expect(failed).toContainText('Unsaved changes might be lost.');
   cutShort = false;
-  const reloaded = page.waitForEvent('load');
+  // A mark on this window, which a reload leaves behind.
+  await page.evaluate(() => Object.assign(window, { beforeReload: true }));
   await failed.getByRole('button', { name: 'Reload window' }).click();
-  await reloaded;
-  await expect(page.getByRole('button', { name: 'Choose folder…' })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => 'beforeReload' in window).catch(() => true))
+    .toBe(false);
+  // Atlas starts again and opens the vault it had open, with nothing failed.
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Vault' })
+      .getByRole('button', { name: basename(vault.root), exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Go to' })).toBeVisible();
   await expect(failed).toHaveCount(0);
 });
