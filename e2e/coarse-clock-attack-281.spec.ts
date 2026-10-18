@@ -93,7 +93,13 @@ test('attack #281: after a refused save is discarded in the same tick, the next 
   await expect(page.getByRole('alert')).toHaveCount(0);
 
   // The pane now holds the file as it is: an edit to it is an ordinary save.
-  await page.getByText('Ship on zig').click();
+  // Clicked past the line's end, not its middle: ProseMirror counts clicks
+  // near the last one within 500 ms as one gesture, and this would be the
+  // third on that spot — a triple click, selecting the line for the typing
+  // to replace.
+  const line = page.getByText('Ship on zig');
+  const box = await line.boundingBox();
+  await line.click({ position: { x: (box?.width ?? 2) - 2, y: (box?.height ?? 2) / 2 } });
   await page.keyboard.press('End');
   await page.keyboard.type(' After.');
   await saveNow(page);
