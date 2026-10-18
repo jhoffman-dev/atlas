@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon } from '../icon.tsx';
-import { PageBar, type PageHistory } from '../page-bar.tsx';
+import { PageAction, PageBar, type PageHistory } from '../page-bar.tsx';
 import { HiddenTitle } from '../page-head.tsx';
 import { Toggle } from '../toggle.tsx';
 import type { AutomationRow } from './automation-views.ts';
@@ -73,21 +72,22 @@ function Adders({ presets, onNew, onAddPreset, busy }: AutomationsPageProps) {
   return (
     <div className="automations__adders">
       {presets.map((name) => (
-        <button
+        <PageAction
           key={name}
-          type="button"
-          className="btn btn--secondary"
+          icon="plus"
+          label={name}
+          tone="secondary"
           disabled={busy}
-          onClick={() => onAddPreset(name)}
-        >
-          <Icon name="plus" size={14} />
-          {name}
-        </button>
+          onPress={() => onAddPreset(name)}
+        />
       ))}
-      <button type="button" className="btn btn--primary" disabled={busy} onClick={onNew}>
-        <Icon name="plus" size={14} />
-        New automation
-      </button>
+      <PageAction
+        icon="plus"
+        label="New automation"
+        tone="primary"
+        disabled={busy}
+        onPress={onNew}
+      />
     </div>
   );
 }

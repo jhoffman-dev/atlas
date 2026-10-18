@@ -224,6 +224,13 @@ describe('InboxPage', () => {
     expect(within(rowOf('Done')).queryByText(/import/i)).toBeNull();
   });
 
+  it('is headed by the name its bar shows', () => {
+    page();
+    const named = document.querySelector('.page-bar__name')?.textContent;
+    expect(named).toBe('To process');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(named);
+  });
+
   it('shows no count while nothing is to process and nothing to answer', () => {
     page({ contents: { items: [], truncated: false, total: 0 } });
     expect(document.querySelector('.page-bar__count')).toBeNull();

@@ -17,7 +17,7 @@ import type {
 } from '@atlas/application';
 import {
   EditableTitle,
-  Icon,
+  PageAction,
   PageBar,
   PageHead,
   SegmentedControl,
@@ -100,14 +100,12 @@ export function TypePage({
         name={type.label}
         actions={
           <>
-            <button
-              type="button"
-              className="btn btn--secondary btn--sm"
-              onClick={() => onEditTemplate(type)}
-            >
-              <Icon name="template" size={15} />
-              Edit template
-            </button>
+            <PageAction
+              icon="template"
+              label="Edit template"
+              tone="secondary"
+              onPress={() => onEditTemplate(type)}
+            />
             <SegmentedControl label="Show" options={MODES} value={mode} onChange={onModeChange} />
           </>
         }

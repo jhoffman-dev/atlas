@@ -27,7 +27,7 @@ import type { TodayReport } from '@atlas/application';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
-import { PageBar, type PageHistory } from './page-bar.tsx';
+import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
 import { HiddenTitle } from './page-head.tsx';
 import { ROW_SCROLLER_MARK, RowScrollerContext } from './row-scroller.ts';
 import { StatusPill } from './status-pill.tsx';
@@ -154,21 +154,18 @@ function HeadActions({ view, onOpenDailyNote }: Pick<TodayPageProps, 'view' | 'o
   return (
     <>
       {view !== null && (
-        <button type="button" className="btn btn--ghost btn--sm" onClick={view.onOpen}>
-          Open the “{view.title}” view
-        </button>
+        <PageAction icon="table" label={`Open the “${view.title}” view`} onPress={view.onOpen} />
       )}
-      <button
-        type="button"
-        className="btn btn--ghost btn--sm"
+      <PageAction
+        icon="sun"
+        label="Open today’s note"
         title="Open today’s note (⇧⌘D)"
-        onClick={onOpenDailyNote}
+        onPress={onOpenDailyNote}
       >
-        Open today’s note
         <kbd className="key today__key" aria-hidden="true">
           ⇧⌘D
         </kbd>
-      </button>
+      </PageAction>
     </>
   );
 }

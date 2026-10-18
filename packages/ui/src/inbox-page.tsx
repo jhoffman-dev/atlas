@@ -4,7 +4,7 @@ import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
-import { PageBar, type PageHistory } from './page-bar.tsx';
+import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
 import { HiddenTitle } from './page-head.tsx';
 import { ROW_SCROLLER_MARK, RowScrollerContext } from './row-scroller.ts';
 import {
@@ -126,9 +126,7 @@ export function InboxPage(props: InboxPageProps) {
         {...(counted !== null && { count: counted })}
         {...(view !== null && {
           actions: (
-            <button type="button" className="btn btn--ghost btn--sm" onClick={view.onOpen}>
-              Open the {view.title} view
-            </button>
+            <PageAction icon="table" label={`Open the ${view.title} view`} onPress={view.onOpen} />
           ),
         })}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}

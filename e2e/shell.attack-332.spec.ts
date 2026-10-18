@@ -381,6 +381,8 @@ const OPENERS: Record<string, (page: Page) => Promise<void>> = {
     sidebarSection(page, 'userSpace')
       .getByRole('treeitem', { name: 'Archive', exact: true })
       .click(),
+  Automations: (page) =>
+    page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Automations' }).click(),
   'a type page': async (page) => {
     await sidebarSection(page, 'types').locator('.sidebar__item').first().click();
     await page.getByRole('button', { name: `Edit ${LONG_TYPE} type` }).click();
@@ -435,3 +437,42 @@ test('⌘\\ hides the sidebar and brings it back at 224px', async ({ page }) => 
   const width = await nav(page).evaluate((element) => element.getBoundingClientRect().width);
   expect(width).toBe(224);
 });
+
+/**
+ * Every visible button in a bar's actions slot, with its width, its font's em,
+ * whether it shows an icon, and its title.
+ */
+const barButtons = (bar: Locator) =>
+  bar.evaluate((element) =>
+    [...element.querySelectorAll<HTMLElement>('.page-bar__actions button')]
+      .filter((one) => getComputedStyle(one).display !== 'none')
+      .map((one) => ({
+        name: one.getAttribute('aria-label') ?? one.textContent?.trim() ?? '',
+        width: one.getBoundingClientRect().width,
+        em: parseFloat(getComputedStyle(one).fontSize),
+        icon: one.querySelector('svg') !== null,
+        title: one.getAttribute('title')?.trim() ?? '',
+      })),
+  );
+
+// A narrowed button is still told apart: it is at least 4em wide, or it shows
+// its icon and names itself in its title.
+for (const which of ['Today', 'Automations', 'Archive', 'a type page'] as const) {
+  for (const width of [720, 600] as const) {
+    test(`${which} at ${width}px: every bar button is 4em wide, or an icon with a title`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 600 });
+      await openVault(page);
+      await OPENERS[which]!(page);
+      const bar = page.locator('main').locator('.page-bar').first();
+      await expect(bar.locator('.page-bar__actions')).toBeVisible();
+      const buttons = await barButtons(bar);
+      expect(buttons.length).toBeGreaterThan(0);
+      const stubs = buttons.filter(
+        (one) => one.width < 4 * one.em - 0.5 && !(one.icon && one.title !== ''),
+      );
+      expect(stubs).toEqual([]);
+    });
+  }
+}

@@ -49,7 +49,7 @@ export { NoteLinksPanel } from './note-links.tsx';
 export type { MentionRow, MentionsState } from './note-links.tsx';
 export { EditableTitle, HiddenTitle, PageHead } from './page-head.tsx';
 export type { PageHeadProps } from './page-head.tsx';
-export { PageBar } from './page-bar.tsx';
+export { PageAction, PageBar } from './page-bar.tsx';
 export type { PageHistory, PageMenuItem } from './page-bar.tsx';
 export { SearchPalette } from './search-palette.tsx';
 export { useSteadyCallback } from './steady-callback.ts';

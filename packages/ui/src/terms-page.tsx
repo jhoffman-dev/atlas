@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import {
   listAsInput,
   newTermRefusal,
@@ -13,7 +13,7 @@ import {
 } from '@atlas/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon } from './icon.tsx';
-import { PageBar, type PageHistory } from './page-bar.tsx';
+import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
 import { HiddenTitle } from './page-head.tsx';
 
 /** What the Terms page lists, once it has been read. */
@@ -62,15 +62,13 @@ export function TermsPage(props: TermsPageProps) {
         name="All terms"
         {...(counted !== null && { count: counted })}
         actions={
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            aria-expanded={adding}
-            onClick={() => setAdding((was) => !was)}
-          >
-            <Icon name="plus" size={15} />
-            New term
-          </button>
+          <PageAction
+            icon="plus"
+            label="New term"
+            tone="primary"
+            expanded={adding}
+            onPress={() => setAdding((was) => !was)}
+          />
         }
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
@@ -121,6 +119,7 @@ function NewTermForm({
   const [variants, setVariants] = useState('');
   const [kind, setKind] = useState<TermKind | null>(null);
   const [tried, setTried] = useState(false);
+  const hintId = useId();
   const problem = newTermRefusal(canonical);
 
   const submit = (event: FormEvent) => {
@@ -149,10 +148,13 @@ function NewTermForm({
           type="text"
           value={variants}
           placeholder="lark spur, Larks Burr"
+          aria-describedby={hintId}
           onChange={(event) => setVariants(event.target.value)}
         />
       </label>
-      <p className="terms__hint">{MATCHING_RULE}</p>
+      <p className="terms__hint" id={hintId}>
+        {MATCHING_RULE}
+      </p>
       <label className="terms__field terms__field--kind">
         <span className="terms__label">Kind</span>
         <span className="select">

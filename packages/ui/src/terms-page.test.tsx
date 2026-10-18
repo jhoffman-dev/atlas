@@ -57,11 +57,12 @@ describe('the Terms page', () => {
     renderPage();
     expect(screen.queryByText(/capitals included/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'New term' }));
-    expect(
-      within(screen.getByRole('form', { name: 'New term' })).getByText(
-        /Put right exactly as written, capitals included/,
-      ),
-    ).toBeTruthy();
+    const form = screen.getByRole('form', { name: 'New term' });
+    const hint = within(form).getByText(/Put right exactly as written, capitals included/);
+    const field = within(form).getByRole('textbox', { name: 'Misheard as' });
+    // What assistive tech reads as the field's description: the hint, by its id.
+    expect(field.getAttribute('aria-describedby')).toBe(hint.id);
+    expect(hint.id).not.toBe('');
     expect(screen.getByRole('article', { name: 'Terms' })).toBeTruthy();
     expect(
       screen.getByText('2 terms · 6 misheard spellings').closest('.page-bar__count'),

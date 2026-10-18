@@ -348,6 +348,7 @@ const SQUEEZED: readonly { which: string; width: number; split: boolean; counted
   { which: 'Archive', width: 720, split: false, counted: true },
   { which: 'Graph', width: 720, split: false, counted: true },
   { which: 'Templates', width: 720, split: false, counted: true },
+  { which: 'Automations', width: 720, split: false, counted: true },
 ];
 
 for (const { which, width, split, counted } of SQUEEZED) {
@@ -372,19 +373,27 @@ for (const { which, width, split, counted } of SQUEEZED) {
     for (const bar of await bars(page)) expect(await barProblems(bar)).toEqual([]);
   });
 
+  // Measured until it holds: a page's buttons can land after its name does,
+  // and the bar is laid out again when they do.
   test(`${where}: the name keeps at least 4em in view`, async ({ page }) => {
     for (const bar of await bars(page)) {
-      const measured = await nameAndCount(bar);
-      expect(measured).not.toBeNull();
-      expect(measured!.seen).toBeGreaterThanOrEqual(measured!.fourEm - 0.5);
+      await expect
+        .poll(async () => {
+          const measured = await nameAndCount(bar);
+          return measured === null ? null : measured.seen - measured.fourEm;
+        })
+        .toBeGreaterThanOrEqual(-0.5);
     }
   });
 
   test(`${where}: the count is gone before the name is clipped`, async ({ page }) => {
     for (const bar of await bars(page)) {
-      const measured = await nameAndCount(bar);
-      expect(measured).not.toBeNull();
-      if (measured!.nameClipped) expect(measured!.countShown).toBe(false);
+      await expect
+        .poll(async () => {
+          const measured = await nameAndCount(bar);
+          return measured === null ? null : !measured.nameClipped || !measured.countShown;
+        })
+        .toBe(true);
     }
   });
 

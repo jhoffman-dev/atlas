@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { TEMPLATES_LABEL, type TemplateUse } from '@atlas/domain';
 import { Icon } from './icon.tsx';
 import { isImeKey } from './ime.ts';
-import { PageBar, type PageHistory } from './page-bar.tsx';
+import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
 import { HiddenTitle } from './page-head.tsx';
 import { lostUsesText, templateUsesText } from './template-words.ts';
 
@@ -58,15 +58,13 @@ export function TemplatesPage(props: TemplatesPageProps) {
         name="All templates"
         {...(counted !== null && { count: counted })}
         actions={
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            aria-expanded={creating}
-            onClick={() => setCreating((was) => !was)}
-          >
-            <Icon name="plus" size={15} />
-            New template
-          </button>
+          <PageAction
+            icon="plus"
+            label="New template"
+            tone="primary"
+            expanded={creating}
+            onPress={() => setCreating((was) => !was)}
+          />
         }
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
