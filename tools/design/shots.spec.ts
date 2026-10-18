@@ -967,7 +967,7 @@ async function shootTemplates(page: Page, theme: string): Promise<void> {
   const list = page.getByRole('article', { name: 'Templates' });
   await list.getByRole('row').nth(1).waitFor();
   await shoot(page, `templates-page-${theme}`);
-  await list.getByRole('button', { name: 'New template' }).click();
+  await page.getByRole('button', { name: 'New template' }).click();
   await page.getByRole('form', { name: 'New template' }).waitFor();
   await shoot(page, `templates-new-${theme}`);
   await page
