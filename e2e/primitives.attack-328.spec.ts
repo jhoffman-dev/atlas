@@ -417,7 +417,9 @@ for (const theme of THEMES) {
   });
 }
 
-test('the quick-add toast sits top right, inside the window', async ({ page }) => {
+test('the quick-add toast sits bottom right, above the quick-add button, inside the window', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openVault(page);
   await page.locator('.fab__button').click();
@@ -429,9 +431,12 @@ test('the quick-add toast sits top right, inside the window', async ({ page }) =
   await expect(toast).toBeVisible();
   await expect(toast.getByRole('status')).toHaveText('Task added');
   const box = (await toast.boundingBox())!;
+  const fab = (await page.locator('.fab__button').boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(1280);
   expect(box.x + box.width).toBeGreaterThan(1280 - 60);
-  expect(box.y).toBeLessThan(120);
+  expect(box.y + box.height).toBeLessThanOrEqual(800);
+  expect(box.y + box.height, 'clear of the quick-add button').toBeLessThanOrEqual(fab.y - 4);
+  expect(box.y, 'in the bottom quarter').toBeGreaterThan(800 - 200);
 });
 
 /** Pages a toast can arrive over, each with controls along its top right. */

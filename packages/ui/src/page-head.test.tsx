@@ -2,36 +2,35 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EditableTitle, PageHead } from './page-head.tsx';
+import { EditableTitle, HiddenTitle, PageHead } from './page-head.tsx';
 
 describe('PageHead', () => {
-  it('heads the page with its title and the line saying what it is', () => {
-    render(<PageHead icon="board" title="Board" description="Every task, by status." />);
-    expect(screen.getByRole('heading', { level: 1, name: 'Board' })).toBeDefined();
-    expect(screen.getByText('Every task, by status.')).toBeDefined();
+  it('heads a note with its title alone: no tile, no line under it', () => {
+    const { container } = render(<PageHead title="Leftovers" />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Leftovers' })).toBeDefined();
+    expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelectorAll('.page-head > *')).toHaveLength(1);
   });
 
-  it('leaves the description out when there is none', () => {
-    const { container } = render(<PageHead icon="board" title="Board" description="" />);
-    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
-    expect(container.querySelector('.page-head__description')).toBeNull();
-  });
-
-  it('puts what a page brings into the slot beside its title, and below it', () => {
+  it('takes an editable title in place of the text', async () => {
+    const onCommit = vi.fn();
     render(
-      <PageHead icon="board" title="Board" actions={<button type="button">New task</button>}>
-        <div role="toolbar" aria-label="Views" />
-      </PageHead>,
+      <PageHead
+        title={<EditableTitle value="Draft" label="Title" hint="Change" onCommit={onCommit} />}
+      />,
     );
-    const actions = screen.getByRole('button', { name: 'New task' });
-    expect(actions.closest('.page-head__actions')).not.toBeNull();
-    expect(screen.getByRole('toolbar', { name: 'Views' }).closest('.page-head__row')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Draft' }));
+    expect(screen.getByRole('heading', { level: 1 }).contains(screen.getByRole('textbox'))).toBe(
+      true,
+    );
   });
+});
 
-  it('draws the tile larger and the head stacked for a note', () => {
-    const { container } = render(<PageHead icon="task" title="Note" size="note" />);
-    expect(container.querySelector('.page-head--note')).not.toBeNull();
-    expect(container.querySelector('svg')?.getAttribute('width')).toBe('30');
+describe('HiddenTitle', () => {
+  it('is a level-one heading that can be found by name but is not drawn', () => {
+    render(<HiddenTitle>Today</HiddenTitle>);
+    const title = screen.getByRole('heading', { level: 1, name: 'Today' });
+    expect(title.classList.contains('visually-hidden')).toBe(true);
   });
 });
 

@@ -9,7 +9,6 @@ import {
   notePropertyKind,
   optionLabel,
   pageCrumb,
-  pageIcon,
   placeCrumb,
   pageTitle,
   withDatePart,
@@ -17,30 +16,6 @@ import {
   STATUS_TONES,
   statusTone,
 } from './index.ts';
-
-describe('pageIcon', () => {
-  it('draws a note by its type, as the sidebar does', () => {
-    expect(pageIcon({ kind: 'note', typeName: 'task' })).toBe('task');
-    expect(pageIcon({ kind: 'note', typeName: 'person' })).toBe('person');
-  });
-
-  it('draws an untyped note, or one of an unknown type, as a document', () => {
-    expect(pageIcon({ kind: 'note', typeName: null })).toBe('doc');
-    expect(pageIcon({ kind: 'note', typeName: 'recipe' })).toBe('doc');
-  });
-
-  it('draws a view by its layout', () => {
-    expect(pageIcon({ kind: 'view', layout: 'board' })).toBe('board');
-    expect(pageIcon({ kind: 'view', layout: 'gallery' })).toBe('grid');
-  });
-
-  it('draws a dashboard as a chart, a source as a list and a type by its name', () => {
-    expect(pageIcon({ kind: 'dashboard' })).toBe('chart');
-    expect(pageIcon({ kind: 'source' })).toBe('list');
-    expect(pageIcon({ kind: 'type', typeName: 'Companies' })).toBe('company');
-    expect(pageIcon({ kind: 'template', typeName: 'task' })).toBe('template');
-  });
-});
 
 describe('placeCrumb', () => {
   const place = (value: string) => placeCrumb(createVaultPath(value));
