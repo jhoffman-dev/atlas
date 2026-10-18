@@ -16,8 +16,9 @@ export const weeklyReview = defineTool({
     'projects with status active and no task filed under them (by "project") that is ' +
     'next-action or in-progress. overdue: open tasks (inbox, backlog, next-action, ' +
     'in-progress, waiting) due before today. untouchedSomeday: someday and longterm tasks ' +
-    'untouched for more than 30 days. A task is { path, title, status, due, defer, waitingOn, ' +
-    'contexts, project, projectTitle, modified }, a project { path, title, status, moving }. "Untouched" is the ' +
+    'untouched for more than 30 days. A task is { path, title, status, due, defer, recurrence, ' +
+    'waitingOn, contexts, project, projectTitle, modified } ("recurrence" how it repeats, null ' +
+    'when it does not), a project { path, title, status, moving }. "Untouched" is the ' +
     'file\'s last change; a task deferred past today is in no section until its "defer" day. ' +
     '"truncated" means tasks were held back, so a task section may be missing some. To act on ' +
     'an item as the page does: set its status or "defer" with atlas_update_properties (a late ' +
@@ -42,8 +43,9 @@ export const today = defineTool({
     'day has passed), inProgress, nextActions (grouped by project, those under none ' +
     'last), waiting (grouped by who is waited on). A task is in one section only, the first ' +
     'that claims it, and a task deferred past today is in none. A group is { key, label, ' +
-    'project, tasks }; a task is { path, title, status, due, defer, waitingOn, contexts, ' +
-    'project, projectTitle, modified, waitingDays }. waitingDays, for a waiting task, is whole ' +
+    'project, tasks }; a task is { path, title, status, due, defer, recurrence, waitingOn, ' +
+    'contexts, project, projectTitle, modified, waitingDays } ("recurrence" how it repeats, ' +
+    'null when it does not). waitingDays, for a waiting task, is whole ' +
     "days since the file's last change, not since it began waiting: any edit restarts it. " +
     'stalledProjects counts active projects with no next-action or in-progress task (listed ' +
     'by atlas_weekly_review). To act on a task as the page does, use atlas_update_properties: ' +
