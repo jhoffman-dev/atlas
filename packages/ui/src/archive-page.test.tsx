@@ -73,7 +73,13 @@ describe('ArchivePage', () => {
     expect(within(rows[0] as HTMLElement).getByText('Projects/Old plan.md')).toBeTruthy();
     expect(within(rows[0] as HTMLElement).getByText('Sun, Sep 20, 2026')).toBeTruthy();
     expect(within(rows[1] as HTMLElement).getByText('—')).toBeTruthy();
-    expect(screen.getByText(/2 archived notes/)).toBeTruthy();
+    expect(screen.getByText('2 archived notes').closest('.page-bar__count')).not.toBeNull();
+  });
+
+  it('keeps an h1 to be found by, drawn nowhere, and no count while nothing is archived', () => {
+    render(<Page contents={{ notes: [], truncated: false }} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Archive' })).toBeTruthy();
+    expect(document.querySelector('.page-bar__count')).toBeNull();
   });
 
   it('opens a note from its name and unarchives it from its row', async () => {

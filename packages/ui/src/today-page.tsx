@@ -28,7 +28,7 @@ import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
-import { PageHead } from './page-head.tsx';
+import { HiddenTitle } from './page-head.tsx';
 import { ROW_SCROLLER_MARK, RowScrollerContext } from './row-scroller.ts';
 import { StatusPill } from './status-pill.tsx';
 import { useSteadyCallback } from './steady-callback.ts';
@@ -109,11 +109,14 @@ export function TodayPage(props: TodayPageProps) {
     busy: props.busy,
   });
   const scroller = useRef<HTMLDivElement>(null);
+  const counted = describe(props.today);
   return (
     <>
       <PageBar
         crumb={{ icon: 'today', parent: 'Today' }}
         name={props.today?.today ?? 'Today'}
+        {...(counted !== null && { count: counted })}
+        actions={<HeadActions view={props.view} onOpenDailyNote={props.onOpenDailyNote} />}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
@@ -124,12 +127,7 @@ export function TodayPage(props: TodayPageProps) {
             aria-label="Today"
             aria-busy={props.busy || undefined}
           >
-            <PageHead
-              icon="today"
-              title="Today"
-              description={describe(props.today)}
-              actions={<HeadActions view={props.view} onOpenDailyNote={props.onOpenDailyNote} />}
-            />
+            <HiddenTitle>Today</HiddenTitle>
             {props.problem !== null && (
               <p className="table__error" role="alert">
                 {props.problem}

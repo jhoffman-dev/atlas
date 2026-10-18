@@ -13,7 +13,7 @@ import {
 import type { WeeklyReviewReport } from '@atlas/application';
 import { Icon } from './icon.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
-import { PageHead } from './page-head.tsx';
+import { HiddenTitle } from './page-head.tsx';
 
 export interface WeeklyReviewPageProps {
   /** Null while the index is being asked. */
@@ -48,17 +48,19 @@ export interface WeeklyReviewPageProps {
  * click from opening and one action from being dealt with.
  */
 export function WeeklyReviewPage(props: WeeklyReviewPageProps) {
+  const counted = describe(props.review);
   return (
     <>
       <PageBar
         crumb={{ icon: 'calendar', parent: 'Review' }}
         name="This week"
+        {...(counted !== null && { count: counted })}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
         <article className="page page--wide review" aria-label="Weekly review">
-          <PageHead icon="calendar" title="Weekly review" description={describe(props.review)} />
+          <HiddenTitle>Weekly review</HiddenTitle>
           {props.problem !== null && (
             <p className="table__error" role="alert">
               {props.problem}

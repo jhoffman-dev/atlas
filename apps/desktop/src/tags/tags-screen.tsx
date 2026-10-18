@@ -1,5 +1,5 @@
 import { formatTag, type VaultPath } from '@atlas/domain';
-import { PageBar, PageHead, TagsPage, type PageHistory, type TagTreeState } from '@atlas/ui';
+import { HiddenTitle, PageBar, TagsPage, type PageHistory, type TagTreeState } from '@atlas/ui';
 import type { VaultTagsState } from './use-vault-tags.ts';
 import { useTagsPage, type TagsPagePorts } from './use-tags-page.ts';
 
@@ -49,20 +49,13 @@ export function TagsScreen({
       <PageBar
         crumb={CRUMB}
         name={page.node === null ? 'All tags' : formatTag(page.node.name)}
+        {...(count > 0 && { count: `${count} ${count === 1 ? 'tag' : 'tags'}` })}
         {...(onShowSidebar !== undefined && { onShowSidebar })}
         {...(history !== undefined && { history })}
       />
       <div className="panel__body">
         <article className="page page--wide" aria-label="Tags">
-          <PageHead
-            icon="tag"
-            title="Tags"
-            description={
-              count === 0
-                ? 'Type # and a word in any note to tag it.'
-                : `${count} ${count === 1 ? 'tag' : 'tags'} across your notes.`
-            }
-          />
+          <HiddenTitle>Tags</HiddenTitle>
           <TagsPage
             tags={tree}
             sort={page.sort}

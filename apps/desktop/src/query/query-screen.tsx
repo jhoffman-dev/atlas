@@ -1,8 +1,8 @@
 import { createVaultPath, pageCrumb, type VaultPath } from '@atlas/domain';
 import {
   AtlasQueryPanel,
+  HiddenTitle,
   PageBar,
-  PageHead,
   QueryPage,
   SegmentedControl,
   type OverlaySlots,
@@ -45,15 +45,7 @@ export function QueryScreen({
       />
       <div className="panel__body">
         <article className="page page--wide" aria-label="Query">
-          <PageHead
-            icon="table"
-            title="Query"
-            description={
-              query.language === 'atlas'
-                ? 'Ask across types: pick from the dropdowns, or write it as text.'
-                : 'SQL over the index. Each type is a view called v_<type>.'
-            }
-          />
+          <HiddenTitle>Query</HiddenTitle>
           <div className="query__language">
             <SegmentedControl
               label="Query language"

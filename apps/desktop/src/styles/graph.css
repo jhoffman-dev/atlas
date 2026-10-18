@@ -104,11 +104,7 @@
   padding: 0 12px;
 }
 
-/* The graph page: the head, then the stage filling what is left of the panel. */
-.graph .page-head {
-  flex: none;
-}
-
+/* The graph page: its controls, then the stage filling what is left of the panel. */
 .graph__controls {
   align-items: center;
   display: flex;

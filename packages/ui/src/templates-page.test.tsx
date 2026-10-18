@@ -62,9 +62,9 @@ const rowOf = (name: string) => {
 };
 
 describe('TemplatesPage', () => {
-  it('says what a template is, and lists each with what it is used for', () => {
+  it('counts the templates beside the page name, and lists each with what it is used for', () => {
     show();
-    expect(screen.getByText(/A template is what a new note starts as/)).toBeTruthy();
+    expect(screen.getByText('3 templates').closest('.page-bar__count')).not.toBeNull();
     expect(rowOf('Person').getByText('New Person notes')).toBeTruthy();
     expect(rowOf('Daily').getByText('Today’s note')).toBeTruthy();
     expect(rowOf('Meeting').getByText('Only the New menu')).toBeTruthy();

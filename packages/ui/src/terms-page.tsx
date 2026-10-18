@@ -14,7 +14,7 @@ import {
 import { CommitField } from './commit-field.tsx';
 import { Icon } from './icon.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
-import { PageHead } from './page-head.tsx';
+import { HiddenTitle } from './page-head.tsx';
 
 /** What the Terms page lists, once it has been read. */
 export interface TermsContents {
@@ -53,33 +53,31 @@ export interface TermsPageProps {
  * Atlas leaves alone until one of them lets it go.
  */
 export function TermsPage(props: TermsPageProps) {
+  const counted = describe(props.contents);
   const [adding, setAdding] = useState(false);
   return (
     <>
       <PageBar
         crumb={{ icon: 'term', parent: 'Terms' }}
         name="All terms"
+        {...(counted !== null && { count: counted })}
+        actions={
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            aria-expanded={adding}
+            onClick={() => setAdding((was) => !was)}
+          >
+            <Icon name="plus" size={15} />
+            New term
+          </button>
+        }
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
         <article className="page page--wide terms" aria-label="Terms">
-          <PageHead
-            icon="term"
-            title="Terms"
-            description={describe(props.contents)}
-            actions={
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                aria-expanded={adding}
-                onClick={() => setAdding((was) => !was)}
-              >
-                <Icon name="plus" size={15} />
-                New term
-              </button>
-            }
-          />
+          <HiddenTitle>Terms</HiddenTitle>
           {adding && (
             <NewTermForm
               onAdd={(term) => {
@@ -103,7 +101,7 @@ function describe(contents: TermsContents | null): string | null {
   if (contents === null) return null;
   const terms = contents.terms.length;
   const spellings = contents.spellings;
-  return `${terms} ${terms === 1 ? 'term' : 'terms'} · ${spellings} misheard ${spellings === 1 ? 'spelling' : 'spellings'} Atlas puts right — exactly as written, capitals included. A person's or company's aliases link people and are never used to correct text.`;
+  return `${terms} ${terms === 1 ? 'term' : 'terms'} · ${spellings} misheard ${spellings === 1 ? 'spelling' : 'spellings'}`;
 }
 
 function NewTermForm({

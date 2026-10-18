@@ -52,9 +52,7 @@ describe('AutomationsPage', () => {
     expect(within(list).getByText('Archive · Every day at 03:00')).toBeTruthy();
     expect(within(list).getByText('27 Sep 2026, 03:00 · Archived 2 notes.')).toBeTruthy();
     expect(within(list).getByText('28 Sep 2026, 03:00')).toBeTruthy();
-    expect(
-      screen.getByText('1 automation, 1 on · rules that tidy the vault while you work'),
-    ).toBeTruthy();
+    expect(screen.getByText('1 automation, 1 on').closest('.page-bar__count')).not.toBeNull();
   });
 
   it('turns a rule off, runs it now, and opens it, by its id', async () => {

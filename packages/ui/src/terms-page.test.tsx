@@ -57,8 +57,8 @@ describe('the Terms page', () => {
     renderPage();
     expect(screen.getByRole('article', { name: 'Terms' })).toBeTruthy();
     expect(
-      screen.getByText(/^2 terms · 6 misheard spellings Atlas puts right — exactly as written/),
-    ).toBeTruthy();
+      screen.getByText('2 terms · 6 misheard spellings').closest('.page-bar__count'),
+    ).not.toBeNull();
     expect(rowOf('Larkspur').getByText('company')).toBeTruthy();
     const variants = rowOf('Larkspur').getByRole('textbox', {
       name: 'Misheard spellings of Larkspur',
@@ -192,7 +192,7 @@ describe('the Terms page', () => {
       <TermsPage {...props} contents={{ terms: [], conflicts: [], warnings: [], spellings: 1 }} />,
     );
     expect(screen.getByText(/^No terms yet/)).toBeTruthy();
-    expect(screen.getByText(/^0 terms · 1 misheard spelling Atlas puts right/)).toBeTruthy();
+    expect(screen.getByText('0 terms · 1 misheard spelling')).toBeTruthy();
     rerender(<TermsPage {...props} contents={null} error="index closed" />);
     expect(screen.getByRole('alert').textContent).toBe('index closed');
   });

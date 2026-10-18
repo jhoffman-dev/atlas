@@ -228,7 +228,9 @@ describe('InboxPage', () => {
     page({ proposals: PROPOSALS });
     const section = screen.getByRole('region', { name: 'Proposals' });
     expect(within(section).getByText(/1 open proposal/)).toBeDefined();
-    expect(screen.getByText(/3 to process .* · 1 to answer/)).toBeDefined();
+    expect(
+      screen.getByText('3 to process · 1 to answer').closest('.page-bar__count'),
+    ).not.toBeNull();
     await userEvent.click(within(section).getByRole('button', { name: 'Accept' }));
     expect(PROPOSALS.onAccept).toHaveBeenCalledWith(
       'Inbox/Proposals/Send Mara the file.md',

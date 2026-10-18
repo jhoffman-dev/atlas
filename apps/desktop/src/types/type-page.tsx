@@ -98,13 +98,25 @@ export function TypePage({
       <PageBar
         crumb={{ ...pageCrumb(page, null), icon: objectTypeIcon(type) }}
         name={type.label}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm"
+              onClick={() => onEditTemplate(type)}
+            >
+              <Icon name="template" size={15} />
+              Edit template
+            </button>
+            <SegmentedControl label="Show" options={MODES} value={mode} onChange={onModeChange} />
+          </>
+        }
         {...(onShowSidebar !== undefined && { onShowSidebar })}
         {...(history !== undefined && { history })}
       />
       <div className="panel__body">
         <article className="page page--wide" aria-label={type.label}>
           <PageHead
-            icon={objectTypeIcon(type)}
             title={
               <EditableTitle
                 value={type.label}
@@ -113,42 +125,23 @@ export function TypePage({
                 onCommit={(label) => editor.edit({ kind: 'setLabel', label })}
               />
             }
-            actions={
-              <>
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--sm"
-                  onClick={() => onEditTemplate(type)}
-                >
-                  <Icon name="template" size={15} />
-                  Edit template
-                </button>
-                <SegmentedControl
-                  label="Show"
-                  options={MODES}
-                  value={mode}
-                  onChange={onModeChange}
-                />
-              </>
-            }
-          >
-            {mode === 'notes' && (
-              <div className="view-toolbar">
-                <ViewTabs
-                  tabs={tabs}
-                  onOpenView={(path) => onOpenView(createVaultPath(path))}
-                  // The page's own controls already open the type and its template.
-                  editing={
-                    tabEditing && {
-                      ...tabEditing,
-                      onEditType: undefined,
-                      onEditTemplate: undefined,
-                    }
+          />
+          {mode === 'notes' && (
+            <div className="view-toolbar">
+              <ViewTabs
+                tabs={tabs}
+                onOpenView={(path) => onOpenView(createVaultPath(path))}
+                // The page's own controls already open the type and its template.
+                editing={
+                  tabEditing && {
+                    ...tabEditing,
+                    onEditType: undefined,
+                    onEditTemplate: undefined,
                   }
-                />
-              </div>
-            )}
-          </PageHead>
+                }
+              />
+            </div>
+          )}
           {mode === 'edit' ? (
             <TypeEditor
               type={type}
