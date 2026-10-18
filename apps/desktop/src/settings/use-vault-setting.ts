@@ -24,6 +24,12 @@ export interface VaultSetting<Value> {
   readonly unreadable: string | null;
 }
 
+/** Something said of one vault, so it is never handed out for another. */
+interface Said<T> {
+  readonly vault: string;
+  readonly value: T;
+}
+
 const messageOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
 /**
@@ -59,21 +65,23 @@ export function useVaultSetting<Value>({
 }): VaultSetting<Value> {
   const read = useVaultSettingsRead({ fs, markdown, vaultKey });
   // Held with the vault it belongs to, so another vault's value is never handed out.
-  const [held, setHeld] = useState<{ vault: string | null; value: Value | null } | null>(null);
-  const value = held !== null && held.vault === vaultKey ? held.value : null;
+  const [held, setHeld] = useState<Said<Value | null> | null>(null);
+  const value = held?.vault === vaultKey ? held.value : null;
   // The vault whose settings `value` was read from.
   const [loadedFrom, setLoadedFrom] = useState<string | null>(null);
   // The vault whose settings note last answered a read, whether or not it could be read.
   const [answeredFor, setAnsweredFor] = useState<string | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [unreadable, setUnreadable] = useState<string | null>(null);
-  const writing = useRef(0);
-  // Once the writes land, the read they wait for: the vault's next after this answer.
-  const waitingPast = useRef<{ vault: string | null; answer: object | null } | null>(null);
-  const answer = useRef(read.answer);
-  answer.current = read.answer;
+  // Each said of the vault it is about, so a switch does not carry them into the next.
+  const [problem, setProblem] = useState<Said<string> | null>(null);
+  const [unreadable, setUnreadable] = useState<Said<string> | null>(null);
+  // The writes under way, by the vault they write to: only that vault's reads are set aside.
+  const writing = useRef(new Map<string, number>());
+  // Once a vault's writes land, the read they wait for: the vault's next after this answer.
+  const waitingPast = useRef<{ vault: string; answer: object | null } | null>(null);
+  // Bumped when a vault's writes land, so whichever vault is open now takes its answer again.
+  const [landed, setLanded] = useState(0);
 
-  const { settings, unreadable: failure } = read;
+  const { settings, unreadable: failure, answer } = read;
   useEffect(() => {
     if (vaultKey === null) {
       setHeld(null);
@@ -81,12 +89,12 @@ export function useVaultSetting<Value>({
       setAnsweredFor(null);
       return;
     }
-    if (writing.current > 0) return;
+    if ((writing.current.get(vaultKey) ?? 0) > 0) return;
     const waiting = waitingPast.current;
-    if (waiting?.vault === vaultKey && read.answer === waiting.answer) return;
+    if (waiting?.vault === vaultKey && answer === waiting.answer) return;
     waitingPast.current = null;
     if (failure !== null) {
-      setUnreadable(failure);
+      setUnreadable({ vault: vaultKey, value: failure });
       setLoadedFrom(null);
       setAnsweredFor(vaultKey);
       return;
@@ -96,13 +104,15 @@ export function useVaultSetting<Value>({
     setUnreadable(null);
     setLoadedFrom(vaultKey);
     setAnsweredFor(vaultKey);
-  }, [settings, failure, read.answer, parse, vaultKey]);
+  }, [settings, failure, answer, parse, vaultKey, landed]);
 
-  const { readAgain } = read;
+  const { readAgain, latestAnswer } = read;
   const write = useCallback(
     (next: Value): Promise<string | null> => {
-      writing.current += 1;
-      setHeld({ vault: vaultKey, value: next });
+      if (vaultKey === null) return Promise.resolve(null);
+      const vault = vaultKey;
+      writing.current.set(vault, (writing.current.get(vault) ?? 0) + 1);
+      setHeld({ vault, value: next });
       setProblem(null);
       return withGiveUpRecorded({ activity, write: 'setting', path: null }, () =>
         store(next, value),
@@ -111,18 +121,25 @@ export function useVaultSetting<Value>({
           () => null,
           (cause: unknown) => {
             const why = messageOf(cause);
-            setProblem(why);
+            setProblem({ vault, value: why });
             return why;
           },
         )
         .finally(() => {
-          writing.current -= 1;
-          if (writing.current > 0) return;
-          waitingPast.current = { vault: vaultKey, answer: answer.current };
+          const left = (writing.current.get(vault) ?? 1) - 1;
+          if (left > 0) {
+            writing.current.set(vault, left);
+            return;
+          }
+          writing.current.delete(vault);
+          // The newest answer in the cache, not this render's: one read just before
+          // the write landed may not have been drawn yet, and predates the write.
+          waitingPast.current = { vault, answer: latestAnswer() };
           void readAgain();
+          setLanded((count) => count + 1);
         });
     },
-    [store, vaultKey, value, activity, readAgain],
+    [store, vaultKey, value, activity, readAgain, latestAnswer],
   );
   const save = useCallback((next: Value) => void write(next), [write]);
 
@@ -132,7 +149,7 @@ export function useVaultSetting<Value>({
     answered: vaultKey !== null && answeredFor === vaultKey,
     save,
     write,
-    problem,
-    unreadable,
+    problem: problem?.vault === vaultKey ? problem.value : null,
+    unreadable: unreadable?.vault === vaultKey ? unreadable.value : null,
   };
 }

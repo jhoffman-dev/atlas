@@ -15,6 +15,11 @@ export interface VaultSettingsRead {
    * waiting for the read after its write knows it by this.
    */
   readonly answer: object | null;
+  /**
+   * The answer in the cache this moment, which may be newer than the one this
+   * render was drawn from: a write landing takes it as the read to wait past.
+   */
+  readonly latestAnswer: () => object | null;
   /** Reads the note again now, dropping a read already under way. */
   readonly readAgain: () => Promise<void>;
 }
@@ -49,10 +54,15 @@ export function useVaultSettingsRead({
     () => readAgain(client, vaultReadKey(vaultKey ?? '', 'settings')),
     [client, vaultKey],
   );
+  const latestAnswer = useCallback(() => {
+    const state = client.getQueryState(vaultReadKey(vaultKey ?? '', 'settings'));
+    return state?.error ?? state?.data ?? null;
+  }, [client, vaultKey]);
   return {
     settings: vaultKey === null ? undefined : data,
     unreadable: vaultKey === null || error === null ? null : messageOf(error),
     answer: error ?? data ?? null,
+    latestAnswer,
     readAgain: again,
   };
 }
