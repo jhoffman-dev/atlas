@@ -40,6 +40,8 @@ interface Placed {
   /** How wide the page was: a change of width is a reflow, not an arrival. */
   readonly width: number;
   readonly scrollTop: number;
+  /** Where the scroller is on screen: a banner above the pane moves it, and that is no arrival in it. */
+  readonly areaTop: number;
   /** The page's blocks, to tell what arrived. */
   readonly blocks: readonly Element[];
 }
@@ -117,11 +119,12 @@ export function useListAnchor(parts: ListAnchorParts, live: boolean): ListAnchor
       if (reflowed && before.scrollTop === 0) return;
       const shift = now.at - before.at - answersCame(parts, now, before);
       if (shift === 0) return;
-      const arrived = shift > 0 && !reflowed && engaged.current === null;
-      const what = arrived ? arrivalOf(before, now, area, shift) : null;
+      const inPage = shift - (now.areaTop - before.areaTop);
+      const arrived = inPage > 0 && !reflowed && engaged.current === null;
+      const what = arrived ? arrivalOf(before, now, area, inPage) : null;
       scrollBy(parts, area, shift);
       placed.current = placeOf(parts, engaged.current, area);
-      if (what !== null && !inView(what, area)) say(what);
+      if (what !== null && !inView(what, area)) say(topmost(arrival.current, what, area));
     };
     hold.current = check;
     // For what changes without the page committing (a section's own state); a commit is held at once, below.
@@ -197,6 +200,7 @@ function placeOf(parts: ListAnchorParts, block: Element | null, area: HTMLElemen
     answers: answersHeight(parts),
     width: parts.page.current?.getBoundingClientRect().width ?? 0,
     scrollTop: area.scrollTop,
+    areaTop: area.getBoundingClientRect().top,
     blocks: blocksOf(parts),
   };
 }
@@ -227,6 +231,14 @@ function arrivalOf(before: Placed, now: Placed, area: HTMLElement, shift: number
 function inView(what: Arrival, area: HTMLElement): boolean {
   const top = what.element?.isConnected === true ? contentTop(what.element, area) : what.top;
   return top >= area.scrollTop - 1 && top < area.scrollTop + area.clientHeight;
+}
+
+/** Of what is already waiting above and what just arrived, the one higher up the page: "New above" goes there first. */
+function topmost(waiting: Arrival | null, what: Arrival, area: HTMLElement): Arrival {
+  if (waiting === null || isGone(waiting) || inView(waiting, area)) return what;
+  const topOf = (each: Arrival) =>
+    each.element?.isConnected === true ? contentTop(each.element, area) : each.top;
+  return topOf(waiting) <= topOf(what) ? waiting : what;
 }
 
 const isGone = (what: Arrival) => what.element !== null && !what.element.isConnected;

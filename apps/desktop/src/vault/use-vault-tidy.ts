@@ -9,7 +9,6 @@ import {
 import type { VaultTidyProps } from '@atlas/ui';
 import { localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
-import { readAhead } from '../read-ahead.ts';
 
 const notes = (count: number) => (count === 1 ? '1 note' : `${count} notes`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -32,7 +31,7 @@ export function useVaultTidy({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the vault is read ahead once the index is ready and the vault settles, then again as it opens (#130). */
+  /** Whether the Inbox page is showing: the vault is read ahead once the index is ready, then again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After the tidy moved notes, so the tree and the index are read again. */
@@ -65,24 +64,21 @@ export function useVaultTidy({
     if (!indexReady || vaultKey === null || dismissed) return;
     if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
-    const stop = readAhead(open, () => {
-      previewVaultTidy(ports, localToday())
-        .then((read) => {
-          if (cancelled) return;
-          setPlan((was) => keepIfSame(was, read));
-          setPreviewedFor(vaultKey);
-          prefetched.current = vaultKey;
-        })
-        .catch((cause: unknown) => {
-          if (cancelled) return;
-          setProblem(`The vault could not be read for a tidy: ${reasonOf(cause)}`);
-          setPreviewedFor(vaultKey);
-          prefetched.current = vaultKey;
-        });
-    });
+    previewVaultTidy(ports, localToday())
+      .then((read) => {
+        if (cancelled) return;
+        setPlan((was) => keepIfSame(was, read));
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return;
+        setProblem(`The vault could not be read for a tidy: ${reasonOf(cause)}`);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
+      });
     return () => {
       cancelled = true;
-      stop();
     };
   }, [ports, open, indexReady, vaultKey, dismissed, revision]);
 

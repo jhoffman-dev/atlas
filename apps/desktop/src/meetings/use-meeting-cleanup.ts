@@ -15,7 +15,6 @@ import {
 import type { MeetingCleanupProps } from '@atlas/ui';
 import { localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
-import { readAhead } from '../read-ahead.ts';
 
 const tasks = (count: number) => (count === 1 ? '1 task' : `${count} tasks`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -50,7 +49,7 @@ export function useMeetingCleanup({
   owner: CleanupOwner | null;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the vault is read ahead once the index is ready and the vault settles, then again as it opens (#130). */
+  /** Whether the Inbox page is showing: the vault is read ahead once the index is ready, then again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After tasks were archived, so the tree and the index are read again. */
@@ -88,26 +87,23 @@ export function useMeetingCleanup({
     if (!indexReady || vaultKey === null || owner === null || dismissed) return;
     if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
-    const stop = readAhead(open, () => {
-      previewMeetingCleanup({ ports, owner })
-        .then(async (read) => {
-          const unjudged = read.length === 0 && (await meetingCleanupNeedsOwner({ ports, owner }));
-          if (cancelled) return;
-          setListed((was) => keepIfSame(was, read));
-          setNeedsOwner(unjudged);
-          setPreviewedFor(vaultKey);
-          prefetched.current = vaultKey;
-        })
-        .catch((cause: unknown) => {
-          if (cancelled) return;
-          setProblem(`The tasks meetings made could not be read: ${reasonOf(cause)}`);
-          setPreviewedFor(vaultKey);
-          prefetched.current = vaultKey;
-        });
-    });
+    previewMeetingCleanup({ ports, owner })
+      .then(async (read) => {
+        const unjudged = read.length === 0 && (await meetingCleanupNeedsOwner({ ports, owner }));
+        if (cancelled) return;
+        setListed((was) => keepIfSame(was, read));
+        setNeedsOwner(unjudged);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return;
+        setProblem(`The tasks meetings made could not be read: ${reasonOf(cause)}`);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
+      });
     return () => {
       cancelled = true;
-      stop();
     };
   }, [ports, owner, open, indexReady, vaultKey, dismissed, revision]);
 

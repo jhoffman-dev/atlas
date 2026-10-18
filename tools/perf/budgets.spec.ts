@@ -247,7 +247,8 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
       await runUntil(page, { ready, arg: arg as never, settleMs: 0 });
     },
   };
-  await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)], { settleFirst: false });
+  // After the app has started and settled, so what its start does is not counted as the open.
+  await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)]);
   return pass;
 }
 
@@ -286,7 +287,7 @@ async function timedPass(browser: Browser): Promise<Pass> {
     }
     timed.set(action, { inputToReady, longestFrame });
   };
-  await time('Open a vault', [OPEN_THE_VAULT(page)], { settleFirst: false });
+  await time('Open a vault', [OPEN_THE_VAULT(page)]);
   await waitForQuiet(page);
   return {
     page,
