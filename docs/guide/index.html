@@ -567,8 +567,8 @@ pnpm tauri:dev</pre>
         <table>
           <thead><tr><th scope="col">Layout</th><th scope="col">Good for</th></tr></thead>
           <tbody>
-            <tr><td>Table</td><td>Every property as a column; click a heading to sort. Group it and the rows sit under headings with counts and totals.</td></tr>
-            <tr><td>Board</td><td>Cards in columns by a status or a relation, and optionally in lanes across them by another; drag to change it.</td></tr>
+            <tr><td>Table</td><td>Every property as a column, one compact row per note; click a heading to sort. Group it and the rows sit under headings with counts and totals. See <a href="#tables">Tables</a>.</td></tr>
+            <tr><td>Board</td><td>Cards in equal columns by a status or a relation, and optionally in lanes across them by another; drag to change it. See <a href="#boards">Boards</a>.</td></tr>
             <tr><td>List</td><td>A compact list with chips.</td></tr>
             <tr><td>Gallery</td><td>Cards fronted by a picture: the note's <a href="#thumbnails">thumbnail</a> when its type has one, otherwise its cover or first image.</td></tr>
             <tr><td>Feed</td><td>Notes newest first, their text readable in place.</td></tr>
@@ -581,7 +581,7 @@ pnpm tauri:dev</pre>
       <ul>
         <li><b>New view</b>: the <b>+</b> on a type's tabs (above), or the <b>+</b> next to Views in the sidebar — pick a name, the type and a layout. That sidebar <b>+</b> also has <b>New query</b>, for a view across types — see <a href="#queries">Queries</a>.</li>
         <li><b>Layout</b>, <b>Filter</b>, <b>Sort</b>, <b>Group</b> and <b>Properties</b> (which fields show) change the view at once. Grouping is below.</li>
-        <li>While it differs from what's saved, the toolbar shows <b>Reset</b> · <b>Save as new view…</b> · <b>Save view</b>. Editing cells, dragging cards and ticking tasks save straight away.</li>
+        <li>While it differs from what's saved, a bar above the toolbar says <i>This view has unsaved changes.</i> with <b>Reset</b> (back to what's saved), <b>Save as new view…</b> (name the copy, then <b>Save</b>) and <b>Save view</b>. Editing cells, dragging cards and ticking tasks save straight away.</li>
         <li><b>Include archived</b> lists archived notes too, for now. It isn't saved with the view and turns off when you go to another view.</li>
       </ul>
       <h3>Filter</h3>
@@ -601,20 +601,37 @@ pnpm tauri:dev</pre>
         <li>Groups come in order: a select's options as the type orders them, numbers by size, dates by day, the rest by name — reversed when the view sorts that property descending. Notes with no value gather under <b>No value</b>, last.</li>
         <li>A checkbox groups into <i>true</i> (ticked) and <i>false</i>, which holds every note not ticked, including those without the box.</li>
       </ul>
+      <h3 id="tables">Tables</h3>
+      <ul>
+        <li><b>Compact rows.</b> Each note is one short row, named by its title; click the name to open it. Empty cells are left blank, and statuses show as pills.</li>
+        <li><b>The header stays put.</b> The column names stay at the top as you scroll, as plain words with no icons; an arrow marks the column the table is sorted by.</li>
+        <li><b>Long values are cut short</b> with <i>…</i>; hover the cell for the whole value. A relation's names stay on one line the same way, and hovering lists them all.</li>
+        <li><b>The footer</b> has <b>New &lt;type&gt;</b>, then how many notes — <i>186 tasks</i>, with <i>(more were left out)</i> past the row limit — then, grouped, how many in each group (<i>174 done</i>, <i>10 backlog</i>, <i>2 Larkspur Payroll</i>), and how the table is arranged: <i>Grouped by status · sorted by phase, then due (descending)</i>.</li>
+        <li><b>From the keyboard:</b> click a row's name, then <kbd>↓</kbd> <kbd>↑</kbd> move a row (group headings are stops too), <kbd>Home</kbd> <kbd>End</kbd> go to the first and last, and <kbd>Page Down</kbd> <kbd>Page Up</kbd> move a window's worth at a time.</li>
+      </ul>
       <h3>Grouped tables</h3>
       <ul>
-        <li>Each group gets a heading row across the table: an arrow, the group's value (a coloured pill for a status or select), and how many notes. Sub-groups sit one step in, with headings of their own.</li>
+        <li>Each group gets a heading row across the table: an arrow, a status dot for a status or select option, the group's value, and how many notes. Sub-groups sit one step in, with headings of their own.</li>
+        <li>Every row of a group is listed, however many: a long group scrolls rather than stopping at <i>Show more</i>.</li>
         <li>The heading row shows totals under the columns: a number column's sum, and for a checkbox how many are ticked (<i>2 checked</i>).</li>
         <li>Click a heading to fold the group shut or open it again. Folds are remembered per view, on this Mac.</li>
         <li><b>+ New</b> at the foot of a group adds a note already in it: it gets the group's value, and the sub-group's (a number as a number; the ticked group ticks the box). <b>No value</b> and the unticked group give it nothing.</li>
         <li>A table switched from a board keeps the board's grouping, so its columns become groups.</li>
       </ul>
+      <h3 id="boards">Boards</h3>
+      <ul>
+        <li><b>Equal columns.</b> The columns share the width equally, empty or not. When that would make them too narrow, the board scrolls sideways instead.</li>
+        <li><b>Each column's head</b> shows a status dot, the label and how many cards, with a <b>+</b> at the right to add a card to that column. The <b>No value</b> column, and a column that is no status, has no dot.</li>
+        <li><b>A card</b> shows its title (up to two lines), a line of its summary, how far through its checklist it is, and one line of its other properties — <i>Phase 14 · Bug fixer · 1h</i>. The column's property is left out, since the column says it, and so is anything empty. A card in the finished column shows a tick, or its done box ticked.</li>
+        <li><b>A long column</b> shows its first cards and <b>N more</b>; open it and <b>Show fewer</b> folds it back. An empty column says <i>No tasks</i>.</li>
+        <li><b>Drag a card</b> and the column (or lane cell) under it lights with a ring, so you see where it will land.</li>
+      </ul>
       <h3>Board lanes</h3>
       <ul>
         <li>With <b>Then by</b> set, the board splits into lanes running across all the columns, one per value, each with a heading, a count and an arrow to fold it.</li>
         <li>Drag a card to any cell — another column, another lane, or both. Both properties change together, as one <kbd>⌘Z</kbd>. Dropping in a <b>No value</b> column or lane takes that property off the note. A number column writes a number and a checkbox column ticks or unticks the box, never text. From the keyboard: <kbd>Space</kbd> to pick a card up, arrows to move it across columns and up and down lanes, <kbd>Space</kbd> to drop.</li>
-        <li>Each cell shows its first cards and <b>+ N more</b>, like a column, and has its own <b>+ New</b> that fills in both values.</li>
-        <li>A card doesn't show a chip for the lane's property; the lane already says it.</li>
+        <li>Each cell shows its first cards and <b>N more</b>, like a column, and has its own <b>+ New</b> that fills in both values.</li>
+        <li>A card's line of properties leaves out the lane's property too; the lane already says it.</li>
         <li>Dragging a task into its finished status — <b>Archive</b> for a <a href="#tasks">GTD</a> task — finishes it, whether that is a column or a lane. When the type has a status, only that status counts — the last column of some other property is just a column. A repeating task rolls on to its next date once, and the other property you dropped it into is kept.</li>
       </ul>
       <h3>Act on several rows</h3>
@@ -837,7 +854,19 @@ ORDER BY phase</pre>
 
     <section id="dashboards">
       <h2>Dashboards</h2>
-      <p class="sub">A grid of widgets: a navy highlight card, bars, donuts, rankings, numbers, lists, tables, SQL and Atlas queries.</p>
+      <p class="sub">A strip of single figures over a grid of panels: numbers, a hero, bar charts, donuts, lines, rankings, lists, tables, SQL and Atlas queries.</p>
+      <h3>What it shows</h3>
+      <ul>
+        <li><b>The strip.</b> Number widgets and the hero sit in one row across the top, each a label, a figure and a quiet line under it. A zero still shows (<i>In flight 0</i>).</li>
+        <li><b>The hero</b> is three cells on the strip: the total under the widget's title, with how many groups it spans (<i>4 phases</i>); the finished part (<i>Done</i>) with its share and a thin status bar of the whole (<i>67% of all</i>); and the current group with its count (<i>Current phase</i>: <i>Phase 14</i>, <i>3 tasks</i>).</li>
+        <li><b>Panels.</b> Every other widget is a panel under a plain heading, divided from the next by a hairline.</li>
+        <li><b>Bar charts</b> are grey with the current group in blue, marked by a <i>Current phase</i> key beside the heading. The value is written over the tallest bar and the current one; hover any bar for its group and count (<i>Phase 11 · 3 tasks</i>).</li>
+        <li><b>Show as table.</b> The table button on a bar chart swaps it for a table of the same numbers — group, count and share — with the current group's row marked. Press it again for the chart. It isn't saved: the chart comes back the next time the dashboard opens.</li>
+        <li><b>Donuts</b> are drawn as one stacked bar over a table of the groups. Grouped by status, each part and its row's dot is that status's colour — a GTD status too, so <i>Done</i> is green as it is everywhere; anything else takes a shade of its own.</li>
+        <li><b>Rankings</b> list the top groups with a bar each and the current one in blue; the heading says how many are shown (<i>5 of 6 tasks</i>). <b>Lists</b> give each note one row, with its other values on one line (<i>P14 · 1h</i>).</li>
+        <li>A chart with nothing to count says <i>Nothing to chart yet.</i></li>
+      </ul>
+      <h3>Make and arrange one</h3>
       <ol class="steps">
         <li>Make one with the <b>+</b> beside the vault's name (<b>New note</b>) → the <b>Dashboard</b> template. It lands in Dashboards.</li>
         <li>Press <b>Customize</b>. Use <b>Add widget</b>, or <b>…</b> → <b>Edit widget</b> on an existing one.</li>
