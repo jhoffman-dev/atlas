@@ -64,9 +64,10 @@
 }
 
 /* The toast places itself top right of the nearest positioned box, so its
-   specimen gets one, as wide as the row. */
+   specimen gets one, as wide as the row and tall enough for its longest
+   words wrapped. */
 .gallery-page__stage {
-  height: 100px;
+  height: 200px;
   position: relative;
   width: 100%;
 }

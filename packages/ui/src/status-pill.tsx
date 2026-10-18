@@ -16,7 +16,8 @@ export function StatusPill({
   tone?: StatusTone;
   variant?: 'pill' | 'dot';
 }) {
-  const label = optionLabel(value);
+  // A status with no words is still a status, and an image needs a name.
+  const label = optionLabel(value) || 'No status';
   const toneOf = tone ?? statusTone(value);
   if (variant === 'dot') {
     return (

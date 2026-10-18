@@ -125,13 +125,18 @@ function MenuSpecimen() {
   );
 }
 
-/** The toast stands on a stage of its own, since it places itself top right of whatever holds it. */
+/**
+ * The toast stands on a stage of its own, since it places itself top right of
+ * whatever holds it. Its words are the longest the app says — a refused
+ * Granola key and its remedy — so the stage shows them wrapping, whole.
+ */
 function ToastSpecimen() {
   return (
     <div className="gallery-page__stage">
       <Toast
-        message="Moved “Cmd+N still fires behind an open palette” to Done"
+        message="Granola refused the API key. Create one in Granola → Settings → Connectors → API keys, and paste it in Settings → Granola."
         onUndo={() => {}}
+        action={{ label: 'Open', onClick: () => {} }}
         onDismiss={() => {}}
       />
     </div>

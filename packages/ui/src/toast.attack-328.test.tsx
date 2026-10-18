@@ -15,20 +15,31 @@ afterEach(() => {
 });
 
 /**
- * A caller like app.tsx's Granola toast: one string of state, the Toast
- * rendered without a key, and "say it" as the way a new report arrives.
+ * A caller like app.tsx's Granola toast: the words and a count of how many
+ * times they were said, the Toast keyed by that count, and "say it" as the
+ * way a new report arrives. The same words with no new key are the same
+ * props, and a component cannot tell a re-render from a second showing — so
+ * the count is the caller's part of the contract (use-granola-pull's
+ * `toastShown`).
  */
 function SaysAgain({ onDismiss }: { onDismiss: () => void }) {
-  const [said, setSaid] = useState<{ readonly words: string } | null>({
+  const [said, setSaid] = useState<{ readonly words: string; readonly shown: number } | null>({
     words: '1 meeting pulled',
+    shown: 1,
   });
   return (
     <>
-      <button type="button" onClick={() => setSaid({ words: '1 meeting pulled' })}>
+      <button
+        type="button"
+        onClick={() =>
+          setSaid((before) => ({ words: '1 meeting pulled', shown: (before?.shown ?? 0) + 1 }))
+        }
+      >
         say it
       </button>
       {said !== null && (
         <Toast
+          key={said.shown}
           message={said.words}
           onDismiss={() => {
             onDismiss();

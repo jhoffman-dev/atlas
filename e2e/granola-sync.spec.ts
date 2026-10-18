@@ -155,7 +155,25 @@ test('a key Granola refuses is said on the card, and nothing is pulled with it',
   // way: once its listing has gone, a pull the refused key started by itself would have too.
   await card(page).getByRole('button', { name: 'Sync now' }).click();
   await expect.poll(() => requestKinds(host)).toContain('Sync now');
-  await expect(page.locator('.toast')).toContainText('Granola refused the API key');
+  const toast = page.locator('.toast');
+  await expect(toast).toContainText('Granola refused the API key');
+  // The remedy is the point of the toast, and it is long: the words wrap to
+  // more than one line inside the toast rather than being cut off (#328).
+  const message = toast.locator('.toast__message');
+  await expect(message).toContainText('Create one in Granola');
+  await expect(message).toContainText('paste it in Settings → Granola');
+  expect(
+    await message.evaluate((words) => ({
+      fits: words.scrollWidth <= words.clientWidth && words.scrollHeight <= words.clientHeight,
+      lines: Math.round(
+        words.getBoundingClientRect().height / parseFloat(getComputedStyle(words).lineHeight),
+      ),
+    })),
+  ).toEqual({ fits: true, lines: expect.any(Number) });
+  const [words, whole] = [await message.boundingBox(), await toast.boundingBox()];
+  expect(words!.height).toBeGreaterThan(30);
+  expect(words!.x + words!.width).toBeLessThanOrEqual(whole!.x + whole!.width);
+  expect(words!.y + words!.height).toBeLessThanOrEqual(whole!.y + whole!.height);
   expect(requestKinds(host)).toEqual(['key check', 'Sync now']);
   expect(await vault.read(RENEWAL_FILE)).toBe('');
 });

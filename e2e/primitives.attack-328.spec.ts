@@ -391,8 +391,10 @@ test('the quick-add toast sits top right, inside the window', async ({ page }) =
   const popover = page.getByRole('dialog', { name: 'New Task' });
   await popover.getByRole('textbox', { name: 'Task name' }).fill('Water the ferns');
   await popover.getByRole('textbox', { name: 'Task name' }).press('Enter');
-  const toast = page.getByRole('status').filter({ hasText: 'Task added' });
+  // The live region is the message alone; the toast itself is `.toast`.
+  const toast = page.locator('.toast').filter({ hasText: 'Task added' });
   await expect(toast).toBeVisible();
+  await expect(toast.getByRole('status')).toHaveText('Task added');
   const box = (await toast.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(1280);
   expect(box.x + box.width).toBeGreaterThan(1280 - 60);

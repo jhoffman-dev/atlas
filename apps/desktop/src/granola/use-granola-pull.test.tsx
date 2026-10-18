@@ -478,6 +478,25 @@ describe('useGranolaPull', () => {
     expect(hook.result.current.toast).toBeNull();
   });
 
+  it('a Sync now that fails again with the same words shows the toast again (#328)', async () => {
+    const { hook, granola, lists } = setUp();
+    await waitFor(() => expect(lists()).toBe(1));
+    granola.fail('list', UNREACHABLE);
+    act(() => hook.result.current.syncNow());
+    await waitFor(() => expect(hook.result.current.toast).not.toBeNull());
+    const first = { words: hook.result.current.toast, shown: hook.result.current.toastShown };
+    expect(first.shown).toBe(1);
+
+    act(() => hook.result.current.dismissToast());
+    // A scripted failure answers one call: the next Sync now fails the same way again.
+    granola.fail('list', UNREACHABLE);
+    act(() => hook.result.current.syncNow());
+    await waitFor(() => expect(hook.result.current.toast).not.toBeNull());
+    // The same words: the Toast is keyed by the count, so it starts its time afresh.
+    expect(hook.result.current.toast).toBe(first.words);
+    expect(hook.result.current.toastShown).toBe(2);
+  });
+
   it('a key Granola refuses is said as a toast once, and then nothing is pulled by itself', async () => {
     const { hook, granola, lists } = setUp();
     granola.fail('list', KEY_REFUSED);

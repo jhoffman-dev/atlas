@@ -458,21 +458,22 @@
   display: flex;
   font-size: var(--text-column);
   gap: 10px;
-  max-width: calc(100% - 24px);
+  /* As wide as its words up to 340px, then they wrap: a long error carries
+     its remedy, and the remedy is the point. */
+  max-width: min(340px, 100% - 24px);
   padding: 10px 10px 10px 14px;
   position: absolute;
   right: calc(var(--shell-inset) + 12px);
   top: calc(var(--shell-inset) + 46px);
-  width: 340px;
+  width: max-content;
   z-index: 21;
 }
 
 .toast__message {
   flex: 1;
+  line-height: var(--leading-body);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .toast__action {

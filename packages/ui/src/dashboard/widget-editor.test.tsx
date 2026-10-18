@@ -142,6 +142,16 @@ describe('WidgetEditor', () => {
     expect(given.onSave).toHaveBeenCalledOnce();
   });
 
+  it('gives the SQL box room for its lines, as a block field', () => {
+    const sql = { ...newWidgetDraft({ kind: 'sql', type: 'task' }), sql: 'SELECT 1' };
+    render(<WidgetEditor {...props({ draft: sql, options: optionsOfKind('sql') })} />);
+    const box = within(sheet()).getByRole('textbox', { name: 'SQL' });
+    expect(box.tagName).toBe('TEXTAREA');
+    expect(box.getAttribute('rows')).toBe('5');
+    // `.field` is a 28px line; a textarea needs `.field--block` to grow with its rows.
+    expect(box.className.split(' ')).toContain('field--block');
+  });
+
   it('draws the preview as the dashboard would', () => {
     const [widget] = parseDashboard({
       atlas: 'dashboard',
