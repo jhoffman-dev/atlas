@@ -49,3 +49,32 @@ test('typing after the vault changes underneath still marks the note unsaved', a
 
   expect(await vault.read('note.md')).toContain('Typed later.');
 });
+
+test('the watcher’s echo of an autosave still puts the save in the index (#254)', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await vault.write('note.md', '# Note\n\nOriginal paragraph.\n');
+  const host = await installHost(page, vault, { echoWrites: true });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await page.getByRole('treeitem', { name: 'note', exact: true }).click();
+  await expect(page.getByText(/^1 notes? indexed/)).toBeVisible();
+
+  // A save refreshes nothing itself: the watcher's report of it is what the index hears.
+  await page.getByText('Original paragraph.').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Marmalade.');
+  await saveNow(page);
+  await expectSaved(page);
+  await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
+
+  await page.keyboard.press('Meta+k');
+  const palette = page.getByRole('dialog', { name: 'Search notes' });
+  const search = palette.getByRole('searchbox', { name: 'Search the vault' });
+  await expect(async () => {
+    await search.fill('');
+    await search.fill('marmalade');
+    await expect(palette.getByRole('option', { name: /note/ })).toBeVisible({ timeout: 1_000 });
+  }).toPass();
+});

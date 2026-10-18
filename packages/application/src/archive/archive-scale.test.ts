@@ -46,6 +46,7 @@ describe('a vault with 5,000 archived notes', () => {
       unchanged: ARCHIVED + 1,
       changes: [],
       failed: [],
+      notRead: [],
       inWindow: null,
     });
     expect(readNotes).not.toHaveBeenCalled();

@@ -6,6 +6,7 @@ import {
   type MarkdownPort,
   type NoteChanges,
   type NoteDeriver,
+  type OwnWrites,
   type VaultFsPort,
 } from '@atlas/application';
 import {
@@ -97,6 +98,7 @@ export function useIndex({
   vaultKey,
   activity,
   changes,
+  ownWrites,
 }: {
   ports: IndexPorts;
   vaultKey: string | null;
@@ -104,6 +106,8 @@ export function useIndex({
   activity: ActivityLog;
   /** Where every refresh says which notes it found added, changed or removed (P28-03). */
   changes: NoteChanges;
+  /** Told of every sync that finished, so the echo of a write it took in is not refreshed for again (#254). */
+  ownWrites?: Pick<OwnWrites, 'lastWrite' | 'refreshed'>;
 }): {
   /** The open vault's status. What only needs part of it reads `store` through a selector. */
   status: IndexStatus;
@@ -123,6 +127,8 @@ export function useIndex({
    * none has been, or the last did not hold the files.
    */
   catchUp: () => Promise<boolean>;
+  /** Resolves once every refresh of the open vault asked so far has run, asking none itself. */
+  settled: () => Promise<void>;
 } {
   const [store] = useState(createIndexStatusStore);
   const [progress] = useState(createIndexProgress);
@@ -142,8 +148,9 @@ export function useIndex({
         activity,
         changes: counted,
         openVault: () => open.current,
+        ...(ownWrites !== undefined && { ownWrites }),
       }),
-    [ports.fs, ports.index, ports.markdown, ports.deriver, activity, counted],
+    [ports.fs, ports.index, ports.markdown, ports.deriver, activity, counted, ownWrites],
   );
 
   const run = useCallback(
@@ -227,5 +234,9 @@ export function useIndex({
     ),
     rebuild: useCallback(() => ask({ fromScratch: true, quiet: false }), [ask]),
     catchUp,
+    settled: useCallback(async () => {
+      const last = lastAsked.current;
+      if (last?.vault === vaultKey) await last.held;
+    }, [vaultKey]),
   };
 }

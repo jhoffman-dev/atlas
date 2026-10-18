@@ -28,10 +28,11 @@ export async function writeFixtureVault(extra: readonly FixtureFile[] = []): Pro
 export async function openFixtureVault(
   page: Page,
   extra: readonly FixtureFile[] = [],
+  { echoWrites = false }: { readonly echoWrites?: boolean } = {},
 ): Promise<FakeVault> {
   const vault = await writeFixtureVault(extra);
   // With a manifest, as the real index has: without one every refresh re-reads all 2,000 notes.
-  await installHost(page, vault, { keepsManifest: true });
+  await installHost(page, vault, { keepsManifest: true, echoWrites });
   await installProbe(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();

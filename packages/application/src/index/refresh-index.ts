@@ -51,6 +51,12 @@ export interface IndexRefresh {
    * next refresh.
    */
   readonly failed: readonly UnreadNote[];
+  /**
+   * Every stale note this refresh did not put in the index: those in
+   * `failed`, and those the host left out of its read (gone, unreadable, not
+   * text). The index holds an older version of each, or none.
+   */
+  readonly notRead: readonly string[];
   /** Why the notes were read on the window's thread, when they had to be; null when they were not. */
   readonly inWindow: string | null;
 }
@@ -153,6 +159,7 @@ export async function refreshIndex({
     removed: removed.length,
     unchanged: current.size - stale.length,
     failed,
+    notRead: stale.map(({ path }) => path as string).filter((path) => !reread.has(path)),
     inWindow,
     changes: noteChangesBetween(
       previous ?? known,
