@@ -29,7 +29,6 @@ async function writeInTheSameTick(vault: FakeVault, path: string, text: string):
   expect((await stat(file)).mtimeMs).toBe(before.mtimeMs);
 }
 
-
 const NOTE = '# Note\n\nShip on Monday.\n';
 const THEIRS = '# Note\n\nShip on Friday.\n';
 
