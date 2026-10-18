@@ -79,29 +79,45 @@ pub fn restore(app: &AppHandle) {
     let _ = app.state::<ApiState>().0.set(loaded);
 }
 
-#[tauri::command]
-pub fn api_status(state: State<'_, ApiState>) -> Result<ApiStatusReport, String> {
-    Ok(loaded_control(&state)?.status())
+/// Runs `work` on the API control off the main thread, and off the async
+/// runtime's workers, which the API server itself runs on: a sync command runs
+/// on the main thread, and a toggle can wait seconds for its port or for the
+/// server to stop, which would freeze the window. Work that panicked answers as
+/// an error, never as nothing.
+async fn off_main<T: Send + 'static>(
+    app: AppHandle,
+    work: impl FnOnce(&ApiControl, &AppHandle) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<ApiState>();
+        work(loaded_control(&state)?, &app)
+    })
+    .await
+    .map_err(|error| format!("the API could not be reached: {error}"))?
 }
 
 #[tauri::command]
-pub fn api_set_enabled(
-    app: AppHandle,
-    state: State<'_, ApiState>,
-    enabled: bool,
-) -> Result<ApiStatusReport, String> {
-    loaded_control(&state)?.set_enabled(enabled, forward_to_webview(&app))
+pub async fn api_status(app: AppHandle) -> Result<ApiStatusReport, String> {
+    off_main(app, |control, _| Ok(control.status())).await
+}
+
+#[tauri::command]
+pub async fn api_set_enabled(app: AppHandle, enabled: bool) -> Result<ApiStatusReport, String> {
+    off_main(app, move |control, app| {
+        control.set_enabled(enabled, forward_to_webview(app))
+    })
+    .await
 }
 
 /// Returns the new token.
 #[tauri::command]
-pub fn api_rotate_token(state: State<'_, ApiState>) -> Result<String, String> {
-    loaded_control(&state)?.rotate_token()
+pub async fn api_rotate_token(app: AppHandle) -> Result<String, String> {
+    off_main(app, |control, _| control.rotate_token()).await
 }
 
 #[tauri::command]
-pub fn api_token(state: State<'_, ApiState>) -> Result<String, String> {
-    Ok(loaded_control(&state)?.token())
+pub async fn api_token(app: AppHandle) -> Result<String, String> {
+    off_main(app, |control, _| Ok(control.token())).await
 }
 
 /// A router in the main window, named by `listener`, started (`true`) or
