@@ -53,12 +53,38 @@ function fakeVault({
   directories = {},
   files = {},
   remembered = null,
+  picks = [],
+  elsewhere = {},
 }: {
   directories?: Record<string, VaultEntry[]>;
   files?: Record<string, string>;
   remembered?: VaultLocation | null;
-} = {}): VaultPorts & { picked: VaultPickerPort; written: Record<string, string> } {
+  /** What the folder picker answers, in order, before it answers `location`. */
+  picks?: VaultLocation[];
+  /** Another vault's files, by its path: what reads and writes reach once it is the open one. */
+  elsewhere?: Record<string, Record<string, string>>;
+} = {}): VaultPorts & {
+  picked: VaultPickerPort;
+  written: Record<string, string>;
+  /** Holds every read of a note until `release` is called: a host that takes its time. */
+  holdReads: () => { release: () => void };
+} {
   const written: Record<string, string> = {};
+  // The host holds one open vault and refuses a write meant for another (R14-01).
+  let open: string | null = remembered?.absolutePath ?? null;
+  const filesOf = (): Record<string, string> =>
+    open === null ? files : (elsewhere[open] ?? files);
+  let holding: (() => void)[] | null = null;
+  const holdReads = () => {
+    holding = [];
+    return {
+      release: () => {
+        const waiting = holding ?? [];
+        holding = null;
+        for (const go of waiting) go();
+      },
+    };
+  };
   const fs: VaultFsPort = {
     listDirectory: async (path: VaultPath) => directories[path] ?? [],
     listNotes: async () =>
@@ -95,13 +121,25 @@ function fakeVault({
       return 0;
     },
     readTextFile: async (path: VaultPath) => {
-      const text = files[path];
+      if (holding !== null) await new Promise<void>((go) => holding?.push(go));
+      const text = filesOf()[path];
       if (text === undefined) throw new VaultAccessError('no such entry');
       return { text, modified: 1 };
     },
-    writeTextFile: async ({ path, contents }) => {
+    writeTextFile: async ({
+      path,
+      contents,
+      vault,
+    }: {
+      path: VaultPath;
+      contents: string;
+      vault?: string;
+    }) => {
+      if (vault !== undefined && vault !== open) {
+        throw new VaultAccessError(`${vault} is not the open vault`);
+      }
       written[path] = contents;
-      files[path] = contents;
+      filesOf()[path] = contents;
       return 2;
     },
   };
@@ -112,9 +150,15 @@ function fakeVault({
       held = next;
     },
   };
-  const picker: VaultPickerPort = { pickDirectory: async () => location };
+  const picker: VaultPickerPort = {
+    pickDirectory: async () => {
+      const picked = picks.shift() ?? location;
+      open = picked.absolutePath;
+      return picked;
+    },
+  };
   const watch = { start: async () => {}, onChange: async () => () => {} };
-  return { fs, store, picker, watch, picked: picker, written };
+  return { fs, store, picker, watch, picked: picker, written, holdReads };
 }
 
 const notesFor = (vault: VaultPorts): NotePorts => ({
@@ -267,6 +311,9 @@ const renderApp = (
       globalCapture={globalCapture.ports}
     />,
   );
+
+// The shortcuts read the platform: jsdom's is none, and these tests press ⌘.
+beforeAll(() => vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel'));
 
 // The window now remembers its split per vault, in local storage, and every
 // test here opens the same vault. Without this each test would inherit the
@@ -1928,6 +1975,49 @@ describe('tabs (docs/design/tab-model.md, Performance 8)', () => {
 
     expect(renders.AppWindow ?? 0).toBeGreaterThan(0);
     expect(renders.NotePaneContainer ?? 0).toBe(1);
+  });
+
+  it('lets no editor of one vault outlive the switch to the next: a star there never writes the old vault’s text (R14-01)', async () => {
+    const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('shared.md', 'file'), entry('beta.md', 'file')] },
+      files: { 'shared.md': '# Shared\n\nIn A.\n', 'beta.md': '# Beta\n' },
+      elsewhere: {
+        [other.absolutePath]: { 'shared.md': '# Shared\n\nIn B.\n', 'beta.md': '# Beta\n' },
+      },
+      picks: [other],
+    });
+    renderApp(vault);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'shared' }));
+    await screen.findByRole('article', { name: 'shared' });
+    await commandClick(row('beta'));
+    await screen.findByRole('article', { name: 'beta' });
+    expect(tabsOf(1)).toEqual(['shared', 'beta']);
+    // The other vault remembers the same tabs, with the same ids, on the same paths.
+    const remembered = window.localStorage.getItem(`atlas.workspace:${location.absolutePath}`);
+    window.localStorage.setItem(
+      `atlas.workspace:${other.absolutePath}`,
+      (remembered ?? '').replace(location.absolutePath, other.absolutePath),
+    );
+
+    // Its notes take their time to arrive: the window in which an editor kept
+    // from the first vault would still hold that vault's text.
+    const reads = vault.holdReads();
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
+    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
+    expect(tabsOf(1)).toEqual(['shared', 'beta']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Add shared to favorites' }));
+    await settle();
+    reads.release();
+    // The star went to this vault's file, read once it arrived: never the
+    // first vault's text, which only an editor kept across the switch holds.
+    await waitFor(() => expect(vault.written['shared.md']).toContain('favorite: true'));
+    expect(vault.written['shared.md']).toContain('In B.');
+    expect(vault.written['shared.md']).not.toContain('In A.');
+    await userEvent.click(tabIn(1, 'shared'));
+    expect(await screen.findByText('In B.')).toBeDefined();
   });
 
   it('writes a tab’s typing once as it hides, and its autosave stands down behind the other tab', async () => {

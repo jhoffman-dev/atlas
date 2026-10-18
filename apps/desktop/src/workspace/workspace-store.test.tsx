@@ -20,6 +20,7 @@ import {
   goBack,
   goBackIn,
   goForward,
+  keepNotes,
   loadVault,
   newTabIn,
   nextTab,
@@ -236,6 +237,45 @@ describe('the workspace store', () => {
     expect(placesOf(workspaceNow(store))).toEqual([note('z'), note('b')]);
     closeNotes(store, [createVaultPath('b.md')]);
     expect(placesOf(workspaceNow(store))).toEqual([note('z')]);
+  });
+
+  it('keeps only the notes the vault lists: a remembered tab on a deleted note empties', () => {
+    const board = createVaultPath('.atlas/views/Board.md');
+    const remembered = memoryRemembered({
+      '/v': {
+        ...EMPTY_WORKSPACE,
+        nextId: 4,
+        panes: [
+          {
+            active: 't2',
+            tabs: [
+              { id: 't1', pinned: false, history: { back: [], current: note('a'), forward: [] } },
+              {
+                id: 't2',
+                pinned: false,
+                history: { back: [note('a')], current: note('gone'), forward: [] },
+              },
+              // A view: the listing of user-space notes never has it, and it stays.
+              {
+                id: 't3',
+                pinned: false,
+                history: { back: [], current: { kind: 'note', path: board }, forward: [] },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const store = createWorkspaceStore({ remembered: remembered.port });
+    loadVault(store, '/v');
+    keepNotes(store, [createVaultPath('a.md'), createVaultPath('b.md')]);
+    expect(placesOf(workspaceNow(store))).toEqual([note('a'), null, { kind: 'note', path: board }]);
+    // Its Back still leads to a note that is there.
+    expect(workspaceNow(store).panes[0]?.tabs[1]?.history.back).toEqual([note('a')]);
+    // The same list again changes nothing, and writes nothing.
+    const written = remembered.writes.length;
+    keepNotes(store, [createVaultPath('a.md'), createVaultPath('b.md')]);
+    expect(remembered.writes).toHaveLength(written);
   });
 
   describe('what each selector draws for', () => {

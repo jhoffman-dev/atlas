@@ -174,8 +174,10 @@ export function useStrandedEdits({
       // Work from a vault that is no longer open is filed under that vault, and
       // offered when it is opened again. Shown here, it would be offered to this
       // vault's note of the same name — but if the store refused it, the notice
-      // still has to say it exists.
-      if (vault === vaultKey) {
+      // still has to say it exists. Judged against the vault open now, not the
+      // one this closure was made under: a pane closed by the switch hands its
+      // work over through the `keep` it was given before it, after it.
+      if (vault === openVault.current) {
         // Deleted first so a note stranded again moves to the end, where the
         // order of `waiting` says it belongs.
         kept.current.delete(edit.path);

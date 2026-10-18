@@ -62,6 +62,27 @@ describe('followLink', () => {
     });
   });
 
+  it('opens the link in a new tab beside the clicked tab on ⌘-click, and beside on ⌘⇧-click', () => {
+    const wiring = following();
+    openNote(wiring.store, PLAN);
+    splitPane(wiring.store);
+    followLink(wiring, { pane: 0, target: 'Other', heading: '#Goals', how: 'new-tab' });
+    expect(placesOf(wiring.store, 0)).toEqual([
+      { kind: 'note', path: PLAN },
+      { kind: 'note', path: OTHER },
+    ]);
+    expect(placesOf(wiring.store, 1)).toEqual([{ kind: 'note', path: PLAN }]);
+    expect(workspaceNow(wiring.store).focused).toBe(0);
+    const tab = workspaceNow(wiring.store).panes[0]?.active ?? '';
+    expect(wiring.reveals.getState().byTab.get(tab)?.path).toBe(OTHER);
+
+    const split = following();
+    openNote(split.store, PLAN);
+    followLink(split, { pane: 0, target: 'Other', how: 'split' });
+    expect(placesOf(split.store, 1)).toEqual([{ kind: 'note', path: OTHER }]);
+    expect(placesOf(split.store, 0)).toEqual([{ kind: 'note', path: PLAN }]);
+  });
+
   it('reports a link that leads nowhere and opens nothing', () => {
     const wiring = following();
     openNote(wiring.store, PLAN);

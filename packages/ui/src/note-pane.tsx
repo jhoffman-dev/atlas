@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode, type RefObject } from 'react';
+import type { OpenHow } from './open-how.ts';
 import {
   duplicatesTitle,
   isPersonType,
@@ -104,7 +105,7 @@ export interface NotePaneProps {
   onChange: (doc: EditorDocument) => void;
   onSave: () => void;
   /** Opens the note a link names, at the heading or block it names when it does. */
-  onFollowLink: (target: string, heading?: string | null) => void;
+  onFollowLink: (target: string, heading?: string | null, how?: OpenHow) => void;
   suggestNotes: (query: string) => NoteSuggestion[];
   /** Tags offered after `#`; left out, none are. */
   suggestTags?: (query: string) => readonly TagSuggestion[];

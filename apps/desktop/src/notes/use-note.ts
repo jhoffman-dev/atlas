@@ -564,7 +564,11 @@ export function useNote({
     return () => {
       const { note: leaving, doc: unwritten, dirty: hasEdits, outdated: held } = latest.current;
       const holdingRecovered = recovered.current;
-      if (!hasEdits || leaving === null || unwritten === null || vault === null) return;
+      // `unsaved` is the truth as of now; `dirty` is the last render's. A pane
+      // unmounted in the same commit its write landed in — the vault switched
+      // under it (R14-01) — has not drawn since, and must not write again.
+      if (!hasEdits || !unsaved.current || leaving === null || unwritten === null || vault === null)
+        return;
       // Re-pointed by a move and still on screen under its new path: the pane
       // has not left the note, so its edits stay in it, unsaved, to be saved
       // there. Saving them here as well would move the file on underneath it.

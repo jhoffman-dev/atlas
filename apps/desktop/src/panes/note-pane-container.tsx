@@ -20,8 +20,10 @@ import {
   type TagSuggestion,
   type QueryViewSummary,
   type SavedViewSummary,
+  digestOf,
   isWorkspaceSplit,
   tabPlace,
+  type NavigationPlace,
   type NoteNames,
   type SidebarEntry,
   type Tab,
@@ -32,6 +34,7 @@ import {
 import type {
   ActivityLog,
   DefinedType,
+  NoteChanges,
   ExternalLinkPort,
   IndexPort,
   LinkedRangeStore,
@@ -56,6 +59,7 @@ import {
   type GroupFoldStore,
   type NotePeople,
   type NoteReveal,
+  type OpenHow,
   type PaneArrangement,
   type Planner,
   type TemplateNotice,
@@ -66,7 +70,13 @@ import { hideOverlay, showOverlay } from '../overlay-store.ts';
 import { pageMenuOverlay, panePopupOverlay, paneOverlayOf } from '../overlay.ts';
 import { followLink } from '../workspace/open-place.ts';
 import { useTabPageHistory } from '../workspace/tab-history.ts';
-import { closePane, openInPane, splitPane } from '../workspace/workspace-store.ts';
+import {
+  closePane,
+  focusPane,
+  openInPane,
+  openPlace,
+  splitPane,
+} from '../workspace/workspace-store.ts';
 import type { WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
 import { useTabReveal } from './reveals.ts';
 import { artifactViewer, dashboardView, widgetEditor } from '../pages-on-first-use.ts';
@@ -142,6 +152,8 @@ export interface PaneContext {
   readonly indexKey: string;
   /** Re-reads the tree and the index, after this pane wrote something. */
   readonly onChanged: () => void;
+  /** Every sync of the index's news: a hidden tab hears here that its note changed outside. */
+  readonly changes: NoteChanges;
   /** Re-reads the types as well, after this pane wrote a type file. */
   readonly onTypeSaved: () => void;
   readonly suggestNotes: (query: string) => NoteSuggestion[];
@@ -181,8 +193,7 @@ export interface PaneContext {
   readonly viewDrafts: ViewDrafts;
   /** Puts notes in the Archive and takes them out: a page's menu, a view's chosen rows. */
   readonly archive: ArchiveCommands;
-  /** Tells the person a link could not be made or followed, and why. */
-  /** Told the problem with a link, or null once one leads somewhere. */
+  /** Told the problem with a link — one that could not be made or followed — or null once one leads somewhere. */
   readonly onLinkProblem: (message: string | null) => void;
   /** A template's own ways to be renamed, deleted and made a note, and the page listing them all (ADR-0026). */
   readonly templateCommands: TemplateCommands;
@@ -196,13 +207,6 @@ export interface TemplateCommands {
   readonly askMoveToNotes: (path: VaultPath) => void;
 }
 
-/**
- * One pane: a note, and everything derived from it.
- *
- * Every hook here answers a question about *this* pane's note, which is why
- * they live together in a component rather than in the app around it — two
- * panes are two of these, and nothing else has to know that.
- */
 /**
  * A tab on a note, or an empty one: the note pane with everything it needs
  * drawn from the wiring and the stores. What it subscribes to is its own —
@@ -258,11 +262,18 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
     path,
     context: wiring.pane,
     hidden,
-    onOpenNote: (target) => openInPane(store, { pane, place: { kind: 'note', path: target } }),
-    onFollowLink: (target, heading) =>
+    onOpenNote: (target, how = 'here') => {
+      const place: NavigationPlace = { kind: 'note', path: target };
+      if (how === 'here') openInPane(store, { pane, place });
+      else {
+        focusPane(store, pane);
+        openPlace(store, place, how);
+      }
+    },
+    onFollowLink: (target, heading, how) =>
       followLink(
         { store, reveals, notePaths: wiring.pane.notePaths, onProblem: wiring.pane.onLinkProblem },
-        { pane, target, heading: heading ?? null },
+        { pane, target, heading: heading ?? null, ...(how !== undefined && { how }) },
       ),
     reveal,
     onRename: note.onRename,
@@ -325,10 +336,10 @@ function useNotePane({
    * undo keeps; it flushes as it hides, and its autosave stands down until shown.
    */
   hidden?: boolean;
-  /** Opens a note in this pane — a backlink, a table row, a board card. */
-  onOpenNote: (path: VaultPath) => void;
+  /** Opens a note in this pane — a backlink, a table row, a board card — or where the click asked. */
+  onOpenNote: (path: VaultPath, how?: OpenHow) => void;
   /** Opens the note a link names, at the heading or block it names when it does. */
-  onFollowLink: (target: string, heading?: string | null) => void;
+  onFollowLink: (target: string, heading?: string | null, how?: OpenHow) => void;
   /** A block or heading of this pane's note to bring into view: where a followed link pointed. */
   reveal?: NoteReveal | null;
   onRename: (args: { path: VaultPath; name: string }) => void;
@@ -570,7 +581,7 @@ function useNotePane({
     fs: notes.fs,
     markdown: notes.markdown,
   });
-  const openTarget = (target: string) => onOpenNote(createVaultPath(target));
+  const openTarget = (target: string, how?: OpenHow) => onOpenNote(createVaultPath(target), how);
   const pageKey = usePageKey(path, note.open);
   const template = templateNoticeFor(path, context);
 
@@ -832,7 +843,7 @@ function usePaneNote({
   context: PaneContext;
   hidden: boolean;
 }) {
-  const { editors, stranded } = context;
+  const { editors, stranded, changes } = context;
   const note = useNote({
     ports: context.notes,
     vault: context.vault,
@@ -867,6 +878,28 @@ function usePaneNote({
   // waits behind another tab, and the autosave has stood down by then.
   useEffect(() => {
     if (hidden) void live.current.flush();
+  }, [hidden]);
+
+  // A note changed outside while its tab waited is read again as the tab
+  // shows, when the editor is clean; a dirty one keeps its edits and the
+  // save's own conflict rules apply. News of the tab's own write — the same
+  // digest it holds — is not a change. (A shown tab's note is older ground.)
+  const changedWhileHidden = useRef(false);
+  useEffect(() => {
+    if (!hidden || path === null) return;
+    return changes.subscribe(({ changes: changed }) => {
+      const held = live.current.open;
+      if (held === null) return;
+      const mine = changed.find((change) => change.path === held.path);
+      if (mine !== undefined && mine.digest !== digestOf(held.onDisk)) {
+        changedWhileHidden.current = true;
+      }
+    });
+  }, [hidden, path, changes]);
+  useEffect(() => {
+    if (hidden || !changedWhileHidden.current) return;
+    changedWhileHidden.current = false;
+    if (!live.current.dirty) live.current.reload();
   }, [hidden]);
 
   useEffect(() => {

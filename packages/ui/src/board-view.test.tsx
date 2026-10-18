@@ -93,7 +93,7 @@ describe('BoardView', () => {
     const onOpenNote = vi.fn();
     render(<BoardView {...props} onOpenNote={onOpenNote} />);
     await userEvent.click(screen.getByRole('button', { name: 'First' }));
-    expect(onOpenNote).toHaveBeenCalledWith('a.md');
+    expect(onOpenNote).toHaveBeenCalledWith('a.md', 'here');
   });
 
   it('opens the note on Enter, which does not pick the card up', async () => {
@@ -104,7 +104,7 @@ describe('BoardView', () => {
     screen.getByRole('button', { name: 'First' }).focus();
     await userEvent.keyboard('{Enter}');
 
-    expect(onOpenNote).toHaveBeenCalledWith('a.md');
+    expect(onOpenNote).toHaveBeenCalledWith('a.md', 'here');
     expect(onMoveCard).not.toHaveBeenCalled();
   });
 

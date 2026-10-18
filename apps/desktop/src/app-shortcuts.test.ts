@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
+import { runsOnMac, useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
 import type { Overlay } from './overlay.ts';
 
-function listen(overlay: Overlay | null = null): AppShortcuts {
-  return listenTo(() => overlay);
+function listen(overlay: Overlay | null = null, onMac = true): AppShortcuts {
+  return listenTo(() => overlay, onMac);
 }
 
 /** The shortcuts, reading what is up from `overlay` at each key press. */
-function listenTo(overlay: () => Overlay | null): AppShortcuts {
+function listenTo(overlay: () => Overlay | null, onMac = true): AppShortcuts {
   const shortcuts: AppShortcuts = {
     overlay,
     save: vi.fn(),
@@ -31,7 +31,7 @@ function listenTo(overlay: () => Overlay | null): AppShortcuts {
       reopenClosedTab: vi.fn(),
     },
   };
-  renderHook(() => useAppShortcuts(shortcuts));
+  renderHook(() => useAppShortcuts(shortcuts, { onMac }));
   return shortcuts;
 }
 
@@ -206,5 +206,31 @@ describe('the tab shortcuts (tab-model.md)', () => {
     chord({ metaKey: true, altKey: true, key: 't' });
     expect(tabs.nextTab).not.toHaveBeenCalled();
     expect(tabs.newTab).not.toHaveBeenCalled();
+  });
+
+  it('leaves ⌃T, ⌃W and ⌃1 to the Mac’s text system, and takes them as Ctrl off a Mac', () => {
+    const mac = listen();
+    const transpose = chord({ ctrlKey: true, key: 't' });
+    chord({ ctrlKey: true, key: 'w' });
+    chord({ ctrlKey: true, key: '1' });
+    expect(mac.tabs.newTab).not.toHaveBeenCalled();
+    expect(mac.tabs.closeTab).not.toHaveBeenCalled();
+    expect(mac.tabs.nthTab).not.toHaveBeenCalled();
+    expect(transpose.defaultPrevented).toBe(false);
+
+    const other = listen(null, false);
+    chord({ ctrlKey: true, key: 't' });
+    chord({ ctrlKey: true, key: 'w' });
+    chord({ ctrlKey: true, key: '2' });
+    chord({ metaKey: true, key: 't' });
+    expect(other.tabs.newTab).toHaveBeenCalledTimes(1);
+    expect(other.tabs.closeTab).toHaveBeenCalledTimes(1);
+    expect(other.tabs.nthTab).toHaveBeenCalledWith(2);
+  });
+
+  it('reads the platform string for a Mac', () => {
+    expect(runsOnMac('MacIntel')).toBe(true);
+    expect(runsOnMac('Win32')).toBe(false);
+    expect(runsOnMac('Linux x86_64')).toBe(false);
   });
 });

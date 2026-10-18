@@ -136,7 +136,7 @@ describe('a bookmark in a note', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Options for Rome in May' }));
     expect(onFollowLink).not.toHaveBeenCalled();
     fireEvent.click(card);
-    expect(onFollowLink).toHaveBeenCalledWith('Rome');
+    expect(onFollowLink).toHaveBeenCalledWith('Rome', null, 'here');
   });
 
   // A22-01's decision: Enter on a card does what Enter does everywhere else in

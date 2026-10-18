@@ -12,6 +12,7 @@ import {
   forgetNotesInWorkspace,
   goBackInTab,
   goForwardInTab,
+  isVisibleEntry,
   isWorkspaceSplit,
   MAX_PANES,
   newTab as addEmptyTab,
@@ -362,4 +363,19 @@ export function followMove(store: WorkspaceStore, move: EntryMove): void {
 export function closeNotes(store: WorkspaceStore, paths: readonly VaultPath[]): void {
   const gone = new Set<string>(paths);
   change(store, (ws) => forgetNotesInWorkspace(ws, (path) => gone.has(path)));
+}
+
+/**
+ * Forgets every note the vault's listing does not have: the notes in user
+ * space as listed once the vault opens, against tabs remembered from the
+ * last launch. A tab on a note deleted while the app was closed opens on
+ * nothing rather than on a read error, under the same rules a delete in the
+ * app follows. A note the listing never covers — a view, a dashboard, a
+ * template under `.atlas` — is not judged by it.
+ */
+export function keepNotes(store: WorkspaceStore, listed: readonly VaultPath[]): void {
+  const kept = new Set<string>(listed);
+  const covered = (path: VaultPath) =>
+    isVisibleEntry({ kind: 'file', name: path.split('/').at(-1) ?? path, path });
+  change(store, (ws) => forgetNotesInWorkspace(ws, (path) => covered(path) && !kept.has(path)));
 }

@@ -26,6 +26,7 @@ import {
   ViewTabs,
   type PageHistory,
   type ViewTabEditing,
+  type OpenHow,
 } from '@atlas/ui';
 import { schemaOf } from '../panes/table-schema.ts';
 import type { useTypeTable } from './use-type-table.ts';
@@ -72,7 +73,8 @@ export function TypePage({
     openNotes: Pick<OpenNotes, 'setPropertiesIfOpen'>;
   };
   onSaved: () => void;
-  onOpenNote: (path: VaultPath) => void;
+  /** Opens a row's note; `how` is where the click asked for it, when it said. */
+  onOpenNote: (path: VaultPath, how?: OpenHow) => void;
   /** Makes a note of this type, from the foot of its table. */
   onNewNote: (type: ObjectType) => void;
   /** The type's tabs: its views, or its default table while it has none. */
@@ -170,7 +172,7 @@ export function TypePage({
               sorts={table.sorts}
               error={table.error}
               schema={schemaOf(table.type, type.name)}
-              onOpenNote={(path) => onOpenNote(createVaultPath(path))}
+              onOpenNote={(path, how) => onOpenNote(createVaultPath(path), how)}
               onEditCell={table.editCell}
               onToggleSort={table.toggleSort}
               onNewNote={() => onNewNote(type)}

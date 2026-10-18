@@ -5,6 +5,7 @@ import { DoneCheckbox, type DoneTicks } from './done-checkbox.tsx';
 import { ariaRowIndex, type LinePlace } from './grouped-rows.tsx';
 import { ROW_STOP } from './row-focus.ts';
 import { Icon } from './icon.tsx';
+import { openHowFrom, type OpenHow } from './open-how.ts';
 import { LinkedNote, useNoteNames } from './note-names.tsx';
 import { SelectBox } from './row-selection.tsx';
 import { sameEntries } from './steady-value.ts';
@@ -21,7 +22,7 @@ export const TITLE = 'title';
 export interface RowLook {
   readonly shown: readonly string[];
   readonly kinds: Readonly<Record<string, PropertyKind>>;
-  readonly onOpenNote: (path: string) => void;
+  readonly onOpenNote: (path: string, how?: OpenHow) => void;
   readonly onEditCell?:
     ((args: { path: string; column: string; value: string }) => void) | undefined;
   /** Given when the view's type can be ticked done: each row leads with a box. */
@@ -100,7 +101,7 @@ export const TableRow = memo(function TableRow({
             column={column}
             kind={look.kinds[column]}
             value={values[column]}
-            onOpen={() => onOpenNote(path)}
+            onOpen={(how) => onOpenNote(path, how)}
             onOpenNote={onOpenNote}
             {...(onEditCell !== undefined && {
               onCommit: (next: string) => onEditCell({ path, column, value: next }),
@@ -138,14 +139,20 @@ function CellFor({
   column: string;
   kind: PropertyKind | undefined;
   value: unknown;
-  onOpen: () => void;
+  /** Opens the row's note; `how` is where the click asked for it. */
+  onOpen: (how: OpenHow) => void;
   /** Opens a note a relation in the row links. */
   onOpenNote: (path: string) => void;
   onCommit?: (value: string) => void;
 }) {
   if (column === TITLE) {
     return (
-      <button {...ROW_STOP} type="button" className="table__link" onClick={onOpen}>
+      <button
+        {...ROW_STOP}
+        type="button"
+        className="table__link"
+        onClick={(event) => onOpen(openHowFrom(event))}
+      >
         <Icon name="doc" size={16} />
         <span className="table__title">{String(value ?? '')}</span>
       </button>

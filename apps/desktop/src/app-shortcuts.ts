@@ -51,11 +51,16 @@ export interface TabShortcuts {
  * The tab shortcuts, as browsers have them. ⌘W is taken whether or not a
  * dialog is up, and always prevented: left to the host it would close the
  * window, which no tab should. The rest are left alone behind a dialog, as
- * Back and Forward are. ⌃Tab is read by its key, since Ctrl stands in for
- * nothing there; the others take Ctrl for ⌘ off a Mac.
+ * Back and Forward are. ⌃Tab is Ctrl everywhere; T, W and the numbers take
+ * ⌘ alone on a Mac — ⌃T there is the text system's transpose, which an
+ * editor must keep — and Ctrl alone off one.
  */
-function onTabKey(event: KeyboardEvent, tabs: TabShortcuts, held: boolean): void {
-  const command = event.metaKey || event.ctrlKey;
+function onTabKey(
+  event: KeyboardEvent,
+  tabs: TabShortcuts,
+  { held, onMac }: { held: boolean; onMac: boolean },
+): void {
+  const command = onMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
   if (command && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'w') {
     event.preventDefault();
     if (!held) tabs.closeTab();
@@ -81,8 +86,20 @@ function onTabKey(event: KeyboardEvent, tabs: TabShortcuts, held: boolean): void
   }
 }
 
+/**
+ * Whether this is a Mac, where the command key is ⌘ and ⌃ belongs to the
+ * text system (⌃T transposes two letters). Read once from the host's
+ * platform string; off a Mac, Ctrl is the command key.
+ */
+export function runsOnMac(platform: string = navigator.platform): boolean {
+  return /^Mac|^iP/.test(platform);
+}
+
 /** The window's keyboard shortcuts, listened for as long as the app is open. */
-export function useAppShortcuts(shortcuts: AppShortcuts): void {
+export function useAppShortcuts(
+  shortcuts: AppShortcuts,
+  { onMac = runsOnMac() }: { onMac?: boolean } = {},
+): void {
   // Listened for once; each key reaches what the latest render handed in.
   const latest = useRef(shortcuts);
   useEffect(() => {
@@ -175,7 +192,7 @@ export function useAppShortcuts(shortcuts: AppShortcuts): void {
         event.preventDefault();
         if (!held) latest.current.forward();
       }
-      onTabKey(event, latest.current.tabs, held);
+      onTabKey(event, latest.current.tabs, { held, onMac });
     };
     // A mouse's own back and forward buttons do the same.
     const onMouseUp = (event: MouseEvent) => {
@@ -189,5 +206,5 @@ export function useAppShortcuts(shortcuts: AppShortcuts): void {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, []);
+  }, [onMac]);
 }

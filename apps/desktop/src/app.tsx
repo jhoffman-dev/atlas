@@ -131,6 +131,7 @@ import {
   followMove as followMoveIn,
   goBack,
   goForward,
+  keepNotes,
   loadVault,
   newTabIn,
   nextTab,
@@ -369,6 +370,7 @@ function AppWindow({
     location,
     rows,
     notePaths,
+    notesListedFor,
     error,
     chooseVault,
     showVault,
@@ -710,6 +712,11 @@ function AppWindow({
   );
   // Steady, and the stores never change: the frames and strips read these and
   // are not drawn when the window is (tab-model.md §6).
+  // Tabs remembered from the last launch may name notes deleted since: once
+  // this vault's notes are listed, those tabs open on nothing (#346 attack).
+  useEffect(() => {
+    if (notesListedFor !== null && notesListedFor === vaultKey) keepNotes(workspace, notePaths);
+  }, [workspace, notesListedFor, vaultKey, notePaths]);
   const nameOf = useSteadyCallback(nameOfPlace);
   const workspaceStores = useMemo<WorkspaceStores>(
     () => ({ store: workspace, reveals, overlays, nameOf }),
@@ -1425,6 +1432,7 @@ function AppWindow({
       notePaths,
       indexKey,
       onChanged,
+      changes: noteChanges,
       onTypeSaved,
       suggestNotes,
       suggestTags: vaultTags.suggest,
@@ -1461,6 +1469,7 @@ function AppWindow({
       notePaths,
       indexKey,
       onChanged,
+      noteChanges,
       onTypeSaved,
       suggestNotes,
       vaultTags.suggest,
@@ -1931,7 +1940,8 @@ function AppWindow({
                     },
                   }}
                 >
-                  <PanesContainer />
+                  {/* Keyed by vault: its editors, and what each pane keeps mounted, are that vault's (R14-01). */}
+                  <PanesContainer key={vaultKey ?? ''} />
                 </WorkspaceWiringProvider>
               </WorkspaceStoresProvider>
             )

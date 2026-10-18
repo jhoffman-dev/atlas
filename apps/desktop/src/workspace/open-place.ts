@@ -6,7 +6,13 @@ import {
 } from '@atlas/domain';
 import type { OpenHow } from '@atlas/ui';
 import { requestReveal, type RevealStore } from '../panes/reveals.ts';
-import { openInPane, openPlace, workspaceNow, type WorkspaceStore } from './workspace-store.ts';
+import {
+  focusPane,
+  openInPane,
+  openPlace,
+  workspaceNow,
+  type WorkspaceStore,
+} from './workspace-store.ts';
 
 /**
  * Opens a note from outside the panes — the sidebar, search, a new note —
@@ -30,12 +36,19 @@ export interface LinkFollowing {
 /**
  * Follows a wiki link in the pane it was clicked in, never the other one:
  * a link opens where you are reading, so the note beside it is still there
- * to be read against. `[[Note#^id]]` and `[[Note#Heading]]` open the note
- * there (P26-03); `[[#^id]]`, naming no note, is a place in the note it is in.
+ * to be read against. ⌘-click opens it in a new tab beside this one and
+ * ⌘⇧-click beside, in a split, as a sidebar row does (tab-model.md §5.2).
+ * `[[Note#^id]]` and `[[Note#Heading]]` open the note there (P26-03);
+ * `[[#^id]]`, naming no note, is a place in the note it is in.
  */
 export function followLink(
   { store, reveals, notePaths, onProblem }: LinkFollowing,
-  { pane, target, heading = null }: { pane: number; target: string; heading?: string | null },
+  {
+    pane,
+    target,
+    heading = null,
+    how = 'here',
+  }: { pane: number; target: string; heading?: string | null; how?: OpenHow },
 ): void {
   const fragment = heading === null ? null : linkFragment({ heading });
   const here = placeIn(store, pane);
@@ -50,9 +63,16 @@ export function followLink(
     return;
   }
   onProblem(null);
-  openInPane(store, { pane, place: { kind: 'note', path: resolved } });
+  const place: NavigationPlace = { kind: 'note', path: resolved };
+  if (how === 'here') openInPane(store, { pane, place });
+  else {
+    // The new tab goes beside the tab the link was clicked in, so that pane takes the focus first.
+    focusPane(store, pane);
+    openPlace(store, place, how);
+  }
   if (fragment === null) return;
-  const shown = workspaceNow(store).panes[pane];
+  const ws = workspaceNow(store);
+  const shown = ws.panes[ws.focused];
   if (shown !== undefined) requestReveal(reveals, { tab: shown.active, path: resolved, fragment });
 }
 
