@@ -1,21 +1,27 @@
-import { memo, useState, type ReactNode } from 'react';
+import { Fragment, memo, useState, type ReactNode } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { cardChips, cardFields, plainText, type BoardRow, type PropertyKind } from '@atlas/domain';
+import {
+  cardChips,
+  cardFields,
+  optionLabel,
+  plainText,
+  type BoardRow,
+  type PropertyKind,
+} from '@atlas/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import { ChecklistProgress } from './checklist-progress.tsx';
-import { chipGlyph, Icon } from './icon.tsx';
+import { Icon } from './icon.tsx';
 import { useNoteNames } from './note-names.tsx';
-import { StatusPill } from './status-pill.tsx';
 
 /** What a card needs to be drawn, the same in its column and under the pointer. */
 export interface CardLook {
-  /** Properties to show as chips, in the view's order. */
+  /** Properties to show on the metadata line, in the view's order. */
   readonly fields: readonly string[];
   readonly groupBy: string;
-  /** The property a board's swimlanes are by, when the card sits in one: not repeated as a chip. */
+  /** The property a board's swimlanes are by, when the card sits in one: not repeated on the card. */
   readonly laneBy?: string;
-  /** The declared kind of each property, so a chip can say what its value is. */
+  /** The declared kind of each property, so a value can say what it is. */
   readonly kinds: Readonly<Record<string, PropertyKind>>;
   /** The card sits in the column that means finished. */
   readonly done: boolean;
@@ -83,7 +89,7 @@ export const Card = memo(function Card({
             {...attributes}
             onClick={() => onOpen(row.path)}
           >
-            {row.title}
+            <TitleText>{row.title}</TitleText>
           </button>
         }
       />
@@ -99,16 +105,29 @@ export function LiftedCard({ row, look }: { row: BoardRow; look: CardLook }) {
         row={row}
         look={look}
         tick={null}
-        title={<span className="board__title">{row.title}</span>}
+        title={
+          <span className="board__title">
+            <TitleText>{row.title}</TitleText>
+          </span>
+        }
       />
     </article>
   );
 }
 
 /**
- * What a card shows: its done box — or, for a type that has none, a tick when
- * it sits in the finished column — the title, what it is about, how far
- * through its checklist it is, and its chips.
+ * The title's words, clamped to two lines. The clamp is on a span of its own
+ * because WebKit lays a button's content out its own way, which the clamp's
+ * box display does not survive.
+ */
+function TitleText({ children }: { children: string }) {
+  return <span className="board__title-text">{children}</span>;
+}
+
+/**
+ * What a card shows: its done box — or, for a type that has none, a sage tick
+ * when it sits in the finished column — the title, one line of what it is
+ * about, how far through its checklist it is, and one line of metadata.
  */
 function CardFace({
   row,
@@ -129,42 +148,62 @@ function CardFace({
         {tick}
         {tick === null && look.done && (
           <span className="board__done" aria-label="Done" role="img">
-            <Icon name="check" size={12} />
+            <Icon name="check" size={14} />
           </span>
         )}
         {title}
       </div>
       {summary !== '' && <p className="board__summary">{summary}</p>}
       <ChecklistProgress values={row.values} kinds={look.kinds} />
-      <CardFieldList row={row} look={look} />
+      <CardMetaLine row={row} look={look} />
     </>
   );
 }
 
-/** A card's fields: a choice as its pill, anything else as a chip. */
-function CardFieldList({ row, look }: { row: BoardRow; look: CardLook }) {
-  const { pills, chips: chipFields } = cardFields(look);
-  const shownPills = pills.filter((field) => String(row.values[field] ?? '') !== '');
+/** One value on the metadata line, and whether it names notes that are not there. */
+interface MetaItem {
+  readonly key: string;
+  readonly text: string;
+  readonly missing: boolean;
+}
+
+/**
+ * A card's fields as one line of words joined by `·` — "Phase 14 · From you ·
+ * 3h" — with no chip and no icon per value (brief rule 4). A choice is written
+ * as its label; empty values are left off; a line with nothing on it is not
+ * drawn. The separators are decoration: a screen reader hears the values alone.
+ */
+function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
   const names = useNoteNames();
-  const chips = cardChips({ fields: chipFields, values: row.values, kinds: look.kinds, names });
-  if (shownPills.length === 0 && chips.length === 0) return null;
+  const { pills, chips } = cardFields(look);
+  const choices: MetaItem[] = pills
+    .map((field) => ({ key: field, text: optionLabel(String(row.values[field] ?? '')) }))
+    .filter((item) => item.text !== '')
+    .map((item) => ({ ...item, missing: false }));
+  const others: MetaItem[] = cardChips({
+    fields: chips,
+    values: row.values,
+    kinds: look.kinds,
+    names,
+  }).map((chip) => ({ key: chip.key, text: chip.text, missing: chip.missing === true }));
+  const items = [...choices, ...others];
+  if (items.length === 0) return null;
 
   return (
-    <div className="board__fields">
-      {shownPills.map((field) => (
-        <StatusPill key={field} value={String(row.values[field])} />
+    <p className="board__meta">
+      {items.map((item, at) => (
+        <Fragment key={item.key}>
+          {at > 0 && (
+            <span className="board__meta-sep" aria-hidden="true">
+              {' · '}
+            </span>
+          )}
+          <span className="board__meta-item" data-missing={item.missing}>
+            {item.text}
+          </span>
+        </Fragment>
       ))}
-      {chips.map((chip) => (
-        <span
-          className={chip.you ? 'board__field board__field--you' : 'board__field'}
-          key={chip.key}
-          data-missing={chip.missing}
-        >
-          <Icon name={chipGlyph(chip.icon)} size={12} />
-          {chip.text}
-        </span>
-      ))}
-    </div>
+    </p>
   );
 }
 

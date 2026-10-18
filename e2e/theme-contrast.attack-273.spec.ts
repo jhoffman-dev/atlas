@@ -576,8 +576,8 @@ test('the copy of a board card being dragged stands out from the cards at rest',
   const carried = await edge('.board__card--lifted');
   await page.mouse.up();
   // The copy under the pointer has to stand out from the cards lying on the
-  // board, not recede: today it is drawn with the fainter hairline (--line)
-  // while a resting card has --line-strong, and neither casts a shadow.
+  // board, not recede. A resting card is square with a 1px hairline and no
+  // shadow (UI v2, slice 9), so the copy's cue is the focus ring round it.
   expect(carried, `carried ${carried.toFixed(2)} vs resting ${resting.toFixed(2)}`).toBeGreaterThan(
     resting,
   );

@@ -67,10 +67,16 @@ describe('a board with swimlanes', () => {
     const first = screen.getByRole('button', { name: 'First' }).closest('article');
     expect(first).not.toBeNull();
     expect(first?.querySelector('.board__head')).not.toBeNull();
-    expect(first?.querySelectorAll('.board__field')).toHaveLength(0);
+    expect(first?.querySelector('.board__meta')).toBeNull();
   });
 
-  it('shows a full cell’s first few cards and the rest behind “+ N more”, as a column does', async () => {
+  it('gives every column the same share of the width, empty or not', () => {
+    render(<Board />);
+    const grid = document.querySelector<HTMLElement>('.board--lanes');
+    expect(grid?.style.gridTemplateColumns).toBe('repeat(2, minmax(180px, 1fr))');
+  });
+
+  it('shows a full cell’s first few cards and the rest behind “N more”, as a column does', async () => {
     const crowd = Array.from({ length: 9 }, (_, at) => card(`Crowd ${at}.md`, 'doing', 'home'));
     const crowded = boardGroups({
       rows: crowd,
@@ -89,7 +95,7 @@ describe('a board with swimlanes', () => {
     );
     const full = cell('doing', 'home');
     expect(within(full).getAllByRole('article')).toHaveLength(4);
-    await userEvent.click(within(full).getByRole('button', { name: '+ 5 more' }));
+    await userEvent.click(within(full).getByRole('button', { name: '5 more' }));
     expect(within(full).getAllByRole('article')).toHaveLength(9);
   });
 
