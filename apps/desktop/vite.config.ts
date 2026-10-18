@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -20,8 +20,36 @@ const entityTable = createRequire(fromAdapters.resolve('micromark-util-decode-st
   'decode-named-character-reference',
 );
 
+/**
+ * Writes where each chunk loaded on first use landed into index.html, by the
+ * chunk's name, for `src/chunk-files.ts`: a chunk that failed to parse or run
+ * can then be imported again under a fresh address. A meta tag, not a script,
+ * since it is only data.
+ */
+function chunkFilesMeta(): Plugin {
+  return {
+    name: 'atlas-chunk-files',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler: (_html, context) => {
+        const files = Object.values(context.bundle ?? {}).flatMap((output) =>
+          output.type === 'chunk' && output.isDynamicEntry ? [[output.name, output.fileName]] : [],
+        );
+        return [
+          {
+            tag: 'meta',
+            attrs: { name: 'atlas-chunks', content: JSON.stringify(Object.fromEntries(files)) },
+            injectTo: 'head',
+          },
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), chunkFilesMeta()],
   // The MCP server's path in this checkout, so Settings can offer a command that
   // runs it. Only right for a build made from source, which is how Atlas is run.
   define: {

@@ -2,25 +2,64 @@
 import { Profiler, Suspense, useState, type ComponentType, type ElementType } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { onFirstUse, type FailedPartProps } from './on-first-use.ts';
+import { chunkOf, onFirstUse, type FailedPartProps } from './on-first-use.ts';
 
-function Greeting({ name }: { name: string }) {
+type Named = { name: string };
+
+function Greeting({ name }: Named) {
   return <p>Hello, {name}</p>;
 }
+function Farewell({ name }: Named) {
+  return <p>Goodbye, {name}</p>;
+}
+const MODULE = { Greeting, Farewell };
+type Parts = typeof MODULE;
 
-/** Says what failed, with the props it was given, and the button to try again. */
-function Failed({ props, retrying, onRetry }: FailedPartProps<{ name: string }>) {
+/** Says what failed, with the props it was given, and the buttons the outcome offers. */
+function Failed({ props, retrying, onRetry, onReloadWindow }: FailedPartProps<Named>) {
   return (
-    <button type="button" disabled={retrying} onClick={onRetry}>
-      Reload the greeting for {props.name}
-    </button>
+    <div role="alert">
+      <button type="button" disabled={retrying} onClick={onRetry}>
+        Reload for {props.name}
+      </button>
+      {onReloadWindow !== null && (
+        <button type="button" onClick={onReloadWindow}>
+          Reload window
+        </button>
+      )}
+    </div>
   );
 }
 
-const part = (load: () => Promise<ComponentType<{ name: string }>>) => onFirstUse(load, Failed);
+const FETCH_FAILED = () => new TypeError('Importing a module script failed.');
+const PARSE_FAILED = () => new SyntaxError('Unexpected end of script');
+
+/** A chunk whose imports answer in turn from `answers`; the last answer repeats. */
+function scriptedChunk(answers: (Error | Parts)[], again: (Error | Parts)[] = []) {
+  const answer = (list: (Error | Parts)[], index: number): Promise<Parts> => {
+    const next = list[Math.min(index, list.length - 1)];
+    if (next === undefined || next instanceof Error) return Promise.reject(next);
+    return Promise.resolve(next);
+  };
+  const load = vi.fn(() => answer(answers, load.mock.calls.length - 1));
+  // Each fresh copy answers in turn; which attempt asked is checked by the tests.
+  const loadAgain = vi.fn<(attempt: number) => Promise<Parts> | null>();
+  loadAgain.mockImplementation(() =>
+    again.length === 0 ? null : answer(again, loadAgain.mock.calls.length - 1),
+  );
+  return { chunk: chunkOf<Parts>({ load, loadAgain }), load, loadAgain };
+}
+
+function partOf(
+  chunk: ReturnType<typeof scriptedChunk>['chunk'],
+  pick: (m: Parts) => ComponentType<Named> = (m) => m.Greeting,
+  reloadWindow = vi.fn(),
+) {
+  return onFirstUse({ chunk, pick, Failed, reloadWindow });
+}
 
 /** What the page showed at each commit, after a click opens the component. */
-async function commitsOnOpen(Component: ElementType<{ name: string }>) {
+async function commitsOnOpen(Component: ElementType<Named>) {
   const shown: string[] = [];
   function Host() {
     const [open, setOpen] = useState(false);
@@ -39,123 +78,145 @@ async function commitsOnOpen(Component: ElementType<{ name: string }>) {
   return shown;
 }
 
-/** The part beside an editor that must outlive it, as a page sits beside the sidebar. */
-function renderBesideEditor(Component: ElementType<{ name: string }>) {
+/** Parts beside an editor that must outlive them, as a page sits beside the sidebar. */
+function renderBesideEditor(...Components: ElementType<Named>[]) {
   return render(
     <>
       <textarea aria-label="Editor" defaultValue="unsaved words" />
-      <Suspense fallback={<p>Loading</p>}>
-        <Component name="Mara" />
-      </Suspense>
+      {Components.map((Component, index) => (
+        <Suspense key={index} fallback={<p>Loading</p>}>
+          <Component name={`Mara ${index + 1}`} />
+        </Suspense>
+      ))}
     </>,
   );
 }
 
-const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+const reloadButton = (name = 'Mara 1') =>
+  screen.findByRole('button', { name: `Reload for ${name}` });
 
 describe('onFirstUse', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
   afterEach(() => vi.restoreAllMocks());
 
   it('loads nothing until it is wanted', () => {
-    const load = vi.fn(() => Promise.resolve(Greeting));
-    part(load);
+    const { chunk, load } = scriptedChunk([MODULE]);
+    partOf(chunk);
     expect(load).not.toHaveBeenCalled();
   });
 
   it('shows the fallback while its chunk loads, then the component', async () => {
-    const shown = await commitsOnOpen(part(() => Promise.resolve(Greeting)).Component);
+    const shown = await commitsOnOpen(partOf(scriptedChunk([MODULE]).chunk).Component);
     expect(shown[0]).toBe('OpenLoading');
     expect(shown.at(-1)).toBe('OpenHello, Mara');
   });
 
   it('draws a preloaded component in one commit, with no fallback', async () => {
-    const load = vi.fn(() => Promise.resolve(Greeting));
-    const greeting = part(load);
+    const { chunk, load } = scriptedChunk([MODULE]);
+    const greeting = partOf(chunk);
     await greeting.preload();
     expect(await commitsOnOpen(greeting.Component)).toEqual(['OpenHello, Mara']);
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it('loads once however often it is preloaded', async () => {
-    const load = vi.fn(() => Promise.resolve(Greeting));
-    const greeting = part(load);
-    await Promise.all([greeting.preload(), greeting.preload()]);
-    await greeting.preload();
+  it('imports a chunk once for all its parts, however often they are preloaded', async () => {
+    const { chunk, load } = scriptedChunk([MODULE]);
+    const greeting = partOf(chunk);
+    const farewell = partOf(chunk, (m) => m.Farewell);
+    await Promise.all([greeting.preload(), farewell.preload(), greeting.preload()]);
+    await farewell.preload();
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it('draws a chunk that cannot be loaded as failed, warns, and leaves the rest mounted', async () => {
-    const warn = quiet();
-    const greeting = part(() => Promise.reject(new Error('chunk missing')));
+  it('leaves a part whose preload failed unloaded, so its first open imports again', async () => {
+    const { chunk, load } = scriptedChunk([FETCH_FAILED(), MODULE]);
+    const greeting = partOf(chunk);
+    await expect(greeting.preload()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith('A part of Atlas could not load:', expect.any(TypeError));
     renderBesideEditor(greeting.Component);
-    expect(
-      await screen.findByRole('button', { name: 'Reload the greeting for Mara' }),
-    ).toBeDefined();
+    expect(await screen.findByText('Hello, Mara 1')).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('draws a part whose chunk cannot be loaded as failed, and leaves the rest mounted', async () => {
+    renderBesideEditor(partOf(scriptedChunk([FETCH_FAILED()]).chunk).Component);
+    expect(await reloadButton()).toBeDefined();
     expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Editor' }).value).toBe(
       'unsaved words',
     );
-    expect(warn).toHaveBeenCalledWith('A part of Atlas could not load:', expect.any(Error));
+    expect(screen.queryByRole('button', { name: 'Reload window' })).toBeNull();
   });
 
-  it('readies the failed state on preload, so a broken chunk never throws', async () => {
-    quiet();
-    const greeting = part(() => Promise.reject(new Error('chunk missing')));
-    await expect(greeting.preload()).resolves.toBeUndefined();
-    expect(await commitsOnOpen(greeting.Component)).toEqual(['OpenReload the greeting for Mara']);
-  });
-
-  it('imports the chunk again on Reload, and draws the part once it arrives', async () => {
-    quiet();
-    const load = vi
-      .fn<() => Promise<ComponentType<{ name: string }>>>()
-      .mockRejectedValueOnce(new Error('504 Outdated Optimize Dep'))
-      .mockResolvedValue(Greeting);
-    renderBesideEditor(part(load).Component);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Reload the greeting for Mara' }),
-    );
-    expect(await screen.findByText('Hello, Mara')).toBeDefined();
+  it('imports the chunk again on Reload, and every failed part of it draws', async () => {
+    const { chunk, load } = scriptedChunk([FETCH_FAILED(), MODULE]);
+    renderBesideEditor(partOf(chunk).Component, partOf(chunk, (m) => m.Farewell).Component);
+    await userEvent.click(await reloadButton('Mara 1'));
+    expect(await screen.findByText('Hello, Mara 1')).toBeDefined();
+    expect(await screen.findByText('Goodbye, Mara 2')).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+    // The two failed opens shared one import, and the Reload made one more.
     expect(load).toHaveBeenCalledTimes(2);
   });
 
-  it('stays failed, and can try again, when the import fails again', async () => {
-    const warn = quiet();
-    const load = vi.fn(() => Promise.reject(new Error('still missing')));
-    renderBesideEditor(part(load).Component);
-    const reload = await screen.findByRole('button', { name: 'Reload the greeting for Mara' });
-    await userEvent.click(reload);
-    await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(2));
-    expect(reload.hasAttribute('disabled')).toBe(false);
-    expect(load).toHaveBeenCalledTimes(2);
-  });
-
-  it('draws a recovered part straight away wherever it is drawn next', async () => {
-    quiet();
-    const load = vi
-      .fn<() => Promise<ComponentType<{ name: string }>>>()
-      .mockRejectedValueOnce(new Error('chunk missing'))
-      .mockResolvedValue(Greeting);
-    const greeting = part(load);
+  it('draws a part of a chunk that another part has since loaded, with no Reload of its own', async () => {
+    const { chunk } = scriptedChunk([FETCH_FAILED(), MODULE]);
+    const greeting = partOf(chunk);
+    const farewell = partOf(chunk, (m) => m.Farewell);
     const first = renderBesideEditor(greeting.Component);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Reload the greeting for Mara' }),
-    );
-    await screen.findByText('Hello, Mara');
+    await reloadButton();
     first.unmount();
-    renderBesideEditor(greeting.Component);
-    expect(await screen.findByText('Hello, Mara')).toBeDefined();
+    // A part never drawn imports the chunk afresh, and the failed one recovers with it.
+    renderBesideEditor(farewell.Component, greeting.Component);
+    expect(await screen.findByText('Goodbye, Mara 1')).toBeDefined();
+    expect(await screen.findByText('Hello, Mara 2')).toBeDefined();
+  });
+
+  it('fetches a fresh copy on Reload when the module itself failed, as a cut-short file does', async () => {
+    const { chunk, load, loadAgain } = scriptedChunk([PARSE_FAILED()], [MODULE]);
+    renderBesideEditor(partOf(chunk).Component);
+    await userEvent.click(await reloadButton());
+    expect(await screen.findByText('Hello, Mara 1')).toBeDefined();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(loadAgain).toHaveBeenCalledWith(2);
+  });
+
+  it('imports the same file again on Reload when only the fetch failed', async () => {
+    const { chunk, load, loadAgain } = scriptedChunk([FETCH_FAILED(), MODULE], [MODULE]);
+    renderBesideEditor(partOf(chunk).Component);
+    await userEvent.click(await reloadButton());
+    expect(await screen.findByText('Hello, Mara 1')).toBeDefined();
     expect(load).toHaveBeenCalledTimes(2);
+    expect(loadAgain).not.toHaveBeenCalled();
+  });
+
+  it('offers to reload the window once Reload has failed too, and stays retryable', async () => {
+    const reloadWindow = vi.fn();
+    const { chunk } = scriptedChunk([PARSE_FAILED()], [PARSE_FAILED()]);
+    renderBesideEditor(partOf(chunk, (m) => m.Greeting, reloadWindow).Component);
+    const reload = await reloadButton();
+    expect(screen.queryByRole('button', { name: 'Reload window' })).toBeNull();
+    await userEvent.click(reload);
+    await userEvent.click(await screen.findByRole('button', { name: 'Reload window' }));
+    expect(reloadWindow).toHaveBeenCalledTimes(1);
+    expect(reload.hasAttribute('disabled')).toBe(false);
   });
 
   it('catches a module that throws as it is evaluated', async () => {
-    const warn = quiet();
-    const broken = part(() =>
-      import('./throws-when-evaluated.fixture.ts').then((m) => m.Broken as never),
-    );
+    const broken = onFirstUse({
+      chunk: chunkOf({
+        load: () => import('./throws-when-evaluated.fixture.ts'),
+        loadAgain: () => null,
+      }),
+      pick: (m) => m.Broken as never,
+      Failed,
+      reloadWindow: vi.fn(),
+    });
     renderBesideEditor(broken.Component);
-    expect(
-      await screen.findByRole('button', { name: 'Reload the greeting for Mara' }),
-    ).toBeDefined();
+    expect(await reloadButton()).toBeDefined();
     expect(screen.getByRole('textbox', { name: 'Editor' })).toBeDefined();
     expect(warn).toHaveBeenCalledWith(
       'A part of Atlas could not load:',

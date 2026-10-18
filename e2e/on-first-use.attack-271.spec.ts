@@ -108,9 +108,11 @@ test('after Reload brings Settings back, its sections from the same chunk draw t
   await openVault(page);
   const restore = await failUntilRestored(page, LATER_PARTS);
   await start(page, LATER_PARTS);
+  // Still failing when Settings first opens: a preload's failure alone shows nothing (above).
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(unloaded(page)).toHaveCount(1);
   restore();
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await unloaded(page).getByRole('button', { name: 'Reload' }).click();
   await expect(settingsDialog(page)).toBeVisible();
   // The chunk is loaded, but each section keeps its own failed answer and wants its own Reload.
@@ -126,9 +128,11 @@ test('after Reload brings Settings back, a dashboard from the same chunk opens',
   await openVault(page);
   const restore = await failUntilRestored(page, LATER_PARTS);
   await start(page, LATER_PARTS);
+  // Still failing when Settings first opens: a preload's failure alone shows nothing (above).
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(unloaded(page)).toHaveCount(1);
   restore();
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await unloaded(page).getByRole('button', { name: 'Reload' }).click();
   await expect(settingsDialog(page)).toBeVisible();
   await page.keyboard.press('Escape');

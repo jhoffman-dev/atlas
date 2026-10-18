@@ -1,12 +1,19 @@
 import type { ComponentType } from 'react';
 import type * as LaterParts from './later-parts.ts';
-import { onFirstUse, type FailedPartProps, type OnFirstUse } from './on-first-use.ts';
+import { importAgain, reloadWindow } from './chunk-files.ts';
+import {
+  chunkOf,
+  onFirstUse,
+  type Chunk,
+  type FailedPartProps,
+  type OnFirstUse,
+} from './on-first-use.ts';
 import type { PageChrome } from './page-frame-fallback.tsx';
-import { PageFailed, PartFailed } from './part-failed.tsx';
+import { ChatFailed, PageFailed, PartFailed, SettingsFailed } from './part-failed.tsx';
 
 /*
  * The pages and parts that are not on the start path, split into chunks that
- * are fetched the first time one is drawn, or once the app has loaded
+ * are fetched the first time one is drawn, or once start-up has committed
  * (`preloadPages`). Today, the Inbox, the note editor, the sidebar and the
  * shell stay in the main chunk: they are what start-up shows. Each must be
  * drawn inside a `Suspense`.
@@ -15,73 +22,85 @@ import { PageFailed, PartFailed } from './part-failed.tsx';
 /** Every part's preload, in the order declared. */
 const PRELOADS: (() => Promise<void>)[] = [];
 
-/** A part that, when its chunk cannot be loaded, says so where it would have been. */
-function later<P extends object>(
-  load: () => Promise<ComponentType<P>>,
+/** A chunk of its own, named as the build names it: after its file. */
+const chunk = <M>(name: string, load: () => Promise<M>): Chunk<M> =>
+  chunkOf({ load, loadAgain: importAgain(name) });
+
+/** A part of `module`'s chunk that, when the chunk cannot be loaded, says so where it would be. */
+function later<M, P extends object>(
+  module: Chunk<M>,
+  pick: (loaded: M) => ComponentType<P>,
   Failed: ComponentType<FailedPartProps<P>> = PartFailed,
 ): OnFirstUse<P> {
-  const part = onFirstUse(load, Failed);
+  const part = onFirstUse({ chunk: module, pick, Failed, reloadWindow });
   PRELOADS.push(part.preload);
   return part;
 }
 
 /** A page over the panes: when its chunk cannot be loaded, it says so inside its frame. */
-const laterPage = <P extends PageChrome>(load: () => Promise<ComponentType<P>>) =>
-  later(load, PageFailed);
+const laterPage = <M, P extends PageChrome>(
+  module: Chunk<M>,
+  pick: (loaded: M) => ComponentType<P>,
+) => later(module, pick, PageFailed);
 
-const fromLaterParts = <P extends object>(pick: (parts: typeof LaterParts) => ComponentType<P>) =>
-  import('./later-parts.ts').then(pick);
-
-/** A part of `later-parts.ts`, which shares one chunk with the rest of them. */
-const laterPart = <P extends object>(pick: (parts: typeof LaterParts) => ComponentType<P>) =>
-  later(() => fromLaterParts(pick));
-
-/** A page in `later-parts.ts`. */
-const laterPartPage = <P extends PageChrome>(
-  pick: (parts: typeof LaterParts) => ComponentType<P>,
-) => laterPage(() => fromLaterParts(pick));
-
-// The pages over the panes (`main-route.tsx`).
-export const graphPage = laterPage(() => import('./graph/graph-page.tsx').then((m) => m.default));
-export const typePage = laterPage(() => import('./types/type-page.tsx').then((m) => m.TypePage));
-export const queryScreen = laterPage(() =>
-  import('./query/query-screen.tsx').then((m) => m.QueryScreen),
+/** The chunk most parts share, so that loading it once, or once again, brings them all. */
+const laterParts = chunk(
+  'later-parts',
+  (): Promise<typeof LaterParts> => import('./later-parts.ts'),
 );
-export const tagsScreen = laterPage(() =>
-  import('./tags/tags-screen.tsx').then((m) => m.TagsScreen),
-);
-export const automationsScreen = laterPage(() =>
-  import('./automations/automations-screen.tsx').then((m) => m.AutomationsScreen),
-);
-export const activityScreen = laterPage(() =>
-  import('./activity/activity-screen.tsx').then((m) => m.ActivityScreen),
-);
-export const archivePage = laterPartPage((m) => m.ArchivePage);
-export const weeklyReviewPage = laterPartPage((m) => m.WeeklyReviewPage);
-export const templatesPage = laterPartPage((m) => m.TemplatesPage);
-export const termsPage = laterPartPage((m) => m.TermsPage);
 
-// What a note pane draws for a dashboard, an artifact, or a view's rarer layouts.
-export const dashboardView = laterPart((m) => m.DashboardView);
-export const widgetEditor = laterPart((m) => m.WidgetEditor);
-export const artifactViewer = laterPart((m) => m.ArtifactViewer);
-export const calendarView = laterPart((m) => m.CalendarView);
-export const timelineView = laterPart((m) => m.TimelineView);
-export const feedView = laterPart((m) => m.FeedView);
+// The pages over the panes (`main-route.tsx`), each in its own chunk.
+export const graphPage = laterPage(
+  chunk('graph-page', () => import('./graph/graph-page.tsx')),
+  (m) => m.default,
+);
+export const typePage = laterPage(
+  chunk('type-page', () => import('./types/type-page.tsx')),
+  (m) => m.TypePage,
+);
+export const queryScreen = laterPage(
+  chunk('query-screen', () => import('./query/query-screen.tsx')),
+  (m) => m.QueryScreen,
+);
+export const tagsScreen = laterPage(
+  chunk('tags-screen', () => import('./tags/tags-screen.tsx')),
+  (m) => m.TagsScreen,
+);
+export const automationsScreen = laterPage(
+  chunk('automations-screen', () => import('./automations/automations-screen.tsx')),
+  (m) => m.AutomationsScreen,
+);
+export const activityScreen = laterPage(
+  chunk('activity-screen', () => import('./activity/activity-screen.tsx')),
+  (m) => m.ActivityScreen,
+);
+export const archivePage = laterPage(laterParts, (m) => m.ArchivePage);
+export const weeklyReviewPage = laterPage(laterParts, (m) => m.WeeklyReviewPage);
+export const templatesPage = laterPage(laterParts, (m) => m.TemplatesPage);
+export const termsPage = laterPage(laterParts, (m) => m.TermsPage);
 
-// Claude's panel, and Settings: `SettingsPanel` draws the dialog and its sections in one `Suspense`.
-export const chatPanel = laterPart((m) => m.ChatPanel);
-export const claudeSettings = laterPart((m) => m.ClaudeSettings);
-export const settingsDialog = laterPart((m) => m.SettingsDialog);
+// What a note pane draws for a dashboard, an artifact, or a view's rarer layouts: inline.
+export const dashboardView = later(laterParts, (m) => m.DashboardView);
+export const widgetEditor = later(laterParts, (m) => m.WidgetEditor);
+export const artifactViewer = later(laterParts, (m) => m.ArtifactViewer);
+export const calendarView = later(laterParts, (m) => m.CalendarView);
+export const timelineView = later(laterParts, (m) => m.TimelineView);
+export const feedView = later(laterParts, (m) => m.FeedView);
+
+// Claude's panel, failing in its own place with its Close; and Settings, failing inside
+// its own window. `SettingsPanel` draws the dialog and its sections in one `Suspense`.
+export const chatPanel = later(laterParts, (m) => m.ChatPanel, ChatFailed);
+export const claudeSettings = later(laterParts, (m) => m.ClaudeSettings);
+export const settingsDialog = later(laterParts, (m) => m.SettingsDialog, SettingsFailed);
 // The sections `app.tsx` hands to Settings (drawn by name from `settings/settings-sections.ts`).
-export const globalCaptureSettings = laterPart((m) => m.GlobalCaptureSettings);
-export const googleCalendarSettingsCard = laterPart((m) => m.GoogleCalendarSettingsCard);
-export const granolaSettingsCard = laterPart((m) => m.GranolaSettingsCard);
-export const imageSettingsPanel = laterPart((m) => m.ImageSettingsPanel);
-export const profileSettingsCard = laterPart((m) => m.ProfileSettingsCard);
-export const quickAddSettingsCard = laterPart((m) => m.QuickAddSettingsCard);
-export const secretsSettingsCard = laterPart((m) => m.SecretsSettingsCard);
-export const syncSettingsCard = laterPart((m) => m.SyncSettingsCard);
+export const globalCaptureSettings = later(laterParts, (m) => m.GlobalCaptureSettings);
+export const googleCalendarSettingsCard = later(laterParts, (m) => m.GoogleCalendarSettingsCard);
+export const granolaSettingsCard = later(laterParts, (m) => m.GranolaSettingsCard);
+export const imageSettingsPanel = later(laterParts, (m) => m.ImageSettingsPanel);
+export const profileSettingsCard = later(laterParts, (m) => m.ProfileSettingsCard);
+export const quickAddSettingsCard = later(laterParts, (m) => m.QuickAddSettingsCard);
+export const secretsSettingsCard = later(laterParts, (m) => m.SecretsSettingsCard);
+export const syncSettingsCard = later(laterParts, (m) => m.SyncSettingsCard);
 
 /**
  * Runs every preload and waits for all of them to settle. One that rejects is

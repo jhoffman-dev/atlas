@@ -1,24 +1,106 @@
-import { createElement, lazy, useState, type ComponentType, type LazyExoticComponent } from 'react';
+import {
+  createElement,
+  lazy,
+  useState,
+  useSyncExternalStore,
+  type ComponentType,
+  type LazyExoticComponent,
+} from 'react';
 
-/** A component whose code is in its own chunk, fetched the first time it is wanted. */
+/**
+ * One chunk of code, shared by every part drawn from it: imported once however
+ * many parts want it, and, when an import fails, imported again by the next
+ * part that asks — a failure is never kept. Once any import succeeds, every
+ * part from the chunk can draw.
+ */
+export interface Chunk<M> {
+  /** The chunk's module once it has loaded; null until then. */
+  readonly current: () => M | null;
+  /**
+   * Imports the chunk, or joins the import already under way. `fresh` asks for
+   * a copy under a new address when the last import failed on the module
+   * itself, which the browser would otherwise answer with the same failure.
+   */
+  readonly load: (options?: { fresh?: boolean }) => Promise<M>;
+  /** Called once the chunk has loaded. Returns the way to stop listening. */
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
+/** A browser's words for "the file could not be fetched", as against "it would not run". */
+const FETCH_FAILED =
+  /Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module/i;
+
+const warnUnloaded = (cause: unknown) => console.warn('A part of Atlas could not load:', cause);
+
+export function chunkOf<M>({
+  load,
+  loadAgain,
+}: {
+  load: () => Promise<M>;
+  /** The chunk under a new address for attempt `n`, or null where its file is not known. */
+  loadAgain: (attempt: number) => Promise<unknown> | null;
+}): Chunk<M> {
+  let loaded: M | null = null;
+  let pending: Promise<M> | null = null;
+  let attempts = 0;
+  let failedOnModule = false;
+  const listeners = new Set<() => void>();
+
+  const importOnce = (fresh: boolean): Promise<M> => {
+    attempts += 1;
+    // The same module under another address: its exports are the chunk's own.
+    const again = fresh && failedOnModule ? (loadAgain(attempts) as Promise<M> | null) : null;
+    return again ?? load();
+  };
+
+  return {
+    current: () => loaded,
+    load: ({ fresh = false } = {}) => {
+      if (loaded !== null) return Promise.resolve(loaded);
+      pending ??= importOnce(fresh).then(
+        (module) => {
+          loaded = module;
+          pending = null;
+          for (const listener of listeners) listener();
+          return module;
+        },
+        (cause: unknown) => {
+          pending = null;
+          failedOnModule = !(cause instanceof Error && FETCH_FAILED.test(cause.message));
+          warnUnloaded(cause);
+          throw cause;
+        },
+      );
+      return pending;
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+/** A component whose code is in a chunk of its own, fetched the first time it is wanted. */
 export interface OnFirstUse<P extends object> {
   /** Render inside a `Suspense`: before its chunk has loaded, it suspends. */
   readonly Component: LazyExoticComponent<ComponentType<P>>;
   /**
    * Fetches the chunk and readies the component, so that its first render
-   * draws it straight away. A chunk that cannot be loaded readies the
-   * component's failed state instead.
+   * draws it straight away. A chunk that cannot be fetched leaves the
+   * component as it was, to be imported again when it is first drawn.
    */
   readonly preload: () => Promise<void>;
 }
 
 /** What a part whose chunk could not be loaded is drawn with, in its place. */
 export interface FailedPartProps<P> {
-  /** What the part was given, for drawing its frame. */
+  /** What the part was given: its frame, and the way to close it. */
   readonly props: P;
   readonly retrying: boolean;
   /** Imports the chunk again, and draws the part if it arrives. */
   readonly onRetry: () => void;
+  /** Offered once trying again has failed: loads the whole window again. */
+  readonly onReloadWindow: (() => void) | null;
 }
 
 /**
@@ -35,31 +117,40 @@ interface LazyHandle {
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   typeof value === 'object' && value !== null && 'then' in value;
 
-const warnUnloaded = (cause: unknown) => console.warn('A part of Atlas could not load:', cause);
-
 /**
- * `load` names the component in its module, so a named export can be split off
- * too. A chunk that fails to import, or throws as it is evaluated, never
- * reaches React as an error, which would unmount the whole app: the part is
- * drawn as `Failed`, which can import it again.
+ * A part of `chunk`. When the chunk fails to import, or throws as it is
+ * evaluated, the failure never reaches React as an error, which would unmount
+ * the whole app: the part is drawn as `Failed`, which can import it again.
  */
-export function onFirstUse<P extends object>(
-  load: () => Promise<ComponentType<P>>,
-  Failed: ComponentType<FailedPartProps<P>>,
-): OnFirstUse<P> {
+export function onFirstUse<M, P extends object>({
+  chunk,
+  pick,
+  Failed,
+  reloadWindow,
+}: {
+  chunk: Chunk<M>;
+  /** The part's component, out of the chunk's module. */
+  pick: (module: M) => ComponentType<P>;
+  Failed: ComponentType<FailedPartProps<P>>;
+  reloadWindow: () => void;
+}): OnFirstUse<P> {
+  const Unloaded = unloadedPart({ chunk, pick, Failed, reloadWindow });
   const Component = lazy(() =>
-    load().then(
-      (loaded) => ({ default: loaded }),
-      (cause: unknown) => {
-        warnUnloaded(cause);
-        return { default: retryable(load, Failed) };
-      },
+    chunk.load().then(
+      (module) => ({ default: pick(module) }),
+      () => ({ default: Unloaded }),
     ),
   );
   const handle = Component as unknown as LazyHandle;
   return {
     Component,
     preload: async () => {
+      try {
+        await chunk.load();
+      } catch {
+        // Warned of by the chunk; the part is left to import it again when drawn.
+        return;
+      }
       try {
         handle._init(handle._payload);
       } catch (thrown) {
@@ -72,33 +163,39 @@ export function onFirstUse<P extends object>(
 }
 
 /**
- * What a part whose first import failed resolves to: `Failed` until an import
- * again succeeds, then the part. React keeps a lazy component's first answer
- * for good, so the retry is made here, with a fresh `import()` each time.
+ * What a part resolves to when its chunk failed as it was first drawn: `Failed`
+ * until the chunk loads — by its Reload, or by any other part's import — and
+ * then the part. React keeps a lazy component's first answer for good, so the
+ * recovery is made here.
  */
-function retryable<P extends object>(
-  load: () => Promise<ComponentType<P>>,
-  Failed: ComponentType<FailedPartProps<P>>,
-): ComponentType<P> {
-  // Shared by every place the part is drawn, so one that recovered recovers all later ones.
-  let recovered: ComponentType<P> | null = null;
+function unloadedPart<M, P extends object>({
+  chunk,
+  pick,
+  Failed,
+  reloadWindow,
+}: {
+  chunk: Chunk<M>;
+  pick: (module: M) => ComponentType<P>;
+  Failed: ComponentType<FailedPartProps<P>>;
+  reloadWindow: () => void;
+}): ComponentType<P> {
   return function UnloadedPart(props: P) {
-    const [loaded, setLoaded] = useState(() => recovered);
+    const module = useSyncExternalStore(chunk.subscribe, chunk.current);
     const [retrying, setRetrying] = useState(false);
-    if (loaded !== null) return createElement(loaded, props);
+    const [retryFailed, setRetryFailed] = useState(false);
+    if (module !== null) return createElement(pick(module), props);
     const onRetry = () => {
       setRetrying(true);
-      load().then(
-        (part) => {
-          recovered = part;
-          setLoaded(() => part);
-        },
-        (cause: unknown) => {
-          warnUnloaded(cause);
-          setRetrying(false);
-        },
-      );
+      chunk.load({ fresh: true }).catch(() => {
+        setRetrying(false);
+        setRetryFailed(true);
+      });
     };
-    return createElement(Failed, { props, retrying, onRetry });
+    return createElement(Failed, {
+      props,
+      retrying,
+      onRetry,
+      onReloadWindow: retryFailed ? reloadWindow : null,
+    });
   };
 }
