@@ -36,7 +36,7 @@ const task = (at: number, project: VaultPath | null = null): ReviewTask => ({
   waitingOn: '',
   contexts: [],
   project,
-  projectTitle: project === null ? null : `Project ${at}`,
+  projectTitle: project === null ? null : `Project ${String(at).padStart(3, '0')}`,
   modified: NOW,
 });
 
@@ -152,12 +152,18 @@ describe('TodayPage — a day of hundreds of tasks (#238)', () => {
       expect(placed).toBeLessThan(15);
 
       screen.getByRole('checkbox', { name: 'Mark Task 000 done' }).focus();
+      const rowNow = () =>
+        document.activeElement?.closest('[data-today-row]')?.getAttribute('data-today-row');
+      const visited = new Set([rowNow()]);
       for (let presses = 0; presses < 1000; presses += 1) {
         if (document.activeElement?.matches('[aria-label="Mark Task 014 done"]') === true) break;
         await userEvent.tab();
+        visited.add(rowNow());
       }
 
       expect(document.activeElement?.getAttribute('aria-label')).toBe('Mark Task 014 done');
+      // Every project's row on the way, none skipped past the groups first placed.
+      expect([...visited].filter((row) => typeof row === 'string')).toHaveLength(15);
     },
     KEYBOARD_WALK_MS,
   );

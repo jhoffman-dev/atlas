@@ -197,6 +197,46 @@ test('Tab walks on past the rows on screen, each row put in the page and in view
   await expect(page.locator(':focus')).toBeInViewport();
 });
 
+for (const grown of [1_500, 3_000]) {
+  test(`content above the list growing ${grown}px with no scroll leaves no gap on screen (#247)`, async ({
+    page,
+  }) => {
+    await openInbox(page, { proposals: 0, waiting: 300 });
+    const table = inboxPage(page).locator('table.inbox__grid');
+    await expect(table).toHaveAttribute('aria-rowcount', '301', { timeout: 15_000 });
+    const scroller = page.locator('.panel__body--rows');
+    await scroller.evaluate((element) => {
+      element.scrollTop = element.scrollHeight / 2;
+    });
+    await expect.poll(() => gapOnScreen(page)).toBe(0);
+
+    // What sits above the list grows, as offers or proposals landing would: no scroll follows.
+    await page.evaluate((height) => {
+      const head = document.querySelector<HTMLElement>('article[aria-label="Inbox"] > *');
+      if (head !== null) head.style.paddingTop = `${height}px`;
+    }, grown);
+
+    await expect.poll(() => gapOnScreen(page)).toBe(0);
+  });
+}
+
+/** How many pixels of the Inbox's spacer rows are in the page's view. */
+function gapOnScreen(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    // Two frames, so what the page does about a change has been drawn.
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    const scroller = document.querySelector('.panel__body--rows');
+    if (scroller === null) return Number.NaN;
+    const view = scroller.getBoundingClientRect();
+    let shown = 0;
+    for (const gap of document.querySelectorAll('.inbox__grid tr.table__spacer')) {
+      const box = gap.getBoundingClientRect();
+      shown += Math.max(0, Math.min(box.bottom, view.bottom) - Math.max(box.top, view.top));
+    }
+    return Math.round(shown);
+  });
+}
+
 /** Scrolls the page the Inbox is in to its end. */
 async function scrollToEnd(page: Page) {
   await page.locator('.panel__body--rows').evaluate((scroller) => {

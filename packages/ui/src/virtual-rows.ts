@@ -72,10 +72,14 @@ export function useVirtualRows({
   pinned = null,
   keepsEdges = true,
 }: VirtualRowsOptions): VirtualRows {
-  // The virtualiser anchors the scroll itself, as a placed row above the screen grows.
   const page = useContext(RowScrollerContext);
   const scroller = useCallback(() => scrollerOf(page, content), [page, content]);
-  const margin = useScrollMargin(content, scroller, { anchors: false });
+  // A move above the list that its overscan covers waits for the next scroll:
+  // half of what the overscan reaches at the smallest row, so what is placed
+  // still runs past the screen's edge.
+  const slack = (overscan * smallestOf(keys.length, estimate)) / 2;
+  // Not anchored here: the virtualiser scrolls by as much as a placed row above the screen grows.
+  const margin = useScrollMargin(content, scroller, { anchors: false, slack });
   const scrollMargin = margin ?? 0;
   const [focused, setFocused] = useState<string | null>(null);
   const held = [focused, pinned].map((key) => (key === null ? -1 : keys.indexOf(key)));
@@ -146,4 +150,11 @@ function withHeld({
     }
   }
   return wanted.size === indexes.length ? indexes : [...wanted].sort((a, b) => a - b);
+}
+
+/** The smallest of `count` estimated heights; 0 for none. */
+function smallestOf(count: number, estimate: (index: number) => number): number {
+  let least = Number.POSITIVE_INFINITY;
+  for (let at = 0; at < count; at += 1) least = Math.min(least, estimate(at));
+  return count === 0 ? 0 : least;
 }

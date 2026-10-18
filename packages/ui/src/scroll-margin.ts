@@ -32,8 +32,9 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
 }
 
 /**
- * Where `content` starts inside the element that scrolls it, kept current as
- * what sits above it opens, shuts or moves. A virtualiser that shares its
+ * Where `content` starts inside the element that scrolls it, read again on
+ * each scroll and as what sits above it opens, shuts or moves (or, with
+ * `slack`, once it has moved further than that). A virtualiser that shares its
  * scroller with other content needs this as its scroll margin, or it would
  * place and count its rows as if they started at the scroller's top.
  * 0 when there is no shared scroller.
@@ -47,6 +48,12 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
  * are anchored by it already — it scrolls by as much as a placed item above
  * the screen grows — and anchoring them again here moved the page back from a
  * scroll the browser had just made to show a focused row (#247).
+ *
+ * `slack` is how far content may move, without a scroll, before the margin
+ * is read again: a list's overscan covers a smaller move until the next
+ * scroll, and a new margin for each small change above it — an Inbox offer
+ * arriving, a Today row leaving — cost the page a commit of its own (#247).
+ * A larger move is read at once, or the rows placed would miss the screen.
  *
  * The scroller is passed as an element, not a ref: it is an ancestor of
  * `content`, and an ancestor's ref is attached only after its descendants'
@@ -62,7 +69,7 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
 export function useScrollMargin(
   content: RefObject<HTMLElement | null>,
   scroller: HTMLElement | null | (() => HTMLElement | null),
-  { anchors = true }: { readonly anchors?: boolean } = {},
+  { anchors = true, slack = 0 }: { readonly anchors?: boolean; readonly slack?: number } = {},
 ): number | null {
   const [margin, setMargin] = useState<number | null>(null);
   /** Where content started when last measured; null before the first time. */
@@ -109,24 +116,29 @@ export function useScrollMargin(
     return () => area.removeEventListener('scroll', onScroll);
   }, [content, scroller]);
 
+  /** Reads it again after a change with no scroll, once it has moved past `slack`. */
+  const moved = (area: HTMLElement) => {
+    const element = content.current;
+    const before = placed.current;
+    if (element === null || before === null) return;
+    if (Math.abs(offsetWithin(element, area) - before) > slack) measure(area);
+  };
+
   // A section above opening, shutting or growing changes the height of what
   // the scroller holds, and one moving changes the order of its sections
-  // without changing a size: both are watched. Not for a list that is not
-  // anchored here: it is read again on the next scroll, and until then its
-  // overscan covers what moved — a new margin on every change above it cost
-  // the page a commit of its own each time (#247).
+  // without changing a size: both are watched.
   useLayoutEffect(() => {
     const area = typeof scroller === 'function' ? scroller() : scroller;
     const inner = area?.firstElementChild ?? null;
-    if (!anchors || area === null || inner === null) return;
+    if (area === null || inner === null) return;
     const watchers: { disconnect: () => void }[] = [];
     if (typeof ResizeObserver !== 'undefined') {
-      const resized = new ResizeObserver(() => measure(area));
+      const resized = new ResizeObserver(() => moved(area));
       resized.observe(inner);
       watchers.push(resized);
     }
     if (typeof MutationObserver !== 'undefined') {
-      const reordered = new MutationObserver(() => measure(area));
+      const reordered = new MutationObserver(() => moved(area));
       reordered.observe(inner, { childList: true });
       watchers.push(reordered);
     }
