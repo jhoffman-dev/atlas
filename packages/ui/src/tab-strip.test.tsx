@@ -101,10 +101,50 @@ describe('TabStrip', () => {
 
   it('says whether its pane is the focused one, for the 2px ink border', () => {
     const { rerender, props } = show({ focused: true });
-    const strip = screen.getByRole('tablist');
+    const strip = screen.getByRole('tablist').parentElement!;
     expect(strip.className).toContain('tab-strip--focused');
     rerender(<TabStrip {...props} focused={false} />);
     expect(strip.className).not.toContain('tab-strip--focused');
+  });
+
+  it('closes the focused tab on Delete, shown or not', async () => {
+    const { props } = show();
+    tab('Task table').focus();
+    await userEvent.keyboard('{ArrowRight}{Delete}');
+    expect(props.onClose).toHaveBeenCalledWith('t2');
+    expect(props.onActivate).not.toHaveBeenCalled();
+  });
+
+  it('calls a tab with no title Untitled, on the tab and on its ×', () => {
+    show({ tabs: [{ id: 't1', title: '  ' }], active: 't1' });
+    expect(tab('Untitled')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Close Untitled' })).toBeDefined();
+  });
+
+  it('keeps × and + out of the tab list, which holds tabs alone', () => {
+    show();
+    const list = screen.getByRole('tablist');
+    expect(list.contains(screen.getByRole('button', { name: 'New tab' }))).toBe(false);
+    for (const child of Array.from(list.children))
+      expect(child.getAttribute('role')).toBe('presentation');
+  });
+
+  it('moves the focus to the tab now shown when the focused tab closes', () => {
+    const { rerender, props } = show({ active: 't1' });
+    tab('Task table').focus();
+    rerender(<TabStrip {...props} tabs={TABS.slice(1)} active="t2" />);
+    expect(document.activeElement).toBe(tab('Weekly review'));
+  });
+
+  it('leaves the focus where the page put it when the focused tab closes from elsewhere', () => {
+    const { rerender, props } = show({ active: 't1' });
+    const elsewhere = document.createElement('button');
+    document.body.append(elsewhere);
+    tab('Task table').focus();
+    elsewhere.focus();
+    rerender(<TabStrip {...props} tabs={TABS.slice(1)} active="t2" />);
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
   });
 
   it('carries the whole title on a tab too long to show it', () => {

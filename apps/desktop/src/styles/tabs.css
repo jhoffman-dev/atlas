@@ -3,7 +3,8 @@
    imports in cascade order, after shell.css: it dresses `TabStrip` in
    packages/ui/src/tab-strip.tsx and nothing else. */
 
-/* 36px on the sidebar's `bg`, under a hairline the shown tab breaks through. */
+/* 36px on the sidebar's `bg`, under a hairline the shown tab breaks through:
+   the tab list, then the + beside it. */
 .tab-strip {
   align-items: stretch;
   background: var(--bg);
@@ -20,6 +21,14 @@
 
 .tab-strip::-webkit-scrollbar {
   display: none;
+}
+
+/* The tabs keep their narrowest width rather than shrinking under the +, so it
+   is the strip that scrolls. */
+.tab-strip__tabs {
+  align-items: stretch;
+  display: flex;
+  flex: 0 1 auto;
 }
 
 /* A tab and its ×. 176px with room, shrinking to 120px, then the strip scrolls. */

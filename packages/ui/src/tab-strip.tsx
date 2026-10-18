@@ -1,4 +1,10 @@
-import { useRef, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useLayoutEffect,
+  useRef,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import { Icon, type IconName } from './icon.tsx';
 
 /** One tab as the strip shows it: the app names the place and picks its glyph. */
@@ -11,17 +17,22 @@ export interface TabStripTab {
 /** The middle button, as `MouseEvent.button` numbers it. */
 const MIDDLE_BUTTON = 1;
 
+/** What a tab with no title yet is called, so it still has a name to be read by. */
+const UNTITLED = 'Untitled';
+
 /**
  * The 36px row of tabs over a pane (docs/design/tab-model.md, FlowSplit.dc.html).
  *
  * Square tabs on the strip's `bg`, the shown one lifted onto the surface with
  * a 2px top border: ink while the pane is the focused one, grey while it is
  * the other pane, so one glance says where the next open lands. Only the shown
- * tab wears a ×, and any tab closes on a middle click. The strip is one stop
- * in the Tab order — ← and → walk the tabs, Home and End jump — and Enter or
- * Space shows the one under the focus; walking does not show, so a reader can
- * look along the strip without turning every page. Tabs shrink to 120px, then
- * the strip scrolls. Nothing here decides anything: every click is handed up.
+ * tab wears a ×, and any tab closes on a middle click or Delete. The tabs are
+ * one stop in the Tab order — ← and → walk them, Home and End jump — and
+ * Enter or Space shows the one under the focus; walking does not show, so a
+ * reader can look along the strip without turning every page. When the tab
+ * that holds the focus closes, the focus moves to the tab now shown rather
+ * than falling off the page. Tabs shrink to 120px, then the strip scrolls.
+ * Nothing here decides anything: every click is handed up.
  */
 export function TabStrip({
   label,
@@ -43,65 +54,107 @@ export function TabStrip({
   onClose: (id: string) => void;
   onNew: () => void;
 }) {
-  const strip = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  /** The tab whose button or × last took the focus, while the focus is in the strip. */
+  const holding = useRef<string | null>(null);
+  // The one Tab stop: the shown tab, or the first while `active` is a stale id.
+  const stop = tabs.some((tab) => tab.id === active) ? active : tabs[0]?.id;
+
+  const focusTab = (id: string | undefined) => {
+    if (id === undefined || list.current === null) return;
+    for (const item of list.current.querySelectorAll<HTMLElement>('[data-tab]')) {
+      if (item.dataset['tab'] === id)
+        item.querySelector<HTMLButtonElement>('[role="tab"]')?.focus();
+    }
+  };
+
+  useLayoutEffect(() => {
+    const held = holding.current;
+    if (held === null || tabs.some((tab) => tab.id === held)) return;
+    holding.current = null;
+    // Its tab is gone, and so is whatever held the focus: the browser lets it
+    // fall to the body. Only when it did — focus the page took is the page's.
+    const now = document.activeElement;
+    if (now === null || now === document.body || list.current?.contains(now)) focusTab(stop);
+  }, [tabs, stop]);
+
+  const onFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
+    holding.current =
+      (event.target as HTMLElement).closest<HTMLElement>('[data-tab]')?.dataset['tab'] ?? null;
+  };
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, at: number) => {
+    if (event.key === 'Delete') {
+      event.preventDefault();
+      onClose(tabs[at]?.id ?? '');
+      return;
+    }
     const step = STEPS[event.key];
     if (step === undefined) return;
     event.preventDefault();
-    const buttons = strip.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
-    buttons?.[step(at, tabs.length)]?.focus();
+    focusTab(tabs[step(at, tabs.length)]?.id);
+  };
+
+  const closeOnMiddle = (id: string) => (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.button === MIDDLE_BUTTON) onClose(id);
+  };
+  // A middle press would otherwise start autoscroll on some platforms.
+  const noAutoscroll = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.button === MIDDLE_BUTTON) event.preventDefault();
   };
 
   return (
-    <div
-      ref={strip}
-      role="tablist"
-      aria-label={label}
-      className={focused ? 'tab-strip tab-strip--focused' : 'tab-strip'}
-    >
-      {tabs.map((tab, at) => {
-        const shown = tab.id === active;
-        return (
-          <div
-            key={tab.id}
-            className={shown ? 'tab-strip__item tab-strip__item--active' : 'tab-strip__item'}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={shown}
-              tabIndex={shown ? 0 : -1}
-              className="tab-strip__tab"
-              title={tab.title}
-              onClick={() => onActivate(tab.id)}
-              onAuxClick={(event: MouseEvent<HTMLButtonElement>) => {
-                if (event.button === MIDDLE_BUTTON) onClose(tab.id);
-              }}
-              // A middle press would otherwise start autoscroll on some platforms.
-              onMouseDown={(event: MouseEvent<HTMLButtonElement>) => {
-                if (event.button === MIDDLE_BUTTON) event.preventDefault();
-              }}
-              onKeyDown={(event) => onKeyDown(event, at)}
+    <div className={focused ? 'tab-strip tab-strip--focused' : 'tab-strip'}>
+      <div
+        ref={list}
+        role="tablist"
+        aria-label={label}
+        className="tab-strip__tabs"
+        onFocusCapture={onFocusCapture}
+      >
+        {tabs.map((tab, at) => {
+          const shown = tab.id === active;
+          const title = tab.title.trim() === '' ? UNTITLED : tab.title;
+          return (
+            <div
+              key={tab.id}
+              role="presentation"
+              data-tab={tab.id}
+              className={shown ? 'tab-strip__item tab-strip__item--active' : 'tab-strip__item'}
             >
-              {tab.icon === undefined ? null : (
-                <Icon name={tab.icon} size={13} className="tab-strip__icon" />
-              )}
-              <span className="tab-strip__title">{tab.title}</span>
-            </button>
-            {shown ? (
               <button
                 type="button"
-                className="tab-strip__close"
-                aria-label={`Close ${tab.title}`}
-                onClick={() => onClose(tab.id)}
+                role="tab"
+                aria-selected={shown}
+                tabIndex={tab.id === stop ? 0 : -1}
+                className="tab-strip__tab"
+                title={title}
+                onClick={() => onActivate(tab.id)}
+                onAuxClick={closeOnMiddle(tab.id)}
+                onMouseDown={noAutoscroll}
+                onKeyDown={(event) => onKeyDown(event, at)}
               >
-                <Icon name="close" size={13} />
+                {tab.icon === undefined ? null : (
+                  <Icon name={tab.icon} size={13} className="tab-strip__icon" />
+                )}
+                <span className="tab-strip__title">{title}</span>
               </button>
-            ) : null}
-          </div>
-        );
-      })}
+              {shown ? (
+                <button
+                  type="button"
+                  className="tab-strip__close"
+                  aria-label={`Close ${title}`}
+                  onClick={() => onClose(tab.id)}
+                  onAuxClick={closeOnMiddle(tab.id)}
+                  onMouseDown={noAutoscroll}
+                >
+                  <Icon name="close" size={13} />
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
       <button type="button" className="tab-strip__add" aria-label="New tab" onClick={onNew}>
         <Icon name="plus" size={14} />
       </button>

@@ -341,7 +341,9 @@ describe('attack-337: targeted edges', () => {
     const history = ws.panes[1]!.tabs.find((tab) => tab.id === closing)!.history;
     ws = closeTab(ws, { pane: 1, id: closing });
     ws = closePaneInWorkspace(ws, 1);
-    ws = reopenClosedTab(ws);
+    // The closed pane's own tab went onto the stack above it (review item 4
+    // on #337), so it takes two reopens to reach the tab closed by hand.
+    ws = reopenClosedTab(reopenClosedTab(ws));
     expect(ws.panes).toHaveLength(1);
     expect(ws.panes[0]!.active).toBe(closing);
     expect(ws.panes[0]!.tabs.find((tab) => tab.id === closing)!.history).toBe(history);

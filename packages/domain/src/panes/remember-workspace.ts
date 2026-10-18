@@ -15,6 +15,11 @@ import type { Pane, Tab, Workspace } from './workspace.ts';
  * each validated on read, since storage is hand-editable and a stale or
  * malformed entry should cost one tab rather than the window. A place has no
  * field a secret could sit in (ADR-0017), so nothing here needs scrubbing.
+ *
+ * Ids are unique within a session and within one stored record, no further:
+ * `nextId` is stored so a save then a restore never hands out an id again,
+ * and an id that is not `t<n>` with a safe `n` — hand-edited, or past what a
+ * number can count — is minted afresh on read rather than trusted.
  */
 export const WORKSPACE_FORMAT_VERSION = 1;
 
@@ -22,6 +27,7 @@ export interface RememberedWorkspace {
   readonly version: typeof WORKSPACE_FORMAT_VERSION;
   readonly vault: string;
   readonly focused: number;
+  readonly nextId: number;
   readonly panes: readonly {
     readonly active: string;
     readonly tabs: readonly {
@@ -44,6 +50,7 @@ export function rememberWorkspace({
     version: WORKSPACE_FORMAT_VERSION,
     vault: vaultKey,
     focused: workspace.focused,
+    nextId: workspace.nextId,
     panes: workspace.panes.map((pane) => ({
       active: pane.active,
       tabs: pane.tabs.map(({ id, pinned, history }) => ({ id, pinned, history })),
@@ -69,11 +76,12 @@ export function parseRememberedWorkspace(remembered: unknown, vaultKey: string):
     return null;
   }
   const seen = new Set<string>();
-  const panes = remembered.panes
+  const read = remembered.panes
     .map((pane) => readPane(pane, seen))
     .filter((pane): pane is Pane => pane !== null)
     .slice(0, MAX_PANES);
-  if (panes.length === 0) return null;
+  if (read.length === 0) return null;
+  const { panes, nextId } = remintIds(read, readNextId(remembered.nextId));
   const focused = remembered.focused;
   return {
     panes,
@@ -84,9 +92,14 @@ export function parseRememberedWorkspace(remembered: unknown, vaultKey: string):
       focused < panes.length
         ? focused
         : 0,
-    nextId: nextIdAfter(seen),
+    nextId,
     closed: [],
   };
+}
+
+/** The stored `nextId`, or 1 when there is none worth trusting. */
+function readNextId(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 ? value : 1;
 }
 
 /** The old split, as one tab per pane on the note the pane held. */
@@ -102,6 +115,54 @@ function upgradeSplit(remembered: unknown, vaultKey: string): Workspace | null {
     };
   });
   return { panes, focused: layout.focused, nextId: panes.length + 1, closed: [] };
+}
+
+/**
+ * Ids the session can count past. `t<n>` with a safe `n` moves `nextId` past
+ * it; `t<n>` with an `n` past what a number counts is minted afresh, with the
+ * pane's `active` following it, since nothing could ever count past it. Any
+ * other id is kept: it is not of this module's making and can never be
+ * mistaken for an id it mints.
+ */
+function remintIds(panes: readonly Pane[], stored: number): { panes: Pane[]; nextId: number } {
+  let nextId = stored;
+  for (const pane of panes) {
+    for (const tab of pane.tabs) {
+      const n = countedId(tab.id);
+      if (n !== null) nextId = Math.max(nextId, n + 1);
+    }
+  }
+  const minted = new Map<string, string>();
+  for (const pane of panes) {
+    for (const tab of pane.tabs) {
+      if (!isUncountable(tab.id)) continue;
+      minted.set(tab.id, `t${nextId}`);
+      nextId += 1;
+    }
+  }
+  if (minted.size === 0) return { panes: [...panes], nextId };
+  return {
+    panes: panes.map((pane) => ({
+      active: minted.get(pane.active) ?? pane.active,
+      tabs: pane.tabs.map((tab) => ({ ...tab, id: minted.get(tab.id) ?? tab.id })),
+    })),
+    nextId,
+  };
+}
+
+const COUNTED_ID = /^t(\d+)$/;
+
+/** The `n` of a `t<n>` id the session can count past, or null for any other id. */
+function countedId(id: string): number | null {
+  const match = COUNTED_ID.exec(id);
+  if (match === null) return null;
+  const n = Number(match[1]);
+  return Number.isSafeInteger(n) && Number.isSafeInteger(n + 1) ? n : null;
+}
+
+/** A `t<n>` id whose `n` is past what a number counts, so nothing could ever pass it. */
+function isUncountable(id: string): boolean {
+  return COUNTED_ID.test(id) && countedId(id) === null;
 }
 
 function readPane(value: unknown, seen: Set<string>): Pane | null {
@@ -189,16 +250,6 @@ function readPath(value: unknown): VaultPath | null {
     // sat in, which is what a deleted note costs anyway.
     return null;
   }
-}
-
-/** One past the highest id of this module's own making; other ids are left alone. */
-function nextIdAfter(ids: ReadonlySet<string>): number {
-  let highest = 0;
-  for (const id of ids) {
-    const match = /^t(\d+)$/.exec(id);
-    if (match !== null) highest = Math.max(highest, Number(match[1]));
-  }
-  return highest + 1;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -66,6 +66,27 @@ describe('the empty workspace', () => {
 });
 
 describe('opening', () => {
+  it('shows the tab already on the place instead of opening it again (a plain click)', () => {
+    const ws = activateTab(threeTabs(), { pane: 0, id: 't3' });
+    const next = openInActiveTab(ws, acme);
+    expect(activeIdOf(next)).toBe('t1');
+    expect(placesOf(next)).toEqual([acme, beta, gamma]);
+    expect(activeTabOf(next).history.back).toEqual([]);
+  });
+
+  it('stays on the active tab when it already shows the place, over another copy', () => {
+    const ws = openInNewTab(openInActiveTab(EMPTY_WORKSPACE, acme), acme);
+    expect(openInActiveTab(ws, acme)).toBe(ws);
+  });
+
+  it('looks for the place in the focused pane only', () => {
+    const split = splitWithTab(openInActiveTab(EMPTY_WORKSPACE, acme));
+    const ws = openInActiveTab(openInActiveTab(split, beta), acme);
+    expect(ws.focused).toBe(1);
+    expect(placesOf(ws, 1)).toEqual([acme]);
+    expect(activeTabOf(ws).history.back).toEqual([acme, beta]);
+  });
+
   it('opens in the focused pane’s active tab, as a step in that tab’s history', () => {
     const ws = openInActiveTab(openInActiveTab(EMPTY_WORKSPACE, acme), beta);
     expect(placesOf(ws)).toEqual([beta]);
@@ -88,10 +109,9 @@ describe('opening', () => {
   });
 
   it('opens a new tab right after the active one and activates it (⌘-click)', () => {
-    const ws = openInActiveTab(threeTabs(), acme);
-    const first = activateTab(ws, { pane: 0, id: 't1' });
+    const first = activateTab(threeTabs(), { pane: 0, id: 't1' });
     const next = openInNewTab(first, today);
-    expect(placesOf(next)).toEqual([acme, today, beta, acme]);
+    expect(placesOf(next)).toEqual([acme, today, beta, gamma]);
     expect(activeIdOf(next)).toBe('t4');
     expect(activeTabOf(next).history).toEqual({ back: [], current: today, forward: [] });
   });
@@ -176,14 +196,37 @@ describe('closing', () => {
   });
 
   it('reopens the most recently closed tab beside the active one, with its history, and activates it', () => {
-    const before = openInActiveTab(threeTabs(), beta);
+    const before = openInActiveTab(threeTabs(), today);
     const closed = closeTab(before, { pane: 0, id: 't3' });
     const ws = reopenClosedTab(activateTab(closed, { pane: 0, id: 't1' }));
     expect(idsOf(ws)).toEqual(['t1', 't3', 't2']);
     expect(activeIdOf(ws)).toBe('t3');
     expect(activeTabOf(ws).history.back).toEqual([gamma]);
-    expect(activePlace(ws)).toEqual(beta);
+    expect(activePlace(ws)).toEqual(today);
     expect(ws.closed).toEqual([]);
+  });
+
+  it('replaces a lone blank tab with the reopened one, rather than keeping both', () => {
+    const closed = closeTab(openInActiveTab(EMPTY_WORKSPACE, acme), { pane: 0, id: 't1' });
+    expect(activePlace(closed)).toBeNull();
+    const ws = reopenClosedTab(closed);
+    expect(idsOf(ws)).toEqual(['t1']);
+    expect(activePlace(ws)).toEqual(acme);
+  });
+
+  it('keeps a blank tab that is not alone, and one that holds a history', () => {
+    const closed = closeTab(threeTabs(), { pane: 0, id: 't3' });
+    expect(idsOf(reopenClosedTab(newTab(closed)))).toEqual(['t1', 't2', 't4', 't3']);
+    const emptied = forgetNotesInWorkspace(
+      closeTab(openInActiveTab(openInActiveTab(EMPTY_WORKSPACE, acme), beta), {
+        pane: 0,
+        id: 't1',
+      }),
+      () => true,
+    );
+    const back = openInActiveTab(openInActiveTab(EMPTY_WORKSPACE, acme), beta);
+    const lone = { ...goBackInTab(back), closed: emptied.closed };
+    expect(idsOf(reopenClosedTab({ ...lone, closed: closed.closed }))).toEqual(['t1', 't3']);
   });
 
   it('reopens nothing when nothing was closed', () => {
@@ -346,6 +389,22 @@ describe('panes', () => {
     expect(ws.focused).toBe(0);
   });
 
+  it('keeps a closed pane’s tabs for ⌘⇧T, the shown one first, pinned ones not at all', () => {
+    const split = pinTab(splitWithTab(activateTab(threeTabs(), { pane: 0, id: 't2' })), {
+      pane: 0,
+      id: 't1',
+    });
+    const ws = closePaneInWorkspace(split, 0);
+    expect(ws.closed.map((tab) => tab.id)).toEqual(['t2', 't3']);
+    expect(idsOf(reopenClosedTab(ws), 0)).toEqual(['t4', 't2']);
+  });
+
+  it(`keeps at most ${CLOSED_LIMIT} tabs after a pane closes`, () => {
+    let ws = splitWithTab(EMPTY_WORKSPACE);
+    for (let n = 0; n < CLOSED_LIMIT + 2; n += 1) ws = openInNewTab(ws, note(`N${n}`));
+    expect(closePaneInWorkspace(ws, 1).closed).toHaveLength(CLOSED_LIMIT);
+  });
+
   it('keeps the focus on the same pane when a pane before it closes', () => {
     const split = splitWithTab(threeTabs());
     const ws = closePaneInWorkspace(split, 0);
@@ -401,6 +460,27 @@ describe('after outside changes', () => {
     expect(tabPlace(moved.closed[0]!)).toEqual(note('Done/Acme'));
     expect(activeTabOf(moved).history.back).toEqual([note('Done/Acme')]);
     expect(moved.panes[0]!.tabs[0]!.history.back).toEqual([note('Done/Acme')]);
+  });
+
+  it('is the same workspace when no tab is on the moved note', () => {
+    const ws = closeTab(threeTabs(), { pane: 0, id: 't1' });
+    const moved = followMoveInWorkspace(ws, {
+      from: createVaultPath('Elsewhere.md'),
+      to: createVaultPath('Moved.md'),
+    });
+    expect(moved).toBe(ws);
+  });
+
+  it('leaves a tab the delete did not empty, even an empty one', () => {
+    const ws = newTab(openInActiveTab(openInActiveTab(EMPTY_WORKSPACE, acme), beta));
+    const after = forgetNotesInWorkspace(ws, (path) => path === 'Acme.md');
+    expect(idsOf(after)).toEqual(['t1', 't2']);
+    const two = openInActiveTab(openInActiveTab(EMPTY_WORKSPACE, acme), beta);
+    const split = newTab(splitWithTab(two));
+    const left = closeTab(split, { pane: 1, id: 't2' });
+    const stillSplit = forgetNotesInWorkspace(left, (path) => path === 'Beta.md');
+    expect(stillSplit.panes).toHaveLength(2);
+    expect(activeTabOf(stillSplit).history).toEqual(NO_HISTORY);
   });
 
   it('empties a tab on a deleted note, keeping Back so the tab can leave', () => {

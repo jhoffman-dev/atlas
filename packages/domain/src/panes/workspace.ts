@@ -6,6 +6,7 @@ import {
   goBack,
   goForward,
   NO_HISTORY,
+  samePlace,
   visit,
   type NavigationHistory,
   type NavigationPlace,
@@ -93,18 +94,21 @@ export function activePlace(ws: Workspace): NavigationPlace | null {
 // ---- Opening ---------------------------------------------------------------
 
 /**
- * Opens in the focused pane's active tab, as a step in that tab's history.
+ * A plain click: shows the place in the focused pane.
  *
- * Every open from outside a pane — a link, a search hit, a sidebar row, a
- * board card — comes through here, which is what makes "it opens where I am"
- * one rule rather than a decision taken again at each call site.
+ * A tab of that pane already on the place is shown rather than a second copy
+ * opened (James's decision on #303); otherwise the active tab goes there, as
+ * a step in its history. Every open from outside a pane — a link, a search
+ * hit, a sidebar row, a board card — comes through here, which is what makes
+ * "it opens where I am" one rule rather than a decision taken again at each
+ * call site. ⌘-click (`openInNewTab`) is how a second copy is asked for.
  */
 export function openInActiveTab(ws: Workspace, place: NavigationPlace): Workspace {
   return openInActiveTabOf(ws, { pane: ws.focused, place });
 }
 
 /**
- * Opens in a named pane's active tab, and leaves the focus there: opening
+ * As `openInActiveTab`, in a named pane, which takes the focus: opening
  * inside a pane is also a statement about where you are working. A pane that
  * is not there is refused, rather than opened somewhere else.
  */
@@ -115,8 +119,9 @@ export function openInActiveTabOf(
   if (!hasPane(ws, pane)) return ws;
   const held = ws.panes[pane] as Pane;
   const tab = activeTabIn(held);
+  const already = showing(tab, place) ? tab : held.tabs.find((each) => showing(each, place));
+  if (already !== undefined) return activateTab(ws, { pane, id: already.id });
   const history = visit(tab.history, place);
-  if (history === tab.history && pane === ws.focused) return ws;
   return {
     ...ws,
     focused: pane,
@@ -147,6 +152,11 @@ export function openInSplit(ws: Workspace, place: NavigationPlace): Workspace {
   if (!isWorkspaceSplit(ws)) return openInActiveTab(splitWithTab(ws), place);
   const other = ws.focused === 0 ? 1 : 0;
   return openInActiveTabOf(ws, { pane: other, place });
+}
+
+function showing(tab: Tab, place: NavigationPlace): boolean {
+  const shown = tabPlace(tab);
+  return shown !== null && samePlace(shown, place);
 }
 
 function addTab(
@@ -182,13 +192,17 @@ export function closeTab(ws: Workspace, { pane, id }: { pane: number; id: TabId 
 
 /**
  * Brings back the most recently closed tab, with its history, beside the
- * active tab of the focused pane, and shows it.
+ * active tab of the focused pane, and shows it. A pane holding nothing but
+ * one blank tab hands that tab's place over instead: it was only ever a
+ * placeholder, and ⌘⇧T after ⌘W should leave what ⌘W found.
  */
 export function reopenClosedTab(ws: Workspace): Workspace {
   const [tab, ...rest] = ws.closed;
   if (tab === undefined) return ws;
   const pane = ws.panes[ws.focused] as Pane;
-  const tabs = insertAt(pane.tabs, tab, clampToRun(pane.tabs, activeIndex(pane) + 1, false));
+  const only = pane.tabs.length === 1 ? (pane.tabs[0] as Tab) : null;
+  const kept = only !== null && isBlank(only) && !only.pinned ? [] : pane.tabs;
+  const tabs = insertAt(kept, tab, clampToRun(kept, activeIndex(pane) + 1, false));
   return {
     ...ws,
     closed: rest,
@@ -324,13 +338,19 @@ export function splitWithTab(ws: Workspace): Workspace {
 }
 
 /**
- * Closes a pane with every tab in it; none of them goes onto the closed
- * stack, since the pane is what was closed. The only pane cannot be closed:
- * an app with no pane has nowhere to put the next page opened.
+ * Closes a pane with every tab in it. Its tabs go onto the closed stack, the
+ * shown one on top, so ⌘⇧T brings the pane's page back first; a pinned tab
+ * closes with the pane and is not kept (pinning is reserved, so none is).
+ * The only pane cannot be closed: an app with no pane has nowhere to put the
+ * next page opened.
  */
 export function closePaneInWorkspace(ws: Workspace, pane: number): Workspace {
   if (!hasPane(ws, pane) || !isWorkspaceSplit(ws)) return ws;
-  return dropPane(ws, pane);
+  const held = ws.panes[pane] as Pane;
+  const shown = activeTabIn(held);
+  const others = held.tabs.filter((tab) => tab !== shown && !tab.pinned);
+  const gone = shown.pinned ? others : [shown, ...others];
+  return { ...dropPane(ws, pane), closed: [...gone, ...ws.closed].slice(0, CLOSED_LIMIT) };
 }
 
 export function focusPaneInWorkspace(ws: Workspace, pane: number): Workspace {
@@ -373,46 +393,56 @@ function withActiveHistory(
 
 // ---- Keeping tabs right after outside changes ------------------------------
 
-/** Follows a move or a rename: every tab on a moved note, open or closed, is where it went. */
+/**
+ * Follows a move or a rename: every tab on a moved note, open or closed, is
+ * where it went. The same workspace when no tab was on it, so a store can
+ * skip the write.
+ */
 export function followMoveInWorkspace(ws: Workspace, move: EntryMove): Workspace {
-  const follow = (tab: Tab): Tab => ({ ...tab, history: followMoveInHistory(tab.history, move) });
-  return {
-    ...ws,
-    panes: ws.panes.map((pane) => ({ ...pane, tabs: pane.tabs.map(follow) })),
-    closed: ws.closed.map(follow),
+  const follow = (tab: Tab): Tab => {
+    const history = followMoveInHistory(tab.history, move);
+    return history === tab.history ? tab : { ...tab, history };
   };
+  const panes = ws.panes.map((pane) => {
+    const tabs = pane.tabs.map(follow);
+    return sameItems(tabs, pane.tabs) ? pane : { ...pane, tabs };
+  });
+  const closed = ws.closed.map(follow);
+  if (sameItems(panes, ws.panes) && sameItems(closed, ws.closed)) return ws;
+  return { ...ws, panes, closed };
 }
 
 /**
  * Forgets deleted notes, after a delete. A tab on a gone note shows nothing
- * and keeps its Back, so it can leave the way it came; a tab left with
- * nothing at all — no page, nowhere to go — closes, under the last-tab rules,
- * and not onto the closed stack: nobody closed it. Pinned tabs stay.
+ * and keeps its Back, so it can leave the way it came; a tab the delete
+ * leaves with nothing at all — no page, nowhere to go — closes, under the
+ * last-tab rules, and not onto the closed stack: nobody closed it. A tab
+ * that was already empty is not the delete's to close, and pinned tabs stay.
  */
 export function forgetNotesInWorkspace(
   ws: Workspace,
   gone: (path: VaultPath) => boolean,
 ): Workspace {
   let touched = false;
+  const emptied = new Set<TabId>();
   const forget = (tab: Tab): Tab => {
     const history = forgetNotes(tab.history, gone);
     if (history === tab.history) return tab;
     touched = true;
-    return { ...tab, history };
+    const next = { ...tab, history };
+    if (!tab.pinned && isBlank(next)) emptied.add(tab.id);
+    return next;
   };
   const panes = ws.panes.map((pane) => ({ ...pane, tabs: pane.tabs.map(forget) }));
   const closed = ws.closed.map(forget);
   if (!touched) return ws;
 
-  let next: Workspace = { ...ws, panes, closed: closed.filter((tab) => !isBlank(tab)) };
-  const blank = panes.flatMap((pane) =>
-    pane.tabs.filter((tab) => !tab.pinned && isBlank(tab)).map((tab) => tab.id),
-  );
+  let next: Workspace = { ...ws, panes, closed: closed.filter((tab) => !emptied.has(tab.id)) };
   // One at a time, finding the pane afresh: closing a split pane's last tab
   // drops the pane, and the next id's pane may have moved left.
-  for (const id of blank) {
+  for (const id of emptied) {
     const pane = next.panes.findIndex((held) => held.tabs.some((tab) => tab.id === id));
-    next = removeTab(next, { pane, id });
+    if (pane !== -1) next = removeTab(next, { pane, id });
   }
   return next;
 }
@@ -484,6 +514,10 @@ function clampToRun(tabs: readonly Tab[], at: number, pinned: boolean): number {
   const low = pinned ? 0 : boundary;
   const high = pinned ? boundary : tabs.length;
   return Math.min(Math.max(at, low), high);
+}
+
+function sameItems<T>(left: readonly T[], right: readonly T[]): boolean {
+  return left.length === right.length && left.every((item, at) => item === right[at]);
 }
 
 function insertAt(tabs: readonly Tab[], tab: Tab, at: number): Tab[] {

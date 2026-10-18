@@ -52,6 +52,7 @@ describe('rememberWorkspace', () => {
       version: WORKSPACE_FORMAT_VERSION,
       vault: VAULT,
       focused: 1,
+      nextId: 4,
       panes: [
         {
           active: 't2',
@@ -91,14 +92,24 @@ describe('parseRememberedWorkspace', () => {
     expect(read!.focused).toBe(ws.focused);
   });
 
-  it('starts the closed stack empty and the next id past every id read', () => {
+  it('starts the closed stack empty and keeps the next id, so a closed tab’s id is never minted again', () => {
     const ws = closeTab(openInNewTab(openInActiveTab(EMPTY_WORKSPACE, acme), beta), {
       pane: 0,
-      id: 't1',
+      id: 't2',
     });
     const read = parseRememberedWorkspace(remembered(ws), VAULT)!;
     expect(read.closed).toEqual([]);
     expect(read.nextId).toBe(3);
+    expect(openInNewTab(read, beta).panes[0]!.tabs.map((tab) => tab.id)).toEqual(['t1', 't3']);
+  });
+
+  it('moves the next id past the ids read when the stored one is behind them', () => {
+    const record = {
+      ...(remembered(openInNewTab(openInActiveTab(EMPTY_WORKSPACE, acme), beta)) as object),
+      nextId: 1,
+    };
+    expect(parseRememberedWorkspace(record, VAULT)!.nextId).toBe(3);
+    expect(parseRememberedWorkspace({ ...record, nextId: 'many' }, VAULT)!.nextId).toBe(3);
   });
 
   it('is nothing remembered for a different vault: the paths are not there', () => {
@@ -328,7 +339,7 @@ describe('parseRememberedWorkspace', () => {
     ).toBe(1);
   });
 
-  it('mints the next id past ids that are not of its own making', () => {
+  it('keeps an id that is not of its own making, which nothing it mints can repeat', () => {
     const read = parseRememberedWorkspace(
       {
         version: 1,
@@ -345,9 +356,42 @@ describe('parseRememberedWorkspace', () => {
       },
       VAULT,
     )!;
+    expect(read.panes[0]!.tabs.map((tab) => tab.id)).toEqual(['left', 't12']);
+    expect(read.panes[0]!.active).toBe('left');
     expect(read.nextId).toBe(13);
-    const fresh = openInNewTab(read, acme);
-    expect(fresh.panes[0]!.tabs.map((tab) => tab.id)).toEqual(['left', 't13', 't12']);
+    expect(openInNewTab(read, acme).panes[0]!.tabs.map((tab) => tab.id)).toEqual([
+      'left',
+      't13',
+      't12',
+    ]);
+  });
+
+  it('mints afresh an id past what a number counts, so no later id can repeat it', () => {
+    const tab = (id: string) => ({ id, pinned: false, history: { back: [], current: acme } });
+    const read = parseRememberedWorkspace(
+      {
+        version: 1,
+        vault: VAULT,
+        nextId: 20,
+        panes: [
+          {
+            active: 't9007199254740992',
+            tabs: [
+              tab('t9007199254740992'),
+              tab(`t${'9'.repeat(400)}`),
+              tab('t9007199254740991'),
+              tab('t12'),
+            ],
+          },
+        ],
+      },
+      VAULT,
+    )!;
+    expect(read.panes[0]!.tabs.map((tab) => tab.id)).toEqual(['t20', 't21', 't22', 't12']);
+    expect(read.panes[0]!.active).toBe('t20');
+    expect(read.nextId).toBe(23);
+    const unsafeNext = { ...(remembered(EMPTY_WORKSPACE) as object), nextId: 2 ** 60 };
+    expect(parseRememberedWorkspace(unsafeNext, VAULT)!.nextId).toBe(2);
   });
 
   describe('the old split format', () => {

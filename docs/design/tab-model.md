@@ -49,7 +49,7 @@ Pages (Today, Inbox, graph, a type…) are places, so `MainView` goes. `navigati
 - Ids are unique; `focused` names a pane.
 - Closing the last tab of a split pane closes the pane. Closing the last tab of the only pane leaves one empty tab.
 - Moving the last tab out of a pane collapses the split.
-- Duplicate places are allowed.
+- Duplicate places are allowed, but a plain click on a place a tab of the focused pane already shows activates that tab rather than opening a second copy; ⌘-click opens the copy.
 - Pinned tabs sit first and can't be closed.
 - No tab cap in the domain.
 
@@ -63,7 +63,7 @@ Pages (Today, Inbox, graph, a type…) are places, so `MainView` goes. `navigati
 - Keeping tabs right after outside changes: `followMove`, `forgetNotes`.
 - Pinning: `pinTab`, `unpinTab`.
 
-_As built in 7a:_ names that would collide with the `pane-layout.ts` and `navigation-history.ts` exports in the same barrel carry their subject, the way `closeInPanes` and `followMoveInHistory` already do — `openInActiveTabOf` (a named pane), `closePaneInWorkspace`, `focusPaneInWorkspace`, `goBackInTab`, `goForwardInTab`, `followMoveInWorkspace`, `forgetNotesInWorkspace`. `visit` is `openInActiveTab`; `splitWithTab` splits with a copy of the active tab, and `openInSplit` is the ⌘⇧-click. `EMPTY_WORKSPACE`, `activePlace` and `activeTabOf` read the state. A tab on a deleted note empties and keeps its Back; a tab left with nothing at all closes, not onto the reopen stack.
+_As built in 7a:_ names that would collide with the `pane-layout.ts` and `navigation-history.ts` exports in the same barrel carry their subject, the way `closeInPanes` and `followMoveInHistory` already do — `openInActiveTabOf` (a named pane), `closePaneInWorkspace`, `focusPaneInWorkspace`, `goBackInTab`, `goForwardInTab`, `followMoveInWorkspace`, `forgetNotesInWorkspace`. `visit` is `openInActiveTab`; `splitWithTab` splits with a copy of the active tab, and `openInSplit` is the ⌘⇧-click. `EMPTY_WORKSPACE`, `activePlace` and `activeTabOf` read the state. A tab on a deleted note empties and keeps its Back; a tab the delete leaves with nothing at all closes, not onto the reopen stack, while a tab that was already empty stays. Closing a pane puts its tabs on the reopen stack, the shown one first (a pinned tab would close with it, unkept, while pinning is reserved); ⌘⇧T into a pane holding one blank tab replaces that tab.
 
 **Undo:**
 
@@ -72,7 +72,7 @@ _As built in 7a:_ names that would collide with the `pane-layout.ts` and `naviga
 
 **Persistence:**
 
-- Format: versioned `{ version: 1, vault, focused, panes: [{ active, tabs: [{ id, pinned, history }] }] }`. It holds places only, each validated on read.
+- Format: versioned `{ version: 1, vault, focused, nextId, panes: [{ active, tabs: [{ id, pinned, history }] }] }`. It holds places only, each validated on read. `nextId` is stored so a save then a restore never mints an id again; an id that is not `t<n>` with a safe `n` is minted afresh on read, so ids are unique within a session and within one stored record, no further.
 - The old format upgrades to one tab per pane.
 - Stored in localStorage `atlas.workspace:<vaultKey>`, one key per vault.
 - Not in vault settings, because the layout is per viewer and the vault syncs.
