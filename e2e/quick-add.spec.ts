@@ -80,7 +80,8 @@ test('with only Task, the button asks for a task at once and adds it', async ({ 
   expect(written).toContain('project: "[[Garden]]"');
 
   // It stays where it was, and says so with a way to open it.
-  const toast = page.getByRole('status').filter({ hasText: 'Task added' });
+  // The toast's live region is its message alone (#328); its buttons sit beside it.
+  const toast = page.locator('.toast').filter({ hasText: 'Task added' });
   await expect(toast).toBeVisible();
   const opened = page.getByRole('article', { name: 'Renew the passport', exact: true });
   await expect(opened).toHaveCount(0);

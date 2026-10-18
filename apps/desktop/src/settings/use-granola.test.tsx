@@ -83,6 +83,7 @@ function pullWith(overrides: Partial<GranolaPullController> = {}): GranolaPullCo
     report: null,
     lastPullAt: null,
     toast: null,
+    toastShown: 0,
     dismissToast: () => {},
     syncNow: vi.fn(),
     knowKey: vi.fn(),

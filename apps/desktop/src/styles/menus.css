@@ -13,17 +13,18 @@
   z-index: 30;
 }
 
-/* Menus float like every other overlay: a raised card with a generous
-   radius, rows with an icon and room to hit, the highlighted one tinted with
-   the accent, and any shortcut as a key chip on the right. */
+/* A menu is a popover: the surface with a hairline, an 8px radius and the
+   one shadow content never gets. Rows are 28px of body text; the highlighted
+   one takes the hover fill, and a shortcut is plain metadata on the right. */
 .menu {
-  background: var(--raised);
-  border-radius: 14px;
-  box-shadow: var(--shadow-overlay);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-popover);
   list-style: none;
   margin: 0;
-  min-width: 220px;
-  padding: 6px;
+  min-width: 200px;
+  padding: 4px;
 }
 
 .menu button {
@@ -31,16 +32,15 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: 5px;
   color: var(--ink);
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 600;
-  gap: 10px;
-  min-height: 36px;
-  padding: 0 10px;
+  font-size: var(--text-column);
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 8px;
   text-align: left;
   width: 100%;
 }
@@ -51,13 +51,13 @@
 
 .menu button:hover,
 .menu button[data-highlighted] {
-  background: var(--you);
-  color: var(--accent-text);
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .menu button:hover .icon,
 .menu button[data-highlighted] .icon {
-  color: var(--active-icon);
+  color: var(--ink-2);
 }
 
 .menu button[data-disabled] {
@@ -69,7 +69,7 @@
 /* Between groups: a gap and a hairline, which is how a menu says "another
    kind of thing" without a heading. */
 .menu__divider {
-  background: var(--line);
+  background: var(--line-soft);
   height: 1px;
-  margin: 6px 8px;
+  margin: 4px 0;
 }

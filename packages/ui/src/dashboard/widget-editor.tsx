@@ -175,7 +175,7 @@ function SqlFields({
         {(id) => (
           <textarea
             id={id}
-            className="field widget-sheet__sql"
+            className="field field--block widget-sheet__sql"
             spellCheck={false}
             rows={5}
             value={draft.sql}

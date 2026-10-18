@@ -3,10 +3,20 @@ import {
   createVaultPath,
   sidebarEntry,
   sidebarTreeRows,
+  STATUS_TONES,
   type ActiveSidebarPage,
   type SidebarSectionId,
 } from '@atlas/domain';
-import { SegmentedControl, Sidebar, Toggle, type SectionStore } from '@atlas/ui';
+import {
+  Icon,
+  KeyHints,
+  SegmentedControl,
+  Sidebar,
+  StatusPill,
+  Toast,
+  Toggle,
+  type SectionStore,
+} from '@atlas/ui';
 
 /**
  * Every primitive, in both themes, side by side.
@@ -81,6 +91,58 @@ function SidebarSpecimen() {
   );
 }
 
+/** A menu as Base UI would lay it out, standing still: rows, a highlight, a shortcut, a divider. */
+function MenuSpecimen() {
+  return (
+    <ul className="menu" role="presentation">
+      <li>
+        <button type="button">
+          <Icon name="doc" size={14} />
+          <span className="menu__label">Blank note</span>
+          <kbd className="key menu__shortcut">⌘N</kbd>
+        </button>
+      </li>
+      <li>
+        <button type="button" data-highlighted="">
+          <Icon name="calendar" size={14} />
+          <span className="menu__label">Today&apos;s note</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" data-disabled="">
+          <Icon name="template" size={14} />
+          <span className="menu__label">From template</span>
+        </button>
+      </li>
+      <li className="menu__divider" role="separator" />
+      <li>
+        <button type="button">
+          <Icon name="archive" size={14} />
+          <span className="menu__label">Archive</span>
+        </button>
+      </li>
+    </ul>
+  );
+}
+
+/**
+ * The toast stands on a stage of its own, since it places itself top right of
+ * whatever holds it. Its words are the longest the app says — a refused
+ * Granola key and its remedy — so the stage shows them wrapping, whole.
+ */
+function ToastSpecimen() {
+  return (
+    <div className="gallery-page__stage">
+      <Toast
+        message="Granola refused the API key. Create one in Granola → Settings → Connectors → API keys, and paste it in Settings → Granola."
+        onUndo={() => {}}
+        action={{ label: 'Open', onClick: () => {} }}
+        onDismiss={() => {}}
+      />
+    </div>
+  );
+}
+
 function Specimens() {
   const [view, setView] = useState<'board' | 'table' | 'calendar'>('board');
   const [on, setOn] = useState(true);
@@ -105,7 +167,13 @@ function Specimens() {
 
       <Row title="Button">
         <button type="button" className="btn btn--primary">
-          Primary
+          New task
+        </button>
+        <button type="button" className="btn btn--positive">
+          Accept
+        </button>
+        <button type="button" className="btn btn--destructive">
+          Reject
         </button>
         <button type="button" className="btn btn--secondary">
           Secondary
@@ -164,14 +232,43 @@ function Specimens() {
         <span className="chip chip--danger">overdue</span>
       </Row>
 
+      <Row title="Status pill">
+        {STATUS_TONES.map((tone) => (
+          <StatusPill key={tone} value={tone} />
+        ))}
+      </Row>
+
+      <Row title="Status dot">
+        {STATUS_TONES.map((tone) => (
+          <StatusPill key={tone} value={tone} variant="dot" />
+        ))}
+      </Row>
+
+      <Row title="Menu">
+        <MenuSpecimen />
+      </Row>
+
+      <Row title="Key hints">
+        <KeyHints
+          hints={[
+            ['esc', 'close'],
+            ['↑ ↓', 'previous / next row'],
+            ['⌘↵', 'open in tab'],
+          ]}
+        />
+      </Row>
+
+      <Row title="Toast">
+        <ToastSpecimen />
+      </Row>
+
       <Row title="Sidebar">
         <SidebarSpecimen />
       </Row>
 
       <Row title="Elevation">
-        <div className="card">Shadow 1 — a resting card</div>
-        <div className="card card--raised">Shadow 2 — raised: interactive or foremost</div>
-        <div className="card gallery-page__overlay">Shadow 3 — an overlay above the app</div>
+        <div className="card">Hairline — content never floats</div>
+        <div className="card gallery-page__overlay">Popover shadow — a menu, the peek, a toast</div>
       </Row>
     </>
   );

@@ -63,6 +63,15 @@
   box-shadow: var(--shadow-overlay);
 }
 
+/* The toast places itself top right of the nearest positioned box, so its
+   specimen gets one, as wide as the row and tall enough for its longest
+   words wrapped. */
+.gallery-page__stage {
+  height: 200px;
+  position: relative;
+  width: 100%;
+}
+
 /* The sidebar draws itself against the app's chrome, so the specimen stands on
    the same surface the shell gives it. */
 .gallery-page__sidebar {
