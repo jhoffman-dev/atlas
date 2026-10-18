@@ -44,6 +44,13 @@
   margin: 0;
 }
 
+/* Today's and the review's rows keep 44px: today-page.tsx places them by
+   ROW_HEIGHT = 44, and the table view's 34px rows (UI v2 slice 4) are not
+   theirs until their own slice. */
+.review__grid td {
+  height: 44px;
+}
+
 /* Scoped to the grid, as the Inbox's cells are: `.table__grid td` zeroes padding. */
 .review__grid .review__detail {
   color: var(--ink-2);

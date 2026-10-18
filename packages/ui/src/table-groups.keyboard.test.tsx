@@ -16,6 +16,7 @@ import {
   type RowGroup,
 } from '@atlas/domain';
 import { TableView, type TableResult } from './table-view.tsx';
+import { ROW_ESTIMATE } from './grouped-rows.tsx';
 import { scrollableSheet } from './testing/scrollable-sheet.ts';
 
 afterEach(cleanup);
@@ -85,7 +86,7 @@ describe('a long grouped table — the arrow keys (#248)', () => {
     backlog().focus();
 
     fireEvent.keyDown(backlog(), { key: 'End' });
-    scrollSheet(sheetOf(), LINES * 44);
+    scrollSheet(sheetOf(), LINES * ROW_ESTIMATE);
     expect(document.activeElement).toBe(name(`Row ${ROWS - 1}`));
 
     fireEvent.keyDown(name(`Row ${ROWS - 1}`), { key: 'Home' });
@@ -96,7 +97,7 @@ describe('a long grouped table — the arrow keys (#248)', () => {
   it('crosses from a group’s last row to the next group’s header, over its "+ New"', () => {
     render(<LongGrouped />);
     // Row 149 is line 150; "+ New" is 151, and the Doing header 152.
-    scrollSheet(sheetOf(), 140 * 44);
+    scrollSheet(sheetOf(), 140 * ROW_ESTIMATE);
     name('Row 149').focus();
     fireEvent.keyDown(name('Row 149'), { key: 'ArrowDown' });
     expect(document.activeElement).toBe(headerAt(152));
@@ -113,7 +114,7 @@ describe('a long grouped table — the arrow keys (#248)', () => {
     fireEvent.keyDown(backlog(), { key: 'Home' });
     expect(document.activeElement).toBe(backlog());
 
-    scrollSheet(sheetOf(), LINES * 44);
+    scrollSheet(sheetOf(), LINES * ROW_ESTIMATE);
     expect(screen.getByRole('button', { name: `Row ${ROWS - 1}` })).toBeDefined();
     expect(focusedLine()).not.toBe(String(LINES - 2));
   });
@@ -125,7 +126,7 @@ describe('a long grouped table — the arrow keys (#248)', () => {
     fireEvent.pointerDown(document.body);
 
     // Scrolled away, the header drops its focus to the body; the press still holds.
-    scrollSheet(sheetOf(), LINES * 44);
+    scrollSheet(sheetOf(), LINES * ROW_ESTIMATE);
     expect(screen.getByRole('button', { name: `Row ${ROWS - 1}` })).toBeDefined();
     expect(document.activeElement).toBe(document.body);
   });
@@ -136,7 +137,7 @@ describe('a long grouped table — the arrow keys (#248)', () => {
     fireEvent.keyDown(backlog(), { key: 'End' });
     backlog().blur();
 
-    scrollSheet(sheetOf(), LINES * 44);
+    scrollSheet(sheetOf(), LINES * ROW_ESTIMATE);
     expect(screen.getByRole('button', { name: `Row ${ROWS - 1}` })).toBeDefined();
     expect(document.activeElement).toBe(document.body);
   });
@@ -152,7 +153,8 @@ describe('a long grouped table — the arrow keys (#248)', () => {
     const input = document.querySelector('.table__input') as HTMLInputElement;
     expect(document.activeElement).toBe(input);
 
-    scrollSheet(sheetOf(), 400);
+    // A few rows: enough to draw the next line, not so far that the edited row leaves the page.
+    scrollSheet(sheetOf(), 4 * ROW_ESTIMATE);
     expect(document.querySelector(`tr[data-index="${edge + 1}"]`)).not.toBeNull();
     expect(document.activeElement).toBe(input);
   });
@@ -160,13 +162,13 @@ describe('a long grouped table — the arrow keys (#248)', () => {
   it('nor from a cell opened after the name it was asked from was scrolled away, with no press or blur', () => {
     render(<LongGrouped />);
     const sheet = sheetOf();
-    scrollSheet(sheet, 40 * 44);
+    scrollSheet(sheet, 40 * ROW_ESTIMATE);
     const edge = lastDrawn();
     name(`Row ${edge - 1}`).focus();
     fireEvent.keyDown(name(`Row ${edge - 1}`), { key: 'ArrowDown' });
 
     // Scrolled back up, the name leaves the page and its focus drops to the body.
-    scrollSheet(sheet, 25 * 44);
+    scrollSheet(sheet, 25 * ROW_ESTIMATE);
     expect(document.querySelector(`tr[data-index="${edge}"]`)).toBeNull();
     expect(document.activeElement).toBe(document.body);
     // A cell opened from the keyboard: no press, and nothing left to blur.
@@ -175,7 +177,7 @@ describe('a long grouped table — the arrow keys (#248)', () => {
     const input = document.querySelector('.table__input') as HTMLInputElement;
     expect(document.activeElement).toBe(input);
 
-    scrollSheet(sheet, 41 * 44);
+    scrollSheet(sheet, 41 * ROW_ESTIMATE);
     expect(document.querySelector(`tr[data-index="${edge + 1}"]`)).not.toBeNull();
     expect(document.activeElement).toBe(input);
   });
