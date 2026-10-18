@@ -63,6 +63,12 @@ export interface WorkspaceState {
   readonly paneKeys: readonly number[];
   /** The next new pane's key. Never handed out twice. */
   readonly nextPaneKey: number;
+  /**
+   * The notes the restored workspace's tabs were on, until the vault's
+   * listing has judged them: a tab opened since is never that listing's to
+   * close, and a listing can judge only once.
+   */
+  readonly restoredNotes: ReadonlySet<string>;
   /** Where the tabs are remembered, held here so every change can write itself. */
   readonly remembered: RememberedWorkspaces;
 }
@@ -86,6 +92,7 @@ export function createWorkspaceStore({
     workspace: EMPTY_WORKSPACE,
     paneKeys: freshKeys(EMPTY_WORKSPACE),
     nextPaneKey: MAX_PANES,
+    restoredNotes: new Set(),
     remembered,
   }));
 }
@@ -222,7 +229,22 @@ export function loadVault(store: WorkspaceStore, vaultKey: string | null): void 
     workspace,
     paneKeys: freshKeys(workspace),
     nextPaneKey: MAX_PANES,
+    restoredNotes: notesOf(workspace),
   });
+}
+
+/** Every note a workspace's tabs are on, or hold in their Back and Forward. */
+function notesOf(workspace: Workspace): ReadonlySet<string> {
+  const notes = new Set<string>();
+  for (const pane of workspace.panes) {
+    for (const tab of pane.tabs) {
+      const { back, current, forward } = tab.history;
+      for (const place of [...back, current, ...forward]) {
+        if (place?.kind === 'note') notes.add(place.path);
+      }
+    }
+  }
+  return notes;
 }
 
 /** Applies a domain change, keys the panes after it, and writes the result. */
@@ -366,16 +388,28 @@ export function closeNotes(store: WorkspaceStore, paths: readonly VaultPath[]): 
 }
 
 /**
- * Forgets every note the vault's listing does not have: the notes in user
- * space as listed once the vault opens, against tabs remembered from the
- * last launch. A tab on a note deleted while the app was closed opens on
- * nothing rather than on a read error, under the same rules a delete in the
- * app follows. A note the listing never covers — a view, a dashboard, a
- * template under `.atlas` — is not judged by it.
+ * Forgets every restored note the vault's listing does not have: the notes
+ * in user space as listed once the vault opens, against the tabs remembered
+ * from the last launch. A tab on a note deleted while the app was closed
+ * opens on nothing rather than on a read error, under the same rules a
+ * delete in the app follows. Only the notes the restore brought back are
+ * judged, and only once: a note opened since — made or renamed while the
+ * listing was on its way — is not the listing's to close, and a later
+ * listing, from a reload or from the vault before, closes nothing. A note
+ * the listing never covers — a view, a dashboard, a template under `.atlas`
+ * — is not judged either.
  */
 export function keepNotes(store: WorkspaceStore, listed: readonly VaultPath[]): void {
+  const { restoredNotes } = store.getState();
+  if (restoredNotes.size === 0) return;
   const kept = new Set<string>(listed);
   const covered = (path: VaultPath) =>
     isVisibleEntry({ kind: 'file', name: path.split('/').at(-1) ?? path, path });
-  change(store, (ws) => forgetNotesInWorkspace(ws, (path) => covered(path) && !kept.has(path)));
+  store.setState({ restoredNotes: new Set() });
+  change(store, (ws) =>
+    forgetNotesInWorkspace(
+      ws,
+      (path) => restoredNotes.has(path) && covered(path) && !kept.has(path),
+    ),
+  );
 }

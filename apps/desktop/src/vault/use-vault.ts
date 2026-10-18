@@ -95,6 +95,8 @@ export function useVault(
   const [notePaths, setNotePaths] = useState<readonly VaultPath[]>([]);
   /** The vault `notePaths` lists, once its listing has come back; null until then. */
   const [notesListedFor, setNotesListedFor] = useState<string | null>(null);
+  /** The vault adopted last, so a listing that lands after a switch is known for the vault it was asked of. */
+  const adopted = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
    * Folders forgotten since the last render — moved or deleted — which a
@@ -122,6 +124,7 @@ export function useVault(
       // at once, while a state change made here, after an await, is drawn
       // later. Left to that order, one render would show the next vault's
       // tabs against this vault's ports (R14-01).
+      adopted.current = next.absolutePath;
       flushSync(() => {
         switched.current?.(next);
         setLocation(next);
@@ -134,6 +137,8 @@ export function useVault(
       void loadDirectory(VAULT_ROOT);
       listVaultNotes({ fs })
         .then((paths) => {
+          // Landed after another vault was adopted: its notes, not this one's.
+          if (adopted.current !== next.absolutePath) return;
           setNotePaths(paths);
           setNotesListedFor(next.absolutePath);
         })
@@ -206,8 +211,11 @@ export function useVault(
     const gone = (path: VaultPath) =>
       [...forgotten.current].some((folder) => isWithin(path, folder));
     const paths = [...children.keys()].filter((path) => !gone(path));
+    const askedOf = adopted.current;
     listVaultNotes({ fs })
-      .then(setNotePaths)
+      .then((notes) => {
+        if (adopted.current === askedOf) setNotePaths(notes);
+      })
       .catch((cause: unknown) => setError(message(cause)));
     const listings = await Promise.allSettled(
       paths.map((path) => listVaultDirectory({ fs, path })),

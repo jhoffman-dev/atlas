@@ -278,6 +278,38 @@ describe('the workspace store', () => {
     expect(remembered.writes).toHaveLength(written);
   });
 
+  it('judges only the notes the restore brought back, and only once', () => {
+    const remembered = memoryRemembered({
+      '/v': {
+        ...EMPTY_WORKSPACE,
+        panes: [
+          {
+            active: 't1',
+            tabs: [
+              {
+                id: 't1',
+                pinned: false,
+                history: { back: [], current: note('gone'), forward: [] },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const store = createWorkspaceStore({ remembered: remembered.port });
+    loadVault(store, '/v');
+    // Made while the listing was on its way: the listing started before it existed.
+    openPlace(store, note('made-since'), 'new-tab');
+    keepNotes(store, [createVaultPath('a.md')]);
+    // The restored tab, left with nothing beside another tab, closes; the new one stays.
+    expect(placesOf(workspaceNow(store))).toEqual([note('made-since')]);
+
+    // A later listing — a reload's, or one from the vault before — judges nothing.
+    openPlace(store, note('renamed-since'), 'new-tab');
+    keepNotes(store, []);
+    expect(placesOf(workspaceNow(store))).toEqual([note('made-since'), note('renamed-since')]);
+  });
+
   describe('what each selector draws for', () => {
     it('draws the strip and one pane’s content for a tab switch, and nothing else', () => {
       const { store } = openOn();

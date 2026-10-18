@@ -20,7 +20,6 @@ import {
   type TagSuggestion,
   type QueryViewSummary,
   type SavedViewSummary,
-  digestOf,
   isWorkspaceSplit,
   tabPlace,
   type NavigationPlace,
@@ -79,6 +78,7 @@ import {
 } from '../workspace/workspace-store.ts';
 import type { WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
 import { useTabReveal } from './reveals.ts';
+import { useOutsideChangeReload } from './use-outside-change-reload.ts';
 import { artifactViewer, dashboardView, widgetEditor } from '../pages-on-first-use.ts';
 import { useUnlinkedMentions } from '../graph/use-unlinked-mentions.ts';
 import { useImages } from '../notes/use-images.ts';
@@ -880,21 +880,7 @@ function usePaneNote({
     if (hidden) void live.current.flush();
   }, [hidden]);
 
-  // A note changed outside — a different digest from what this editor read
-  // or last wrote, so its own write's echo is not a change — is read again
-  // while the editor is clean, behind another tab or shown; a dirty one
-  // keeps its edits and the save's own conflict rules apply. For the whole
-  // of the tab's life rather than while hidden: the news of a change made
-  // while the tab waited can land just after it shows.
-  useEffect(() => {
-    if (path === null) return;
-    return changes.subscribe(({ changes: changed }) => {
-      const held = live.current.open;
-      if (held === null || live.current.dirty) return;
-      const mine = changed.find((change) => change.kind === 'changed' && change.path === held.path);
-      if (mine !== undefined && mine.digest !== digestOf(held.onDisk)) live.current.reload();
-    });
-  }, [path, changes]);
+  useOutsideChangeReload({ changes, vault: context.vault, path, live });
 
   useEffect(() => {
     if (path === null) return;

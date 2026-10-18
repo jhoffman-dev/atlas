@@ -185,7 +185,7 @@ export function useStrandedEdits({
       }
       refresh();
     },
-    [store, vaultKey, refresh],
+    [store, refresh],
   );
 
   const take = useCallback(
