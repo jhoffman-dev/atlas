@@ -50,3 +50,37 @@ test('offers to reload the window once Reload has failed too, and reloading star
   await expect(page.getByRole('list', { name: 'Go to' })).toBeVisible();
   await expect(failed).toHaveCount(0);
 });
+
+test('Reload draws a page whose chunk arrived cut short, from a fresh copy, in place', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await vault.write('one.md', '# One\n');
+  await installHost(page, vault);
+  let cutShort = true;
+  await page.route(GRAPH_PAGE, async (route) => {
+    if (!cutShort) return route.continue();
+    const response = await route.fetch();
+    const body = await response.text();
+    return route.fulfill({ response, body: body.slice(0, Math.floor(body.length / 2)) });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+
+  await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Graph' }).click();
+  const failed = page.getByRole('alert').filter({ hasText: 'couldn’t load' });
+  await expect(failed).toHaveCount(1);
+
+  cutShort = false;
+  // The browser keeps the broken module under its address, so only a fresh one can mend it:
+  // which the build's map of chunks has to name, under the name the page asks for.
+  const fresh = page.waitForRequest((request) =>
+    /\/assets\/graph-page-[^/]+\.js\?attempt=\d+$/.test(request.url()),
+  );
+  await failed.getByRole('button', { name: 'Reload' }).click();
+  await fresh;
+  await expect(page.locator('.graph__surface')).toBeVisible();
+  await expect(failed).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Choose folder…' })).toHaveCount(0);
+});

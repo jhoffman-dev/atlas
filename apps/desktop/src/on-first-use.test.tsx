@@ -184,6 +184,17 @@ describe('onFirstUse', () => {
     expect(loadAgain).toHaveBeenCalledWith(2);
   });
 
+  it('still fetches a fresh copy on Reload when a fetch failed after the module itself had', async () => {
+    const { chunk, load, loadAgain } = scriptedChunk([PARSE_FAILED(), FETCH_FAILED()], [MODULE]);
+    const greeting = partOf(chunk);
+    await greeting.preload();
+    renderBesideEditor(greeting.Component);
+    await userEvent.click(await reloadButton());
+    expect(await screen.findByText('Hello, Mara 1')).toBeDefined();
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(loadAgain).toHaveBeenCalledWith(3);
+  });
+
   it('imports the same file again on Reload when only the fetch failed', async () => {
     const { chunk, load, loadAgain } = scriptedChunk([FETCH_FAILED(), MODULE], [MODULE]);
     renderBesideEditor(partOf(chunk).Component);

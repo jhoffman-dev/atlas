@@ -66,7 +66,9 @@ export function chunkOf<M>({
         },
         (cause: unknown) => {
           pending = null;
-          failedOnModule = !(cause instanceof Error && FETCH_FAILED.test(cause.message));
+          // Sticky: the browser keeps a module that failed to parse or run failed under its
+          // address for good, whatever a later import fails on.
+          failedOnModule ||= !(cause instanceof Error && FETCH_FAILED.test(cause.message));
           warnUnloaded(cause);
           throw cause;
         },
