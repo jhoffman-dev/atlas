@@ -723,6 +723,15 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     expect(within(tidyOffer()!).getByRole('status').textContent).toBe('Tidied the vault.');
   });
 
+  it('keeps showing an offer already shown that is briefly read as nothing, as a run settles', () => {
+    const view = page({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).not.toBeNull();
+    // Read again mid-run: the moves are made, and the run has not said so yet.
+    view.rerender({ vaultTidy: null });
+    view.rerender({ vaultTidy: { ...VAULT_TIDY, preview: null, result: 'Tidied the vault.' } });
+    expect(within(tidyOffer()!).getByRole('status').textContent).toBe('Tidied the vault.');
+  });
+
   it('shows the offers kept back the next time the Inbox opens', () => {
     const view = page();
     view.rerender({ vaultTidy: VAULT_TIDY });
