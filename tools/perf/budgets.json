@@ -109,7 +109,7 @@
     },
     "Decide an Inbox row": {
       "commits": 42,
-      "renders": 3414,
+      "renders": 3509,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,

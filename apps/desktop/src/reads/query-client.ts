@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { notifyManager, QueryClient } from '@tanstack/react-query';
 import type { VaultRead } from '@atlas/application';
 
 /**
@@ -11,6 +11,7 @@ import type { VaultRead } from '@atlas/application';
  * when a change touches it, whichever comes first.
  */
 export function createWindowQueryClient(): QueryClient {
+  notifyManager.setScheduler(inAMessageTask());
   return new QueryClient({
     defaultOptions: {
       queries: {
@@ -22,6 +23,26 @@ export function createWindowQueryClient(): QueryClient {
       },
     },
   });
+}
+
+/**
+ * Runs what the cache tells the window in the next message task, as React's
+ * own scheduler does, rather than on a timer as TanStack does by default. A
+ * zero-delay timer is time, and where it lands among the host's answers
+ * varied from run to run under the work budgets' clock, which counted a tick
+ * as 31 commits on one run and 33 on the next; a message task is work, which
+ * the clock waits for like React's.
+ */
+function inAMessageTask(): (callback: () => void) => void {
+  const channel = new MessageChannel();
+  const due: (() => void)[] = [];
+  channel.port1.onmessage = () => {
+    for (const callback of due.splice(0)) callback();
+  };
+  return (callback) => {
+    due.push(callback);
+    if (due.length === 1) channel.port2.postMessage(null);
+  };
 }
 
 /** Every query the vault at `vault` holds: its reads begin with this, and are dropped by it. */
