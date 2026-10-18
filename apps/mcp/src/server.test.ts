@@ -273,7 +273,9 @@ describe('tools/list', () => {
     const { tools } = await mcp.listTools();
     const review = tools.find((t) => t.name === 'atlas_weekly_review')?.description ?? '';
     expect(review).toContain('untouched for more than 7 days');
-    expect(review).toContain('defer, recurrence, waitingOn, contexts, project, projectTitle, modified');
+    expect(review).toContain(
+      'defer, recurrence, waitingOn, contexts, project, projectTitle, modified',
+    );
     expect(review).toContain('untouched for more than 30 days');
     expect(review).toContain('next-action or in-progress');
     expect(review).toContain('atlas_update_properties');
