@@ -45,6 +45,8 @@ export {
 export type { ViewDisplay, ViewLayout } from './saved-view.ts';
 export { typeTableQuery } from './type-table.ts';
 export { COLUMN_PREVIEW, columnPreview } from './column-preview.ts';
+export { groupTotals, tableArrangement } from './table-footer.ts';
+export type { TotalledGroup } from './table-footer.ts';
 export {
   describeFilter,
   filterOperatorWords,

@@ -60,6 +60,24 @@ describe('ViewToolbar tabs', () => {
   });
 });
 
+describe('ViewToolbar and the unsaved-changes notice', () => {
+  it('shows the pending controls in a notice bar above the bar, not among its actions', () => {
+    show({
+      pending: (
+        <div role="group" aria-label="Unsaved view changes">
+          <button type="button">Save view</button>
+        </div>
+      ),
+    });
+    const notice = screen.getByRole('group', { name: 'Unsaved view changes' });
+    const bar = document.querySelector('.view-toolbar') as HTMLElement;
+    expect(notice.closest('.view-toolbar')).toBeNull();
+    // Above: the notice comes before the bar in the page.
+    expect(notice.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(within(bar).queryByRole('button', { name: 'Save view' })).toBeNull();
+  });
+});
+
 describe('ViewToolbar new', () => {
   it('adds a note of the view’s type', async () => {
     const props = show();
