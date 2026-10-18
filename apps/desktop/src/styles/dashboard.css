@@ -10,9 +10,10 @@
    An 84px strip of figures across the top — the number widgets and the hero's
    totals — divided by hairlines, over a twelve-column grid of panels. Nothing
    is a card: a panel is a 13/600 heading over its chart, bounded by hairlines
-   on its left and foot, and the grid's own leading line is clipped by the
-   page, so no line is ever left trailing. A panel spans the columns its
-   `span` asks for; rows grow with their content.
+   on its left and foot. The page's scroll box clips the leading line of each
+   row; a row's trailing edge draws none, so a last panel that stops short of
+   the edge ends without a line. A panel spans the columns its `span` asks
+   for; rows grow with their content.
 
    Every chart is flat and grey; colour is the one called-out group, in the
    pastel blue that is `--accent-data`, and the status dots of a donut's
@@ -129,7 +130,7 @@
 }
 
 .kpi__bar-rest {
-  background: var(--track);
+  background: var(--chart-track);
 }
 
 /* ---- The panels ---- */
@@ -533,6 +534,11 @@
 
 .count-table__row--empty {
   color: var(--ink-3);
+}
+
+/* The called-out group, as the chart calls it out: named in ink, 600. */
+.count-table__row--current td.count-table__label {
+  font-weight: 600;
 }
 
 .count-table__swatch {

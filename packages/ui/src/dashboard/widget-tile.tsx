@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react';
-import { countOf, nounOf, withoutValue } from '@atlas/domain';
+import { nounOf, withoutValue } from '@atlas/domain';
 import type { WidgetResult } from '@atlas/application';
 import { widgetGlyph } from '../icon.tsx';
 import type { OverlaySlot } from '../overlay-slot.ts';
 import { BarChart } from './bar-chart.tsx';
 import { CountTable } from './count-table.tsx';
+import { counted } from './counted.ts';
 import { DonutChart } from './donut-chart.tsx';
 import { HeroStrip, heroCells } from './hero-strip.tsx';
 import { KpiItem } from './kpi-item.tsx';
@@ -18,6 +19,11 @@ import { WidgetList, WidgetTable } from './widget-rows.tsx';
 /** A widget drawn on the KPI strip rather than as a panel: a single figure, or the hero's few. */
 export function onStrip({ data }: WidgetResult): boolean {
   return data.shape === 'number' || data.shape === 'hero';
+}
+
+/** Drawn as upright bars: by what is drawn, not the kind, since a SQL widget can show bars too. */
+function drawnAsBars({ widget, data }: WidgetResult): boolean {
+  return data.shape === 'bars' && widget.kind !== 'donut' && widget.kind !== 'line';
 }
 
 /**
@@ -60,7 +66,7 @@ export function WidgetTile({
       </WidgetFrame>
     );
   }
-  const toggle = widget.kind === 'bar' && data.shape === 'bars' && data.bars.length > 0 && (
+  const toggle = drawnAsBars(result) && data.shape === 'bars' && data.bars.length > 0 && (
     <TableToggle showingTable={showingTable} onToggle={() => setShowingTable((was) => !was)} />
   );
   return (
@@ -85,15 +91,18 @@ export function WidgetTile({
  * group, how many it could not place and how many it counted; a donut's
  * whole; a ranking's share of the whole.
  */
-function asideOf({ widget, data }: WidgetResult): ReactNode {
+function asideOf(result: WidgetResult): ReactNode {
+  const { widget, data } = result;
   const noun = widget.query?.type ?? '';
-  const counted = (count: number) => (noun === '' ? String(count) : countOf(count, noun));
   if (data.shape === 'rank') {
-    return <span className="widget__note">{`${data.shown} of ${counted(data.total)}`}</span>;
+    // An empty ranking says so in its body; "0 of 0 tasks" would say it twice.
+    if (data.rows.length === 0) return null;
+    return <span className="widget__note">{`${data.shown} of ${counted(data.total, noun)}`}</span>;
   }
   if (data.shape !== 'bars') return null;
-  if (widget.kind === 'donut') return <span className="widget__total">{counted(data.total)}</span>;
-  if (widget.kind !== 'bar') return null;
+  if (widget.kind === 'donut')
+    return <span className="widget__total">{counted(data.total, noun)}</span>;
+  if (!drawnAsBars(result)) return null;
   return (
     <>
       {data.highlight !== null && widget.groupBy !== null && (
@@ -105,7 +114,7 @@ function asideOf({ widget, data }: WidgetResult): ReactNode {
       {data.unset > 0 && widget.groupBy !== null && (
         <span className="widget__note">{withoutValue(data.unset, widget.groupBy)}</span>
       )}
-      <span className="widget__total">{counted(data.total)}</span>
+      <span className="widget__total">{counted(data.total, noun)}</span>
     </>
   );
 }
@@ -137,7 +146,17 @@ function WidgetBody({
       if (widget.kind === 'donut')
         return <DonutChart bars={data.bars} groupBy={widget.groupBy} noun={noun} />;
       if (widget.kind === 'line') return <LineChart bars={data.bars} />;
-      if (showingTable) return <CountTable bars={data.bars} groupBy={widget.groupBy} noun={noun} />;
+      // With nothing to chart there is no table either: the chart says so,
+      // whatever the toggle was left at.
+      if (showingTable && data.bars.length > 0)
+        return (
+          <CountTable
+            bars={data.bars}
+            groupBy={widget.groupBy}
+            noun={noun}
+            highlight={data.highlight}
+          />
+        );
       return (
         <BarChart
           bars={data.bars}

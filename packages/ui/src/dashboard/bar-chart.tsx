@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react';
-import { countOf, groupName, humanizeKey } from '@atlas/domain';
+import { groupName, humanizeKey } from '@atlas/domain';
 import type { WidgetBar } from '@atlas/application';
 import { largestOf, niceTicks } from '../charts/geometry.ts';
 import { useNoteNames } from '../note-names.tsx';
+import { counted } from './counted.ts';
 
 /**
  * Counts as upright bars, in the order the application put them — key order
@@ -10,11 +11,16 @@ import { useNoteNames } from '../note-names.tsx';
  *
  * The bars are one grey and compared by height; the called-out one is the
  * pastel blue with its label in ink. Which one is the widget's `highlight`
- * rule; this only draws it. A value is written only over the tallest bar and
- * the called-out one, so the picture is not a row of numbers; every bar still
- * names itself and its count when pointed at, and to a screen reader. Not as
- * a label on the item: a label is what `getByLabel` and a rotor list by, and
- * "Status doing · 2 tasks" would then shadow the widget called "Doing".
+ * rule; this only draws it. A value is written only over the first of the
+ * tallest bars and the called-out one, so the picture is not a row of
+ * numbers — fifty bars that tie would print fifty values over each other.
+ * Every bar still names itself and its count when pointed at, and to a
+ * screen reader. Not as a label on the item: a label is what `getByLabel`
+ * and a rotor list by, and "Status doing · 2 tasks" would then shadow the
+ * widget called "Doing".
+ *
+ * A SQL bar can be negative. It is drawn as no bar, at the floor, with its
+ * value written there and read as it is.
  */
 export function BarChart({
   bars,
@@ -34,13 +40,13 @@ export function BarChart({
   const ticks = niceTicks({ max: tallest });
   const top = ticks[ticks.length - 1] ?? 1;
   const at = (value: number): CSSProperties =>
-    ({ '--at': `${(value / top) * 100}%` }) as CSSProperties;
+    ({ '--at': `${(Math.max(value, 0) / top) * 100}%` }) as CSSProperties;
+  const firstTallest = bars.findIndex((bar) => bar.count === tallest);
   const nameOf = (bar: WidgetBar) => {
     const name = groupName(bar.label, names);
     return groupBy === null ? name : `${humanizeKey(groupBy)} ${name}`;
   };
-  const tipOf = (bar: WidgetBar) =>
-    `${nameOf(bar)} · ${noun === '' ? bar.count : countOf(bar.count, noun)}`;
+  const tipOf = (bar: WidgetBar) => `${nameOf(bar)} · ${counted(bar.count, noun)}`;
 
   return (
     <div className="bars">
@@ -58,12 +64,13 @@ export function BarChart({
           ))}
         </div>
         <ol className="bars__columns" aria-label="Counts">
-          {bars.map((bar) => {
+          {bars.map((bar, index) => {
             const current = bar.label === highlight;
             return (
               <li
                 className={current ? 'bars__column bars__column--current' : 'bars__column'}
-                key={bar.label}
+                // By position: a SQL result may hand back the same label twice.
+                key={`${index}-${bar.label}`}
                 title={tipOf(bar)}
               >
                 {/* The reading, once, for a screen reader; the drawn label and
@@ -71,7 +78,7 @@ export function BarChart({
                 <span className="visually-hidden">{tipOf(bar)}</span>
                 <span className="bars__stack">
                   <span className="bars__bar" style={at(bar.count)} />
-                  {(current || bar.count === tallest) && (
+                  {(current || index === firstTallest) && (
                     <span className="bars__value" style={at(bar.count)} aria-hidden="true">
                       {bar.count}
                     </span>

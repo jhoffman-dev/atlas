@@ -271,11 +271,39 @@ describe('BarChart', () => {
     expect(textsOf(container, '.bars__value')).toEqual(['9', '2']);
   });
 
-  it('writes a value over every bar that ties for tallest, and over a lone bar', () => {
+  it('writes a value over the first of the bars that tie for tallest, and over a lone bar', () => {
+    // Fifty bars that tie would print fifty values over one another.
     const { container: tied } = bars(barData(barsOf(['1', 5], ['2', 5], ['3', 1])));
-    expect(textsOf(tied, '.bars__value')).toEqual(['5', '5']);
+    expect(textsOf(tied, '.bars__value')).toEqual(['5']);
+    expect(tied.querySelector('.bars__column .bars__value')?.closest('.bars__column')).toBe(
+      tied.querySelector('.bars__column'),
+    );
     const { container: lone } = bars(barData(barsOf(['1', 3])));
     expect(textsOf(lone, '.bars__value')).toEqual(['3']);
+  });
+
+  it('stands a negative value at the floor, with its value written there and read as it is', () => {
+    const { container } = draw(
+      result(
+        { kind: 'sql', title: 'Hours', sql: 'SELECT client, SUM(hours) FROM v_task;', show: 'bar' },
+        barData(barsOf(['Larkspur', 4], ['Quill', -3])),
+      ),
+    );
+    const columns = [...container.querySelectorAll('.bars__column')];
+    expect(styleVar(columns[1]?.querySelector('.bars__bar'), '--at')).toBe('0%');
+    expect(columns[1]?.getAttribute('title')).toBe('Quill · -3');
+  });
+
+  it('offers the table and the total to a SQL widget drawn as bars', () => {
+    draw(
+      result(
+        { kind: 'sql', title: 'Hours', sql: 'SELECT client, SUM(hours) FROM v_task;', show: 'bar' },
+        barData(barsOf(['Larkspur', 4], ['Quill', 3])),
+      ),
+    );
+    expect(screen.getByRole('button', { name: 'Show as table' })).toBeDefined();
+    const panel = screen.getByRole('region', { name: 'Hours' });
+    expect(within(panel).getByText('7').className).toBe('widget__total');
   });
 
   it('names each bar and its count when pointed at, and to a screen reader', () => {
@@ -347,6 +375,26 @@ describe('BarChart', () => {
     expect(screen.getByText('Nothing to chart yet.')).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Show as table' })).toBeNull();
   });
+
+  it('says so, not an empty table, when a chart left in table mode runs out of bars', async () => {
+    const source = { kind: 'bar', type: 'task', groupBy: 'phase', title: 'Per phase' };
+    const { container, rerender } = draw(result(source, barData(barsOf(['1', 4]))));
+    await userEvent.click(screen.getByRole('button', { name: 'Show as table' }));
+    expect(container.querySelector('.count-table')).not.toBeNull();
+
+    rerender(<DashboardView results={[result(source, barData([]))]} onOpenNote={() => {}} />);
+    expect(screen.getByText('Nothing to chart yet.')).toBeDefined();
+    expect(container.querySelector('.count-table')).toBeNull();
+  });
+
+  it('marks the called-out group in the table, as the chart does in its bars', async () => {
+    const { container } = bars(barData(barsOf(['1', 4], ['2', 9]), { highlight: '2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show as table' }));
+    const current = container.querySelectorAll('.count-table__row--current');
+    expect(current).toHaveLength(1);
+    expect(current[0]?.getAttribute('aria-current')).toBe('true');
+    expect(current[0]?.querySelector('.count-table__label')?.textContent).toBe('2');
+  });
 });
 
 describe('DonutChart', () => {
@@ -390,6 +438,23 @@ describe('DonutChart', () => {
     ).toEqual([
       ['Doing', '3', '75%'],
       ['Done', '1', '25%'],
+    ]);
+  });
+
+  it('leaves a value that is no status on the ramp, even in a status grouping', () => {
+    const { container } = donut(barsOf(['done', 3], ['Other', 2], ['', 1], ['blocked', 1]));
+    const segments = [...container.querySelectorAll('.donut__segment')];
+    expect(segments.map((segment) => segment.getAttribute('data-tone'))).toEqual([
+      'done',
+      null,
+      null,
+      null,
+    ]);
+    expect(segments.map((segment) => segment.getAttribute('data-rank'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
     ]);
   });
 
@@ -569,6 +634,11 @@ describe('RankList', () => {
     rank();
     const panel = screen.getByRole('region', { name: 'Largest phases' });
     expect(within(panel).getByText('45 of 90 tasks').className).toBe('widget__note');
+  });
+
+  it('says nothing beside the title of an empty ranking', () => {
+    rank({ rows: [], shown: 0, total: 0, highlight: null });
+    expect(screen.queryByText(/ of /)).toBeNull();
   });
 
   it('calls out the highlighted group', () => {

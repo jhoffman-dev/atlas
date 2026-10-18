@@ -378,12 +378,41 @@ describe('stackedSegments', () => {
   it('splits the width between the values, in the order given, with nothing left over', () => {
     const segments = stackedSegments({ values: [174, 10, 2], width: 300 });
 
-    expect(segments.map((segment) => segment.size)).toEqual([
-      (174 / 186) * 300,
-      (10 / 186) * 300,
-      (2 / 186) * 300,
+    const sizes = segments.map((segment) => segment.size);
+    expect(sizes[0]).toBeCloseTo((174 / 186) * 300, 9);
+    expect(sizes[1]).toBeCloseTo((10 / 186) * 300, 9);
+    expect(sizes[2]).toBeCloseTo((2 / 186) * 300, 9);
+    const last = segments.at(-1);
+    // Exactly, not nearly: the last segment reaches the bar's own edge.
+    expect((last?.start ?? 0) + (last?.size ?? 0)).toBe(300);
+  });
+
+  it('ends at the width exactly however the shares round, with any trailing zeros at the edge', () => {
+    for (const values of [
+      [1, 1, 1],
+      [0.1, 0.2, 0.7],
+      [7, 3, 0],
+      [1e-9, 1, 1e-9, 0],
+    ]) {
+      const segments = stackedSegments({ values, width: 100 });
+      const last = segments.at(-1);
+      expect((last?.start ?? 0) + (last?.size ?? 0), JSON.stringify(values)).toBe(100);
+    }
+  });
+
+  it('shares out the width when the values would add up past the largest number', () => {
+    expect(
+      stackedSegments({ values: [Number.MAX_VALUE, Number.MAX_VALUE], width: 100 }).map(
+        (segment) => segment.size,
+      ),
+    ).toEqual([50, 50]);
+  });
+
+  it('gives a negative width no room rather than segments that run backwards', () => {
+    expect(stackedSegments({ values: [1, 1], width: -10 })).toEqual([
+      { start: 0, size: 0 },
+      { start: 0, size: 0 },
     ]);
-    expect(segments.reduce((sum, segment) => sum + segment.size, 0)).toBeCloseTo(300, 9);
   });
 
   it('starts each segment where the one before it stopped', () => {

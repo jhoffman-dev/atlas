@@ -102,7 +102,7 @@
   --focus: #6b7bc4; /* the focus ring and the editing cell's ring only */
   --sep: #c4c4ca; /* the · between metadata */
   --chart-grid: #f1f1f3;
-  --chart-bar: #d4d4d8;
+  --chart-bar: #8e8e96; /* 3.25:1 on the surface: a bar is read by its height alone */
 
   /* Status: the dot, the pill's text and the pill's tint. Every status also
      carries its label — the dots alone do not separate for everyone. A dot
@@ -193,7 +193,7 @@
     --focus: #8f9be0;
     --sep: #4a4a52;
     --chart-grid: #232328;
-    --chart-bar: #3f3f46;
+    --chart-bar: #6e6e76; /* 3.5:1 on the surface */
 
     --status-inbox-dot: #9db4c8;
     --status-inbox-ink: #b8cbdb;
@@ -270,7 +270,7 @@
   --focus: #8f9be0;
   --sep: #4a4a52;
   --chart-grid: #232328;
-  --chart-bar: #3f3f46;
+  --chart-bar: #6e6e76; /* 3.5:1 on the surface */
 
   --status-inbox-dot: #9db4c8;
   --status-inbox-ink: #b8cbdb;
@@ -362,6 +362,9 @@
   --navy: var(--ink);
   --navy-data: var(--status-done-dot);
   --bar-muted: var(--chart-bar);
+  /* The rest of a chart's bar, what the done part is read against. Not
+     `--track`, which is the well tint a switch or a code block sits on. */
+  --chart-track: var(--chart-bar);
   --tile-ink: var(--ink-2);
   /* The hero is a well fill now, not a gradient; the sidebar's empty-vault
      card is the one thing still drawn on it. */

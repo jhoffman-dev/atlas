@@ -73,10 +73,12 @@ describe.each(Object.entries(themes))('dashboard contrast, %s theme', (_name, th
     expect(on('--navy-data')).toBeGreaterThanOrEqual(3);
   });
 
-  it('the rest of the hero status bar (--track) is visible against the panel at 3:1', () => {
+  it('the rest of the hero status bar (--chart-track) is visible against the panel at 3:1', () => {
     // Without it the done part has no whole to be read against: 30% and 100%
-    // draw as a blue line of a different length and nothing else.
-    expect(on('--track')).toBeGreaterThanOrEqual(3);
+    // draw as a blue line of a different length and nothing else. The bar's
+    // rest is `--chart-track`: `--track` is the well tint thirty other rules
+    // sit text on, and cannot be a 3:1 grey.
+    expect(on('--chart-track')).toBeGreaterThanOrEqual(3);
   });
 
   it('axis ticks, labels and notes (--ink-3) hold 4.5:1 against the panel', () => {

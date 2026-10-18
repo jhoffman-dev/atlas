@@ -1,11 +1,22 @@
-import { humanizeKey, legendName, pluralOf, statusTone } from '@atlas/domain';
+import {
+  STATUS_TONES,
+  humanizeKey,
+  legendName,
+  pluralOf,
+  statusTone,
+  type StatusTone,
+} from '@atlas/domain';
 import type { WidgetBar } from '@atlas/application';
 import { useNoteNames } from '../note-names.tsx';
 
 /**
  * Which colour a group's swatch wears, as data attributes for the stylesheet:
- * its rank among the groups, and, when the groups are statuses, the status
- * itself — so Done is green here as it is in every pill.
+ * its rank among the groups, and, when the groups are statuses and the group
+ * is one of the eight, the status itself — so Done is green here as it is in
+ * every pill. A value that is not a status — a custom option, the gathered
+ * "Other", no value at all — keeps its rank colour: `statusTone` falls back
+ * to Backlog for anything it does not know, and two groups must not share a
+ * colour.
  */
 export function swatchOf({
   index,
@@ -15,11 +26,14 @@ export function swatchOf({
   index: number;
   label: string;
   groupBy: string | null;
-}): { readonly 'data-rank': number; readonly 'data-tone'?: string } {
-  return {
-    'data-rank': index + 1,
-    ...(groupBy === 'status' && { 'data-tone': statusTone(label) }),
-  };
+}): { readonly 'data-rank': number; readonly 'data-tone'?: StatusTone } {
+  const tone = groupBy === 'status' ? knownTone(label) : null;
+  return { 'data-rank': index + 1, ...(tone !== null && { 'data-tone': tone }) };
+}
+
+function knownTone(label: string): StatusTone | null {
+  const tone = statusTone(label);
+  return STATUS_TONES.includes(tone) && label.trim().toLowerCase() === tone ? tone : null;
 }
 
 /**
@@ -33,11 +47,14 @@ export function CountTable({
   bars,
   groupBy,
   noun,
+  highlight = null,
   swatches = false,
 }: {
   bars: readonly WidgetBar[];
   groupBy: string | null;
   noun: string;
+  /** The group the chart calls out: its row is marked, so the table says what the bars said. */
+  highlight?: string | null;
   swatches?: boolean;
 }) {
   const names = useNoteNames();
@@ -60,9 +77,14 @@ export function CountTable({
             // By position: a value genuinely called "Other" must not share a
             // key with the gathered tail.
             key={`${index}-${bar.label}`}
-            className={
-              bar.count === 0 ? 'count-table__row count-table__row--empty' : 'count-table__row'
-            }
+            className={[
+              'count-table__row',
+              bar.count === 0 ? 'count-table__row--empty' : '',
+              bar.label === highlight ? 'count-table__row--current' : '',
+            ]
+              .filter((name) => name !== '')
+              .join(' ')}
+            {...(bar.label === highlight && { 'aria-current': true })}
           >
             <td className="count-table__label">
               {swatches && (

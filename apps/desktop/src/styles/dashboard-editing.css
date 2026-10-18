@@ -21,7 +21,12 @@
 }
 
 /* The arranging grid keeps the gap and gutter a resize is measured against
-   (e2e/dashboard-editing.spec.ts reads a column from them). */
+   (e2e/dashboard-editing.spec.ts reads a column from them), and stays inside
+   the page's own gutter rather than taking it back as the panels do. */
+.page--wide .dashboard--arranging {
+  margin: 0;
+}
+
 .dashboard--arranging {
   align-content: start;
   display: grid;

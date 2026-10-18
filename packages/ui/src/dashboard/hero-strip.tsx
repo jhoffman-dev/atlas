@@ -1,8 +1,17 @@
 import type { CSSProperties } from 'react';
-import { countOf, groupName, humanizeKey, nounOf, percentOf, type Widget } from '@atlas/domain';
+import {
+  countOf,
+  groupName,
+  humanizeKey,
+  nounOf,
+  percentOf,
+  type GroupCount,
+  type Widget,
+} from '@atlas/domain';
 import type { HeroData } from '@atlas/application';
 import { stackedSegments } from '../charts/geometry.ts';
 import { useNoteNames } from '../note-names.tsx';
+import { counted } from './counted.ts';
 import { KpiItem } from './kpi-item.tsx';
 
 /**
@@ -10,11 +19,12 @@ import { KpiItem } from './kpi-item.tsx';
  * the widget declares progress, and the called-out group when it has one.
  */
 export function heroCells(widget: Widget, data: HeroData): number {
-  return 1 + (data.part === null ? 0 : 1) + (showsHighlight(widget, data) ? 1 : 0);
+  return 1 + (data.part === null ? 0 : 1) + (highlightOf(widget, data) === null ? 0 : 1);
 }
 
-function showsHighlight(widget: Widget, data: HeroData): boolean {
-  return widget.groupBy !== null && data.highlight !== null;
+/** The called-out group, which needs a grouping to be named by. */
+function highlightOf(widget: Widget, data: HeroData): GroupCount | null {
+  return widget.groupBy === null ? null : data.highlight;
 }
 
 /**
@@ -27,7 +37,7 @@ export function HeroStrip({ widget, data }: { widget: Widget; data: HeroData }) 
   const names = useNoteNames();
   const groupNoun = widget.groupBy === null ? null : nounOf(widget.groupBy);
   const noun = widget.query?.type ?? '';
-  const counted = (count: number) => (noun === '' ? String(count) : countOf(count, noun));
+  const highlight = highlightOf(widget, data);
 
   return (
     <>
@@ -49,11 +59,11 @@ export function HeroStrip({ widget, data }: { widget: Widget; data: HeroData }) 
           <StatusBar part={data.part.count} total={data.total} />
         </KpiItem>
       )}
-      {groupNoun !== null && data.highlight !== null && (
+      {groupNoun !== null && highlight !== null && (
         <KpiItem
           label={`Current ${groupNoun}`}
-          value={groupName(data.highlight.label, names)}
-          sub={counted(data.highlight.count)}
+          value={groupName(highlight.label, names)}
+          sub={counted(highlight.count, noun)}
         />
       )}
     </>

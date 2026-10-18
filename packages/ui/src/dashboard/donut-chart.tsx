@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react';
-import { countOf, legendName } from '@atlas/domain';
+import { legendName } from '@atlas/domain';
 import type { WidgetBar } from '@atlas/application';
 import { stackedSegments } from '../charts/geometry.ts';
 import { useNoteNames } from '../note-names.tsx';
 import { CountTable, swatchOf } from './count-table.tsx';
+import { counted } from './counted.ts';
 
 /**
  * The donut kind, answering "how is the whole divided": a thin bar stacked
@@ -39,7 +40,7 @@ export function DonutChart({
               key={`${index}-${bar.label}`}
               className="chart-swatch donut__segment"
               {...swatchOf({ index, label: bar.label, groupBy })}
-              title={`${legendName(bar.label, names)} · ${countOf(bar.count, noun)}`}
+              title={`${legendName(bar.label, names)} · ${counted(bar.count, noun)}`}
               style={{ '--size': segment.size } as CSSProperties}
             />
           );

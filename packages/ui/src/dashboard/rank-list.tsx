@@ -37,10 +37,11 @@ export function RankList({
         </tr>
       </thead>
       <tbody>
-        {data.rows.map((row) => (
+        {data.rows.map((row, index) => (
           <tr
             className={row.label === data.highlight ? 'rank__row rank__row--current' : 'rank__row'}
-            key={row.label}
+            // By position: a label can repeat.
+            key={`${index}-${row.label}`}
           >
             <td className="rank__name">{`${humanizeKey(groupBy)} ${groupName(row.label, names)}`}</td>
             <td className="rank__track" aria-hidden="true">
