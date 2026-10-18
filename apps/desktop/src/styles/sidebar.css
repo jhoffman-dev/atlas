@@ -1,0 +1,501 @@
+/* The sidebar; Moving the sections (P19-01, P19-02); The sidebar's foot.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- The sidebar ----------------------------------------------------------
+   Search, Today and Inbox first; then favourites, types, views, dashboards and
+   Pages as peers, each a small-caps heading that opens and shuts, with 29px
+   icon rows underneath. Only Pages can be large, so only Pages is virtualised.
+   The five sections share one scroller (issue #17): each is as tall as its
+   rows, and a short window scrolls them together, under the quick rows and
+   above the footer, which stay put.
+   -------------------------------------------------------------------------- */
+
+.sidebar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.sidebar__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Out into the sidebar's own padding, so a section's grip (left of its
+     heading) and a focus ring are not clipped at the scroller's edges. */
+  margin: 0 -6px 0 -12px;
+  padding: 0 6px 0 12px;
+  /* Positioned, so the tree can measure where it starts inside it; and a
+     row brought into view by focus stops below the sticky heading. The tree
+     reads this padding as the sticky heading's height (stickyOffsetOf in
+     scroll-margin.ts), so it stays equal to .sidebar__disclosure's. */
+  position: relative;
+  scroll-padding-top: 24px;
+  /* The sticky headings' z-index stays inside the sidebar, so the work
+     panel's shadow still falls over them as it does over the rest. */
+  isolation: isolate;
+}
+
+.sidebar__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* A section's heading stays at the top of the scroller while its rows pass
+   under it, and is pushed off by the next section's. On the ground colour, so
+   it reads as the same heading and not as a bar. */
+.sidebar__head {
+  background: var(--ground);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.sidebar__heading {
+  font-size: var(--text-label);
+  margin: 0;
+}
+
+.sidebar__disclosure {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-label);
+  font-weight: 800;
+  gap: 4px;
+  height: 24px;
+  letter-spacing: var(--tracking-label);
+  padding: 0 10px;
+  text-align: left;
+  text-transform: uppercase;
+  width: 100%;
+}
+
+.sidebar__disclosure:hover {
+  color: var(--ink-2);
+}
+
+.sidebar__disclosure:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.sidebar__chevron {
+  transition: transform 120ms ease;
+}
+
+.sidebar__disclosure[aria-expanded='false'] .sidebar__chevron {
+  transform: rotate(-90deg);
+}
+
+.sidebar__body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Moving the sections (P19-01, P19-02) --------------------------------
+   The sections are a sortable list: each is dragged by a grip in the gutter
+   left of its heading, shown on hover or focus, or moved with Alt+↑/↓ from
+   it. A shut section keeps its place; the move slides (in
+   reorder-transition.ts) unless reduced motion is asked for. */
+
+ul.sidebar__sections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar__sections > .sortable__row {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar__sections > .sortable__row--dragging {
+  background: var(--ground);
+}
+
+.sidebar__section {
+  position: relative;
+}
+
+.sidebar__head > .sortable__handle {
+  height: 24px;
+  left: -12px;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  transition: opacity 120ms ease;
+  width: 12px;
+}
+
+.sidebar__heading:hover ~ .sortable__handle,
+.sidebar__head > .sortable__handle:hover,
+.sidebar__head > .sortable__handle:focus-visible,
+.sortable__row--dragging .sidebar__head > .sortable__handle {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar__head > .sortable__handle {
+    transition: none;
+  }
+}
+
+.sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar__item {
+  align-items: center;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 500;
+  height: var(--sidebar-row);
+  transition: background 120ms ease;
+}
+
+.sidebar__quick .sidebar__item {
+  height: 30px;
+}
+
+.sidebar__item:hover {
+  background: var(--hover);
+}
+
+.sidebar__item--on,
+.sidebar__item--on:hover,
+.tree__row--selected,
+.tree__row--selected:hover {
+  background: var(--active);
+  color: var(--active-ink);
+  font-weight: 700;
+}
+
+.sidebar__row {
+  align-items: center;
+  appearance: none;
+  align-self: stretch;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font: inherit;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.sidebar__row:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.sidebar__icon {
+  color: var(--ink-3);
+}
+
+.sidebar__item--on .sidebar__icon,
+.tree__row--selected .sidebar__icon {
+  color: var(--active-icon);
+}
+
+.sidebar__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__count {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* A type with no notes yet is still a type, so it stays listed — its nought
+   just steps back, so the counts that have something to say stand out. */
+/* On the selected fill the quiet ink falls just short of AA, so the active
+   row's count takes the secondary ink instead. */
+.sidebar__item--on .sidebar__count {
+  color: var(--ink-2);
+}
+
+.sidebar__count--none {
+  font-weight: 500;
+  opacity: 0.55;
+}
+
+/* The quick rows' counts, and Search's shortcut: a small tinted chip. */
+.sidebar__badge,
+.sidebar__key {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 2px 6px;
+}
+
+.sidebar__empty {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: 0;
+  padding: 2px 10px 6px;
+}
+
+/* Out of the way until the row is pointed at or the star itself is tabbed to.
+   Opacity rather than display, so the button keeps its place in the tab order
+   and its name. */
+.star {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-3);
+  cursor: pointer;
+  flex: none;
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: 1;
+  opacity: 0;
+  padding: 3px 8px 3px 4px;
+  transition: opacity 120ms ease;
+}
+
+.star:hover {
+  color: var(--accent-text);
+}
+
+.star:focus-visible {
+  box-shadow: var(--ring);
+  opacity: 1;
+  outline: none;
+}
+
+.star--on {
+  color: var(--accent-text);
+}
+
+/* A favourite's star is filled; any other is only drawn. */
+.star--on .star__glyph path {
+  fill: currentColor;
+}
+
+.page-bar .star__glyph {
+  height: 18px;
+  width: 18px;
+}
+
+/* In a note's own header a favourite says so all the time. In the sidebar the
+   Favorites section already says it, so there the star waits for a pointer,
+   as the mockup draws the rows. */
+.page-bar .star,
+.sidebar__item:hover .star,
+.tree__row:hover .star,
+/* The keyboard's equivalent of pointing at a row: the star of the row the
+   arrows are on shows, so Tab from it is a visible next step. */
+.tree__row:focus-visible .star {
+  opacity: 1;
+}
+
+.tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* In the sidebar the tree scrolls with the sections around it, so it has no
+   scroller of its own: one inside another traps the wheel. */
+.tree--shared {
+  flex: none;
+  overflow: visible;
+}
+
+.tree__row {
+  align-items: center;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 500;
+  gap: 10px;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tree__row:hover {
+  background: var(--hover);
+}
+
+/* The row the arrow keys are on. Inset rather than the usual ring, which a
+   scrolling container clips at its edges. */
+.tree__row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+  outline: none;
+}
+
+.tree__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- The sidebar's foot ---------------------------------------------------- */
+
+.sidebar-footer {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.sidebar-footer__settings {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.sidebar-footer__settings:hover {
+  background: var(--hover);
+}
+
+.sidebar-footer__settings:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.tree__empty,
+.viewer {
+  margin: 0;
+  padding: var(--space-6) var(--space-7);
+}
+
+/* Nothing open yet: a quiet line in the middle of the panel, not a heading. */
+.viewer--muted {
+  color: var(--ink-3);
+  font-size: var(--text-body);
+  font-weight: 600;
+  margin-top: 30vh;
+  text-align: center;
+}
+
+.viewer--error {
+  background: color-mix(in srgb, var(--danger) 9%, var(--raised));
+  border-radius: var(--radius-card);
+  color: var(--danger);
+  font-weight: 600;
+  margin: var(--space-6) var(--space-7);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Before a vault is open: one hero card, centred — the screen's one gradient,
+   the app's tile, a title, and the single thing to do. */
+.empty {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  padding: var(--space-7);
+}
+
+.empty__card {
+  align-items: center;
+  background: var(--hero);
+  border-radius: var(--radius-hero);
+  box-shadow: var(--shadow-hero);
+  color: var(--hero-ink);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 460px;
+  padding: 40px 44px 36px;
+  text-align: center;
+}
+
+.empty__tile {
+  align-items: center;
+  background: var(--hero-tile);
+  border-radius: 18px;
+  box-shadow: var(--glow);
+  color: var(--tile-ink);
+  display: flex;
+  font-size: 30px;
+  font-weight: 800;
+  height: 64px;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  width: 64px;
+}
+
+.empty__title {
+  font-size: var(--text-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-title);
+  margin: 0;
+}
+
+.empty__body {
+  color: var(--hero-muted);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  margin: 0;
+  max-width: 38ch;
+}
+
+.empty__action {
+  font-size: var(--text-body);
+  font-weight: 800;
+  margin-top: var(--space-3);
+  padding: 12px 24px;
+}

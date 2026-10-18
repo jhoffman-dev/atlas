@@ -52,7 +52,17 @@ export async function loadTemplateCatalog<Type extends TypeShape>({
   fs: VaultFsPort;
   types: readonly Type[];
 }): Promise<TemplateCatalog<Type>> {
-  const templates = await loadTemplates({ fs });
+  return templateCatalogOf({ templates: await loadTemplates({ fs }), types });
+}
+
+/** The same catalog, of templates already read: what the window shows from its one copy (#259). */
+export function templateCatalogOf<Type extends TypeShape>({
+  templates,
+  types,
+}: {
+  templates: readonly NoteTemplate[];
+  types: readonly Type[];
+}): TemplateCatalog<Type> {
   return {
     templates: templates.map((template) => ({
       ...template,

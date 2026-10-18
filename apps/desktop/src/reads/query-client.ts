@@ -1,0 +1,64 @@
+import { notifyManager, QueryClient } from '@tanstack/react-query';
+import type { VaultRead } from '@atlas/application';
+
+/**
+ * The window's one query cache (ADR-0040). A read is made again only when it
+ * is invalidated (`staleTime: Infinity`), never because the window regained
+ * focus or a component mounted. `networkMode: 'always'`: every read is of
+ * this Mac's disk or index, which the browser's idea of being online has
+ * nothing to say about. A failed read is shown as failed, not tried again at
+ * once: it is read again when the index next has news (`indexMoved`), or
+ * when a change touches it, whichever comes first.
+ */
+export function createWindowQueryClient(): QueryClient {
+  notifyManager.setScheduler(inAMessageTask());
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: Infinity,
+        networkMode: 'always',
+        retry: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+      },
+    },
+  });
+}
+
+/**
+ * Runs what the cache tells the window in the next message task, as React's
+ * own scheduler does, rather than on a timer as TanStack does by default. A
+ * zero-delay timer is time, and where it lands among the host's answers
+ * varied from run to run under the work budgets' clock, which counted a tick
+ * as 31 commits on one run and 33 on the next; a message task is work, which
+ * the clock waits for like React's.
+ */
+function inAMessageTask(): (callback: () => void) => void {
+  const channel = new MessageChannel();
+  const due: (() => void)[] = [];
+  channel.port1.onmessage = () => {
+    for (const callback of due.splice(0)) callback();
+  };
+  return (callback) => {
+    due.push(callback);
+    if (due.length === 1) channel.port2.postMessage(null);
+  };
+}
+
+/** Every query the vault at `vault` holds: its reads begin with this, and are dropped by it. */
+export const vaultQueries = (vault: string) => ['vault', vault] as const;
+
+/** One whole-vault read, of one vault: the vault is in the key, so no answer is shown for another. */
+export const vaultReadKey = (vault: string, read: VaultRead) =>
+  [...vaultQueries(vault), read] as const;
+
+/**
+ * Marks a read stale and reads it again if anything shows it. A read already
+ * under way may have begun before the change, so it is dropped rather than
+ * joined: left alone, a first read still in flight is shared with the ask,
+ * and would settle with what was there before.
+ */
+export async function readAgain(client: QueryClient, queryKey: readonly unknown[]): Promise<void> {
+  await client.cancelQueries({ queryKey });
+  await client.invalidateQueries({ queryKey });
+}

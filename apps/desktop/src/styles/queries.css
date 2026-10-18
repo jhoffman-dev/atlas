@@ -1,0 +1,821 @@
+/* Saved views and SQL queries (P17-04); Atlas queries: builder, text, grouped answer (P24).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Saved views and SQL queries (P17-04) ----------------------------------
+   New view (a palette like New type), the toolbar's Group and Properties
+   popovers, the Reset / Save as new / Save view group that appears while a
+   view differs from its note, and the Query page: a monospace editor with line
+   numbers, its result in the table view, and the index's tables beside it. */
+
+.new-view__field {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-5) var(--space-3);
+}
+
+.new-view__layouts {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-3);
+}
+
+.new-view__layout {
+  align-items: center;
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 700;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+}
+
+.new-view__layout:hover {
+  background: var(--hover);
+}
+
+.new-view__layout[aria-pressed='true'] {
+  background: var(--you);
+  box-shadow: var(--shadow-soft);
+  color: var(--active-icon);
+}
+
+.new-view__layout:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.new-view__problems {
+  color: var(--danger);
+  font-size: var(--text-small);
+  font-weight: 600;
+  list-style: none;
+  margin: 0 var(--space-5) var(--space-3);
+  padding: 0;
+}
+
+/* Unsaved changes: a quiet Reset, Save as new as a toolbar button, and Save
+   view as the one tinted action, so it reads as the thing to do next. */
+.view-save {
+  align-items: center;
+  background: var(--you);
+  border-radius: var(--radius-pill);
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+.view-save__reset,
+.view-save__save {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  height: 30px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.view-save__reset {
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.view-save__reset:hover {
+  background: var(--hover);
+}
+
+.view-save__save {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+
+.view-save__save:hover {
+  filter: brightness(1.06);
+}
+
+.view-save__reset:focus-visible,
+.view-save__save:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.view-save .view-toolbar__button {
+  border-radius: var(--radius-pill);
+  height: 30px;
+}
+
+.view-popover__choice {
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: var(--space-2);
+  min-height: 26px;
+}
+
+.view-popover__choice input {
+  accent-color: var(--accent-solid);
+  margin: 0;
+}
+
+.view-popover__move {
+  height: 26px;
+  width: 26px;
+}
+
+.view-popover__move:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.view-popover__down {
+  transform: rotate(180deg);
+}
+
+.view-popover__error,
+.view-popover__notice {
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0;
+}
+
+.view-popover__error {
+  color: var(--danger);
+}
+
+.view-popover__notice {
+  color: var(--ink-2);
+}
+
+/* The Query page: the editor and result take the width, the tables a column. */
+.query {
+  align-items: start;
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1fr) 240px;
+}
+
+.query__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.query__editor {
+  background: var(--code-bg);
+  border-radius: var(--radius-card);
+  display: grid;
+  font: 13px / 1.6 var(--font-mono);
+  grid-template-columns: auto minmax(0, 1fr);
+  height: 180px;
+  overflow: hidden;
+}
+
+.query__editor:focus-within {
+  box-shadow: var(--ring);
+}
+
+.query__gutter {
+  color: var(--ink-3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
+  text-align: right;
+  user-select: none;
+}
+
+.query__sql {
+  background: transparent;
+  border: 0;
+  color: var(--code-ink);
+  font: inherit;
+  outline: none;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-2);
+  resize: none;
+  white-space: pre;
+}
+
+.query__sql::placeholder {
+  color: var(--ink-3);
+}
+
+.query__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.query__key {
+  font: 11px var(--font-mono);
+  margin-left: 8px;
+  opacity: 0.8;
+}
+
+.query__count {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.query__spacer {
+  flex: 1;
+}
+
+.query__error {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  color: var(--danger);
+  font: 13px / 1.5 var(--font-mono);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  white-space: pre-wrap;
+}
+
+.query__hint {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.query__schema {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  max-height: 70vh;
+  overflow: auto;
+  padding: var(--space-3);
+}
+
+.query__schema-title {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+}
+
+.query__tables,
+.query__columns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.query__table + .query__table {
+  margin-top: var(--space-1);
+}
+
+.query__table-name {
+  align-items: center;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: 12.5px var(--font-mono);
+  font-weight: 700;
+  gap: 6px;
+  padding: 4px 6px;
+}
+
+.query__table-name:hover {
+  background: var(--hover);
+}
+
+.query__insert,
+.query__column {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  display: block;
+  text-align: left;
+  width: 100%;
+}
+
+.query__insert {
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding: 2px 6px 2px 26px;
+}
+
+.query__column {
+  color: var(--ink-2);
+  font: 12px var(--font-mono);
+  padding: 2px 6px 2px 26px;
+}
+
+.query__insert:hover,
+.query__column:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.query__insert:focus-visible,
+.query__column:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.widget-sheet__sql {
+  font: 12.5px / 1.5 var(--font-mono);
+  min-height: 96px;
+  resize: vertical;
+}
+
+@media (max-width: 860px) {
+  .query {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Atlas queries: builder, text, grouped answer (P24) --------------------
+   The builder is a raised card of labelled rows, like a view's popovers laid
+   open; its controls are the app's pill fields. The text is the SQL editor's
+   monospace well. Group headers fold, and say how many notes they hold. */
+.query__language {
+  display: flex;
+  margin-bottom: var(--space-4);
+}
+
+.aquery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.aquery__bar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.qcomposer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.qcomposer__head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.qcomposer__preview {
+  background: var(--code-bg);
+  border-radius: var(--radius-button);
+  color: var(--code-ink);
+  flex: 1 1 320px;
+  font: 12.5px / 1.5 var(--font-mono);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 6px 12px;
+}
+
+.qcomposer__notice,
+.qcomposer__problem {
+  border-radius: var(--radius-button);
+  font-size: var(--text-small);
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.qcomposer__notice {
+  background: var(--you);
+  color: var(--you-ink);
+}
+
+.qcomposer__problem {
+  color: var(--danger);
+}
+
+.qb {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2) var(--space-4);
+}
+
+.qb__row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 64px minmax(0, 1fr);
+  padding: 10px 0;
+}
+
+.qb__row:last-child {
+  border-bottom: 0;
+}
+
+.qb__label {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.qb__body {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.qb select,
+.qb__input {
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-ui);
+  max-width: 100%;
+  padding: 6px 14px;
+}
+
+.qb select {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
+    linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 55%,
+    calc(100% - 10px) 55%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+  padding-right: 30px;
+}
+
+.qb select:focus,
+.qb__input:focus {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.qb__input {
+  width: 160px;
+}
+
+.qb__limit {
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  font: inherit;
+  padding: 5px 10px;
+  width: 80px;
+}
+
+.qb__chip {
+  align-items: center;
+  background: var(--you);
+  border-radius: var(--radius-pill);
+  color: var(--you-ink);
+  display: inline-flex;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: 4px;
+  padding: 5px 12px;
+}
+
+.qb__chip-remove,
+.qb__remove {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 4px;
+}
+
+.qb__chip-remove:hover,
+.qb__remove:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.qb__match,
+.qb__check {
+  align-items: center;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: var(--text-ui);
+  gap: var(--space-2);
+}
+
+.qb__conditions {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qb__condition,
+.qb__pair {
+  align-items: center;
+  background: var(--chip);
+  border-radius: var(--radius-button);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 5px 5px 5px 6px;
+}
+
+.qb__not {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.qb__not[aria-pressed='false'] {
+  opacity: 0.6;
+}
+
+.qb__not:hover {
+  opacity: 1;
+}
+
+.qb__not[aria-pressed='true'] {
+  background: var(--danger);
+  color: var(--accent-ink);
+}
+
+.qb__date {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.qb__add {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--accent-text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: 4px;
+  padding: 5px 10px;
+}
+
+.qb__add:hover {
+  background: var(--hover);
+}
+
+.qtext {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.qtext__area {
+  background: var(--code-bg);
+  border: 0;
+  border-radius: var(--radius-card);
+  color: var(--code-ink);
+  font: 13px / 1.6 var(--font-mono);
+  min-height: 120px;
+  outline: none;
+  padding: var(--space-3) var(--space-4);
+  resize: vertical;
+}
+
+.qtext__area:focus {
+  box-shadow: var(--ring);
+}
+
+.qtext__area--invalid,
+.qtext__area--invalid:focus {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.qtext__problem {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3) var(--space-4);
+}
+
+.qtext__message {
+  color: var(--danger);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.qtext__where {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.qtext__line {
+  color: var(--code-ink);
+  font: 12.5px / 1.6 var(--font-mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.qtext__mark {
+  background: none;
+  color: var(--danger);
+  text-decoration: underline wavy var(--danger);
+  text-underline-offset: 3px;
+}
+
+.qresult {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.qresult__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.qresult__group--level-2 {
+  padding-left: var(--space-4);
+}
+
+.qresult__heading {
+  align-items: center;
+  appearance: none;
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 800;
+  gap: var(--space-2);
+  padding: 4px 10px 4px 4px;
+}
+
+.qresult__heading:hover {
+  background: var(--hover);
+}
+
+.qresult__heading--level-2 {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+
+.qresult__fold {
+  color: var(--ink-3);
+  transition: transform 120ms ease;
+}
+
+.qresult__fold--shut {
+  transform: rotate(-90deg);
+}
+
+.qresult__count {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--chip-ink);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+
+.qresult__table {
+  table-layout: fixed;
+}
+
+.qresult__table th:first-child {
+  width: 50%;
+}
+
+.qresult__title {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.qresult__title:hover {
+  color: var(--accent-text);
+}
+
+.qresult__cell {
+  color: var(--ink-2);
+  padding: 0 10px !important;
+}
+
+.qresult__board {
+  align-items: start;
+}
+
+.qresult__card {
+  appearance: none;
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-button);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.qresult__card:hover {
+  box-shadow: var(--shadow-card);
+}
+
+.qresult__card-title {
+  font-weight: 700;
+}
+
+.qresult__card-meta {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+.qresult__board .qresult__group--level-2 {
+  padding-left: 0;
+}
+
+.query-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.widget__groups .list-view {
+  box-shadow: none;
+  padding: 0;
+}

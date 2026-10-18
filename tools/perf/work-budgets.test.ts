@@ -161,6 +161,16 @@ describe('writing budgets', () => {
     expect(lowered(budget, fell, { allowDrop: true }).commits).toBe(0);
   });
 
+  it('keeps commits set from CI’s count, however low a Mac counts them', () => {
+    const fromCi = { ...budget, commits: 37, commitsFromCi: true as const };
+    const lowerHere = budgetFor(work({ commits: 30 }));
+    const kept = lowered(fromCi, lowerHere, { allowDrop: true });
+    expect(kept.commits).toBe(37);
+    expect(kept.commitsFromCi).toBe(true);
+    // Every other count is still lowered as usual.
+    expect(lowered(budget, lowerHere).commits).toBeLessThan(37);
+  });
+
   it('gives summed renders 2% of headroom, not 10%', () => {
     expect(budgetFor(work({ renders: { Row: 10_000 } })).renders).toBe(10_200);
     expect(withRenderHeadroom(10)).toBe(12);

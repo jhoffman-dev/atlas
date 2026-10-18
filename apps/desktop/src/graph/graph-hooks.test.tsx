@@ -4,6 +4,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, NO_LINKS, type NoteLinks } from '@atlas/domain';
 import { fakeIndexPort, fakeVaultFs, type OpenNotes } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
+import { vaultReadKey } from '../reads/query-client.ts';
 import { useVaultGraph } from './use-vault-graph.ts';
 import { useUnlinkedMentions } from './use-unlinked-mentions.ts';
 
@@ -29,16 +31,17 @@ function graphIndex() {
 }
 
 describe('useVaultGraph', () => {
-  it('waits for the index, then reads the graph once per revision', async () => {
+  it('waits for the index, then reads the graph once, and again only when told it changed', async () => {
     const { index, query } = graphIndex();
+    const { client, wrapper } = queryWrapper();
     const { result, rerender } = renderHook(
-      ({ ready, indexKey }) => useVaultGraph({ index, indexKey, ready }),
-      { initialProps: { ready: false, indexKey: 'building' } },
+      ({ ready }) => useVaultGraph({ index, vaultKey: '/vault', ready }),
+      { initialProps: { ready: false }, wrapper },
     );
     expect(result.current.kind).toBe('loading');
     expect(query).not.toHaveBeenCalled();
 
-    rerender({ ready: true, indexKey: 'ready:1' });
+    rerender({ ready: true });
     await waitFor(() => expect(result.current.kind).toBe('ready'));
     const state = result.current;
     expect(state.kind === 'ready' && state.graph.edges.map((edge) => edge.id)).toEqual([
@@ -46,8 +49,28 @@ describe('useVaultGraph', () => {
     ]);
     const reads = query.mock.calls.length;
 
-    rerender({ ready: true, indexKey: 'ready:2' });
+    // Drawn again with nothing changed: the same answer, nothing asked.
+    rerender({ ready: true });
+    expect(result.current).toBe(state);
+    expect(query.mock.calls.length).toBe(reads);
+
+    await act(() => client.invalidateQueries({ queryKey: vaultReadKey('/vault', 'graph') }));
     await waitFor(() => expect(query.mock.calls.length).toBe(reads * 2));
+  });
+
+  it('reads each vault’s graph under its own key', async () => {
+    const { index, query } = graphIndex();
+    const { client, wrapper } = queryWrapper();
+    const { rerender } = renderHook(
+      ({ vaultKey }) => useVaultGraph({ index, vaultKey, ready: true }),
+      { initialProps: { vaultKey: '/one' }, wrapper },
+    );
+    await waitFor(() => expect(client.getQueryData(vaultReadKey('/one', 'graph'))).toBeDefined());
+    const reads = query.mock.calls.length;
+
+    rerender({ vaultKey: '/two' });
+    await waitFor(() => expect(client.getQueryData(vaultReadKey('/two', 'graph'))).toBeDefined());
+    expect(query.mock.calls.length).toBe(reads * 2);
   });
 
   it('says why when the index cannot be read', async () => {
@@ -56,7 +79,10 @@ describe('useVaultGraph', () => {
         throw new Error('no such table: links');
       },
     });
-    const { result } = renderHook(() => useVaultGraph({ index, indexKey: 'ready:1', ready: true }));
+    const { result } = renderHook(
+      () => useVaultGraph({ index, vaultKey: '/vault', ready: true }),
+      queryWrapper(),
+    );
     await waitFor(() => expect(result.current.kind).toBe('failed'));
     expect(result.current.kind === 'failed' && result.current.message).toBe(
       'The index could not be read: no such table: links',

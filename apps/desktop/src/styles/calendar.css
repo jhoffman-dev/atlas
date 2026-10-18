@@ -1,0 +1,947 @@
+/* calendar layout; calendar ranges (U-14).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- calendar layout ----
+   In the views' language (P16-04): the month moves with a pill nav, a day is
+   a raised soft card, and a note on it is a small pill tinted by its status. */
+
+.calendar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The month nav sits in the view's toolbar (CalendarMonthNav): round steps
+   either side of the month's name, then Today as a raised pill. */
+.month-nav {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-right: var(--space-2);
+}
+
+.month-nav button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  height: 32px;
+  justify-content: center;
+}
+
+.month-nav__step {
+  width: 32px;
+}
+
+.month-nav button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.month-nav button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.month-nav__label {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  min-width: 13ch;
+  text-align: center;
+}
+
+.month-nav .month-nav__today {
+  background: var(--raised);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  margin-left: 6px;
+  padding: 0 14px;
+}
+
+/* How many notes have no date: a quiet caption over the grid's right edge. */
+.calendar__unscheduled {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0 0 var(--space-2);
+  text-align: right;
+}
+
+.calendar__weekdays {
+  color: var(--ink-3);
+  display: grid;
+  font-size: var(--text-small);
+  font-weight: 700;
+  gap: 8px;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 10px 8px;
+}
+
+/* A month is always five or six rows whatever we do, so the grid cannot show
+   more by being tighter. The room goes into the day cells. */
+.calendar__grid {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  grid-auto-rows: minmax(96px, 1fr);
+  grid-template-columns: repeat(7, 1fr);
+  min-height: 0;
+  padding: 2px;
+}
+
+.calendar__day {
+  background: var(--raised);
+  border-radius: 14px;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.calendar__day--outside {
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+.calendar__day--today {
+  box-shadow:
+    inset 0 0 0 2px var(--focus),
+    var(--shadow-soft);
+}
+
+.calendar__day--over {
+  background: color-mix(in srgb, var(--cyan) 12%, var(--raised));
+  box-shadow: inset 0 0 0 2px var(--accent-text);
+}
+
+.calendar__number {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 0 4px;
+}
+
+.calendar__day--today .calendar__number {
+  color: var(--accent-text);
+  font-weight: 800;
+}
+
+/* A note on its day: a small pill in its status's colours. */
+.calendar__entry {
+  --pill: var(--chip);
+  --pill-ink: var(--ink);
+  --pill-dot: var(--ink-3);
+  background: var(--pill);
+  border-radius: var(--radius-pill);
+  cursor: grab;
+}
+
+.calendar__entry[data-tone='backlog'] {
+  --pill: var(--status-backlog);
+  --pill-ink: var(--status-backlog-ink);
+  --pill-dot: var(--status-backlog-dot);
+}
+
+.calendar__entry[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
+.calendar__entry[data-tone='next'] {
+  --pill: var(--status-next);
+  --pill-ink: var(--status-next-ink);
+  --pill-dot: var(--status-next-dot);
+}
+
+.calendar__entry[data-tone='doing'] {
+  --pill: var(--status-doing);
+  --pill-ink: var(--status-doing-ink);
+  --pill-dot: var(--status-doing-dot);
+}
+
+.calendar__entry[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
+}
+
+.calendar__entry[data-tone='review'] {
+  --pill: var(--status-review);
+  --pill-ink: var(--status-review-ink);
+  --pill-dot: var(--status-review-dot);
+}
+
+.calendar__entry[data-tone='done'] {
+  --pill: var(--status-done);
+  --pill-ink: var(--status-done-ink);
+  --pill-dot: var(--status-done-dot);
+}
+
+.calendar__entry button {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--pill-ink);
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  padding: 3px 9px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.calendar__entry button::before {
+  background: var(--pill-dot);
+  border-radius: 50%;
+  content: '';
+  display: inline-block;
+  height: 6px;
+  margin-right: 6px;
+  vertical-align: 1px;
+  width: 6px;
+}
+
+.calendar__entry button:hover {
+  filter: brightness(0.97);
+}
+
+.calendar__entry button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.calendar__entry--lifted {
+  box-shadow: var(--shadow-tile);
+  cursor: grabbing;
+}
+
+/* The lifted copy draws its name the way the entry's button does. */
+.calendar__lifted-title {
+  color: var(--pill-ink);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  padding: 3px 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- calendar ranges (U-14) ----
+   Month · Week · 3 days · Day · Agenda. The switcher is the app's pill
+   segmented control beside the dates nav; a week is day columns over a clock
+   on a raised soft card, and the agenda is a card a day. */
+
+.calendar-nav {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+  margin-right: var(--space-2);
+}
+
+.calendar-nav .month-nav {
+  margin-right: 0;
+}
+
+/* With the range and dates in it, a calendar's actions are too wide for one
+   line beside the tabs: they wrap, still to the right, rather than clipping. */
+.view-toolbar__actions:has(.calendar-nav) {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 8px;
+}
+
+.calendar:focus-visible {
+  border-radius: var(--radius-card);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A day is tall enough for two notes and "+N more" under them: the rest of a
+   crowded day is one click away, never scrolled out of sight inside the cell. */
+.calendar--month .calendar__grid {
+  grid-auto-rows: minmax(116px, 1fr);
+}
+
+/* "+N more" on a crowded day, and the list it opens. */
+.calendar__more {
+  flex: none;
+  line-height: 1.2;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 9px;
+  text-align: left;
+}
+
+.calendar__more:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.calendar__more:focus-visible,
+.calendar__more-item:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.calendar__more-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  min-width: 200px;
+  overflow-y: auto;
+}
+
+.calendar__more-item {
+  --pill: var(--chip);
+  --pill-ink: var(--ink);
+  appearance: none;
+  background: var(--pill);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--pill-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  padding: 4px 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar__day .board__add-input,
+.clock__adding .board__add-input,
+.clock__all-day-cell .board__add-input {
+  font-size: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Every note on a calendar, in any range, takes its status's colours. */
+.calendar__more-item[data-tone='backlog'],
+.clock__note[data-tone='backlog'] {
+  --pill: var(--status-backlog);
+  --pill-ink: var(--status-backlog-ink);
+  --pill-dot: var(--status-backlog-dot);
+}
+
+.calendar__more-item[data-tone='inbox'],
+.clock__note[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
+.calendar__more-item[data-tone='next'],
+.clock__note[data-tone='next'] {
+  --pill: var(--status-next);
+  --pill-ink: var(--status-next-ink);
+  --pill-dot: var(--status-next-dot);
+}
+
+.calendar__more-item[data-tone='doing'],
+.clock__note[data-tone='doing'] {
+  --pill: var(--status-doing);
+  --pill-ink: var(--status-doing-ink);
+  --pill-dot: var(--status-doing-dot);
+}
+
+.calendar__more-item[data-tone='waiting'],
+.clock__note[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
+}
+
+.calendar__more-item[data-tone='review'],
+.clock__note[data-tone='review'] {
+  --pill: var(--status-review);
+  --pill-ink: var(--status-review-ink);
+  --pill-dot: var(--status-review-dot);
+}
+
+.calendar__more-item[data-tone='done'],
+.clock__note[data-tone='done'] {
+  --pill: var(--status-done);
+  --pill-ink: var(--status-done-ink);
+  --pill-dot: var(--status-done-dot);
+}
+
+/* The clock: a week, three days or a day as columns. */
+.clock {
+  --clock-gutter: 52px;
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.clock__head,
+.clock__all-day,
+.clock__body {
+  display: grid;
+}
+
+.clock__head {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0 8px;
+}
+
+.clock__day {
+  align-items: baseline;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 700;
+  gap: 6px;
+  justify-content: center;
+}
+
+.clock__date {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.clock__day--today .clock__date {
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  color: var(--accent-ink);
+  padding: 0 8px;
+}
+
+.clock__all-day {
+  border-bottom: 1px solid var(--line);
+  min-height: 34px;
+}
+
+.clock__gutter-label {
+  align-self: center;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  padding-right: 8px;
+  text-align: right;
+}
+
+.clock__all-day-cell {
+  border-left: 1px solid var(--line);
+  cursor: cell;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 4px;
+  position: relative;
+}
+
+/* The working day, 06:00 to 22:00, fills the view; the rest is a scroll away. */
+.clock__scroll {
+  flex: 1;
+  max-height: calc(16 * 48px);
+  min-height: 240px;
+  overflow-y: auto;
+}
+
+.clock__body {
+  grid-template-rows: 100%;
+  position: relative;
+}
+
+.clock__hours {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+}
+
+.clock__hour {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+/* An hour line every 48px, drawn once behind every column. */
+.clock__columns {
+  background-image: linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: 100% 48px;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  grid-column: 2 / -1;
+  grid-row: 1;
+}
+
+.clock__column {
+  border-left: 1px solid var(--line);
+  cursor: cell;
+  min-width: 0;
+  position: relative;
+}
+
+/*
+ * A day's hours, and its all-day cell, as buttons for the keyboard: unseen
+ * until focused, and let through by the pointer to the column beneath.
+ */
+.clock__slots {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.clock__slot {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  left: 0;
+  padding: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+.clock__slot--all-day {
+  inset: 0;
+}
+
+.clock__slot:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* Now, across today. */
+.clock__now {
+  background: var(--danger);
+  height: 2px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  z-index: 2;
+}
+
+.clock__now::before {
+  background: var(--danger);
+  border-radius: 50%;
+  content: '';
+  height: 8px;
+  left: -4px;
+  position: absolute;
+  top: -3px;
+  width: 8px;
+}
+
+.clock__adding {
+  left: 2px;
+  position: absolute;
+  right: 2px;
+  z-index: 3;
+}
+
+/* A note on the clock: a soft tile in its status's colours. */
+.clock__note {
+  --pill: var(--chip);
+  --pill-ink: var(--ink);
+  --pill-dot: var(--ink-3);
+  background: var(--pill);
+  border-left: 3px solid var(--pill-dot);
+  border-radius: 8px;
+  box-sizing: border-box;
+  cursor: grab;
+  overflow: hidden;
+  position: absolute;
+  touch-action: none;
+}
+
+.clock__note--all-day {
+  border-left: 0;
+  border-radius: var(--radius-pill);
+  position: relative;
+}
+
+.clock__note--held {
+  box-shadow: var(--shadow-tile);
+  cursor: grabbing;
+  opacity: 0.92;
+  z-index: 4;
+}
+
+/* Title then time, on one line when the note is short and wrapping when it is
+   tall; top-aligned, since WebKit centres a button's content by default. */
+.clock__note > button:first-child {
+  align-content: flex-start;
+  align-items: baseline;
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--pill-ink);
+  column-gap: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: flex-start;
+  row-gap: 1px;
+  height: 100%;
+  overflow: hidden;
+  padding: 3px 7px;
+  text-align: left;
+  width: 100%;
+}
+
+.clock__note > button:first-child:focus-visible {
+  border-radius: inherit;
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.clock__note-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clock__note-time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+/* The bottom edge, dragged to change when a note ends. */
+.clock__end {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  bottom: 0;
+  cursor: ns-resize;
+  height: 7px;
+  left: 0;
+  padding: 0;
+  position: absolute;
+  right: 0;
+}
+
+.clock__end:hover,
+.clock__end:focus-visible {
+  background: color-mix(in srgb, var(--pill-dot) 40%, transparent);
+  outline: none;
+}
+
+/* A day is one wide column, its all-day notes listed across the top. */
+.clock--day .clock__all-day-cell {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+/* Planning the day (P31-02): the week's clock, and the next actions beside it. */
+.planner {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) 232px;
+  min-height: 0;
+}
+
+.plan-tray {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: calc(16 * 48px + 120px);
+  min-height: 0;
+  padding: var(--space-3);
+}
+
+.plan-tray__heading {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.plan-tray__status:empty {
+  display: none;
+}
+
+.plan-tray__status,
+.plan-tray__empty,
+.plan-tray__problem {
+  font-size: 12px;
+  margin: 0;
+}
+
+.plan-tray__problem {
+  color: var(--danger);
+}
+
+.plan-tray__undo {
+  background: none;
+  border: 0;
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  margin-left: var(--space-1);
+  padding: 0;
+}
+
+.plan-tray__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.plan-tray__task {
+  background: var(--chip);
+  border-radius: 8px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.plan-tray__task--held {
+  opacity: 0.4;
+}
+
+.plan-tray__task > button {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: inherit;
+  color: var(--ink);
+  cursor: inherit;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: 1px;
+  padding: 6px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.plan-tray__task > button[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.plan-tray__task > button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.plan-tray__title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.plan-tray__schedule {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-tray__task--lifted {
+  box-shadow: var(--shadow-overlay);
+  cursor: grabbing;
+  padding: 6px 8px;
+}
+
+/* The agenda: Overdue, then a card a day. */
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agenda__day {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-3) var(--space-4);
+}
+
+.agenda__day--today {
+  box-shadow:
+    inset 0 0 0 2px var(--focus),
+    var(--shadow-soft);
+}
+
+.agenda__day--overdue {
+  box-shadow:
+    inset 3px 0 0 var(--danger),
+    var(--shadow-soft);
+}
+
+.agenda__heading {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 800;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.agenda__near {
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  color: var(--accent-ink);
+  font-size: 11px;
+  padding: 1px 8px;
+}
+
+.agenda__count {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  font-size: 11px;
+  padding: 1px 8px;
+}
+
+.agenda__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.agenda__row {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: var(--space-3);
+  min-height: 40px;
+  min-width: 0;
+}
+
+.agenda__row:first-child {
+  border-top: 0;
+}
+
+.agenda__time {
+  color: var(--ink-3);
+  flex: none;
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  min-width: 104px;
+}
+
+.agenda__day--overdue .agenda__time {
+  color: var(--danger);
+}
+
+.agenda__title {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  flex: 0 1 auto;
+  font: inherit;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 4px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda__title:hover {
+  color: var(--accent-text);
+}
+
+.agenda__title:focus-visible,
+.agenda__more:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.agenda__row--done .agenda__title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.agenda__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.agenda__empty {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.agenda__more {
+  align-self: center;
+  appearance: none;
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px var(--space-5);
+}
+
+.agenda__more:hover {
+  background: var(--hover);
+}

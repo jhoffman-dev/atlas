@@ -30,8 +30,11 @@ export interface GitPort {
   /** Commits what is staged; `identity` is used only when git has none of its own. */
   commit(args: { message: string; identity: GitIdentity | null }): Promise<GitResult>;
   fetch(): Promise<GitResult>;
-  /** Merges `origin/<branch>` — an ordinary merge, never a rebase. */
-  merge(branch: string): Promise<GitResult>;
+  /**
+   * Merges `origin/<branch>` — an ordinary merge, never a rebase; `identity`,
+   * as for a commit, is used only when git has none of its own.
+   */
+  merge(args: { branch: string; identity: GitIdentity | null }): Promise<GitResult>;
   /** Pushes the branch to `origin` and tracks it there. */
   push(): Promise<GitResult>;
   remoteUrl(): Promise<GitResult>;

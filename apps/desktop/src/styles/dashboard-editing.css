@@ -1,0 +1,361 @@
+/* Dashboard editing (P17-03).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Dashboard editing (P17-03) ------------------------------------------
+   Customize puts a grip on every widget and an edge to pull, and a card at the
+   end of the grid to add one. Nothing new is drawn as a line: the grip is a
+   small raised pill, the edge a short bar, the held widget lifts to the
+   overlay shadow, and the widget a pointer is carrying leaves a faded copy
+   where it would land. The editor is a sheet from the right, in the overlay
+   language — the panel radius, the foremost shadow, the scrim behind. */
+
+.dashboard__error {
+  background: color-mix(in srgb, var(--danger) 8%, var(--raised));
+  border-radius: var(--radius-card);
+  color: var(--danger);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+  padding: 10px 16px;
+}
+
+.widget--arranging {
+  transition: box-shadow 120ms ease;
+}
+
+.widget--arranging:focus-within {
+  box-shadow: var(--ring), var(--shadow-card);
+}
+
+.widget--held {
+  box-shadow: var(--ring), var(--shadow-overlay);
+  z-index: 2;
+}
+
+.widget--placeholder {
+  opacity: 0.45;
+}
+
+.widget__grip {
+  align-items: center;
+  appearance: none;
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink-3);
+  cursor: grab;
+  display: flex;
+  height: 22px;
+  justify-content: center;
+  left: 50%;
+  padding: 0;
+  position: absolute;
+  top: 6px;
+  touch-action: none;
+  transform: translateX(-50%);
+  width: 44px;
+  z-index: 1;
+}
+
+.widget__grip .icon {
+  transform: rotate(90deg);
+}
+
+.widget__grip:hover {
+  color: var(--ink);
+}
+
+.widget__grip:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.widget__grip:active {
+  cursor: grabbing;
+}
+
+/* The bar is small; the strip it sits in is what the pointer has to find. */
+.widget__resize {
+  bottom: 0;
+  cursor: ew-resize;
+  position: absolute;
+  right: 0;
+  top: 0;
+  touch-action: none;
+  width: 16px;
+  z-index: 1;
+}
+
+.widget__resize::after {
+  background: var(--ink-3);
+  border-radius: var(--radius-pill);
+  content: '';
+  height: 40px;
+  opacity: 0.45;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+  width: 5px;
+}
+
+.widget--hero .widget__resize::after {
+  background: var(--hero-ink);
+}
+
+.widget__resize:hover::after,
+.widget--held .widget__resize::after {
+  background: var(--accent-solid);
+  opacity: 1;
+}
+
+.dashboard__add {
+  align-items: center;
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-panel);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-weight: 700;
+  gap: var(--space-2);
+  grid-column: span 3;
+  justify-content: center;
+  min-height: 140px;
+}
+
+.dashboard__add:hover {
+  background: var(--hover);
+  color: var(--accent-text);
+}
+
+.dashboard__add:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.widget-ghost {
+  align-items: center;
+  background: var(--raised);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-overlay);
+  box-sizing: border-box;
+  color: var(--ink);
+  cursor: grabbing;
+  display: flex;
+  font-weight: 800;
+  gap: var(--space-2);
+  height: 100%;
+  opacity: 0.94;
+  padding: 16px 20px;
+  width: 100%;
+}
+
+.widget-sheet__backdrop {
+  background: var(--scrim);
+  inset: 0;
+  position: fixed;
+  z-index: 40;
+}
+
+.widget-sheet {
+  background: var(--raised);
+  border-radius: var(--radius-panel);
+  bottom: 12px;
+  box-shadow: var(--shadow-overlay);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  outline: none;
+  overflow: hidden;
+  position: fixed;
+  right: 12px;
+  top: 12px;
+  width: min(440px, calc(100vw - 24px));
+  z-index: 41;
+}
+
+.widget-sheet__head {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+  justify-content: space-between;
+  padding: 16px 16px 10px 22px;
+}
+
+.widget-sheet__title {
+  font-size: var(--text-card);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/* The widget as the dashboard would draw it, on the panel it would sit on. */
+.widget-sheet__preview {
+  background: var(--panel);
+  border-radius: var(--radius-card);
+  display: grid;
+  flex: none;
+  grid-auto-rows: minmax(110px, auto);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0 16px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.widget-sheet__preview .widget {
+  grid-column: 1 / -1;
+}
+
+.widget-sheet__no-preview {
+  align-self: center;
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 0;
+  text-align: center;
+}
+
+.widget-sheet__form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 22px 0;
+}
+
+.widget-sheet__field,
+.widget-sheet__group {
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.widget-sheet__label {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding: 0;
+}
+
+.widget-sheet__row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.widget-sheet__field .select {
+  display: block;
+}
+
+.widget-sheet__kinds {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.widget-sheet__kind,
+.widget-sheet__icon {
+  align-items: center;
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: center;
+}
+
+.widget-sheet__kind {
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 4px 8px;
+}
+
+.widget-sheet__kind:hover,
+.widget-sheet__icon:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.widget-sheet__kind[aria-checked='true'],
+.widget-sheet__icon[aria-checked='true'] {
+  background: var(--you);
+  color: var(--you-ink);
+}
+
+.widget-sheet__kind:focus-visible,
+.widget-sheet__icon:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.widget-sheet__icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.widget-sheet__icon {
+  height: 36px;
+  min-width: 36px;
+}
+
+.widget-sheet__icon--none {
+  padding: 0 10px;
+}
+
+.widget-sheet__width {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.widget-sheet__width input {
+  accent-color: var(--accent-solid);
+  flex: 1;
+}
+
+.widget-sheet__width output {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.widget-sheet__problems {
+  background: color-mix(in srgb, var(--danger) 8%, var(--raised));
+  border-radius: var(--radius-card);
+  color: var(--danger);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0;
+  padding: 10px 14px 10px 30px;
+}
+
+.widget-sheet__foot {
+  background: var(--raised);
+  bottom: 0;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: auto;
+  padding: 14px 0 18px;
+  position: sticky;
+}

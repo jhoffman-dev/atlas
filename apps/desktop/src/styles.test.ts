@@ -2,9 +2,16 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { STATUS_TONES } from '@atlas/domain';
 import { describe, expect, it } from 'vitest';
+import {
+  importedSections,
+  readIndex,
+  readStylesheet,
+  sectionFilesOnDisk,
+} from './styles.test-support.ts';
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
-const css = read('./styles.css');
+/** The app's sheet: every section file under `styles/`, joined in the order `index.css` imports them. */
+const css = readStylesheet();
 /** The gallery's own sheet, loaded beside the app's and held to the same palette rule. */
 const galleryCss = read('./gallery/gallery.css');
 
@@ -138,7 +145,7 @@ describe('the stylesheet', () => {
    * anywhere else.
    */
   it.each([
-    ['styles.css', css],
+    ['styles/index.css', css],
     ['gallery.css', galleryCss],
   ])('%s writes raw colours only where tokens are declared', (_name, source) => {
     expect(rawColourOffenders(source)).toEqual([]);
@@ -247,4 +254,37 @@ describe('the stylesheet', () => {
       expect(missing).toEqual([]);
     },
   );
+});
+
+/**
+ * The sheet is one file per section, and the index is the only thing that
+ * says in what order they cascade. A section file the index forgets is a
+ * section the app never loads; every check above would still pass, because
+ * it reads what the index imports. So the folder and the index are held to
+ * each other here.
+ */
+describe('the styles folder', () => {
+  it('imports every section file in the folder, once each', () => {
+    const imported = importedSections();
+    expect(imported.length).toBeGreaterThan(1);
+    expect([...imported].sort()).toEqual(sectionFilesOnDisk());
+  });
+
+  /**
+   * A rule written in the index itself would sit before or after every
+   * section without belonging to one, and a scan of the sections would never
+   * see it. The index holds imports and comments, nothing else.
+   */
+  it('keeps index.css to imports alone', () => {
+    const lines = stripComments(readIndex())
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '');
+    expect(lines.every((line) => /^@import '\.\/[a-z0-9-]+\.css';$/.test(line))).toBe(true);
+  });
+
+  /** The palette comes first, so every file after it reads tokens that are already declared. */
+  it('imports tokens.css first', () => {
+    expect(importedSections()[0]).toBe('tokens.css');
+  });
 });
