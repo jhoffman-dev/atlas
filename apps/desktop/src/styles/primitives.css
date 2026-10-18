@@ -464,7 +464,9 @@
   padding: 10px 10px 10px 14px;
   position: absolute;
   right: 12px;
-  top: 46px;
+  /* Under the pane's tab strip (36px) and its bar (40px), so it covers no
+     control of either; the bar's controls sit along its right. */
+  top: 82px;
   width: max-content;
   z-index: 21;
 }
