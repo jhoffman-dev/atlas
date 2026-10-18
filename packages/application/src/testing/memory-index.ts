@@ -6,7 +6,9 @@ import { fakeIndexPort } from './fake-ports.ts';
  * An index kept in memory, for a test in a browser-like environment, where
  * `node:sqlite` (`sqliteIndexPort`) cannot load. A sync writes it; the graph's
  * statements and the facet check (`/* index facets *\/`) are answered from
- * what was written, by the columns they read. Any other query answers no rows.
+ * what was written, by the columns they read, and so are the tag counts and
+ * the relation holders a sync asks; a few others are answered with no rows
+ * (`ANSWERED_EMPTY`), and any other statement is refused.
  * Its answers are held to `sqliteIndexPort`'s in memory-index.test.ts.
  * Test support only.
  */
@@ -48,9 +50,10 @@ function answer(
 ): QueryResult {
   const all = [...notes.values()].sort((a, b) => (a.path < b.path ? -1 : 1));
   if (sql.startsWith('/* index facets */')) {
-    const wanted = new Set(parameters.filter((value) => typeof value === 'string'));
+    // Bound as each path four times over, around the three names the graph reads.
+    const wanted = new Set(parameters.slice(0, (parameters.length - 3) / 4));
     return rows(
-      ['facet', 'path', 'part', 'a', 'b', 'c'],
+      ['facet', 'path', 'part', 'what', 'at', 'value'],
       all.filter((note) => wanted.has(note.path)).flatMap(facetRows),
     );
   }
@@ -83,7 +86,48 @@ function answer(
       ),
     );
   }
-  return rows([], []);
+  if (sql.startsWith('/* tags:counts */')) return rows(['key', 'name', 'count'], tagCounts(all));
+  if (sql.startsWith('SELECT DISTINCT src AS "path" FROM relations WHERE')) {
+    return rows(['path'], relationHolders(all, parameters));
+  }
+  if (ANSWERED_EMPTY.some((marker) => sql.startsWith(marker))) return rows([], []);
+  throw new Error(`memoryIndexPort does not answer this statement: ${sql.slice(0, 60)}`);
+}
+
+/**
+ * What the window asks besides, whose rows no test of this index reads: the
+ * sidebar's counts and favourites, PARA's values and an Atlas query. Answered
+ * with none; anything not named here is refused, so a new reader is noticed.
+ */
+const ANSWERED_EMPTY = [
+  '/* type counts */',
+  '/* PARA values */',
+  '/* atlas-query */',
+  'SELECT files.path AS "path", props.key AS "key"',
+];
+
+/** Each tag, how often it is used, spelt as the first note by path spells it. */
+function tagCounts(all: readonly IndexedNote[]): unknown[][] {
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const note of all) {
+    for (const tag of note.tags) {
+      const held = counts.get(tag.key) ?? { name: tag.name, count: 0 };
+      counts.set(tag.key, { name: held.name, count: held.count + 1 });
+    }
+  }
+  return [...counts]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([key, { name, count }]) => [key, name, count]);
+}
+
+/** The notes holding a relation by one of these names, bound three to a name (`compileRelationHoldersQuery`). */
+function relationHolders(all: readonly IndexedNote[], parameters: readonly unknown[]): unknown[][] {
+  const names = parameters.filter((_, at) => at % 3 === 0).map(String);
+  const holds = (name: string) =>
+    names.some((wanted) => name === wanted || name.endsWith(`/${wanted}`));
+  return all
+    .filter((note) => note.relations.some((relation) => holds(relation.name)))
+    .map((note) => [note.path]);
 }
 
 const wikiLinks = (note: IndexedNote): string[] =>

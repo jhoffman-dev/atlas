@@ -1,3 +1,4 @@
+import { GRAPH_LINK_KIND, GRAPH_RELATION_PATTERN, GRAPH_TYPE_KEY } from '../graph/graph-query.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 
 /**
@@ -12,19 +13,26 @@ export const INDEX_FACETS: readonly IndexFacet[] = ['graph', 'tags'];
 
 /**
  * The most notes one write is checked for, before and after. A write of more
- * (a build, a rebuild, a sync pull) is taken to have changed every facet
- * unread: checking would cost more than reading the vault again.
+ * is taken to have changed every facet unread. The syncer writes in batches
+ * of this size (`INDEX_BATCH_SIZE`), so its writes are each checked; in a
+ * build, once a batch has said both facets changed, `reportingIndexWrites`
+ * checks no more of them until the reads are made again.
  */
 export const FACET_CHECK_LIMIT = 50;
 
-/** One row of what a note holds of a facet. Values are as the index answers them. */
+/**
+ * One row of what a note holds of a facet, as the index answers it. `part` says
+ * which: a `title` (`what` is the title), a `prop` (`what` its key, `at` its
+ * place, `value` its text), a `link` (`what` the note it reaches) or a `tag`
+ * (`what` its key, `at` its place, `value` as spelt).
+ */
 export interface FacetRow {
   readonly facet: IndexFacet;
   readonly path: string;
-  readonly part: string;
-  readonly a: unknown;
-  readonly b: unknown;
-  readonly c: unknown;
+  readonly part: 'title' | 'prop' | 'link' | 'tag';
+  readonly what: unknown;
+  readonly at: unknown;
+  readonly value: unknown;
 }
 
 /**
@@ -35,7 +43,7 @@ export interface FacetRow {
 export function compileNoteFacetsQuery(paths: readonly string[]): CompiledQuery {
   const marks = paths.map(() => '?').join(', ');
   const sql = `/* index facets */ SELECT 'graph' AS "facet", files.path AS "path", 'title' AS "part",
-        files.title AS "a", NULL AS "b", NULL AS "c" FROM files WHERE files.path IN (${marks})
+        files.title AS "what", NULL AS "at", NULL AS "value" FROM files WHERE files.path IN (${marks})
  UNION ALL SELECT 'graph', props.path, 'prop', props.key, props.idx, props.value_text
  FROM props WHERE props.path IN (${marks}) AND (props.key = ? OR props.value_text LIKE ?)
  UNION ALL SELECT 'graph', links.src, 'link', links.dst, NULL, NULL
@@ -44,7 +52,15 @@ export function compileNoteFacetsQuery(paths: readonly string[]): CompiledQuery 
  FROM tags WHERE tags.path IN (${marks})`;
   return {
     sql,
-    parameters: [...paths, ...paths, 'type', '[[%]]%', ...paths, 'wikilink', ...paths],
+    parameters: [
+      ...paths,
+      ...paths,
+      GRAPH_TYPE_KEY,
+      GRAPH_RELATION_PATTERN,
+      ...paths,
+      GRAPH_LINK_KIND,
+      ...paths,
+    ],
   };
 }
 
@@ -79,7 +95,7 @@ function canonical(rows: readonly FacetRow[], facet: IndexFacet): string {
   return JSON.stringify(
     rows
       .filter((row) => row.facet === facet)
-      .map((row) => JSON.stringify([row.path, row.part, row.a, row.b, row.c]))
+      .map((row) => JSON.stringify([row.path, row.part, row.what, row.at, row.value]))
       .sort(),
   );
 }

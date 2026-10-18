@@ -28,6 +28,12 @@ export interface ActionBudget {
    * list's rows) may render. Ticking one row draws that row, not the list.
    */
   readonly rows?: Readonly<Record<string, number>>;
+  /**
+   * The commits were set by hand from CI's count (`withHeadroom` of it), which
+   * runs a few above a Mac's for this action: `write` keeps them as they are,
+   * so a Mac run cannot lower them below what CI counts.
+   */
+  readonly commitsFromCi?: true;
 }
 
 /** `budgets.json`: a note for the reader, and each action's budget by name. */
@@ -194,10 +200,11 @@ export function lowered(
       .filter(([, count]) => count > 0),
   );
   return {
-    commits: lower(was.commits, now.commits),
+    commits: was.commitsFromCi === true ? was.commits : lower(was.commits, now.commits),
     renders: lower(was.renders, now.renders),
     calls,
     ...(was.rows === undefined ? {} : { rows: was.rows }),
+    ...(was.commitsFromCi === true ? { commitsFromCi: true } : {}),
   };
 }
 

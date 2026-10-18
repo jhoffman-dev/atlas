@@ -1082,6 +1082,8 @@ describe('reading the vault after a change (#259)', () => {
     let puts = 0;
     const reads = { graph: [] as number[], views: [] as number[] };
     const listed = { types: [] as number[], templates: [] as number[] };
+    // Each sync ends by counting the index, after its last write: then it settles.
+    const counted: number[] = [];
     const ports: IndexPorts = {
       fs: vault.fs,
       markdown: remarkMarkdown,
@@ -1096,6 +1098,10 @@ describe('reading the vault after a change (#259)', () => {
           return index.query(sql, parameters);
         },
         rebuildViews: async () => void reads.views.push(puts),
+        stats: async () => {
+          counted.push(puts);
+          return index.stats();
+        },
       },
     };
     const fs: VaultFsPort = {
@@ -1106,7 +1112,12 @@ describe('reading the vault after a change (#259)', () => {
         return vault.fs.listDirectory(path);
       },
     };
-    return { ports, fs, reads, listed, puts: () => puts };
+    /** Waits for the sync that made write `n` to settle: counted, then said ready. */
+    const settledAfter = async (n: number) => {
+      await vi.waitFor(() => expect(counted).toContain(n));
+      await act(async () => {});
+    };
+    return { ports, fs, reads, listed, puts: () => puts, settledAfter };
   }
 
   it('reads the graph again for a change to its links, and nothing for a change to a body alone', async () => {
@@ -1169,6 +1180,8 @@ describe('reading the vault after a change (#259)', () => {
     files['a.md'] = '# A\n\nSome more words, and then some.\n';
     await tell(['a.md']);
     await vi.waitFor(() => expect(counting.puts()).toBe(2));
+    // Settled before the next edit: a graph read this edit set off would have begun by now.
+    await counting.settledAfter(2);
 
     // Then it links a to b: the graph has a new edge, and is read again.
     files['a.md'] = '# A\n\nSome more words, and then some. See [[b]].\n';

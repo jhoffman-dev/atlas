@@ -42,7 +42,7 @@ describe('the facet query, run against the index’s tables', () => {
 
     const rows = facetsOf(database, ['a.md']);
 
-    expect(rows.map(({ facet, part, a, b, c }) => [facet, part, a, b, c])).toEqual(
+    expect(rows.map(({ facet, part, what, at, value }) => [facet, part, what, at, value])).toEqual(
       expect.arrayContaining([
         ['graph', 'title', 'Ay', null, null],
         ['graph', 'prop', 'type', 0, 'task'],

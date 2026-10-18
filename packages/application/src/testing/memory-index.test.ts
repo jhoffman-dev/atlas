@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { compileGraphQuery, compileNoteFacetsQuery, type GraphQueryPart } from '@atlas/domain';
+import {
+  compileGraphQuery,
+  compileNoteFacetsQuery,
+  compileRelationHoldersQuery,
+  compileTagCountsQuery,
+  type GraphQueryPart,
+} from '@atlas/domain';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { memoryIndexPort } from './memory-index.ts';
 import { sqliteIndexPort } from './sqlite-index.ts';
@@ -45,7 +51,11 @@ const NOTES = [
       { key: 'y', name: 'y' },
     ],
   }),
-  note('a.md', { properties: [prop('project', 0, '[[b]]')] }),
+  note('a.md', {
+    properties: [prop('project', 0, '[[b]]')],
+    relations: [{ key: 'project', index: 0, target: 'b', name: 'b', path: 'b.md' }],
+    tags: [{ key: 'x', name: 'x' }],
+  }),
   note('c.md'),
 ];
 
@@ -80,5 +90,24 @@ describe('the in-memory index, beside the one in SQLite', () => {
       );
       expect(sorted(memory?.rows ?? []), part).toEqual(sorted(sqlite?.rows ?? []));
     }
+  });
+
+  it('answers the tag counts and the relation holders with the same rows', async () => {
+    for (const { sql, parameters } of [
+      compileTagCountsQuery(0),
+      compileRelationHoldersQuery(['b', 'nobody']),
+    ]) {
+      const [memory, sqlite] = await Promise.all(
+        [memoryIndexPort(), sqliteIndexPort()].map(async (index) =>
+          (await filled(index)).query(sql, parameters),
+        ),
+      );
+      expect(sorted(memory?.rows ?? [])).toEqual(sorted(sqlite?.rows ?? []));
+      expect(memory?.rows.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('refuses a statement it was not made to answer', async () => {
+    await expect(memoryIndexPort().query('SELECT 1', [])).rejects.toThrow(/does not answer/);
   });
 });

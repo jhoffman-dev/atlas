@@ -6,8 +6,9 @@ import type { VaultRead } from '@atlas/application';
  * is invalidated (`staleTime: Infinity`), never because the window regained
  * focus or a component mounted. `networkMode: 'always'`: every read is of
  * this Mac's disk or index, which the browser's idea of being online has
- * nothing to say about. A failed read is shown as failed, not tried again:
- * the next change that touches it reads it again anyway.
+ * nothing to say about. A failed read is shown as failed, not tried again at
+ * once: it is read again when the index next has news (`indexMoved`), or
+ * when a change touches it, whichever comes first.
  */
 export function createWindowQueryClient(): QueryClient {
   return new QueryClient({

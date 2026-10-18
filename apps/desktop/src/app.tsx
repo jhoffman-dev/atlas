@@ -88,7 +88,12 @@ import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
-import { useIndexFailure, useIndexKey, useIndexReady } from './index/index-status-store.ts';
+import {
+  useIndexFailure,
+  useIndexKey,
+  useIndexReady,
+  useIndexRevision,
+} from './index/index-status-store.ts';
 import { openOnce } from './index/open-once.ts';
 import { createWindowQueryClient } from './reads/query-client.ts';
 import { createReadInvalidator } from './reads/read-invalidator.ts';
@@ -436,7 +441,11 @@ function AppWindow({
   // Everything derived from the index re-runs when this changes: backlinks,
   // saved views and dashboard widgets. It moves only with the revision (#238).
   const indexKey = useIndexKey(indexStore, vaultKey);
-  const { types, reload: reloadTypes } = useTypes({
+  const {
+    types,
+    failure: typesFailure,
+    reload: reloadTypes,
+  } = useTypes({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey: location?.absolutePath ?? null,
@@ -577,7 +586,8 @@ function AppWindow({
     [apiDeps, notePorts.markdown],
   );
 
-  useSqlViews({ index: index.index, types, ready: indexReady });
+  const indexRevision = useIndexRevision(indexStore);
+  useSqlViews({ index: index.index, types, ready: indexReady, revision: indexRevision });
 
   const paletteCommands = useMemo(
     () => [...PALETTE_COMMANDS, ...paletteArchiveCommands(focusedPath)],
@@ -1517,6 +1527,7 @@ function AppWindow({
 
   const noticeMessages = [
     error,
+    typesFailure,
     linkError,
     vaultPeople.error,
     createError,

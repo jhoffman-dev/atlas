@@ -144,3 +144,38 @@ describe('what is waiting', () => {
     expect([...reads.waitingFor('/one')]).toEqual([]);
   });
 });
+
+describe('a read that failed', () => {
+  it('is read again on the vault’s next news, and one that worked is not', async () => {
+    const client = createWindowQueryClient();
+    let typeReads = 0;
+    let graphReads = 0;
+    const failing = new QueryObserver(client, {
+      queryKey: vaultReadKey('/one', 'types'),
+      queryFn: async () => {
+        typeReads += 1;
+        if (typeReads === 1) throw new Error('the disk was busy');
+        return 'types';
+      },
+    });
+    const working = new QueryObserver(client, {
+      queryKey: vaultReadKey('/one', 'graph'),
+      queryFn: async () => (graphReads += 1),
+    });
+    const stops = [failing.subscribe(() => {}), working.subscribe(() => {})];
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.getQueryState(vaultReadKey('/one', 'types'))?.status).toBe('error');
+
+    const reads = createReadInvalidator({ client });
+    reads.indexMoved('/two');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(typeReads).toBe(1);
+
+    reads.indexMoved('/one');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(typeReads).toBe(2);
+    expect(client.getQueryData(vaultReadKey('/one', 'types'))).toBe('types');
+    expect(graphReads).toBe(1);
+    stops.forEach((stop) => stop());
+  });
+});

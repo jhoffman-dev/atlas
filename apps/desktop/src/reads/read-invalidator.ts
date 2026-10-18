@@ -17,7 +17,12 @@ export interface ReadInvalidator {
    * the refresh its caller asks for, whose settling is that news.
    */
   invalidateWithIndex(vault: string, reads: Iterable<VaultRead>): void;
-  /** The index of `vault` has news: a sync settled having found something, a build finished, or one failed. */
+  /**
+   * The index of `vault` has news: a sync settled having found something, a
+   * build finished, or one failed. What waited for it is read again, and so
+   * is every read of the vault whose last read failed: whatever failed it
+   * (a busy disk, a locked index) may have passed.
+   */
   indexMoved(vault: string): void;
   /** The reads of the vault waiting for the index's news. */
   waitingFor(vault: string): ReadonlySet<VaultRead>;
@@ -41,6 +46,11 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
       const due = waiting.get(vault);
       waiting.delete(vault);
       if (due !== undefined) invalidate(vault, due);
+      const failed = client.getQueryCache().findAll({
+        queryKey: vaultQueries(vault),
+        predicate: (query) => query.state.status === 'error',
+      });
+      for (const query of failed) void readAgain(client, query.queryKey);
     },
     waitingFor: (vault) => new Set(waiting.get(vault)),
     forget(vault) {

@@ -47,3 +47,17 @@ test('a template another program adds is offered for a new note', async ({ page 
   await page.getByRole('button', { name: 'New note' }).click();
   await expect(page.getByRole('menuitem', { name: 'Reading notes' })).toBeVisible();
 });
+
+test('a wiki link another program adds to a body is drawn in the graph open', async ({ page }) => {
+  const vault = await openBookVault(page);
+  await vault.write('Notes on Dune.md', '# Notes on Dune\n\nWords.\n');
+  await emitVaultChanged(page, ['Notes on Dune.md']);
+  await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Graph' }).click();
+  await expect(page.locator('.graph__surface')).toBeVisible();
+  await expect(page.locator('[data-edge="link"]')).toHaveCount(0);
+
+  await vault.write('Notes on Dune.md', '# Notes on Dune\n\nWords about [[Dune]].\n');
+  await emitVaultChanged(page, ['Notes on Dune.md']);
+
+  await expect(page.locator('[data-edge="link"]')).toHaveCount(1);
+});

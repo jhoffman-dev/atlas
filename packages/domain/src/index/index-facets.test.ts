@@ -1,29 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { facetsChangedBetween, type FacetRow } from './index-facets.ts';
 
-const title = (path: string, a: string): FacetRow => ({
+const title = (path: string, what: string): FacetRow => ({
   facet: 'graph',
   path,
   part: 'title',
-  a,
-  b: null,
-  c: null,
+  what,
+  at: null,
+  value: null,
 });
 const link = (path: string, to: string): FacetRow => ({
   facet: 'graph',
   path,
   part: 'link',
-  a: to,
-  b: null,
-  c: null,
+  what: to,
+  at: null,
+  value: null,
 });
 const tag = (path: string, key: string, at = 0): FacetRow => ({
   facet: 'tags',
   path,
   part: 'tag',
-  a: key,
-  b: at,
-  c: key,
+  what: key,
+  at,
+  value: key,
 });
 
 const changed = (before: FacetRow[] | null, after: FacetRow[] | null, paths = ['a.md']) => [
@@ -52,13 +52,13 @@ describe('which facets a write changed', () => {
     const before = [title('a.md', 'A'), tag('a.md', 'x')];
     expect(changed(before, [...before, tag('a.md', 'y', 1)])).toEqual(['tags']);
     expect(changed(before, [title('a.md', 'A')])).toEqual(['tags']);
-    expect(changed(before, [title('a.md', 'A'), { ...tag('a.md', 'x'), c: 'X' }])).toEqual([
+    expect(changed(before, [title('a.md', 'A'), { ...tag('a.md', 'x'), value: 'X' }])).toEqual([
       'tags',
     ]);
     expect(changed(before, [title('a.md', 'A'), tag('a.md', 'x', 3)])).toEqual(['tags']);
   });
 
-  it('is every facet for a note that was not there before', () => {
+  it('is each facet a note that was not there before holds rows of', () => {
     expect(changed([], [title('a.md', 'A')])).toEqual(['graph']);
     expect(changed([], [title('a.md', 'A'), tag('a.md', 'x')])).toEqual(['graph', 'tags']);
   });

@@ -162,3 +162,36 @@ describe('an index whose facets are all to be read again already', () => {
     expect((await index.manifest()).map((entry) => entry.path).sort()).toEqual(['a.md', 'b.md']);
   });
 });
+
+describe('puts whose checks overlap', () => {
+  it('each says the graph, and the tags when either wrote one, whatever its own check saw', async () => {
+    const index = sqliteIndexPort();
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const reports: IndexFacet[][] = [];
+    const wrapped = reportingIndexWrites({
+      index: { ...index, put: async (notes, scope) => (await held, index.put(notes, scope)) },
+      report: (facets) => reports.push([...facets].sort()),
+    });
+
+    const both = Promise.all([
+      wrapped.put([note('a.md', { tags: [{ key: 'x', name: 'x' }] })]),
+      wrapped.put([note('a.md')]),
+    ]);
+    release();
+    await both;
+
+    expect(reports).toEqual([
+      ['graph', 'tags'],
+      ['graph', 'tags'],
+    ]);
+  });
+
+  it('checks a put that runs alone, after them, as it always does', async () => {
+    const { index, reports } = reporting();
+    await Promise.all([index.put([note('a.md')]), index.put([note('b.md')])]);
+    reports.length = 0;
+    await index.put([note('a.md', { body: 'more', digest: 'e' })]);
+    expect(reports).toEqual([]);
+  });
+});
