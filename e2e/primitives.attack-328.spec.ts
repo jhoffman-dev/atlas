@@ -482,9 +482,9 @@ for (const [surface, open] of Object.entries(UNDER_TOAST)) {
   });
 }
 
-/** The estimates in grouped-rows.tsx (LINE_HEIGHT) and today-page.tsx (ROW_HEIGHT). */
-const TABLE_ROW = 44;
-const TABLE_GROUP = 44;
+/** The estimates in grouped-rows.tsx (LINE_HEIGHT, UI v2 slice 4) and today-page.tsx (ROW_HEIGHT). */
+const TABLE_ROW = 34;
+const TABLE_GROUP = 32;
 const TODAY_ROW = 44;
 
 test('a flat table row with a status pill is drawn at the height the list places it by', async ({
