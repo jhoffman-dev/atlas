@@ -92,12 +92,13 @@
 /* What the page holds, in a few quiet words after its name: "186 tasks" — or
    a view's description, which can run long. It gives way before anything
    else in the crumb: the name is what the page is, the count only how it
-   stands. Flex shares shrinking by factor × width, so a factor this large
-   takes all of it until the count is gone, and only then does the folder, and
-   last the name, lose a letter. */
+   stands. With no basis of its own it is the crumb's free space — it grows
+   into whatever is left after the icon, the folder and the name, and is gone
+   before any of them loses a letter. (A shrink factor, however large, still
+   takes a sliver from the name, and a sliver is enough for an ellipsis.) */
 .page-bar__count {
   color: var(--ink-3);
-  flex: 0 1000 auto;
+  flex: 1 1 0;
   font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
   min-width: 0;
@@ -127,7 +128,10 @@
   min-width: 0;
 }
 
+/* A narrowed button keeps its start — its icon, the first of its words —
+   rather than the middle of its label. */
 .page-bar__actions .btn {
+  justify-content: flex-start;
   min-width: 28px;
   overflow: hidden;
   white-space: nowrap;
@@ -198,7 +202,6 @@
   /* The page's buttons keep only their icon's worth: still there, still
      pressed, named by their tooltip. */
   .page-bar__actions .btn {
-    justify-content: flex-start;
     max-width: 28px;
     padding: 0 6px;
   }
