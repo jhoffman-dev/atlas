@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { Fragment, memo, useMemo, useRef, useState } from 'react';
 import {
   createVaultPath,
   GTD_STATUSES,
@@ -15,6 +15,8 @@ import { Icon } from '../icon.tsx';
 import type { RelationChoice } from '../properties-panel.tsx';
 import { RelationOptions } from '../relation-options.tsx';
 import { useSteadyCallback } from '../steady-callback.ts';
+import { Spacer } from '../grouped-rows.tsx';
+import { useVirtualRows } from '../virtual-rows.ts';
 import { asksWhoItWaitsOn, clarificationOf, type InboxDraft } from './inbox-triage.ts';
 import { useInboxTriage, type ClarifyInboxItem, type InboxTriage } from './use-inbox-triage.ts';
 
@@ -42,6 +44,15 @@ export interface InboxRowsProps {
   summaryPending?: ReadonlyMap<string, string>;
 }
 
+/** A row's height until it is measured, as WebKit draws a note's. */
+const ROW_HEIGHT = 61;
+
+/** A row's cells: its name, its kind, and how it is clarified. */
+const ROW_CELLS = 3;
+
+/** The row the table's header takes, so the rows' `aria-rowindex` counts from below it. */
+const HEADER_ROWS = 1;
+
 /**
  * The Inbox's rows (#112). A task is clarified where it is: status, project,
  * who it waits on, defer and due are picked on its row and written together
@@ -59,38 +70,84 @@ export function InboxRows({
   summaryPending,
 }: InboxRowsProps) {
   const triage = useInboxTriage({ items, onClarify });
+  const keys = useMemo(() => items.map((item) => item.path), [items]);
+  const body = useRef<HTMLTableSectionElement>(null);
+  const list = useVirtualRows({
+    content: body,
+    keys,
+    estimate: () => ROW_HEIGHT,
+    pinned: triage.wanted,
+  });
+  const placeRef = usePlacedRowRefs(list.measure, triage.rowRef);
   const open = useSteadyCallback(onOpen);
-  const { rowRef, onRowFocus, pick, commit, fileUnder, makeTask } = triage;
+  const { onRowFocus, pick, commit, fileUnder, makeTask } = triage;
   const actions = useMemo(
-    () => ({ rowRef, onRowFocus, pick, commit, fileUnder, makeTask }),
-    [rowRef, onRowFocus, pick, commit, fileUnder, makeTask],
+    () => ({ pick, commit, fileUnder, makeTask }),
+    [pick, commit, fileUnder, makeTask],
   );
   const choices = useMemo(() => ({ filing, people, statuses }), [filing, people, statuses]);
   return (
-    <tbody>
-      {items.map((item) => (
-        <InboxRow
-          key={item.path}
-          item={item}
-          focused={triage.focused === item.path}
-          draft={triage.draftOf(item.path)}
-          choices={choices}
-          onOpen={open}
-          busy={busy}
-          refusal={refusals.find((each) => each.path === item.path)?.reason ?? null}
-          summaryPending={summaryPending?.get(item.path) ?? null}
-          actions={actions}
-        />
-      ))}
+    <tbody ref={body} onFocus={list.onFocus}>
+      {list.placed.map(({ key, index, gapBefore }) => {
+        const item = items[index];
+        if (item === undefined) return null;
+        const focused = triage.focused === item.path;
+        return (
+          <Fragment key={key}>
+            {gapBefore > 0 && <Spacer height={gapBefore} width={ROW_CELLS} />}
+            <tr
+              ref={placeRef(item.path)}
+              data-index={index}
+              aria-rowindex={index + HEADER_ROWS + 1}
+              tabIndex={-1}
+              className={`table__row inbox__row${focused ? ' inbox__row--focused' : ''}`}
+              onFocus={() => onRowFocus(item.path)}
+            >
+              <InboxRow
+                item={item}
+                draft={triage.draftOf(item.path)}
+                choices={choices}
+                onOpen={open}
+                busy={busy}
+                refusal={refusals.find((each) => each.path === item.path)?.reason ?? null}
+                summaryPending={summaryPending?.get(item.path) ?? null}
+                actions={actions}
+              />
+            </tr>
+          </Fragment>
+        );
+      })}
+      {list.after > 0 && <Spacer height={list.after} width={ROW_CELLS} />}
     </tbody>
   );
 }
 
+/**
+ * Each placed row's ref, the same one for as long as the row is in the page:
+ * it registers the row for focus and has the list measure it, and a new ref
+ * on every render would measure every row on every render.
+ */
+function usePlacedRowRefs(
+  measure: (element: Element | null) => void,
+  rowRef: InboxTriage['rowRef'],
+): (path: VaultPath) => (element: HTMLElement | null) => void {
+  const [refs] = useState(() => new Map<VaultPath, (element: HTMLElement | null) => void>());
+  return (path) => {
+    const held = refs.get(path);
+    if (held !== undefined) return held;
+    const register = rowRef(path);
+    const ref = (element: HTMLElement | null) => {
+      register(element);
+      measure(element);
+      if (element === null) refs.delete(path);
+    };
+    refs.set(path, ref);
+    return ref;
+  };
+}
+
 /** What a row can do, the same from one render to the next. */
-type RowActions = Pick<
-  InboxTriage,
-  'rowRef' | 'onRowFocus' | 'pick' | 'commit' | 'fileUnder' | 'makeTask'
->;
+type RowActions = Pick<InboxTriage, 'pick' | 'commit' | 'fileUnder' | 'makeTask'>;
 
 interface RowChoices {
   readonly filing: readonly RelationChoice[];
@@ -99,13 +156,13 @@ interface RowChoices {
 }
 
 /**
- * One row, drawn again only when what it shows has changed: a long Inbox is
- * hundreds of rows, each with a picker of every project, and redrawing them
- * all for one row clarified was what kept the next row waiting (#217).
+ * One row's cells — the `<tr>` around them is placed by the list — drawn again
+ * only when what they show has changed: a long Inbox is hundreds of rows,
+ * each with a picker of every project, and redrawing them all for one row
+ * clarified was what kept the next row waiting (#217).
  */
 const InboxRow = memo(function InboxRow({
   item,
-  focused,
   draft,
   choices,
   onOpen,
@@ -115,7 +172,6 @@ const InboxRow = memo(function InboxRow({
   actions,
 }: {
   item: InboxItem;
-  focused: boolean;
   draft: InboxDraft;
   choices: RowChoices;
   onOpen: (path: VaultPath) => void;
@@ -127,12 +183,7 @@ const InboxRow = memo(function InboxRow({
   actions: RowActions;
 }) {
   return (
-    <tr
-      ref={actions.rowRef(item.path)}
-      tabIndex={-1}
-      className={`table__row inbox__row${focused ? ' inbox__row--focused' : ''}`}
-      onFocus={() => actions.onRowFocus(item.path)}
-    >
+    <>
       <td className="table__name">
         <button type="button" className="table__link" onClick={() => onOpen(item.path)}>
           <Icon name="doc" size={16} />
@@ -167,7 +218,7 @@ const InboxRow = memo(function InboxRow({
           </p>
         )}
       </td>
-    </tr>
+    </>
   );
 });
 

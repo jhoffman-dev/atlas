@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { rowToFocusAfter, type VaultPath } from '@atlas/domain';
+import { CONTROLS, useRowHandles } from './row-handles.ts';
 
 /**
  * Where focus is on the Today page, by row rather than by element (#111).
@@ -9,10 +10,10 @@ import { rowToFocusAfter, type VaultPath } from '@atlas/domain';
  * that the row has left, focus lands on the row the domain says comes next —
  * never back at the top of the document. A row that stays keeps its focus.
  * Keyboard triage (#109) moves through the same order with the same handle.
+ *
+ * The page puts only the rows near what it shows in the DOM (#238), so a row
+ * to be focused may not be there: it is `wanted` (`useRowHandles`).
  */
-/** What a person focuses on purpose: something to press or type into. */
-const CONTROLS = 'button, input, select, textarea, a[href], [contenteditable="true"]';
-
 export type RowFocus = ReturnType<typeof useRowFocus>;
 
 export function useRowFocus({
@@ -27,19 +28,10 @@ export function useRowFocus({
   /** Why the last action could not be done, if it could not: nothing moved, so focus stays. */
   problem: string | null;
 }) {
-  const rows = useRef(new Map<VaultPath, HTMLElement>());
+  const { rowRef, focusRow: focusPlaced, wanted } = useRowHandles(order);
   const pending = useRef<{ acted: VaultPath; next: VaultPath | null } | null>(null);
   const orderNow = useRef(order);
   orderNow.current = order;
-
-  /** A row's handle: the control focus lands on when the row is focused. */
-  const rowRef = useCallback(
-    (path: VaultPath) => (element: HTMLElement | null) => {
-      if (element === null) rows.current.delete(path);
-      else rows.current.set(path, element);
-    },
-    [],
-  );
 
   /** Says a row is being acted on, before the action that may take it away. */
   const actedOn = useCallback((path: VaultPath) => {
@@ -49,9 +41,12 @@ export function useRowFocus({
     };
   }, []);
 
-  const focusRow = useCallback((path: VaultPath | null) => {
-    if (path !== null) rows.current.get(path)?.focus();
-  }, []);
+  const focusRow = useCallback(
+    (path: VaultPath | null) => {
+      if (path !== null) focusPlaced(path);
+    },
+    [focusPlaced],
+  );
 
   useEffect(() => {
     if (problem !== null) pending.current = null;
@@ -61,7 +56,8 @@ export function useRowFocus({
     const moved = pending.current;
     // The index follows the file, so the page may be read again before the
     // row has left: it is waited for, and a row that stays keeps its focus.
-    if (moved === null || shown === null || rows.current.has(moved.acted)) return;
+    // Asked of the read, not the DOM: a row scrolled out of it has not left.
+    if (moved === null || shown === null || orderNow.current.includes(moved.acted)) return;
     pending.current = null;
     // Focus went with the row — to the document, or to the panel around it,
     // which is where WebKit leaves it after a press on a button. On another
@@ -69,5 +65,5 @@ export function useRowFocus({
     if (document.activeElement?.matches(CONTROLS) !== true) focusRow(moved.next);
   }, [shown, focusRow]);
 
-  return { rowRef, actedOn, focusRow };
+  return { rowRef, actedOn, focusRow, wanted };
 }

@@ -32,8 +32,9 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
 }
 
 /**
- * Where `content` starts inside the element that scrolls it, kept current as
- * what sits above it opens, shuts or moves. A virtualiser that shares its
+ * Where `content` starts inside the element that scrolls it, read again on
+ * each scroll and as what sits above it opens, shuts or moves (or, with
+ * `slack`, once it has moved further than that). A virtualiser that shares its
  * scroller with other content needs this as its scroll margin, or it would
  * place and count its rows as if they started at the scroller's top.
  * 0 when there is no shared scroller.
@@ -43,15 +44,34 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
  * scroll anchoring, which WebKit does not do for us. Starring a row adds one to
  * Favorites above it, and the star clicked must not slide away.
  *
+ * `anchors: false` leaves the scroll alone. Lists nested in a virtualiser
+ * are anchored by it already — it scrolls by as much as a placed item above
+ * the screen grows — and anchoring them again here moved the page back from a
+ * scroll the browser had just made to show a focused row (#247).
+ *
+ * `slack` is how far content may move, without a scroll, before the margin
+ * is read again: a list's overscan covers a smaller move until the next
+ * scroll, and a new margin for each small change above it — an Inbox offer
+ * arriving, a Today row leaving — cost the page a commit of its own (#247).
+ * A larger move is read at once, or the rows placed would miss the screen.
+ *
  * The scroller is passed as an element, not a ref: it is an ancestor of
  * `content`, and an ancestor's ref is attached only after its descendants'
  * layout effects have run, so a ref would still be empty on the first pass.
+ * Or as a function that finds it from `content` — read in the layout effects,
+ * where `content` is attached — so the page need not hold it as state, which
+ * would cost a render of its own (#247). The function has to stay the same.
+ *
+ * Null until it is first measured, in the commit after the content mounts:
+ * a virtualiser that took it for 0 meanwhile would think rows far down the
+ * page sat above the screen, and scroll the page as it measured them.
  */
 export function useScrollMargin(
   content: RefObject<HTMLElement | null>,
-  scroller: HTMLElement | null,
-): number {
-  const [margin, setMargin] = useState(0);
+  scroller: HTMLElement | null | (() => HTMLElement | null),
+  { anchors = true, slack = 0 }: { readonly anchors?: boolean; readonly slack?: number } = {},
+): number | null {
+  const [margin, setMargin] = useState<number | null>(null);
   /** Where content started when last measured; null before the first time. */
   const placed = useRef<number | null>(null);
   /**
@@ -67,11 +87,13 @@ export function useScrollMargin(
     const next = offsetWithin(element, area);
     const before = placed.current;
     placed.current = next;
-    if (before !== null && next !== before && scrolled.current > before) {
+    if (anchors && before !== null && next !== before && scrolled.current > before) {
       area.scrollTop = scrolled.current + next - before;
       scrolled.current = area.scrollTop;
     }
-    setMargin(next);
+    // Only when it moved: a resize or a scroll that moved nothing would
+    // otherwise commit the page again for the same number (#247).
+    if (next !== before) setMargin(next);
   };
 
   // Read once mounted, then only when something can have moved the content:
@@ -79,34 +101,44 @@ export function useScrollMargin(
   // a read then forces the browser to lay the whole window out there and then
   // (#217). `measure` reads only refs and a state setter, so the first one serves.
   useLayoutEffect(() => {
-    if (scroller === null) return;
-    scrolled.current = scroller.scrollTop;
-    measure(scroller);
+    const area = typeof scroller === 'function' ? scroller() : scroller;
+    if (area === null) return;
+    scrolled.current = area.scrollTop;
+    measure(area);
     const onScroll = () => {
       // Measured against where it was scrolled before this scroll: when the
       // scroll is the browser making room for what grew above, the room is
       // already made, and measuring from here would move the rows twice.
-      measure(scroller);
-      scrolled.current = scroller.scrollTop;
+      measure(area);
+      scrolled.current = area.scrollTop;
     };
-    scroller.addEventListener('scroll', onScroll, { passive: true });
-    return () => scroller.removeEventListener('scroll', onScroll);
+    area.addEventListener('scroll', onScroll, { passive: true });
+    return () => area.removeEventListener('scroll', onScroll);
   }, [content, scroller]);
+
+  /** Reads it again after a change with no scroll, once it has moved past `slack`. */
+  const moved = (area: HTMLElement) => {
+    const element = content.current;
+    const before = placed.current;
+    if (element === null || before === null) return;
+    if (Math.abs(offsetWithin(element, area) - before) > slack) measure(area);
+  };
 
   // A section above opening, shutting or growing changes the height of what
   // the scroller holds, and one moving changes the order of its sections
   // without changing a size: both are watched.
   useLayoutEffect(() => {
-    const inner = scroller?.firstElementChild ?? null;
-    if (scroller === null || inner === null) return;
+    const area = typeof scroller === 'function' ? scroller() : scroller;
+    const inner = area?.firstElementChild ?? null;
+    if (area === null || inner === null) return;
     const watchers: { disconnect: () => void }[] = [];
     if (typeof ResizeObserver !== 'undefined') {
-      const resized = new ResizeObserver(() => measure(scroller));
+      const resized = new ResizeObserver(() => moved(area));
       resized.observe(inner);
       watchers.push(resized);
     }
     if (typeof MutationObserver !== 'undefined') {
-      const reordered = new MutationObserver(() => measure(scroller));
+      const reordered = new MutationObserver(() => moved(area));
       reordered.observe(inner, { childList: true });
       watchers.push(reordered);
     }
