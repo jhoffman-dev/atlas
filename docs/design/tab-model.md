@@ -119,7 +119,7 @@ The old pane modules are deleted once nothing reads them.
 
 - `workspace.ts` and `remember-workspace.ts`, each with tests
 - `activeSidebarPageOf`
-- `tab-strip.tsx`: tablist/tab roles, ×, +, middle-click, ←/→, a `focused` prop
+- `tab-strip.tsx`: tablist/tab roles, ×, +, middle-click, ←/→, a `focused` prop. The × is for the mouse alone — out of the accessibility tree, since a tablist may hold nothing but tabs — and the keyboard closes the focused tab with Delete (and ⌘W once wired); the + sits beside the list, not in it.
 - a gallery specimen and `tabs.css`
 
 It doesn't touch `app.tsx` or the pane hooks.

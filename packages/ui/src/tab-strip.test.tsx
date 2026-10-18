@@ -45,8 +45,8 @@ describe('TabStrip', () => {
 
   it('offers × on the shown tab only, and it asks to close that tab', async () => {
     const { props } = show({ active: 't2' });
-    expect(screen.getAllByRole('button', { name: /^Close / })).toHaveLength(1);
-    await userEvent.click(screen.getByRole('button', { name: 'Close Weekly review' }));
+    expect(document.querySelectorAll('.tab-strip__close')).toHaveLength(1);
+    await userEvent.click(screen.getByTitle('Close Weekly review'));
     expect(props.onClose).toHaveBeenCalledWith('t2');
     expect(props.onActivate).not.toHaveBeenCalled();
   });
@@ -118,7 +118,7 @@ describe('TabStrip', () => {
   it('calls a tab with no title Untitled, on the tab and on its ×', () => {
     show({ tabs: [{ id: 't1', title: '  ' }], active: 't1' });
     expect(tab('Untitled')).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Close Untitled' })).toBeDefined();
+    expect(screen.getByTitle('Close Untitled')).toBeDefined();
   });
 
   it('keeps × and + out of the tab list, which holds tabs alone', () => {
@@ -127,6 +127,8 @@ describe('TabStrip', () => {
     expect(list.contains(screen.getByRole('button', { name: 'New tab' }))).toBe(false);
     for (const child of Array.from(list.children))
       expect(child.getAttribute('role')).toBe('presentation');
+    expect(screen.queryByRole('button', { name: /^Close/ })).toBeNull();
+    expect(screen.getByTitle('Close Task table').tabIndex).toBe(-1);
   });
 
   it('moves the focus to the tab now shown when the focused tab closes', () => {
@@ -134,6 +136,15 @@ describe('TabStrip', () => {
     tab('Task table').focus();
     rerender(<TabStrip {...props} tabs={TABS.slice(1)} active="t2" />);
     expect(document.activeElement).toBe(tab('Weekly review'));
+  });
+
+  it('leaves the focus alone once it has left the strip for nowhere in particular', () => {
+    const { rerender, props } = show({ active: 't1' });
+    tab('Task table').focus();
+    tab('Task table').blur();
+    expect(document.activeElement).toBe(document.body);
+    rerender(<TabStrip {...props} tabs={TABS.slice(1)} active="t2" />);
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('leaves the focus where the page put it when the focused tab closes from elsewhere', () => {

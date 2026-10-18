@@ -399,10 +399,16 @@ describe('panes', () => {
     expect(idsOf(reopenClosedTab(ws), 0)).toEqual(['t4', 't2']);
   });
 
-  it(`keeps at most ${CLOSED_LIMIT} tabs after a pane closes`, () => {
+  it(`keeps at most ${CLOSED_LIMIT} tabs after a pane closes: the shown one, then the pane's order`, () => {
     let ws = splitWithTab(EMPTY_WORKSPACE);
     for (let n = 0; n < CLOSED_LIMIT + 2; n += 1) ws = openInNewTab(ws, note(`N${n}`));
-    expect(closePaneInWorkspace(ws, 1).closed).toHaveLength(CLOSED_LIMIT);
+    const kept = closePaneInWorkspace(ws, 1).closed.map((tab) => tabPlace(tab));
+    expect(kept).toHaveLength(CLOSED_LIMIT);
+    expect(kept[0]).toEqual(note(`N${CLOSED_LIMIT + 1}`));
+    expect(kept.slice(1)).toEqual([
+      null,
+      ...Array.from({ length: CLOSED_LIMIT - 2 }, (_, n) => note(`N${n}`)),
+    ]);
   });
 
   it('keeps the focus on the same pane when a pane before it closes', () => {

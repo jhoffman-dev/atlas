@@ -85,7 +85,7 @@ describe('attack-337: TabStrip', () => {
   it('keeps the focus inside the strip after the focused × closes its tab by keyboard', async () => {
     const onClose = vi.fn();
     render(<Stateful onClose={onClose} />);
-    screen.getByRole('button', { name: /Close Hollow Pine notes/ }).focus();
+    screen.getByTitle('Close Hollow Pine notes').focus();
     await userEvent.keyboard('{Enter}');
     expect(onClose).toHaveBeenCalledWith('t1');
     expect(screen.getByRole('tablist').contains(document.activeElement)).toBe(true);
@@ -103,16 +103,16 @@ describe('attack-337: TabStrip', () => {
 
   it('shows × only on the active tab, named with that tab’s title', () => {
     show({ active: 't3' });
-    const closes = screen.getAllByRole('button', { name: /^Close/ });
+    const closes = document.querySelectorAll('.tab-strip__close');
     expect(closes).toHaveLength(1);
-    expect(closes[0]!.getAttribute('aria-label')).toContain('Fennel garden');
+    expect(closes[0]!.getAttribute('title')).toContain('Fennel garden');
   });
 
   it('closes the active tab on a middle click on its ×', async () => {
     const { props } = show({ active: 't2' });
     await userEvent.pointer({
       keys: '[MouseMiddle]',
-      target: screen.getByRole('button', { name: 'Close Quarry ledger' }),
+      target: screen.getByTitle('Close Quarry ledger'),
     });
     expect(props.onClose).toHaveBeenCalledWith('t2');
   });
@@ -140,16 +140,16 @@ describe('attack-337: TabStrip', () => {
 
   it('gives an empty-title tab’s × a name that is more than "Close "', () => {
     show({ tabs: [{ id: 't1', title: '' }], active: 't1' });
-    const close = screen.getByRole('button', { name: /^Close/ });
-    expect(close.getAttribute('aria-label')!.trim()).not.toBe('Close');
+    const close = screen.getByTitle(/^Close/);
+    expect(close.getAttribute('title')!.trim()).not.toBe('Close');
   });
 
   it('rapid clicks on × fire onClose once per tab, never twice for one', async () => {
     const onClose = vi.fn();
     render(<Stateful onClose={onClose} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /^Close/ }));
-    await user.click(screen.getByRole('button', { name: /^Close/ }));
+    await user.click(screen.getByTitle(/^Close/));
+    await user.click(screen.getByTitle(/^Close/));
     expect(onClose.mock.calls).toEqual([['t1'], ['t2']]);
   });
 

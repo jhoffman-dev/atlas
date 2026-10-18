@@ -26,7 +26,8 @@ const UNTITLED = 'Untitled';
  * Square tabs on the strip's `bg`, the shown one lifted onto the surface with
  * a 2px top border: ink while the pane is the focused one, grey while it is
  * the other pane, so one glance says where the next open lands. Only the shown
- * tab wears a ×, and any tab closes on a middle click or Delete. The tabs are
+ * tab wears a ×, for the mouse alone; any tab closes on a middle click, and
+ * the focused one on Delete, which is how the keyboard closes. The tabs are
  * one stop in the Tab order — ← and → walk them, Home and End jump — and
  * Enter or Space shows the one under the focus; walking does not show, so a
  * reader can look along the strip without turning every page. When the tab
@@ -82,6 +83,11 @@ export function TabStrip({
     holding.current =
       (event.target as HTMLElement).closest<HTMLElement>('[data-tab]')?.dataset['tab'] ?? null;
   };
+  // Once the focus has left the strip for the page, or for nowhere, a tab
+  // closing later is not the strip's cue to take it back.
+  const onBlurCapture = (event: FocusEvent<HTMLDivElement>) => {
+    if (!list.current?.contains(event.relatedTarget)) holding.current = null;
+  };
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, at: number) => {
     if (event.key === 'Delete') {
@@ -111,6 +117,7 @@ export function TabStrip({
         aria-label={label}
         className="tab-strip__tabs"
         onFocusCapture={onFocusCapture}
+        onBlurCapture={onBlurCapture}
       >
         {tabs.map((tab, at) => {
           const shown = tab.id === active;
@@ -140,10 +147,15 @@ export function TabStrip({
                 <span className="tab-strip__title">{title}</span>
               </button>
               {shown ? (
+                // Mouse only: it is not in the accessibility tree, since a
+                // tablist may hold nothing but tabs, and the keyboard closes
+                // with Delete on the tab itself.
                 <button
                   type="button"
                   className="tab-strip__close"
-                  aria-label={`Close ${title}`}
+                  title={`Close ${title}`}
+                  tabIndex={-1}
+                  aria-hidden="true"
                   onClick={() => onClose(tab.id)}
                   onAuxClick={closeOnMiddle(tab.id)}
                   onMouseDown={noAutoscroll}
