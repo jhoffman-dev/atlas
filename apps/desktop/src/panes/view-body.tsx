@@ -538,5 +538,15 @@ function PendingBoardView({
   const { columns, lanes, pendingBoard } = view;
   const read = useMemo(() => ({ columns, lanes }), [columns, lanes]);
   const shown = useBoardAsPending({ ...pendingBoard, read });
-  return <BoardView columns={shown.columns} lanes={shown.lanes} {...board} />;
+  return (
+    <>
+      {/* A move that failed is said here, over the board still drawn, until the next move. */}
+      {shown.failure !== null && (
+        <p className="table__error" role="alert">
+          {shown.failure}
+        </p>
+      )}
+      <BoardView columns={shown.columns} lanes={shown.lanes} {...board} />
+    </>
+  );
 }

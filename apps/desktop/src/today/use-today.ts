@@ -126,13 +126,16 @@ export function useToday(options: TodayOptions) {
   const pendingHere = sameVault(settling, { index: indexOpen, vaultKey })
     ? settling.changes
     : NONE_PENDING;
-  const shownToday = useMemo(
-    () =>
-      current === null || current.report === null
-        ? null
-        : todayAsPending({ report: current.report, pending: pendingHere }),
-    [current, pendingHere],
-  );
+  // What was last drawn, so a pending task drawn the same as before keeps its
+  // object through a re-read and its row is not drawn again (#217).
+  const drawn = useRef<TodayReport | null>(null);
+  const shownToday = useMemo(() => {
+    if (current === null || current.report === null) return null;
+    const pending = todayAsPending({ report: current.report, pending: pendingHere });
+    const kept = pending === current.report ? pending : keptTodayReport(drawn.current, pending);
+    drawn.current = kept;
+    return kept;
+  }, [current, pendingHere]);
   const knownHere = useMemo(
     () =>
       sameVault(settling, { index: indexOpen, vaultKey })

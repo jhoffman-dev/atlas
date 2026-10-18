@@ -42,8 +42,9 @@ export interface PendingCard {
  * The board's rows as they are drawn (#260): each card moved and not yet
  * read back drawn as moved, until a read that stands for its write
  * (`readAnswers`) — so a read begun before the write landed, or of the
- * index from before it, never puts the card back for a beat. The latest move
- * of a card wins. Every other row is the object it was; the rows themselves
+ * index from before it, never puts the card back for a beat. A card moved
+ * again is drawn with each move laid over the one before: what the second
+ * move changes wins, and what only the first changed stays. Every other row is the object it was; the rows themselves
  * when nothing is pending.
  */
 export function rowsAsPending({
@@ -58,7 +59,8 @@ export function rowsAsPending({
 }): readonly BoardRow[] {
   const moved = new Map<string, Values>();
   for (const card of pending) {
-    if (!readAnswers(card.landed, read)) moved.set(card.path, card.values);
+    if (!readAnswers(card.landed, read))
+      moved.set(card.path, { ...moved.get(card.path), ...card.values });
   }
   if (!rows.some((row) => moved.has(row.path))) return rows;
   return rows.map((row) => {

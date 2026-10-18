@@ -204,9 +204,9 @@ export function useSavedView({
     read: shownView.read,
     runsBegun: shownView.runsBegun,
     indexKey,
+    scope: [index, note?.path],
     write: writeProperties,
     onChanged,
-    onError: setError,
   });
   const rows = readRows;
   const { columns, lanes, groups, groupOptions, regroup } = useViewShape({

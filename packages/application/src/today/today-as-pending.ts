@@ -1,4 +1,5 @@
 import {
+  RECURRENCE_KEY,
   taskAsRead,
   todayLists,
   TASK_KEYS,
@@ -55,14 +56,20 @@ export function todayAsPending({
 }
 
 /**
- * A task as a change leaves it. Written, its file changes now, so it is the
- * newest of the page's tasks and a Waiting task has waited no days yet.
+ * A task as a change leaves it. Written, its file changes now, after every
+ * other on the page: it is strictly the newest, as its read-back will be, and
+ * a Waiting task has waited no days yet. A change given as a rule is worked
+ * out with the task's recurrence, so a repeating task ticked done is drawn
+ * where its roll puts it; a row read without it is left as read, since what
+ * the rule does cannot be known before it is written.
  */
 function asChanged(task: TodayTask, values: PropertyChanges, newest: number): TodayTask {
+  if (typeof values === 'function' && task.recurrence === undefined) return task;
   const properties = {
     [TASK_KEYS.status]: task.status,
     [TASK_KEYS.due]: task.due,
     [TASK_KEYS.defer]: task.defer,
+    ...(task.recurrence !== undefined && { [RECURRENCE_KEY]: task.recurrence }),
   };
   let changes: Readonly<Record<string, unknown>>;
   try {
@@ -75,7 +82,7 @@ function asChanged(task: TodayTask, values: PropertyChanges, newest: number): To
   return {
     ...task,
     ...after,
-    modified: newest,
+    modified: newest + 1,
     waitingDays: after.status === 'waiting' ? 0 : null,
   };
 }
