@@ -17,6 +17,7 @@ const ROWS = [
   'Menu',
   'Key hints',
   'Toast',
+  'Tab strip',
 ];
 const THEMES = ['light', 'dark'] as const;
 /** Long enough for the toast's shadow and the menu to finish painting. */

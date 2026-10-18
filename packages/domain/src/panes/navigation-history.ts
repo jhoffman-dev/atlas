@@ -147,27 +147,36 @@ export function forgetNotes(
   return { back: nextBack, current, forward: nextForward };
 }
 
-/** Follows a move or a rename: every place on a moved note is where it went. */
+/**
+ * Follows a move or a rename: every place on a moved note is where it went.
+ * The same history when no place was on it.
+ */
 export function followMoveInHistory(
   history: NavigationHistory,
   move: EntryMove,
 ): NavigationHistory {
+  let followed = false;
   const follow = (place: NavigationPlace): NavigationPlace => {
     if (place.kind === 'note') {
       const to = movedPath(place.path, move);
-      return to === null ? place : { kind: 'note', path: to };
+      if (to === null) return place;
+      followed = true;
+      return { kind: 'note', path: to };
     }
     if (place.kind === 'graph' && place.scope.kind === 'note') {
       const to = movedPath(place.scope.path, move);
-      return to === null ? place : { kind: 'graph', scope: { ...place.scope, path: to } };
+      if (to === null) return place;
+      followed = true;
+      return { kind: 'graph', scope: { ...place.scope, path: to } };
     }
     return place;
   };
-  return {
+  const next = {
     back: history.back.map(follow),
     current: history.current === null ? null : follow(history.current),
     forward: history.forward.map(follow),
   };
+  return followed ? next : history;
 }
 
 /** The note a place shows, if it shows one. */

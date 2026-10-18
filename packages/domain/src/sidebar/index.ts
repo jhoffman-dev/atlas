@@ -48,7 +48,7 @@ export type { QueryViewSummary, SavedViewSummary, ViewTab } from './view-tabs.ts
 export { sidebarTreeRows } from './sidebar-tree.ts';
 export type { SidebarTreeRow } from './sidebar-tree.ts';
 export type { QuickView, QuickViewId } from './quick-views.ts';
-export { activeSidebarPage } from './active-page.ts';
+export { activeSidebarPage, activeSidebarPageOf } from './active-page.ts';
 export type { ActiveSidebarPage } from './active-page.ts';
 export {
   canMoveSection,

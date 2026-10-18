@@ -74,6 +74,12 @@
 
 /* The sidebar draws itself against the app's chrome, so the specimen stands on
    the same surface the shell gives it. */
+/* A pane's width, so the third tab is seen to shrink and the strip to scroll. */
+.gallery-page__pane {
+  border: 1px solid var(--line);
+  width: 520px;
+}
+
 .gallery-page__sidebar {
   background: var(--raised);
   border-radius: var(--radius-button);

@@ -13,9 +13,11 @@ import {
   SegmentedControl,
   Sidebar,
   StatusPill,
+  TabStrip,
   Toast,
   Toggle,
   type SectionStore,
+  type TabStripTab,
 } from '@atlas/ui';
 
 /**
@@ -143,6 +145,45 @@ function ToastSpecimen() {
   );
 }
 
+const PANE_TABS: readonly TabStripTab[] = [
+  { id: 't1', title: 'Task table', icon: 'table' },
+  { id: 't2', title: 'Weekly review', icon: 'check' },
+  { id: 't3', title: 'Leftovers from the autumn review: templates in views', icon: 'doc' },
+];
+
+/** A pane's strip, live: clicking shows, × and middle-click close, + adds. */
+function TabStripSpecimen({ focused }: { focused: boolean }) {
+  const [tabs, setTabs] = useState(PANE_TABS);
+  const [active, setActive] = useState(focused ? 't3' : 't1');
+  const [minted, setMinted] = useState(4);
+  const close = (id: string) => {
+    const at = tabs.findIndex((tab) => tab.id === id);
+    const left = tabs.filter((tab) => tab.id !== id);
+    if (left.length === 0) return;
+    setTabs(left);
+    if (id === active) setActive((left[at] ?? left[at - 1] ?? left[0]!).id);
+  };
+  const add = () => {
+    const id = `t${minted}`;
+    setMinted(minted + 1);
+    setTabs([...tabs, { id, title: 'New tab' }]);
+    setActive(id);
+  };
+  return (
+    <div className="gallery-page__pane">
+      <TabStrip
+        label={focused ? 'Focused pane tabs' : 'Other pane tabs'}
+        tabs={tabs}
+        active={active}
+        focused={focused}
+        onActivate={setActive}
+        onClose={close}
+        onNew={add}
+      />
+    </div>
+  );
+}
+
 function Specimens() {
   const [view, setView] = useState<'board' | 'table' | 'calendar'>('board');
   const [on, setOn] = useState(true);
@@ -264,6 +305,11 @@ function Specimens() {
 
       <Row title="Sidebar">
         <SidebarSpecimen />
+      </Row>
+
+      <Row title="Tab strip">
+        <TabStripSpecimen focused />
+        <TabStripSpecimen focused={false} />
       </Row>
 
       <Row title="Elevation">
