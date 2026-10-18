@@ -191,7 +191,7 @@ test('a board drags a task between the new statuses, and Waiting needs nobody (#
   await dragCardTo(page, 'tasks/Call the bank.md', 'waiting');
   await expectFile(vault, 'tasks/Call the bank.md').toContain('status: waiting');
   expect(await vault.read('tasks/Call the bank.md')).not.toContain('waiting_on');
-  await expect(page.locator('[data-path="tasks/Call the bank.md"]')).toBeVisible();
+  await expectCardIn(page, 'tasks/Call the bank.md', 'waiting');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
