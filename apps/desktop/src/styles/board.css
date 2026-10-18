@@ -27,10 +27,10 @@
   min-height: 0;
   min-width: 180px;
   padding: 0 4px 4px;
-  transition: box-shadow 120ms ease;
 }
 
-/* Lit by a ring, not a fill: the text in it keeps the contrast it has at rest. */
+/* Lit by a ring, not a fill, and at once: the text in it keeps the contrast
+   it has at rest, and a ring that fades in reads as no ring for a moment. */
 .board__column--over {
   box-shadow: inset 0 0 0 2px var(--focus);
 }
