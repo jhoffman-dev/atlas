@@ -16,6 +16,7 @@ import {
   type RowGroup,
 } from '@atlas/domain';
 import { TableView, type TableGrouping, type TableResult } from '@atlas/ui';
+import { tableRowsMeasured } from '@atlas/ui/testing';
 import { useRowSelection } from './use-row-selection.ts';
 
 const TASK = parseObjectType({
@@ -75,6 +76,7 @@ async function shiftClick(element: HTMLElement): Promise<void> {
 }
 
 describe('a table’s Shift-click, with the app’s selection', () => {
+  tableRowsMeasured();
   it('chooses the run in the order the grouped table shows it, across its groups', async () => {
     const result = read(9);
     const grouping = { groups: groupsOf(result), collapsed: new Set<string>(), onToggle() {} };

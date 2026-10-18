@@ -64,61 +64,6 @@
   padding: 0;
 }
 
-/* Unsaved changes: a quiet Reset, Save as new as a toolbar button, and Save
-   view as the one tinted action, so it reads as the thing to do next. */
-.view-save {
-  align-items: center;
-  background: var(--you);
-  border-radius: var(--radius-pill);
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-}
-
-.view-save__reset,
-.view-save__save {
-  appearance: none;
-  border: 0;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  height: 30px;
-  padding: 0 12px;
-  white-space: nowrap;
-}
-
-.view-save__reset {
-  background: transparent;
-  color: var(--ink-2);
-}
-
-.view-save__reset:hover {
-  background: var(--hover);
-}
-
-.view-save__save {
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 800;
-}
-
-.view-save__save:hover {
-  filter: brightness(1.06);
-}
-
-.view-save__reset:focus-visible,
-.view-save__save:focus-visible {
-  box-shadow: var(--ring);
-  outline: none;
-}
-
-.view-save .view-toolbar__button {
-  border-radius: var(--radius-pill);
-  height: 30px;
-}
-
 .view-popover__choice {
   align-items: center;
   color: var(--ink);

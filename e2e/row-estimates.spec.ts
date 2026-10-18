@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, installHost } from './host.ts';
+import { createVault, installHost, sidebarSection } from './host.ts';
 
 /**
  * The virtualised lists place a row by an estimate until it is measured, and
@@ -9,9 +9,18 @@ import { createVault, installHost } from './host.ts';
  *
  *   packages/ui/src/today-page.tsx        GROUP_NAME_HEIGHT
  *   packages/ui/src/inbox/inbox-rows.tsx  ROW_HEIGHT
+ *   packages/ui/src/grouped-rows.tsx      LINE_HEIGHT (row, group, new)
+ *
+ * The table's sticky header is pinned with them: a row the arrow keys focus
+ * is scrolled clear of it by the sheet's `scroll-padding-top` (#244), which
+ * must be the header's height.
  */
 const GROUP_NAME_HEIGHT = 18;
 const INBOX_ROW_HEIGHT = 59;
+const TABLE_ROW_HEIGHT = 34;
+const TABLE_GROUP_HEIGHT = 32;
+const TABLE_NEW_HEIGHT = 30;
+const TABLE_HEADER_HEIGHT = 32;
 
 const NOW = new Date(2026, 9, 13, 12, 0, 0);
 
@@ -49,6 +58,22 @@ async function openVault(page: Page) {
     ['---', 'type: task', 'status: next-action', '---', '', 'A task.', ''].join('\n'),
   );
   await vault.write('Inbox/Captured.md', 'A captured line.\n');
+  await vault.mkdir('.atlas/views');
+  await vault.write(
+    '.atlas/views/Grouped.md',
+    [
+      '---',
+      'atlas: view',
+      'type: task',
+      'layout: table',
+      'groupBy: status',
+      'columns: [status, due]',
+      '---',
+      '',
+      '# Grouped',
+      '',
+    ].join('\n'),
+  );
   await installHost(page, vault);
   await page.clock.setFixedTime(NOW);
   await page.goto('/');
@@ -73,4 +98,28 @@ test('a standard Inbox row is drawn at the height the list places it by', async 
   const row = page.locator('.inbox__row').first();
   await expect(row).toBeVisible();
   expect((await row.boundingBox())!.height).toBeCloseTo(INBOX_ROW_HEIGHT, 1);
+});
+
+test('a table’s rows, group rows, "+ New" and sticky header are drawn at the heights the table places them by', async ({
+  page,
+}) => {
+  await openVault(page);
+  await sidebarSection(page, 'views').getByRole('button', { name: 'Grouped', exact: true }).click();
+  const row = page.locator('.table__row').first();
+  await expect(row).toBeVisible();
+  const height = async (selector: string) =>
+    (await page.locator(selector).first().boundingBox())!.height;
+  expect(await height('.table__row')).toBeCloseTo(TABLE_ROW_HEIGHT, 1);
+  expect(await height('tr.table__group')).toBeCloseTo(TABLE_GROUP_HEIGHT, 1);
+  expect(await height('tr.table__group-new')).toBeCloseTo(TABLE_NEW_HEIGHT, 1);
+  expect(await height('.table__grid thead th')).toBeCloseTo(TABLE_HEADER_HEIGHT, 1);
+
+  // The header's bottom edge is where a focused row is scrolled clear to.
+  const header = page.locator('.table__grid thead tr').first();
+  const headerBottom = (await header.boundingBox())!.height;
+  const padding = await page
+    .locator('.table__sheet')
+    .evaluate((sheet) => parseFloat(getComputedStyle(sheet).scrollPaddingTop));
+  expect(padding).toBeGreaterThanOrEqual(headerBottom);
+  expect(padding - headerBottom).toBeLessThan(2);
 });
