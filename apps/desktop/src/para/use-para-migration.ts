@@ -30,7 +30,7 @@ export function useParaMigration({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the notes are only read for it. */
+  /** Whether the Inbox page is showing: the notes are read once the index is ready, then again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After the move wrote files, so the types, tree and index are read again. */
@@ -42,8 +42,11 @@ export function useParaMigration({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
-  const [read, setRead] = useState(false);
+  // The vault last previewed for the offer: until this one is, the Inbox holds its rows (#130).
+  const [previewedFor, setPreviewedFor] = useState<string | null>(null);
+  // Read in the effect, which runs the first preview as soon as the index is ready —
+  // before the Inbox opens, so opening it usually waits for nothing — and again on each open.
+  const prefetched = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would run twice.
   const running = useRef(false);
@@ -59,22 +62,24 @@ export function useParaMigration({
     setDismissed(false);
     setResult(null);
     setProblem(null);
-    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
-    if (!open || !indexReady || vaultKey === null) return;
+    if (!indexReady || vaultKey === null) return;
+    if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
     previewParaMigration(migrationPorts)
       .then((read) => {
         if (cancelled) return;
         setPreview(hasParaMigrationWork(read) ? read : null);
-        setRead(true);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
         setProblem(`Your PARA notes could not be read: ${reasonOf(cause)}`);
-        setRead(true);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       });
     return () => {
       cancelled = true;
@@ -114,7 +119,7 @@ export function useParaMigration({
       });
   }, [preview, migrationPorts, ports.editors, activity, onChanged]);
 
-  const reading = open && vaultKey !== null && !read;
+  const reading = open && indexReady && vaultKey !== null && previewedFor !== vaultKey;
   if (!reading && preview === null && result === null && problem === null) return null;
   return {
     reading,

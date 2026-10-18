@@ -1793,6 +1793,7 @@ export function App({
                 },
                 inbox: {
                   open: inboxOpen,
+                  vaultKey,
                   page: {
                     contents: inbox.contents,
                     error: inbox.error,

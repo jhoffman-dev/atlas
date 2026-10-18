@@ -48,7 +48,7 @@ export function useMeetingCleanup({
   owner: CleanupOwner | null;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the vault is only read for it. */
+  /** Whether the Inbox page is showing: the vault is read once the index is ready, then again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After tasks were archived, so the tree and the index are read again. */
@@ -63,8 +63,11 @@ export function useMeetingCleanup({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
-  const [read, setRead] = useState(false);
+  // The vault last previewed for the offer: until this one is, the Inbox holds its rows (#130).
+  const [previewedFor, setPreviewedFor] = useState<string | null>(null);
+  // Read in the effect, which runs the first preview as soon as the index is ready —
+  // before the Inbox opens, so opening it usually waits for nothing — and again on each open.
+  const prefetched = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would archive twice.
   const running = useRef(false);
@@ -77,11 +80,11 @@ export function useMeetingCleanup({
     setDismissed(false);
     setResult(null);
     setProblem(null);
-    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
-    if (!open || !indexReady || vaultKey === null || owner === null || dismissed) return;
+    if (!indexReady || vaultKey === null || owner === null || dismissed) return;
+    if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
     previewMeetingCleanup({ ports, owner })
       .then(async (read) => {
@@ -89,12 +92,14 @@ export function useMeetingCleanup({
         if (cancelled) return;
         setListed(read);
         setNeedsOwner(unjudged);
-        setRead(true);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
         setProblem(`The tasks meetings made could not be read: ${reasonOf(cause)}`);
-        setRead(true);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       });
     return () => {
       cancelled = true;
@@ -156,7 +161,13 @@ export function useMeetingCleanup({
 
   const offered = !dismissed && listed !== null && listed.length > 0 ? listed : null;
   const notice = !dismissed && offered === null && needsOwner ? NEEDS_OWNER_NOTICE : null;
-  const reading = open && vaultKey !== null && owner !== null && !dismissed && !read;
+  const reading =
+    open &&
+    indexReady &&
+    vaultKey !== null &&
+    owner !== null &&
+    !dismissed &&
+    previewedFor !== vaultKey;
   if (!reading && offered === null && result === null && notice === null && problem === null)
     return null;
   return {

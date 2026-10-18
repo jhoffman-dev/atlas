@@ -167,6 +167,7 @@ export type { TemplateNotice } from './template-banner.tsx';
 export { lostUsesText, TEMPLATE_EXPLANATION, templateUsesText } from './template-words.ts';
 export type { ArchiveContents, ArchivePageProps } from './archive-page.tsx';
 export type { InboxContents, InboxPageProps, InboxTypesOffer } from './inbox-page.tsx';
+export type { InboxOfferReading } from './inbox-offer.ts';
 export type { InboxRefusal } from './inbox/inbox-rows.tsx';
 export type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
 export { WeeklyReviewPage } from './weekly-review-page.tsx';

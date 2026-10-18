@@ -71,9 +71,11 @@ describe('useVaultTidy — while its preview is read (#130)', () => {
     await waitFor(() => expect(hook.result.current).toBeNull());
   });
 
-  it('says nothing while the Inbox is not showing', async () => {
-    const { hook } = setup({ files: { 'Loose idea.md': 'A thought.\n' }, open: false });
-    await act(async () => {});
+  it('is never reading while the Inbox is not showing, though it reads ahead', async () => {
+    const { hook, release } = setup({ files: { 'Loose idea.md': 'A thought.\n' }, open: false });
     expect(hook.result.current).toBeNull();
+    await act(async () => release());
+    await waitFor(() => expect(hook.result.current?.preview?.moves).toHaveLength(1));
+    expect(hook.result.current?.reading).toBe(false);
   });
 });

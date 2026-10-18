@@ -68,7 +68,7 @@ export function useTaskMigration({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the tasks are only read for it. */
+  /** Whether the Inbox page is showing: the tasks are read once the index is ready, then again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After the move or its undo wrote files, so the types, tree and index are read again. */
@@ -82,8 +82,11 @@ export function useTaskMigration({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
-  const [read, setRead] = useState(false);
+  // The vault last previewed for the offer: until this one is, the Inbox holds its rows (#130).
+  const [previewedFor, setPreviewedFor] = useState<string | null>(null);
+  // Read in the effect, which runs the first preview as soon as the index is ready —
+  // before the Inbox opens, so opening it usually waits for nothing — and again on each open.
+  const prefetched = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would run twice.
   const running = useRef(false);
@@ -101,11 +104,11 @@ export function useTaskMigration({
     setDismissed(false);
     setResult(null);
     setProblem(null);
-    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
-    if (!open || !indexReady || vaultKey === null) return;
+    if (!indexReady || vaultKey === null) return;
+    if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
     // Read apart: a run's undo is offered even when the tasks cannot be read now.
     // The preview alone holds the Inbox's rows (#130): set with it, so it costs no commit of its own.
@@ -113,12 +116,14 @@ export function useTaskMigration({
       .then((read) => {
         if (cancelled) return;
         setPreview(read !== null && hasMigrationWork(read) ? read : null);
-        setRead(true);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
         setProblem(`Your tasks could not be read for GTD: ${reasonOf(cause)}`);
-        setRead(true);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       });
     readMigrationRecord(migrationPorts.fs)
       .then((record) => {
@@ -217,7 +222,7 @@ export function useTaskMigration({
     setChosen((was) => new Map([...was, [from, to]]));
   }, []);
 
-  const reading = open && vaultKey !== null && !read;
+  const reading = open && indexReady && vaultKey !== null && previewedFor !== vaultKey;
   if (!reading && preview === null && !canUndo && result === null && problem === null) return null;
   return {
     reading,

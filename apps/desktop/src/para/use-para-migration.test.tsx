@@ -73,12 +73,12 @@ function setup({
 }
 
 describe('useParaMigration', () => {
-  it('reads nothing until the Inbox shows', async () => {
+  // Since #130 the preview is read as soon as the index is ready, so the Inbox opens on it.
+  it('reads the preview before the Inbox shows, and has it ready as it opens', async () => {
     const { hook } = setup({ open: false });
-    await act(async () => {});
-    expect(hook.result.current).toBeNull();
-    hook.rerender({ open: true });
     await waitFor(() => expect(hook.result.current?.preview?.notes).toHaveLength(2));
+    hook.rerender({ open: true });
+    expect(hook.result.current?.reading).toBe(false);
   });
 
   it('moves the notes from the preview, and says so in Activity', async () => {

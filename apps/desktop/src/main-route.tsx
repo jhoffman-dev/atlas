@@ -63,7 +63,8 @@ export function mainRoute({
   /** The chosen tag's key, null for none; undefined while the tags page is not open. */
   tags: { selected: string | null | undefined; screen: TagsProps };
   archive: { open: boolean; page: ArchiveProps };
-  inbox: { open: boolean; page: InboxProps };
+  /** `vaultKey` keys the page: another vault's Inbox starts afresh, holding its rows for its own offers (#130). */
+  inbox: { open: boolean; vaultKey: string | null; page: InboxProps };
   review: { open: boolean; page: ReviewProps };
   today: { open: boolean; page: TodayProps };
   automations: { open: boolean; screen: AutomationsProps };
@@ -94,7 +95,7 @@ export function mainRoute({
     return <TagsScreen {...tags.screen} selected={tags.selected} {...sidebar} />;
   }
   if (archive.open) return <ArchivePage {...archive.page} {...sidebar} />;
-  if (inbox.open) return <InboxPage {...inbox.page} {...sidebar} />;
+  if (inbox.open) return <InboxPage key={inbox.vaultKey} {...inbox.page} {...sidebar} />;
   if (review.open) return <WeeklyReviewPage {...review.page} {...sidebar} />;
   if (today.open) return <TodayPage {...today.page} {...sidebar} />;
   if (automations.open) return <AutomationsScreen {...automations.screen} {...sidebar} />;
