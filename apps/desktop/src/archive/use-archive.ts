@@ -90,7 +90,11 @@ export function useArchive(options: ArchiveOptions) {
         onSettled();
         const [moved] = outcome.moves;
         if (single && moved !== undefined) {
-          await offerLinks({ path: moved.move.from, kind: 'file' }, moved, notePaths);
+          // The move is done whatever the offer does: its failure is said,
+          // and the outcome still reported, so the row is not chosen again.
+          await offerLinks({ path: moved.move.from, kind: 'file' }, moved, notePaths).catch(
+            (cause: unknown) => setNotice(cause instanceof Error ? cause.message : String(cause)),
+          );
         }
         return outcome;
       } catch (cause) {
@@ -114,14 +118,15 @@ export function useArchive(options: ArchiveOptions) {
   );
 
   const page = useArchivePage(options);
-  const { afterBatch } = page.choosing;
+  const { beginBatch } = page.choosing;
   // The Archive's chosen rows stay chosen until the batch settles, then lose
   // the ones that went back; rows chosen meanwhile stay, and failed ones return.
   const unarchiveChosen = useCallback(
     (paths: readonly VaultPath[]) => {
-      void run(paths, 'unarchive').then((outcome) => afterBatch(batchSettled(outcome, paths)));
+      const settle = beginBatch();
+      void run(paths, 'unarchive').then((outcome) => settle(batchSettled(outcome, paths)));
     },
-    [run, afterBatch],
+    [run, beginBatch],
   );
   return { commands, page: { ...page, unarchive: unarchiveChosen }, notice };
 }

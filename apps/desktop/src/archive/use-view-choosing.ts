@@ -29,7 +29,7 @@ export function useViewChoosing({
   commands: ArchiveCommands;
 }): ViewChoosing {
   const [on, setOn] = useState(false);
-  const { selection, chosen, clear, afterBatch } = useRowSelection(`${viewKey}:${String(on)}`);
+  const { selection, chosen, clear, beginBatch } = useRowSelection(`${viewKey}:${String(on)}`);
 
   useEffect(() => setOn(false), [viewKey]);
 
@@ -39,26 +39,39 @@ export function useViewChoosing({
     const archivable = paths.filter((path) => archiveRefusal(path) === null);
     // The choice stays until the batch is done, then loses what went; rows
     // chosen meanwhile stay, and what could not go is chosen again.
-    const run = (work: () => Promise<ArchiveOutcome | null>) => () => {
-      void work().then((outcome) => afterBatch(batchSettled(outcome, paths)));
-    };
+    const run =
+      (
+        given: readonly VaultPath[],
+        work: (given: readonly VaultPath[]) => Promise<ArchiveOutcome | null>,
+      ) =>
+      () => {
+        const settle = beginBatch();
+        void work(given)
+          .catch((cause: unknown) => {
+            // The commands say their own failures; one that throws instead is
+            // logged, and settles as a batch that did not start.
+            console.error('A batch could not be run:', cause);
+            return null;
+          })
+          .then((outcome) => settle(batchSettled(outcome, given)));
+      };
     const offered: BulkAction[] = [];
     if (archivable.length > 0) {
       offered.push({
         label: `Archive ${notes(archivable.length)}`,
-        onRun: run(() => commands.archive(archivable)),
+        onRun: run(archivable, commands.archive),
         disabled: commands.busy,
       });
     }
     if (archived.length > 0) {
       offered.push({
         label: `Unarchive ${notes(archived.length)}`,
-        onRun: run(() => commands.unarchive(archived)),
+        onRun: run(archived, commands.unarchive),
         disabled: commands.busy,
       });
     }
     return offered;
-  }, [chosen, commands, afterBatch]);
+  }, [chosen, commands, beginBatch]);
 
   return { on, setOn, selection, actions, count: chosen.length, clear };
 }
