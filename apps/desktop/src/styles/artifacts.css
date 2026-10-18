@@ -1,0 +1,314 @@
+/* Artifacts (P17-07).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Artifacts (P17-07) ----------------------------------------------------
+   New artifact (a palette like New type) with a place to drop the page; the
+   saved copy under an artifact's properties, in a sandboxed frame on a white
+   canvas, with Full screen filling the pane; the gallery's drawn card face for
+   a copy with no picture, and a gallery's groups. */
+
+.new-artifact__copy {
+  padding: 0 var(--space-5) var(--space-3);
+}
+
+.file-drop {
+  align-items: center;
+  background: var(--track);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: center;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.file-drop--over {
+  background: var(--you);
+  box-shadow: var(--ring);
+}
+
+.file-drop__icon {
+  color: var(--ink-3);
+}
+
+.file-drop--over .file-drop__icon {
+  color: var(--active-icon);
+}
+
+.file-drop__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.file-drop__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.file-drop__input {
+  display: none;
+}
+
+.new-artifact__note {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 0;
+  max-width: 44ch;
+}
+
+.new-artifact__clear {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  margin-left: var(--space-2);
+  padding: 0;
+}
+
+.artifact-viewer {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-2) 0 var(--space-5);
+  overflow: hidden;
+}
+
+/* Fills the pane — the panel is the nearest positioned box — until Escape or
+   the button gives it back. */
+.artifact-viewer--full {
+  border-radius: var(--radius-panel);
+  box-shadow: none;
+  inset: 0;
+  margin: 0;
+  position: absolute;
+  z-index: 5;
+}
+
+.artifact-viewer__bar {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+}
+
+.artifact-viewer__label {
+  align-items: center;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: var(--text-small);
+  font-weight: 800;
+  gap: 6px;
+}
+
+.artifact-viewer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.artifact-viewer__frame {
+  background: var(--artifact-canvas);
+  border: 0;
+  display: block;
+  height: min(70vh, 720px);
+  min-height: 320px;
+  width: 100%;
+}
+
+.artifact-viewer--full .artifact-viewer__frame {
+  flex: 1;
+  height: auto;
+}
+
+/* While a file or link is dragged over the window, a drop on the frame lands
+   on the app, which refuses it, rather than in the page (file-drop-guard.ts). */
+:root[data-dragging] .artifact-viewer__frame {
+  pointer-events: none;
+}
+
+.artifact-viewer__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.artifact-viewer__empty .new-type__error {
+  margin: 0;
+}
+
+.artifact-viewer__empty-title {
+  color: var(--ink);
+  font-size: var(--text-body);
+  font-weight: 800;
+  margin: 0;
+}
+
+.artifact-viewer__empty-text {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.artifact-face {
+  align-items: center;
+  aspect-ratio: 16 / 7;
+  background: var(--you);
+  color: var(--active-icon);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+.artifact-face__title {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 800;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* While a thumbnail is being made the card keeps its drawn front, with a
+   quiet word under the title rather than a spinner over it. */
+.artifact-face__status {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.artifact-face[aria-busy='true'] .artifact-face__status {
+  animation: artifact-face-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes artifact-face-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artifact-face[aria-busy='true'] .artifact-face__status {
+    animation: none;
+  }
+}
+
+/* Artifacts are pictures of screens: their cards are fronted 16:10, the
+   thumbnail's own shape, so nothing of it is cropped away. */
+.gallery--screens .card-cover,
+.gallery--screens .artifact-face {
+  aspect-ratio: 16 / 10;
+}
+
+.gallery--screens .card-cover {
+  object-fit: cover;
+  object-position: top center;
+}
+
+.view-toolbar__button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.view-toolbar__note {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+/* An artifact's Thumbnail row: the picture small, its two actions beside it. */
+.thumbnail-value {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.thumbnail-value__frame {
+  align-items: center;
+  aspect-ratio: 16 / 10;
+  background: var(--track);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  display: flex;
+  flex: none;
+  justify-content: center;
+  overflow: hidden;
+  width: 128px;
+}
+
+.thumbnail-value__image {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  width: 100%;
+}
+
+.thumbnail-value__empty {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+.thumbnail-value__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.thumbnail-value__ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.thumbnail-value__ask p {
+  color: var(--ink);
+  font-size: var(--text-small);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.gallery-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.gallery-group__label {
+  align-items: center;
+  display: flex;
+  font-size: var(--text-card);
+  font-weight: 800;
+  gap: var(--space-2);
+  letter-spacing: var(--tracking-title);
+  margin: 0 0 var(--space-3);
+  text-transform: capitalize;
+}
+
+.gallery-group__count {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--chip-ink);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 1px 8px;
+}

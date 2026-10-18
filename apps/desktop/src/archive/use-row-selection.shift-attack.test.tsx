@@ -64,7 +64,10 @@ function Choosing({
       <button type="button" onClick={choosing.clear}>
         Let go
       </button>
-      <button type="button" onClick={() => choosing.keepOnly([])}>
+      <button
+        type="button"
+        onClick={() => choosing.afterBatch({ answered: choosing.chosen, failed: [] })}
+      >
         Batch done
       </button>
       <TableView

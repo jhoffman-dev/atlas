@@ -1,0 +1,432 @@
+/* list and gallery layouts; feed layout, done boxes, the Layout menu (P17-05).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- list and gallery layouts ----
+   A list is a grid without the columns, so it takes the grid's answer to
+   density: one card around the whole list, 44px rows inside it — the title,
+   what the note is about in quiet ink, and its fields as the board's chips —
+   with a hairline between rows, because a gap cannot separate two lines of
+   the same text. */
+
+.list-view {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.list-view__row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: var(--space-3);
+  min-height: 44px;
+  min-width: 0;
+}
+
+.list-view__row:last-child {
+  border-bottom: 0;
+}
+
+.list-view__title {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  flex: 0 1 auto;
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 700;
+  max-width: 46%;
+  overflow: hidden;
+  padding: 6px 8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-view__title:hover {
+  background: var(--hover);
+}
+
+.list-view__title:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.list-view__summary {
+  color: var(--ink-3);
+  flex: 1;
+  font-size: var(--text-small);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-view__fields,
+.gallery__fields {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.list-view__fields {
+  flex: none;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+/* Cards you recognise by name, so this is the one list surface that can afford
+   to be calm: fewer, larger cards rather than more, smaller ones. */
+.gallery {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  /* A card clips its cover, which would let a scrolling grid squeeze its rows. */
+  grid-auto-rows: max-content;
+  list-style: none;
+  margin: 0;
+  padding: 1px;
+}
+
+/* The title's button is stretched over the whole card (below), so the card is
+   one click target while its done box stays a control of its own. */
+.gallery__card {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 110px;
+  overflow: hidden;
+  position: relative;
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.gallery__card:hover {
+  box-shadow: var(--shadow-tile);
+  transform: translateY(-1px);
+}
+
+.gallery__card:has(.gallery__title:focus-visible) {
+  box-shadow: var(--ring);
+}
+
+.gallery__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.gallery__head {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.gallery__title {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  padding: 0;
+  text-align: left;
+}
+
+.gallery__title::after {
+  content: '';
+  inset: 0;
+  position: absolute;
+}
+
+.gallery__title:focus-visible {
+  outline: none;
+}
+
+.gallery__summary {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink-2);
+  display: -webkit-box;
+  font-size: var(--text-small);
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+.gallery__fields {
+  margin-top: auto;
+}
+
+/* A cover fronts the card edge to edge, cropped to one height so a row of
+   cards lines up whatever shape the pictures are. */
+.card-cover {
+  aspect-ratio: 16 / 7;
+  background: var(--track);
+  display: block;
+  object-fit: cover;
+  width: 100%;
+}
+
+/* ---- feed layout, done boxes, the Layout menu (P17-05) ----
+   A feed is a reading stream: one wide card per note, as wide as a page reads
+   comfortably, the note's own body inside it in the editor's type. */
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 1px;
+}
+
+.feed__list {
+  margin-inline: auto;
+  max-width: 760px;
+  width: 100%;
+}
+
+.feed__list {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feed__card {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+
+.feed__card > article {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.feed__head {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.feed__heading {
+  font-size: var(--text-card);
+  margin: 0;
+  min-width: 0;
+}
+
+.feed__title {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: var(--tracking-title);
+  margin: -2px -6px;
+  padding: 2px 6px;
+  text-align: left;
+}
+
+.feed__title:hover {
+  background: var(--hover);
+}
+
+.feed__title:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.feed__fields {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.feed__summary {
+  color: var(--ink-2);
+  font-size: var(--text-body);
+  margin: 0;
+}
+
+.feed__body {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+
+/* The editor's type, a step smaller: the feed is for skimming. */
+.editor--reading {
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+
+.feed__toggle,
+.feed__more {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 700;
+  margin-top: var(--space-2);
+  padding: 4px 6px;
+}
+
+.feed__more {
+  align-self: center;
+  background: var(--raised);
+  box-shadow: var(--shadow-soft);
+  padding: 8px 16px;
+}
+
+.feed__toggle:hover,
+.feed__more:hover {
+  background: var(--hover);
+}
+
+.feed__toggle:focus-visible,
+.feed__more:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A done box: the board's navy tick, drawn as a real checkbox so Space ticks
+   it and a screen reader says what it does. Raised above a gallery card's
+   stretched title so it stays its own target. */
+.done-check {
+  appearance: none;
+  background: var(--raised);
+  border: 1.5px solid var(--ink-3);
+  border-radius: 6px;
+  cursor: pointer;
+  flex: none;
+  height: 18px;
+  margin: 1px 0 0;
+  position: relative;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+  width: 18px;
+  z-index: 1;
+}
+
+.done-check:hover {
+  border-color: var(--ink-2);
+}
+
+.done-check:checked {
+  background: var(--navy-data);
+  border-color: var(--navy-data);
+}
+
+.done-check:checked::after {
+  border: solid var(--status-done-tick);
+  border-width: 0 2px 2px 0;
+  content: '';
+  height: 8px;
+  left: 5px;
+  position: absolute;
+  top: 2px;
+  transform: rotate(45deg);
+  width: 4px;
+}
+
+.done-check:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* Finished work, wherever it is drawn: struck through and quieter, still there. */
+.table__row--done .table__title,
+.list-view__row--done .list-view__title,
+.gallery__card--done .gallery__title,
+.feed__card--done .feed__title,
+.board__card--done .board__title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.gallery__card--done,
+.feed__card--done,
+.board__card--done {
+  opacity: 0.72;
+}
+
+/* As narrow as its box: the name column takes whatever is left. */
+.table__grid th.table__done,
+.table__grid td.table__done {
+  min-width: 0;
+  padding: 0 4px 0 14px;
+  width: 1px;
+}
+
+.table__done .done-check {
+  display: block;
+  margin: 0;
+}
+
+.layout-menu__item {
+  align-items: center;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-width: 250px;
+  outline: none;
+  padding: 8px 10px;
+}
+
+.layout-menu__item[data-highlighted] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.layout-menu__item[data-disabled] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.layout-menu__words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layout-menu__reason {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+}
+
+.layout-menu__current {
+  color: var(--accent-text);
+  display: flex;
+}

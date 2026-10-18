@@ -128,7 +128,10 @@ describe('syncNow', () => {
       message: 'Atlas sync from Studio 2026-09-28 14:05',
       identity: null,
     });
-    expect(calls.find(({ method }) => method === 'merge')?.args).toBe('main');
+    expect(calls.find(({ method }) => method === 'merge')?.args).toEqual({
+      branch: 'main',
+      identity: null,
+    });
     expect(report).toEqual({
       at: 1_000,
       committed: true,
@@ -208,6 +211,21 @@ describe('syncNow', () => {
     });
     await run();
     expect(called('commit')[0]?.args).toMatchObject({
+      identity: { name: 'Atlas on Studio', email: 'atlas@studio.local' },
+    });
+  });
+
+  it('merges as this Mac when git on it has no name of its own (#87)', async () => {
+    const { run, called } = setUp({
+      script: {
+        status: clean({ changed: ['a.md'], ahead: 1 }),
+        config: [said(''), said('')],
+        head: [said('old'), said('new')],
+      },
+    });
+    await run();
+    expect(called('merge')[0]?.args).toEqual({
+      branch: 'main',
       identity: { name: 'Atlas on Studio', email: 'atlas@studio.local' },
     });
   });

@@ -3,7 +3,7 @@ import { archiveRefusal, isArchivedPath, type VaultPath } from '@atlas/domain';
 import type { ArchiveOutcome } from '@atlas/application';
 import type { BulkAction, RowSelection } from '@atlas/ui';
 import type { ArchiveCommands } from './use-archive.ts';
-import { stillChosen, useRowSelection } from './use-row-selection.ts';
+import { batchSettled, useRowSelection } from './use-row-selection.ts';
 
 /** A view's select mode: whether rows can be chosen, which are, and what can be done to them. */
 export interface ViewChoosing {
@@ -29,7 +29,7 @@ export function useViewChoosing({
   commands: ArchiveCommands;
 }): ViewChoosing {
   const [on, setOn] = useState(false);
-  const { selection, chosen, clear, keepOnly } = useRowSelection(`${viewKey}:${String(on)}`);
+  const { selection, chosen, clear, beginBatch } = useRowSelection(`${viewKey}:${String(on)}`);
 
   useEffect(() => setOn(false), [viewKey]);
 
@@ -37,27 +37,41 @@ export function useViewChoosing({
     const paths = chosen as VaultPath[];
     const archived = paths.filter(isArchivedPath);
     const archivable = paths.filter((path) => archiveRefusal(path) === null);
-    // The choice stays until the batch is done, then holds only what could not go.
-    const run = (work: () => Promise<ArchiveOutcome | null>) => () => {
-      void work().then((outcome) => keepOnly(stillChosen(outcome, paths)));
-    };
+    // The choice stays until the batch is done, then loses what went; rows
+    // chosen meanwhile stay, and what could not go is chosen again.
+    const run =
+      (
+        given: readonly VaultPath[],
+        work: (given: readonly VaultPath[]) => Promise<ArchiveOutcome | null>,
+      ) =>
+      () => {
+        const settle = beginBatch();
+        void work(given)
+          .catch((cause: unknown) => {
+            // The commands say their own failures; one that throws instead is
+            // logged, and settles as a batch that did not start.
+            console.error('A batch could not be run:', cause);
+            return null;
+          })
+          .then((outcome) => settle(batchSettled(outcome, given)));
+      };
     const offered: BulkAction[] = [];
     if (archivable.length > 0) {
       offered.push({
         label: `Archive ${notes(archivable.length)}`,
-        onRun: run(() => commands.archive(archivable)),
+        onRun: run(archivable, commands.archive),
         disabled: commands.busy,
       });
     }
     if (archived.length > 0) {
       offered.push({
         label: `Unarchive ${notes(archived.length)}`,
-        onRun: run(() => commands.unarchive(archived)),
+        onRun: run(archived, commands.unarchive),
         disabled: commands.busy,
       });
     }
     return offered;
-  }, [chosen, commands, keepOnly]);
+  }, [chosen, commands, beginBatch]);
 
   return { on, setOn, selection, actions, count: chosen.length, clear };
 }

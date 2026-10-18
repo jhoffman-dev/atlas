@@ -20,6 +20,7 @@ export {
   deleteTemplate,
   ensureTypeTemplate,
   loadTemplateCatalog,
+  templateCatalogOf,
   moveTemplateToNotes,
   renameTemplate,
   TemplateRefusedError,

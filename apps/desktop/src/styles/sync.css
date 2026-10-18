@@ -1,0 +1,225 @@
+/* Sync (U-29).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Sync (U-29) ----
+   Settings → Sync in the settings rows' language: a status line tinted by how
+   the last sync went, the two ways to set it up as compact forms, and a
+   warning block when both Macs changed a file. The sidebar's light is a cloud
+   with a dot in the same tones. */
+
+.sync-status--ok {
+  color: var(--success);
+}
+
+.sync-status--warning {
+  color: var(--warning);
+}
+
+.sync-status--error {
+  color: var(--danger);
+}
+
+.sync-status--busy,
+.sync-status--behind {
+  color: var(--accent-text);
+}
+
+.sync-form {
+  align-items: center;
+  background: var(--panel);
+  border-radius: var(--radius-button);
+  display: grid;
+  gap: var(--space-2) var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
+}
+
+.sync-form__label {
+  font-size: var(--text-body);
+  font-weight: 700;
+  grid-column: 1 / -1;
+}
+
+.sync-form__field {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  min-width: 0;
+}
+
+.sync-form--dialog {
+  background: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+}
+
+.sync-interval {
+  width: auto;
+}
+
+.sync-conflicts {
+  background: color-mix(in srgb, var(--warning) 12%, var(--raised));
+  border-radius: var(--radius-button);
+  color: var(--ink);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.sync-conflicts__title {
+  color: var(--warning);
+  font-size: var(--text-ui);
+  font-weight: 700;
+  margin: 0;
+}
+
+.sync-conflicts__list {
+  display: grid;
+  font-size: var(--text-small);
+  gap: 4px;
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.sync-conflicts__list code {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.sync-indicator {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: 32px;
+  justify-content: center;
+  position: relative;
+  width: 32px;
+}
+
+.sync-indicator:hover {
+  background: var(--hover);
+  color: var(--ink-2);
+}
+
+.sync-indicator:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.sync-indicator__dot {
+  background: var(--ink-3);
+  border: 2px solid var(--ground);
+  border-radius: 50%;
+  bottom: 6px;
+  height: 9px;
+  position: absolute;
+  right: 5px;
+  width: 9px;
+}
+
+.sync-indicator--ok .sync-indicator__dot {
+  background: var(--success);
+}
+
+.sync-indicator--warning .sync-indicator__dot {
+  background: var(--warning);
+}
+
+.sync-indicator--error .sync-indicator__dot {
+  background: var(--danger);
+}
+
+.sync-indicator--busy .sync-indicator__dot {
+  background: var(--accent-solid);
+}
+
+/* Behind: other Macs' changes are waiting on GitHub — an open accent ring,
+   not yet the solid dot of a sync under way. Paused: an open grey ring, a
+   light switched off rather than one that has not lit yet. Both are drawn
+   a little larger, so the ring reads as a ring at this size. */
+.sync-indicator--behind .sync-indicator__dot,
+.sync-indicator--paused .sync-indicator__dot {
+  background: var(--ground);
+  bottom: 5px;
+  height: 11px;
+  right: 4px;
+  width: 11px;
+}
+
+.sync-indicator--behind .sync-indicator__dot {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sync-indicator--paused .sync-indicator__dot {
+  box-shadow: inset 0 0 0 2px var(--ink-3);
+}
+
+.sync-status--paused {
+  color: var(--ink-3);
+}
+
+/* The repository picker (A29-01): a search over the person's own GitHub
+   repositories, each a row with its privacy and default branch, in the
+   same panel as the other two ways to set sync up. */
+.sync-picker__search {
+  font-size: var(--text-ui);
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.sync-picker__list {
+  display: grid;
+  gap: 2px;
+  grid-column: 1 / -1;
+  list-style: none;
+  margin: 0;
+  max-height: 232px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.sync-picker__item {
+  align-items: center;
+  border-radius: var(--radius-control);
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: 6px var(--space-2);
+}
+
+.sync-picker__item:hover {
+  background: var(--hover);
+}
+
+.sync-picker__text {
+  display: grid;
+  min-width: 0;
+}
+
+.sync-picker__name {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-picker__meta {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+.sync-picker__note {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  grid-column: 1 / -1;
+  margin: 0;
+}

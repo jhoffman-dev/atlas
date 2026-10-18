@@ -20,7 +20,8 @@ describe('tauriGit', () => {
     await git.status();
     await git.commit({ message: 'Atlas sync', identity: null });
     await git.commit({ message: 'm', identity: { name: 'Atlas on Mac', email: 'a@b' } });
-    await git.merge('main');
+    await git.merge({ branch: 'main', identity: null });
+    await git.merge({ branch: 'main', identity: { name: 'Atlas on Mac', email: 'a@b' } });
     await git.remoteBranchExists('main');
     await git.checkout({ side: 'theirs', path: 'Ideas.md', seen: null });
     await git.setRemote({ url: 'git@github.com:j/n.git', exists: true });
@@ -40,6 +41,16 @@ describe('tauriGit', () => {
         'm',
       ],
       ['merge', '--no-edit', '--allow-unrelated-histories', 'origin/main'],
+      [
+        '-c',
+        'user.name=Atlas on Mac',
+        '-c',
+        'user.email=a@b',
+        'merge',
+        '--no-edit',
+        '--allow-unrelated-histories',
+        'origin/main',
+      ],
       ['rev-parse', '--verify', '--quiet', 'origin/main'],
       ['checkout', '--theirs', '--', 'Ideas.md'],
       ['remote', 'set-url', 'origin', 'git@github.com:j/n.git'],

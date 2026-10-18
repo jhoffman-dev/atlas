@@ -1,0 +1,404 @@
+/* Tokens: the palettes, aliases, type scale and the body rule.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Tokens -------------------------------------------------------------
+   UI v2 "Dense & Calm" (docs/design/ui-v2-brief.md §3, design/v2/Tokens.dc.html).
+   Two near-neutral palettes: light is white content beside a pale grey
+   sidebar; dark is the same on a warm near-black, not a navy. Colour appears
+   only as pastel tints — status pills, buttons, the focus ring — never as a
+   filled area bigger than a button, and nothing on content casts a shadow: a
+   1px hairline separates things.
+
+   The v2 names (`--bg`, `--surface`, `--ink-2`, `--status-next-tint`, …) are
+   the primitives. The older role names (`--ground`, `--panel`, `--raised`,
+   `--accent`, …) are kept as aliases of them, so a component reads the token
+   it always did and the palette turns over underneath it. Components read
+   these roles and never a raw colour.
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* Type. The system stack: nothing is bundled, nothing is fetched. Weights
+     400, 500 and 600 only; numbers in tabular figures. */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* The scale, by what each size is for. */
+  --text-note-title: 24px; /* 600, --tracking-title */
+  --text-section: 15px; /* 600 */
+  --text-emphasis: 13px; /* 500: a card's title, the active tab */
+  --text-body: 13px; /* body, table rows, nav */
+  --text-column: 12.5px; /* 600: column and group labels */
+  --text-meta: 12px; /* ink-3: metadata */
+  --text-header: 11.5px; /* 500, ink-3: section and column headers */
+  --text-mono: 12px; /* ids, code blocks */
+  --text-code: 12.5px; /* inline code, on --code-bg */
+  --text-body-lg: 14px; /* running text meant to be read (FlowSplit.dc.html) */
+  --leading-tight: 1.25;
+  --leading-body: 1.5;
+  --tracking-label: 0.07em;
+  --tracking-title: -0.01em;
+
+  /* The scale's older names, kept for the components that read them. */
+  --text-label: var(--text-header);
+  --text-small: var(--text-meta);
+  --text-ui: var(--text-body);
+  --text-card: var(--text-emphasis);
+  --text-subtitle: var(--text-section);
+  --text-heading: var(--text-note-title);
+  --text-title: var(--text-note-title);
+
+  /* Space */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+
+  /* Radius. Chips and pills 4, buttons and inputs 6, popovers and menus 8;
+     the panel, cards and board columns are square. Only dots and avatars are
+     fully round — `--radius-pill` stays for them until slice 2 moves the
+     chips and pills onto `--radius-chip`. */
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-button: 6px;
+  --radius-popover: 8px;
+  --radius-card: 0;
+  --radius-panel: 0;
+  --radius-hero: 0;
+  --radius-pill: 999px;
+
+  /* The sidebar's measurements. */
+  --sidebar-width: 248px;
+  --sidebar-row: 29px;
+  /* Content runs edge to edge on the surface: no panel inset from the ground. */
+  --shell-inset: 0px;
+}
+
+/* Light: the default. The explicit selectors are not anchored to `:root`, so a
+   subtree can carry a theme of its own — which is how the gallery shows both. */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f6f6f7; /* the sidebar, the tab strip, a board column's well */
+  --surface: #ffffff; /* content, cards, the right sidebar */
+  --well: #f8f8f9; /* a table's group row, a notice bar */
+  --ink: #18181b;
+  --ink-2: #52525b; /* secondary text, controls */
+  --ink-3: #6b6b73; /* metadata and labels: 5.2:1 on the surface */
+  --line: #e6e6e9; /* hairlines, a card's border */
+  --line-soft: #ececef; /* a table's row dividers */
+  --line-strong: #d9d9de; /* a control's border */
+  --hover: #f4f4f6;
+  --selected: #e8e8eb; /* the active nav item, a pressed toggle */
+  --focus: #6b7bc4; /* the focus ring and the editing cell's ring only */
+  --sep: #c4c4ca; /* the · between metadata */
+  --chart-grid: #f1f1f3;
+  --chart-bar: #d4d4d8;
+
+  /* Status: the dot, the pill's text and the pill's tint. Every status also
+     carries its label — the pastel dots alone do not separate for everyone. */
+  --status-inbox-dot: #9db4c8;
+  --status-inbox-ink: #3d5a70;
+  --status-inbox-tint: #eaf0f5;
+  --status-backlog-dot: #a1a1aa;
+  --status-backlog-ink: #52525b;
+  --status-backlog-tint: #f1f1f3;
+  --status-next-dot: #7ea2dd;
+  --status-next-ink: #2d4f8a;
+  --status-next-tint: #e8effb;
+  --status-doing-dot: #dda54e;
+  --status-doing-ink: #7a5312;
+  --status-doing-tint: #fbf1df;
+  --status-waiting-dot: #c9a0b8;
+  --status-waiting-ink: #6e3f5c;
+  --status-waiting-tint: #f6ecf2;
+  --status-review-dot: #a595e3;
+  --status-review-ink: #4e3f8f;
+  --status-review-tint: #efebfb;
+  --status-done-dot: #7dbf93;
+  --status-done-ink: #2f6b45;
+  --status-done-tint: #e6f3ea;
+  --status-done-tick: #ffffff; /* the tick on a finished card, on the done dot */
+
+  /* Buttons: fill, text, border. Pastel, but Accept and Reject must differ. */
+  --btn-primary-bg: #e3ecfb;
+  --btn-primary-ink: #23457e;
+  --btn-primary-line: transparent;
+  --btn-positive-bg: #e3f2e8;
+  --btn-positive-ink: #26603d;
+  --btn-positive-line: #c8e3d2;
+  --btn-destructive-bg: #fbeded;
+  --btn-destructive-ink: #9a3f3f;
+  --btn-destructive-line: #f2d4d4;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-ink: #18181b;
+  --btn-secondary-line: #d9d9de;
+  --btn-ghost-bg: transparent;
+  --btn-ghost-ink: #52525b;
+  --btn-ghost-line: transparent;
+
+  --star: #e0a526;
+
+  /* Syntax highlighting is the one place more than one hue earns its keep. */
+  --code-keyword: #7c3aed;
+  --code-string: #1f6b3a;
+  --code-number: #a14b00;
+  --code-type: #0e6f80;
+
+  /* Only a popover, a menu, the peek and a toast cast a shadow. */
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-peek: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 24px 64px rgba(0, 0, 0, 0.22);
+  --scrim: rgba(0, 0, 0, 0.2);
+  /* Behind a saved artifact: white in both themes, since a page made
+     elsewhere assumes a white canvas and would be unreadable on dark. */
+  --artifact-canvas: #ffffff;
+}
+
+/* Dark follows the system unless a choice has been made in the app. The dots
+   keep their colour; the text lightens and a tint is its dot at 14–16%. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #111113;
+    --surface: #18181b;
+    --well: #1d1d21;
+    --ink: #ededef;
+    --ink-2: #b4b4bc;
+    --ink-3: #8e8e98;
+    --line: #2a2a2f;
+    --line-soft: #2a2a2f;
+    --line-strong: #3a3a40;
+    --hover: #222227;
+    --selected: #26262b;
+    --focus: #8f9be0;
+    --sep: #4a4a52;
+    --chart-grid: #232328;
+    --chart-bar: #3f3f46;
+
+    --status-inbox-dot: #9db4c8;
+    --status-inbox-ink: #b8cbdb;
+    --status-inbox-tint: rgba(157, 180, 200, 0.16);
+    --status-backlog-dot: #7c7c86;
+    --status-backlog-ink: #c4c4cc;
+    --status-backlog-tint: rgba(161, 161, 170, 0.14);
+    --status-next-dot: #7ea2dd;
+    --status-next-ink: #b5cbf0;
+    --status-next-tint: rgba(126, 162, 221, 0.16);
+    --status-doing-dot: #dda54e;
+    --status-doing-ink: #e6c284;
+    --status-doing-tint: rgba(221, 165, 78, 0.16);
+    --status-waiting-dot: #c9a0b8;
+    --status-waiting-ink: #dfbfd3;
+    --status-waiting-tint: rgba(201, 160, 184, 0.16);
+    --status-review-dot: #a595e3;
+    --status-review-ink: #cbc1f2;
+    --status-review-tint: rgba(165, 149, 227, 0.16);
+    --status-done-dot: #7dbf93;
+    --status-done-ink: #a9d9b8;
+    --status-done-tint: rgba(125, 191, 147, 0.16);
+    --status-done-tick: #ffffff;
+
+    --btn-primary-bg: rgba(126, 162, 221, 0.18);
+    --btn-primary-ink: #b5cbf0;
+    --btn-primary-line: transparent;
+    --btn-positive-bg: rgba(125, 191, 147, 0.16);
+    --btn-positive-ink: #a9d9b8;
+    --btn-positive-line: rgba(125, 191, 147, 0.35);
+    --btn-destructive-bg: rgba(226, 120, 120, 0.16);
+    --btn-destructive-ink: #f0a8a8;
+    --btn-destructive-line: rgba(226, 120, 120, 0.35);
+    --btn-secondary-bg: #1d1d21;
+    --btn-secondary-ink: #ededef;
+    --btn-secondary-line: #3a3a40;
+    --btn-ghost-bg: transparent;
+    --btn-ghost-ink: #b4b4bc;
+    --btn-ghost-line: transparent;
+
+    --star: #e0a526;
+
+    --code-keyword: #bb9af7;
+    --code-string: #9ece6a;
+    --code-number: #ff9e64;
+    --code-type: #2ac3de;
+
+    /* A shadow alone does not read on a dark surface, so each carries a ring. */
+    --shadow-popover: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
+    --scrim: rgba(0, 0, 0, 0.55);
+    --artifact-canvas: #ffffff;
+  }
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #111113;
+  --surface: #18181b;
+  --well: #1d1d21;
+  --ink: #ededef;
+  --ink-2: #b4b4bc;
+  --ink-3: #8e8e98;
+  --line: #2a2a2f;
+  --line-soft: #2a2a2f;
+  --line-strong: #3a3a40;
+  --hover: #222227;
+  --selected: #26262b;
+  --focus: #8f9be0;
+  --sep: #4a4a52;
+  --chart-grid: #232328;
+  --chart-bar: #3f3f46;
+
+  --status-inbox-dot: #9db4c8;
+  --status-inbox-ink: #b8cbdb;
+  --status-inbox-tint: rgba(157, 180, 200, 0.16);
+  --status-backlog-dot: #7c7c86;
+  --status-backlog-ink: #c4c4cc;
+  --status-backlog-tint: rgba(161, 161, 170, 0.14);
+  --status-next-dot: #7ea2dd;
+  --status-next-ink: #b5cbf0;
+  --status-next-tint: rgba(126, 162, 221, 0.16);
+  --status-doing-dot: #dda54e;
+  --status-doing-ink: #e6c284;
+  --status-doing-tint: rgba(221, 165, 78, 0.16);
+  --status-waiting-dot: #c9a0b8;
+  --status-waiting-ink: #dfbfd3;
+  --status-waiting-tint: rgba(201, 160, 184, 0.16);
+  --status-review-dot: #a595e3;
+  --status-review-ink: #cbc1f2;
+  --status-review-tint: rgba(165, 149, 227, 0.16);
+  --status-done-dot: #7dbf93;
+  --status-done-ink: #a9d9b8;
+  --status-done-tint: rgba(125, 191, 147, 0.16);
+  --status-done-tick: #ffffff;
+
+  --btn-primary-bg: rgba(126, 162, 221, 0.18);
+  --btn-primary-ink: #b5cbf0;
+  --btn-primary-line: transparent;
+  --btn-positive-bg: rgba(125, 191, 147, 0.16);
+  --btn-positive-ink: #a9d9b8;
+  --btn-positive-line: rgba(125, 191, 147, 0.35);
+  --btn-destructive-bg: rgba(226, 120, 120, 0.16);
+  --btn-destructive-ink: #f0a8a8;
+  --btn-destructive-line: rgba(226, 120, 120, 0.35);
+  --btn-secondary-bg: #1d1d21;
+  --btn-secondary-ink: #ededef;
+  --btn-secondary-line: #3a3a40;
+  --btn-ghost-bg: transparent;
+  --btn-ghost-ink: #b4b4bc;
+  --btn-ghost-line: transparent;
+
+  --star: #e0a526;
+
+  --code-keyword: #bb9af7;
+  --code-string: #9ece6a;
+  --code-number: #ff9e64;
+  --code-type: #2ac3de;
+
+  --shadow-popover: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --artifact-canvas: #ffffff;
+}
+
+/* The older roles, as the v2 primitives, and the mixes built from them.
+
+   Declared again for each explicit theme, not only on `:root`: a `var()` or a
+   `color-mix` is worked out where it is written, so a subtree carrying a
+   theme of its own would otherwise keep the value the root made. */
+:root,
+[data-theme='light'],
+[data-theme='dark'] {
+  --ground: var(--bg);
+  --panel: var(--surface);
+  --raised: var(--surface);
+  --track: var(--well);
+  --chip: var(--hover);
+  --chip-ink: var(--ink-2);
+  --grid: var(--chart-grid);
+  --disabled: var(--sep);
+
+  /* The one thing to act on is the primary button's pastel, not a filled blue. */
+  --accent: var(--btn-primary-bg);
+  --accent-ink: var(--btn-primary-ink);
+  --accent-text: var(--btn-primary-ink);
+  /* A fill that has to read as "on" with no label on it — a ticked box, a
+     switch's track, a progress bar, a busy dot: solid, 3:1 or better on
+     every surface. Rings and outlines use --focus; the pastel --accent is
+     only for fills a label sits on. */
+  --accent-solid: var(--focus);
+  /* Charts: muted bars with one called out in the Next blue; the done check
+     and the first donut slice in the Done sage. */
+  --accent-data: var(--status-next-dot);
+  --cyan: var(--status-next-dot);
+  --cyan-ink: var(--btn-primary-ink);
+  --navy: var(--ink);
+  --navy-data: var(--status-done-dot);
+  --bar-muted: var(--chart-bar);
+  --tile-ink: var(--ink-2);
+  /* The hero is a well fill now, not a gradient. */
+  --hero: var(--well);
+  --hero-muted: var(--ink-3);
+  --you: var(--btn-primary-bg);
+  --you-ink: var(--btn-primary-ink);
+
+  --page: var(--surface);
+  --ink-body: var(--ink);
+  --code-bg: var(--hover);
+  --code-ink: var(--ink);
+
+  --active: var(--selected);
+  --active-ink: var(--ink);
+  --active-icon: var(--ink-2);
+
+  /* A status pill's fill, by its older name. */
+  --status-inbox: var(--status-inbox-tint);
+  --status-backlog: var(--status-backlog-tint);
+  --status-next: var(--status-next-tint);
+  --status-doing: var(--status-doing-tint);
+  --status-waiting: var(--status-waiting-tint);
+  --status-review: var(--status-review-tint);
+  --status-done: var(--status-done-tint);
+
+  /* These say what happened, in the same inks the buttons and pills use. */
+  --danger: var(--btn-destructive-ink);
+  --warning: var(--status-doing-ink);
+  --success: var(--status-done-ink);
+
+  /* No shadow on content: what used to be lifted is now separated by a 1px
+     hairline, or by nothing. Only overlays keep a real shadow. */
+  --shadow-panel: none;
+  --shadow-card: 0 0 0 1px var(--line);
+  --shadow-tile: 0 0 0 1px var(--line);
+  --shadow-hero: none;
+  --shadow-badge: none;
+  --shadow-soft: 0 0 0 1px var(--line-strong);
+  --shadow-accent: none;
+  --shadow-overlay: var(--shadow-popover);
+  --glow: none;
+
+  /* The ring is two rings: a gap in the surface colour, then the focus
+     colour, so it reads against a filled control as well as a bare one. */
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+  /* The graph (P17-06): a link is a quiet line, a relation the accent's text
+     colour dashed, a note of no type the quiet ink. */
+  --graph-edge: color-mix(in srgb, var(--ink-3) 38%, transparent);
+  --graph-relation: color-mix(in srgb, var(--accent-text) 60%, transparent);
+  --graph-untyped: color-mix(in srgb, var(--ink-3) 75%, var(--surface));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: var(--text-body) / var(--leading-body) var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}

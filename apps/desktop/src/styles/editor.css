@@ -1,0 +1,1441 @@
+/* note pane and editor; wiki links; tags; suggestion popups; callouts; tables; images; bookmarks (U-21); shown blocks (P26-03); query blocks (P30-05); code highlighting.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- note pane and editor ---- */
+
+/* The way out of a refused save: offered beside it, weighted below it. */
+.viewer__resolve {
+  appearance: none;
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 700;
+  height: 30px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.viewer__resolve:hover {
+  background: var(--panel);
+}
+
+.viewer__resolve:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.editor {
+  color: var(--ink-body);
+  font-size: var(--text-body-lg);
+  line-height: 1.7;
+  outline: none;
+}
+
+.editor > * + * {
+  margin-top: 0.85em;
+}
+
+.editor h1,
+.editor h2,
+.editor h3,
+.editor h4 {
+  color: var(--ink);
+  font-weight: 800;
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-tight);
+  margin-top: 1.6em;
+}
+
+.editor h1 {
+  font-size: var(--text-heading);
+}
+.editor h2 {
+  font-size: var(--text-subtitle);
+}
+.editor h3 {
+  font-size: var(--text-card);
+}
+
+.editor ul,
+.editor ol {
+  padding-left: 1.4em;
+}
+
+.editor li > p,
+.editor li > div > p {
+  margin: 0;
+}
+
+/* Restore spacing only where an item genuinely holds several paragraphs. */
+.editor li p + p {
+  margin-top: 0.6em;
+}
+
+.editor ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+
+.editor ul[data-type='taskList'] li {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+}
+
+.editor blockquote {
+  border-left: 3px solid var(--line);
+  color: var(--ink-2);
+  margin-left: 0;
+  padding-left: 14px;
+}
+
+.editor pre {
+  background: var(--track);
+  border-radius: var(--radius-button);
+  font: 12.5px/1.6 var(--font-mono);
+  overflow-x: auto;
+  padding: 14px 16px;
+}
+
+.editor code {
+  background: var(--code-bg);
+  border-radius: var(--radius-chip);
+  color: var(--code-ink);
+  font: 500 0.86em var(--font-mono);
+  padding: 1px 6px;
+}
+
+.editor pre code {
+  background: none;
+  padding: 0;
+}
+
+.editor hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.editor a {
+  color: var(--accent-text);
+}
+
+/* A construct the editor cannot edit yet. Shown as source, saved untouched. */
+.raw-block {
+  background: var(--raised);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--ink-2);
+  font: 12.5px/1.6 var(--font-mono);
+  overflow-x: auto;
+  padding: 12px 14px;
+  white-space: pre;
+}
+
+.raw-block.ProseMirror-selectednode {
+  border-color: var(--accent-text);
+}
+
+/* A comment on its own, kept but not read: the markers round a meeting's summary (#186). */
+.raw-block--comment {
+  background: none;
+  border-color: transparent;
+  font-size: 11px;
+  opacity: 0.55;
+  padding: 0 4px;
+}
+
+/* ---- wiki links ---- */
+
+.wikilink {
+  color: var(--accent-text);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-text) 40%, transparent);
+}
+
+.wikilink:hover {
+  border-bottom-color: var(--accent-text);
+}
+
+/* A link to a person (P21-02): their initial in a circle beside their name, on
+   the chip tint. Still the one inline link atom — the look is a decoration,
+   the file keeps `[[Name]]`. */
+.wikilink--person {
+  align-items: baseline;
+  background: var(--you);
+  border-bottom: 0;
+  border-radius: var(--radius-pill);
+  box-decoration-break: clone;
+  display: inline-flex;
+  font-weight: 600;
+  gap: 5px;
+  padding: 0 8px 0 2px;
+}
+
+.wikilink--person::before,
+.person-avatar {
+  align-self: center;
+  background: var(--accent);
+  border-radius: 50%;
+  color: var(--accent-ink);
+  display: inline-grid;
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  height: 18px;
+  line-height: 1;
+  place-items: center;
+  width: 18px;
+}
+
+.wikilink--person::before {
+  content: attr(data-initial);
+}
+
+.wikilink--person:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--you));
+}
+
+.suggest-option__name .person-avatar {
+  margin-right: 8px;
+}
+
+/* A person picked from @ while their note is made: the chip to come, faded. */
+.mention-pending {
+  background: var(--you);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  opacity: 0.6;
+  padding: 0 8px;
+}
+
+/* Someone listed who no link could open: shown, with why, and not picked. */
+.suggest-option[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ---- tags ---- */
+
+/* A #tag in a note: the accent's text colour on its chip tint, like a link but
+   solid, since the whole word is the tag. It stays inline text — padding
+   would push the caret off it. */
+.editor .tag {
+  background: var(--you);
+  border-radius: var(--radius-chip);
+  box-decoration-break: clone;
+  color: var(--accent-text);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.editor .tag:hover {
+  background: color-mix(in srgb, var(--accent-text) 20%, transparent);
+}
+
+/* The tags page: the tree beside the chosen tag's notes, each a raised card. */
+.tags {
+  display: grid;
+  flex: 1;
+  gap: 18px;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.tags__index,
+.tags__detail {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.tags__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tags__tree,
+.tags__children,
+.tags__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tags__children {
+  margin-top: 2px;
+}
+
+.tags__row,
+.tags__note {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.tags__row:hover,
+.tags__note:hover {
+  background: var(--hover);
+}
+
+.tags__row:focus-visible,
+.tags__note:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.tags__item--on > .tags__row,
+.tags__item--on > .tags__row:hover {
+  background: var(--you);
+  color: var(--you-ink);
+  font-weight: 700;
+}
+
+.tags__icon {
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.tags__item--on > .tags__row .tags__icon {
+  color: var(--active-icon);
+}
+
+.tags__name,
+.tags__note-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tags__count {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 2px 6px;
+}
+
+.tags__hint {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: 0;
+  padding: 4px 10px;
+}
+
+.tags__notice {
+  background: var(--you);
+  border-radius: var(--radius-control);
+  color: var(--you-ink);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.tags__detail-head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-3);
+  padding: 0 10px;
+}
+
+.tags__title {
+  color: var(--accent-text);
+  font-size: var(--text-subtitle);
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tags__uses {
+  color: var(--ink-3);
+  flex: 1;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.tag-rename {
+  background: var(--panel);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.tag-rename__label {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tag-rename__row {
+  align-items: center;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  display: flex;
+  gap: 2px;
+  padding: 0 10px;
+}
+
+.tag-rename__row:focus-within {
+  box-shadow: var(--ring);
+}
+
+.tag-rename__hash {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.tag-rename__input {
+  background: none;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-body);
+  min-height: 34px;
+  outline: none;
+}
+
+.tag-rename__problem,
+.tag-rename__merge {
+  color: var(--danger);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0;
+}
+
+.tag-rename__summary {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.tag-rename__files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.tag-rename__file {
+  align-items: center;
+  display: flex;
+  font-size: var(--text-small);
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.tag-rename__file-name {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-rename__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .tags {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- suggestion popups ---- */
+
+.atlas-suggestion {
+  /* The text of a half-typed `[[` or `/` command. It is ordinary inline text and
+     must stay that way: giving it a box moves the caret off the end of the line. */
+  display: inline;
+}
+
+/* The editor's popups — the slash menu and the `[[` suggestions — float like
+   the app's menus: a raised card, rows with room, the active one tinted. */
+.suggestions {
+  background: var(--raised);
+  border-radius: 14px;
+  box-shadow: var(--shadow-overlay);
+  list-style: none;
+  margin: 0;
+  max-height: 320px;
+  max-width: 380px;
+  min-width: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  position: fixed;
+  z-index: 20;
+}
+
+.suggest-option {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: var(--space-3);
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.suggest-option:hover {
+  background: var(--hover);
+}
+
+.suggest-option--on,
+.suggest-option--on:hover {
+  background: var(--you);
+  color: var(--accent-text);
+}
+
+.suggest-option__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggest-option__path {
+  color: var(--ink-3);
+  flex-shrink: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- callouts ---- */
+
+/* A callout is a tinted card with a badge before its title — a tint and an
+   icon, never a heavy rule down its edge. */
+.callout {
+  --callout-tint: var(--accent-text);
+  --callout-mark: 'i';
+  background: color-mix(in srgb, var(--callout-tint) 9%, var(--page));
+  border-radius: var(--radius-card);
+  margin: 1em 0;
+  padding: 14px 18px;
+}
+
+.callout[data-callout='warning'],
+.callout[data-callout='caution'],
+.callout[data-callout='attention'] {
+  --callout-tint: var(--warning);
+  --callout-mark: '!';
+}
+
+.callout[data-callout='danger'],
+.callout[data-callout='error'],
+.callout[data-callout='bug'],
+.callout[data-callout='failure'] {
+  --callout-tint: var(--danger);
+  --callout-mark: '!';
+}
+
+.callout[data-callout='tip'],
+.callout[data-callout='success'],
+.callout[data-callout='done'] {
+  --callout-tint: var(--success);
+  --callout-mark: '✓';
+}
+
+.callout__title {
+  align-items: center;
+  color: var(--callout-tint);
+  display: flex;
+  font-size: var(--text-body);
+  font-weight: 800;
+  gap: 8px;
+  margin-bottom: 4px;
+  user-select: none;
+}
+
+.callout__title::before {
+  align-items: center;
+  background: var(--callout-tint);
+  border-radius: var(--radius-pill);
+  color: var(--page);
+  content: var(--callout-mark);
+  display: inline-flex;
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+}
+
+.callout__body > *:first-child {
+  margin-top: 0;
+}
+
+/* ---- tables ---- */
+
+.editor table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+/* A table in a note is read row by row, so it keeps the rule between rows —
+   nothing else separates one line of cells from the next — and drops the
+   ones between columns, which the cells' own padding already does. The head
+   is a tinted band, as in the views' tables. */
+.editor th,
+.editor td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.editor th {
+  background: var(--chip);
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  font-weight: 700;
+}
+
+.editor th:first-child {
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+}
+
+.editor th:last-child {
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.editor tr:last-child td {
+  border-bottom: 0;
+}
+
+.editor th {
+  border-bottom: 0;
+}
+
+.editor td > p,
+.editor th > p {
+  margin: 0;
+}
+
+.editor .selectedCell::after {
+  background: color-mix(in srgb, var(--accent-text) 16%, transparent);
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.editor td,
+.editor th {
+  position: relative;
+}
+
+/* ---- images ---- */
+
+.image__img {
+  border-radius: var(--radius-card);
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.image__missing {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 600;
+  padding: 3px 8px;
+}
+
+/* An image is an atom in the text: clicking it selects it, and its alt text
+   opens under it in a small popover. */
+.image {
+  /* A box the image's own size, capped at the column, so the alt text
+     popover can hang from its bottom edge. */
+  display: inline-block;
+  max-width: 100%;
+  position: relative;
+  vertical-align: middle;
+}
+
+.image--selected .image__img {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.image__alt {
+  background: var(--raised);
+  border-radius: 14px;
+  box-shadow: var(--shadow-overlay);
+  left: 8px;
+  padding: 6px;
+  position: absolute;
+  top: calc(100% + 6px);
+  width: min(320px, calc(100% - 16px));
+  z-index: 5;
+}
+
+.image__alt-input {
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  padding: 7px 10px;
+  width: 100%;
+}
+
+.image__alt-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus);
+  outline: none;
+}
+
+/* An image on its way in: a quiet chip where it will land, or, when it
+   could not be saved, the reason, tinted toward danger. Decorations only:
+   neither is ever written to the note. */
+.image-upload {
+  align-items: center;
+  background: var(--chip);
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: var(--space-2);
+  margin: 2px 0;
+  padding: 6px 10px;
+  vertical-align: middle;
+}
+
+.image-upload__spinner {
+  animation: image-upload-spin 0.9s linear infinite;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  border-top-color: var(--accent-solid);
+  height: 12px;
+  width: 12px;
+}
+
+@keyframes image-upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image-upload__spinner {
+    animation: none;
+  }
+}
+
+.image-upload--failed {
+  background: color-mix(in srgb, var(--danger) 9%, var(--raised));
+  color: var(--danger);
+}
+
+.image-upload__dismiss {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.image-upload__dismiss:hover {
+  background: var(--hover);
+}
+
+/* ---- bookmarks (U-21) ----
+   A link shown as a card: a resting raised card the width of the column, the
+   title, a line or two of summary and where the note lives on the left, a
+   picture of the page on the right (the page icon on the `--you` tint when it
+   has none). The whole card opens the note and lifts under the pointer, as an
+   interactive card does; its "…" opens the link's menu. Missing is tinted
+   toward danger; archived wears a chip and reads a step quieter. */
+
+.bookmark {
+  align-items: stretch;
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  margin: var(--space-3) 0;
+  min-height: 104px;
+  overflow: hidden;
+  position: relative;
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.bookmark:hover {
+  box-shadow: var(--shadow-tile);
+  transform: translateY(-1px);
+}
+
+.bookmark--selected,
+.bookmark--selected:hover {
+  box-shadow:
+    0 0 0 3px var(--focus),
+    var(--shadow-tile);
+}
+
+.bookmark__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px var(--space-4) 12px;
+}
+
+.bookmark__title {
+  font-size: var(--text-body-lg);
+  font-weight: 800;
+  letter-spacing: var(--tracking-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark__summary {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink-2);
+  display: -webkit-box;
+  font-size: var(--text-body);
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+.bookmark__summary--warn {
+  color: var(--danger);
+}
+
+.bookmark__place {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.bookmark__chip {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--chip-ink);
+  font-size: var(--text-label);
+  font-weight: 700;
+  margin-left: 4px;
+  padding: 2px 7px;
+}
+
+.bookmark__picture {
+  align-items: center;
+  aspect-ratio: 16 / 10;
+  background: var(--you);
+  color: var(--active-icon);
+  display: flex;
+  flex: none;
+  justify-content: center;
+  overflow: hidden;
+  width: 176px;
+}
+
+.bookmark__img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  width: 100%;
+}
+
+.bookmark__options {
+  background: var(--raised);
+  box-shadow: var(--shadow-soft);
+  opacity: 0;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  transition: opacity 120ms ease;
+}
+
+.bookmark:hover .bookmark__options,
+.bookmark--selected .bookmark__options,
+.bookmark__options:focus-visible {
+  opacity: 1;
+}
+
+.bookmark--missing {
+  background: color-mix(in srgb, var(--danger) 7%, var(--raised));
+}
+
+.bookmark--missing .bookmark__title {
+  color: var(--ink-2);
+}
+
+.bookmark--missing .bookmark__picture {
+  background: color-mix(in srgb, var(--danger) 10%, var(--raised));
+  color: var(--danger);
+}
+
+.bookmark--archived .bookmark__title,
+.bookmark--archived .bookmark__img {
+  opacity: 0.72;
+}
+
+.bookmark--loading .bookmark__title {
+  color: var(--ink-3);
+}
+
+/* Where a bookmark is only drawn — a feed, a picture of the page — it is its
+   link on a quiet card. */
+.bookmark--plain {
+  cursor: default;
+  min-height: 0;
+  padding: 12px var(--space-4);
+}
+
+.bookmark--plain:hover {
+  box-shadow: var(--shadow-card);
+  transform: none;
+}
+
+/* ---- shown blocks (P26-03) ----
+   A block of another note, drawn in this one: the block itself at the page's
+   own reading size, on a quiet tint of the `--you` colour, with a line above
+   naming the note it is written in — which opens it there. A tint, never a
+   rule down its edge, as a callout. Broken is tinted toward danger and says
+   why; archived wears a chip and reads a step quieter. */
+
+.block-embed {
+  background: color-mix(in srgb, var(--you) 55%, var(--raised));
+  border-radius: var(--radius-card);
+  margin: var(--space-3) 0;
+  padding: 10px var(--space-4) 12px;
+  position: relative;
+  transition: box-shadow 120ms ease;
+}
+
+.block-embed:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-text) 25%, transparent);
+}
+
+.block-embed--selected,
+.block-embed--selected:hover {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.block-embed__source {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: 5px;
+  margin-bottom: 2px;
+  user-select: none;
+}
+
+.block-embed__name {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+
+.block-embed__name:hover {
+  color: var(--accent-text);
+}
+
+.block-embed__chip {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--chip-ink);
+  font-size: var(--text-label);
+  font-weight: 700;
+  margin-left: 4px;
+  padding: 2px 7px;
+}
+
+/* The block reads as it does in its own note, not at a feed's smaller size. */
+.block-embed__body.editor--reading {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.block-embed__body > :first-child {
+  margin-top: 0;
+}
+
+/* Blocks keep only the space between them; a list's own margin below would
+   leave a gap at the foot of the embed. */
+.block-embed__body > * {
+  margin-bottom: 0;
+}
+
+/* The empty line the editor keeps after a list, somewhere to type — which
+   nothing can be, here. */
+.block-embed__body > p:last-child:has(> .ProseMirror-trailingBreak:only-child) {
+  display: none;
+}
+
+.block-embed__note {
+  color: var(--ink-3);
+  font-size: var(--text-body);
+  margin: 4px 0 0;
+}
+
+.block-embed__note--warn {
+  color: var(--danger);
+}
+
+.block-embed--broken {
+  background: color-mix(in srgb, var(--danger) 7%, var(--raised));
+}
+
+.block-embed--archived .block-embed__body {
+  opacity: 0.72;
+}
+
+/* Where a shown block is only drawn — a feed, a picture of the page — it is
+   its embed, a link on the same tint. */
+.block-embed--plain {
+  padding: 10px var(--space-4);
+}
+
+/* ---- query blocks (P30-05) ----
+   A live query in a note: a line naming it, with how many notes it found and
+   the switch to its text, then the rows as the Query page draws them, on the
+   page's raised surface. Its text is code, edited in place; a problem is said
+   in the danger colour, as the Query page says one. */
+
+.query-block {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  margin: var(--space-3) 0;
+  padding: 10px var(--space-4) 12px;
+  transition: box-shadow 120ms ease;
+}
+
+.query-block--selected {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.query-block__bar {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: 6px;
+  margin-bottom: 6px;
+  user-select: none;
+}
+
+.query-block__name {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+
+.query-block__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.query-block__toggle {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+
+.query-block__toggle:hover {
+  background: var(--track);
+}
+
+.query-block__text {
+  background: var(--track);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-button);
+  box-sizing: border-box;
+  color: var(--ink);
+  font: 12.5px/1.6 var(--font-mono);
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.query-block__text:focus {
+  border-color: var(--accent-text);
+  outline: none;
+}
+
+/* The note's own column is narrower than the Query page's, so the table
+   sizes its columns to what they hold: the name takes what the others
+   leave, rather than half the width the page's fixed layout gives it. */
+.query-block .qresult__table {
+  table-layout: auto;
+}
+
+.query-block__note {
+  color: var(--ink-3);
+  font-size: var(--text-body);
+  margin: 4px 0 0;
+}
+
+.query-block__note--warn {
+  color: var(--danger);
+}
+
+/* Where a query block is only drawn — a feed, a picture of the page — it is
+   the code Obsidian shows. */
+.query-block--plain {
+  box-shadow: none;
+}
+
+/* A linked page's sections (P30-06): what a person, company, project or
+   meeting page says about itself, between its properties and its text. Each
+   is a quiet card; an empty one is a single line, so a page with little to
+   say stays short. */
+.linked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+.linked__section {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  padding: 8px var(--space-4) 6px;
+}
+
+.linked__section--empty {
+  background: none;
+  box-shadow: none;
+  padding-bottom: 0;
+  padding-top: 0;
+}
+
+.linked__head {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-height: 30px;
+}
+
+.linked__title {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  font-weight: 800;
+  margin: 0;
+}
+
+.linked__section--empty .linked__title {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.linked__count {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--chip-ink);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+
+.linked__none,
+.linked__cut {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+.linked__cut {
+  margin: 4px 0;
+}
+
+/* The recent / all switch sits at the end of the heading's line, its options
+   words rather than the quiet control's icons. */
+.linked__head .segmented {
+  margin-left: auto;
+}
+
+.linked__head .segmented--quiet .segmented__option {
+  font-size: var(--text-small);
+  height: 22px;
+  padding: 0 10px;
+  width: auto;
+}
+
+.linked__hint,
+.linked__problem {
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 2px 0 4px;
+}
+
+.linked__hint {
+  color: var(--warning);
+}
+
+.linked__problem {
+  color: var(--danger);
+}
+
+/* The section is the card, so its list is not one inside it. */
+.linked .list-view {
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.linked .list-view__title {
+  margin-left: -8px;
+}
+
+/* A glance, not a view: rows sit closer than a list view's. */
+.linked .list-view__row {
+  min-height: 34px;
+}
+
+.linked .list-view__title {
+  max-width: 62%;
+  padding: 4px 8px;
+}
+
+.linked .qresult {
+  gap: var(--space-2);
+}
+
+.linked__more {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 2px 0;
+  padding: 4px 8px;
+}
+
+.linked__more:hover {
+  background: var(--track);
+}
+
+.linked__more:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A note's blocks in the `#` list: a line or two of each, as Capacities shows them. */
+.suggestions--blocks {
+  max-width: 440px;
+  min-width: 320px;
+}
+
+.suggestions--blocks .suggest-option {
+  align-items: flex-start;
+  min-height: 40px;
+  padding-bottom: 7px;
+  padding-top: 7px;
+}
+
+.suggestions--blocks .suggest-option__name {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.suggestions--blocks .suggest-option__path {
+  padding-top: 2px;
+}
+
+/* Where a followed `[[Note#^id]]` pointed: marked for a moment, then gone. */
+.editor .is-revealed {
+  animation: block-revealed 1.6s ease-out;
+  border-radius: var(--radius-control);
+}
+
+@keyframes block-revealed {
+  from {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor .is-revealed {
+    animation: none;
+    outline: 2px solid var(--focus);
+  }
+}
+
+/* A block's id (A26-01): the `^id` the file holds after its words, drawn
+   faint where it is written — after a paragraph's, a heading's or an item's
+   words, on a line under a quote, a callout or code — so a block that
+   something links to says so. Never text: it cannot be selected or typed
+   into. A shown block's own id is its source's business, and is not drawn.
+   Each block sets `--block-anchor` itself; an item's first paragraph reads
+   its item's. */
+.editor {
+  --block-anchor: none;
+}
+
+.editor p[data-block-anchor]::after,
+.editor :is(h1, h2, h3, h4, h5, h6)[data-block-anchor]::after,
+.editor li[data-block-anchor] > p:first-child::after,
+.editor :is(blockquote, pre, [data-callout])[data-block-anchor]::after {
+  color: var(--ink-3);
+  content: var(--block-anchor);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin-left: 0.5em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.editor :is(blockquote, pre, [data-callout])[data-block-anchor]::after {
+  display: block;
+  margin: 2px 0 0;
+}
+
+.block-embed__body [data-block-anchor]::after,
+.block-embed__body li[data-block-anchor] > p:first-child::after {
+  content: none;
+}
+
+/* The "…" over a link in the text under the pointer, the way to its menu. */
+.link-hover {
+  background: var(--raised);
+  box-shadow: var(--shadow-overlay);
+  position: fixed;
+  z-index: 20;
+}
+
+/* The `[[` list's keys along its foot: Enter links, Shift+Enter bookmarks. */
+.suggestions__hints {
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: var(--space-4);
+  margin-top: 4px;
+  padding: 8px 10px 4px;
+}
+
+/* ---- code highlighting ---- */
+
+.editor .hljs-comment,
+.editor .hljs-quote {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+.editor .hljs-keyword,
+.editor .hljs-selector-tag,
+.editor .hljs-literal {
+  color: var(--code-keyword);
+}
+
+.editor .hljs-string,
+.editor .hljs-attr {
+  color: var(--code-string);
+}
+
+.editor .hljs-number,
+.editor .hljs-built_in {
+  color: var(--code-number);
+}
+
+.editor .hljs-title,
+.editor .hljs-name,
+.editor .hljs-function {
+  color: var(--accent-text);
+}
+
+.editor .hljs-type,
+.editor .hljs-symbol {
+  color: var(--code-type);
+}

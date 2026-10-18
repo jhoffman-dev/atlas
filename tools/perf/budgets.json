@@ -3,7 +3,8 @@
     "The work budgets: the most each action may make the app do, as counts.",
     "These numbers only go DOWN. A PR may lower them; it never raises one without James's explicit agreement.",
     "Measured on the 2,008-note fixture by `pnpm perf:budgets`; `PERF_BUDGETS=write pnpm perf:budgets` lowers them to a run's counts plus headroom (10% or 2, whichever is more).",
-    "`rows` are hard rules with no headroom: the most times a list's row component may render."
+    "`rows` are hard rules with no headroom: the most times a list's row component may render.",
+    "`commitsFromCi: true` marks commits set by hand from CI's count plus headroom (CI counts a few more than a Mac for that action); `write` keeps them, so never lower them from a Mac run."
   ],
   "actions": {
     "Click a sidebar note": {
@@ -28,18 +29,17 @@
       "calls": {}
     },
     "One autosave and its watcher echo": {
-      "commits": 42,
-      "renders": 3678,
+      "commits": 31,
+      "renders": 2700,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 19,
-        "index_rebuild_views": 3,
+        "index_query": 15,
         "index_stats": 3,
-        "list_directory": 18,
+        "list_directory": 14,
         "list_notes": 4,
-        "read_notes": 15,
+        "read_notes": 14,
         "write_text_file": 3
       }
     },
@@ -76,17 +76,16 @@
       "calls": {}
     },
     "Tick a task on Today": {
-      "commits": 42,
-      "renders": 4819,
+      "commits": 37,
+      "renders": 3754,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_open": 3,
         "index_put": 3,
-        "index_query": 31,
-        "index_rebuild_views": 3,
+        "index_query": 28,
         "index_stats": 3,
-        "list_directory": 25,
+        "list_directory": 20,
         "list_notes": 4,
         "read_notes": 15,
         "read_text_file": 5,
@@ -94,7 +93,8 @@
       },
       "rows": {
         "TaskRow": 1
-      }
+      },
+      "commitsFromCi": true
     },
     "Open the Inbox": {
       "commits": 7,
@@ -108,18 +108,17 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 49,
-      "renders": 3701,
+      "commits": 42,
+      "renders": 3509,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
         "index_notes_of_type": 7,
         "index_put": 3,
-        "index_query": 47,
-        "index_rebuild_views": 3,
+        "index_query": 46,
         "index_remove": 3,
         "index_stats": 3,
-        "list_directory": 28,
+        "list_directory": 26,
         "list_notes": 7,
         "move_entry": 3,
         "read_notes": 21,
@@ -154,16 +153,15 @@
       }
     },
     "Drag a board card": {
-      "commits": 81,
-      "renders": 7732,
+      "commits": 69,
+      "renders": 5646,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 21,
-        "index_rebuild_views": 3,
+        "index_query": 16,
         "index_stats": 3,
-        "list_directory": 19,
+        "list_directory": 15,
         "list_notes": 4,
         "read_notes": 15,
         "read_text_file": 3,

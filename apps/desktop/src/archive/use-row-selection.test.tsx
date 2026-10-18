@@ -60,11 +60,11 @@ describe('useRowSelection — where a run starts once a batch settles', () => {
     expect([...result.current.selection.selected].sort()).toEqual(['b', 'c', 'd']);
   });
 
-  it('keeps the start when keepOnly keeps its row', () => {
+  it('keeps the start when the batch answers other rows', () => {
     const { result } = renderHook(() => useRowSelection(''));
     act(() => result.current.selection.onToggle('a'));
     act(() => result.current.selection.onToggle('b'));
-    act(() => result.current.keepOnly(['b']));
+    act(() => result.current.afterBatch({ answered: ['a'], failed: [] }));
     act(() => result.current.selection.onToggle('d', { order: ORDER }));
     expect([...result.current.selection.selected].sort()).toEqual(['b', 'c', 'd']);
   });

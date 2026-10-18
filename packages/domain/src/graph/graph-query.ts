@@ -32,12 +32,19 @@ const STATEMENTS: Readonly<Record<GraphQueryPart, string>> = {
  ORDER BY props.path, props.key, props.idx LIMIT ? OFFSET ?`,
 };
 
+/** The property that names a note's type: its first value is the node's type. */
+export const GRAPH_TYPE_KEY = 'type';
+/** The kind of link the graph draws: a wiki link that resolved. */
+export const GRAPH_LINK_KIND = 'wikilink';
+/** A property value written as a wiki link: a relation the graph draws. */
+export const GRAPH_RELATION_PATTERN = '[[%]]%';
+
 const BOUND: Readonly<Record<GraphQueryPart, readonly string[]>> = {
-  notes: ['type'],
+  notes: [GRAPH_TYPE_KEY],
   namedNotes: [],
-  links: ['wikilink'],
+  links: [GRAPH_LINK_KIND],
   // `type` names the note's kind, not a note it points at.
-  relations: ['[[%]]%', 'type'],
+  relations: [GRAPH_RELATION_PATTERN, GRAPH_TYPE_KEY],
 };
 
 /**

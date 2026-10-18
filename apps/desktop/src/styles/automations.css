@@ -1,0 +1,318 @@
+/* Automations (P25).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Automations (P25) ----
+   A page like the Archive's: its head, then — while one is open — the rule's
+   editor as a card, then every rule as a card of its own: a switch, its name
+   and what it does, when it last ran and runs next, and "Run now". */
+
+.automations__adders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.automations__adders .btn {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.automations__notice {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  margin: 0 0 var(--space-3);
+  padding: 8px 16px;
+}
+
+.automations__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+.automations__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.automation-card {
+  align-items: center;
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.automation-card--open {
+  box-shadow: var(--ring);
+}
+
+.automation-card__main {
+  min-width: 0;
+}
+
+.automation-card__name {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+}
+
+.automation-card__name:hover {
+  color: var(--accent-text);
+}
+
+.automation-card__name:focus-visible {
+  border-radius: var(--radius-chip);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.automation-card__what {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-card__notice {
+  color: var(--warning);
+  font-size: var(--text-small);
+  margin: 2px 0 0;
+}
+
+.automation-card__times {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.automation-card__times dt {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.automation-card__times dd {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 2px 0 0;
+  max-width: 260px;
+}
+
+.automation-editor {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-5);
+}
+
+.automation-editor__form {
+  display: grid;
+  gap: var(--space-4) var(--space-5);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.automation-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.automation-editor__field--wide {
+  grid-column: 1 / -1;
+}
+
+.automation-editor__label {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.automation-editor__row,
+.automation-editor__inline {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.automation-editor__inline {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+}
+
+.automation-editor__small {
+  width: 140px;
+}
+
+.automation-editor__age {
+  margin-top: var(--space-1);
+}
+
+/* A Claude step's prompt, output and tools: under its action, wrapping as the pane narrows. */
+.automation-editor__claude {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.automation-editor__tools {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+}
+
+.automation-editor__tools legend {
+  color: var(--ink-3);
+  font-size: var(--text-ui);
+  margin-bottom: var(--space-1);
+}
+
+.automation-editor__age .automation-editor__small {
+  width: 80px;
+}
+
+.automation-editor__to {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+}
+
+.automation-editor__problem {
+  color: var(--danger);
+  font-size: var(--text-ui);
+  margin: 0;
+}
+
+.automation-editor__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.automation-dry-run,
+.automation-log {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-4);
+}
+
+.automation-dry-run__summary,
+.automation-log__title {
+  font-size: var(--text-body);
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+}
+
+.automation-dry-run__notes,
+.automation-dry-run__passed,
+.automation-log__entries,
+.automation-log__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.automation-dry-run__notes li {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  padding: 4px 0;
+}
+
+.automation-dry-run__path {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-dry-run__passed {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin-top: var(--space-2);
+}
+
+.automation-log__empty {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  margin: 0;
+}
+
+.automation-log__entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.automation-log__entry {
+  border-left: 3px solid var(--track);
+  padding-left: var(--space-3);
+}
+
+.automation-log__heading {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  font-weight: 700;
+  margin: 0;
+}
+
+.automation-log__summary {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  margin: 2px 0 4px;
+}
+
+.automation-log__line {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  padding: 1px 0;
+}
+
+.automation-log__line--left {
+  color: var(--warning);
+}
+
+@media (max-width: 760px) {
+  .automation-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .automation-card__times {
+    grid-column: 2;
+  }
+}

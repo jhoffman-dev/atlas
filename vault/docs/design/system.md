@@ -21,7 +21,7 @@ edge-glow, not an inversion.
 
 ## Tokens
 
-All in `apps/desktop/src/styles.css`, as **roles**. Light is `:root`, dark is
+All in `apps/desktop/src/styles/tokens.css`, as **roles**. Light is `:root`, dark is
 `[data-theme='dark']` and the `prefers-color-scheme` block; the three must
 declare the same names. `styles.test.ts` fails if a token is read but never
 declared, if a declared token is papered over with a fallback, or if a raw
@@ -98,7 +98,7 @@ code (a command, a file path in Settings), never for a title or a label.
 
 ## Pieces
 
-In `packages/ui`, styled from the primitives in `styles.css`.
+In `packages/ui`, styled from the primitives in `apps/desktop/src/styles/primitives.css`.
 
 - **PageBar** — the breadcrumb bar: crumb icon, parent (never `.atlas/…`),
   page name, "Saved", the star and the page menu.
@@ -141,7 +141,7 @@ In `packages/ui`, styled from the primitives in `styles.css`.
   below a divider, in `--danger`. Names are edited in place (`.tree__rename`).
   "Move to…" is a palette (`MovePicker`); a delete asks first in an alert
   dialog (`.confirm`, `.btn--danger`, Cancel focused). Both are overlays under
-  the one-overlay rule. Styles live in their own section of `styles.css`.
+  the one-overlay rule. Styles live in `styles/pages-tree.css`.
 - **Artifacts** (P17-07) — `ArtifactViewer`: the saved copy as a raised
   card under a note's properties, a quiet bar (label, Open link, Full screen,
   Reload as ghost pills) over a sandboxed frame on `--artifact-canvas`; Full
@@ -165,7 +165,7 @@ In `packages/ui`, styled from the primitives in `styles.css`.
   clear of the page bar and the sidebar. Several types open a speed dial of
   raised pills sliding toward the panel's middle; one type opens
   `QuickAddPopover`, the menus' raised card. After an add, a `Toast` on
-  `--hero` at the panels' foot. Styles in their own section of `styles.css`.
+  `--hero` at the panels' foot. Styles in `styles/quick-add.css`.
 - **Bookmarks** (U-21) — a link shown as a card in a note: a resting
   `--raised` card, `--radius-card`, `--shadow-card`, lifting to `--shadow-tile`
   under the pointer. Title (`--text-body-lg`, 800), a two-line summary in

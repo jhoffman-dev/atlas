@@ -1,4 +1,4 @@
-import type { ConflictSide, GitPort, GitResult, TreeRev } from '@atlas/application';
+import type { ConflictSide, GitIdentity, GitPort, GitResult, TreeRev } from '@atlas/application';
 
 /** Runs git with these arguments, in the vault, as the host does. */
 export type RunGit = (...args: string[]) => Promise<GitResult>;
@@ -10,6 +10,12 @@ export const checkoutArgs = (side: ConflictSide, path: string): string[] => [
   '--',
   path,
 ];
+
+/** `-c user.name=… -c user.email=…`: who a commit or merge is by, when git has no one. */
+const identityArgs = (identity: GitIdentity | null): string[] =>
+  identity === null
+    ? []
+    : ['-c', `user.name=${identity.name}`, '-c', `user.email=${identity.email}`];
 
 const revOf = (rev: TreeRev): string =>
   rev.kind === 'head' ? 'HEAD' : rev.kind === 'remote' ? `origin/${rev.branch}` : rev.oid;
@@ -26,21 +32,16 @@ export function gitCommands(git: RunGit): Omit<GitPort, 'createGitHubRepository'
     status: () => git('status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'),
     addAll: () => git('add', '--all'),
     commit: ({ message, identity }) =>
-      identity === null
-        ? git('commit', '--quiet', '--no-verify', '-m', message)
-        : git(
-            '-c',
-            `user.name=${identity.name}`,
-            '-c',
-            `user.email=${identity.email}`,
-            'commit',
-            '--quiet',
-            '--no-verify',
-            '-m',
-            message,
-          ),
+      git(...identityArgs(identity), 'commit', '--quiet', '--no-verify', '-m', message),
     fetch: () => git('fetch', '--quiet', 'origin'),
-    merge: (branch) => git('merge', '--no-edit', '--allow-unrelated-histories', `origin/${branch}`),
+    merge: ({ branch, identity }) =>
+      git(
+        ...identityArgs(identity),
+        'merge',
+        '--no-edit',
+        '--allow-unrelated-histories',
+        `origin/${branch}`,
+      ),
     push: () => git('push', '--quiet', '--set-upstream', 'origin', 'HEAD'),
     remoteUrl: () => git('remote', 'get-url', 'origin'),
     setRemote: ({ url, exists }) => git('remote', exists ? 'set-url' : 'add', 'origin', url),

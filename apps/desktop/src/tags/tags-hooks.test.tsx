@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { createTagRenames, fakeIndexPort, fakeVaultFs } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { TagCount } from '@atlas/domain';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { useVaultTags } from './use-vault-tags.ts';
 import { useTagsPage, type TagsPagePorts } from './use-tags-page.ts';
 
@@ -48,8 +49,8 @@ describe('useVaultTags', () => {
   it('waits for the index, then reads the tags and suggests from them', async () => {
     const { index, query } = tagIndex();
     const { result, rerender } = renderHook(
-      ({ ready }) => useVaultTags({ index, indexKey: 'k', ready }),
-      { initialProps: { ready: false } },
+      ({ ready }) => useVaultTags({ index, vaultKey: '/vault', ready }),
+      { initialProps: { ready: false }, wrapper: queryWrapper().wrapper },
     );
     expect(result.current.state.kind).toBe('loading');
     expect(result.current.suggest('id')).toEqual([{ kind: 'create', name: 'id' }]);
@@ -63,7 +64,10 @@ describe('useVaultTags', () => {
 
   it('says when the tags could not be read', async () => {
     const index = fakeIndexPort({ query: async () => Promise.reject(new Error('locked')) });
-    const { result } = renderHook(() => useVaultTags({ index, indexKey: 'k', ready: true }));
+    const { result } = renderHook(
+      () => useVaultTags({ index, vaultKey: '/vault', ready: true }),
+      queryWrapper(),
+    );
     await waitFor(() =>
       expect(result.current.state).toEqual({
         kind: 'failed',

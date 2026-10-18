@@ -1,0 +1,389 @@
+/* Page anatomy; The page head.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Page anatomy ---------------------------------------------------------
+   Every page is headed the same way (design/target/Note.dc.html, and the head
+   of Board, Table and Main): a 52px bar with the breadcrumb, the save state,
+   the star and "…"; then an icon tile and a title. A note is a reading page —
+   a paler sheet, a larger stacked head, a 720px measure. A view, a dashboard
+   or a type is a working page — the tile beside the title, the body the width
+   of the window.
+   -------------------------------------------------------------------------- */
+
+.page-bar {
+  container: page-bar / inline-size;
+  flex: none;
+  min-width: 0;
+}
+
+.page-bar__row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  height: 52px;
+  min-width: 0;
+  padding: 0 16px 0 24px;
+}
+
+/* With the sidebar hidden, its way back takes the corner, and the breadcrumb
+   moves over rather than sitting under it. */
+.page-bar__row:has(> .page-bar__button:first-child),
+.page-bar__row:has(> .page-bar__history:first-child) {
+  padding-left: 12px;
+}
+
+/* The controls never give way: closing, the menu and the star stay whole and
+   inside the pane however narrow it is. The breadcrumb gives way instead —
+   the folder first, then the name, each to an ellipsis. */
+.page-bar__row > .page-bar__button,
+.page-bar__row > .star {
+  flex: none;
+}
+
+/* Back and Forward, a pair before the breadcrumb, as in a browser. */
+.page-bar__history {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.page-bar__button:disabled {
+  background: none;
+  cursor: default;
+  opacity: 0.35;
+}
+
+.page-bar__crumbs {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-ui);
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.page-bar__crumb-icon {
+  flex: none;
+}
+
+/* Gives way well before the name does, down to a few letters — never to a
+   bare slash. Narrower than that, the container query drops it whole. */
+.page-bar__parent {
+  flex-shrink: 4;
+  font-weight: 600;
+  min-width: 2.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-bar__name {
+  color: var(--ink);
+  font-weight: 700;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-bar__spacer {
+  flex: 1;
+}
+
+.page-bar__status {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+
+.page-bar__button,
+.page-bar .star {
+  border-radius: var(--radius-button);
+  color: var(--ink-2);
+  height: 32px;
+  width: 32px;
+}
+
+.page-bar .star {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  padding: 0;
+}
+
+.page-bar .star:hover {
+  background: var(--hover);
+}
+
+.page-bar .star--on {
+  color: var(--star);
+}
+
+.page-bar__button[data-popup-open] {
+  background: var(--hover);
+}
+
+/* A split pane at the window's narrower widths. Tighter first; then the save
+   word leaves the row but not the page — it is still the live region that
+   announces a save; then Back and Forward go, which ⌘[ and ⌘] still do. */
+@container page-bar (max-width: 440px) {
+  .page-bar__row,
+  .page-bar__row:has(> .page-bar__button:first-child),
+  .page-bar__row:has(> .page-bar__history:first-child) {
+    gap: 4px;
+    padding: 0 8px;
+  }
+
+  .page-bar__parent,
+  .page-bar__slash {
+    display: none;
+  }
+}
+
+@container page-bar (max-width: 340px) {
+  .page-bar__status {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+}
+
+@container page-bar (max-width: 270px) {
+  .page-bar__history {
+    display: none;
+  }
+}
+
+/* A refused save, and the two ways out of it, under the bar. */
+.page-conflict {
+  align-items: center;
+  background: color-mix(in srgb, var(--danger) 8%, var(--raised));
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 16px var(--space-2) 24px;
+  padding: 10px 12px 10px 16px;
+}
+
+.page-conflict__message {
+  color: var(--danger);
+  flex: 1;
+  font-size: var(--text-small);
+  font-weight: 600;
+  min-width: 20ch;
+}
+
+/* A note's sheet is paler than a view's panel, as in the mockup. */
+.panel:has(> .panel__body > .page--note) {
+  background: var(--page);
+}
+
+.page {
+  margin: 0;
+}
+
+.page--note {
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  max-width: 100%;
+  /* Room to type near the bottom of a long note. */
+  padding: 34px 32px 30vh;
+  width: calc(720px + 64px);
+}
+
+.page--wide {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  height: 100%;
+  padding: 6px 32px 24px;
+}
+
+.page--wide .board,
+.page--wide .table,
+.page--wide .list-view,
+.page--wide .gallery,
+.page--wide .feed,
+.page--wide .dashboard,
+.page--wide .timeline {
+  flex: 1;
+  min-height: 0;
+}
+
+.page--wide .list-view,
+.page--wide .gallery,
+.page--wide .feed,
+.page--wide .dashboard {
+  overflow-y: auto;
+}
+
+/*
+ * A table scrolls inside its own sheet, both ways, so the sheet is the one
+ * scroller its sticky header measures against. Scrolling the page around a
+ * sheet that only scrolled sideways left the header nothing to stick to.
+ */
+.page--wide .table {
+  display: flex;
+  flex-direction: column;
+}
+
+.page--wide .table__sheet {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.page--wide .table__footer {
+  flex: none;
+}
+
+.page__path,
+.page__sql {
+  background: var(--code-bg);
+  border-radius: var(--radius-control);
+  color: var(--code-ink);
+  font: 12.5px/1.6 var(--font-mono);
+  margin: 0;
+  overflow-x: auto;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.page--note .page__path,
+.page--note .page__sql {
+  margin-bottom: 18px;
+}
+
+/* ---- The page head ---- */
+
+.page-head {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-head__row {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  min-width: 0;
+}
+
+.page-head__tile {
+  align-items: center;
+  background: var(--hero);
+  border-radius: 16px;
+  box-shadow: var(--shadow-tile);
+  color: var(--tile-ink);
+  display: flex;
+  flex: none;
+  height: 52px;
+  justify-content: center;
+  width: 52px;
+}
+
+.page-head__titles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.page-head__title {
+  color: var(--ink);
+  font-size: var(--text-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-title);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.page-head__description {
+  color: var(--ink-2);
+  font-size: var(--text-body);
+  font-weight: 500;
+  margin: 0;
+}
+
+.page-head__actions {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+}
+
+/* A note's head stacks: a larger tile, then a larger title under it. */
+.page-head--note {
+  margin-bottom: 22px;
+}
+
+.page-head--note .page-head__row {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-head--note .page-head__tile {
+  border-radius: 18px;
+  height: 60px;
+  width: 60px;
+}
+
+.page-head--note .page-head__title {
+  font-size: 36px;
+  letter-spacing: -0.028em;
+  line-height: 1.15;
+}
+
+/* The title is the text itself until it is pressed. */
+.page-head__title-button {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: inherit;
+  cursor: text;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  margin: 0 -6px;
+  padding: 0 6px;
+  text-align: left;
+}
+
+.page-head__title-button:hover {
+  background: var(--hover);
+}
+
+.page-head__title-button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.page-head__title-input {
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-control);
+  box-shadow: var(--ring);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  margin: 0 -6px;
+  outline: none;
+  padding: 0 6px;
+  width: calc(100% + 12px);
+}

@@ -1,0 +1,277 @@
+/* The shell; The workspace header.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- The shell -----------------------------------------------------------
+   The sidebar sits on the ground colour behind a hairline; the work runs edge
+   to edge on the surface — one panel, or one per pane when the window is
+   split. Measurements are the mockup's.
+   -------------------------------------------------------------------------- */
+
+.shell {
+  background: var(--surface);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.shell__sidebar {
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px 10px 12px 12px;
+  width: var(--sidebar-width);
+}
+
+.shell__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--shell-inset);
+  min-height: 0;
+  min-width: 0;
+  padding: var(--shell-inset) var(--shell-inset) var(--shell-inset) 0;
+  position: relative;
+}
+
+.shell--narrow .shell__main {
+  padding-left: var(--shell-inset);
+}
+
+/* The split: equal columns of the width the window has, each its own panel.
+   Each pane scrolls on its own, so a long note on one side does not move the
+   note on the other. */
+.shell__split {
+  /* The panes are flush, so the line between them is the split's own colour
+     showing through a 1px gap. */
+  background: var(--line);
+  display: grid;
+  flex: 1;
+  gap: 1px;
+  min-height: 0;
+}
+
+.shell__split[data-panes='2'] {
+  grid-template-columns: 1fr 1fr;
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* Without this a wide table in one pane would push the other one off the
+     window: a grid track's automatic minimum is its content, not zero. */
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.panel__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* A page whose long lists are virtualised (#238): positioned, so a list can
+   read where it starts in the scroller from its offsets (\`scroll-margin.ts\`). */
+.panel__body--rows {
+  position: relative;
+}
+
+/* Where a hidden sidebar comes back from: the first panel's top-left corner,
+   inside its header strip. */
+.shell__show {
+  left: calc(var(--shell-inset) + 12px);
+  position: absolute;
+  top: calc(var(--shell-inset) + 10px);
+  z-index: 2;
+}
+
+/* How far a build of the index has got: a line at the foot of the panels,
+   out of the way of the note and of the add button opposite. It takes no
+   clicks — whatever is under it stays reachable. */
+.index-progress {
+  background: var(--raised);
+  border-radius: var(--radius-pill);
+  bottom: calc(var(--shell-inset) + 12px);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  left: calc(var(--shell-inset) + 12px);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+/* Which pane the next note opens in. Quiet on purpose — it answers a question
+   you only ask while you are splitting, and the note is what should be read. */
+.pane--focused::before {
+  background: var(--focus);
+  border-radius: var(--radius-pill);
+  content: '';
+  height: 3px;
+  left: 50%;
+  position: absolute;
+  top: 8px;
+  transform: translateX(-50%);
+  width: 36px;
+}
+
+/* A pane takes the focus only from script, when what held it has gone; the
+   marker above already says which pane it is, so no ring is drawn round it. */
+.pane:focus {
+  outline: none;
+}
+
+/* A single pane is the whole window and needs no marking: there is nowhere
+   else for a note to open. */
+.shell__split[data-panes='1'] .pane--focused::before {
+  display: none;
+}
+
+/* A square, quiet control: an icon on nothing until it is pointed at. */
+.icon-button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  transition: background 120ms ease;
+  width: 28px;
+}
+
+.icon-button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.icon-button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.shell__show {
+  border-radius: var(--radius-button);
+  height: 32px;
+  width: 32px;
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+/* Problems, above the panels rather than inside any one of them: a raised
+   card, tinted toward the danger colour, with any way out as pill buttons. */
+.notice {
+  align-items: center;
+  background: color-mix(in srgb, var(--danger) 8%, var(--raised));
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  color: var(--danger);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.notice p {
+  flex: 1;
+  margin: 0;
+  min-width: 20ch;
+}
+
+/* Read by a screen reader, drawn nowhere. */
+.visually-hidden {
+  border: 0;
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* ---- The workspace header ------------------------------------------------ */
+
+.vault-header {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: 10px;
+  padding: 2px 4px 2px 6px;
+}
+
+.vault-header__tile {
+  align-items: center;
+  background: var(--navy);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-badge);
+  color: var(--tile-ink);
+  display: flex;
+  flex: none;
+  font-size: 14px;
+  font-weight: 800;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.vault-header__name {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  gap: 4px;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  padding: 2px 0;
+  text-align: left;
+}
+
+.vault-header__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-header__chevron {
+  color: var(--ink-3);
+}
+
+.vault-header__name:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}

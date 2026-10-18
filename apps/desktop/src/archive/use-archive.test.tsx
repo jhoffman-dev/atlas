@@ -248,6 +248,38 @@ describe('useArchive', () => {
     await waitFor(() => expect(hook.result.current.page.choosing.chosen).toEqual(['b.md']));
   });
 
+  it('keeps a row chosen while the batch runs, and chooses a failed one again (#201)', async () => {
+    const { fs, files, hook } = setUp({
+      'Archive/a.md': '---\narchivedFrom: a.md\n---\n',
+      'b.md': '',
+      'c.md': '',
+    });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const move = fs.moveEntry.bind(fs);
+    vi.spyOn(fs, 'moveEntry').mockImplementation(async (entry) => {
+      await gate;
+      return move(entry);
+    });
+    const { selection } = hook.result.current.page.choosing;
+    act(() => {
+      selection.onToggle('Archive/a.md');
+      selection.onToggle('b.md');
+    });
+    act(() => hook.result.current.page.unarchive([path('Archive/a.md'), path('b.md')]));
+    act(() => {
+      hook.result.current.page.choosing.selection.onToggle('c.md');
+      hook.result.current.page.choosing.selection.onToggle('b.md');
+    });
+    expect([...hook.result.current.page.choosing.chosen].sort()).toEqual(['Archive/a.md', 'c.md']);
+
+    await act(async () => release());
+    await waitFor(() => expect(files.has('a.md')).toBe(true));
+    await waitFor(() =>
+      expect([...hook.result.current.page.choosing.chosen].sort()).toEqual(['b.md', 'c.md']),
+    );
+  });
+
   it('A23: does not start a second batch while one is under way', async () => {
     const { hook, files, fs } = setUp({ 'a.md': '' });
     const moves = vi.spyOn(fs, 'moveEntry');
