@@ -1,9 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  columnIcon,
   countLabel,
+  groupTotals,
   humanizeKey,
   newNoteLabel,
+  tableArrangement,
   toBoardRows,
   type BoardRow,
   type GroupLine,
@@ -19,7 +20,7 @@ import {
   type LinePlace,
   type TableGrouping,
 } from './grouped-rows.tsx';
-import { Icon, propertyGlyph } from './icon.tsx';
+import { Icon } from './icon.tsx';
 import { SelectAllBox, type RowSelection } from './row-selection.tsx';
 import { useSteadyCallback } from './steady-callback.ts';
 import { sameEntries, sameItems, useSteadyValue } from './steady-value.ts';
@@ -195,21 +196,67 @@ function TableSheet({
             {...(grouped && { grouping })}
           />
         )}
-        <footer className="table__footer">
-          {onNewNote !== undefined && (
-            <button type="button" className="table__new" onClick={onNewNote}>
-              <Icon name="plus" size={14} />
-              {newNoteLabel(schema.noun)}
-            </button>
-          )}
-          <span className="table__count">
-            {countLabel({ count: result.rows.length, noun: schema.noun })}
-            {result.truncated && ' (more were left out)'}
-          </span>
-        </footer>
       </div>
+      <TableFooter
+        result={result}
+        sorts={sorts}
+        schema={schema}
+        grouping={grouped ? grouping : undefined}
+        {...(onNewNote !== undefined && { onNewNote })}
+      />
     </div>
   );
+}
+
+/**
+ * The 30px footer (Table.dc.html): how many rows, how many in each group,
+ * and how the table is arranged — "Grouped by status · sorted by phase".
+ */
+function TableFooter({
+  result,
+  sorts,
+  schema,
+  grouping,
+  onNewNote,
+}: {
+  result: TableResult;
+  sorts: readonly QuerySort[];
+  schema: TableSchema;
+  grouping: TableGrouping | undefined;
+  onNewNote?: () => void;
+}) {
+  const label = (key: string) => columnLabel(key, schema);
+  const groupedBy = grouping?.groups[0]?.field;
+  const arrangement = tableArrangement({
+    groupedBy: groupedBy === undefined ? null : label(groupedBy),
+    sortedBy: sorts.map((sort) => label(sort.key)),
+  });
+  return (
+    <footer className="table__footer">
+      {onNewNote !== undefined && (
+        <button type="button" className="table__new" onClick={onNewNote}>
+          <Icon name="plus" size={14} />
+          {newNoteLabel(schema.noun)}
+        </button>
+      )}
+      <span className="table__count">
+        {countLabel({ count: result.rows.length, noun: schema.noun })}
+        {result.truncated && ' (more were left out)'}
+      </span>
+      {grouping !== undefined &&
+        groupTotals(grouping.groups).map((total) => (
+          <span key={total} className="table__total">
+            {total}
+          </span>
+        ))}
+      {arrangement !== null && <span className="table__arrangement">{arrangement}</span>}
+    </footer>
+  );
+}
+
+/** A column's heading: "Name" for the title, else the label its type declares, else its key humanised. */
+function columnLabel(column: string, schema: TableSchema): string {
+  return column === TITLE ? 'Name' : (schema.labels[column] ?? humanizeKey(column));
 }
 
 /**
@@ -360,8 +407,7 @@ function TableHead({
         )}
         {columns.map((column) => {
           const sort = sorts.find((candidate) => candidate.key === column);
-          const kind = schema.kinds[column];
-          const label = column === TITLE ? 'Name' : (schema.labels[column] ?? humanizeKey(column));
+          const label = columnLabel(column, schema);
           return (
             <th
               key={column}
@@ -381,17 +427,11 @@ function TableHead({
                 onClick={() => onToggleSort(column)}
                 title={`Sort by ${label}`}
               >
-                <Icon
-                  name={propertyGlyph(
-                    columnIcon(kind === undefined ? { key: column } : { key: column, kind }),
-                  )}
-                  size={14}
-                />
                 {label}
                 {sort !== undefined && (
                   <Icon
                     name="up"
-                    size={12}
+                    size={11}
                     className={
                       sort.direction === 'desc' ? 'table__sort table__sort--desc' : 'table__sort'
                     }

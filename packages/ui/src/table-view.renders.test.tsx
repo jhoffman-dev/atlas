@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import type { DoneTicks } from './done-checkbox.tsx';
 import type { RowSelection } from './row-selection.tsx';
 import { TableView, type TableResult, type TableViewProps } from './table-view.tsx';
+import { tableRowsMeasured } from './testing/table-rows-measured.ts';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';
 
 // Before React loads, so every commit is handed to the counter.
@@ -71,6 +72,8 @@ function rowsDrawnBy(act: () => void, component = 'TableRow'): number {
 }
 
 describe('TableView — what one commit draws', () => {
+  tableRowsMeasured();
+
   it('draws no row again for a commit that changes nothing in the table', () => {
     const result = read(12);
     const view = render(<TableView {...props(result, { ticks: ticksFor() })} />);
@@ -83,12 +86,12 @@ describe('TableView — what one commit draws', () => {
     expect(drawn).toBe(0);
   });
 
-  it('draws no icon again for a commit that changes nothing, though the heading is drawn again', () => {
+  it('draws no cell again for a commit that changes nothing, though the heading is drawn again', () => {
     const result = read(12);
     const view = render(<TableView {...props(result)} />);
-    const drawn = rowsDrawnBy(() => view.rerender(<TableView {...props(result)} />), 'Icon');
+    const drawn = rowsDrawnBy(() => view.rerender(<TableView {...props(result)} />), 'Cell');
     expect(drawn).toBe(0);
-    expect(document.querySelectorAll('thead .icon').length).toBeGreaterThan(0);
+    expect(rowsDrawnBy(() => view.rerender(<TableView {...props(result)} />), 'TableHead')).toBe(1);
   });
 
   it('draws the one row whose values changed when the query is read again', () => {
@@ -153,6 +156,7 @@ describe('TableView — what one commit draws', () => {
 });
 
 describe('TableView — what a change of its own draws', () => {
+  tableRowsMeasured();
   const cellsOf = (title: string) =>
     [...(screen.getByRole('button', { name: title }).closest('tr')?.querySelectorAll('td') ?? [])]
       .map((cell) => cell.textContent)
@@ -216,6 +220,7 @@ describe('TableView — what a change of its own draws', () => {
 });
 
 describe('TableView — what assistive technology is told of a virtualised table', () => {
+  tableRowsMeasured();
   it('says how many rows the table has, and where each drawn row sits', () => {
     render(<TableView {...props(read(420))} />);
     expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('421');
@@ -231,6 +236,7 @@ describe('TableView — what assistive technology is told of a virtualised table
 });
 
 describe('TableView — a long table', () => {
+  tableRowsMeasured();
   it('puts only a screenful of its 420 rows in the page', () => {
     render(<TableView {...props(read(420))} />);
     const drawn = document.querySelectorAll('.table__row').length;

@@ -93,6 +93,7 @@ describe('ViewSaveControls', () => {
       />,
     );
     const group = screen.getByRole('group', { name: 'Unsaved view changes' });
+    expect(within(group).getByText('This view has unsaved changes.')).toBeDefined();
     await userEvent.click(within(group).getByRole('button', { name: 'Save view' }));
     await userEvent.click(within(group).getByRole('button', { name: 'Reset' }));
     expect(onSave).toHaveBeenCalledTimes(1);

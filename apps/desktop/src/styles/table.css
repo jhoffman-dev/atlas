@@ -3,23 +3,23 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- table view ----
-   Table.dc.html: one raised, rounded sheet. Headings carry an icon for the
-   kind of property and read in sentence case; rows are 44px, named by a plain
-   title the row opens on, with statuses as pills and empty cells left empty.
-   The footer adds a note and counts them. */
+   Table.dc.html: a flat sheet on the surface. A 32px sticky header of 12/500
+   ink-3 labels with a sort arrow on the sorted one; 34px rows divided by
+   `line-soft`, named by a plain title the row opens on, the other cells
+   12.5px ink-2 with tabular figures, statuses as pills and empty cells left
+   blank; a `hover` fill under the pointer. A 30px footer counts the rows and
+   says how the table is arranged. Heights match the virtualiser's estimates
+   in grouped-rows.tsx (LINE_HEIGHT), pinned by e2e/row-estimates.spec.ts. */
 
 .table {
-  font-size: var(--text-ui);
+  font-size: var(--text-body);
 }
 
 .table__sheet {
-  background: var(--raised);
-  border-radius: 18px;
-  box-shadow: var(--shadow-soft);
   overflow: auto;
   /* A row the arrow keys focus is scrolled clear of the sticky headings
-     (.table__grid th: 40px and its 1px rule), not under them (#244). */
-  scroll-padding-top: 41px;
+     (.table__grid th: 32px and its 1px rule), not under them (#244). */
+  scroll-padding-top: 33px;
 }
 
 .table__grid {
@@ -35,18 +35,18 @@
 }
 
 .table__grid td {
-  border-bottom: 1px solid var(--line);
-  height: 44px;
+  border-bottom: 1px solid var(--line-soft);
+  height: 34px;
 }
 
 .table__grid td:first-child,
 .table__grid th:first-child {
-  padding-left: 8px;
+  padding-left: 12px;
 }
 
 .table__grid td:last-child,
 .table__grid th:last-child {
-  padding-right: 8px;
+  padding-right: 12px;
 }
 
 .table__grid tbody tr:hover {
@@ -54,9 +54,9 @@
 }
 
 .table__grid th {
-  background: var(--raised);
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
-  height: 40px;
+  height: 32px;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -71,17 +71,17 @@
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-size: var(--text-small);
-  font-weight: 700;
-  gap: 7px;
-  padding: 0 10px;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  gap: 3px;
+  padding: 0 8px;
   white-space: nowrap;
   width: 100%;
 }
 
 .table__heading:hover,
 .table__heading--sorted {
-  color: var(--accent-text);
+  color: var(--ink-2);
 }
 
 .table__sort--desc {
@@ -99,16 +99,19 @@
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-weight: 600;
-  gap: 10px;
-  min-height: 34px;
-  padding: 0 10px;
+  font-size: var(--text-column);
+  font-variant-numeric: tabular-nums;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 8px;
   text-align: left;
   width: 100%;
 }
 
-.table__cell:hover {
-  background: var(--hover);
+.table__cell:focus-visible,
+.table__link:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
 }
 
 /* A relation's cell: the notes it links, each opening its note. */
@@ -118,26 +121,23 @@
   gap: 6px;
 }
 
-.table__links:hover {
-  background: none;
-}
-
 .table__note,
 .props__link-title {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-chip);
   color: inherit;
   font: inherit;
   padding: 0;
 }
 
 .table__note {
-  background: var(--chip);
+  background: var(--selected);
   color: var(--ink);
-  font-weight: 700;
-  padding: 2px 8px;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  padding: 1px 6px;
 }
 
 button.table__note,
@@ -169,7 +169,7 @@ button.props__link-title:focus-visible {
 /* Every column but the name keeps a narrow measure; the name takes the rest. */
 .table__grid th:not(:first-child),
 .table__grid td:not(.table__name) {
-  min-width: 110px;
+  min-width: 96px;
   white-space: nowrap;
   width: 1%;
 }
@@ -186,70 +186,54 @@ button.props__link-title:focus-visible {
 
 .table__link {
   color: var(--ink);
-}
-
-.table__link .icon {
-  color: var(--ink-3);
-  flex: none;
+  font-size: var(--text-body);
 }
 
 .table__title {
-  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.table__link:hover .table__title {
-  color: var(--accent-text);
-}
-
-/* An empty cell is blank until its row is pointed at. */
-.table__blank {
-  color: var(--ink-3);
-  opacity: 0;
-}
-
-.table__grid tr:hover .table__blank,
-.table__cell:focus-visible .table__blank {
-  opacity: 0.6;
-}
-
 .table__you {
   align-items: center;
   background: var(--you);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--you-ink);
   display: inline-flex;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: var(--text-meta);
+  font-weight: 500;
   gap: 5px;
-  height: 24px;
-  padding: 0 9px;
+  height: 20px;
+  padding: 0 7px;
 }
 
+/* The cell being edited wears the 1.5px `focus` ring, as FlowTable.dc.html draws it. */
 .table__input {
-  background: var(--track);
+  background: var(--surface);
   border: 0;
   border-radius: var(--radius-chip);
-  box-shadow: var(--ring);
+  box-shadow: 0 0 0 1.5px var(--focus);
   color: var(--ink);
   font: inherit;
+  font-size: var(--text-column);
+  height: 28px;
   outline: none;
-  padding: 5px 9px;
+  padding: 0 7px;
   width: 100%;
 }
 
 .table__footer {
   align-items: center;
+  border-top: 1px solid var(--line);
   color: var(--ink-3);
   display: flex;
-  font-size: var(--text-small);
-  font-weight: 700;
-  gap: 10px;
-  height: 42px;
-  justify-content: space-between;
-  padding: 0 18px;
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  gap: 14px;
+  height: 30px;
+  padding: 0 20px;
+  white-space: nowrap;
 }
 
 .table__new {
@@ -262,9 +246,9 @@ button.props__link-title:focus-visible {
   cursor: pointer;
   display: flex;
   font: inherit;
-  gap: 10px;
+  gap: 6px;
   margin-left: -8px;
-  padding: 6px 8px;
+  padding: 0 8px;
 }
 
 .table__new:hover {
@@ -272,14 +256,17 @@ button.props__link-title:focus-visible {
   color: var(--ink);
 }
 
-.table__count {
+/* "Grouped by status · sorted by phase", at the footer's right edge. */
+.table__arrangement {
   margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .table__empty,
 .table__error {
   color: var(--ink-2);
-  padding: var(--space-3) 18px;
+  padding: var(--space-3) 20px;
 }
 
 .table__error {

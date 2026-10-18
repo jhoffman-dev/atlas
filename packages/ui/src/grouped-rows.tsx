@@ -4,6 +4,7 @@ import {
   columnSummary,
   countLabel,
   groupLines,
+  optionLabel,
   type BoardRow,
   type GroupLine,
   type PropertyKind,
@@ -38,8 +39,19 @@ export interface SummaryColumn {
   readonly kind?: PropertyKind | undefined;
 }
 
-/** Heights the virtualiser places lines by, matching the stylesheet's. */
-const LINE_HEIGHT: Readonly<Record<GroupLine['kind'], number>> = { group: 44, row: 44, new: 38 };
+/**
+ * Heights the virtualiser places lines by, matching the stylesheet's
+ * (Table.dc.html: 32px group rows, 34px rows, 30px "+ New");
+ * `e2e/row-estimates.spec.ts` pins them to what WebKit draws.
+ */
+const LINE_HEIGHT: Readonly<Record<GroupLine['kind'], number>> = { group: 32, row: 34, new: 30 };
+
+/**
+ * Rows drawn beyond the window's edge, so a scroll has rows ready. 34px rows
+ * fit more in a window than 44px ones did, so fewer are drawn past it to keep
+ * the drawn count — and the work budget "Open the 420-row table" — level.
+ */
+export const OVERSCAN = 8;
 
 /** The height a table row is placed by until it is measured. */
 export const ROW_ESTIMATE = LINE_HEIGHT.row;
@@ -122,7 +134,7 @@ export function GroupedRows({
     count: lines.length,
     getScrollElement: () => scroller,
     estimateSize: (index) => LINE_HEIGHT[lines[index]?.kind ?? 'row'],
-    overscan: 12,
+    overscan: OVERSCAN,
     initialRect: SCROLLER_ESTIMATE,
   });
   const onKeyDown = useRowFocus({
@@ -238,10 +250,13 @@ function GroupHeader({
             size={14}
             className={collapsed ? 'table__fold table__fold--shut' : 'table__fold'}
           />
-          {group.tone === null || group.value === null ? (
-            <span className="table__group-label">{group.label}</span>
+          {group.tone !== null && group.value !== null ? (
+            <>
+              <StatusPill value={group.label} tone={group.tone} variant="dot" />
+              <span className="table__group-label">{optionLabel(group.label)}</span>
+            </>
           ) : (
-            <StatusPill value={group.label} tone={group.tone} />
+            <span className="table__group-label">{group.label}</span>
           )}
           <span className="table__group-count" aria-label={countLabel({ count, noun })}>
             {count}

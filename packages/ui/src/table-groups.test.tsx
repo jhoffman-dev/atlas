@@ -16,6 +16,7 @@ import {
   type RowGroup,
 } from '@atlas/domain';
 import { TableView, type TableResult } from './table-view.tsx';
+import { tableRowsMeasured } from './testing/table-rows-measured.ts';
 
 const TASK = parseObjectType({
   name: 'task',
@@ -97,6 +98,19 @@ const titles = () =>
   [...document.querySelectorAll('.table__title')].map((node) => node.textContent);
 
 describe('a grouped table', () => {
+  tableRowsMeasured();
+
+  it('totals each group in the footer, and says what it is grouped by', () => {
+    render(<Grouped />);
+    const footer = screen.getByText('4 tasks').parentElement as HTMLElement;
+    expect([...footer.querySelectorAll('.table__total')].map((node) => node.textContent)).toEqual([
+      '1 backlog',
+      '2 doing',
+      '1 no value',
+    ]);
+    expect(within(footer).getByText('Grouped by status')).toBeDefined();
+  });
+
   it('draws a header row per group, in option order, with no value last', () => {
     render(<Grouped />);
     const headers = [...document.querySelectorAll('.table__group-toggle')].map(
@@ -274,7 +288,6 @@ describe('a grouped table', () => {
   });
 
   it('measures each line, so a row taller than the estimate — a wrapped cell — is placed by its own height', () => {
-    // jsdom's shim measures every element 800px tall: one row fills the 800px window.
     const many: TableResult = {
       ...result,
       rows: Array.from({ length: 3000 }, (_, at) => [
@@ -288,8 +301,8 @@ describe('a grouped table', () => {
     render(<Grouped rows={many} />);
     const drawn = [...document.querySelectorAll('.table__row')];
     expect(drawn.length).toBeGreaterThan(0);
-    // A screenful at 44px a row would be some 18 rows plus the overscan.
-    expect(drawn.length).toBeLessThan(18);
+    // A screenful at 34px a row is some 24 rows plus the overscan.
+    expect(drawn.length).toBeLessThan(60);
     expect(drawn.every((line) => line.getAttribute('data-index') !== null)).toBe(true);
   });
 

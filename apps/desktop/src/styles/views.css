@@ -2,20 +2,23 @@
    One of the section files styles/index.css imports in cascade order; the
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
-/* ---- Views: tabs, toolbar, popovers, status pills (P16-04) -----------------
-   Board.dc.html and Table.dc.html: under a view's title, a row of pill tabs —
-   the other views over the same type, the open one filled with the accent —
-   then Filter, Sort and a "New <type>" pill, over a hairline rule.
+/* ---- Views: the view bar, its tabs and buttons, the save notice, popovers --
+   Table.dc.html and FlowTable.dc.html: under the nav bar, a 44px view bar —
+   underlined tabs to the other views over the same type on the left, then
+   ghost Filter / Sort / Group / Properties buttons and one primary "New" —
+   over a hairline rule. While the view differs from its note, a notice bar
+   on `well` above it offers Reset, Save as new and Save view.
    -------------------------------------------------------------------------- */
 
 .view-toolbar {
-  align-items: center;
+  align-items: stretch;
   border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 6px;
+  gap: 0 6px;
+  min-height: 44px;
   min-width: 0;
-  padding-bottom: 12px;
+  padding: 0 12px 0 14px;
 }
 
 /* Lines break on each part's full width, so the tabs keep theirs and the
@@ -23,14 +26,15 @@
 .view-toolbar__actions {
   align-items: center;
   display: flex;
-  gap: 6px;
+  gap: 2px;
   margin-left: auto;
+  min-height: 44px;
 }
 
 .view-tabs {
-  align-items: center;
+  align-items: stretch;
   display: flex;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
   overflow-x: auto;
 }
@@ -46,22 +50,23 @@
   display: flex;
   flex: none;
   font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  gap: 7px;
-  height: 32px;
+  font-size: var(--text-body);
+  font-weight: 400;
+  gap: 6px;
   white-space: nowrap;
 }
 
+/* A tab is as tall as the bar; the open one's 2px underline sits on the rule. */
 .view-tabs__tab {
-  border-radius: var(--radius-pill);
-  padding: 0 14px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  min-height: 44px;
+  padding: 2px 8px 0;
 }
 
 /* One tab and, on the selected one, its "…": moved together when dragged. */
 .view-tabs__item {
   align-items: center;
-  border-radius: var(--radius-pill);
   display: flex;
   flex: none;
   position: relative;
@@ -83,11 +88,12 @@
 .view-tabs__more,
 .view-tabs__add {
   align-items: center;
+  align-self: center;
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--ink-2);
+  border-radius: var(--radius-button);
+  color: var(--ink-3);
   cursor: pointer;
   display: flex;
   flex: none;
@@ -115,15 +121,15 @@
 }
 
 .view-tabs__rename {
-  background: var(--raised);
+  align-self: center;
+  background: var(--surface);
   border: 1px solid var(--focus);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-control);
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  height: 32px;
-  padding: 0 14px;
+  font-size: var(--text-body);
+  height: 28px;
+  padding: 0 8px;
   width: 16ch;
 }
 
@@ -132,22 +138,34 @@
   outline: none;
 }
 
+/* The ghost buttons: 28px, 12.5px ink-2, a `hover` fill and nothing else. */
 .view-toolbar__button {
   border-radius: var(--radius-button);
-  padding: 0 12px;
+  font-size: var(--text-column);
+  height: 28px;
+  padding: 0 8px;
+}
+
+.view-toolbar__button .icon {
+  color: var(--ink-3);
 }
 
 .view-tabs__tab:hover,
 .view-toolbar__button:hover,
 .view-toolbar__button[data-popup-open] {
   background: var(--hover);
+  color: var(--ink);
+}
+
+.view-tabs__tab:hover {
+  background: transparent;
 }
 
 .view-tabs__tab[aria-pressed='true'] {
-  background: var(--accent);
-  box-shadow: var(--shadow-accent);
-  color: var(--accent-ink);
+  border-bottom-color: var(--ink);
+  color: var(--ink);
   cursor: default;
+  font-weight: 500;
 }
 
 .view-tabs__tab:focus-visible,
@@ -159,42 +177,75 @@
 
 .view-toolbar__archived[aria-pressed='true'],
 .view-toolbar__archived[aria-pressed='true']:hover {
-  background: var(--active);
-  color: var(--active-ink);
+  background: var(--selected);
+  color: var(--ink);
 }
 
 .view-toolbar__badge {
-  background: var(--chip);
-  border-radius: var(--radius-pill);
+  background: var(--selected);
+  border-radius: var(--radius-chip);
   color: var(--ink-2);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  padding: 1px 7px;
+  padding: 1px 5px;
+}
+
+/* The hairline between the ghost buttons and the one primary action. */
+.view-toolbar__rule {
+  background: var(--line);
+  flex: none;
+  height: 16px;
+  margin: 0 6px;
+  width: 1px;
 }
 
 .view-toolbar__new {
   align-items: center;
   appearance: none;
-  background: var(--accent);
-  border: 0;
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-accent);
-  color: var(--accent-ink);
+  background: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-line);
+  border-radius: var(--radius-button);
+  color: var(--btn-primary-ink);
   cursor: pointer;
   display: flex;
   flex: none;
   font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  gap: 6px;
-  height: 34px;
-  margin-left: 6px;
-  padding: 0 16px 0 12px;
+  font-size: var(--text-column);
+  font-weight: 500;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 8px;
   white-space: nowrap;
 }
 
 .view-toolbar__new:hover {
-  filter: brightness(1.06);
+  filter: brightness(0.97);
+}
+
+/* Unsaved changes: a notice bar on `well` under the nav bar — what is
+   unsaved, then a quiet Reset, Save as new, and Save view as the one tinted
+   action, so it reads as the thing to do next. */
+.view-save {
+  align-items: center;
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 12px 4px 20px;
+}
+
+.view-save__text {
+  color: var(--ink-2);
+  font-size: var(--text-column);
+  margin-right: auto;
+}
+
+.view-save .view-toolbar__button {
+  border: 1px solid var(--btn-secondary-line);
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-ink);
 }
 
 .view-popover {

@@ -72,10 +72,20 @@ describe('TableView', () => {
     expect(screen.getByText('Second task')).toBeDefined();
   });
 
-  it('leaves an empty cell empty, with a quiet "Empty" to click on', () => {
+  it('leaves an empty cell blank, still named "Empty value" for a screen reader', () => {
     render(<TableView {...props} result={result} />);
-    const blank = screen.getByRole('button', { name: 'Empty' });
-    expect(blank.querySelector('.table__blank')).not.toBeNull();
+    const blank = screen.getByRole('button', { name: 'Empty value' });
+    expect(blank.textContent).toBe('');
+    expect(blank.closest('td')?.textContent).toBe('');
+  });
+
+  it('leaves a read-only empty cell blank too', () => {
+    const readOnly = { sorts: [], error: null, onOpenNote: noop, onToggleSort: noop };
+    render(<TableView {...readOnly} result={result} />);
+    expect(screen.queryByText('Empty')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Empty value' })).toBeNull();
+    const row = screen.getByText('Second task').closest('tr');
+    expect(row?.querySelectorAll('td')[1]?.textContent).toBe('');
   });
 
   it('draws a select as a status pill, in its tone', () => {
@@ -261,6 +271,26 @@ describe('TableView', () => {
 
     rerender(<TableView {...props} result={result} />);
     expect(screen.queryByRole('button', { name: /^New/ })).toBeNull();
+  });
+
+  it('says in the footer how it is sorted, in the columns’ words', () => {
+    render(
+      <TableView
+        {...props}
+        result={{ ...result, columns: ['path', 'title', 'status', 'due_date'] }}
+        sorts={[
+          { key: 'status', direction: 'asc' },
+          { key: 'due_date', direction: 'desc' },
+        ]}
+        schema={{ kinds: {}, labels: { status: 'Stage' }, noun: 'Task' }}
+      />,
+    );
+    expect(screen.getByText('Sorted by stage, then due date')).toBeDefined();
+  });
+
+  it('says nothing of its arrangement when it is neither grouped nor sorted', () => {
+    render(<TableView {...props} result={result} />);
+    expect(screen.getByText('2 notes').parentElement?.textContent).toBe('2 notes');
   });
 
   it('says when results were cut short', () => {

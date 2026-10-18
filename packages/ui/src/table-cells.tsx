@@ -146,7 +146,6 @@ function CellFor({
   if (column === TITLE) {
     return (
       <button {...ROW_STOP} type="button" className="table__link" onClick={onOpen}>
-        <Icon name="doc" size={16} />
         <span className="table__title">{String(value ?? '')}</span>
       </button>
     );
@@ -199,8 +198,8 @@ function RelationCell({
 /**
  * A cell that becomes an input when clicked and writes back when it is left.
  *
- * An empty one shows nothing until the row is pointed at, when a faint "Empty"
- * says it can be filled in.
+ * An empty one stays blank (Table.dc.html); its button still says it is an
+ * empty value, so a screen reader finds something to fill in.
  */
 function Cell({
   value,
@@ -221,6 +220,7 @@ function Cell({
       <button
         type="button"
         className="table__cell"
+        aria-label={text === '' ? EMPTY_CELL_NAME : undefined}
         onClick={() => {
           setDraft(text);
           setEditing(true);
@@ -289,8 +289,11 @@ function useUnsavedEdit({
   };
 }
 
+/** What an empty editable cell's button is called, since it shows nothing. */
+export const EMPTY_CELL_NAME = 'Empty value';
+
 function CellFace({ text, look }: { text: string; look: 'pill' | 'you' | 'text' }) {
-  if (text === '') return <span className="table__blank">Empty</span>;
+  if (text === '') return null;
   if (look === 'pill') return <StatusPill value={text} />;
   if (look === 'you') {
     return (
