@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
   activeSidebarPage,
@@ -43,7 +44,9 @@ import {
   findTaskTemplate,
   getAppInfo,
   setNoteProperty,
-  viewSpecsFor,
+  readsTouchedByPaths,
+  reportingIndexWrites,
+  type VaultRead,
   type ActivityStore,
   type WindowClosingPort,
   type ApiRouterDeps,
@@ -87,6 +90,11 @@ import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
 import { useIndexFailure, useIndexKey, useIndexReady } from './index/index-status-store.ts';
 import { openOnce } from './index/open-once.ts';
+import { createWindowQueryClient } from './reads/query-client.ts';
+import { createReadInvalidator } from './reads/read-invalidator.ts';
+import { tellingOwnWrites } from './reads/telling-own-writes.ts';
+import { useSqlViews } from './reads/use-sql-views.ts';
+import { useVaultReads } from './reads/use-vault-reads.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
 import { useOutsideChanges } from './vault/use-outside-changes.ts';
@@ -251,7 +259,17 @@ function focusFallback(): HTMLElement | null {
   );
 }
 
-export function App({
+/** The window, with its one query cache (ADR-0040): every whole-vault read below is kept in it. */
+export function App(props: ComponentProps<typeof AppWindow>) {
+  const [client] = useState(createWindowQueryClient);
+  return (
+    <QueryClientProvider client={client}>
+      <AppWindow {...props} />
+    </QueryClientProvider>
+  );
+}
+
+function AppWindow({
   appInfo,
   vault: vaultPorts,
   notes: notePorts,
@@ -344,7 +362,16 @@ export function App({
   // Everything below writes through these, so a write that finishes after a
   // switch is refused instead of landing in the vault opened next.
   // What the app itself wrote, so the watcher's report of it is not refreshed for twice (#254).
-  const [ownWrites] = useState(() => createOwnWrites({ clock: localClock }));
+  // The window's whole-vault reads, read again when what they are made from changes (#259).
+  const queryClient = useQueryClient();
+  const [reads] = useState(() => createReadInvalidator({ client: queryClient }));
+  // The app's own writes also tell the reads of the folders they land in: the
+  // watcher's echo of a template written here is left out.
+  const [ownWrites] = useState(() =>
+    tellingOwnWrites(createOwnWrites({ clock: localClock }), ({ vault, path }) =>
+      reads.invalidate(vault, readsTouchedByPaths([path])),
+    ),
+  );
   const vault = useMemo(
     () => boundToVault(vaultPorts, vaultKey, ownWrites),
     [vaultPorts, vaultKey, ownWrites],
@@ -353,11 +380,17 @@ export function App({
     () => boundToVault(notePorts, vaultKey, ownWrites),
     [notePorts, vaultKey, ownWrites],
   );
-  // Opened once per vault: a new vault gets a new opening (#238).
+  // Opened once per vault: a new vault gets a new opening (#238). Each write
+  // says which of the graph and the tags it changed, read again when the
+  // index next has news for its readers (#259).
   const index = useMemo(() => {
     const bound = boundToVault(indexPorts, vaultKey, ownWrites);
-    return { ...bound, index: openOnce(bound.index) };
-  }, [indexPorts, vaultKey, ownWrites]);
+    const opened = openOnce(bound.index);
+    if (vaultKey === null) return { ...bound, index: opened };
+    const report = (facets: Iterable<VaultRead>) => reads.invalidateWithIndex(vaultKey, facets);
+    const stale = () => reads.waitingFor(vaultKey);
+    return { ...bound, index: reportingIndexWrites({ index: opened, report, stale }) };
+  }, [indexPorts, vaultKey, ownWrites, reads]);
   const panes = usePanes({ store: browserPaneStore, vaultKey: location?.absolutePath ?? null });
   const { openInFocusedPane, openInPane, openBeside, followMove, closeNotes, toggleSplit } = panes;
   useFocusAfterArrange(panes.layout.paths.length);
@@ -378,6 +411,7 @@ export function App({
     changes: noteChanges,
     ownWrites,
   });
+  useVaultReads({ reads, changes: noteChanges, index: indexStore, vaultKey });
   const indexReady = useIndexReady(indexStore, vaultKey);
   const indexFailedWith = useIndexFailure(indexStore, vaultKey);
 
@@ -394,6 +428,7 @@ export function App({
     ownWrites,
     settled: indexSettled,
     onChange: (paths) => {
+      if (vaultKey !== null) reads.invalidate(vaultKey, readsTouchedByPaths(paths));
       void reload();
       void refresh(refreshAfterWatch(paths));
     },
@@ -405,7 +440,6 @@ export function App({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey: location?.absolutePath ?? null,
-    changeKey: indexKey,
   });
 
   /** Re-reads the tree and the index, after something wrote to the vault. */
@@ -543,14 +577,7 @@ export function App({
     [apiDeps, notePorts.markdown],
   );
 
-  // The SQL view behind each type is rebuilt whenever the definitions change, so
-  // adding a property to a type makes a column appear.
-  useEffect(() => {
-    if (types.length === 0) return;
-    void index.index.rebuildViews(viewSpecsFor(types)).catch(() => {
-      // A view that cannot be built shows as a failing query rather than here.
-    });
-  }, [index.index, types]);
+  useSqlViews({ index: index.index, types, ready: indexReady });
 
   const paletteCommands = useMemo(
     () => [...PALETTE_COMMANDS, ...paletteArchiveCommands(focusedPath)],
@@ -628,16 +655,8 @@ export function App({
     clock: localClock,
   });
   const { showPanes, openType, openGraph, openQuery, openTags, openArchive } = main;
-  const vaultGraph = useVaultGraph({
-    index: index.index,
-    indexKey,
-    ready: indexReady,
-  });
-  const vaultTags = useVaultTags({
-    index: index.index,
-    indexKey,
-    ready: indexReady,
-  });
+  const vaultGraph = useVaultGraph({ index: index.index, vaultKey, ready: indexReady });
+  const vaultTags = useVaultTags({ index: index.index, vaultKey, ready: indexReady });
   const openTag = useCallback((name: string) => openTags(tagKey(name)), [openTags]);
   // Every relation is shown by the names in the same copy the graph reads.
   const names = useMemo(
@@ -876,10 +895,13 @@ export function App({
     [favoritePaths, editors, vault.fs, notes.markdown, reload, refresh],
   );
 
-  const { templates, contentsOf } = useTemplates({
+  const {
+    templates,
+    listed: templatesListed,
+    contentsOf,
+  } = useTemplates({
     fs: vault.fs,
     vaultKey: location?.absolutePath ?? null,
-    changeKey: indexKey,
   });
 
   // Held from one render to the next: `createNoteIn` is built on it and is one
@@ -971,8 +993,7 @@ export function App({
       overlay: { show: showOverlay, hide: hideOverlay },
     },
     types,
-    vaultKey,
-    changeKey: indexKey,
+    listed: templatesListed,
     onChanged,
     onOpen: openNote,
   });

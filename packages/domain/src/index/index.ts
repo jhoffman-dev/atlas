@@ -19,3 +19,10 @@ export {
   versionsAfter,
 } from './note-changes.ts';
 export type { NoteChange, NoteChangeKind, NoteVersion, UnpairedChanges } from './note-changes.ts';
+export {
+  compileNoteFacetsQuery,
+  facetsChangedBetween,
+  FACET_CHECK_LIMIT,
+  INDEX_FACETS,
+} from './index-facets.ts';
+export type { FacetRow, IndexFacet } from './index-facets.ts';

@@ -112,8 +112,8 @@ describe('useBlockType, while the types are read again', () => {
     );
     await waitFor(() => expect(activity.reports).toHaveLength(1));
 
-    // The app reads its types again on every change to the index (useTypes'
-    // changeKey): three edits anywhere in the vault.
+    // The types arrive again as new arrays whenever they are read again (a
+    // definition changed, or a vault reopened): three of them.
     for (let edit = 0; edit < 3; edit += 1) {
       hook.rerender({ known: gtdTypes() });
       await new Promise((resolve) => setTimeout(resolve, 10));

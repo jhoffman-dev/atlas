@@ -1080,7 +1080,7 @@ describe('reading the vault after a change (#259)', () => {
   function countingReads(vault: ReturnType<typeof fakeVault>) {
     const index = sqliteIndexPort();
     let puts = 0;
-    const reads = { graph: [] as number[], tags: [] as number[], views: [] as number[] };
+    const reads = { graph: [] as number[], views: [] as number[] };
     const listed = { types: [] as number[], templates: [] as number[] };
     const ports: IndexPorts = {
       fs: vault.fs,
@@ -1093,7 +1093,6 @@ describe('reading the vault after a change (#259)', () => {
         },
         query: async (sql, parameters) => {
           if (sql.includes('/* graph:notes */')) reads.graph.push(puts);
-          if (sql.includes('/* tags:counts */')) reads.tags.push(puts);
           return index.query(sql, parameters);
         },
         rebuildViews: async () => void reads.views.push(puts),
@@ -1159,7 +1158,6 @@ describe('reading the vault after a change (#259)', () => {
     await vi.waitFor(() => expect(counting.reads.views.length).toBeGreaterThan(0));
     await vi.waitFor(() => expect(heard.length).toBeGreaterThan(0));
     const before = {
-      tags: counting.reads.tags.length,
       views: counting.reads.views.length,
       types: counting.listed.types.length,
       templates: counting.listed.templates.length,
@@ -1177,9 +1175,11 @@ describe('reading the vault after a change (#259)', () => {
     await tell(['a.md']);
     await vi.waitFor(() => expect(counting.reads.graph).toContain(3));
 
-    // Nothing read the graph for the body alone, nor anything else for either edit.
+    // Nothing read the graph for the body alone, nor the types, the templates
+    // or the views for either edit. (The tags have another reader still on
+    // the index's key, the query builder's choices, so they are held by
+    // reporting-index-writes.test.ts instead.)
     expect(counting.reads.graph).not.toContain(2);
-    expect(counting.reads.tags.length).toBe(before.tags);
     expect(counting.reads.views.length).toBe(before.views);
     expect(counting.listed.types.length).toBe(before.types);
     expect(counting.listed.templates.length).toBe(before.templates);

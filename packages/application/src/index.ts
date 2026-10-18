@@ -61,3 +61,4 @@ export {
   statusText,
 } from './testing/fake-git.ts';
 export type { GitScript } from './testing/fake-git.ts';
+export * from './reads/index.ts';
