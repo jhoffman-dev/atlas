@@ -67,7 +67,10 @@ const treeRow = (page: Page, name: string) =>
 
 /**
  * Opens every Area folder and its Deep folder from the keyboard, last first,
- * so the folders still to open stay near the top and rendered.
+ * so the folders still to open stay near the top and rendered. Each toggle
+ * is left to settle — the rows placed again at their pitch — before the
+ * next key, which would otherwise land on rows the virtualiser is still
+ * moving.
  */
 async function expandAll(page: Page) {
   for (let area = AREAS; area >= 1; area -= 1) {
@@ -75,12 +78,14 @@ async function expandAll(page: Page) {
     await folder.focus();
     await page.keyboard.press('ArrowRight');
     await expect(folder).toHaveAttribute('aria-expanded', 'true');
+    await expectPlaced(page, `after opening Area ${area}`);
     // Its first child is its Deep folder.
     await page.keyboard.press('ArrowDown');
     const deep = pages(page).locator('[role="treeitem"]:focus');
     await expect(deep).toHaveAccessibleName('Deep');
     await page.keyboard.press('ArrowRight');
     await expect(deep).toHaveAttribute('aria-expanded', 'true');
+    await expectPlaced(page, `after opening Area ${area}'s Deep`);
   }
 }
 
@@ -97,10 +102,13 @@ const placed = (page: Page) =>
         .sort((a, b) => a.at - b.at),
     );
 
-/** Rows whose pitch to the previous one, or own height, is not the design's. */
+/**
+ * Rows whose pitch to the previous one, or own height, is not the design's —
+ * or too few rows to judge, which is also wrong.
+ */
 async function misplaced(page: Page) {
   const rows = await placed(page);
-  expect(rows.length, 'rows rendered').toBeGreaterThan(5);
+  if (rows.length <= 5) return [`only ${rows.length} rows rendered`];
   const wrong: string[] = [];
   for (let at = 0; at < rows.length; at += 1) {
     const row = rows[at]!;
@@ -112,6 +120,15 @@ async function misplaced(page: Page) {
     }
   }
   return wrong;
+}
+
+/**
+ * Every rendered row at its exact pitch and height, once the virtualiser has
+ * placed them again: a toggle flips aria-expanded before the rows move, and
+ * a read in between sees rows 0px tall or still at their old tops.
+ */
+async function expectPlaced(page: Page, when: string) {
+  await expect.poll(() => misplaced(page), { message: when }).toEqual([]);
 }
 
 async function scrollTo(page: Page, top: number) {
@@ -173,14 +190,14 @@ test('rows keep their 29px pitch after folders are collapsed and expanded again'
     await folder.focus();
     await page.keyboard.press('ArrowLeft');
     await expect(folder).toHaveAttribute('aria-expanded', 'false');
-    expect(await misplaced(page), `after shutting Area ${area}`).toEqual([]);
+    await expectPlaced(page, `after shutting Area ${area}`);
     await page.keyboard.press('ArrowRight');
     await expect(folder).toHaveAttribute('aria-expanded', 'true');
-    expect(await misplaced(page), `after reopening Area ${area}`).toEqual([]);
+    await expectPlaced(page, `after reopening Area ${area}`);
   }
   await scrollTo(page, 0);
   await scrollTo(page, 100_000);
-  expect(await misplaced(page), 'at the end after the churn').toEqual([]);
+  await expectPlaced(page, 'at the end after the churn');
 });
 
 const LONG =
