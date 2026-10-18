@@ -1,0 +1,143 @@
+/* Pages: folders, moving and deleting (P17-01).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ==== Pages: folders, moving and deleting (P17-01) ============================
+   Everything the Pages section gained to be edited in place: the heading's
+   "+", each row's "…" and drop highlight, naming a row in place, a destructive
+   menu row, and the question asked before anything goes to the Trash. Kept
+   together, apart from the sections above, so the rules for one feature read
+   as one piece. */
+
+/* A row's "…": out of the way like the star until the row is pointed at, is
+   the one the arrows are on, or has its menu up. */
+.tree__more {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 22px;
+  justify-content: center;
+  opacity: 0;
+  padding: 0;
+  transition: opacity 120ms ease;
+  width: 22px;
+}
+
+.tree__row:hover .tree__more,
+.tree__row:focus-visible .tree__more,
+.tree__more:focus-visible {
+  opacity: 1;
+}
+
+.tree__more:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.tree__more:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A folder that would take what is being dragged over it. */
+.tree__row--drop,
+.tree__row--drop:hover {
+  background: var(--you);
+  box-shadow: inset 0 0 0 2px var(--focus);
+  color: var(--accent-text);
+}
+
+/* The row being carried stays in place, faded, so its old spot is clear. */
+.tree__row--held {
+  opacity: 0.45;
+}
+
+/* The picture under the pointer while a row is carried. */
+.tree__row--lifted {
+  background: var(--raised);
+  box-shadow: var(--shadow-overlay);
+  cursor: grabbing;
+  height: 29px;
+  padding: 0 12px 0 10px;
+}
+
+/* Naming a row in place: the field takes the name's room, in the row's type. */
+.tree__rename {
+  background: var(--raised);
+  border: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px var(--focus);
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  margin-right: var(--space-2);
+  min-width: 0;
+  outline: none;
+  padding: 3px 6px;
+}
+
+/* A menu row that deletes: the danger tone, highlighted in it too. */
+.menu button.menu__item--danger {
+  color: var(--danger);
+}
+
+.menu button.menu__item--danger:hover,
+.menu button.menu__item--danger[data-highlighted] {
+  background: color-mix(in srgb, var(--danger) 12%, var(--raised));
+  color: var(--danger);
+}
+
+/* The question before a delete: a palette-shaped card with a title, what
+   goes, and the two answers along the foot. */
+.confirm {
+  gap: var(--space-3);
+  padding: var(--space-6);
+  width: min(440px, 100%);
+}
+
+.confirm__title {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.confirm__body {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.confirm__warning {
+  background: color-mix(in srgb, var(--danger) 8%, var(--raised));
+  border-radius: var(--radius-control);
+  color: var(--danger);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.confirm__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+/* The one destructive answer on the surface: the danger tone, not the accent. */
+.btn--danger {
+  background: var(--danger);
+  box-shadow: var(--shadow-tile);
+  color: var(--accent-ink);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 86%, var(--ink));
+}

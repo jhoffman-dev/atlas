@@ -50,6 +50,7 @@ export function vaultWith(files: Record<string, string>, root: readonly VaultEnt
     createNote: async ({ path, contents }) => {
       created.push(path);
       written[path] = contents;
+      return 0;
     },
     createFolder: async ({ path }) => {
       folders.push(path);

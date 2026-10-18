@@ -11,6 +11,8 @@ import {
 } from '@atlas/domain';
 import { fakeVaultFs, type OpenEditorsPort } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
+import { useTemplates } from '../types/use-templates.ts';
 import { useTemplatesPage } from './use-templates-page.ts';
 
 const property = (key: string): PropertyDef => ({
@@ -47,6 +49,7 @@ function memoryFs(files: Record<string, string>) {
     readTextFile: async (path) => ({ text: notes.get(path) ?? '', modified: 1 }),
     createNote: async ({ path, contents }) => {
       notes.set(path, contents);
+      return 0;
     },
     moveEntry: async ({ from, to }) => {
       const text = notes.get(from);
@@ -75,16 +78,18 @@ function setUp(files: Record<string, string>) {
   const onChanged = vi.fn();
   const closeNotes = vi.fn();
   const overlay = { show: vi.fn(), hide: vi.fn() };
-  // Held across renders, as the app holds them: a new types array would read the folder again.
+  // Held across renders, as the app holds them.
   const props = {
     ports: { fs: vault.fs, markdown: remarkMarkdown, editors: editors(), closeNotes, overlay },
     types: [PERSON, MEETING],
-    vaultKey: '/vault',
-    changeKey: 'ready:1',
     onChanged,
     onOpen,
   };
-  const hook = renderHook(() => useTemplatesPage(props));
+  // The folder listed as the window lists it, once.
+  const hook = renderHook(() => {
+    const { listed } = useTemplates({ fs: vault.fs, vaultKey: '/vault' });
+    return useTemplatesPage({ ...props, listed });
+  }, queryWrapper());
   return { hook, vault, onOpen, onChanged, closeNotes, overlay };
 }
 

@@ -34,6 +34,7 @@ function keeping({ refuse = null }: { refuse?: string | null } = {}) {
     createNote: async (args) => {
       if (refuse !== null) throw new Error(refuse);
       created.push(args);
+      return 0;
     },
   });
   const onSavedView = vi.fn();

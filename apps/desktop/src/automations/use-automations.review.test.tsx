@@ -95,6 +95,7 @@ function memoryVault(files: Record<string, string>) {
     createNote: async ({ path, contents }) => {
       refuseLog(path);
       files[path] = contents;
+      return 0;
     },
     writeTextFile: async ({ path, contents }) => {
       refuseLog(path);

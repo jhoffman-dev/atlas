@@ -6,6 +6,7 @@ import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain'
 import {
   VaultAccessError,
   memoryActivityStore,
+  memoryIndexPort,
   fakeGoogleCalendar,
   fakeGranola,
   failed,
@@ -30,6 +31,14 @@ import type { ChatPorts } from './chat/use-chat.ts';
 import type { LocalApiPorts } from './api/use-local-api.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { createBrowserGlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
+import { startCountingRenders, stopCountingRenders } from '@atlas/ui/testing';
+
+// Before React loads, so every commit is handed to the counter. It counts
+// nothing until a test switches it on.
+await vi.hoisted(async () => {
+  const { installRenderCounter } = await import('@atlas/ui/testing');
+  installRenderCounter();
+});
 
 const appInfo: AppInfoPort = { read: async () => ({ name: 'Atlas', version: '0.1.0' }) };
 
@@ -82,6 +91,7 @@ function fakeVault({
         throw new VaultAccessError('a note with that name already exists');
       files[path] = contents;
       directories[''] = [...(directories[''] ?? []), entry(path, 'file')];
+      return 0;
     },
     readTextFile: async (path: VaultPath) => {
       const text = files[path];
@@ -1067,5 +1077,646 @@ describe('opening a vault while its index is still being built (ADR-0034)', () =
     expect(await screen.findByText('0 notes indexed')).toBeDefined();
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
     expect(syncs).toBe(1);
+  });
+});
+
+describe('reading the vault after a change (#259)', () => {
+  /**
+   * What the window reads of the index and the vault, by the number of index
+   * writes made when it asked: a read asked while the count was still `n` was
+   * set off by the change that made write `n`.
+   */
+  function countingReads(vault: ReturnType<typeof fakeVault>) {
+    const index = memoryIndexPort();
+    let puts = 0;
+    const reads = { graph: [] as number[], views: [] as number[] };
+    const listed = { types: [] as number[], templates: [] as number[] };
+    // Each sync ends by counting the index, after its last write: then it settles.
+    const counted: number[] = [];
+    const ports: IndexPorts = {
+      fs: vault.fs,
+      markdown: remarkMarkdown,
+      index: {
+        ...index,
+        put: async (notes, scope) => {
+          await index.put(notes, scope);
+          puts += 1;
+        },
+        query: async (sql, parameters) => {
+          if (sql.includes('/* graph:notes */')) reads.graph.push(puts);
+          return index.query(sql, parameters);
+        },
+        rebuildViews: async () => void reads.views.push(puts),
+        stats: async () => {
+          counted.push(puts);
+          return index.stats();
+        },
+      },
+    };
+    const fs: VaultFsPort = {
+      ...vault.fs,
+      listDirectory: async (path) => {
+        if (path === '.atlas/types') listed.types.push(puts);
+        if (path === '.atlas/templates') listed.templates.push(puts);
+        return vault.fs.listDirectory(path);
+      },
+    };
+    /** Waits for the sync that made write `n` to settle: counted, then said ready. */
+    const settledAfter = async (n: number) => {
+      await vi.waitFor(() => expect(counted).toContain(n));
+      await act(async () => {});
+    };
+    return { ports, fs, reads, listed, puts: () => puts, settledAfter };
+  }
+
+  it('reads the graph again for a change to its links, and nothing for a change to a body alone', async () => {
+    const files: Record<string, string> = {
+      'a.md': '# A\n\nSome words.\n',
+      'b.md': '# B\n',
+      '.atlas/types/book.md': '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n',
+      '.atlas/templates/Book.md': '---\ntype: book\n---\n',
+    };
+    const vault = fakeVault({
+      remembered: location,
+      directories: {
+        '': [entry('a.md', 'file'), entry('b.md', 'file')],
+        '.atlas/types': [entry('.atlas/types/book.md', 'file')],
+        '.atlas/templates': [entry('.atlas/templates/Book.md', 'file')],
+      },
+      files,
+    });
+    const counting = countingReads(vault);
+    const heard: ((paths: readonly string[]) => void)[] = [];
+    const watch = {
+      start: async () => {},
+      onChange: async (handler: (paths: readonly string[]) => void) => {
+        heard.push(handler);
+        return () => {};
+      },
+    };
+    const watched = { ...vault, fs: counting.fs, watch };
+    render(
+      <App
+        appInfo={appInfo}
+        vault={watched}
+        notes={notesFor(watched)}
+        index={{ ...counting.ports, fs: counting.fs }}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    // The first build writes the vault once; the graph, tags, types and views are read after it.
+    await vi.waitFor(() => expect(counting.reads.graph).toContain(1));
+    await vi.waitFor(() => expect(counting.reads.views.length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(heard.length).toBeGreaterThan(0));
+    const before = {
+      views: counting.reads.views.length,
+      types: counting.listed.types.length,
+      templates: counting.listed.templates.length,
+    };
+    const tell = (paths: readonly string[]) =>
+      act(() => heard.forEach((handler) => handler(paths)));
+
+    // Another program edits a's body: words only, no link, no tag.
+    files['a.md'] = '# A\n\nSome more words, and then some.\n';
+    await tell(['a.md']);
+    await vi.waitFor(() => expect(counting.puts()).toBe(2));
+    // Settled before the next edit: a graph read this edit set off would have begun by now.
+    await counting.settledAfter(2);
+
+    // Then it links a to b: the graph has a new edge, and is read again.
+    files['a.md'] = '# A\n\nSome more words, and then some. See [[b]].\n';
+    await tell(['a.md']);
+    await vi.waitFor(() => expect(counting.reads.graph).toContain(3));
+
+    // Nothing read the graph for the body alone, nor the types, the templates
+    // or the views for either edit. (The tags have another reader still on
+    // the index's key, the query builder's choices, so they are held by
+    // reporting-index-writes.test.ts instead.)
+    expect(counting.reads.graph).not.toContain(2);
+    expect(counting.reads.views.length).toBe(before.views);
+    expect(counting.listed.types.length).toBe(before.types);
+    expect(counting.listed.templates.length).toBe(before.templates);
+  });
+});
+
+describe('the window’s kept reads, attacked (#259, PR 272)', () => {
+  type Faults = {
+    /** Throws on the window's own reads of the type definitions until `heal` is called. */
+    typesUntilHealed?: boolean;
+    /** Throws on the first graph read when set. */
+    graphOnce?: boolean;
+    /** Rejects the first view rebuild when set. */
+    viewsOnce?: boolean;
+  };
+
+  /**
+   * A watched vault on an in-memory index, counting what the window reads by
+   * the number of index writes made when it asked. A fault, when asked for,
+   * happens once and never again: what a transient failure leaves behind.
+   */
+  function watchedVault({
+    files,
+    directories,
+    faults = {},
+  }: {
+    files: Record<string, string>;
+    directories: Record<string, VaultEntry[]>;
+    faults?: Faults;
+  }) {
+    const vault = fakeVault({ remembered: location, directories, files });
+    const index = memoryIndexPort();
+    let puts = 0;
+    const left = { ...faults };
+    const reads = { graph: [] as number[], views: [] as number[] };
+    const listed = { types: [] as number[], templates: [] as string[] };
+    const typeReads: string[] = [];
+    const indexPorts: IndexPorts = {
+      fs: vault.fs,
+      markdown: remarkMarkdown,
+      index: {
+        ...index,
+        put: async (notes, scope) => {
+          await index.put(notes, scope);
+          puts += 1;
+        },
+        query: async (sql, parameters) => {
+          if (sql.includes('/* graph:notes */')) {
+            reads.graph.push(puts);
+            if (left.graphOnce === true) {
+              left.graphOnce = false;
+              throw new Error('database is locked');
+            }
+          }
+          return index.query(sql, parameters);
+        },
+        rebuildViews: async () => {
+          reads.views.push(puts);
+          if (left.viewsOnce === true) {
+            left.viewsOnce = false;
+            throw new Error('database is locked');
+          }
+        },
+      },
+    };
+    const fs: VaultFsPort = {
+      ...vault.fs,
+      listDirectory: async (path) => {
+        if (path === '.atlas/types') listed.types.push(puts);
+        if (path.startsWith('.atlas/templates')) listed.templates.push(path);
+        return vault.fs.listDirectory(path);
+      },
+      readNotes: async (paths) => {
+        const onlyTypes = paths.length > 0 && paths.every((p) => p.startsWith('.atlas/types/'));
+        // The window's read of its types, not the one setting built-in types up.
+        const windowRead = onlyTypes && !(new Error().stack ?? '').includes('setUpTypes');
+        if (windowRead) typeReads.push(left.typesUntilHealed === true ? 'failed' : 'read');
+        if (windowRead && left.typesUntilHealed === true) {
+          throw new VaultAccessError('the disk was busy');
+        }
+        return vault.fs.readNotes(paths);
+      },
+    };
+    const heard: ((paths: readonly string[]) => void)[] = [];
+    const watch = {
+      start: async () => {},
+      onChange: async (handler: (paths: readonly string[]) => void) => {
+        heard.push(handler);
+        return () => {};
+      },
+    };
+    const watched = { ...vault, fs, watch };
+    render(
+      <App
+        appInfo={appInfo}
+        vault={watched}
+        notes={notesFor(watched)}
+        index={{ ...indexPorts, fs }}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    /** Another program changed these paths; the watcher says so. */
+    const tell = (paths: readonly string[]) =>
+      act(() => heard.forEach((handler) => handler(paths)));
+    /** Waits until the first build has written and the watcher is listening. */
+    const opened = async () => {
+      await vi.waitFor(() => expect(puts).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(heard.length).toBeGreaterThan(0));
+    };
+    const heal = () => {
+      left.typesUntilHealed = false;
+    };
+    return { files, directories, reads, listed, typeReads, heal, puts: () => puts, tell, opened };
+  }
+
+  const BOOK = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';
+
+  function bookVault(faults?: Faults, extra: Record<string, string> = {}) {
+    const files: Record<string, string> = {
+      'a.md': '# A\n\nSome words.\n',
+      'b.md': '# B\n',
+      '.atlas/types/book.md': BOOK,
+      '.atlas/templates/Book.md': '---\ntype: book\n---\n',
+      ...extra,
+    };
+    const notes = Object.keys(files).filter((path) => !path.startsWith('.atlas/'));
+    return watchedVault({
+      files,
+      directories: {
+        '': notes.map((path) => entry(path, 'file')),
+        '.atlas/types': [entry('.atlas/types/book.md', 'file')],
+        '.atlas/templates': [entry('.atlas/templates/Book.md', 'file')],
+      },
+      ...(faults !== undefined && { faults }),
+    });
+  }
+
+  // --- What held: each of these must read again, and does. ---
+
+  it('reads the graph again when a note gains a link through a frontmatter relation', async () => {
+    const vault = bookVault();
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    const before = vault.reads.graph.length;
+
+    vault.files['a.md'] = '---\nrelated: "[[b]]"\n---\n# A\n\nSome words.\n';
+    await vault.tell(['a.md']);
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(before));
+  });
+
+  it('reads the graph again when a linked note is deleted by another program', async () => {
+    const vault = bookVault(undefined, { 'a.md': '# A\n\nSee [[b]].\n' });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    const before = vault.reads.graph.length;
+
+    delete vault.files['b.md'];
+    vault.directories[''] = (vault.directories[''] ?? []).filter((item) => item.path !== 'b.md');
+    await vault.tell(['b.md']);
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(before));
+  });
+
+  it('lists the types again and rebuilds the views for an outside edit to a type', async () => {
+    const vault = bookVault();
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(0));
+    const before = { types: vault.listed.types.length, views: vault.reads.views.length };
+
+    vault.files['.atlas/types/book.md'] = BOOK.replace(
+      '  author: text\n',
+      '  author: text\n  genre: text\n',
+    );
+    await vault.tell(['.atlas/types/book.md']);
+
+    await vi.waitFor(() => expect(vault.listed.types.length).toBeGreaterThan(before.types));
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(before.views));
+  });
+
+  it('lists the templates again for one another program adds in a nested folder', async () => {
+    const vault = bookVault();
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.listed.templates.length).toBeGreaterThan(0));
+    const before = vault.listed.templates.length;
+
+    vault.files['.atlas/templates/People/Person.md'] = '---\ntype: person\n---\n';
+    vault.directories['.atlas/templates'] = [
+      ...(vault.directories['.atlas/templates'] ?? []),
+      entry('.atlas/templates/People', 'directory'),
+    ];
+    vault.directories['.atlas/templates/People'] = [
+      entry('.atlas/templates/People/Person.md', 'file'),
+    ];
+    await vault.tell(['.atlas/templates/People/Person.md']);
+
+    await vi.waitFor(() => expect(vault.listed.templates.length).toBeGreaterThan(before));
+  });
+
+  it('reads the graph again when a bulk retag of 60 notes also links one of them', async () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 60 }, (_, at) => [`n${String(at).padStart(2, '0')}.md`, `# N${at}\n`]),
+    );
+    const vault = bookVault(undefined, many);
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    const before = vault.reads.graph.length;
+
+    // Every note is retagged; only the last, in the second batch of 50, gains a link.
+    for (const path of Object.keys(many)) vault.files[path] = `${many[path]}\n#bulk\n`;
+    vault.files['n59.md'] = '# N59\n\n#bulk [[b]]\n';
+    await vault.tell(Object.keys(many));
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(before));
+  });
+
+  // --- Bugs: a read that failed once is kept as it failed. ---
+
+  /** Opens a vault whose window reads of its types fail, then the disk recovers. */
+  async function openedWithTypesFailing() {
+    const vault = bookVault({ typesUntilHealed: true });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.typeReads).toContain('failed'));
+    // Let the opening settle: the build, the built-in types' set-up, and their reads.
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    await act(async () => {});
+    vault.heal();
+    // Any later change to the vault: before #259 the types were read again on it.
+    vault.files['a.md'] = '# A\n\nSome words, and a link to [[b]].\n';
+    await vault.tell(['a.md']);
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(1));
+    return vault;
+  }
+
+  it('reads the types again after a read of them failed, once the index next moves', async () => {
+    const vault = await openedWithTypesFailing();
+
+    // The failed read was kept as "no types", with no error shown, for good:
+    // until a type file itself changes, or the app restarts.
+    await vi.waitFor(() => expect(vault.typeReads).toContain('read'), { timeout: 1500 });
+  });
+
+  it('rebuilds the SQL views once the types can be read after a failed first read', async () => {
+    const vault = await openedWithTypesFailing();
+
+    // book is defined on disk, so its view must exist for its table to read.
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(0), {
+      timeout: 1500,
+    });
+  });
+
+  it('reads the graph again after a read of it failed, once the index next moves', async () => {
+    const vault = bookVault({ graphOnce: true });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBe(1));
+
+    // An edit that changes no facet: the index moves, the failed graph stays failed.
+    vault.files['a.md'] = '# A\n\nSome more words, and then some.\n';
+    await vault.tell(['a.md']);
+    await vi.waitFor(() => expect(vault.puts()).toBeGreaterThan(1));
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(1), {
+      timeout: 1500,
+    });
+  });
+
+  it('rebuilds the SQL views again after a rebuild failed, once the index next moves', async () => {
+    const vault = bookVault({ viewsOnce: true });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.views.length).toBe(1));
+
+    vault.files['a.md'] = '# A\n\nSome more words, and then some.\n';
+    await vault.tell(['a.md']);
+    await vi.waitFor(() => expect(vault.puts()).toBeGreaterThan(1));
+
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(1), {
+      timeout: 1500,
+    });
+  });
+});
+
+describe('what ⌘K draws (#261)', () => {
+  it('opens the palette and takes five keys without drawing the window, its sidebar or its panes again', async () => {
+    renderApp(
+      fakeVault({
+        remembered: location,
+        directories: { '': [entry('recipes.md', 'file')] },
+        files: { 'recipes.md': '# Recipes\n\nSourdough.\n' },
+      }),
+    );
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+    // Whatever opening the note set going settles before counting starts.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    startCountingRenders();
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await screen.findByLabelText('Search the vault'), 'sourd');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    const { renders } = stopCountingRenders();
+
+    // The counter saw the palette drawn for each key, so a zero below is real.
+    expect(renders.SearchPalette ?? 0).toBeGreaterThanOrEqual(5);
+    expect(renders.App ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+    expect(renders.VaultTree ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+    expect(renders.NotePaneContainer ?? 0).toBe(0);
+  });
+});
+
+describe('⌘K held in the overlay store (#261, attack)', () => {
+  const twoNotes = () =>
+    fakeVault({
+      remembered: location,
+      directories: { '': [entry('recipes.md', 'file'), entry('garden.md', 'file')] },
+      files: { 'recipes.md': '# Recipes\n\nSourdough.\n', 'garden.md': '# Garden\n\nTomatoes.\n' },
+    });
+  const searchPalette = () => screen.queryByRole('dialog', { name: 'Search notes' });
+  const searchBox = () => screen.findByLabelText<HTMLInputElement>('Search the vault');
+
+  /** The app on a vault whose index answers every search with recipes. */
+  const renderFinding = (vault: ReturnType<typeof fakeVault>) => {
+    const index = fakeIndexPorts(vault);
+    index.index.search = async () => [
+      { path: 'recipes.md', title: 'Recipes', snippet: '<<Sourdough>>' },
+    ];
+    return render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={index}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+  };
+
+  async function openGardenThenRecipes() {
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'garden' }));
+    await screen.findByRole('article', { name: 'garden' });
+    await userEvent.click(screen.getByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+  }
+
+  it('opens empty again after a note was picked from it', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await searchBox(), 'sour');
+    await userEvent.click(await screen.findByRole('option', { name: /Recipes/ }));
+    await screen.findByRole('article', { name: 'recipes' });
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+
+    expect((await searchBox()).value).toBe('');
+    expect(screen.queryByRole('option', { name: /Recipes/ })).toBeNull();
+  });
+
+  it('opens with archived notes left out again after the toggle was turned on and the palette shut', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.click(await screen.findByRole('switch', { name: 'Include archived' }));
+    expect(
+      screen.getByRole('switch', { name: 'Include archived' }).getAttribute('aria-checked'),
+    ).toBe('true');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+
+    const toggle = await screen.findByRole('switch', { name: 'Include archived' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('keeps ⌘K the only dialog, with the focus in its box, through Shift+Cmd+N, Cmd+, and Cmd+J', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    const box = await searchBox();
+    await userEvent.keyboard('{Meta>}{Shift>}n{/Shift}{/Meta}');
+    await userEvent.keyboard('{Meta>},{/Meta}');
+    await userEvent.keyboard('{Meta>}j{/Meta}');
+    await userEvent.keyboard('{Meta>}{Alt>}n{/Alt}{/Meta}');
+
+    const dialogs = screen.getAllByRole('dialog', { hidden: true });
+    expect(dialogs.map((d) => d.getAttribute('aria-label'))).toEqual(['Search notes']);
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('does not go back behind the palette on Cmd+[', async () => {
+    renderFinding(twoNotes());
+    await openGardenThenRecipes();
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Meta>}[[{/Meta}');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    // The modal palette hides the window from the accessibility tree, so look behind it.
+    expect(screen.getByRole('article', { name: 'recipes', hidden: true })).toBeDefined();
+    expect(screen.queryByRole('article', { name: 'garden', hidden: true })).toBeNull();
+    expect(searchPalette()).not.toBeNull();
+  });
+
+  it('does not split the window behind the palette on Shift+Cmd+\\', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    // The modal palette hides the window from the accessibility tree, so look behind it.
+    expect(screen.queryByRole('region', { name: 'Pane 1', hidden: true })).not.toBeNull();
+    expect(screen.queryByRole('region', { name: 'Pane 2', hidden: true })).toBeNull();
+    // Control: with the palette shut, the same press splits.
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    expect(await screen.findByRole('region', { name: 'Pane 2' })).toBeDefined();
+  });
+
+  it('does not hide the sidebar behind the palette on Cmd+\\', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Meta>}\\{/Meta}');
+
+    // The modal palette hides the window from the accessibility tree, so look behind it.
+    expect(screen.queryByRole('treeitem', { name: 'recipes', hidden: true })).not.toBeNull();
+  });
+
+  it('gives the focus back to what had it before ⌘K, once Escape shuts it', async () => {
+    renderFinding(twoNotes());
+    const item = await screen.findByRole('treeitem', { name: 'recipes' });
+    act(() => item.focus());
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Escape}');
+
+    await waitFor(() => expect(document.activeElement).toBe(item));
+  });
+
+  it('opens a pane menu once ⌘K is shut, so the window still draws its own overlays', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+
+    expect(await screen.findByRole('menuitem', { name: /^Split right/ })).toBeDefined();
+    expect(searchPalette()).toBeNull();
+  });
+
+  it('lets ⌘K replace an open pane menu, leaving only the palette up', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await screen.findByRole('menuitem', { name: /^Split right/ });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+
+    expect(await searchBox()).toBeDefined();
+    await waitFor(() =>
+      expect(screen.queryByRole('menuitem', { name: /^Split right/ })).toBeNull(),
+    );
+  });
+
+  it('moves the choice and shuts ⌘K without drawing the window again', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await searchBox(), 'sour');
+    await screen.findByRole('option', { name: /Recipes/ });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    startCountingRenders();
+    await userEvent.keyboard('{ArrowDown}{ArrowUp}');
+    await userEvent.click(screen.getByRole('switch', { name: 'Include archived' }));
+    await userEvent.keyboard('{Escape}');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    const { renders } = stopCountingRenders();
+
+    expect(renders.SearchPalette ?? 0).toBeGreaterThanOrEqual(3);
+    expect(renders.App ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+    expect(renders.VaultTree ?? 0).toBe(0);
   });
 });

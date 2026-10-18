@@ -154,6 +154,7 @@ function recordingVault(
     },
     createNote: async ({ path: at, contents }) => {
       created.push({ path: at, contents });
+      return 0;
     },
     readTextFile: async (at) => {
       const text = files[at];

@@ -1,6 +1,6 @@
 # Atlas UI v2 "Dense & Calm" — implementation plan
 
-Status: **proposed**, awaiting James's approval slice by slice. Brief: [`ui-v2-brief.md`](ui-v2-brief.md). Mockups: `design/v2/*.dc.html`. Paths are relative to the repo root. Code was read at main `abcf3553`.
+Status: **proposed**, awaiting James's approval slice by slice. Brief: [`ui-v2-brief.md`](ui-v2-brief.md). Mockups: `design/target/*.dc.html` (moved from `design/v2/` in #270). Paths are relative to the repo root. Code was read at main `abcf3553`.
 
 > **Budget numbers in this plan are out of date.** It was written against an older `tools/perf/budgets.json`. On main after #247 and #256, "Tick a task on Today" commits is **42** (at its limit on CI), "Open the 420-row table" renders is about **1,011**, "Decide an Inbox row" commits is **52**, and "Drag a board card" commits is **81**. Always read the current file; budgets only go down.
 
@@ -8,7 +8,7 @@ Status: **proposed**, awaiting James's approval slice by slice. Brief: [`ui-v2-b
 
 ## 1. Summary of the design
 
-### Tokens (from `design/v2/Tokens.dc.html`, the brief §3, and the `tokens(theme)` blocks of each board)
+### Tokens (from `design/target/Tokens.dc.html`, the brief §3, and the `tokens(theme)` blocks of each board)
 
 **Neutrals** (light / dark): `bg #F6F6F7/#111113` (left sidebar, tab strip, board column wells), `surface #FFFFFF/#18181B` (content, cards, right sidebar), `well #F8F8F9/#1D1D21` (table group rows, notice bars), `ink #18181B/#EDEDEF`, `ink-2 #52525B/#B4B4BC`, `ink-3 #6B6B73/#8E8E98` (metadata; measures 5.2:1 on white, 5.4:1 on dark surface, so WCAG AA holds), `line #E6E6E9/#2A2A2F`, `line-soft #ECECEF/#2A2A2F` (row dividers), `hover #F4F4F6/#222227`, `selected #E8E8EB/#26262B`, `focus #6B7BC4/#8F9BE0` (focus ring and editing-cell ring only). The boards also use a `line2`/separator grey for the `·` between metadata (`#C4C4CA` light, `#4A4A52` dark), a disabled-control ink `#C4C4CA`, a chart grid `#F1F1F3/#232328` and bar grey `#D4D4D8/#3F3F46`; these need tokens too.
 
@@ -80,6 +80,49 @@ Conventions for every slice: one PR, opened as a draft, mergeable on its own aga
 - **Files**: `apps/desktop/src/styles.css` → `apps/desktop/src/styles/*.css`, `apps/desktop/src/main.tsx` (import path), `apps/desktop/src/styles.test.ts` (glob the folder; keep every rule), `apps/desktop/src/gallery/*` import path if any.
 - **Dependencies**: none, but land it before slices 1–13 so they touch disjoint files. **Parallel**: nothing else in CSS while it is open (it moves everything). **Risks**: cascade order; a perf PR adding CSS in the meantime conflicts trivially (re-apply in the new file).
 - **Tests**: `styles.test.ts` on the folder; `pnpm shots` before/after diffed pixel-identical (a one-off check in the PR, not a committed snapshot). **Screenshots**: before/after of board, table, note, dashboard, settings.
+- **Landed as** (#277): `apps/desktop/src/styles/index.css` imports the files below in this order, which is the order the sections sat in `styles.css`. A later file may override an earlier one, so a new section goes where its rules belong in the cascade, and a rule is edited in the file that holds its section. Each file opens with a comment naming its sections.
+
+  | File                    | Sections (as their banners read)                                                                                                                                       |
+  | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `tokens.css`            | Tokens (the palettes, aliases, type scale, `body`)                                                                                                                     |
+  | `primitives.css`        | Primitives                                                                                                                                                             |
+  | `shell.css`             | The shell; The workspace header                                                                                                                                        |
+  | `sidebar.css`           | The sidebar; Moving the sections (P19-01, P19-02); The sidebar's foot                                                                                                  |
+  | `editor.css`            | note pane and editor; wiki links; tags; suggestion popups; callouts; tables; images; bookmarks (U-21); shown blocks (P26-03); query blocks (P30-05); code highlighting |
+  | `overlays.css`          | Overlays: the palettes and Settings                                                                                                                                    |
+  | `page.css`              | Page anatomy; The page head                                                                                                                                            |
+  | `properties.css`        | Properties                                                                                                                                                             |
+  | `mentions.css`          | The body; Linked mentions                                                                                                                                              |
+  | `menus.css`             | new note menu — the `.menu` and `.menu-positioner` rules every menu shares (slice 2 edits these here, not in `overlays.css`)                                           |
+  | `table.css`             | table view                                                                                                                                                             |
+  | `board.css`             | board layout                                                                                                                                                           |
+  | `layouts.css`           | list and gallery layouts; feed layout, done boxes, the Layout menu (P17-05)                                                                                            |
+  | `settings.css`          | settings                                                                                                                                                               |
+  | `calendar.css`          | calendar layout; calendar ranges (U-14)                                                                                                                                |
+  | `timeline.css`          | Timeline (Gantt)                                                                                                                                                       |
+  | `dashboard.css`         | Dashboards (P16-05): the grid and the widgets — Number tile, Hero, Bars, Donut, Ranking, Line, List and table                                                          |
+  | `views.css`             | Views: tabs, toolbar, popovers, status pills (P16-04)                                                                                                                  |
+  | `dashboard-editing.css` | Dashboard editing (P17-03)                                                                                                                                             |
+  | `types.css`             | Types: New type, and the type editor (P17-02)                                                                                                                          |
+  | `pages-tree.css`        | Pages: folders, moving and deleting (P17-01)                                                                                                                           |
+  | `queries.css`           | Saved views and SQL queries (P17-04); Atlas queries: builder, text, grouped answer (P24)                                                                               |
+  | `graph.css`             | Links and the graph (P17-06)                                                                                                                                           |
+  | `artifacts.css`         | Artifacts (P17-07)                                                                                                                                                     |
+  | `quick-add.css`         | Quick add (U-13)                                                                                                                                                       |
+  | `templates.css`         | Templates (ADR-0026)                                                                                                                                                   |
+  | `terms.css`             | Corrections (P28-06); Terms (P28-05)                                                                                                                                   |
+  | `archive.css`           | the Archive (U-22)                                                                                                                                                     |
+  | `inbox.css`             | the Inbox (P30-01)                                                                                                                                                     |
+  | `weekly-review.css`     | the weekly review (P30-07)                                                                                                                                             |
+  | `today.css`             | the Today page (#111)                                                                                                                                                  |
+  | `gtd.css`               | moving tasks to GTD (P30-02)                                                                                                                                           |
+  | `automations.css`       | Automations (P25)                                                                                                                                                      |
+  | `chat.css`              | Claude (P27): the chat                                                                                                                                                 |
+  | `activity.css`          | Activity (U-28)                                                                                                                                                        |
+  | `sync.css`              | Sync (U-29)                                                                                                                                                            |
+  | `grouped-tables.css`    | grouped tables (issue #6)                                                                                                                                              |
+  | `swimlanes.css`         | board swimlanes (issue #6)                                                                                                                                             |
+  | `proposals.css`         | Proposals (P29-02)                                                                                                                                                     |
 
 ### Slice 1 — Tokens and theme, light and dark (M)
 
@@ -94,7 +137,7 @@ Conventions for every slice: one PR, opened as a draft, mergeable on its own aga
 ### Slice 2 — Primitives: buttons, inputs, chips, pills, menus, toast (M)
 
 - **Goal**: `.btn` kinds (`--primary` pastel blue, new `--positive`, `--destructive`, `--secondary`, `--ghost`; 28px; radius 6), `.field` 28px radius 6 with a `focus` ring, `.chip` radius 4 without icons, `StatusPill` as the 20px tinted pill with a `dot`-only variant for board heads, `.menu`/`.menu-positioner` radius 8 with the popover shadow, `Key`/`KeyHints` as plain 11.5 ink-3 text, `Toast` top-right, 5 s, dark surface, Undo button, dismiss ×.
-- **Files**: `apps/desktop/src/styles/primitives.css`, `apps/desktop/src/styles/overlays.css` (menu), `apps/desktop/src/styles/quick-add.css` (`.toast` rules move to primitives), `packages/ui/src/status-pill.tsx` (+ `variant?: 'pill' | 'dot'`), `packages/ui/src/toast.tsx`, `toast.test.tsx`, `packages/ui/src/dismiss-after.ts` (`TOAST_MS` 6000→5000; `UNDO_BAR_MS` untouched for now), `packages/ui/src/key-hints.tsx`, `packages/ui/src/segmented-control.tsx` (class only), `apps/desktop/src/gallery/gallery.tsx` (specimens for each kind in both themes).
+- **Files**: `apps/desktop/src/styles/primitives.css`, `apps/desktop/src/styles/menus.css` (menu), `apps/desktop/src/styles/quick-add.css` (`.toast` rules move to primitives), `packages/ui/src/status-pill.tsx` (+ `variant?: 'pill' | 'dot'`), `packages/ui/src/toast.tsx`, `toast.test.tsx`, `packages/ui/src/dismiss-after.ts` (`TOAST_MS` 6000→5000; `UNDO_BAR_MS` untouched for now), `packages/ui/src/key-hints.tsx`, `packages/ui/src/segmented-control.tsx` (class only), `apps/desktop/src/gallery/gallery.tsx` (specimens for each kind in both themes).
 - **Dependencies**: 1. **Parallel**: with 3a, 3b, 4, 9, 10 (disjoint files once 0b is in; `status-pill.tsx` is shared with 4 and 9, so land 2 first or keep its API additive).
 - **Risks**: `DoneCheckbox`, `SelectBox` and `Toggle` keep their roles/names so `done-ticks.test.tsx`, `row-selection` and e2e stay green; the Toast keeps `role="status"` and its hold-while-hovered rule.
 - **Tests**: `toast.test.tsx` (5 s, held while hovered/focused, Undo calls the action then dismisses, × dismisses); `status-pill` test for the dot variant's accessible label; `segmented-control.test.tsx` unchanged.

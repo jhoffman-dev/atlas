@@ -1,0 +1,329 @@
+/* Primitives: buttons, fields, chips, pills, the shared vocabulary.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Primitives ---------------------------------------------------------
+   The vocabulary everything else in the app is drawn from. Separation comes
+   from a lifted surface with a soft shadow and a large radius, never a 1px
+   rule.
+
+   Elevation is a hierarchy rather than decoration. If everything is raised,
+   nothing is:
+
+     no shadow    the ground: the page, the sidebar, a row in a list
+     --shadow-1   a resting card — grouped content, sitting on the ground
+     --shadow-2   raised — interactive, or the thing meant to be read first
+     --shadow-3   foremost — overlays that float above the whole app
+   -------------------------------------------------------------------------- */
+
+.card {
+  background: var(--raised);
+  /* Explicit, because a card is sometimes a `button`, and a button brings a
+     border of its own. */
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  display: block;
+  font: inherit;
+  padding: var(--space-4);
+  text-align: left;
+}
+
+/* The thing to act on, or to read first. */
+.card--raised {
+  box-shadow: var(--shadow-tile);
+}
+
+/* A card that is itself a control. It rests at 1 and lifts to 2 under the
+   pointer, which is the whole reason the other cards stay at 1. */
+.card--interactive {
+  cursor: pointer;
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.card--interactive:hover {
+  box-shadow: var(--shadow-tile);
+  transform: translateY(-1px);
+}
+
+.card--interactive:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A quiet, small, uppercase label with the figure under it — never the same
+   size as the value. */
+.card__label {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.btn {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 600;
+  gap: var(--space-2);
+  justify-content: center;
+  line-height: 1;
+  padding: 9px 18px;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.btn--sm {
+  font-size: var(--text-small);
+  padding: 5px 12px;
+}
+
+.btn--primary {
+  background: var(--accent);
+  box-shadow: var(--shadow-tile);
+  color: var(--accent-ink);
+}
+
+/* Mixing towards the text colour darkens in light and lightens in dark, so
+   one rule reads correctly in both themes. */
+.btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 86%, var(--ink));
+}
+
+.btn--secondary {
+  background: var(--raised);
+  box-shadow: var(--shadow-card);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  box-shadow: var(--shadow-tile);
+}
+
+.btn--ghost {
+  color: var(--ink-2);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* A secondary action on a raised card, where a second raised pill would sit
+   on its own colour: a tinted pill instead. */
+.btn--tinted {
+  background: var(--chip);
+  color: var(--chip-ink);
+  font-weight: 700;
+}
+
+.btn--tinted:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* Tabs and mode switches: a pill track, with the chosen one filled. */
+.segmented {
+  background: var(--track);
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+}
+
+.segmented__option {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1;
+  padding: 7px 16px;
+  white-space: nowrap;
+}
+
+.segmented__option:hover:not(.segmented__option--on) {
+  color: var(--ink);
+}
+
+.segmented__option--on {
+  background: var(--accent);
+  box-shadow: var(--shadow-card);
+  color: var(--accent-ink);
+}
+
+/* A preference rather than a mode: a tinted track, and the chosen option
+   lifted as a plain raised pill instead of filled with the accent. */
+.segmented--quiet {
+  background: var(--chip);
+}
+
+.segmented--quiet .segmented__option {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  height: 26px;
+  justify-content: center;
+  padding: 0;
+  width: 30px;
+}
+
+.segmented--quiet .segmented__option--on {
+  background: var(--raised);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+}
+
+.segmented__option:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.field {
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  font: inherit;
+  padding: 9px 16px;
+  width: 100%;
+}
+
+/* A well for several lines of text is not a pill. */
+.field--block {
+  border-radius: var(--radius-button);
+}
+
+.field::placeholder {
+  color: var(--ink-2);
+}
+
+.field:focus {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.field--invalid {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+/* The chevron is drawn by the wrapper, since a styled `select` cannot draw
+   its own on WebKit without losing the native menu behaviour. */
+.select {
+  display: inline-block;
+  position: relative;
+}
+
+.select__control {
+  padding-right: 36px;
+}
+
+.select::after {
+  color: var(--ink-2);
+  content: '▾';
+  font-size: var(--text-small);
+  pointer-events: none;
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* A switch in the sidebar's segmented language: a tinted pill track with the
+   knob lifted on it as a raised pill. State is carried by the knob's position
+   as well as the track's colour, so it still reads without colour; the inset
+   ring gives the track an edge on a raised card as well as on the ground. */
+.toggle {
+  align-items: center;
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px var(--grid);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 30px;
+  padding: 3px;
+  transition: background 140ms ease;
+  width: 52px;
+}
+
+.toggle__knob {
+  background: var(--raised);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  height: 24px;
+  transition: transform 140ms ease;
+  width: 24px;
+}
+
+.toggle[aria-checked='true'] {
+  background: var(--accent-solid);
+  box-shadow: var(--shadow-accent);
+}
+
+.toggle[aria-checked='true'] .toggle__knob {
+  transform: translateX(22px);
+}
+
+.toggle:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.toggle:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.chip {
+  align-items: center;
+  background: var(--track);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: var(--text-label);
+  gap: 6px;
+  line-height: 1;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.chip--accent {
+  background: color-mix(in srgb, var(--cyan) 16%, var(--raised));
+  color: var(--accent-text);
+}
+
+.chip--danger {
+  background: color-mix(in srgb, var(--danger) 16%, var(--raised));
+  color: var(--danger);
+}

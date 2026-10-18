@@ -97,16 +97,48 @@ export async function currentBranch(git: GitPort): Promise<string> {
   return branch;
 }
 
-/** Who commits: git's own identity when this Mac has one, otherwise this Mac. */
-async function identityFor(git: GitPort, mac: string): Promise<GitIdentity | null> {
-  const [name, email] = await Promise.all([git.config('user.name'), git.config('user.email')]);
-  if (firstLine(name) !== null && firstLine(email) !== null) return null;
-  const host =
-    mac
+/**
+ * At most this many characters of the Mac's name go into an author name: four
+ * bytes each at most, so `Atlas on <name>` stays under the host's 256-byte limit.
+ */
+const MAX_MAC_NAME = 60;
+/** What git drops from the ends of a name: control characters, spaces and `,:;"\'`. */
+const GIT_TRIMS = /^[\0- ,:;"\\']+|[\0- ,:;"\\']+$/g;
+/** A DNS label's limit, for the part of the email made from the Mac's name. */
+const MAX_HOST = 63;
+
+/**
+ * The Mac's name as git will record it, so the author is exactly the one Atlas
+ * made: git drops `<` and `>`, and trims the ends; a line break makes a name
+ * the host refuses.
+ */
+function authorName(mac: string): string {
+  const plain = (text: string) =>
+    text
+      .replace(/[<>]/g, '')
+      // eslint-disable-next-line no-control-regex -- control characters are exactly what becomes a space
+      .replace(/[\0-\x1f\x7f]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(GIT_TRIMS, '');
+  const name = plain(Array.from(plain(mac)).slice(0, MAX_MAC_NAME).join(''));
+  return name === '' ? 'this Mac' : name;
+}
+
+/** The Mac's name as an email's host part: plain lowercase letters, digits and dashes. */
+function hostName(mac: string): string {
+  const slug = (text: string) =>
+    text
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '') || 'mac';
-  return { name: `Atlas on ${mac}`, email: `atlas@${host}.local` };
+      .replace(/^-|-$/g, '');
+  return slug(slug(mac).slice(0, MAX_HOST)) || 'mac';
+}
+
+/** Who commits: git's own identity when this Mac has one, otherwise this Mac. */
+export async function identityFor(git: GitPort, mac: string): Promise<GitIdentity | null> {
+  const [name, email] = await Promise.all([git.config('user.name'), git.config('user.email')]);
+  if (firstLine(name) !== null && firstLine(email) !== null) return null;
+  return { name: `Atlas on ${authorName(mac)}`, email: `atlas@${hostName(mac)}.local` };
 }
 
 /**
@@ -161,6 +193,18 @@ export async function commitStaged({
   mac: string;
   message: string;
 }): Promise<void> {
-  const identity = await identityFor(git, mac);
+  await commitAs({ git, message, identity: await identityFor(git, mac) });
+}
+
+/** Commits what is staged as `identity`, already chosen by {@link identityFor}. */
+export async function commitAs({
+  git,
+  message,
+  identity,
+}: {
+  git: GitPort;
+  message: string;
+  identity: GitIdentity | null;
+}): Promise<void> {
   expectOk('commit', await git.commit({ message, identity }));
 }

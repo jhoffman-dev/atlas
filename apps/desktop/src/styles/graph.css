@@ -1,0 +1,406 @@
+/* Links and the graph (P17-06).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ==== Links and the graph (P17-06) =========================================== */
+
+/* The foot of a note: counts beside the toggle, then two groups and the
+   mentions, each under a small sentence-case heading. */
+.links__count {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 500;
+  margin-left: var(--space-1);
+}
+
+.links__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.links__heading {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 700;
+  margin: 0;
+}
+
+.links__heading--toggle {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  display: flex;
+  font-family: inherit;
+  gap: 6px;
+  margin: 0 -8px;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.links__heading--toggle:hover {
+  background: var(--hover);
+}
+
+.links__heading--toggle:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.links__heading--toggle[aria-expanded='true'] .mentions__chevron {
+  transform: rotate(90deg);
+}
+
+.links__empty {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: 6px 0 0;
+}
+
+.links__empty--error {
+  color: var(--danger);
+}
+
+/* A relation's name, where a plain link shows its path. */
+.links__via {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--chip-ink);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin-left: auto;
+  padding: 2px 8px;
+}
+
+.links__mention {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.links__mention .mentions__link {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.links__excerpt {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 500;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.links__link-button {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+}
+
+/* The graph page: the head, then the stage filling what is left of the panel. */
+.graph .page-head {
+  flex: none;
+}
+
+.graph__controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-3);
+}
+
+.graph__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.graph__chip {
+  align-items: center;
+  appearance: none;
+  background: var(--chip);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--chip-ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 10px;
+}
+
+.graph__chip:hover {
+  background: var(--hover);
+}
+
+.graph__chip:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A type left out keeps its place, faded, so it can be put back. */
+.graph__chip[aria-pressed='false'] {
+  color: var(--ink-3);
+  opacity: 0.6;
+}
+
+.graph__chip[aria-pressed='false'] .graph__swatch {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+
+.graph__swatch {
+  background: var(--graph-untyped);
+  border-radius: 50%;
+  height: 10px;
+  width: 10px;
+}
+
+.graph__swatch[data-tone='backlog'] {
+  background: var(--status-backlog-dot);
+}
+
+.graph__swatch[data-tone='inbox'] {
+  background: var(--status-inbox-dot);
+}
+
+.graph__swatch[data-tone='next'] {
+  background: var(--status-next-dot);
+}
+
+.graph__swatch[data-tone='doing'] {
+  background: var(--status-doing-dot);
+}
+
+.graph__swatch[data-tone='waiting'] {
+  background: var(--status-waiting-dot);
+}
+
+.graph__swatch[data-tone='review'] {
+  background: var(--status-review-dot);
+}
+
+.graph__swatch[data-tone='done'] {
+  background: var(--status-done-dot);
+}
+
+.graph__switches {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+
+.graph__switch {
+  align-items: center;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: var(--space-2);
+}
+
+/* Depth is words, not the icons a quiet control usually holds. */
+.graph__switches .segmented--quiet .segmented__option {
+  padding: 0 12px;
+  width: auto;
+}
+
+.graph__notice {
+  background: var(--chip);
+  border-radius: var(--radius-control);
+  color: var(--chip-ink);
+  font-size: var(--text-small);
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.graph__empty {
+  color: var(--ink-3);
+  margin: var(--space-6) 0;
+  text-align: center;
+}
+
+.graph__empty--error {
+  color: var(--danger);
+}
+
+.graph__stage {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  flex: 1;
+  min-height: 360px;
+  overflow: hidden;
+  position: relative;
+}
+
+.graph__surface {
+  cursor: grab;
+  display: block;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  width: 100%;
+}
+
+.graph__surface:active {
+  cursor: grabbing;
+}
+
+.graph__edge-line {
+  stroke: var(--graph-edge);
+  stroke-width: 1.2;
+  transition: opacity 120ms ease;
+}
+
+.graph__edge--relation .graph__edge-line {
+  stroke: var(--graph-relation);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.4;
+}
+
+.graph__edge-hit {
+  stroke: transparent;
+  stroke-width: 10;
+}
+
+.graph__edge--dim .graph__edge-line {
+  opacity: 0.15;
+}
+
+.graph__edge-label {
+  fill: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: var(--raised);
+  stroke-width: 3px;
+  text-anchor: middle;
+}
+
+.graph__node {
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.graph__dot {
+  stroke: var(--raised);
+  stroke-width: 1.5;
+}
+
+.graph__node:hover .graph__dot {
+  stroke: var(--focus);
+  stroke-width: 2.5;
+}
+
+.graph__node--centre .graph__dot {
+  stroke: var(--focus);
+  stroke-width: 3;
+}
+
+.graph__node--dim {
+  opacity: 0.2;
+}
+
+.graph__label {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: var(--raised);
+  stroke-width: 3px;
+  text-anchor: middle;
+}
+
+/* The list alternative: each note, then what it is connected to, indented. */
+.graph__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.graph__list-item {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+
+.graph__list-note,
+.graph__list-link {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.graph__list-note {
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+
+.graph__list-note .icon {
+  color: var(--ink-3);
+}
+
+.graph__list-note:hover,
+.graph__list-link:hover {
+  background: var(--hover);
+}
+
+.graph__list-note:focus-visible,
+.graph__list-link:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.graph__list-type {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.graph__list-links {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 34px;
+}
+
+.graph__list-link {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  min-height: 28px;
+}
+
+.graph__list-way {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  min-width: 96px;
+}

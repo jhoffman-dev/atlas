@@ -824,7 +824,7 @@ export async function installHost(
       case 'plugin:app|version':
         return '0.1.0';
       case 'create_note': {
-        const { writeFile } = await import('node:fs/promises');
+        const { writeFile, stat: statFile } = await import('node:fs/promises');
         const { contents } = args as { contents: string };
         const file = containedPath(writeRoot(args), path);
         // Making a file is a write to it, and is held as one (`holdWrites`).
@@ -835,7 +835,8 @@ export async function installHost(
           throw new Error('a note with that name already exists');
         }
         countWrite(path);
-        return null;
+        // The new note's time, as `create_note` reports it (#258).
+        return Math.floor((await statFile(file)).mtimeMs);
       }
       case 'create_folder': {
         const { mkdir: makeDirectory } = await import('node:fs/promises');
@@ -980,6 +981,10 @@ export async function installHost(
         }
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
+        }
+        // What a write changed of the graph and the tags (#259): the notes' own rows, run for real.
+        if (statement.startsWith('/* index facets */')) {
+          return runAtlasQuery(statement, bound, indexed.values());
         }
         // The weekly review (P30-07): tasks and projects, over files, props and relations, run for real.
         if (statement.startsWith('/* weekly review:')) {

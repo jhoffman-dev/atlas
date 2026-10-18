@@ -61,6 +61,7 @@ function memoryVault({ folders = [], notes = [] }: { folders?: string[]; notes?:
       if (exists(at)) throw new VaultAccessError('a note with that name already exists');
       files.add(at);
       log.push(`create ${at}`);
+      return 0;
     },
     moveEntry: async (move) => {
       if (!exists(move.from)) throw new VaultAccessError('no such entry');

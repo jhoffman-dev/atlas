@@ -18,6 +18,7 @@ export * from './profile/index.ts';
 export * from './tags/index.ts';
 export * from './meetings/index.ts';
 export { fakeHostVaultFs, fakeIndexPort, fakeMarkdown, fakeVaultFs } from './testing/fake-ports.ts';
+export { memoryIndexPort } from './testing/memory-index.ts';
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
 export { apiFixture, bodyOf, codeOf, encoded } from './testing/api-fixture.ts';
 export { fakeGoogleCalendar } from './testing/fake-google-calendar.ts';
@@ -62,3 +63,4 @@ export {
   statusText,
 } from './testing/fake-git.ts';
 export type { GitScript } from './testing/fake-git.ts';
+export * from './reads/index.ts';

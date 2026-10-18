@@ -1,0 +1,158 @@
+/* moving tasks to GTD (P30-02).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- moving tasks to GTD (P30-02) ----
+   The offer is one line; its preview opens in place, every task listed. */
+
+.task-migration__offer,
+.task-migration__actions,
+.vault-tidy__offer,
+.vault-tidy__actions,
+.meeting-cleanup__offer,
+.meeting-cleanup__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.task-migration__offer p,
+.vault-tidy__offer p,
+.meeting-cleanup__offer p {
+  flex: 1;
+  min-width: 20ch;
+}
+
+.task-migration__preview,
+.vault-tidy__preview,
+.meeting-cleanup__preview {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.task-migration__lines h3,
+.vault-tidy__refused h3 {
+  font-size: var(--text-small);
+  font-weight: 700;
+  margin: 0 0 var(--space-1);
+}
+
+.task-migration__lines ul,
+.vault-tidy__refused ul {
+  padding-left: var(--space-4);
+}
+
+.task-migration__mapping,
+.task-migration__tasks table,
+.vault-tidy__moves table,
+.meeting-cleanup__tasks table {
+  border-collapse: collapse;
+  font-size: var(--text-small);
+  width: 100%;
+}
+
+.task-migration__mapping th,
+.task-migration__tasks th,
+.vault-tidy__moves th,
+.meeting-cleanup__tasks th {
+  color: var(--ink-3);
+  font-weight: 700;
+  text-align: left;
+}
+
+.task-migration__mapping td,
+.task-migration__mapping th,
+.task-migration__tasks td,
+.task-migration__tasks th,
+.vault-tidy__moves td,
+.vault-tidy__moves th,
+.meeting-cleanup__tasks td,
+.meeting-cleanup__tasks th {
+  padding: 4px 12px 4px 0;
+}
+
+/* Every task, and every move, is listed; a long list scrolls inside the offer, not the page. */
+.task-migration__tasks,
+.vault-tidy__moves,
+.meeting-cleanup__tasks {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.table__choose {
+  text-align: center;
+  width: 36px;
+}
+
+.select-box {
+  accent-color: var(--accent-solid);
+  cursor: pointer;
+  height: 16px;
+  margin: 0;
+  vertical-align: middle;
+  width: 16px;
+}
+
+.select-box:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.selection-bar {
+  align-items: center;
+  background: var(--active);
+  border-radius: var(--radius-pill);
+  color: var(--active-ink);
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: 6px 8px 6px 18px;
+}
+
+.selection-bar__count {
+  margin-right: auto;
+}
+
+.selection-bar__action,
+.selection-bar__clear {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 14px;
+}
+
+.selection-bar__action {
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+  color: var(--accent-ink);
+}
+
+.selection-bar__action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.selection-bar__clear:hover {
+  background: var(--hover);
+}
+
+.selection-bar__action:focus-visible,
+.selection-bar__clear:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* The box column is only as wide as its box, whatever the table's columns do. */
+.table__grid th.table__choose,
+.table__grid td.table__choose {
+  min-width: 0;
+  padding-left: 10px;
+  width: 36px;
+}

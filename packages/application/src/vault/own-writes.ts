@@ -63,6 +63,13 @@ export interface OwnWrites {
   record(write: PathInVault & { readonly left: LeftVersion }): void;
   /** Forgets the path's write: what is there now is not known, so no report of it is an echo. */
   forget(file: PathInVault): void;
+  /**
+   * Forgets every write inside the folder, at any depth, but not the folder
+   * itself: once the folder is trashed or moved, nothing the app left in it
+   * is known to be there (#264). Whole names only: `Projects/Lark` holds
+   * nothing of `Projects/Larkspur`.
+   */
+  forgetUnder(folder: PathInVault): void;
   /** The last write the app made at the path, while it is still kept; null when none is. */
   leftAt(file: PathInVault): LeftVersion | null;
   /** Which write was recorded last: a refresh that starts reading the vault now reads up to it. */
@@ -119,6 +126,8 @@ export function createOwnWrites({
       kept.put(file, { left, at: clock.now(), write: written, held: false });
     },
     forget: (file) => kept.drop(file),
+    forgetUnder: ({ vault, path }) =>
+      kept.dropWhere((file) => file.vault === vault && file.path.startsWith(`${path}/`)),
     leftAt: (file) => kept.get(file)?.left ?? null,
     lastWrite: () => written,
     refreshed({ vault, through, unread = [] }) {
@@ -159,6 +168,12 @@ function keptWrites({
       }
     },
     drop: (file: PathInVault) => void kept.delete(keyOf(file)),
+    dropWhere(which: (file: PathInVault) => boolean) {
+      for (const key of [...kept.keys()]) {
+        const [vault, path] = JSON.parse(key) as [string, string];
+        if (which({ vault, path })) kept.delete(key);
+      }
+    },
     /** Marks every write `which` names as held, in place: its age and order are its own. */
     hold(which: (file: PathInVault, write: Kept) => boolean) {
       for (const [key, write] of kept) {

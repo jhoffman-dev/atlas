@@ -1,0 +1,389 @@
+/* Timeline (Gantt).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Timeline (Gantt) --------------------------------------------------- */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.timeline__meta {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: 8px 14px;
+}
+
+.timeline__range {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+/* Something about the plan worth knowing, not an error: a tinted chip. */
+.timeline__warning {
+  background: color-mix(in srgb, var(--warning) 14%, var(--raised));
+  border-radius: var(--radius-pill);
+  color: var(--warning);
+  font-weight: 700;
+  padding: 3px 10px;
+}
+
+/* The density trade, settled for a Gantt: the plan is read by comparing rows
+   against each other, so the rows stay close together and the card around them
+   carries the calm. */
+.timeline__scroll {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+/* The chart is as wide as the plan is long; the scroller above holds it. */
+.timeline__chart {
+  position: relative;
+}
+
+/* One of the few rules that survives: the ruler genuinely separates the scale
+   from the work measured against it. */
+.timeline__ruler {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  position: sticky;
+  top: 0;
+  background: var(--raised);
+  z-index: 1;
+}
+
+.timeline__day {
+  color: var(--ink-2);
+  flex: none;
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-2) 0 6px;
+  text-align: center;
+}
+
+.timeline__today {
+  background: color-mix(in srgb, var(--accent-text) 55%, transparent);
+  bottom: 0;
+  position: absolute;
+  top: 0;
+  width: 2px;
+}
+
+.timeline__row {
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  padding: 5px 0;
+}
+
+.timeline__row:last-child {
+  border-bottom: 0;
+}
+
+/* Flat, like every other fill on data: a bar that fades is harder to compare
+   against the bar above it. */
+.timeline__bar {
+  --bar: color-mix(in srgb, var(--cyan) 34%, var(--raised));
+  --bar-ink: var(--ink);
+  background: var(--bar);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--bar-ink);
+  cursor: grab;
+  display: block;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 700;
+  min-height: 26px;
+  overflow: hidden;
+  padding: 5px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* A bar takes its status's colours from the ramp, as a pill does (P16-04);
+   the critical path's red, below, still wins. */
+.timeline__bar[data-tone='backlog'] {
+  --bar: var(--status-backlog);
+  --bar-ink: var(--status-backlog-ink);
+}
+
+.timeline__bar[data-tone='inbox'] {
+  --bar: var(--status-inbox);
+  --bar-ink: var(--status-inbox-ink);
+}
+
+.timeline__bar[data-tone='next'] {
+  --bar: var(--status-next);
+  --bar-ink: var(--status-next-ink);
+}
+
+.timeline__bar[data-tone='doing'] {
+  --bar: var(--status-doing);
+  --bar-ink: var(--status-doing-ink);
+}
+
+.timeline__bar[data-tone='waiting'] {
+  --bar: var(--status-waiting);
+  --bar-ink: var(--status-waiting-ink);
+}
+
+.timeline__bar[data-tone='review'] {
+  --bar: var(--status-review);
+  --bar-ink: var(--status-review-ink);
+}
+
+.timeline__bar[data-tone='done'] {
+  --bar: var(--status-done);
+  --bar-ink: var(--status-done-ink);
+}
+
+.timeline__bar:hover {
+  box-shadow: var(--shadow-tile);
+}
+
+.timeline__bar:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* Held: it moves with the pointer or the arrow keys, above the bars it passes. */
+.timeline__bar--held {
+  box-shadow: var(--shadow-tile);
+  cursor: grabbing;
+  position: relative;
+  z-index: 1;
+}
+
+/* The chain that decides the end date, picked out from the work beside it. */
+.timeline__bar--critical {
+  background: color-mix(in srgb, var(--danger) 30%, var(--raised));
+}
+
+/* A moment rather than a stretch.
+   The diamond is a rotated pseudo-element rather than a rotated button, so the
+   name can sit beside it the right way up. Rotating the button turned its label
+   with it, which is why the label used to be hidden altogether — leaving a row
+   of diamonds nobody could tell apart. */
+.timeline__bar--milestone {
+  align-items: center;
+  background: none;
+  border: 0;
+  display: flex;
+  gap: var(--space-2);
+  overflow: visible;
+  padding: 0;
+}
+
+.timeline__bar--milestone::before {
+  background: color-mix(in srgb, var(--accent-text) 45%, var(--raised));
+  border: 1px solid var(--accent-text);
+  content: '';
+  flex: none;
+  height: 13px;
+  transform: rotate(45deg);
+  width: 13px;
+}
+
+.timeline__bar--critical.timeline__bar--milestone::before {
+  background: color-mix(in srgb, var(--danger) 38%, var(--raised));
+  border-color: var(--danger);
+}
+
+.timeline__bar--milestone:hover::before {
+  background: var(--accent-text);
+}
+
+/* The name overflows the one day the milestone occupies, which is the point. */
+.timeline__bar--milestone .timeline__label {
+  overflow: visible;
+}
+
+.timeline__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A source note: what it reads, and what the last refresh did with it. The
+   notes it produced are ordinary notes elsewhere, so there is nothing to list
+   here — this is the control room rather than the data: one raised card of
+   facts, each a quiet label over its value, then the refresh and its outcome. */
+.source {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 760px;
+  padding: var(--space-5);
+}
+
+.source__facts {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin: 0;
+}
+
+.source__fact {
+  background: var(--panel);
+  border-radius: var(--radius-button);
+  padding: var(--space-3) var(--space-4);
+}
+
+.source__fact dt {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+.source__fact dd {
+  font-size: var(--text-body);
+  font-weight: 700;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.source__fact code {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--chip-ink);
+  font-family: inherit;
+  padding: 1px 7px;
+}
+
+.source__fact dd code + code {
+  margin-left: 6px;
+}
+
+/* A statement is read as code, across the whole row: it is the one fact long
+   enough to need it. */
+.source__fact--wide {
+  grid-column: 1 / -1;
+}
+
+.source__fact dd .source__query {
+  background: none;
+  color: var(--ink);
+  display: block;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: var(--text-small);
+  font-weight: 600;
+  padding: 0;
+  white-space: pre-wrap;
+}
+
+.source__actions {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.source__refresh {
+  appearance: none;
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 800;
+  height: 36px;
+  padding: 0 20px;
+}
+
+.source__refresh:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 86%, var(--ink));
+}
+
+.source__refresh:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.source__refresh:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.source__report {
+  background: var(--panel);
+  border-radius: var(--radius-button);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.source__ran,
+.source__empty,
+.source__note {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0;
+}
+
+.source__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.source__count {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.source__count-value {
+  color: var(--ink);
+  font-size: var(--text-card);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.source__error {
+  color: var(--danger);
+  font-weight: 600;
+  margin: 0;
+}
+
+.source__warning {
+  color: var(--warning);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* A property whose value has structure inside it is shown rather than offered
+   as a text box — see the comment in properties-panel.tsx. */
+.props__structured {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.props__structured-count {
+  color: var(--ink);
+}
+
+.props__structured-note {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}

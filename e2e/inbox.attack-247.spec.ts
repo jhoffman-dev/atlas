@@ -27,6 +27,12 @@ async function openInbox(page: Page) {
   const inbox = page.getByRole('article', { name: 'Inbox' });
   const table = inbox.locator('table.inbox__grid');
   await expect(table).toHaveAttribute('aria-rowcount', '501', { timeout: 30_000 });
+  // The offers are read after the list and land above it, moving "Show more"
+  // down: a click begun before they land is let go on the rows, and is lost (#130).
+  await expect(
+    inbox.getByRole('complementary', { name: 'Set your types up for the Inbox' }),
+  ).toBeVisible();
+  await expect(inbox.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   await inbox.getByRole('button', { name: 'Show more' }).click();
   await expect(table).toHaveAttribute('aria-rowcount', String(WAITING + 1));
   return { inbox, table };

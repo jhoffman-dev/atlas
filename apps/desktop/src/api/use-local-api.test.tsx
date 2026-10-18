@@ -34,7 +34,10 @@ function emptyVault(): ApiRouterDeps {
         if (text === undefined) throw new VaultAccessError('no such entry');
         return { text, modified: 1 };
       },
-      createNote: async ({ path, contents }) => void files.set(path, contents),
+      createNote: async ({ path, contents }) => {
+        files.set(path, contents);
+        return 0;
+      },
     }),
     markdown: remarkMarkdown,
     index: fakeIndexPort(),

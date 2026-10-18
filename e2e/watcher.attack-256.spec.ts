@@ -165,11 +165,12 @@ test('the watcher’s echo of deciding an Inbox row is not refreshed for again (
   await vault.write('Projects/Atlas.md', note(['type: project', 'status: active'], 'The app.'));
   await vault.write('Inbox/Renew the passport.md', note(['type: task', 'status: inbox'], 'Card.'));
   const host = await openedForCounting(page, vault);
-  // The app writes the Block type into a GTD vault as it opens (P31-01). A new
-  // note's time is not reported, so its echo is refreshed for: the count sees a walk.
+  // The app writes the Block type into a GTD vault as it opens (P31-01). The
+  // host reports the new note's time, so its echo is known as the app's own:
+  // nothing is walked for it (#258).
   await expectFile(vault, '.atlas/types/block.md').toContain('block');
   await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
-  expect(await walksSinceTheLastReport(page)).toBeGreaterThan(0);
+  expect(await walksSinceTheLastReport(page)).toBe(0);
   await page
     .getByRole('list', { name: 'Go to' })
     .getByRole('button', { name: /^Inbox/ })
@@ -241,5 +242,63 @@ test('another program’s write straight after a drag, before its echo, still re
   ).toBeVisible();
   await expect(
     page.getByRole('region', { name: 'done' }).locator('[data-path="first.md"]'),
+  ).toHaveCount(0);
+});
+
+/** Opens the board vault, counting walks and reports, with the board in view. */
+async function boardForCounting(page: Page) {
+  const vault = await createVault();
+  await vault.mkdir('.atlas/types');
+  await vault.mkdir('.atlas/views');
+  await vault.write('.atlas/types/task.md', BOARD_TASK_TYPE);
+  await vault.write('.atlas/views/Board.md', BOARD);
+  await vault.write('first.md', note(['type: task', 'status: backlog'], '# First'));
+  const host = await openedForCounting(page, vault);
+  await sidebarSection(page, 'views').getByRole('button', { name: 'Board', exact: true }).click();
+  await page.locator('[data-path="first.md"]').waitFor();
+  return { vault, host };
+}
+
+/** Adds a card in `doing` from the board, and resolves to the path of the note it made. */
+async function addCard(page: Page, title: string): Promise<string> {
+  await page.getByRole('button', { name: 'Add to doing' }).click();
+  const input = page.getByRole('textbox', { name: 'New card in doing' });
+  await input.fill(title);
+  await input.press('Enter');
+  const card = page.getByRole('region', { name: 'doing' }).locator(`[data-path$="${title}.md"]`);
+  await card.waitFor();
+  return (await card.getAttribute('data-path')) ?? '';
+}
+
+test('the watcher’s echo of adding a board card is not refreshed for again (#258)', async ({
+  page,
+}) => {
+  const { vault, host } = await boardForCounting(page);
+
+  const walks = await walksAfterTheEcho(page, host, async () => {
+    const made = await addCard(page, 'A new card');
+    await expectFile(vault, made).toContain('status: doing');
+  });
+  expect(walks).toBe(0);
+  await addFromOutside(page, vault, 'From outside.md');
+});
+
+test('another program’s write straight after a new card, before its echo, still reaches the board (#258)', async ({
+  page,
+}) => {
+  const { vault, host } = await boardForCounting(page);
+  const echoesBefore = await host.echoesSent();
+
+  const made = await addCard(page, 'A new card');
+  // Written over at once, before the echo's 400 ms are up: likely the same millisecond's time.
+  await vault.write(made, note(['type: task', 'status: backlog'], '# A new card, from the laptop'));
+  await emitVaultChanged(page, [made]);
+  await expect.poll(() => host.echoesSent()).toBeGreaterThan(echoesBefore);
+
+  await expect(
+    page.getByRole('region', { name: 'backlog' }).locator(`[data-path="${made}"]`),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'doing' }).locator(`[data-path="${made}"]`),
   ).toHaveCount(0);
 });

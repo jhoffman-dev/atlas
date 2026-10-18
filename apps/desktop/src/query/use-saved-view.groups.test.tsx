@@ -87,6 +87,7 @@ async function show(layout: 'table' | 'board', text = view(layout)) {
     }),
     createNote: async (args: { path: VaultPath; contents: string }) => {
       created.push(args);
+      return 0;
     },
   };
   const editors = fakeEditors();

@@ -1,51 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { VaultGraph } from '@atlas/domain';
 import { readVaultGraph, type IndexPort } from '@atlas/application';
+import { vaultReadKey } from '../reads/query-client.ts';
+import { readState, type ReadState } from '../reads/read-state.ts';
 
 /** The vault's graph as the index has it, or where reading it has got to. */
-export type VaultGraphState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'failed'; readonly message: string }
-  | { readonly kind: 'ready'; readonly graph: VaultGraph };
+export type VaultGraphState = ReadState<{ readonly graph: VaultGraph }>;
 
 /**
- * Every note and connection, read once per index revision and shared: each
- * pane's links and the graph page read from the same copy, so they cannot
- * disagree, and opening a note asks the index nothing more.
+ * Every note and connection, read once and shared: each pane's links and the
+ * graph page read from the same copy, so they cannot disagree, and opening a
+ * note asks the index nothing more. It is read again only when a write to the
+ * index changed a title, a type or a link (#259).
  *
  * Read only once the index is ready — a half-built index would draw half a
  * vault and call it the whole.
  */
 export function useVaultGraph({
   index,
-  indexKey,
+  vaultKey,
   ready,
 }: {
   index: IndexPort;
-  indexKey: string;
+  vaultKey: string | null;
   ready: boolean;
 }): VaultGraphState {
-  const [state, setState] = useState<VaultGraphState>({ kind: 'loading' });
-
-  useEffect(() => {
-    if (!ready) return;
-    let cancelled = false;
-    readVaultGraph({ index })
-      .then((graph) => {
-        if (!cancelled) setState({ kind: 'ready', graph });
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setState({
-            kind: 'failed',
-            message: `The index could not be read: ${error instanceof Error ? error.message : String(error)}`,
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [index, indexKey, ready]);
-
-  return state;
+  const { data, error } = useQuery({
+    queryKey: vaultReadKey(vaultKey ?? '', 'graph'),
+    queryFn: () => readVaultGraph({ index }),
+    enabled: ready && vaultKey !== null,
+  });
+  // One object per answer, not per render: what reads it is memoised on it.
+  return useMemo(
+    () => readState({ data, error }, 'The index could not be read', (graph) => ({ graph })),
+    [data, error],
+  );
 }

@@ -1,0 +1,109 @@
+/* The body; Linked mentions.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- The body ---- */
+
+/* Bullets sit with the air of the mockup's list, not packed like a table. */
+.page__body .editor li + li {
+  margin-top: 8px;
+}
+
+.page__body .editor ul,
+.page__body .editor ol {
+  padding-left: 22px;
+}
+
+/* ---- Linked mentions ---- */
+
+.mentions {
+  margin-top: 28px;
+}
+
+.mentions__toggle {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: var(--space-2);
+  height: 36px;
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+
+.mentions__toggle:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+
+.mentions__toggle:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.mentions__chevron {
+  transition: transform 120ms ease;
+}
+
+.mentions__toggle[aria-expanded='true'] .mentions__chevron {
+  transform: rotate(90deg);
+}
+
+.mentions__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.mentions__link {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 600;
+  gap: 10px;
+  margin: 0 -8px;
+  min-height: 34px;
+  padding: 0 8px;
+  text-align: left;
+  width: calc(100% + 16px);
+}
+
+.mentions__link:hover {
+  background: var(--hover);
+}
+
+.mentions__link .icon {
+  color: var(--ink-3);
+}
+
+.mentions__path {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+/* The menu's shortcut, set to the right of its label. */
+.menu__label {
+  flex: 1;
+}
+
+.menu__shortcut {
+  margin-left: auto;
+}

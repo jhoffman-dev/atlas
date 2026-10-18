@@ -67,6 +67,16 @@ const ACCEPTED: &[&[&str]] = &[
         "--allow-unrelated-histories",
         "origin/main",
     ],
+    &[
+        "-c",
+        "user.name=Atlas on Work Mac",
+        "-c",
+        "user.email=atlas@work-mac.local",
+        "merge",
+        "--no-edit",
+        "--allow-unrelated-histories",
+        "origin/main",
+    ],
     &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
     &["remote", "get-url", "origin"],
     &[
@@ -260,6 +270,30 @@ fn an_author_is_only_a_name_and_an_email_without_line_breaks() {
     assert!(!with("user.email=a@b", "user.name=A"));
     assert!(!with("core.sshCommand=sh", "user.email=a@b"));
     assert!(!with("user.name=A", "core.hooksPath=/tmp"));
+}
+
+#[test]
+fn a_merge_author_is_only_a_name_and_an_email_without_line_breaks() {
+    let with = |name: &str, email: &str| {
+        vault_ok(&[
+            "-c",
+            name,
+            "-c",
+            email,
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ])
+    };
+    assert!(with("user.name=A", "user.email=a@b"));
+    assert!(!with("user.name=", "user.email=a@b"));
+    assert!(!with("user.name=A", "user.email="));
+    assert!(!with("user.name=A\n[core]", "user.email=a@b"));
+    assert!(!with("user.email=a@b", "user.name=A"));
+    assert!(!with("core.sshCommand=sh", "user.email=a@b"));
+    assert!(!with("user.name=A", "core.hooksPath=/tmp"));
+    assert!(!with("user.name=A", "merge.ff=only"));
 }
 
 #[test]
@@ -2328,4 +2362,369 @@ fn saves_and_merges_hammered_together_leave_no_torn_or_lost_note() {
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(left.len(), 1, "temporaries left behind: {left:?}");
+}
+
+// --- Attack on the merge-as-Atlas shape (#87) -------------------------------
+
+fn merge_as(name: &str, email: &str, rest: &[&str]) -> Vec<String> {
+    let mut list = vec!["-c", name, "-c", email];
+    list.extend_from_slice(rest);
+    args(&list)
+}
+
+const MERGE_MAIN: &[&str] = &[
+    "merge",
+    "--no-edit",
+    "--allow-unrelated-histories",
+    "origin/main",
+];
+
+#[test]
+fn adversarial_a_merge_author_with_a_break_or_an_option_shape_is_refused() {
+    for name in [
+        "user.name=A\nB",
+        "user.name=A\r",
+        "user.name=A\0B",
+        "user.name=\n",
+        "-user.name=A",
+        "--user.name=A",
+        " user.name=A",
+        "user.name",
+        "user.name =A",
+    ] {
+        let list = merge_as(name, "user.email=a@b", MERGE_MAIN);
+        assert!(vet_vault_args(&list).is_err(), "{list:?}");
+    }
+    for email in [
+        "user.email=a@b\n",
+        "user.email=a\rb",
+        "user.email=\0",
+        "-user.email=a@b",
+    ] {
+        let list = merge_as("user.name=A", email, MERGE_MAIN);
+        assert!(vet_vault_args(&list).is_err(), "{list:?}");
+    }
+}
+
+#[test]
+fn adversarial_a_merge_author_key_lookalike_is_refused() {
+    for name in [
+        "user.n\u{0430}me=A", // Cyrillic a
+        "user\u{2024}name=A", // one-dot leader
+        "user.name\u{FF1D}A", // fullwidth equals
+        "USER.NAME=A",        // git takes it; the shape does not
+        "user.Name=A",
+        "\u{FEFF}user.name=A", // a byte-order mark in front
+        "user.name\u{200B}=A", // zero-width space before the equals
+    ] {
+        let list = merge_as(name, "user.email=a@b", MERGE_MAIN);
+        assert!(vet_vault_args(&list).is_err(), "{list:?}");
+    }
+}
+
+#[test]
+fn adversarial_a_merge_with_swapped_doubled_or_missing_settings_is_refused() {
+    let refused: &[&[&str]] = &[
+        &[
+            "-c",
+            "user.email=a@b",
+            "-c",
+            "user.name=A",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.name=B",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.email=a@b",
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.email=a@b",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.email=a@b",
+            "-c",
+            "core.sshCommand=sh",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "core.sshCommand=sh",
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.email=a@b",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-cuser.name=A",
+            "-c",
+            "user.email=a@b",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "--config-env=user.name=X",
+            "-c",
+            "user.email=a@b",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "user.name=A",
+            "user.email=a@b",
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.email=a@b",
+            "merge",
+            "--allow-unrelated-histories",
+            "--no-edit",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.email=a@b",
+            "commit",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+        &[
+            "-c",
+            "user.name=A",
+            "-c",
+            "user.email=a@b",
+            "pull",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ],
+    ];
+    for list in refused {
+        assert!(!vault_ok(list), "{list:?}");
+    }
+}
+
+#[test]
+fn adversarial_nothing_may_follow_the_branch_of_a_merge_as_atlas() {
+    for extra in [
+        "--",
+        "-s",
+        "--strategy=ours",
+        "-X",
+        "--no-verify",
+        "origin/other",
+        "HEAD",
+        "",
+    ] {
+        let mut rest = MERGE_MAIN.to_vec();
+        rest.push(extra);
+        let list = merge_as("user.name=A", "user.email=a@b", &rest);
+        assert!(vet_vault_args(&list).is_err(), "{list:?}");
+    }
+}
+
+#[test]
+fn adversarial_a_merge_as_atlas_takes_only_a_plain_branch_of_origin() {
+    for reference in [
+        "origin/-x",
+        "origin/--upload-pack=sh",
+        "origin/../evil",
+        "origin/a/../b",
+        "origin/a b",
+        "origin/",
+        "origin",
+        "origin//main",
+        "origin/main.lock",
+        "origin/.hidden",
+        "origin/main..other",
+        "origin/main@{1}",
+        "origin/@",
+        "origin/main^",
+        "origin/main~1",
+        "origin/ma:in",
+        "origin/main\n",
+        "origin/main\u{7f}",
+        "upstream/main",
+        "refs/remotes/origin/main",
+        "Origin/main",
+        "-origin/main",
+        "main",
+    ] {
+        let rest = [
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            reference,
+        ];
+        let list = merge_as("user.name=A", "user.email=a@b", &rest);
+        assert!(vet_vault_args(&list).is_err(), "{list:?}");
+    }
+}
+
+/// A commit message and a branch each have a ceiling; an author's name and
+/// email are bounded by nothing, so an argument of any size is let through.
+#[test]
+fn adversarial_a_merge_author_of_ten_thousand_characters_is_refused() {
+    let long = "x".repeat(10_000);
+    let name = format!("user.name={long}");
+    let email = format!("user.email={long}@b");
+    assert!(
+        vet_vault_args(&merge_as(&name, "user.email=a@b", MERGE_MAIN)).is_err(),
+        "a 10,000-character name"
+    );
+    assert!(
+        vet_vault_args(&merge_as("user.name=A", &email, MERGE_MAIN)).is_err(),
+        "a 10,000-character email"
+    );
+}
+
+/// Makes a vault with one commit on `main` and another, unrelated to what
+/// HEAD gains next, as `origin/main`, so a merge must make a commit.
+fn vault_with_diverged_origin(git: &Path, host: &GitHost, vault: &Path) {
+    ok(host
+        .git_in_vault(vault, &args(&["init", "--quiet", "--initial-branch=main"]))
+        .unwrap());
+    fs::write(vault.join("Base.md"), "base\n").unwrap();
+    commit(host, vault, "base");
+    fs::write(vault.join("Theirs.md"), "theirs\n").unwrap();
+    commit(host, vault, "theirs");
+    let raw = |list: &[&str]| {
+        let output = Command::new(git.join("git"))
+            .current_dir(vault)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("HOME", vault.join(".git"))
+            .args(list)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{list:?}: {output:?}");
+    };
+    raw(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    raw(&["reset", "--quiet", "--hard", "HEAD~1"]);
+    fs::write(vault.join("Ours.md"), "ours\n").unwrap();
+    commit(host, vault, "ours");
+}
+
+/// A home where git refuses to guess who someone is.
+fn home_that_never_guesses(work: &Path) -> PathBuf {
+    let home = work.join("home");
+    fs::create_dir(&home).unwrap();
+    fs::write(home.join(".gitconfig"), "[user]\n\tuseConfigOnly = true\n").unwrap();
+    home
+}
+
+#[test]
+fn adversarial_a_real_merge_records_a_unicode_author_exactly() {
+    let Some(git_dir) = real_git_dir() else {
+        println!("skipped: no git in {GIT_DIRS:?}");
+        return;
+    };
+    let work = tempfile::tempdir().unwrap();
+    let host = host_in(
+        &[&git_dir],
+        Some(home_that_never_guesses(work.path())),
+        NO_LIMIT,
+    );
+    let vault = work.path().join("vault");
+    fs::create_dir(&vault).unwrap();
+    vault_with_diverged_origin(&git_dir, &host, &vault);
+
+    let name = "Atlas on Zoë’s Mac 🚀 漢字";
+    let email = "atlas@zo-s-mac.local";
+    ok(host
+        .git_in_vault(
+            &vault,
+            &merge_as(
+                &format!("user.name={name}"),
+                &format!("user.email={email}"),
+                MERGE_MAIN,
+            ),
+        )
+        .unwrap());
+    // `log` is not a shape Atlas runs; read it straight from git.
+    let log = Command::new(git_dir.join("git"))
+        .current_dir(&vault)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .args(["log", "-1", "--format=%an <%ae>%x00%cn <%ce>%x00%P"])
+        .output()
+        .unwrap();
+    assert!(log.status.success(), "{log:?}");
+    let stdout = String::from_utf8(log.stdout).unwrap();
+    let parts: Vec<&str> = stdout.trim_end().split('\0').collect();
+    let who = format!("{name} <{email}>");
+    assert_eq!(parts[0], who);
+    assert_eq!(parts[1], who);
+    assert_eq!(parts[2].split(' ').count(), 2, "a merge commit: {parts:?}");
+}
+
+/// A name that reads like more settings is one value: git records it as it
+/// is and runs nothing it names.
+#[test]
+fn adversarial_a_merge_author_that_reads_like_settings_runs_nothing() {
+    let Some(git_dir) = real_git_dir() else {
+        println!("skipped: no git in {GIT_DIRS:?}");
+        return;
+    };
+    let work = tempfile::tempdir().unwrap();
+    let host = host_in(
+        &[&git_dir],
+        Some(home_that_never_guesses(work.path())),
+        NO_LIMIT,
+    );
+    let vault = work.path().join("vault");
+    fs::create_dir(&vault).unwrap();
+    vault_with_diverged_origin(&git_dir, &host, &vault);
+    let pwned = work.path().join("pwned");
+    let name = format!(
+        "user.name=A -c core.hooksPath=/tmp -c core.sshCommand=touch {} =x",
+        pwned.display()
+    );
+    let list = merge_as(&name, "user.email=a=b@c", MERGE_MAIN);
+    assert!(
+        vet_vault_args(&list).is_ok(),
+        "one odd value is still one value"
+    );
+    ok(host.git_in_vault(&vault, &list).unwrap());
+    assert!(!pwned.exists(), "nothing named in the value ran");
 }

@@ -147,6 +147,11 @@ test('a meeting arrives and its summary is written at the top, marked, in one wr
 
   // The meeting shows it as Claude's summary.
   await page.getByRole('button', { name: /^Inbox/ }).click();
+  // The Inbox reads its tidy and GTD offers once it is open, and they land above
+  // the list: a click aimed at the meeting before they land falls on the proposal
+  // they push under it (#52, as #130).
+  await expect(page.getByRole('region', { name: 'Tidy the vault' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   // The meeting's own row: the review proposal's title names the meeting too (#226).
   await page.getByRole('button', { name: 'Platform weekly sync', exact: true }).click();
   const callout = page.locator('.callout[data-callout="summary"]');

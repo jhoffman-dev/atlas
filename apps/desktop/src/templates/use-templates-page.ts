@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   createVaultPath,
   templateNameOf,
@@ -13,16 +13,16 @@ import {
   createTemplate,
   deleteTemplate,
   ensureTypeTemplate,
-  loadTemplateCatalog,
   moveTemplateToNotes,
   renameTemplate,
   type MarkdownPort,
   type NoteTemplate,
   type OpenEditorsPort,
-  type TemplateCatalog,
+  templateCatalogOf,
   type VaultFsPort,
 } from '@atlas/application';
 import type { TemplatesPageProps } from '@atlas/ui';
+import type { TemplatesState } from '../types/use-templates.ts';
 
 /** The ports the templates' use-cases reach: the files, and the panes that may show one. */
 export interface TemplatePorts {
@@ -80,46 +80,32 @@ function templateAt(listed: readonly NoteTemplate[] | undefined, path: string): 
 export function useTemplatesPage({
   ports,
   types,
-  vaultKey,
-  changeKey,
+  listed,
   onChanged,
   onOpen,
 }: {
   ports: TemplatePorts;
   types: readonly ObjectType[];
-  vaultKey: string | null;
-  changeKey: string;
+  /** The templates folder as the window lists it (`useTemplates`). */
+  listed: TemplatesState;
   /** Re-reads the vault after a template was written, moved or trashed. */
   onChanged: () => void;
   /** Opens a template in a pane, to be edited. */
   onOpen: (path: VaultPath) => void;
 }) {
   const { fs, markdown, editors, closeNotes, overlay } = ports;
-  const [catalog, setCatalog] = useState<TemplateCatalog<ObjectType> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const catalog = useMemo(
+    () =>
+      listed.kind === 'ready' ? templateCatalogOf({ templates: listed.templates, types }) : null,
+    [listed, types],
+  );
+  const error = listed.kind === 'failed' ? listed.message : null;
   const [notice, setNotice] = useState<string | null>(null);
   const [asked, setAsked] = useState<{
     action: TemplateAction;
     path: VaultPath;
     name: string;
   } | null>(null);
-
-  useEffect(() => {
-    if (vaultKey === null) return;
-    let current = true;
-    loadTemplateCatalog({ fs, types })
-      .then((read) => {
-        if (!current) return;
-        setCatalog(read);
-        setError(null);
-      })
-      .catch((cause: unknown) => {
-        if (current) setError(messageOf(cause));
-      });
-    return () => {
-      current = false;
-    };
-  }, [fs, types, vaultKey, changeKey]);
 
   /** Runs a command, and says why when it fails rather than letting it vanish. */
   const run = useCallback(

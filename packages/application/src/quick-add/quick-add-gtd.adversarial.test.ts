@@ -14,6 +14,7 @@ describe('quickAddNote on a GTD task', () => {
     const fs = fakeVaultFs({
       createNote: async ({ contents }) => {
         created.push(contents);
+        return 0;
       },
     });
     // Status is offered first; Waiting on is offered too, and left empty.

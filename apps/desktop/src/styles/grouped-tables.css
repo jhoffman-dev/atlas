@@ -1,0 +1,110 @@
+/* grouped tables (issue #6).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- grouped tables (issue #6) ----
+   Coda's look: a group is a full-width header row — disclosure arrow, the
+   value (a pill for a select), its count — with each column's sum or ticked
+   count under that column. A sub-group's header sits one step in, and each
+   innermost group ends with a quiet "+ New". Heights match the virtualiser's
+   estimates in grouped-rows.tsx: 44px headers and rows, 38px "+ New". */
+
+.table__grid tr.table__group td {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  height: 44px;
+}
+
+.table__grid tr.table__group--depth-1 td {
+  background: color-mix(in srgb, var(--panel) 45%, var(--raised));
+}
+
+.table__grid tbody tr.table__group:hover {
+  background: none;
+}
+
+.table__group-toggle {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 800;
+  gap: var(--space-2);
+  padding: 5px 10px 5px 4px;
+}
+
+/* A sub-group sits one step in, under its group's arrow. */
+.table__group-toggle[data-depth='1'] {
+  color: var(--ink-2);
+  font-weight: 700;
+  margin-left: 22px;
+}
+
+.table__group-toggle:hover {
+  background: var(--hover);
+}
+
+.table__group-toggle:focus-visible,
+.table__new--group:focus-visible,
+.board__lane-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.table__fold {
+  color: var(--ink-3);
+  flex: none;
+  transition: transform 120ms ease;
+}
+
+.table__fold--shut {
+  transform: rotate(-90deg);
+}
+
+.table__group-count {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--chip-ink);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+
+.table__grid td.table__summary {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
+.table__grid tr.table__group-new td {
+  border-bottom: 1px solid var(--line);
+  height: 38px;
+}
+
+.table__grid tbody tr.table__group-new:hover {
+  background: none;
+}
+
+.table__new--group {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  margin-left: 22px;
+}
+
+.table__new--group[data-depth='2'] {
+  margin-left: 44px;
+}
+
+.table__grid tr.table__spacer td {
+  border: 0;
+  padding: 0;
+}

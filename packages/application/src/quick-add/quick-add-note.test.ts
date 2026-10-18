@@ -8,6 +8,7 @@ function recordingFs() {
   const fs = fakeVaultFs({
     createNote: async ({ path, contents }) => {
       created.push({ path, contents });
+      return 0;
     },
   });
   return { fs, created };
