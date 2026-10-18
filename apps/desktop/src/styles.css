@@ -322,6 +322,11 @@
   --accent: var(--btn-primary-bg);
   --accent-ink: var(--btn-primary-ink);
   --accent-text: var(--btn-primary-ink);
+  /* A fill that has to read as "on" with no label on it — a ticked box, a
+     switch's track, a progress bar, a busy dot: solid, 3:1 or better on
+     every surface. Rings and outlines use --focus; the pastel --accent is
+     only for fills a label sits on. */
+  --accent-solid: var(--focus);
   /* Charts: muted bars with one called out in the Next blue; the done check
      and the first donut slice in the Done sage. */
   --accent-data: var(--status-next-dot);
@@ -679,7 +684,7 @@ body {
 }
 
 .toggle[aria-checked='true'] {
-  background: var(--accent);
+  background: var(--accent-solid);
   box-shadow: var(--shadow-accent);
 }
 
@@ -836,7 +841,7 @@ body {
 /* Which pane the next note opens in. Quiet on purpose — it answers a question
    you only ask while you are splitting, and the note is what should be read. */
 .pane--focused::before {
-  background: var(--accent);
+  background: var(--focus);
   border-radius: var(--radius-pill);
   content: '';
   height: 3px;
@@ -1236,6 +1241,12 @@ ul.sidebar__sections {
 
 /* A type with no notes yet is still a type, so it stays listed — its nought
    just steps back, so the counts that have something to say stand out. */
+/* On the selected fill the quiet ink falls just short of AA, so the active
+   row's count takes the secondary ink instead. */
+.sidebar__item--on .sidebar__count {
+  color: var(--ink-2);
+}
+
 .sidebar__count--none {
   font-weight: 500;
   opacity: 0.55;
@@ -1349,7 +1360,7 @@ ul.sidebar__sections {
 /* The row the arrow keys are on. Inset rather than the usual ring, which a
    scrolling container clips at its edges. */
 .tree__row:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--focus);
   outline: none;
 }
 
@@ -2197,7 +2208,7 @@ ul.sidebar__sections {
 }
 
 .image--selected .image__img {
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 3px var(--focus);
 }
 
 .image__alt {
@@ -2224,7 +2235,7 @@ ul.sidebar__sections {
 }
 
 .image__alt-input:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent);
+  box-shadow: 0 0 0 2px var(--focus);
   outline: none;
 }
 
@@ -2249,7 +2260,7 @@ ul.sidebar__sections {
   animation: image-upload-spin 0.9s linear infinite;
   border: 2px solid var(--line);
   border-radius: 50%;
-  border-top-color: var(--accent);
+  border-top-color: var(--accent-solid);
   height: 12px;
   width: 12px;
 }
@@ -2320,7 +2331,7 @@ ul.sidebar__sections {
 .bookmark--selected,
 .bookmark--selected:hover {
   box-shadow:
-    0 0 0 3px var(--accent),
+    0 0 0 3px var(--focus),
     var(--shadow-tile);
 }
 
@@ -2470,7 +2481,7 @@ ul.sidebar__sections {
 
 .block-embed--selected,
 .block-embed--selected:hover {
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 3px var(--focus);
 }
 
 .block-embed__source {
@@ -2565,7 +2576,7 @@ ul.sidebar__sections {
 }
 
 .query-block--selected {
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 3px var(--focus);
 }
 
 .query-block__bar {
@@ -2829,7 +2840,7 @@ ul.sidebar__sections {
 @media (prefers-reduced-motion: reduce) {
   .editor .is-revealed {
     animation: none;
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus);
   }
 }
 
@@ -3095,6 +3106,7 @@ ul.sidebar__sections {
 }
 
 .palette__place {
+  color: var(--ink-2);
   flex: none;
   font-weight: 700;
 }
@@ -3853,7 +3865,7 @@ ul.sidebar__sections {
 
 .props__check,
 .editor input[type='checkbox'] {
-  accent-color: var(--accent);
+  accent-color: var(--accent-solid);
   cursor: pointer;
   height: 16px;
   margin: 0;
@@ -3986,7 +3998,7 @@ ul.sidebar__sections {
 }
 
 .props__add-option input {
-  accent-color: var(--accent);
+  accent-color: var(--accent-solid);
   margin: 0;
 }
 
@@ -4592,7 +4604,7 @@ button.props__link-title:focus-visible {
 .board__card {
   background: var(--raised);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
   cursor: grab;
   display: flex;
   flex-direction: column;
@@ -4612,9 +4624,12 @@ button.props__link-title:focus-visible {
   cursor: grabbing;
 }
 
-/* The copy that follows the pointer while the card in the column stays put. */
-.board__card--lifted {
-  box-shadow: var(--shadow-tile);
+/* The copy that follows the pointer while the card in the column stays put.
+   Compound, so it outranks the hover rule: the pointer is over the copy. */
+.board__card.board__card--lifted {
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    var(--shadow-popover);
   cursor: grabbing;
 }
 
@@ -4697,7 +4712,7 @@ button.props__link-title:focus-visible {
 }
 
 .checklist-progress__fill {
-  background: var(--accent);
+  background: var(--accent-solid);
   display: block;
   height: 100%;
 }
@@ -5576,7 +5591,7 @@ button.props__link-title:focus-visible {
 
 .calendar__day--today {
   box-shadow:
-    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 2px var(--focus),
     var(--shadow-soft);
 }
 
@@ -6002,7 +6017,7 @@ button.props__link-title:focus-visible {
 }
 
 .clock__slot:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 
@@ -6181,7 +6196,7 @@ button.props__link-title:focus-visible {
 .plan-tray__undo {
   background: none;
   border: 0;
-  color: var(--accent);
+  color: var(--accent-text);
   cursor: pointer;
   font: inherit;
   font-weight: 700;
@@ -6227,7 +6242,7 @@ button.props__link-title:focus-visible {
 }
 
 .plan-tray__task > button[aria-pressed='true'] {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
 .plan-tray__task > button:focus-visible {
@@ -6268,7 +6283,7 @@ button.props__link-title:focus-visible {
 
 .agenda__day--today {
   box-shadow:
-    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 2px var(--focus),
     var(--shadow-soft);
 }
 
@@ -7800,7 +7815,7 @@ button.props__link-title:focus-visible {
 
 /* Where a dragged tab will land: the tab it takes the place of. */
 .view-tabs__item--over {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
 .view-tabs__more,
@@ -7839,7 +7854,7 @@ button.props__link-title:focus-visible {
 
 .view-tabs__rename {
   background: var(--raised);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--focus);
   border-radius: var(--radius-pill);
   color: var(--ink);
   font: inherit;
@@ -8242,7 +8257,7 @@ button.props__link-title:focus-visible {
 
 .widget__resize:hover::after,
 .widget--held .widget__resize::after {
-  background: var(--accent);
+  background: var(--accent-solid);
   opacity: 1;
 }
 
@@ -8462,7 +8477,7 @@ button.props__link-title:focus-visible {
 }
 
 .widget-sheet__width input {
-  accent-color: var(--accent);
+  accent-color: var(--accent-solid);
   flex: 1;
 }
 
@@ -8645,7 +8660,7 @@ button.props__link-title:focus-visible {
 }
 
 .sortable__row--over {
-  box-shadow: 0 -2px 0 var(--accent);
+  box-shadow: 0 -2px 0 var(--focus);
 }
 
 .sortable__handle {
@@ -8949,7 +8964,7 @@ select.type-editor__field,
 .tree__row--drop,
 .tree__row--drop:hover {
   background: var(--you);
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--focus);
   color: var(--accent-text);
 }
 
@@ -8972,7 +8987,7 @@ select.type-editor__field,
   background: var(--raised);
   border: 0;
   border-radius: 6px;
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--focus);
   color: var(--ink);
   flex: 1;
   font: inherit;
@@ -9172,7 +9187,7 @@ select.type-editor__field,
 }
 
 .view-popover__choice input {
-  accent-color: var(--accent);
+  accent-color: var(--accent-solid);
   margin: 0;
 }
 
@@ -10160,12 +10175,12 @@ select.type-editor__field,
 }
 
 .graph__node:hover .graph__dot {
-  stroke: var(--accent);
+  stroke: var(--focus);
   stroke-width: 2.5;
 }
 
 .graph__node--centre .graph__dot {
-  stroke: var(--accent);
+  stroke: var(--focus);
   stroke-width: 3;
 }
 
@@ -10652,7 +10667,7 @@ select.type-editor__field,
 
 /* Where it can land, shown while it is dragged; the one it would snap to is filled. */
 .fab-layer__preview {
-  border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  border: 2px dashed color-mix(in srgb, var(--focus) 55%, transparent);
   border-radius: 50%;
   height: 56px;
   position: absolute;
@@ -10662,7 +10677,7 @@ select.type-editor__field,
 .fab-layer__preview[data-near='true'] {
   background: var(--you);
   border-style: solid;
-  border-color: var(--accent);
+  border-color: var(--focus);
 }
 
 /* The dial and the popover sit beside the button, toward the panel's middle. */
@@ -10810,7 +10825,7 @@ select.type-editor__field,
 .fab__item:focus-visible {
   box-shadow:
     var(--shadow-tile),
-    0 0 0 2px var(--accent);
+    0 0 0 2px var(--focus);
 }
 
 /* The quick-add popover: the menus' raised card, a title field and a few properties. */
@@ -10884,13 +10899,13 @@ select.type-editor__field,
 }
 
 .quick-add__check {
-  accent-color: var(--accent);
+  accent-color: var(--accent-solid);
   justify-self: start;
   margin: 0;
 }
 
 .quick-add__control:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
@@ -11620,11 +11635,11 @@ form.inbox__clarify {
 }
 
 .inbox__row--focused > td {
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
 }
 
 .inbox__row:focus-visible > td:first-child {
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 3px 0 0 var(--focus);
 }
 
 .inbox__refusal {
@@ -11962,7 +11977,7 @@ form.inbox__clarify {
 }
 
 .select-box {
-  accent-color: var(--accent);
+  accent-color: var(--accent-solid);
   cursor: pointer;
   height: 16px;
   margin: 0;
@@ -12107,7 +12122,7 @@ form.inbox__clarify {
 }
 
 .automation-card__name:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .automation-card__name:focus-visible {
@@ -12380,7 +12395,7 @@ form.inbox__clarify {
 }
 
 .chat__spark {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .chat__name {
@@ -12854,7 +12869,7 @@ form.inbox__clarify {
 
 .page-bar__chat[aria-pressed='true'] {
   background: var(--hover);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .settings__field {
@@ -13196,7 +13211,7 @@ form.inbox__clarify {
 }
 
 .sync-indicator--busy .sync-indicator__dot {
-  background: var(--accent);
+  background: var(--accent-solid);
 }
 
 /* Behind: other Macs' changes are waiting on GitHub — an open accent ring,
@@ -13213,7 +13228,7 @@ form.inbox__clarify {
 }
 
 .sync-indicator--behind .sync-indicator__dot {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
 .sync-indicator--paused .sync-indicator__dot {
@@ -13332,7 +13347,7 @@ form.inbox__clarify {
 .table__group-toggle:focus-visible,
 .table__new--group:focus-visible,
 .board__lane-toggle:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 

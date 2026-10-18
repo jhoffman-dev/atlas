@@ -52,7 +52,7 @@
 }
 
 .gallery-page__value {
-  font-size: var(--text-hero);
+  font-size: var(--text-note-title);
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-title);
   line-height: 1;

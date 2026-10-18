@@ -39,8 +39,12 @@ const declared = new Set(
   [...withoutComments.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((match) => match[1] ?? ''),
 );
 
-/** Every `var(--name)` it reads, with the fallback (if any) alongside. */
-const used = [...css.matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,)?/g)].map((match) => ({
+/**
+ * Every `var(--name)` the app's sheet and the gallery's read, with the
+ * fallback (if any) alongside. The gallery's sheet is loaded beside the
+ * app's, so it reads the same tokens and is held to the same declarations.
+ */
+const used = [...(css + galleryCss).matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,)?/g)].map((match) => ({
   name: match[1] ?? '',
   hasFallback: match[2] === ',',
 }));
