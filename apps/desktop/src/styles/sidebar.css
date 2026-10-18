@@ -26,9 +26,13 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   /* Out into the sidebar's own padding, so a section's grip (left of its
-     heading) and a focus ring are not clipped at the scroller's edges. */
-  margin: 0 -6px 0 -12px;
-  padding: 0 6px 0 12px;
+     heading) and a focus ring are not clipped at the scroller's edges. On the
+     right it goes to the sidebar's edge and keeps 18px clear: WebKit draws
+     its overlay scrollbar over the last 17px of the scroller while it shows,
+     and takes every press there, so a row's "…" must end before it (#52).
+     scrollbar-gutter cannot do this: an overlay scrollbar has no gutter. */
+  margin: 0 -10px 0 -12px;
+  padding: 0 18px 0 12px;
   /* Positioned, so the tree can measure where it starts inside it; and a
      row brought into view by focus stops below the sticky heading. The tree
      reads this padding as the sticky heading's height (stickyOffsetOf in

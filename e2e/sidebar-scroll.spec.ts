@@ -114,6 +114,51 @@ for (const size of [
   });
 }
 
+// WebKit's own scrollbar is drawn over the edge of what it scrolls, for as
+// long as it shows (after a scroll, then a move of the pointer), and takes
+// every press there. A row's "…" sat in those pixels: "Options for <name>" was
+// pressed on the scrollbar instead whenever the sidebar had just scrolled, and
+// its menu did not open (#52; folders.spec.ts:260, navigation.spec.ts:94).
+test('a row’s Options button is clear of the sidebar’s scrollbar while it shows', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1180, height: 800 });
+  await openVault(page);
+  const row = treeRow(page, 'Note 30');
+  await wheelTo(page, row, 400);
+  await expect(row).toBeInViewport({ ratio: 1 });
+  const options = row.getByRole('button', { name: 'Options for Note 30', exact: true });
+
+  // Every pixel across the button, with the scrollbar just drawn, is the button's.
+  const missed = await options.evaluate(async (button) => {
+    // A scroll is what shows the scrollbar; the next frame has drawn it.
+    const area = button.closest('.sidebar__scroll');
+    if (area === null) throw new Error('the row is not in the sidebar scroller');
+    area.scrollTop -= 1;
+    await new Promise((drawn) => requestAnimationFrame(drawn));
+    const box = button.getBoundingClientRect();
+    const across: number[] = [];
+    for (let x = Math.ceil(box.left); x < box.right; x += 1) {
+      const under = document.elementFromPoint(x, box.top + box.height / 2);
+      if (!button.contains(under)) across.push(Math.round(x - box.left));
+    }
+    return { width: box.width, across };
+  });
+  expect(missed.width, 'the button has a width to click').toBeGreaterThan(0);
+  expect(missed.across, 'pixels across the button where a press lands elsewhere').toEqual([]);
+
+  // And a real press: scroll, move onto the "…" (which shows the scrollbar),
+  // press and release. The menu opens.
+  await page.mouse.wheel(0, -1);
+  await expect(row).toBeInViewport({ ratio: 1 });
+  const box = await options.boundingBox();
+  if (box === null) throw new Error('the Options button is not on screen');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(page.getByRole('menuitem', { name: /^Rename/ })).toBeVisible();
+});
+
 test('the keyboard brings a tree row into view through the shared scroller', async ({ page }) => {
   await page.setViewportSize({ width: 1180, height: 800 });
   await openVault(page);
