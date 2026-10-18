@@ -13,6 +13,7 @@ import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory } from './tick-memory.ts';
+import { useBoardAsPending } from './use-pending-cards.ts';
 import { useSavedView } from './use-saved-view.ts';
 import { useViewDrafts } from './use-view-drafts.ts';
 
@@ -123,8 +124,8 @@ async function board() {
   const tickMemory = createTickMemory();
   const activity = recordingActivity();
   const view = renderHook(
-    ({ indexKey }: { indexKey: string }) =>
-      useSavedView({
+    ({ indexKey }: { indexKey: string }) => {
+      const saved = useSavedView({
         activity,
         note,
         index,
@@ -138,12 +139,19 @@ async function board() {
         tickMemory,
         drafts: useViewDrafts('/vault'),
         viewPaths: [VIEW_PATH],
-      }),
+      });
+      // The board as it is drawn: what the pane hands it, with its moves laid over.
+      const board = useBoardAsPending({
+        ...saved.pendingBoard,
+        read: { columns: saved.columns, lanes: saved.lanes },
+      });
+      return { ...saved, board };
+    },
     { initialProps: { indexKey: 'ready:1' } },
   );
   await waitFor(() => expect(view.result.current.rows).toHaveLength(2));
   const cardsIn = (value: string) =>
-    view.result.current.columns
+    view.result.current.board.columns
       .find((column) => column.value === value)
       ?.rows.map((row) => row.path) ?? [];
   return {
@@ -197,7 +205,9 @@ describe('useSavedView — a card moved on a board shows at once (#260)', () => 
 
     expect(page.cardsIn('done')).toEqual([]);
     expect(page.cardsIn('backlog')).toEqual([WATER]);
-    const card = page.view.result.current.rows.find((row) => row.path === WATER);
+    const card = page.view.result.current.board.columns
+      .flatMap((column) => column.rows)
+      .find((row) => row.path === WATER);
     expect(card?.values['due']).toBe('2026-09-27');
     release();
     await waitFor(() => expect(page.files[WATER]).toContain('due: 2026-09-27'));
