@@ -107,3 +107,40 @@ describe('Cmd+J, Claude', () => {
     expect(free.toggleChat).not.toHaveBeenCalled();
   });
 });
+
+describe('the shortcuts that change the window, behind a dialog (#266)', () => {
+  const chord = (init: KeyboardEventInit) =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, ...init }));
+  const mouseButton = (button: number) =>
+    window.dispatchEvent(new MouseEvent('mouseup', { button }));
+
+  /** Every window-changing key, and the mouse's back and forward buttons. */
+  function pressAll(): void {
+    chord({ key: '[' });
+    chord({ key: ']' });
+    chord({ key: '\\' });
+    chord({ key: '|', shiftKey: true });
+    mouseButton(3);
+    mouseButton(4);
+  }
+
+  it.each(['search', 'capture', 'settings'] as const)('do nothing while %s is up', (overlay) => {
+    const shortcuts = listen(overlay);
+    pressAll();
+    expect(shortcuts.back).not.toHaveBeenCalled();
+    expect(shortcuts.forward).not.toHaveBeenCalled();
+    expect(shortcuts.toggleSidebar).not.toHaveBeenCalled();
+    expect(shortcuts.toggleSplit).not.toHaveBeenCalled();
+  });
+
+  it('act with nothing up, or only a menu (control)', () => {
+    for (const overlay of [null, 'new-note-menu'] as const) {
+      const shortcuts = listen(overlay);
+      pressAll();
+      expect(shortcuts.back).toHaveBeenCalledTimes(2);
+      expect(shortcuts.forward).toHaveBeenCalledTimes(2);
+      expect(shortcuts.toggleSidebar).toHaveBeenCalledTimes(1);
+      expect(shortcuts.toggleSplit).toHaveBeenCalledTimes(1);
+    }
+  });
+});

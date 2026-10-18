@@ -82,14 +82,14 @@ export function useAppShortcuts(shortcuts: AppShortcuts): void {
       // since long before there was a split to bind it to.
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key === '\\') {
         event.preventDefault();
-        toggleSidebar();
+        if (!held) toggleSidebar();
       }
       // Shift+Cmd+\ splits the window, and closes the pane you are in once it
       // is split — one key going both ways, as Cmd+\ does for the sidebar. The
       // key reads as a pipe while Shift is down on most layouts.
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && SPLIT_KEYS.has(event.key)) {
         event.preventDefault();
-        toggleSplit();
+        if (!held) toggleSplit();
       }
       // Shift+Cmd+N: a line of text becomes a task, without leaving what you
       // were doing. Cmd+N still makes a blank note in the folder in view.
@@ -118,17 +118,20 @@ export function useAppShortcuts(shortcuts: AppShortcuts): void {
         show('settings');
       }
       // Cmd+[ and Cmd+] go back and forward, as in Safari, Finder and Notion.
+      // Not behind a dialog, as the sidebar and the split are not changed
+      // behind one: what moves is what the person cannot see (#266).
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key === '[') {
         event.preventDefault();
-        latest.current.back();
+        if (!held) latest.current.back();
       }
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key === ']') {
         event.preventDefault();
-        latest.current.forward();
+        if (!held) latest.current.forward();
       }
     };
     // A mouse's own back and forward buttons do the same.
     const onMouseUp = (event: MouseEvent) => {
+      if (holdsTheScreen(latest.current.overlay())) return;
       if (event.button === MOUSE_BACK) latest.current.back();
       if (event.button === MOUSE_FORWARD) latest.current.forward();
     };
