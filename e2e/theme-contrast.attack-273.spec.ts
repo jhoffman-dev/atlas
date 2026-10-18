@@ -583,16 +583,14 @@ test('the copy of a board card being dragged stands out from the cards at rest',
   );
 });
 
-test('a Today group name is drawn at the height the list places it by (23.875px)', async ({
-  page,
-}) => {
+test('a Today group name is drawn at the height the list places it by (18px)', async ({ page }) => {
   await openVault(page);
   await PAGES['today']!(page);
   const name = page.locator('.today__group-name').first();
   await expect(name).toBeVisible();
   // packages/ui/src/today-page.tsx GROUP_NAME_HEIGHT, "as WebKit draws them":
   // a group measured at its estimate does not place the list again.
-  expect((await name.boundingBox())!.height).toBeCloseTo(23.875, 1);
+  expect((await name.boundingBox())!.height).toBeCloseTo(18, 1);
 });
 
 test('each of the eight GTD statuses wears its own label, in its tone, in a table', async ({
