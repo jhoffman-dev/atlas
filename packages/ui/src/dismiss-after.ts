@@ -18,9 +18,11 @@ export interface HoldWhileInUse {
  * Dismisses something shown after `ms`. It waits while the pointer is on it
  * or the focus is in it, so what it offers can be reached by mouse and by
  * keyboard alike, and gives its full time again once let go. Something new
- * shown — another `showing`, compared by identity, so the same words said
- * again are new — starts the time afresh. What `stays` — a failure, which
- * must be read — is never dismissed by time, only by the person.
+ * shown — another `showing`, compared by identity — starts the time afresh;
+ * the same words again are the same `showing`, so a caller that says them
+ * again keys its element by a show count (toast.tsx, use-granola-pull's
+ * `toastShown`). What `stays` — a failure, which must be read — is never
+ * dismissed by time, only by the person.
  */
 export function useDismissAfter({
   ms,

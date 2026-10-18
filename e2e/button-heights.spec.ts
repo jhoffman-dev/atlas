@@ -5,25 +5,24 @@ import { createVault, installHost, sidebarSection } from './host.ts';
  * UI v2 slice 2 (#292, PR #328 review): every `.btn` is 28px tall, and a
  * surface that gives its button padding of its own must not fight that —
  * `.empty__action` on the welcome screen and `.archive__unarchive` in the
- * Archive both used to. The box stays 28px whatever the padding, so what the
- * padding costs is the room the words have: the content box must hold a line.
+ * Archive both used to. The box stays 28px whatever the padding, so the
+ * padding is measured directly: a `.btn` centres its words in its height and
+ * leaves no vertical padding to anything.
  */
 const BUTTON_HEIGHT = 28;
 
-/** The button's height, and whether its content box is at least a line of its text tall. */
+/** The button's height, and its vertical padding, which must be none. */
 async function measure(
   page: Page,
   name: string,
-): Promise<{ height: number; roomForWords: boolean }> {
+): Promise<{ height: number; verticalPadding: number }> {
   const button = page.getByRole('button', { name, exact: true });
   await expect(button).toBeVisible();
   return button.evaluate((element) => {
     const style = getComputedStyle(element);
-    const room =
-      element.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
     return {
       height: element.getBoundingClientRect().height,
-      roomForWords: room >= parseFloat(style.fontSize),
+      verticalPadding: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom),
     };
   });
 }
@@ -44,9 +43,9 @@ test('the welcome screen’s buttons are drawn at the button height', async ({ p
   await installHost(page, vault);
   await page.goto('/');
   for (const name of ['Choose folder…', 'Open a vault from GitHub…']) {
-    const { height, roomForWords } = await measure(page, name);
+    const { height, verticalPadding } = await measure(page, name);
     expect(height, name).toBeCloseTo(BUTTON_HEIGHT, 0);
-    expect(roomForWords, `${name} has room for its words`).toBe(true);
+    expect(verticalPadding, `${name} has no vertical padding`).toBe(0);
   }
 });
 
@@ -64,7 +63,7 @@ test('the Archive’s Unarchive button is drawn at the button height', async ({ 
     .click();
   const archive = page.getByRole('article', { name: 'Archive' });
   await expect(archive.getByRole('button', { name: 'Unarchive Plan' })).toBeVisible();
-  const { height, roomForWords } = await measure(page, 'Unarchive Plan');
+  const { height, verticalPadding } = await measure(page, 'Unarchive Plan');
   expect(height).toBeCloseTo(BUTTON_HEIGHT, 0);
-  expect(roomForWords).toBe(true);
+  expect(verticalPadding).toBe(0);
 });

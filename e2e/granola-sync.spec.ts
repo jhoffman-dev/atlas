@@ -178,6 +178,37 @@ test('a key Granola refuses is said on the card, and nothing is pulled with it',
   expect(await vault.read(RENEWAL_FILE)).toBe('');
 });
 
+test('a second Sync now that fails the same way, while its toast still shows, gets a full five seconds', async ({
+  page,
+}) => {
+  const { host } = await openSettings(page, { watermark: '2026-10-01T00:00:00.000Z' });
+  host.granola.serve('/v1/notes', { status: 401, body: '{"message":"Unauthorized"}' });
+  await card(page).getByLabel('Granola API key', { exact: true }).fill(KEY);
+  await card(page).getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(card(page).getByTestId('granola-key')).toHaveText('Granola refused this key');
+
+  // A fake clock from here on, so the toast's five seconds are stepped, not waited for.
+  await page.clock.install();
+  const toast = page.locator('.toast');
+  const syncNowCount = () => requestKinds(host).filter((kind) => kind === 'Sync now').length;
+  await card(page).getByRole('button', { name: 'Sync now' }).click();
+  await expect.poll(syncNowCount).toBe(1);
+  await expect(toast).toContainText('Granola refused the API key');
+
+  await page.clock.runFor(4000);
+  await expect(toast).toBeVisible();
+  await card(page).getByRole('button', { name: 'Sync now' }).click();
+  await expect.poll(syncNowCount).toBe(2);
+  await expect(toast).toContainText('Granola refused the API key');
+
+  // 8.5 s after the first showing: gone, had the second not started the time afresh.
+  await page.clock.runFor(4500);
+  await expect(toast).toBeVisible();
+  // 5.5 s after the second: its full time is up.
+  await page.clock.runFor(1000);
+  await expect(toast).toHaveCount(0);
+});
+
 test('a Sync now that fails says why as a toast', async ({ page }) => {
   const { host } = await openSettings(page);
   serveNotes(host, []);
