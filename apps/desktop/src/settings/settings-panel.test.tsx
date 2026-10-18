@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -7,7 +7,12 @@ import {
   type ApiConnectionStatus,
   type ApiSettingsPort,
 } from '@atlas/application';
+import { settingsDialog } from '../pages-on-first-use.ts';
 import { SettingsPanel } from './settings-panel.tsx';
+
+// Loaded before the tests, as the app loads it after start-up: the first import
+// of its chunk is slow enough under load to outlast a `waitFor`.
+beforeAll(() => settingsDialog.preload(), 30_000);
 
 /**
  * Settings → Connections against a host held in memory: the switch, the
