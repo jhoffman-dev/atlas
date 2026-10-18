@@ -56,11 +56,16 @@ function gate() {
   };
 }
 
-function fakeVault(text: string = ORIGINAL) {
+/**
+ * `coarse`: a disk whose clock keeps whole seconds, so every write lands in
+ * the one tick and leaves the time as it was (#245).
+ */
+function fakeVault(text: string = ORIGINAL, { coarse = false }: { coarse?: boolean } = {}) {
   const files = new Map<string, { text: string; modified: number }>([
     [NOTE, { text, modified: 1 }],
   ]);
   let clock = 1;
+  const tick = () => (coarse ? clock : (clock += 1));
   const reads = gate();
   const writes = gate();
 
@@ -80,17 +85,18 @@ function fakeVault(text: string = ORIGINAL) {
       if (file === undefined) throw new Error(`no such file: ${path}`);
       return { text: file.text, modified: file.modified };
     },
-    writeTextFile: async ({ path, contents, expectedModified }) => {
+    writeTextFile: async ({ path, contents, expectedModified, expectedText }) => {
       await writes.pass();
       const file = files.get(path);
       if (file === undefined) throw new Error(`no such file: ${path}`);
       // The same refusal the Rust host gives: the file has moved on since it
-      // was read, so this write would be writing over someone else's.
-      if (expectedModified !== null && file.modified !== expectedModified) {
+      // was read — its time, or its bytes — so this write would be writing
+      // over someone else's.
+      const otherTime = expectedModified !== null && file.modified !== expectedModified;
+      if (otherTime || (expectedText !== undefined && file.text !== expectedText)) {
         throw new Error('the note changed on disk since it was opened');
       }
-      clock += 1;
-      files.set(path, { text: contents, modified: clock });
+      files.set(path, { text: contents, modified: tick() });
       return clock;
     },
   };
@@ -103,8 +109,7 @@ function fakeVault(text: string = ORIGINAL) {
     modified: (): number => files.get(NOTE)?.modified ?? 0,
     /** Something else writes the file: the other pane, the board, another app. */
     writeOutside: (contents: string) => {
-      clock += 1;
-      files.set(NOTE, { text: contents, modified: clock });
+      files.set(NOTE, { text: contents, modified: tick() });
     },
   };
 }
@@ -429,6 +434,35 @@ describe('properties written through a pane', () => {
       'tasks:\n  - "[[Write report]]"\n  - "[[Book flights]]"\npages: 412\n',
     );
     expect(view.result.current.state).toMatchObject({ kind: 'ready', saveError: null });
+  });
+
+  it('lands two property changes a moment apart on a disk that keeps whole seconds (#245)', async () => {
+    // The first write leaves the time as it was, so the second has to know
+    // it is behind the first by more than the time.
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await readyPane(vault);
+    vault.writes.hold();
+    act(() => view.result.current.setProperty('tasks', ['[[Write report]]']));
+    act(() => view.result.current.setProperty('pages', 412));
+    vault.writes.release();
+    await settle();
+    await settle();
+
+    expect(vault.contents()).toContain('tasks:\n  - "[[Write report]]"\npages: 412\n');
+    expect(view.result.current.state).toMatchObject({ kind: 'ready', saveError: null });
+  });
+
+  it('refuses a save from a note another program rewrote within the same second (#245)', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await readyPane(vault);
+    const theirs = ORIGINAL.replace('First', 'Fifth');
+    vault.writeOutside(theirs);
+    expect(vault.modified()).toBe(1);
+
+    await expect(act(() => view.result.current.setProperties({ status: 'done' }))).rejects.toThrow(
+      'the note changed on disk since it was opened',
+    );
+    expect(vault.contents()).toBe(theirs);
   });
 
   it('works a change given as a rule out against the value the write before it left', async () => {

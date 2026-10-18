@@ -17,14 +17,18 @@ import {
  * write of the same length leaves the size too. Simulated by writing the same
  * number of bytes and setting the time back to the one the note had.
  */
+/** The whole second every write lands in, as HFS+ keeps it. */
+const TICK_SECONDS = 1_700_000_000;
+
 async function writeInTheSameTick(vault: FakeVault, path: string, text: string): Promise<void> {
   const file = join(vault.root, path);
   const before = await stat(file);
   expect(text).toHaveLength(before.size);
   await vault.write(path, text);
-  await utimes(file, before.atime, before.mtime);
-  expect(Math.floor((await stat(file)).mtimeMs)).toBe(Math.floor(before.mtimeMs));
+  await utimes(file, TICK_SECONDS, TICK_SECONDS);
+  expect((await stat(file)).mtimeMs).toBe(before.mtimeMs);
 }
+
 
 const NOTE = '# Note\n\nShip on Monday.\n';
 const THEIRS = '# Note\n\nShip on Friday.\n';
@@ -32,7 +36,10 @@ const THEIRS = '# Note\n\nShip on Friday.\n';
 async function openTheNote(page: Page): Promise<FakeVault> {
   const vault = await createVault();
   await vault.write('note.md', NOTE);
-  await installHost(page, vault);
+  await utimes(join(vault.root, 'note.md'), TICK_SECONDS, TICK_SECONDS);
+  // The manifest is kept, as the real index keeps it, so a refresh reads
+  // again only what it has reason to: otherwise it reads every note anyway.
+  await installHost(page, vault, { keepsManifest: true });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/^1 notes? indexed/)).toBeVisible();

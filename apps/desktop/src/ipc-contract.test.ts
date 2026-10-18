@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { API_RESPOND_COMMAND } from '@atlas/application';
+import { createVaultPath } from '@atlas/domain';
+
+const invoke = vi.fn();
+vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 
 /**
  * The one seam neither the TypeScript tests nor the Rust tests can see: the command
@@ -57,6 +61,32 @@ describe('IPC contract', () => {
     const exposed = commandsExposedByRust();
     const missing = [...commandsCalledByAdapters()].filter((name) => !exposed.has(name));
     expect(missing, `not registered in generate_handler!: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  // Tauri matches arguments by name, camelCase in the webview and snake_case
+  // in Rust, and drops one it does not know: a digest sent under another name
+  // would leave every save held to the time alone, with both suites green (#245).
+  it('sends a save every argument the host takes, under the name it takes it by', async () => {
+    const rust = readFileSync(here('../src-tauri/src/vault.rs'), 'utf8');
+    const declared = /pub async fn write_text_file\(([\s\S]*?)\)\s*->/.exec(rust)?.[1] ?? '';
+    const taken = [...declared.matchAll(/(\w+):/g)]
+      .map((match) => match[1] ?? '')
+      .filter((name) => name !== 'app')
+      .map((name) => name.replace(/_(\w)/g, (_, letter: string) => letter.toUpperCase()));
+    expect(taken).toEqual(['path', 'contents', 'expectedModified', 'expectedDigest', 'vault']);
+
+    const { tauriVaultFs } = await import('@atlas/adapters');
+    invoke.mockResolvedValue(1);
+    await tauriVaultFs.writeTextFile({
+      path: createVaultPath('Plan.md'),
+      contents: 'new',
+      expectedModified: 1,
+      expectedText: 'old',
+      vault: '/vaults/Larkspur',
+    });
+    const [command, sent] = invoke.mock.calls.at(-1) ?? [];
+    expect(command).toBe('write_text_file');
+    expect(Object.keys(sent as object).sort()).toEqual([...taken].sort());
   });
 
   // The API's commands are called from `adapters/src/api`, and the answer's

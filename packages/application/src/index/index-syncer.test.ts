@@ -621,7 +621,7 @@ describe('createIndexSyncer, attacked (#135)', () => {
 describe('the index syncer and a note changed in the tick it was read in (#245)', () => {
   it('reads again a note it is told was changed, and says so, though its time and size stand', async () => {
     const { vault, sync, news } = await synced({ [KICKOFF]: KICKOFF_TEXT });
-    const edited = KICKOFF_TEXT.replace('Mara Quill', 'Tobias Fe');
+    const edited = KICKOFF_TEXT.replace('Mara Quill', 'Mara Quinn');
     expect(edited).toHaveLength(KICKOFF_TEXT.length);
     vault.writeInTheSameTick(KICKOFF, edited);
 
