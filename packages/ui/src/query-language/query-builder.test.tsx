@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   blankBuilder,
@@ -179,6 +179,19 @@ describe('QueryBuilder', () => {
     expect(written()).toBe('FROM task SORT BY due DESC INCLUDE ARCHIVED LIMIT 20');
     await userEvent.click(screen.getByRole('button', { name: 'Remove sort 1' }));
     expect(written()).toBe('FROM task INCLUDE ARCHIVED LIMIT 20');
+  });
+
+  it('draws every dropdown and typed value as a field (UI v2 13g), inside no card', () => {
+    render(<Harness start={builderFor('FROM task WHERE title CONTAINS e AND due > today')} />);
+    const builder = screen.getByRole('region', { name: 'Query builder' });
+    const controls = [
+      ...within(builder).getAllByRole('combobox'),
+      within(builder).getByRole('textbox', { name: 'Value 1' }),
+      within(builder).getByRole('spinbutton', { name: 'Row limit' }),
+    ];
+    expect(controls.length).toBeGreaterThan(5);
+    for (const control of controls) expect(control.classList.contains('field')).toBe(true);
+    expect(builder.className).toBe('qb');
   });
 
   it('takes a type away, but never the last one', async () => {

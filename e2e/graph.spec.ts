@@ -165,6 +165,31 @@ test('the graph as a list, narrowed by type and orphans', async ({ page }) => {
   await expect(page.getByRole('article', { name: 'Hub' })).toBeVisible();
 });
 
+test('a long linked title stays inside the list in a narrow pane, ellipsised with the whole on hover', async ({
+  page,
+}) => {
+  const long = 'Review the quarterly numbers with the whole team before the board meeting, twice';
+  const vault = await createVault();
+  await vault.write('Hub.md', `# Hub\n\nLinks [[${long}]].\n`);
+  await vault.write(`${long}.md`, `# ${long}\n\nThe long one.\n`);
+  await installHost(page, vault);
+  await page.setViewportSize({ width: 720, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Graph' }).click();
+  await page.getByRole('radio', { name: 'List' }).click();
+
+  const list = page.getByRole('list', { name: 'Notes in the graph' });
+  const link = list.getByRole('list', { name: 'Connected to Hub' }).getByRole('button');
+  await expect(link).toHaveCount(1);
+  await expect(link.locator('.graph__list-title')).toHaveAttribute('title', long);
+  // The row, and the list it is in, are no wider than the pane shows: the
+  // title is cut with an ellipsis, not run off the edge.
+  await expect.poll(() => list.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await expect.poll(() => link.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+});
+
 test('show in graph draws the note and its neighbours only, then one step further', async ({
   page,
 }) => {
