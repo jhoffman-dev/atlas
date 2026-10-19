@@ -8,7 +8,10 @@
  * add what they read:
  * - a regex execution, from where it started to the end of its match, or of
  *   the text when it found none — a global `replace`, `match` or `matchAll`
- *   is so counted once over the text;
+ *   is so counted once over the text. A sticky one tries one position only,
+ *   so it counts its match, or one character when it fails: a `split` by a
+ *   pattern runs a sticky copy at each position, and is counted once over
+ *   the text too;
  * - `indexOf` and `includes` on a string or an array, up to what they found;
  *   `startsWith` the text it compared; `slice` what it copied; `split` the
  *   text it split, and `join` the text it made;
@@ -65,9 +68,10 @@ function startCounting(): { work: () => number; stop: () => void } {
   const { exec } = RegExp.prototype;
   const { sort } = Array.prototype;
   RegExp.prototype.exec = function (this: RegExp, input: string) {
-    const from = this.global || this.sticky ? this.lastIndex : 0;
+    const from = this.global ? this.lastIndex : 0;
     const match = exec.call(this, input);
-    work += (match === null ? String(input).length : match.index + match[0].length) - from;
+    if (this.sticky) work += match === null ? 1 : match[0].length;
+    else work += (match === null ? String(input).length : match.index + match[0].length) - from;
     return match;
   };
   Array.prototype.sort = function <T>(this: T[], compare?: (left: T, right: T) => number) {
