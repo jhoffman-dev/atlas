@@ -70,7 +70,7 @@ export function InboxRows({
   refusals,
   summaryPending,
 }: InboxRowsProps) {
-  const triage = useInboxTriage({ items, statuses, onClarify });
+  const triage = useInboxTriage({ items, statuses, onClarify, busy });
   const keys = useMemo(() => items.map((item) => item.path), [items]);
   const triageKeys = useMemo(() => triageKeysShown(statuses), [statuses]);
   const body = useRef<HTMLTableSectionElement>(null);
@@ -82,15 +82,30 @@ export function InboxRows({
   });
   const placeRef = usePlacedRowRefs(list.measure, triage.rowRef);
   const open = useSteadyCallback(onOpen);
-  const { onRowFocus, onListKeyDown, onListBlur, keyAction, pick, commit, fileUnder, makeTask } =
-    triage;
+  const {
+    onRowFocus,
+    onListKeyDown,
+    onListPointerDown,
+    onListBlur,
+    keyAction,
+    pick,
+    commit,
+    fileUnder,
+    makeTask,
+  } = triage;
   const actions = useMemo(
     () => ({ pick, commit, fileUnder, makeTask }),
     [pick, commit, fileUnder, makeTask],
   );
   const choices = useMemo(() => ({ filing, people, statuses }), [filing, people, statuses]);
   return (
-    <tbody ref={body} onFocus={list.onFocus} onKeyDown={onListKeyDown} onBlur={onListBlur}>
+    <tbody
+      ref={body}
+      onFocus={list.onFocus}
+      onKeyDown={onListKeyDown}
+      onPointerDown={onListPointerDown}
+      onBlur={onListBlur}
+    >
       {list.placed.map(({ key, index, gapBefore }) => {
         const item = items[index];
         if (item === undefined) return null;
@@ -121,7 +136,7 @@ export function InboxRows({
                 <span className="inbox__keys-strip">
                   {focused &&
                     triageKeys.map((shown) =>
-                      !offeredTo(item, shown) ? null : (
+                      !offeredTo(item, shown, filing.length > 0) ? null : (
                         <button
                           key={shown.key}
                           type="button"
@@ -147,10 +162,14 @@ export function InboxRows({
   );
 }
 
-/** Which keys a row offers: a task every one; any other note only P, which files it. */
-function offeredTo(item: InboxItem, shown: TriageKeyShown): boolean {
-  if (item.task !== null) return true;
-  return shown.action.kind === 'pick' && shown.action.field === 'project';
+/**
+ * Which keys a row offers: a task every one; any other note only P, which files
+ * it. And P only when there is a project or an area to file under.
+ */
+function offeredTo(item: InboxItem, shown: TriageKeyShown, canFile: boolean): boolean {
+  const files = shown.action.kind === 'pick' && shown.action.field === 'project';
+  if (files && !canFile) return false;
+  return item.task !== null || files;
 }
 
 /**
@@ -232,7 +251,13 @@ const InboxRow = memo(function InboxRow({
       </td>
       <td className="inbox__actions">
         {item.task === null ? (
-          <NoteActions item={item} filing={choices.filing} busy={busy} actions={actions} />
+          <NoteActions
+            item={item}
+            draft={draft}
+            filing={choices.filing}
+            busy={busy}
+            actions={actions}
+          />
         ) : (
           <ClarifyTask
             item={item}
@@ -275,11 +300,14 @@ function ImportStanding({ item }: { item: InboxItem }) {
 /** A note that is not a task: filed at once, or — with no type of its own — made a task. */
 function NoteActions({
   item,
+  draft,
   filing,
   busy,
   actions,
 }: {
   item: InboxItem;
+  /** Holds a project only from a picker a key armed, until Enter. */
+  draft: InboxDraft;
   filing: readonly RelationChoice[];
   busy: boolean;
   actions: RowActions;
@@ -298,7 +326,7 @@ function NoteActions({
       )}
       <NotePicker
         label={`File ${item.title} under`}
-        value=""
+        value={draft.project ?? ''}
         placeholder={filing.length === 0 ? 'No project or area yet' : 'File under…'}
         choices={filing}
         disabled={busy || filing.length === 0}
@@ -395,7 +423,7 @@ function ClarifyTask({
         className="btn btn--primary btn--sm"
         disabled={busy || clarificationOf(task, draft) === null}
       >
-        Done
+        Save
       </button>
     </form>
   );

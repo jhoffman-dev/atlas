@@ -126,7 +126,7 @@ describe('one-key triage — guards that hold (attack #406)', () => {
   it('acts on the row when the key is pressed on a button inside it (not a field)', async () => {
     const { onClarify } = page();
     focusRow('Learn the cello');
-    const done = within(rowOf('Learn the cello')).getByRole('button', { name: 'Done' });
+    const done = within(rowOf('Learn the cello')).getByRole('button', { name: 'Save' });
     act(() => done.focus());
     await userEvent.keyboard('s');
     expect(calls(onClarify)).toEqual([
