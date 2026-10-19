@@ -18,6 +18,7 @@ import { useSteadyCallback } from '../steady-callback.ts';
 import { Spacer } from '../grouped-rows.tsx';
 import { useVirtualRows } from '../virtual-rows.ts';
 import { asksWhoItWaitsOn, clarificationOf, type InboxDraft } from './inbox-triage.ts';
+import { triageKeysShown, type TriageKeyShown } from './triage-keys.ts';
 import { useInboxTriage, type ClarifyInboxItem, type InboxTriage } from './use-inbox-triage.ts';
 
 /** Why a row's last clarification was refused or left unfinished. */
@@ -47,8 +48,8 @@ export interface InboxRowsProps {
 /** A row's height until it is measured, as WebKit draws a note's. */
 const ROW_HEIGHT = 59;
 
-/** A row's cells: its name, its kind, and how it is clarified. */
-const ROW_CELLS = 3;
+/** A row's cells: its name, its kind, its triage keys, and how it is clarified. */
+const ROW_CELLS = 4;
 
 /** The row the table's header takes, so the rows' `aria-rowindex` counts from below it. */
 const HEADER_ROWS = 1;
@@ -69,8 +70,9 @@ export function InboxRows({
   refusals,
   summaryPending,
 }: InboxRowsProps) {
-  const triage = useInboxTriage({ items, onClarify });
+  const triage = useInboxTriage({ items, statuses, onClarify });
   const keys = useMemo(() => items.map((item) => item.path), [items]);
+  const triageKeys = useMemo(() => triageKeysShown(statuses), [statuses]);
   const body = useRef<HTMLTableSectionElement>(null);
   const list = useVirtualRows({
     content: body,
@@ -80,14 +82,15 @@ export function InboxRows({
   });
   const placeRef = usePlacedRowRefs(list.measure, triage.rowRef);
   const open = useSteadyCallback(onOpen);
-  const { onRowFocus, pick, commit, fileUnder, makeTask } = triage;
+  const { onRowFocus, onListKeyDown, onListBlur, keyAction, pick, commit, fileUnder, makeTask } =
+    triage;
   const actions = useMemo(
     () => ({ pick, commit, fileUnder, makeTask }),
     [pick, commit, fileUnder, makeTask],
   );
   const choices = useMemo(() => ({ filing, people, statuses }), [filing, people, statuses]);
   return (
-    <tbody ref={body} onFocus={list.onFocus}>
+    <tbody ref={body} onFocus={list.onFocus} onKeyDown={onListKeyDown} onBlur={onListBlur}>
       {list.placed.map(({ key, index, gapBefore }) => {
         const item = items[index];
         if (item === undefined) return null;
@@ -113,6 +116,28 @@ export function InboxRows({
                 summaryPending={summaryPending?.get(item.path) ?? null}
                 actions={actions}
               />
+              {/* Drawn here, not in the row's cells: the focus moving draws no InboxRow again (#217). */}
+              <td className="inbox__keys">
+                <span className="inbox__keys-strip">
+                  {focused &&
+                    triageKeys.map((shown) =>
+                      !offeredTo(item, shown) ? null : (
+                        <button
+                          key={shown.key}
+                          type="button"
+                          className={`btn btn--sm inbox__key${shown.status === null ? '' : ` inbox__key--${shown.status}`}`}
+                          aria-keyshortcuts={shown.key}
+                          aria-label={`${shown.label}, key ${shown.key.toUpperCase()}`}
+                          disabled={busy}
+                          onClick={() => keyAction(item.path, shown.action)}
+                        >
+                          {shown.label}
+                          <kbd aria-hidden="true">{shown.key.toUpperCase()}</kbd>
+                        </button>
+                      ),
+                    )}
+                </span>
+              </td>
             </tr>
           </Fragment>
         );
@@ -120,6 +145,12 @@ export function InboxRows({
       {list.after > 0 && <Spacer height={list.after} width={ROW_CELLS} />}
     </tbody>
   );
+}
+
+/** Which keys a row offers: a task every one; any other note only P, which files it. */
+function offeredTo(item: InboxItem, shown: TriageKeyShown): boolean {
+  if (item.task !== null) return true;
+  return shown.action.kind === 'pick' && shown.action.field === 'project';
 }
 
 /**
@@ -272,6 +303,7 @@ function NoteActions({
         choices={filing}
         disabled={busy || filing.length === 0}
         onPick={(project) => actions.fileUnder(item.path, project)}
+        field="project"
       />
     </div>
   );
@@ -341,6 +373,7 @@ function ClarifyTask({
         choices={choices.filing}
         disabled={busy || choices.filing.length === 0}
         onPick={(project) => pick({ project })}
+        field="project"
       />
       <DayField
         label="Defer"
@@ -348,6 +381,7 @@ function ClarifyTask({
         value={draft.defer ?? task.defer ?? ''}
         disabled={busy}
         onPick={(defer) => pick({ defer })}
+        field="defer"
       />
       <DayField
         label="Due"
@@ -381,6 +415,7 @@ function NotePicker({
   choices,
   disabled,
   onPick,
+  field,
 }: {
   label: string;
   value: string;
@@ -388,11 +423,14 @@ function NotePicker({
   choices: readonly RelationChoice[];
   disabled: boolean;
   onPick: (path: VaultPath) => void;
+  /** Which picker a triage key opens (P): named so the key finds it. */
+  field?: 'project';
 }) {
   return (
     <select
       className="inbox__file"
       aria-label={label}
+      {...(field !== undefined && { 'data-field': field })}
       value={choices.some((choice) => choice.path === value) ? value : ''}
       disabled={disabled}
       onChange={(event) => {
@@ -411,6 +449,7 @@ function DayField({
   value,
   disabled,
   onPick,
+  field,
 }: {
   label: string;
   /** What a screen reader calls it, naming the task. */
@@ -418,6 +457,8 @@ function DayField({
   value: string;
   disabled: boolean;
   onPick: (day: string) => void;
+  /** Which picker a triage key opens (T): named so the key finds it. */
+  field?: 'defer';
 }) {
   return (
     <label className="inbox__day">
@@ -426,6 +467,7 @@ function DayField({
         type="date"
         className="inbox__file"
         aria-label={name}
+        {...(field !== undefined && { 'data-field': field })}
         value={value}
         disabled={disabled}
         onChange={(event) => onPick(event.target.value)}

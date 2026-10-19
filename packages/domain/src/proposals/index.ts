@@ -44,3 +44,16 @@ export { editedPayload, payloadFields, propertyFromText, propertyText } from './
 export type { PayloadFields } from './proposal-edit.ts';
 export { compileProposalIdsQuery, PROPOSAL_ID_KEY, proposalFileFor } from './new-proposal.ts';
 export type { NewProposal, NewProposalFile } from './new-proposal.ts';
+export {
+  acceptableAtOnce,
+  conflictGroups,
+  proposalEntries,
+  proposalSlotOf,
+  proposalValueOf,
+} from './conflict-groups.ts';
+export type {
+  ConflictChoice,
+  ConflictGroup,
+  ProposalEntry,
+  ProposalSlot,
+} from './conflict-groups.ts';

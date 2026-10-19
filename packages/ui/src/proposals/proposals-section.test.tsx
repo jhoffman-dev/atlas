@@ -81,7 +81,7 @@ describe('ProposalsSection', () => {
   it('lists each open proposal with what it would write, the line it cites and its maker', () => {
     page();
     const task = card(/^Task: Send Mara the payroll file/);
-    expect(within(task).getByText('high confidence')).toBeTruthy();
+    expect(within(task).getByText('High').textContent).toBe('High confidence');
     expect(within(task).getByRole('button', { name: /2026-10-01 Standup#\^t0003/ })).toBeTruthy();
     expect(within(task).getByText('after-meeting · run 1')).toBeTruthy();
     expect(within(task).getByText('[[Mara Quill]], [[Tobias Fenn]]')).toBeTruthy();
@@ -267,15 +267,15 @@ describe('ProposalsSection', () => {
     });
 
     const low = screen.getByRole('region', { name: 'Task: Send the contract' });
-    expect(within(low).getByText('low confidence')).toBeTruthy();
-    expect(low.classList.contains('proposal-card--low')).toBe(true);
+    expect(within(low).getByText('Low').textContent).toBe('Low confidence');
+    expect(low.classList.contains('proposal-row--low')).toBe(true);
     expect(within(low).getByText(why)).toBeTruthy();
     expect(within(low).getByText('Lena Hart')).toBeTruthy();
     // A sure one is not marked, and a proposal with no reason shows none.
     const sure = screen.getByRole('region', { name: 'Task: Send Mara the payroll file' });
-    expect(sure.classList.contains('proposal-card--low')).toBe(false);
-    expect(sure.querySelector('.proposal-card__why')).toBeNull();
-    expect(low.querySelector('.proposal-card__why')).not.toBeNull();
+    expect(sure.classList.contains('proposal-row--low')).toBe(false);
+    expect(sure.querySelector('.proposal-row__why')).toBeNull();
+    expect(low.querySelector('.proposal-row__why')).not.toBeNull();
   });
 
   it('lets the owner be set before accepting: an empty waiting_on is a field to fill in', async () => {

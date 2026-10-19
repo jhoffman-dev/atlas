@@ -460,7 +460,7 @@ async function clarify(page: Page, title: string): Promise<void> {
   await inbox(page)
     .getByRole('row')
     .filter({ has: page.getByRole('button', { name: title, exact: true }) })
-    .getByRole('button', { name: 'Done' })
+    .getByRole('button', { name: 'Done', exact: true })
     .press('Enter');
   await expect(
     inbox(page)
@@ -515,7 +515,7 @@ test('a row clarified as the settings warning arrives above: the list stays wher
     inbox(page)
       .getByRole('row')
       .filter({ has: page.getByRole('button', { name: title, exact: true }) })
-      .getByRole('button', { name: 'Done' })
+      .getByRole('button', { name: 'Done', exact: true })
       .press('Enter'),
     emitVaultChanged(page, ['.atlas/settings.md']),
   ]);

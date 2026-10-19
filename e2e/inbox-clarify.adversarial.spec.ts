@@ -70,7 +70,7 @@ test('a change of mind away from Waiting does not write the person picked while 
   await status.selectOption({ label: 'Next Action' });
   // The row no longer asks who it waits on, so nothing on it says Mara Quill.
   await expect(who).toHaveCount(0);
-  await inbox.getByRole('button', { name: 'Done' }).press('Enter');
+  await inbox.getByRole('button', { name: 'Done', exact: true }).press('Enter');
 
   await expectFile(vault, 'Inbox/Call Tobias Fenn.md').toContain('status: next-action');
   expect(await vault.read('Inbox/Call Tobias Fenn.md')).not.toContain('waiting_on');
@@ -99,7 +99,7 @@ test('a title with no place to break does not push the row’s controls off the 
   const done = inbox
     .getByRole('row')
     .filter({ has: page.getByRole('button', { name: LONG, exact: true }) })
-    .getByRole('button', { name: 'Done' });
+    .getByRole('button', { name: 'Done', exact: true });
   await expect(done).toBeVisible();
 
   const viewport = page.viewportSize();

@@ -1,9 +1,17 @@
-import { useEffect, useRef, type RefObject } from 'react';
-import { proposalHeadline, type ProposalNote, type VaultPath } from '@atlas/domain';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+  acceptableAtOnce,
+  proposalEntries,
+  proposalHeadline,
+  type ProposalEntry,
+  type ProposalNote,
+  type VaultPath,
+} from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from '../dismiss-after.ts';
 import { Icon } from '../icon.tsx';
 import { SelectAllBox, SelectionBar, type RowSelection } from '../row-selection.tsx';
-import { ProposalCard } from './proposal-card.tsx';
+import { ConflictGroupRow } from './conflict-group.tsx';
+import { ProposalRow } from './proposal-row.tsx';
 
 /** What the Inbox's Proposals section lists, once the folder has been read. */
 export interface ProposalsContents {
@@ -61,25 +69,70 @@ export interface ProposalsSectionProps {
   readonly onOpenSource: (link: string) => void;
 }
 
+/** Which proposals the list shows: every one, the sure ones, or the questions that need a pick. */
+type Filter = 'all' | 'high' | 'choice';
+
+const FILTERS: readonly { readonly filter: Filter; readonly label: string }[] = [
+  { filter: 'all', label: 'All' },
+  { filter: 'high', label: 'High confidence' },
+  { filter: 'choice', label: 'Needs a choice' },
+];
+
+const NO_ENTRIES: readonly ProposalEntry[] = [];
+
 /**
  * The proposals waiting for an answer, as a section of the Inbox page
- * (P29-02, P30-01): what Claude or an automation suggested, each with the
- * line it came from, to accept, edit first, or reject. Nothing it proposes is
- * written until it is accepted. Proposals wait in the Inbox but are answered
- * here, never filed with the notes beside them. Several can be chosen —
- * Shift-click for a run of them — and accepted or rejected together (#168).
+ * (P29-02, P30-01, #307): what Claude or an automation suggested, each with
+ * the line it came from, to accept, edit first, or reject. Nothing it
+ * proposes is written until it is accepted. Proposals wait in the Inbox but
+ * are answered here, never filed with the notes beside them. Several can be
+ * chosen — Shift-click for a run of them — and accepted or rejected together
+ * (#168); the sure ones all at once. Proposals that disagree are one "pick
+ * one" question (Q12).
  */
 export function ProposalsSection(props: ProposalsSectionProps) {
   const { heading, list, keepingFocus } = useFocusKeptOnAnswer(props.contents);
+  const [filter, setFilter] = useState<Filter>('all');
+  const open = props.contents?.open;
+  const entries = useMemo(() => (open === undefined ? NO_ENTRIES : proposalEntries(open)), [open]);
+  const shown = useMemo(() => entries.filter(passes(filter)), [entries, filter]);
+  const sure = useMemo(() => acceptableAtOnce(entries), [entries]);
   return (
     <section className="proposals" aria-label="Proposals">
-      <h2 className="proposals__heading" tabIndex={-1} ref={heading}>
-        <Icon name="spark" size={16} /> Proposals
-      </h2>
-      <p className="proposals__summary">{describe(props.contents)}</p>
+      <div className="proposals__head">
+        <h2 className="proposals__heading" tabIndex={-1} ref={heading}>
+          <Icon name="spark" size={16} /> Proposals
+        </h2>
+        <p className="proposals__summary">{describe(props.contents)}</p>
+        {entries.length > 0 && (
+          <div className="segmented proposals__filters" role="group" aria-label="Show">
+            {FILTERS.map((each) => (
+              <button
+                key={each.filter}
+                type="button"
+                className={`segmented__option${filter === each.filter ? ' segmented__option--on' : ''}`}
+                aria-pressed={filter === each.filter}
+                onClick={() => setFilter(each.filter)}
+              >
+                {each.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {sure.length > 0 && (
+          <button
+            type="button"
+            className="btn btn--sm btn--positive"
+            disabled={props.busy !== null}
+            onClick={() => props.onAcceptMany(sure)}
+          >
+            Accept all high confidence
+          </button>
+        )}
+      </div>
       {props.notice !== null && <Notice {...props} notice={props.notice} />}
-      <Chosen {...props} />
-      <ProposalList {...props} list={list} keepingFocus={keepingFocus} />
+      <Chosen {...props} entries={shown} />
+      <ProposalList {...props} entries={shown} list={list} keepingFocus={keepingFocus} />
       {props.contents !== null && props.contents.stranded.length > 0 && (
         <Stranded stranded={props.contents.stranded} onOpen={props.onOpen} />
       )}
@@ -88,6 +141,12 @@ export function ProposalsSection(props: ProposalsSectionProps) {
       )}
     </section>
   );
+}
+
+function passes(filter: Filter): (entry: ProposalEntry) => boolean {
+  if (filter === 'all') return () => true;
+  if (filter === 'choice') return (entry) => 'choice' in entry;
+  return (entry) => 'one' in entry && entry.one.confidence === 'high';
 }
 
 /** Whether the section has anything to show: something to answer, to look at, to undo, or being written. */
@@ -154,13 +213,19 @@ function Notice({
   );
 }
 
+/** The proposals listed on their own, in order: the ones a box can choose. */
+const singles = (entries: readonly ProposalEntry[]): readonly ProposalNote[] =>
+  entries.flatMap((entry) => ('one' in entry ? [entry.one] : []));
+
 function ProposalList({
+  entries,
   list,
   keepingFocus,
   ...props
 }: ProposalsSectionProps & {
+  entries: readonly ProposalEntry[];
   list: RefObject<HTMLUListElement | null>;
-  /** Gives an answer from card `at`, its focus kept in the list once the card has left. */
+  /** Gives an answer from row `at`, its focus kept in the list once the row has left. */
   keepingFocus: (at: number, answer: () => void) => void;
 }) {
   const { contents, error } = props;
@@ -179,46 +244,60 @@ function ProposalList({
       </p>
     );
   }
-  const order = contents.open.map((proposal) => proposal.path);
+  if (entries.length === 0) return <p className="proposals__empty">None of these.</p>;
+  const order = singles(entries).map((proposal) => proposal.path);
   return (
     <ul className="proposals__list" aria-label="Open proposals" ref={list}>
-      {contents.open.map((proposal, at) => (
-        <li key={proposal.path}>
-          <ProposalCard
-            proposal={proposal}
-            {...(order.length > 1 && {
-              selection: {
-                checked: props.selection.selected.has(proposal.path),
-                onChange: ({ shift }: { shift: boolean }) =>
-                  props.selection.onToggle(proposal.path, shift ? { order } : undefined),
-              },
-            })}
-            reason={contents.reasons?.get(proposal.path) ?? null}
-            busy={props.busy !== null}
-            problem={props.problems.get(proposal.path) ?? null}
-            onAccept={(payload) => keepingFocus(at, () => props.onAccept(proposal.path, payload))}
-            onReject={() => keepingFocus(at, () => props.onReject(proposal.path))}
-            onOpen={() => props.onOpen(proposal.path)}
-            onOpenSource={props.onOpenSource}
-          />
-        </li>
-      ))}
+      {entries.map((entry, at) =>
+        'choice' in entry ? (
+          <li key={entry.choice.choices.map((choice) => choice.proposals[0]?.path).join('\n')}>
+            <ConflictGroupRow
+              group={entry.choice}
+              busy={props.busy !== null}
+              problems={props.problems}
+              onAccept={(path) => keepingFocus(at, () => props.onAccept(path))}
+              onRejectMany={props.onRejectMany}
+            />
+          </li>
+        ) : (
+          <li key={entry.one.path}>
+            <ProposalRow
+              proposal={entry.one}
+              {...(order.length > 1 && {
+                selection: {
+                  checked: props.selection.selected.has(entry.one.path),
+                  onChange: ({ shift }: { shift: boolean }) =>
+                    props.selection.onToggle(entry.one.path, shift ? { order } : undefined),
+                },
+              })}
+              reason={contents.reasons?.get(entry.one.path) ?? null}
+              busy={props.busy !== null}
+              problem={props.problems.get(entry.one.path) ?? null}
+              onAccept={(payload) =>
+                keepingFocus(at, () => props.onAccept(entry.one.path, payload))
+              }
+              onReject={() => keepingFocus(at, () => props.onReject(entry.one.path))}
+              onOpen={() => props.onOpen(entry.one.path)}
+              onOpenSource={props.onOpenSource}
+            />
+          </li>
+        ),
+      )}
     </ul>
   );
 }
 
-/** Choosing every open proposal, and what can be done to the chosen ones together. */
+/** Choosing every proposal listed on its own, and what can be done to the chosen ones together. */
 function Chosen({
-  contents,
+  entries,
   selection,
   busy,
   onAcceptMany,
   onRejectMany,
   onClearSelection,
-}: ProposalsSectionProps) {
-  const open = contents?.open ?? [];
-  if (open.length < 2) return null;
-  const paths = open.map((proposal) => proposal.path);
+}: ProposalsSectionProps & { entries: readonly ProposalEntry[] }) {
+  const paths = singles(entries).map((proposal) => proposal.path);
+  if (paths.length < 2) return null;
   const chosen = paths.filter((path) => selection.selected.has(path));
   const many = chosen.length === 1 ? 'proposal' : `${chosen.length} proposals`;
   return (
@@ -241,8 +320,8 @@ function Chosen({
 }
 
 /**
- * An answered card leaves the list at once (#166), and the focus on its
- * button would fall to the page: it goes instead to the card that took its
+ * An answered row leaves the list at once (#166), and the focus on its
+ * button would fall to the page: it goes instead to the row that took its
  * place — the next, or the one before when it was the last — or, with none
  * left, to the section's heading, so the next answer is a key away.
  */
@@ -254,12 +333,12 @@ function useFocusKeptOnAnswer(contents: ProposalsContents | null) {
     const at = answeredAt.current;
     if (at === null) return;
     const focused = document.activeElement;
-    // Only focus that was lost with the card: never taken from wherever the person moved it.
+    // Only focus that was lost with the row: never taken from wherever the person moved it.
     if (focused !== null && focused !== document.body && focused.isConnected) return;
     answeredAt.current = null;
-    const cards = list.current?.children ?? [];
-    const card = cards[Math.min(at, cards.length - 1)];
-    const action = card?.querySelector<HTMLElement>('button');
+    const rows = list.current?.children ?? [];
+    const row = rows[Math.min(at, rows.length - 1)];
+    const action = row?.querySelector<HTMLElement>('button');
     (action ?? heading.current)?.focus();
   }, [contents]);
   const keepingFocus = (at: number, answer: () => void) => {
