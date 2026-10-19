@@ -181,10 +181,15 @@
   font-weight: 500;
 }
 
-.view-tabs__tab:focus-visible,
 .view-toolbar__button:focus-visible,
 .view-toolbar__new:focus-visible {
   box-shadow: var(--ring);
+  outline: none;
+}
+
+/* The strip clips what overflows it, so a tab's ring is drawn inside the tab. */
+.view-tabs__tab:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
   outline: none;
 }
 
