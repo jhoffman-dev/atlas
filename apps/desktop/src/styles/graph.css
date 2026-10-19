@@ -104,36 +104,41 @@
   padding: 0 12px;
 }
 
-/* The graph page: its controls, then the stage filling what is left of the panel. */
+/* The graph page (UI v2 slice 13g): the scope controls are one hairline
+   section under the bar — ghost toggles for the types, the switches beside
+   them — then the stage, or the list, fills what is left of the panel. */
 .graph__controls {
   align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3) var(--space-5);
-  margin-top: var(--space-3);
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-2) 0;
 }
 
 .graph__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
 }
 
+/* A type is a ghost control with its swatch: shown, it is in full ink; left
+   out, its swatch is hollow and its name in ink-3, so it can be put back. */
 .graph__chip {
   align-items: center;
   appearance: none;
-  background: var(--chip);
+  background: var(--btn-ghost-bg);
   border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--chip-ink);
+  border-radius: var(--radius-button);
+  color: var(--ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-column);
+  font-weight: 500;
   gap: 6px;
   height: 28px;
-  padding: 0 12px 0 10px;
+  padding: 0 8px;
 }
 
 .graph__chip:hover {
@@ -145,10 +150,8 @@
   outline: none;
 }
 
-/* A type left out keeps its place, faded, so it can be put back. */
 .graph__chip[aria-pressed='false'] {
   color: var(--ink-3);
-  opacity: 0.6;
 }
 
 .graph__chip[aria-pressed='false'] .graph__swatch {
@@ -202,8 +205,8 @@
   align-items: center;
   color: var(--ink-2);
   display: inline-flex;
-  font-size: var(--text-ui);
-  font-weight: 600;
+  font-size: var(--text-column);
+  font-weight: 500;
   gap: var(--space-2);
 }
 
@@ -213,13 +216,15 @@
   width: auto;
 }
 
+/* A capped graph says so on the well under the controls' hairline, as a
+   notice bar does: never a card. */
 .graph__notice {
-  background: var(--chip);
-  border-radius: var(--radius-control);
-  color: var(--chip-ink);
-  font-size: var(--text-small);
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--text-column);
   margin: 0;
-  padding: 8px 12px;
+  padding: 6px 12px;
 }
 
 .graph__empty {
@@ -232,10 +237,10 @@
   color: var(--danger);
 }
 
+/* The stage is the surface itself: the canvas ground the labels are read
+   against, under the controls' hairline, with no edge of its own. */
 .graph__stage {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  background: var(--surface);
   flex: 1;
   min-height: 360px;
   overflow: hidden;
@@ -322,11 +327,12 @@
   text-anchor: middle;
 }
 
-/* The list alternative: each note, then what it is connected to, indented. */
+/* The list alternative: a fixed page's list (page.css .page-list) — each note
+   a 34px row at 13/500 with its type in ink-3 at the end, then what it is
+   connected to as 28px rows one step in, divided by line-soft. */
 .graph__list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   list-style: none;
   margin: 0;
   overflow-y: auto;
@@ -334,8 +340,7 @@
 }
 
 .graph__list-item {
-  border-bottom: 1px solid var(--line);
-  padding: 6px 0;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .graph__list-note,
@@ -344,25 +349,33 @@
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-control);
   color: var(--ink);
   cursor: pointer;
   display: flex;
   font: inherit;
   gap: 10px;
-  min-height: 32px;
-  padding: 0 8px;
+  min-width: 0;
+  padding: 0 12px;
   text-align: left;
   width: 100%;
 }
 
 .graph__list-note {
-  font-size: var(--text-body);
-  font-weight: 700;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
+  height: 34px;
 }
 
 .graph__list-note .icon {
   color: var(--ink-3);
+  flex: none;
+}
+
+.graph__list-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .graph__list-note:hover,
@@ -378,25 +391,27 @@
 
 .graph__list-type {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 500;
+  flex: none;
+  font-size: var(--text-meta);
   margin-left: auto;
 }
 
 .graph__list-links {
   list-style: none;
   margin: 0;
-  padding: 0 0 0 34px;
+  padding: 0;
 }
 
 .graph__list-link {
-  color: var(--ink-2);
-  font-size: var(--text-ui);
-  min-height: 28px;
+  font-size: var(--text-body);
+  height: 28px;
+  padding-left: 38px;
+  white-space: nowrap;
 }
 
 .graph__list-way {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  flex: none;
+  font-size: var(--text-meta);
   min-width: 96px;
 }

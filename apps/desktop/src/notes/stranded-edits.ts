@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   isStrandedEditExpired,
   noteLabelForNotice,
@@ -216,5 +216,9 @@ export function useStrandedEdits({
     [settle, vaultKey],
   );
 
-  return { keep, take, settle, forget, waiting: shown.waiting, notice: shown.notice };
+  // One object while nothing in it changed: every pane is handed it (#325).
+  return useMemo(
+    () => ({ keep, take, settle, forget, waiting: shown.waiting, notice: shown.notice }),
+    [keep, take, settle, forget, shown],
+  );
 }

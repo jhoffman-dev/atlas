@@ -8,6 +8,8 @@ import {
   reviewTask,
 } from '../review/review-query.ts';
 import type { ReviewTask } from '../review/weekly-review.ts';
+import { countedWork } from '../testing/counted-work.ts';
+import { correlatedReads } from '../testing/query-plan.ts';
 import { todayLists } from './today-lists.ts';
 
 /**
@@ -80,73 +82,53 @@ function fill(database: DatabaseSync, tasks: number): void {
   database.exec('COMMIT');
 }
 
-function timedRead(database: DatabaseSync, runs: number) {
-  const tasks = compileReviewTasksQuery();
-  const projects = compileReviewProjectsQuery();
-  const tasksStatement = database.prepare(tasks.sql);
-  const projectsStatement = database.prepare(projects.sql);
-  let quickest = Infinity;
-  let read = { tasks: 0, projects: 0 };
-  for (let run = 0; run < runs; run += 1) {
-    const started = performance.now();
-    read = {
-      tasks: tasksStatement.all(...tasks.parameters).length,
-      projects: projectsStatement.all(...projects.parameters).length,
-    };
-    quickest = Math.min(quickest, performance.now() - started);
-  }
-  return { quickest, read };
-}
-
 /**
  * Measured at 5,000 open tasks on 2026-10-12 (a loaded Mac): 188,536 ms as
  * hosted against 67 ms once ANALYZE had run — every correlated read of `props`
- * goes by `props_key (key=?)`, all the rows of that key, for each task. The
- * test asks a fifth of that so it fails in seconds, not minutes.
+ * goes by `props_key (key=?)`, all the rows of that key, for each task.
  */
 const OPEN_TASKS = 1000;
 
 describe('the Today page’s read on a vault of 1,000 open tasks', () => {
-  it(
-    'costs what its rows cost, without statistics the index never gathers',
-    { timeout: 300_000 },
-    () => {
-      const database = hostIndex();
-      fill(database, OPEN_TASKS);
+  it('reads each task’s own rows by its path, without statistics the index never gathers', () => {
+    const database = hostIndex();
+    fill(database, OPEN_TASKS);
+    const tasks = compileReviewTasksQuery();
+    const projects = compileReviewProjectsQuery();
 
-      // As the host leaves it: no ANALYZE, so the planner guesses.
-      const asHosted = timedRead(database, 1);
-      // The same rows with the planner told the truth: what the read need cost.
-      database.exec('ANALYZE');
-      const informed = timedRead(database, 3);
+    // As the host leaves it: no ANALYZE, so the planner guesses.
+    expect(database.prepare(tasks.sql).all(...tasks.parameters)).toHaveLength(OPEN_TASKS);
+    expect(database.prepare(projects.sql).all(...projects.parameters)).toHaveLength(PROJECTS);
+    const reads = [tasks, projects].flatMap((statement) => correlatedReads(database, statement));
+    expect(reads.length).toBeGreaterThan(0);
+    for (const read of reads) expect(read).toMatch(/ \((path|src|dst)=\?/);
+  });
 
-      expect(asHosted.read).toEqual({ tasks: OPEN_TASKS, projects: PROJECTS });
-      expect(informed.read).toEqual(asHosted.read);
-      // Measured in one process, one after the other, so a loaded machine slows both.
-      expect(asHosted.quickest).toBeLessThan(informed.quickest * 20 + 50);
-    },
-  );
+  it('sorts tasks into sections with work that grows with their number, not its square', () => {
+    const tasksOfCount = (count: number): ReviewTask[] =>
+      Array.from({ length: count }, (_, at) =>
+        reviewTask({
+          path: `Tasks/Task ${at}.md`,
+          title: `Task ${at % 50}`,
+          modified: NOW - (at % 40) * 86_400_000,
+          status: STATUSES[at % STATUSES.length],
+          due: at % 3 === 0 ? `2026-10-${String(1 + (at % 28)).padStart(2, '0')}` : null,
+          defer: null,
+          waitingOn: `Person ${at % 700}`,
+          project: `Projects/Project ${at % 900}.md`,
+          projectTitle: `Project ${at % 900}`,
+        }),
+      );
+    const sorting = (tasks: ReviewTask[]) => () =>
+      todayLists({ tasks, projects: [], at: { today: TODAY, now: NOW } });
+    const many = tasksOfCount(5000);
+    const page = sorting(many)();
+    expect(page.sections.reduce((sum, section) => sum + section.count, 0)).toBeGreaterThan(2000);
 
-  it('sorts 5,000 tasks into sections in well under a frame’s worth of seconds', () => {
-    const tasks: ReviewTask[] = Array.from({ length: 5000 }, (_, at) =>
-      reviewTask({
-        path: `Tasks/Task ${at}.md`,
-        title: `Task ${at % 50}`,
-        modified: NOW - (at % 40) * 86_400_000,
-        status: STATUSES[at % STATUSES.length],
-        due: at % 3 === 0 ? `2026-10-${String(1 + (at % 28)).padStart(2, '0')}` : null,
-        defer: null,
-        waitingOn: `Person ${at % 700}`,
-        project: `Projects/Project ${at % 900}.md`,
-        projectTitle: `Project ${at % 900}`,
-      }),
-    );
-    const started = performance.now();
-    const page = todayLists({ tasks, projects: [], at: { today: TODAY, now: NOW } });
-    const took = performance.now() - started;
-    const listed = page.sections.reduce((sum, section) => sum + section.count, 0);
-    expect(listed).toBeGreaterThan(2000);
-    expect(took).toBeLessThan(1500);
+    // Four times the tasks: sorting is some five times the work, a pass per task over the rest sixteen.
+    const small = countedWork(sorting(tasksOfCount(1250)));
+    const large = countedWork(sorting(many));
+    expect(large).toBeLessThan(small * 8);
   });
 });
 

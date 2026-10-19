@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { countedWork, patternsMadeIn } from '../testing/counted-work.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { correctTerms } from './correct-terms.ts';
 import { vocabulary, type NamedEntity } from './vocabulary.ts';
@@ -34,22 +35,38 @@ const VOCABULARY = vocabulary({
 const corrected = (text: string) => correctTerms(text, VOCABULARY).text;
 
 describe('correctTerms, at scale', () => {
-  it('reads a long text against thousands of spellings in time that does not grow with them', () => {
-    const terms = Array.from({ length: 5000 }, (_, at) =>
-      term(`Termo${at} Alpha`, [`Ter Mo${at}`]),
-    );
-    const large = vocabulary({ terms, people: [], companies: [] });
-    const line = 'We went over Ter Mo41 and Ter Mo4999 and the rest of the plan for the quarter.\n';
+  it('reads a long text against thousands of spellings with work that does not grow with them', () => {
+    const spellings = (count: number) =>
+      vocabulary({
+        terms: Array.from({ length: count }, (_, at) => term(`Termo${at} Alpha`, [`Ter Mo${at}`])),
+        people: [],
+        companies: [],
+      });
+    const line = 'We went over Ter Mo41 and Ter Mo499 and the rest of the plan for the quarter.\n';
     const text = line.repeat(4000);
+    // The tables are built once per vocabulary and kept, so each is built before
+    // its reading is counted: what is compared is the reading alone. The patterns
+    // made, building and reading, are compared whole: one pattern of every spelling
+    // would be one regex execution to count, however long it ran.
+    const reading = (large: ReturnType<typeof vocabulary>) => {
+      let changes = 0;
+      let work = 0;
+      const patterns = patternsMadeIn(() => {
+        correctTerms('', large);
+        work = countedWork(() => {
+          changes = correctTerms(text, large).changes.length;
+        });
+      });
+      return { work, changes, patterns };
+    };
 
-    const started = performance.now();
-    const result = correctTerms(text, large);
-    const elapsed = performance.now() - started;
-
-    expect(result.changes).toHaveLength(8000);
-    // Measured at about 100 ms including the tables; a generous bound, since the
-    // old per-spelling pattern needed tens of seconds and nothing here is timing-tight.
-    expect(elapsed).toBeLessThan(3000);
+    const few = reading(spellings(500));
+    const many = reading(spellings(5000));
+    expect(many.changes).toBe(8000);
+    expect(few.changes).toBe(8000);
+    // Ten times the spellings; a pattern per spelling would read the text ten times as often.
+    expect(many.work).toBeLessThan(few.work * 1.5);
+    expect(many.patterns).toEqual(few.patterns);
   });
 });
 

@@ -69,6 +69,25 @@ describe('GraphView', () => {
     expect(screen.getByText('3 notes · 2 connections')).toBeDefined();
   });
 
+  it('colours a dot and its type’s swatch from tokens only, never a raw colour (UI v2 13g)', () => {
+    const { container } = render(<Harness />);
+    const fills = [...container.querySelectorAll('.graph__dot')].map((dot) =>
+      dot.getAttribute('style'),
+    );
+    expect(fills).toEqual([
+      'fill: var(--graph-untyped);',
+      'fill: var(--status-next-dot);',
+      'fill: var(--status-doing-dot);',
+    ]);
+    const swatches = [...container.querySelectorAll('.graph__swatch')];
+    expect(swatches.map((swatch) => swatch.getAttribute('data-tone'))).toEqual([
+      'next',
+      'doing',
+      'none',
+    ]);
+    expect(container.querySelector('[style*="#"], [fill^="#"], [stroke^="#"]')).toBeNull();
+  });
+
   it('lists the same notes with what each is connected to, as buttons', async () => {
     const onOpen = vi.fn();
     render(<Harness onOpen={onOpen} />);
@@ -83,6 +102,20 @@ describe('GraphView', () => {
 
     await userEvent.click(within(task).getByRole('button', { name: /ProjectThe plan/ }));
     expect(onOpen).toHaveBeenCalledWith('plan.md', { split: false });
+  });
+
+  it('puts a linked note’s title in the ellipsising span, with the whole title on hover (UI v2 13g)', async () => {
+    render(<Harness />);
+    await showList();
+    const links = within(screen.getByRole('list', { name: 'Connected to A task' })).getAllByRole(
+      'button',
+    );
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      const title = link.querySelector('.graph__list-title');
+      expect(title?.textContent).toBe('The plan');
+      expect(title?.getAttribute('title')).toBe('The plan');
+    }
   });
 
   it('opens beside the note being read on Cmd-click', async () => {

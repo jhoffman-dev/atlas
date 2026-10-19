@@ -1,5 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { NavigationPlace, VaultPath } from '@atlas/domain';
+import type { AsideStore } from '../aside/aside-store.ts';
+import type { ShownNotes } from '../aside/shown-notes.ts';
 import type { OverlayStore } from '../overlay-store.ts';
 import type { PaneContext } from '../panes/note-pane-container.tsx';
 import type { RevealStore } from '../panes/reveals.ts';
@@ -18,6 +20,10 @@ export interface WorkspaceStores {
   readonly store: WorkspaceStore;
   readonly reveals: RevealStore;
   readonly overlays: OverlayStore;
+  /** The right sidebar: open, its tab, and the row each tab's table last focused (#306). */
+  readonly aside: AsideStore;
+  /** What each note tab shows, for the aside to follow the focused one. */
+  readonly shown: ShownNotes;
   /** What a place is called: a tab's title, and where Back goes. */
   readonly nameOf: (place: NavigationPlace) => string;
 }
@@ -64,4 +70,17 @@ export function useWorkspaceWiring(): WorkspaceWiring {
   const wiring = useContext(WiringContext);
   if (wiring === null) throw new Error('The panes are drawn outside their wiring.');
   return wiring;
+}
+
+/**
+ * Whether two wirings hand a tab the same of what it reads: these parts of
+ * them, by identity. The window draws the wiring afresh each time it is drawn
+ * itself; a tab that is handed the same draws nothing for it (#325).
+ */
+export function sameWiringParts(
+  parts: readonly (keyof WorkspaceWiring)[],
+  before: WorkspaceWiring,
+  after: WorkspaceWiring,
+): boolean {
+  return parts.every((part) => Object.is(before[part], after[part]));
 }

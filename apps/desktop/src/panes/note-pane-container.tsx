@@ -1,4 +1,14 @@
-import { memo, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type ReactNode,
+} from 'react';
 import { useStore } from 'zustand';
 import {
   ARTIFACT_KEYS,
@@ -42,6 +52,7 @@ import type {
   ThumbnailQueue,
   VaultFsPort,
 } from '@atlas/application';
+import { notePaneScope } from '@atlas/application';
 import {
   ThumbnailValue,
   ChatToggleProvider,
@@ -63,8 +74,11 @@ import {
   type Planner,
   type TemplateNotice,
   type ViewTabEditing,
+  useSteadyCallback,
 } from '@atlas/ui';
 import { useNote, type NotePorts } from '../notes/use-note.ts';
+import type { IndexStatusStore } from '../index/index-status-store.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { hideOverlay, showOverlay } from '../overlay-store.ts';
 import { pageMenuOverlay, panePopupOverlay, paneOverlayOf } from '../overlay.ts';
 import { followLink } from '../workspace/open-place.ts';
@@ -75,8 +89,9 @@ import {
   openInPane,
   openPlace,
   splitPane,
+  type WorkspaceStore,
 } from '../workspace/workspace-store.ts';
-import type { WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
+import { sameWiringParts, type WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
 import { useTabReveal } from './reveals.ts';
 import { useOutsideChangeReload } from './use-outside-change-reload.ts';
 import { artifactViewer, dashboardView, widgetEditor } from '../pages-on-first-use.ts';
@@ -93,6 +108,9 @@ import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
 import { webviewImageProbe } from '../notes/webview-image-probe.ts';
 import { browserImagePlacementStore } from '../notes/browser-image-placement-store.ts';
 import { useNoteProperties } from '../types/use-note-properties.ts';
+import { clearRow, focusRow, type AsideStore } from '../aside/aside-store.ts';
+import { usePublishShownNote, type ShownNote, type ShownNotes } from '../aside/shown-notes.ts';
+import { usePropertiesInAside } from '../aside/use-properties-in-aside.ts';
 import { useAddProperty } from '../types/use-add-property.ts';
 import { useCreateRelated } from '../types/use-create-related.ts';
 import type { TabLanding } from '../types/use-type-views.ts';
@@ -149,8 +167,12 @@ export interface PaneContext {
   readonly thumbnails: ThumbnailQueue;
   readonly types: readonly DefinedType[];
   readonly notePaths: readonly VaultPath[];
-  /** Changes when the index does, so views and widgets refresh. */
-  readonly indexKey: string;
+  /**
+   * Where the index says it has news. Each reader keys itself on the part of
+   * it its own data is made from (`useScopedIndexKey`, #325), so the context
+   * does not change, and draw every pane, when the index does.
+   */
+  readonly indexStatus: IndexStatusStore;
   /** Re-reads the tree and the index, after this pane wrote something. */
   readonly onChanged: () => void;
   /** Every sync of the index's news: a hidden tab hears here that its note changed outside. */
@@ -228,8 +250,41 @@ export const NotePaneContainer = memo(
   function NotePaneContainer(props: NoteTabProps) {
     return useNoteTab(props);
   },
-  (before, after) => before.hidden && after.hidden,
+  (before, after) => (before.hidden && after.hidden) || sameNoteTab(before, after),
 );
+
+/**
+ * The parts of the wiring a note's tab reads. Any new part a note tab reads
+ * must be added here: a part left out is compared by nobody, and the tab keeps
+ * drawing what it was handed before (#325).
+ */
+const NOTE_TAB_WIRING = [
+  'pane',
+  'note',
+  'store',
+  'reveals',
+  'overlays',
+  'nameOf',
+  'onShowSidebar',
+  'aside',
+  'shown',
+] as const;
+
+/**
+ * Whether a shown note's tab would draw the same: its own props, and what it
+ * reads of the wiring. The window draws for the index's news; a tab whose
+ * note and readers moved for none of it draws nothing (#325).
+ */
+function sameNoteTab(before: NoteTabProps, after: NoteTabProps): boolean {
+  return (
+    before.hidden === after.hidden &&
+    before.names === after.names &&
+    before.chat === after.chat &&
+    before.pane === after.pane &&
+    before.tab === after.tab &&
+    sameWiringParts(NOTE_TAB_WIRING, before.wiring, after.wiring)
+  );
+}
 
 export interface NoteTabProps {
   wiring: WorkspaceWiring;
@@ -263,6 +318,7 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
     path,
     context: wiring.pane,
     hidden,
+    aside: { store: wiring.aside, shown: wiring.shown, workspace: store },
     onOpenNote: (target, how = 'here') => {
       const place: NavigationPlace = { kind: 'note', path: target };
       if (how === 'here') openInPane(store, { pane, place });
@@ -303,8 +359,14 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
       }),
     },
   });
+  // The focus landing on the page around a table — the editor, the bar — lets
+  // the row the table held go, so the aside follows the note again. A cell's
+  // editor and its picker render inside `.table`, so they are not landings.
+  const onFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest('.table') === null) clearRow(wiring.aside, tab.id);
+  };
   return (
-    <div className="pane__tab" hidden={hidden}>
+    <div className="pane__tab" hidden={hidden} onFocusCapture={onFocusCapture}>
       <NoteNamesProvider value={names}>
         <ChatToggleProvider value={chat}>{drawn}</ChatToggleProvider>
       </NoteNamesProvider>
@@ -327,11 +389,14 @@ function useNotePane({
   onDelete,
   onShowInGraph,
   arrangement,
+  aside,
 }: {
   /** The tab this is the content of; the editor is registered under it. */
   tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
+  /** The right sidebar (#306): where this tab says what it shows, and the workspace it follows. */
+  aside: { store: AsideStore; shown: ShownNotes; workspace: WorkspaceStore };
   /**
    * Whether the tab is behind another one. The editor stays mounted, so its
    * undo keeps; it flushes as it hides, and its autosave stands down until shown.
@@ -354,10 +419,22 @@ function useNotePane({
   /** Splitting, closing and the page menu's open state, which the app owns. */
   arrangement: PaneArrangement;
 }): ReactNode {
-  const { notes, index, sources, types, notePaths, indexKey, onChanged, editors, savedViews } =
-    context;
+  const { notes, index, sources, types, notePaths, onChanged, editors, savedViews } = context;
 
   const note = usePaneNote({ tabId, path, context, hidden });
+  // What the pane's readers re-read on: the index's news of what this note
+  // shows, not of a note saved anywhere (#325). A hidden tab reads nothing,
+  // and once shown again reads what moved while it was hidden. An empty tab's
+  // key is held too: one switched on as its first note opens draws it twice.
+  const scope = useMemo(() => notePaneScope(note.open, path ?? ''), [note.open, path]);
+  const indexKey = useScopedIndexKey({
+    status: context.indexStatus,
+    vault: context.vault,
+    reader: ['note', path],
+    scope,
+    enabled: !hidden,
+  });
+
   const links = useNoteLinks({ context, path });
   const linkCheck = useMemo(
     () => ({ fs: notes.fs, markdown: notes.markdown, notePaths }),
@@ -587,20 +664,109 @@ function useNotePane({
   const openTarget = (target: string, how?: OpenHow) => onOpenNote(createVaultPath(target), how);
   const pageKey = usePageKey(path, note.open);
   const template = templateNoticeFor(path, context);
+  const heading =
+    note.open === null
+      ? null
+      : pageHeading({
+          note: note.open,
+          typeName: noteProperties.typeName,
+          sql: savedView.result?.sql ?? sqlView.sql,
+        });
+  const customPropertyValues = useMemo(
+    () => ({
+      ...(artifact !== null && { [ARTIFACT_KEYS.cover]: thumbnailValue(artifact, loadImage) }),
+      ...(pageThumbnail !== null && {
+        [pageThumbnail.key]: pageThumbnailValue(pageThumbnail, loadImage),
+      }),
+    }),
+    [artifact, pageThumbnail, loadImage],
+  );
+  // What the aside shows for this tab (#306): said through the store, read by
+  // a selector there, so the aside follows the focused tab without `App`.
+  // Memoised on what its Properties and Backlinks read; the callbacks are
+  // steady, so a render of this tab publishes nothing new unless those
+  // changed, and the document goes apart, since it changes with every key.
+  const steadyOpenNote = useSteadyCallback(onOpenNote);
+  const steadyAdd = useSteadyCallback(addProperty);
+  const steadyCreateRelated = useSteadyCallback(createRelated);
+  const steadyFind = useSteadyCallback(links.mentions.find);
+  const steadyLink = useSteadyCallback(links.mentions.link);
+  const { typeName, typeLabel, rows, relationChoices, relationTargets, keys } = noteProperties;
+  const shownPath = note.open?.path ?? null;
+  const shownTitle = heading?.title.text ?? null;
+  usePublishShownNote(aside.shown, tabId, {
+    shown: useMemo<ShownNote | null>(
+      () =>
+        shownPath === null || shownTitle === null
+          ? null
+          : {
+              path: shownPath,
+              title: shownTitle,
+              kicker: typeLabel ?? 'Note',
+              panel: {
+                typeName,
+                typeLabel,
+                rows,
+                relationChoices,
+                relationTargets,
+                fileKeys: keys,
+                customValues: customPropertyValues,
+                onChange: note.setProperty,
+                onAdd: steadyAdd,
+                onOpenNote: steadyOpenNote,
+                onCreateRelated: steadyCreateRelated,
+              },
+              links: links.links,
+              mentions: links.mentions.state,
+              onFindMentions: steadyFind,
+              onLinkMention: steadyLink,
+            },
+      [
+        shownPath,
+        shownTitle,
+        typeName,
+        typeLabel,
+        rows,
+        relationChoices,
+        relationTargets,
+        keys,
+        customPropertyValues,
+        note.setProperty,
+        steadyAdd,
+        steadyOpenNote,
+        steadyCreateRelated,
+        links.links,
+        links.mentions.state,
+        steadyFind,
+        steadyLink,
+      ],
+    ),
+    doc: note.open?.doc ?? null,
+  });
+  // Whether the aside is showing this tab's properties, so the body need not: the tab's own answer.
+  const propertiesInAside = usePropertiesInAside({
+    aside: aside.store,
+    workspace: aside.workspace,
+    tab: tabId,
+    path,
+  });
+  // The row this tab's tables held goes with the tab.
+  useEffect(() => () => clearRow(aside.store, tabId), [aside.store, tabId]);
+  // A row of a view in this note, as its focus lands: the aside shows the row's note.
+  const onRowFocus = useCallback(
+    (row: string) => {
+      if (path !== null)
+        focusRow(aside.store, { tab: tabId, path: createVaultPath(row), within: path });
+    },
+    [aside.store, tabId, path],
+  );
 
   return (
     <NotePane
       key={pageKey}
       state={note.state}
-      heading={
-        note.open === null
-          ? null
-          : pageHeading({
-              note: note.open,
-              typeName: noteProperties.typeName,
-              sql: savedView.result?.sql ?? sqlView.sql,
-            })
-      }
+      heading={heading}
+      propertiesInAside={propertiesInAside}
       arrangement={arrangement}
       onChange={note.changeDoc}
       onSave={note.save}
@@ -629,12 +795,7 @@ function useNotePane({
       relationChoices={noteProperties.relationChoices}
       typeLabel={noteProperties.typeLabel}
       relationTargets={noteProperties.relationTargets}
-      customPropertyValues={{
-        ...(artifact !== null && { [ARTIFACT_KEYS.cover]: thumbnailValue(artifact, loadImage) }),
-        ...(pageThumbnail !== null && {
-          [pageThumbnail.key]: pageThumbnailValue(pageThumbnail, loadImage),
-        }),
-      }}
+      customPropertyValues={customPropertyValues}
       onChangeProperty={note.setProperty}
       onAddProperty={addProperty}
       onCreateRelated={createRelated}
@@ -708,6 +869,7 @@ function useNotePane({
               fs: notes.fs,
               choosing,
               folds,
+              onRowFocus,
             })
       }
       {...(template === null &&
@@ -808,7 +970,7 @@ function pageThumbnailValue(
 
 /** What the pane's note is linked with, both ways, and the notes that name it without a link. */
 function useNoteLinks({ context, path }: { context: PaneContext; path: VaultPath | null }) {
-  const { graph, index, notes, openNotes, indexKey, onChanged } = context;
+  const { graph, index, notes, openNotes, indexStatus, vault, onChanged } = context;
   const links = useMemo(
     () => (graph === null || path === null ? NO_LINKS : noteLinks(graph, path)),
     [graph, path],
@@ -825,7 +987,7 @@ function useNoteLinks({ context, path }: { context: PaneContext; path: VaultPath
     ports,
     note: path === null ? null : { path, title },
     links,
-    indexKey,
+    index: { status: indexStatus, vault },
     onChanged,
   });
   return { links, mentions };
@@ -937,6 +1099,7 @@ function paneBody({
   fs,
   choosing,
   folds,
+  onRowFocus,
 }: {
   source: ReturnType<typeof useSource>;
   dashboard: ReturnType<typeof useDashboard> & ReturnType<typeof useDashboardEditing>;
@@ -956,6 +1119,8 @@ function paneBody({
   fs: VaultFsPort;
   choosing: ViewChoosing;
   folds: GroupFolds;
+  /** Told the row a table's focus landed in, for the aside. */
+  onRowFocus: (path: string) => void;
 }): ReactNode {
   if (source.source !== null) {
     return (
@@ -1014,6 +1179,7 @@ function paneBody({
       fs={fs}
       choosing={choosing}
       folds={folds}
+      onRowFocus={onRowFocus}
     />
   );
 }

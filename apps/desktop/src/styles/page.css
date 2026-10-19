@@ -216,6 +216,17 @@
   }
 }
 
+/* The right sidebar's button goes first, by the bar's own room: at the work's
+   floor — 720 − 224 = 496px, the full-width page with the sidebar open — the
+   widest bar (Graph's segmented control, whose options never shrink under
+   4em) has no 28px to spare for it, and a split pane is narrower still.
+   Under 540px the button folds; ⌥⌘\ still toggles the aside (#306, #387). */
+@container page-bar (max-width: 540px) {
+  .page-bar__aside {
+    display: none;
+  }
+}
+
 @container page-bar (max-width: 340px) {
   .page-bar__status {
     clip-path: inset(50%);

@@ -151,7 +151,7 @@ test('a captured task waits in the Inbox, and Process files it under its project
   await fileUnder.selectOption({ label: 'Atlas' });
   await inbox
     .getByRole('form', { name: 'Clarify Renew the passport' })
-    .getByRole('button', { name: 'Done' })
+    .getByRole('button', { name: 'Save', exact: true })
     .click();
 
   await expectFile(vault, FILED_TASK).toContain('[[Atlas]]');

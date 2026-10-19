@@ -4,6 +4,7 @@ import {
   newTermRefusal,
   TERM_KINDS,
   termKindOf,
+  type ListedTerm,
   type TermKind,
   type TermNote,
   type SpellingWarning,
@@ -18,8 +19,8 @@ import { HiddenTitle } from './page-head.tsx';
 
 /** What the Terms page lists, once it has been read. */
 export interface TermsContents {
-  /** In the order of their right spellings. */
-  readonly terms: readonly TermNote[];
+  /** In the order of their right spellings: terms, and people and companies with misheard spellings. */
+  readonly terms: readonly ListedTerm[];
   readonly conflicts: readonly VocabularyConflict[];
   /** Misheard spellings that may not do what their author meant. */
   readonly warnings: readonly SpellingWarning[];
@@ -38,9 +39,12 @@ export interface TermsPageProps {
   /** Null while the index is being asked. */
   contents: TermsContents | null;
   error: string | null;
-  /** Writes a note of type term; the list shows it once the index has it. */
+  /**
+   * Writes a note of type term — or adds to the person's or company's note
+   * the name already opens; the list shows it once the index has it.
+   */
   onAdd: (term: NewTerm) => void;
-  /** Changes a term's variants to what was typed, commas between them. */
+  /** Changes a row's variants, in whichever note holds them, to what was typed, commas between them. */
   onEditVariants: (args: { path: VaultPath; variants: string }) => void;
   onOpen: (path: VaultPath) => void;
   onShowSidebar?: () => void;
@@ -283,6 +287,7 @@ function TermList({ contents, error, onOpen, onEditVariants }: TermsPageProps) {
                     <Icon name="term" size={16} />
                     <span className="table__title">{term.canonical}</span>
                   </button>
+                  <HeldBy term={term} />
                 </td>
                 <td className="terms__kind">{term.kind ?? '—'}</td>
                 <td className="terms__variants">
@@ -305,6 +310,14 @@ function TermList({ contents, error, onOpen, onEditVariants }: TermsPageProps) {
       </div>
     </div>
   );
+}
+
+const SOURCE_LABELS = { person: 'Person', company: 'Company' } as const;
+
+/** Under a person's or a company's name: the note its misheard spellings live in (#400). */
+function HeldBy({ term }: { term: ListedTerm }) {
+  if (term.source === 'term') return null;
+  return <span className="terms__held-by">{`${SOURCE_LABELS[term.source]} · ${term.path}`}</span>;
 }
 
 /** Under a term's variants: which of its spellings another note claims too. */

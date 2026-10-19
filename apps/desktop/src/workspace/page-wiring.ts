@@ -61,3 +61,32 @@ export interface PageContainerProps {
   readonly tabId: TabId;
   readonly chrome: PageChrome;
 }
+
+/** The parts of the wiring that are one kind of page's alone, by that kind. */
+const KIND_WIRING: readonly (keyof PageWiring & PagePlace['kind'])[] = [
+  'today',
+  'inbox',
+  'templates',
+  'terms',
+  'activity',
+  'automations',
+  'graph',
+  'query',
+  'tags',
+  'type',
+];
+
+/**
+ * Whether a page of `kind` is handed the same by two wirings: every part
+ * every page may read, and its own kind's, by identity — another kind's part
+ * changing is no reason to draw it (#325).
+ */
+export function samePageWiring(kind: PagePlace['kind'], before: PageWiring, after: PageWiring) {
+  const read = (Object.keys(after) as (keyof PageWiring)[]).filter(
+    (key) => key === kind || !(KIND_WIRING as readonly string[]).includes(key),
+  );
+  return (
+    Object.keys(before).length === Object.keys(after).length &&
+    read.every((key) => Object.is(before[key], after[key]))
+  );
+}

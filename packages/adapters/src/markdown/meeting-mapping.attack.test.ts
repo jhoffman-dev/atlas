@@ -11,6 +11,7 @@ import {
   type MeetingFields,
   type MeetingImport,
 } from '@atlas/domain';
+import { countedWork } from '@atlas/domain/testing';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*
@@ -131,12 +132,16 @@ describe('transcript turns go to the person who spoke', () => {
     ).toEqual(['Ann Lee']);
   });
 
-  it('maps a long run of speakerless lines in linear time', () => {
-    const lines = Array.from({ length: 6000 }, (_, at) => `and then item ${at} came up again`);
-    const started = performance.now();
-    mapMeeting({ ...BASE, transcript: `Ann Lee: Hello.\n${lines.join('\n')}` });
-    // Linear is ~10 ms here; the quadratic join takes seconds.
-    expect(performance.now() - started).toBeLessThan(1000);
+  it('maps a long run of speakerless lines with work that grows with them, not their square', () => {
+    const mapping = (count: number) => {
+      const lines = Array.from({ length: count }, (_, at) => `and then item ${at} came up again`);
+      return () => mapMeeting({ ...BASE, transcript: `Ann Lee: Hello.\n${lines.join('\n')}` });
+    };
+    // Four times the lines: four times the work, where joining the turn again
+    // at every line is sixteen. Counted rather than timed, so a loaded machine cannot fail it.
+    const small = countedWork(mapping(1500));
+    const large = countedWork(mapping(6000));
+    expect(large).toBeLessThan(small * 8);
   });
 });
 

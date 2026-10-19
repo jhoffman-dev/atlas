@@ -3,6 +3,7 @@ import { useNoticeActivity } from '../activity/use-activity-log.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { termsPage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
+import { useIndexKey } from '../index/index-status-store.ts';
 import { useTermsPage } from './use-terms-page.ts';
 
 const TermsPage = termsPage.Component;
@@ -16,11 +17,14 @@ export interface TermsWiring {
 /**
  * The Terms page as a tab (tab-model.md, PR B): it reads the terms and the
  * vocabulary itself. A write it gives up on is said over the page, as the
- * window said it, and kept in the Activity log once.
+ * window said it, and kept in the Activity log once; misheard spellings that
+ * went into a person's or a company's note say which note.
  */
 export function TermsContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
-  const { page, notice } = useTermsPage({
+  // Still read again on every news of the index: what it reads is not yet scoped (#325).
+  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
+  const { page, notice, added } = useTermsPage({
     ports: {
       index: pane.index,
       fs: pages.ports.fs,
@@ -28,7 +32,7 @@ export function TermsContainer({ wiring, chrome }: PageContainerProps) {
       editors: pane.editors,
     },
     open: true,
-    indexKey: pane.indexKey,
+    indexKey,
     types: pane.types,
     templates: pages.terms.templates,
     notePaths: pane.notePaths,
@@ -41,6 +45,11 @@ export function TermsContainer({ wiring, chrome }: PageContainerProps) {
       {notice !== null && (
         <p className="notice" role="alert">
           {notice}
+        </p>
+      )}
+      {added !== null && (
+        <p className="notice-bar" role="status">
+          {added}
         </p>
       )}
       <TermsPage {...page} onOpen={pages.openNote} {...chrome} />

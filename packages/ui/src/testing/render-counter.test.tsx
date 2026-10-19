@@ -45,10 +45,15 @@ describe('the render counter', () => {
 
   it('remembers when React last committed, counting or not', () => {
     render(<Clicker />);
-    const before = performance.now();
-    bump();
+    // A fixed clock, so the commit is found at the moment it was stamped, not merely after another.
+    const now = vi.spyOn(performance, 'now').mockReturnValue(4_200);
+    try {
+      bump();
+    } finally {
+      now.mockRestore();
+    }
     const counter = (globalThis as { __renderCounter?: { lastCommitAt: number | null } })
       .__renderCounter;
-    expect(counter?.lastCommitAt).toBeGreaterThanOrEqual(before);
+    expect(counter?.lastCommitAt).toBe(4_200);
   });
 });

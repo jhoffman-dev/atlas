@@ -39,6 +39,7 @@ function show({
   selected = null as TagTreeNode | null,
   rename = { kind: 'idle' } as TagRenameState,
   notice = null as string | null,
+  notes = NOTES,
 } = {}) {
   const props = {
     tags,
@@ -46,7 +47,7 @@ function show({
     onSortChange: vi.fn(),
     selected,
     onSelect: vi.fn(),
-    notes: NOTES,
+    notes,
     onOpenNote: vi.fn(),
     rename: { state: rename, onPreview: vi.fn(), onConfirm: vi.fn(), onCancel: vi.fn() },
     notice,
@@ -74,6 +75,35 @@ describe('TagsPage: the tree', () => {
   it('says one use rather than one uses', () => {
     show();
     expect(tree().getByRole('button', { name: 'area 1 use' })).toBeTruthy();
+  });
+
+  it('shows a count only where there is one: a tag or a note used nowhere shows no number', () => {
+    // The domain drops a tag counted at 0 (tag-tree.ts), so one is built by hand here.
+    const ghost: TagTreeNode = {
+      key: 'ghost',
+      name: 'ghost',
+      label: 'ghost',
+      count: 0,
+      total: 0,
+      children: [],
+    };
+    show({
+      tags: { kind: 'ready', tree: [IDEA, ghost] },
+      selected: IDEA,
+      notes: {
+        kind: 'ready',
+        notes: [
+          { path: createVaultPath('Alpha.md'), title: 'Alpha', count: 3 },
+          { path: createVaultPath('Gamma.md'), title: 'Gamma', count: 0 },
+        ],
+      },
+    });
+    const count = (row: HTMLElement) => row.querySelector('.tags__count')?.textContent ?? null;
+    expect(count(tree().getByRole('button', { name: 'Idea 4 uses' }))).toBe('4');
+    expect(count(tree().getByRole('button', { name: 'ghost 0 uses' }))).toBeNull();
+    const notes = within(screen.getByRole('list', { name: 'Notes' }));
+    expect(count(notes.getByRole('button', { name: 'Alpha 3 uses' }))).toBe('3');
+    expect(count(notes.getByRole('button', { name: 'Gamma 0 uses' }))).toBeNull();
   });
 
   it('chooses a tag by its key', async () => {

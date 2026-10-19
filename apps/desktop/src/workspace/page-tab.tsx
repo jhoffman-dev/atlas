@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import type { PagePlace, Tab, TabId } from '@atlas/domain';
 import { ActivityContainer } from '../activity/activity-container.tsx';
 import { ArchiveContainer } from '../archive/archive-container.tsx';
@@ -13,9 +13,9 @@ import { TemplatesContainer } from '../templates/templates-container.tsx';
 import { TermsContainer } from '../terms/terms-container.tsx';
 import { TodayContainer } from '../today/today-container.tsx';
 import { TypeContainer } from '../types/type-container.tsx';
-import type { PageWiringContext } from './page-wiring.ts';
+import { samePageWiring, type PageWiringContext } from './page-wiring.ts';
 import { useTabPageHistory } from './tab-history.ts';
-import type { WorkspaceWiring } from './workspace-wiring.tsx';
+import { sameWiringParts, type WorkspaceWiring } from './workspace-wiring.tsx';
 
 /**
  * A tab on a page — Today, the Inbox, a type's table — drawn by the page's
@@ -23,17 +23,35 @@ import type { WorkspaceWiring } from './workspace-wiring.tsx';
  * this tab's own Back and Forward. Drawn only while it is the shown tab: a
  * page keeps no editor to wait behind another tab.
  */
-export function PageTab({
-  wiring,
-  pane,
-  tab,
-  place,
-}: {
+export const PageTab = memo(
+  // Named as the export: what the render counts know the tab by.
+  function PageTab(props: PageTabProps) {
+    return usePageTab(props);
+  },
+  (before, after) =>
+    before.pane === after.pane &&
+    before.tab === after.tab &&
+    before.place.kind === after.place.kind &&
+    sameWiringParts(PAGE_TAB_WIRING, before.wiring, after.wiring) &&
+    samePageWiring(after.place.kind, before.wiring.pages, after.wiring.pages),
+);
+
+interface PageTabProps {
   wiring: WorkspaceWiring;
   pane: number;
   tab: Tab;
+  /** What the tab shows: derived from `tab`, so the same while it is. */
   place: PagePlace;
-}) {
+}
+
+/**
+ * The parts of the wiring every page's tab reads; its own kind's part is
+ * compared apart. Any new part a page tab reads must be added here (#325).
+ */
+const PAGE_TAB_WIRING = ['pane', 'store', 'nameOf', 'onShowSidebar', 'overlays'] as const;
+
+/** The tab drawn: a hook, since its hooks are the tab component's own. */
+function usePageTab({ wiring, pane, tab, place }: PageTabProps) {
   const { store, nameOf, onShowSidebar, overlays } = wiring;
   const history = useTabPageHistory({ store, pane, id: tab.id, nameOf });
   // The way back to a hidden sidebar sits where it went: the first pane's top-left corner.

@@ -123,6 +123,12 @@ export interface NotePaneProps {
   promotion?: LinePromotion;
   /** A block or heading of this note to bring into view: where a followed link pointed. */
   reveal?: NoteReveal | null;
+  /**
+   * Whether the right sidebar is showing this note's properties (UI v2 slice
+   * 8b): a note's block then leaves the body rather than being drawn twice.
+   * A view's "Page properties" item still reveals its block.
+   */
+  propertiesInAside?: boolean;
   /** What the note links to and what links to it, for its foot. */
   links: NoteLinks;
   /** Notes naming this one without a link, once they have been asked for. */
@@ -311,7 +317,7 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
           {props.toolbar}
           {revealed.path && <p className="page__path">{heading.path}</p>}
           {revealed.sql && heading.sql !== null && <pre className="page__sql">{heading.sql}</pre>}
-          {isNote || revealed.properties ? (
+          {(isNote && props.propertiesInAside !== true) || revealed.properties ? (
             <PageProperties {...props} heading={heading} openedWithTitle={openedWithTitle} />
           ) : null}
           {props.aside}

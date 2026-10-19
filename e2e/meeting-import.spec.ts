@@ -33,6 +33,7 @@ const STAMPED = VALID.replace(/^(atlas_import: .*\n)/m, '$1atlas_import_outcome:
 const FIRST = 'Inbox/Meetings/2026-09-29 Platform weekly sync.md';
 const COPY = 'Inbox/Meetings/2026-09-29 Platform weekly sync (gemini 7f3a9c21).md';
 const BROKEN = 'Inbox/Meetings/2026-10-02 Vendor call.md';
+const CAPTURED = 'Inbox/Call Mara.md';
 const BROKEN_TEXT = [
   '---',
   'type: meeting',
@@ -66,7 +67,10 @@ async function openWithHost(page: Page): Promise<{ vault: FakeVault; host: FakeH
   // Captured, so waiting in the Inbox beside the meetings that arrive (P30-01).
   await vault.write('Inbox/Call Mara.md', '---\ntype: task\nstatus: backlog\n---\n\n# Call Mara\n');
 
-  const host = await installHost(page, vault);
+  // The import moves notes while syncs run, so the index lists what it holds,
+  // as the real one does: a refresh then takes out a copy archived from under
+  // a sync that had read it, which a stand-in listing none never can (#405).
+  const host = await installHost(page, vault, { keepsManifest: true });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
@@ -104,6 +108,48 @@ test('a meeting that arrives shows in the Inbox, stamped and otherwise untouched
   // A copy is never let in, so it proposes no one again.
   await expect(inboxRow(page)).toHaveText(/Inbox\s*4$/);
   await expect(inbox.getByText('Platform weekly sync', { exact: true })).toHaveCount(1);
+});
+
+test('a copy that lands again while the import archives it still leaves the Inbox once archived (#405)', async ({
+  page,
+}) => {
+  const { vault, host } = await openWithHost(page);
+  await arrive(page, vault, FIRST, VALID);
+  await expect(inboxRow(page)).toHaveText(/Inbox\s*4$/);
+
+  // The import's own read of the copy waits. The index reads it beside the
+  // captured task, rewritten first so any sync that finds the copy reads both,
+  // and goes ahead.
+  const captured = await vault.read(CAPTURED);
+  const letImportRead = host.holdReads(COPY, { except: CAPTURED });
+  await vault.write(CAPTURED, captured);
+  await vault.write(COPY, VALID);
+  await emitVaultChanged(page, [COPY, CAPTURED]);
+  await expect(inboxRow(page)).toHaveText(/Inbox\s*5$/);
+
+  // A pull lands the copy again before the import has archived it. That
+  // sync has read the vault, the copy still in the Inbox, when its write is held.
+  const putsBefore = host.callsTo('index_put');
+  const letIndexWrite = host.holdIndexAfter(0);
+  await vault.write(CAPTURED, captured);
+  await vault.write(COPY, `${VALID}\n`);
+  await emitVaultChanged(page, [COPY, CAPTURED]);
+  await expect.poll(() => host.callsTo('index_put')).toBeGreaterThan(putsBefore);
+
+  // The import archives the copy and takes it out of the index at once; only
+  // then does the held sync write what it read, the copy among it.
+  const removesBefore = host.callsTo('index_remove');
+  letImportRead();
+  await expectFile(vault, `Archive/${COPY}`).toContain('atlas_duplicate_of:');
+  await expect.poll(() => host.callsTo('index_remove')).toBeGreaterThan(removesBefore);
+  letIndexWrite();
+
+  // The refresh the archive asked for finds the copy gone and takes it out.
+  await expect(inboxRow(page)).toHaveText(/Inbox\s*4$/);
+  await inboxRow(page).click();
+  await expect(
+    page.getByRole('main').getByText('Platform weekly sync', { exact: true }),
+  ).toHaveCount(1);
 });
 
 test('a meeting file that breaks the contract is marked where it landed and listed in the Inbox', async ({

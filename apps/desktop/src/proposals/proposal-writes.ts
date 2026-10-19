@@ -1,6 +1,6 @@
 import { createStore, type StoreApi } from 'zustand';
 import type { VaultPath } from '@atlas/domain';
-import type { AcceptedProposal } from '@atlas/application';
+import type { AcceptedProposal, RejectedProposal } from '@atlas/application';
 import type { ProposalNotice } from '@atlas/ui';
 import { createAnswerQueue, type AnswerQueue } from './answer-queue.ts';
 
@@ -8,6 +8,8 @@ import { createAnswerQueue, type AnswerQueue } from './answer-queue.ts';
 export interface ProposalsSaid {
   readonly notice: ProposalNotice;
   readonly undo: readonly AcceptedProposal[];
+  /** The rejects that went with those accepts (a choice's other values): reopened once the accepts are undone. */
+  readonly undoRejected?: readonly RejectedProposal[];
 }
 
 /** What every Inbox tab's Proposals section draws from. */

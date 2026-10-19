@@ -53,36 +53,48 @@ export function TagsPage({
 }) {
   return (
     <div className="tags">
-      <section className="tags__index" aria-label="All tags">
-        <div className="tags__toolbar">
-          <SegmentedControl
-            label="Sort tags"
-            options={SORTS}
-            value={sort}
-            onChange={onSortChange}
-          />
-        </div>
-        <TagIndex tags={tags} selectedKey={selected?.key ?? null} onSelect={onSelect} />
-      </section>
-      <section className="tags__detail" aria-label="Notes with the tag">
-        {notice !== null && (
-          <p className="tags__notice" role="status">
-            {notice}
-          </p>
-        )}
-        {selected === null ? (
-          <p className="tags__hint">Choose a tag to see the notes that use it.</p>
-        ) : (
-          <TagDetail
-            key={selected.key}
-            tag={selected}
-            notes={notes}
-            onOpenNote={onOpenNote}
-            rename={rename}
-          />
-        )}
-      </section>
+      <div className="tags__columns">
+        <section className="tags__index" aria-label="All tags">
+          <div className="tags__toolbar">
+            <SegmentedControl
+              label="Sort tags"
+              options={SORTS}
+              value={sort}
+              onChange={onSortChange}
+            />
+          </div>
+          <TagIndex tags={tags} selectedKey={selected?.key ?? null} onSelect={onSelect} />
+        </section>
+        <section className="tags__detail" aria-label="Notes with the tag">
+          {notice !== null && (
+            <p className="tags__notice" role="status">
+              {notice}
+            </p>
+          )}
+          {selected === null ? (
+            <p className="tags__hint">Choose a tag to see the notes that use it.</p>
+          ) : (
+            <TagDetail
+              key={selected.key}
+              tag={selected}
+              notes={notes}
+              onOpenNote={onOpenNote}
+              rename={rename}
+            />
+          )}
+        </section>
+      </div>
     </div>
+  );
+}
+
+/** A use count at the row's end; nothing at 0, where a number is only noise. */
+function Count({ of }: { of: number }) {
+  if (of === 0) return null;
+  return (
+    <span className="tags__count" aria-hidden="true">
+      {of}
+    </span>
   );
 }
 
@@ -138,7 +150,7 @@ function TagRow({
       <button
         type="button"
         className="tags__row"
-        style={{ paddingInlineStart: 10 + depth * 18 }}
+        style={{ paddingInlineStart: 12 + depth * 18 }}
         aria-current={on ? 'true' : undefined}
         aria-label={`${node.label} ${uses(node.total)}`}
         title={formatTag(node.name)}
@@ -146,9 +158,7 @@ function TagRow({
       >
         <Icon name="tag" size={15} className="tags__icon" />
         <span className="tags__name">{node.label}</span>
-        <span className="tags__count" aria-hidden="true">
-          {node.total}
-        </span>
+        <Count of={node.total} />
       </button>
       {node.children.length > 0 && (
         <ul className="tags__children">
@@ -229,9 +239,7 @@ function TaggedNotes({
           >
             <Icon name="doc" size={15} className="tags__icon" />
             <span className="tags__note-title">{note.title}</span>
-            <span className="tags__count" aria-hidden="true">
-              {note.count}
-            </span>
+            <Count of={note.count} />
           </button>
         </li>
       ))}

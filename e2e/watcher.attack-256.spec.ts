@@ -241,7 +241,7 @@ test('the watcher’s echo of deciding an Inbox row is not refreshed for again (
       .selectOption({ label: 'Atlas' });
     await inbox
       .getByRole('form', { name: 'Clarify Renew the passport' })
-      .getByRole('button', { name: 'Done' })
+      .getByRole('button', { name: 'Save', exact: true })
       .click();
     await expect.poll(() => vault.exists('Inbox/Renew the passport.md')).toBe(false);
   });

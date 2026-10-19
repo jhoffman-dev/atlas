@@ -181,8 +181,8 @@ test('a meeting arrives, the extraction rule proposes mine, a waiting-for and a 
   const unsure = page.getByRole('region', { name: 'Task: Tell the platform channel' });
   await expect(unsure.getByText('low confidence')).toBeVisible();
   await expect(unsure.getByText(/Claude could not tell whose this is\./)).toBeVisible();
-  await expect(unsure).toHaveClass(/proposal-card--low/);
-  await expect(task).not.toHaveClass(/proposal-card--low/);
+  await expect(unsure).toHaveClass(/proposal-row--low/);
+  await expect(task).not.toHaveClass(/proposal-row--low/);
 
   // Accept the owner's task: it exists at Inbox, cites the turn, and the meeting links it.
   await task.getByRole('button', { name: 'Accept' }).click();

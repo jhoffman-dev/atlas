@@ -12,7 +12,7 @@ import type { NamedEntity, VocabularySources } from './vocabulary.ts';
 export const VOCABULARY_PAGE_SIZE = 5000;
 
 /** The types the vocabulary reads, bound in this order wherever the query names them. */
-const VOCABULARY_TYPES = [TERM_TYPE, PERSON_TYPE, COMPANY_TYPE] as const;
+export const VOCABULARY_TYPES = [TERM_TYPE, PERSON_TYPE, COMPANY_TYPE] as const;
 
 /**
  * One page of what the vocabulary is built from: every term, person and
@@ -65,8 +65,9 @@ export interface VocabularyRow {
 /**
  * The terms, people and companies the rows describe, terms in the order of
  * their right spellings. A term's other spellings are its `variants`; a
- * person's or a company's are its `aliases`. A `kind` Atlas does not know is
- * no kind.
+ * person's or a company's are its `aliases`, which only link, and its
+ * `variants`, which correct to its name as a term's do. A `kind` Atlas does
+ * not know is no kind.
  */
 export function vocabularySourcesOf(rows: readonly VocabularyRow[]): VocabularySources {
   const terms: TermNote[] = [];
@@ -82,7 +83,12 @@ export function vocabularySourcesOf(rows: readonly VocabularyRow[]): VocabularyS
         kind: termKindOf(note.values(TERM_KIND_KEY)[0]),
       });
     } else {
-      const named = { path, name: note.title, aliases: note.values(ALIASES_KEY) };
+      const named = {
+        path,
+        name: note.title,
+        aliases: note.values(ALIASES_KEY),
+        variants: note.values(VARIANTS_KEY),
+      };
       (note.type === COMPANY_TYPE ? companies : people).push(named);
     }
   }
@@ -105,7 +111,8 @@ function notesOf(rows: readonly VocabularyRow[]) {
   }));
 }
 
-function byCanonical(left: TermNote, right: TermNote): number {
+/** Terms in the order of their right spellings, whatever their case, then by path. */
+export function byCanonical(left: TermNote, right: TermNote): number {
   const [a, b] = [left.canonical.toLowerCase(), right.canonical.toLowerCase()];
   if (a !== b) return a < b ? -1 : 1;
   return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;

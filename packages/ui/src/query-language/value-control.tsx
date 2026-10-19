@@ -45,6 +45,7 @@ export function ValueControl({
     case 'boolean':
       return (
         <ChoiceSelect
+          className="field"
           label={label}
           value={text === 'false' ? 'false' : 'true'}
           choices={[
@@ -81,7 +82,15 @@ function Picker({
     ...(known ? [] : [{ value: text, label: text }]),
     ...options.map((option) => ({ value: option, label: option })),
   ];
-  return <ChoiceSelect label={label} value={text} choices={choices} onChange={onChange} />;
+  return (
+    <ChoiceSelect
+      className="field"
+      label={label}
+      value={text}
+      choices={choices}
+      onChange={onChange}
+    />
+  );
 }
 
 function Typed({
@@ -97,7 +106,7 @@ function Typed({
 }) {
   return (
     <input
-      className="qb__input"
+      className="field qb__input"
       aria-label={label}
       type={type}
       value={text}
@@ -124,6 +133,7 @@ function DateControl({
   return (
     <span className="qb__date">
       <ChoiceSelect
+        className="field"
         label={label}
         value={moving ? text : text === '' ? '' : ON_A_DAY}
         choices={[
@@ -135,7 +145,7 @@ function DateControl({
       />
       {!moving && (
         <input
-          className="qb__input"
+          className="field qb__input"
           type="date"
           aria-label={`${label} day`}
           value={text}

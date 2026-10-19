@@ -22,6 +22,7 @@ function listenTo(overlay: () => Overlay | null, onMac = true): AppShortcuts {
     forward: vi.fn(),
     show: vi.fn(),
     toggleChat: vi.fn(),
+    toggleAside: vi.fn(),
     tabs: {
       newTab: vi.fn(),
       closeTab: vi.fn(),
@@ -232,5 +233,40 @@ describe('the tab shortcuts (tab-model.md)', () => {
     expect(runsOnMac('MacIntel')).toBe(true);
     expect(runsOnMac('Win32')).toBe(false);
     expect(runsOnMac('Linux x86_64')).toBe(false);
+  });
+});
+
+describe('Alt+Cmd+\\, the right sidebar (UI v2 slice 8b)', () => {
+  const chord = (init: KeyboardEventInit) =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, ...init }));
+
+  it('is found by the key in the backslash’s place, where Alt turns it into «', () => {
+    const shortcuts = listen();
+    chord({ altKey: true, key: '«', code: 'Backslash' });
+    expect(shortcuts.toggleAside).toHaveBeenCalledTimes(1);
+    expect(shortcuts.toggleSidebar).not.toHaveBeenCalled();
+    expect(shortcuts.toggleSplit).not.toHaveBeenCalled();
+  });
+
+  it('is found by the backslash itself on a layout that leaves it alone', () => {
+    const shortcuts = listen();
+    chord({ altKey: true, key: '\\', code: 'IntlBackslash' });
+    expect(shortcuts.toggleAside).toHaveBeenCalledTimes(1);
+    expect(shortcuts.toggleSidebar).not.toHaveBeenCalled();
+  });
+
+  it('leaves Cmd+\\ to the left sidebar and Shift+Cmd+\\ to the split', () => {
+    const shortcuts = listen();
+    chord({ key: '\\', code: 'Backslash' });
+    chord({ shiftKey: true, key: '|', code: 'Backslash' });
+    expect(shortcuts.toggleAside).not.toHaveBeenCalled();
+    expect(shortcuts.toggleSidebar).toHaveBeenCalledTimes(1);
+    expect(shortcuts.toggleSplit).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing behind a dialog, as the other window-changing keys do', () => {
+    const shortcuts = listen('settings');
+    chord({ altKey: true, key: '«', code: 'Backslash' });
+    expect(shortcuts.toggleAside).not.toHaveBeenCalled();
   });
 });

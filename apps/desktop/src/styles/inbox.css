@@ -73,16 +73,24 @@
 }
 
 /* A task's controls keep to one or two lines: left to the table, the name
-   column takes the width and they stack one under another. */
+   column takes the width and they stack one under another. 520px, with the
+   keys' 220px beside it, keeps the row within a 1440px window's sheet. */
 form.inbox__clarify {
   margin-left: auto;
-  min-width: 540px;
+  min-width: 520px;
 }
 
 /* A title with nowhere to break wraps inside its cell, rather than push the
    row's controls off the page. */
 .inbox__grid .table__link {
   white-space: normal;
+}
+
+/* The controls (520px) and the keys (220px) are fixed, so the name is what
+   gives when the sheet is narrow: its title wraps anywhere, so a short column
+   still reads, and a title with nowhere to break no longer widens the sheet. */
+.inbox__grid .table__name {
+  min-width: 120px;
 }
 
 .inbox__grid .table__title {
@@ -174,4 +182,129 @@ form.inbox__clarify {
    is made. The warning is the icon's colour; the bar stays on the well. */
 .inbox__offer--warning .notice-bar__icon {
   color: var(--warning);
+}
+
+/* ---- one-key triage (#109, #307) ----
+   The section's head, as the Proposals' (FlowInbox.dc.html): its name, how
+   many wait, and the one line that says nothing is required. */
+.inbox__section {
+  align-items: baseline;
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.inbox__section-count,
+.inbox__section-hint {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 400;
+}
+
+.inbox__section-hint {
+  margin-left: var(--space-2);
+}
+
+/* The keys, drawn on the focused row only and in a cell of their own — the
+   row's cells are not drawn again when the focus moves (#217). The strip is
+   on every row, empty but for the focused one, and its least width is the
+   column's: nothing moves when the focus arrives, and the six wrap into two
+   lines of three within the row's height. The column has no percentage
+   width: a second 1% column beside the actions' had WebKit size the table
+   past its sheet. The strip's least and most width are one, so the column
+   is 220px whatever the table has to spare. */
+.inbox__grid .inbox__keys {
+  padding: 0 0 0 6px;
+  text-align: right;
+}
+
+.inbox__keys-strip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: flex-end;
+  max-width: 220px;
+  min-width: 220px;
+}
+
+/* Tighter than btn--sm's 8px, so three keys fit a line of the strip. */
+.inbox__keys .inbox__key {
+  --btn-line: transparent;
+  gap: 3px;
+  padding: 0 5px;
+}
+
+.inbox__key kbd {
+  color: var(--ink-3);
+  font: inherit;
+  font-weight: 400;
+}
+
+/* Next, Waiting and Done carry their status's tint, as the mockup draws them;
+   the pickers and Someday are ghost. */
+.inbox__key--next-action {
+  --btn-bg: var(--status-next-tint);
+  --btn-ink: var(--status-next-ink);
+}
+
+.inbox__key--waiting {
+  --btn-bg: var(--status-waiting-tint);
+  --btn-ink: var(--status-waiting-ink);
+}
+
+.inbox__key--archive {
+  --btn-bg: var(--status-done-tint);
+  --btn-ink: var(--status-done-ink);
+}
+
+.inbox__key--next-action kbd,
+.inbox__key--waiting kbd,
+.inbox__key--archive kbd {
+  color: var(--btn-ink);
+  opacity: 0.7;
+}
+
+/* ---- a narrow list ----
+   The controls (520px) and the keys (220px) are fixed beside the name and the
+   kind, which needs about 1100px. Asked of the list's own width, not the
+   window's, so a split pane folds too: the kind (and what the import made of a
+   file) wraps, the controls wrap rather than hold 520px, and the keys are the
+   compact letters in a strip that wraps — their names stay on the buttons for
+   a screen reader. `data-narrow` is set by InboxRows as the list is resized: a
+   container query would make the list a layout container, the offset parent
+   the virtualiser measures its rows from, and the scroll jumps to the top. */
+.inbox__list[data-narrow] .inbox__grid td.inbox__kind {
+  min-width: 0;
+  padding: 0 8px;
+  white-space: normal;
+  width: auto;
+}
+
+.inbox__list[data-narrow] .inbox__grid .inbox__actions {
+  min-width: 0;
+  white-space: normal;
+  width: auto;
+}
+
+.inbox__list[data-narrow] form.inbox__clarify {
+  min-width: 0;
+}
+
+.inbox__list[data-narrow] .inbox__keys-strip {
+  max-width: 84px;
+  min-width: 84px;
+}
+
+.inbox__list[data-narrow] .inbox__grid .table__name {
+  min-width: 80px;
+}
+
+.inbox__list[data-narrow] .inbox__keys .inbox__key {
+  font-size: 0;
+}
+
+.inbox__list[data-narrow] .inbox__keys .inbox__key kbd {
+  font-size: var(--text-small);
 }

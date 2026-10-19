@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Icon } from '../icon.tsx';
 
 /** Whether the chat is open, and the way to open or close it. */
@@ -21,10 +21,11 @@ export function useChatToggle(): ChatToggle | null {
   return useContext(ChatToggleContext);
 }
 
-/** The chat's button in a page's bar; nothing when the app offers no chat. */
-export function ChatToggleButton() {
-  const toggle = useContext(ChatToggleContext);
-  if (toggle === null) return null;
+/**
+ * The chat's button in a page's bar. Drawn by `PageBarToggles`, as an element
+ * rather than a component of its own, so a bar's draw counts one (#238).
+ */
+export function chatToggleButton(toggle: ChatToggle): ReactNode {
   return (
     <button
       className="icon-button page-bar__button page-bar__chat"

@@ -28,9 +28,10 @@ them, so it cannot be deleted. Its properties are yours to change.
 ## The vocabulary
 
 Every term's title and variants, and every Person's and Company's name and
-`aliases`, make one vocabulary, longest spelling first. A name is its own
-right spelling, so a Person needs no term. Spellings match however they are
-cased or spaced.
+`variants`, make one vocabulary, longest spelling first. A name is its own
+right spelling, so a Person needs no term; their `aliases` only link. A term
+named like a Person or Company that `[[name]]` already opens is added to that
+note's `variants` instead of being made.
 
 A spelling two notes claim for two different right spellings is a conflict:
 the Terms page shows it, and it is not used until one of them lets it go.
@@ -39,4 +40,4 @@ the Terms page shows it, and it is not used until one of them lets it go.
 
 What the term names, when that is a note: the company a product or an
 acronym belongs to. A relation points at one type, so it is Company here; a
-misheard person is better given an alias on their Person note.
+misheard person is better given `variants` on their Person note.

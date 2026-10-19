@@ -7,7 +7,15 @@
    Fixed widths behind one token (plan §4, question 18): 300px for Properties,
    Backlinks and Outline; 340px for the type editor, which slice 12 marks with
    `.aside--type`. The slot is measured, not the aside, so the token is read on
-   the slot; the chat keeps its own width until 8b moves it into a tab. */
+   the slot. Since slice 8b the chat is the aside's Claude tab, so the slot
+   only ever holds the aside. */
+
+.shell__aside {
+  display: flex;
+  flex: none;
+  min-height: 0;
+  padding: 0;
+}
 
 .shell__aside:has(> .aside) {
   --aside-width: 300px;

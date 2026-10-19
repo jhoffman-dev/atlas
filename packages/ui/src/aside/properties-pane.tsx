@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { isEmptyProperty, type VaultPath } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
-import { Key } from '../key-hints.tsx';
 import { PropertiesPanel, type PropertyRow } from '../properties-panel.tsx';
 
 type PanelProps = Parameters<typeof PropertiesPanel>[0];
@@ -100,9 +99,6 @@ export function PropertiesPane({
             >
               <Icon name="arrow" size={13} />
               Open
-              <span aria-hidden="true">
-                <Key>Space</Key>
-              </span>
             </button>
           )}
           {onOpenInNewTab !== undefined && (
@@ -112,9 +108,6 @@ export function PropertiesPane({
               onClick={onOpenInNewTab}
             >
               New tab
-              <span aria-hidden="true">
-                <Key>⌘↵</Key>
-              </span>
             </button>
           )}
         </footer>

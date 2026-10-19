@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createVaultPath, VOCABULARY_PAGE_SIZE, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
+import { fakeIndexPort, fakeMarkdown, fakeOpenNotes, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
+import { VaultAccessError } from '../vault/ports.ts';
 import { addTerm, loadTerms, setTermVariants, TermRefusedError } from './terms.ts';
 
 const path = (value: string) => createVaultPath(value);
@@ -72,6 +73,28 @@ describe('loadTerms', () => {
       'Larkspur → Larkspur',
     ]);
     expect(vocabulary.conflicts).toEqual([]);
+  });
+
+  it('lists the people and companies with misheard spellings beside the terms, which correct to their names (#400)', async () => {
+    const index = indexOf({
+      'Terms/Quill Desk.md': { title: 'Quill Desk', props: { type: 'term' } },
+      'Companies/Larkspur Payroll.md': {
+        title: 'Larkspur Payroll',
+        props: { type: 'company', variants: 'Larkspar Payroll', aliases: 'LP' },
+      },
+      'People/Mara Quill.md': { title: 'Mara Quill', props: { type: 'person', aliases: 'Mara' } },
+    });
+    const { terms, listed, vocabulary } = await loadTerms({ index });
+
+    expect(terms.map((term) => term.path)).toEqual(['Terms/Quill Desk.md']);
+    expect(listed.map((row) => [row.path, row.source, row.variants])).toEqual([
+      ['Companies/Larkspur Payroll.md', 'company', ['Larkspar Payroll']],
+      ['Terms/Quill Desk.md', 'term', []],
+    ]);
+    expect(vocabulary.entries.map((entry) => `${entry.form} → ${entry.canonical}`)).toContain(
+      'Larkspar Payroll → Larkspur Payroll',
+    );
+    expect(vocabulary.entries.map((entry) => entry.form)).not.toContain('LP');
   });
 
   it('shows a variant two terms claim as a conflict rather than using it', async () => {
@@ -158,7 +181,7 @@ function recordingVault(
     },
     readTextFile: async (at) => {
       const text = files[at];
-      if (text === undefined) throw new Error(`no file ${at}`);
+      if (text === undefined) throw new VaultAccessError(`no file ${at}`);
       return { text, modified: 7 };
     },
     writeTextFile: async ({ path: at, contents }) => {
@@ -178,6 +201,8 @@ function recordingVault(
 }
 
 const TERM_TYPE: ObjectType = { name: 'term', label: 'Term', properties: [] };
+const NO_PANES = fakeOpenNotes();
+const TODAY = '2026-10-19';
 
 describe('addTerm', () => {
   it('writes a note of type term in Terms/, with its variants and kind, making the folder', async () => {
@@ -185,12 +210,14 @@ describe('addTerm', () => {
     const made = await addTerm({
       fs: vault.fs,
       markdown: vault.markdown,
+      openNotes: NO_PANES,
+      today: TODAY,
       term: { canonical: 'Larkspur', variants: 'lark spur, Larks Burr', kind: 'company' },
       types: [TERM_TYPE],
       templates: [],
       notePaths: [],
     });
-    expect(made).toBe('Terms/Larkspur.md');
+    expect(made.path).toBe('Terms/Larkspur.md');
     expect(vault.folders).toEqual(['Terms']);
     expect(vault.changes).toEqual([
       { type: 'term', kind: 'company', variants: ['lark spur', 'Larks Burr'] },
@@ -211,29 +238,36 @@ describe('addTerm', () => {
     const made = await addTerm({
       fs: vault.fs,
       markdown: vault.markdown,
+      openNotes: NO_PANES,
+      today: TODAY,
       term: { canonical: 'QLX', variants: '', kind: 'acronym' },
       types: [],
       templates: [{ path: path('.atlas/templates/Term.md'), name: 'Term' }],
       notePaths: [],
     });
-    expect(made).toBe('terms/QLX.md');
+    expect(made.path).toBe('terms/QLX.md');
     expect(vault.folders).toEqual([]);
     expect(vault.created[0]?.contents).toBe('---\ntype: term\nkind: acronym\n---\n\nHeard in:\n');
   });
 
   it('keeps a spelling no file name can hold, or one already taken, as the title', async () => {
-    const vault = recordingVault({}, [{ name: 'Terms', kind: 'directory' }]);
+    // Terms/Larkspur.md is what `[[Larkspur]]` opens, and it is a term: a new one is numbered.
+    const vault = recordingVault({ 'Terms/Larkspur.md': '---\ntype: term\n---\n' }, [
+      { name: 'Terms', kind: 'directory' },
+    ]);
     const make = (canonical: string) =>
       addTerm({
         fs: vault.fs,
         markdown: vault.markdown,
+        openNotes: NO_PANES,
+        today: TODAY,
         term: { canonical, variants: '', kind: null },
         types: [TERM_TYPE],
         templates: [],
         notePaths: [path('Terms/Larkspur.md')],
       });
-    expect(await make('S/4 Ledger')).toBe('Terms/S 4 Ledger.md');
-    expect(await make('Larkspur')).toBe('Terms/Larkspur 2.md');
+    expect((await make('S/4 Ledger')).path).toBe('Terms/S 4 Ledger.md');
+    expect((await make('Larkspur')).path).toBe('Terms/Larkspur 2.md');
     expect(vault.changes).toEqual([
       { type: 'term', title: 'S/4 Ledger' },
       { type: 'term', title: 'Larkspur' },
@@ -245,12 +279,14 @@ describe('addTerm', () => {
     const made = await addTerm({
       fs: vault.fs,
       markdown: vault.markdown,
+      openNotes: NO_PANES,
+      today: TODAY,
       term: { canonical: ' Lark\u200Bspur\uFEFF', variants: '', kind: null },
       types: [TERM_TYPE],
       templates: [],
       notePaths: [],
     });
-    expect(made).toBe('Terms/Larkspur.md');
+    expect(made.path).toBe('Terms/Larkspur.md');
     expect(vault.changes).toEqual([{ type: 'term' }]);
   });
 
@@ -260,6 +296,8 @@ describe('addTerm', () => {
       addTerm({
         fs: vault.fs,
         markdown: vault.markdown,
+        openNotes: NO_PANES,
+        today: TODAY,
         term: { canonical: '   ', variants: 'x', kind: null },
         types: [],
         templates: [],
@@ -271,19 +309,227 @@ describe('addTerm', () => {
   });
 
   it('refuses a term whose note would take over links to another note of that name', async () => {
-    const vault = recordingVault({}, [{ name: 'Terms', kind: 'directory' }]);
+    const vault = recordingVault({ 'Zeta/Larkspur.md': '---\ntype: project\n---\n' }, [
+      { name: 'Terms', kind: 'directory' },
+    ]);
     await expect(
       addTerm({
         fs: vault.fs,
         markdown: vault.markdown,
+        openNotes: NO_PANES,
+        today: TODAY,
         term: { canonical: 'Larkspur', variants: '', kind: null },
         types: [],
         templates: [],
         // Terms/Larkspur.md would sort before Zeta/Larkspur.md, and win `[[Larkspur]]`.
         notePaths: [path('Zeta/Larkspur.md'), path('A.md')],
       }),
-    ).rejects.toThrow(/\[\[Larkspur\]\] already opens Zeta\/Larkspur\.md/);
+    ).rejects.toThrow(
+      // Said once: the Terms page puts “Larkspur” was not added in front of it (#400).
+      new TermRefusedError(
+        '[[Larkspur]] already opens Zeta/Larkspur.md, and would open the new term instead. Rename one of them first.',
+      ),
+    );
     expect(vault.created).toEqual([]);
+    expect(vault.written).toEqual([]);
+  });
+
+  describe('named like a person or a company already in the vault (#400)', () => {
+    const COMPANY = [
+      '---',
+      'type: company',
+      'site: https://larkspur.example',
+      'variants: larkspar',
+      '---',
+      '',
+      'Payroll vendor.',
+      '',
+    ].join('\n');
+
+    const addTo = (
+      vault: ReturnType<typeof recordingVault>,
+      term: { canonical: string; variants: string },
+      notePaths: readonly string[],
+      openNotes = NO_PANES,
+    ) =>
+      addTerm({
+        fs: vault.fs,
+        markdown: vault.markdown,
+        openNotes,
+        today: TODAY,
+        term: { ...term, kind: 'company' },
+        types: [TERM_TYPE],
+        templates: [],
+        notePaths: notePaths.map(path),
+      });
+
+    it('adds the misheard spellings to the company the name opens, the rest of it as it was', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY }, [
+        { name: 'Terms', kind: 'directory' },
+      ]);
+      const added = await addTo(
+        vault,
+        { canonical: 'Larkspur Payroll', variants: 'larkspar, Larks Burr Payroll' },
+        ['Companies/Larkspur Payroll.md', 'A.md'],
+      );
+      expect(added).toEqual({
+        path: 'Companies/Larkspur Payroll.md',
+        into: 'company',
+        added: ['Larks Burr Payroll'],
+      });
+      expect(vault.created).toEqual([]);
+      expect(vault.folders).toEqual([]);
+      expect(vault.written).toEqual([
+        {
+          path: 'Companies/Larkspur Payroll.md',
+          contents: COMPANY.replace('variants: larkspar', 'variants: larkspar,Larks Burr Payroll'),
+        },
+      ]);
+    });
+
+    it('adds them to a person the name opens, through the pane that holds the note when one does', async () => {
+      const person = '---\ntype: person\naliases: Toby\n---\n\nMet at the offsite.\n';
+      const vault = recordingVault({ 'People/Tobias Fenn.md': person });
+      const given: unknown[] = [];
+      const panes = fakeOpenNotes({
+        setPropertiesIfOpen: async ({ values }) => {
+          given.push(typeof values === 'function' ? values({ aliases: 'Toby' }) : values);
+          return true;
+        },
+      });
+      const added = await addTo(
+        vault,
+        { canonical: 'Tobias Fenn', variants: 'Tobias Fen' },
+        ['People/Tobias Fenn.md'],
+        panes,
+      );
+      expect(added).toEqual({
+        path: 'People/Tobias Fenn.md',
+        into: 'person',
+        added: ['Tobias Fen'],
+      });
+      expect(given).toEqual([{ variants: ['Tobias Fen'] }]);
+      expect(vault.written).toEqual([]);
+    });
+
+    it('writes nothing when the company already lists every spelling given', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      const added = await addTo(vault, { canonical: 'Larkspur Payroll', variants: 'larkspar' }, [
+        'Companies/Larkspur Payroll.md',
+      ]);
+      expect(added).toEqual({ path: 'Companies/Larkspur Payroll.md', into: 'company', added: [] });
+      expect(vault.written).toEqual([]);
+    });
+
+    it('never adds to an archived company, which the vocabulary does not read, and refuses as before (#404)', async () => {
+      const archived = 'Archive/Areas/Larkspur Payroll.md';
+      const vault = recordingVault({ [archived]: COMPANY }, [{ name: 'Terms', kind: 'directory' }]);
+      await expect(
+        addTo(vault, { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' }, [archived]),
+      ).rejects.toThrow(
+        new TermRefusedError(
+          `[[Larkspur Payroll]] already opens ${archived}, and would open the new term instead. Rename one of them first.`,
+        ),
+      );
+      expect(vault.written).toEqual([]);
+      expect(vault.created).toEqual([]);
+    });
+
+    it('refuses a spelling that is the company’s only once case is folded, saying how the note spells it (#404)', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      await expect(
+        addTo(vault, { canonical: 'LARKSPUR  payroll', variants: 'Larks Burr Payroll' }, [
+          'Companies/Larkspur Payroll.md',
+        ]),
+      ).rejects.toThrow(
+        new TermRefusedError(
+          'Companies/Larkspur Payroll.md is spelt “Larkspur Payroll”. Add the term as “Larkspur Payroll”, or rename the note first.',
+        ),
+      );
+      expect(vault.written).toEqual([]);
+    });
+
+    it('takes the company’s right spelling from its title property when it has one (#404)', async () => {
+      const titled = COMPANY.replace('type: company', 'type: company\ntitle: Larkspur Payroll Co');
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': titled });
+      await expect(
+        addTo(vault, { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' }, [
+          'Companies/Larkspur Payroll.md',
+        ]),
+      ).rejects.toThrow(
+        /is titled “Larkspur Payroll Co”, but \[\[Larkspur Payroll\]\] opens it by its file name/,
+      );
+    });
+
+    it('refuses a variants that is not a list before writing anything, the panes not asked (#404)', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      const mapped: MarkdownPort = {
+        ...vault.markdown,
+        frontmatterProperties: () => ({ type: 'company', variants: { heard: 'larkspar' } }),
+      };
+      const setPropertiesIfOpen = vi.fn(async () => true);
+      await expect(
+        addTerm({
+          fs: vault.fs,
+          markdown: mapped,
+          openNotes: fakeOpenNotes({ setPropertiesIfOpen }),
+          today: TODAY,
+          term: { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll', kind: null },
+          types: [TERM_TYPE],
+          templates: [],
+          notePaths: [path('Companies/Larkspur Payroll.md')],
+        }),
+      ).rejects.toThrow(/has a variants that is not a list/);
+      expect(setPropertiesIfOpen).not.toHaveBeenCalled();
+      expect(vault.written).toEqual([]);
+    });
+
+    it('refuses at the write a variants that became something else since it was read (#404)', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      const panes = fakeOpenNotes({
+        setPropertiesIfOpen: async ({ values }) => {
+          if (typeof values === 'function') values({ variants: 7 });
+          return true;
+        },
+      });
+      await expect(
+        addTo(
+          vault,
+          { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' },
+          ['Companies/Larkspur Payroll.md'],
+          panes,
+        ),
+      ).rejects.toThrow(
+        new TermRefusedError(
+          "Companies/Larkspur Payroll.md has a variants that is not a list, so misheard spellings can't be added to it. Make it a list first.",
+        ),
+      );
+    });
+
+    it('refuses cleanly when the note the name opened is gone since the vault was read (#404)', async () => {
+      const vault = recordingVault({}, [{ name: 'Terms', kind: 'directory' }]);
+      await expect(
+        addTo(vault, { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' }, [
+          'Companies/Larkspur Payroll.md',
+        ]),
+      ).rejects.toBeInstanceOf(TermRefusedError);
+      expect(vault.created).toEqual([]);
+    });
+
+    it('refuses a company name given no misheard spellings, since the name already spells itself', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      await expect(
+        addTo(vault, { canonical: 'Larkspur Payroll', variants: ' , ' }, [
+          'Companies/Larkspur Payroll.md',
+        ]),
+      ).rejects.toThrow(
+        new TermRefusedError(
+          'Companies/Larkspur Payroll.md already spells it. Give the misheard spellings to add to it.',
+        ),
+      );
+      expect(vault.written).toEqual([]);
+      expect(vault.created).toEqual([]);
+    });
   });
 
   it('refuses when Terms is a file, so there is nowhere to put it', async () => {
@@ -292,6 +538,8 @@ describe('addTerm', () => {
       addTerm({
         fs: vault.fs,
         markdown: vault.markdown,
+        openNotes: NO_PANES,
+        today: TODAY,
         term: { canonical: 'Larkspur', variants: '', kind: null },
         types: [],
         templates: [],

@@ -96,29 +96,27 @@ describe('POST /v1/meetings: sends at once into a vault with no Inbox/Meetings y
 });
 
 describe('POST /v1/meetings: a transcript the host lets in', () => {
-  // STAMPED in meeting-transcript.ts, /\]\s*([^:*\]]+?)\s*:/, backtracks once
+  // STAMPED in meeting-transcript.ts, /\]\s*([^:*\]]+?)\s*:/, backtracked once
   // per character of a whitespace run inside a "[hh:mm:ss] …" line with no
   // colon after it: quadratic. The route runs in the webview, so the app's
   // only JS thread is blocked while it maps — about 1.2 s at 40 000 spaces,
-  // and minutes for a run near the host's 1 MiB body limit. Measured as a
-  // ratio so the machine's speed does not decide it: eight times the input
-  // should take about eight times as long, not sixty-four.
+  // and minutes for a run near the host's 1 MiB body limit.
+  //
+  // Timed, coarsely, because the backtracking happens inside one regex
+  // execution, which no count taken from outside sees (#385). So the run is
+  // long enough that linear and quadratic are far apart: at 320,000 spaces
+  // the route maps in milliseconds, and quadratic matching takes over a
+  // minute, so ten seconds is many times either side.
   it('maps in time that grows with the transcript, not with its square', async () => {
-    const timeFor = async (spaces: number) => {
-      const api = vault();
-      const transcriptMd = [
-        `[00:00:01] Mara Quill${' '.repeat(spaces)}said nothing with a colon`,
-        '### Transcription ended after 00:11:49',
-      ].join('\n');
-      const started = performance.now();
-      const response = await send(api, { ...SENT, transcriptMd });
-      const took = performance.now() - started;
-      expect(response.status).toBe(201);
-      return took;
-    };
-    await timeFor(1_000);
-    const small = await timeFor(10_000);
-    const large = await timeFor(80_000);
-    expect(large / Math.max(small, 1)).toBeLessThan(20);
-  }, 60_000);
+    const api = vault();
+    const transcriptMd = [
+      `[00:00:01] Mara Quill${' '.repeat(320_000)}said nothing with a colon`,
+      '### Transcription ended after 00:11:49',
+    ].join('\n');
+    const started = performance.now();
+    const response = await send(api, { ...SENT, transcriptMd });
+    const took = performance.now() - started;
+    expect(response.status).toBe(201);
+    expect(took).toBeLessThan(10_000);
+  }, 300_000);
 });

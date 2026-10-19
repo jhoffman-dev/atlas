@@ -50,6 +50,9 @@ import {
   createToolboxes,
   findTaskTemplate,
   getAppInfo,
+  PEOPLE_SCOPE,
+  PERSON_EMAILS_SCOPE,
+  PROJECTS_SCOPE,
   setNoteProperty,
   readsTouchedByPaths,
   reportingIndexWrites,
@@ -67,7 +70,9 @@ import {
 } from '@atlas/application';
 import {
   AppShell,
+  AsideToggleProvider,
   ChatToggleProvider,
+  collapseFor,
   useSteadyCallback,
   CapturePalette,
   DeleteDialog,
@@ -104,6 +109,7 @@ import { createWindowQueryClient } from './reads/query-client.ts';
 import { createReadInvalidator } from './reads/read-invalidator.ts';
 import { tellingOwnWrites } from './reads/telling-own-writes.ts';
 import { useSqlViews } from './reads/use-sql-views.ts';
+import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';
 import { useVaultReads } from './reads/use-vault-reads.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
@@ -202,6 +208,24 @@ import { useActivity } from './activity/use-activity.ts';
 import { useActivityLog, useNoticeActivity } from './activity/use-activity-log.ts';
 import { usePeople } from './people/use-people.ts';
 import { useAppShortcuts } from './app-shortcuts.ts';
+import { AsideContainer } from './aside/aside-container.tsx';
+import {
+  createAsideStore,
+  hideAside,
+  asideShown as asideShownNow,
+  claudeShown as claudeShownNow,
+  loadVaultAside,
+  setAsideFolded,
+  toggleAside as toggleAsideIn,
+  toggleClaude,
+  useAsideShown,
+  useClaudeAsked,
+  useClaudeShown,
+} from './aside/aside-store.ts';
+import { browserAsideStore } from './aside/browser-aside-store.ts';
+import { ClaudeSeatProvider } from './aside/claude-seat.tsx';
+import { createShownNotes } from './aside/shown-notes.ts';
+import { useAsideCollapsed } from './aside/use-aside-collapsed.ts';
 import { browserFabStore } from './quick-add/browser-fab-store.ts';
 import { QuickAdd } from './quick-add/quick-add.tsx';
 import type { GlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
@@ -353,6 +377,9 @@ function AppWindow({
   // The tabs and panes, and where each tab was asked to scroll to (ADR-0040).
   const [workspace] = useState(() => createWorkspaceStore({ remembered: browserWorkspaceStore }));
   const [reveals] = useState(createRevealStore);
+  // The right sidebar (#306): remembered per vault as the tabs are, read in the same event.
+  const [asideStore] = useState(() => createAsideStore({ remembered: browserAsideStore }));
+  const [shownNotes] = useState(createShownNotes);
   // Set once the sync hook below exists: a switch waits for a sync under way,
   // whose remaining steps would otherwise be refused half-done (U-29).
   const settleSync = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -388,7 +415,10 @@ function AppWindow({
   } = useVault(choosing, {
     beforeSwitch: leaveVault,
     // In the same event as the location: the tabs' paths mean this vault (R14-01).
-    onSwitched: (next) => loadVault(workspace, next.absolutePath),
+    onSwitched: (next) => {
+      loadVault(workspace, next.absolutePath);
+      loadVaultAside(asideStore, next.absolutePath);
+    },
   });
   const vaultKey = location?.absolutePath ?? null;
   const tickMemory = useTickMemory(vaultKey);
@@ -487,6 +517,25 @@ function AppWindow({
   // Everything derived from the index re-runs when this changes: backlinks,
   // saved views and dashboard widgets. It moves only with the revision (#238).
   const indexKey = useIndexKey(indexStore, vaultKey);
+  // The window's readers of one kind of note read again for news of that kind alone (#325).
+  const peopleKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['people'],
+    scope: PEOPLE_SCOPE,
+  });
+  const projectsKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['projects'],
+    scope: PROJECTS_SCOPE,
+  });
+  const personEmailsKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['person-emails'],
+    scope: PERSON_EMAILS_SCOPE,
+  });
   const {
     types,
     failure: typesFailure,
@@ -648,6 +697,11 @@ function AppWindow({
   const overlay = useWindowOverlay(overlays);
   const showOverlay = useCallback((requested: Overlay) => showIn(overlays, requested), [overlays]);
   const hideOverlay = useCallback((closing: Overlay) => hideIn(overlays, closing), [overlays]);
+  // One object, so what is handed it is not made anew each time the window draws.
+  const overlayPort = useMemo(
+    () => ({ show: showOverlay, hide: hideOverlay }),
+    [showOverlay, hideOverlay],
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // Pressed from another app with no vault open: capture has no Inbox to land in.
   const [captureWantedVault, setCaptureWantedVault] = useState(false);
@@ -746,8 +800,8 @@ function AppWindow({
   }, [workspace, notesListedFor, vaultKey, notePaths]);
   const nameOf = useSteadyCallback(nameOfPlace);
   const workspaceStores = useMemo<WorkspaceStores>(
-    () => ({ store: workspace, reveals, overlays, nameOf }),
-    [workspace, reveals, overlays, nameOf],
+    () => ({ store: workspace, reveals, overlays, nameOf, aside: asideStore, shown: shownNotes }),
+    [workspace, reveals, overlays, nameOf, asideStore, shownNotes],
   );
   /** Opens a note from outside the panes — the sidebar, search, a new note — where the click asked. */
   const openNote = useCallback(
@@ -796,7 +850,7 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     clock: localClock,
-    indexKey,
+    indexKey: projectsKey,
     activity: activityLog,
     onCreated: (path) => {
       hideOverlay('new-artifact');
@@ -832,7 +886,7 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     vaultKey,
-    changeKey: indexKey,
+    changeKey: personEmailsKey,
     indexReady,
     activity: activityLog,
   });
@@ -857,9 +911,49 @@ function AppWindow({
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
+  // The aside folds where the window is too narrow for it beside the left
+  // sidebar (collapse.ts). Asking for it there — ⌘J, the bar's button, ⌥⌘\ —
+  // hides the left sidebar instead, where that makes room (not under 796px,
+  // where the aside folds on its own: the sidebar then stays), so Claude is
+  // reachable in a 1000px window; ⌘\ brings the sidebar back. The store is
+  // told as the window folds it, so the toggle's pressed state, each note's
+  // body and every ask read what is on screen, not what is remembered.
+  const asideCollapsed = useAsideCollapsed({ sidebarOpen });
+  useEffect(() => setAsideFolded(asideStore, asideCollapsed), [asideStore, asideCollapsed]);
+  const roomForAside = useCallback(() => {
+    const width = window.innerWidth;
+    const folds = (open: boolean) => collapseFor({ width, sidebarOpen: open }).aside;
+    if (folds(true) && !folds(false)) setSidebarOpen(false);
+  }, []);
+  // An ask opens the aside whatever the store holds: the window's answer to
+  // the room just made arrives after this event, so `folded` still says folded.
+  const askForAside = useCallback(
+    (show: (store: typeof asideStore) => void) => {
+      roomForAside();
+      show(asideStore);
+    },
+    [asideStore, roomForAside],
+  );
+  // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings
+  // the aside up on it. Its toggle and close are one function each for the
+  // window's life — every page's bar is handed the toggle (#325) — reading
+  // the store at the press rather than closing over what was shown.
+  const claudeShown = useClaudeShown(asideStore);
+  const claudeAsked = useClaudeAsked(asideStore);
+  const toggleChatSeat = useCallback(
+    () =>
+      claudeShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleClaude),
+    [asideStore, askForAside],
+  );
+  const closeChatSeat = useCallback(() => hideAside(asideStore), [asideStore]);
+  const chatSeat = useMemo(
+    () => ({ open: claudeShown, asked: claudeAsked, toggle: toggleChatSeat, close: closeChatSeat }),
+    [claudeShown, claudeAsked, toggleChatSeat, closeChatSeat],
+  );
   const chat = useChat({
     ports: chatPorts,
     store: browserChatSettingsStore,
+    seat: chatSeat,
     vault: {
       api: apiDeps,
       fs: location === null ? null : vault.fs,
@@ -1029,13 +1123,15 @@ function AppWindow({
     ],
   );
   const entries = useVaultEntries(entryPorts, notePaths);
+  // Each one function for as long as the entries' ports: the panes are handed them (#325).
+  const { rename: renameEntry, askMove: askEntryMove, askDelete: askEntryDelete } = entries;
   const templatesPage = useTemplatesPage({
     ports: {
       fs: vault.fs,
       markdown: notes.markdown,
       editors: entryPorts.editors,
       closeNotes: entryPorts.closeNotes,
-      overlay: { show: showOverlay, hide: hideOverlay },
+      overlay: overlayPort,
     },
     types,
     listed: templatesListed,
@@ -1241,8 +1337,8 @@ function AppWindow({
   /** Renames a note from its page head; every pane showing it follows. */
   const renamePaneNote = useCallback(
     ({ path, name }: { path: VaultPath; name: string }) =>
-      entries.rename({ path, kind: 'file' }, name),
-    [entries],
+      renameEntry({ path, kind: 'file' }, name),
+    [renameEntry],
   );
 
   const captureTemplate = useMemo(() => findTaskTemplate(templates), [templates]);
@@ -1325,7 +1421,7 @@ function AppWindow({
   );
   const vaultPeople = usePeople({
     ports: peoplePorts,
-    indexKey,
+    indexKey: peopleKey,
     ready: indexReady,
     notePaths,
     types,
@@ -1376,7 +1472,7 @@ function AppWindow({
       thumbnails,
       types,
       notePaths,
-      indexKey,
+      indexStatus: indexStore,
       onChanged,
       changes: noteChanges,
       onTypeSaved,
@@ -1413,7 +1509,7 @@ function AppWindow({
       thumbnails,
       types,
       notePaths,
-      indexKey,
+      indexStore,
       onChanged,
       noteChanges,
       onTypeSaved,
@@ -1468,6 +1564,8 @@ function AppWindow({
     forward: () => goForward(workspace),
     show: showOverlay,
     toggleChat: chat.toggle,
+    toggleAside: () =>
+      asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),
     tabs: {
       newTab: () => newTabIn(workspace, workspaceNow(workspace).focused),
       closeTab: () => closeActiveTab(workspace),
@@ -1480,6 +1578,17 @@ function AppWindow({
 
   const treeRows = useMemo(() => sidebarTreeRows(rows), [rows]);
   const toggleSidebar = useCallback(() => setSidebarOpen((was) => !was), []);
+  const asideShown = useAsideShown(asideStore);
+  const toggleAsideSeat = useCallback(
+    () =>
+      asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),
+    [asideStore, askForAside],
+  );
+  const asideToggle = useMemo(
+    () => ({ shown: asideShown, onToggle: toggleAsideSeat }),
+    [asideShown, toggleAsideSeat],
+  );
+  const rowPorts = useMemo(() => ({ pane: paneContext, openNote }), [paneContext, openNote]);
 
   const syncBadge = syncIndicatorBadge(sync);
   const fromGitHub = useOpenFromGitHub({
@@ -1569,13 +1678,97 @@ function AppWindow({
     />
   );
 
+  // The panes' wiring that changes only with what it holds, so a window
+  // redrawn for the index's news draws no pane that shows nothing new (#325).
+  const noteCommands = useMemo(
+    () => ({
+      onRename: renamePaneNote,
+      onToggleFavorite: toggleFavorite,
+      onMoveTo: (target: VaultPath) => askEntryMove({ path: target, kind: 'file' }),
+      onDelete: (target: VaultPath) => askEntryDelete({ path: target, kind: 'file' }),
+      onShowInGraph: (target: VaultPath) => openGraph({ kind: 'note', path: target, depth: 1 }),
+    }),
+    [renamePaneNote, toggleFavorite, askEntryMove, askEntryDelete, openGraph],
+  );
+  const todayWiring = useMemo(
+    () => ({
+      view:
+        todayView === null
+          ? null
+          : { title: todayView.title, onOpen: () => openNote(todayView.path) },
+      onOpenDailyNote: () => void openDailyNote(),
+    }),
+    [todayView, openNote, openDailyNote],
+  );
+  const chatToggle = useMemo(
+    () => (location === null ? null : { open: chat.open, onToggle: chat.toggle }),
+    [location, chat.open, chat.toggle],
+  );
+  const inboxWiring = useMemo(
+    () => ({
+      closing: closing.writes,
+      pendingWrites,
+      onOpenSource: followSource,
+      typesOffer:
+        typesOffer === null
+          ? null
+          : {
+              lines: typesOffer.lines,
+              onAccept: () => void typesOffer.accept(),
+              onDismiss: typesOffer.dismiss,
+            },
+      taskMigration,
+      paraMigration,
+      vaultTidy,
+      meetingCleanup,
+      settingsUnreadable:
+        settingsProblem === null
+          ? null
+          : {
+              problem: settingsProblem,
+              onOpenSettings: () => showOverlay('settings'),
+            },
+      ownerUnknown:
+        ownerKnown &&
+        automations.listing !== null &&
+        ownerNeededBy(
+          automations.listing.automations.map(({ rule }) => rule),
+          { selfName: ownerName, selfEmails: ownerEmails, people: [] },
+        )
+          ? { onOpenSettings: () => showOverlay('settings') }
+          : null,
+      meetingProjects,
+      view:
+        inboxView === null
+          ? null
+          : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
+    }),
+    [
+      closing.writes,
+      pendingWrites,
+      followSource,
+      typesOffer,
+      taskMigration,
+      paraMigration,
+      vaultTidy,
+      meetingCleanup,
+      settingsProblem,
+      ownerKnown,
+      automations.listing,
+      ownerName,
+      ownerEmails,
+      meetingProjects,
+      inboxView,
+      openNote,
+      showOverlay,
+    ],
+  );
   return (
     <NoteNamesProvider value={names}>
-      <ChatToggleProvider
-        value={location === null ? null : { open: chat.open, onToggle: chat.toggle }}
-      >
+      <ChatToggleProvider value={chatToggle}>
         <AppShell
           sidebarOpen={sidebarOpen}
+          asideOpen={asideShown}
           // Every page carries its own way back in its bar; only the empty
           // state, which has no page, needs the shell's.
           {...(location === null && { onShowSidebar: toggleSidebar })}
@@ -1711,14 +1904,7 @@ function AppWindow({
                     ...workspaceStores,
                     pane: paneContext,
                     onShowSidebar: sidebarOpen ? null : toggleSidebar,
-                    note: {
-                      onRename: renamePaneNote,
-                      onToggleFavorite: toggleFavorite,
-                      onMoveTo: (target) => entries.askMove({ path: target, kind: 'file' }),
-                      onDelete: (target) => entries.askDelete({ path: target, kind: 'file' }),
-                      onShowInGraph: (target) =>
-                        openGraph({ kind: 'note', path: target, depth: 1 }),
-                    },
+                    note: noteCommands,
                     pages: {
                       ports: archivePorts,
                       indexReady,
@@ -1726,51 +1912,8 @@ function AppWindow({
                       openNote,
                       openPage,
                       holds: holdsByVault.of(location.absolutePath),
-                      today: {
-                        view:
-                          todayView === null
-                            ? null
-                            : { title: todayView.title, onOpen: () => openNote(todayView.path) },
-                        onOpenDailyNote: () => void openDailyNote(),
-                      },
-                      inbox: {
-                        closing: closing.writes,
-                        pendingWrites,
-                        onOpenSource: followSource,
-                        typesOffer:
-                          typesOffer === null
-                            ? null
-                            : {
-                                lines: typesOffer.lines,
-                                onAccept: () => void typesOffer.accept(),
-                                onDismiss: typesOffer.dismiss,
-                              },
-                        taskMigration,
-                        paraMigration,
-                        vaultTidy,
-                        meetingCleanup,
-                        settingsUnreadable:
-                          settingsProblem === null
-                            ? null
-                            : {
-                                problem: settingsProblem,
-                                onOpenSettings: () => showOverlay('settings'),
-                              },
-                        ownerUnknown:
-                          ownerKnown &&
-                          automations.listing !== null &&
-                          ownerNeededBy(
-                            automations.listing.automations.map(({ rule }) => rule),
-                            { selfName: ownerName, selfEmails: ownerEmails, people: [] },
-                          )
-                            ? { onOpenSettings: () => showOverlay('settings') }
-                            : null,
-                        meetingProjects,
-                        view:
-                          inboxView === null
-                            ? null
-                            : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
-                      },
+                      today: todayWiring,
+                      inbox: inboxWiring,
                       templates: templatesPage.page,
                       terms: { templates },
                       activity: { activity },
@@ -1796,26 +1939,43 @@ function AppWindow({
                   }}
                 >
                   {/* Keyed by vault: its editors, and what each pane keeps mounted, are that vault's (R14-01). */}
-                  <PanesContainer key={vaultKey ?? ''} />
+                  <AsideToggleProvider value={asideToggle}>
+                    <PanesContainer key={vaultKey ?? ''} />
+                  </AsideToggleProvider>
                 </WorkspaceWiringProvider>
               </WorkspaceStoresProvider>
             )
           }
           aside={
-            location !== null && chat.open ? (
-              <ChatPane
-                chat={chat}
-                onFollowLink={(target) =>
-                  followLinkInPane({ pane: workspaceNow(workspace).focused, target })
-                }
-                loadImage={noImages}
-                nameHint={
-                  profileSetting.profile !== 'unknown' && !hasFullName(profileSetting.profile)
-                    ? { placeholder: NAME_PLACEHOLDER, onSetName: () => showOverlay('settings') }
-                    : null
-                }
-              />
-            ) : null
+            location === null ? null : (
+              // The same stores the panes read; the chat reaches only its own tab.
+              <WorkspaceStoresProvider value={workspaceStores}>
+                <ClaudeSeatProvider
+                  value={
+                    chat.open && (
+                      <ChatPane
+                        chat={chat}
+                        onFollowLink={(target) =>
+                          followLinkInPane({ pane: workspaceNow(workspace).focused, target })
+                        }
+                        loadImage={noImages}
+                        nameHint={
+                          profileSetting.profile !== 'unknown' &&
+                          !hasFullName(profileSetting.profile)
+                            ? {
+                                placeholder: NAME_PLACEHOLDER,
+                                onSetName: () => showOverlay('settings'),
+                              }
+                            : null
+                        }
+                      />
+                    )
+                  }
+                >
+                  <AsideContainer rows={rowPorts} />
+                </ClaudeSeatProvider>
+              </WorkspaceStoresProvider>
+            )
           }
           status={location === null ? null : indexStatusText(indexStatus)}
           floating={

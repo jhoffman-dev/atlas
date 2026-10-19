@@ -40,7 +40,9 @@ export function GraphList({
                   <li key={`out:${entry.path}:${entry.via ?? ''}`}>
                     <button type="button" className="graph__list-link" onClick={open(entry.path)}>
                       <span className="graph__list-way">{entry.via ?? 'Links to'}</span>
-                      {entry.title}
+                      <span className="graph__list-title" title={entry.title}>
+                        {entry.title}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -50,7 +52,9 @@ export function GraphList({
                       <span className="graph__list-way">
                         {entry.via === null ? 'Linked from' : `${entry.via} of`}
                       </span>
-                      {entry.title}
+                      <span className="graph__list-title" title={entry.title}>
+                        {entry.title}
+                      </span>
                     </button>
                   </li>
                 ))}
