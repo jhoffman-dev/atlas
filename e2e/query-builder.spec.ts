@@ -141,7 +141,9 @@ test('a query across types is built in the builder, read as text, saved, grouped
     page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: 'Julie q3' }),
   ).toHaveAttribute('aria-pressed', 'true');
 
-  // Opened again it is in the builder. Wider, and grouped by project, then by status.
+  // Opened again, the query is folded to its line; opened, it is in the
+  // builder. Wider, and grouped by project, then by status.
+  await page.getByRole('button', { name: 'Edit query' }).click();
   await expect(page.getByRole('region', { name: 'Query builder' })).toBeVisible();
   await page.getByRole('button', { name: 'Remove condition 3' }).click();
   await page.getByRole('button', { name: 'Remove condition 2' }).click();
