@@ -112,6 +112,23 @@ describe('the vocabulary’s notes, read from the index’s tables', () => {
     ]);
   });
 
+  it('give a multi-typed company its variants, read as the company’s (#400)', () => {
+    const { note, run } = index();
+    note('Companies/Larkspur Payroll.md', 'Larkspur Payroll', {
+      type: ['company', 'person'],
+      variants: ['Larkspar Payroll'],
+      aliases: 'LP',
+    });
+    expect(vocabularySourcesOf(run()).companies).toEqual([
+      {
+        path: 'Companies/Larkspur Payroll.md',
+        name: 'Larkspur Payroll',
+        aliases: ['LP'],
+        variants: ['Larkspar Payroll'],
+      },
+    ]);
+  });
+
   it('page through the rows', () => {
     expect(compileVocabularyQuery(2).parameters.slice(-2)).toEqual([
       VOCABULARY_PAGE_SIZE,
@@ -148,11 +165,21 @@ describe('the notes the rows describe', () => {
         },
       ],
       people: [
-        { path: 'People/Mara Quill.md', name: 'Mara Quill', aliases: ['Mara Quil', 'Mara'] },
-        { path: 'People/Tobias Fenn.md', name: 'Tobias Fenn', aliases: [] },
+        {
+          path: 'People/Mara Quill.md',
+          name: 'Mara Quill',
+          aliases: ['Mara Quil', 'Mara'],
+          variants: [],
+        },
+        { path: 'People/Tobias Fenn.md', name: 'Tobias Fenn', aliases: [], variants: [] },
       ],
       companies: [
-        { path: 'Companies/Larkspur Payroll.md', name: 'Larkspur Payroll', aliases: ['LP'] },
+        {
+          path: 'Companies/Larkspur Payroll.md',
+          name: 'Larkspur Payroll',
+          aliases: ['LP'],
+          variants: [],
+        },
       ],
     });
   });
@@ -165,6 +192,16 @@ describe('the notes the rows describe', () => {
     ]);
     expect(sources.people[0]?.aliases).toEqual([]);
     expect(sources.terms[0]).toMatchObject({ variants: [], kind: null });
+  });
+
+  it('read a person’s and a company’s variants beside their aliases, each list its own (#400)', () => {
+    const sources = vocabularySourcesOf([
+      row('Companies/Larkspur.md', 'Larkspur', 'company', 'aliases', 'LP'),
+      row('Companies/Larkspur.md', 'Larkspur', 'company', 'variants', 'larkspar'),
+      row('People/Mara Quill.md', 'Mara Quill', 'person', 'variants', 'Mara Quil'),
+    ]);
+    expect(sources.companies[0]).toMatchObject({ aliases: ['LP'], variants: ['larkspar'] });
+    expect(sources.people[0]).toMatchObject({ aliases: [], variants: ['Mara Quil'] });
   });
 
   it('list terms by their right spelling, whatever its case, then by path', () => {

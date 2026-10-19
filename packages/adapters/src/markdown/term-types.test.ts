@@ -41,4 +41,14 @@ describe('the Person and Company types this vault ships', () => {
     const aliases = shippedType(name).properties.find((property) => property.key === ALIASES_KEY);
     expect(aliases).toMatchObject({ kind: 'multiSelect', options: [], label: 'Also spelt' });
   });
+
+  it.each(['person', 'company'])(
+    'give %s a misheard-spellings list as a term has, which the properties panel shows (#400)',
+    (name) => {
+      const variants = shippedType(name).properties.find(
+        (property) => property.key === VARIANTS_KEY,
+      );
+      expect(variants).toMatchObject({ kind: 'multiSelect', options: [], label: 'Misheard as' });
+    },
+  );
 });

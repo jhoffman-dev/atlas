@@ -91,7 +91,15 @@ describe('useTermsPage', () => {
     const { result } = renderPage();
     await waitFor(() => expect(result.current.page.contents).not.toBeNull());
     expect(result.current.page.contents).toEqual({
-      terms: [{ path: LARKSPUR, canonical: 'Larkspur', variants: ['lark spur'], kind: null }],
+      terms: [
+        {
+          path: LARKSPUR,
+          canonical: 'Larkspur',
+          variants: ['lark spur'],
+          kind: null,
+          source: 'term',
+        },
+      ],
       conflicts: [],
       warnings: [],
       spellings: 1,
@@ -142,7 +150,13 @@ describe('useTermsPage', () => {
     await act(async () =>
       result.current.page.onAdd({ canonical: 'Larkspur', variants: '', kind: null }),
     );
-    await waitFor(() => expect(result.current.notice).toMatch(/^“Larkspur” was not added: /));
+    // Said once (#400): the use case's reason, after the page's one “was not added”.
+    await waitFor(() =>
+      expect(result.current.notice).toBe(
+        '“Larkspur” was not added: [[Larkspur]] already opens Zeta/Larkspur.md, and would open the new term instead. Rename one of them first.',
+      ),
+    );
+    expect(result.current.notice?.match(/was not added/g)).toHaveLength(1);
     expect(onChanged).not.toHaveBeenCalled();
     expect(activity.reports).toEqual([]);
 
@@ -152,6 +166,76 @@ describe('useTermsPage', () => {
     );
     await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
     expect(result.current.notice).toBeNull();
+  });
+
+  it('lists a company with misheard spellings beside the terms, saying it is the company’s (#400)', async () => {
+    const index = fakeIndexPort({
+      query: async () => ({
+        columns: COLUMNS,
+        rows: [
+          ['Companies/Larkspur Payroll.md', 'Larkspur Payroll', 'company', 'variants', 'larkspar'],
+        ],
+        truncated: false,
+      }),
+    });
+    const { result } = renderPage({ index });
+    await waitFor(() => expect(result.current.page.contents).not.toBeNull());
+    expect(result.current.page.contents?.terms).toEqual([
+      {
+        path: 'Companies/Larkspur Payroll.md',
+        canonical: 'Larkspur Payroll',
+        variants: ['larkspar'],
+        kind: null,
+        source: 'company',
+      },
+    ]);
+    expect(result.current.page.contents?.spellings).toBe(1);
+  });
+
+  it('adds a term named like a company to that company’s variants, and says where they went (#400)', async () => {
+    const company =
+      '---\ntype: company\nvariants:\n  - larkspar\n---\n\nPayroll vendor, [[Mara Quill]] runs it.\n';
+    const { result, notes, onChanged, activity } = renderPage({
+      files: { 'Companies/Larkspur Payroll.md': company },
+    });
+    await act(async () =>
+      result.current.page.onAdd({
+        canonical: 'Larkspur Payroll',
+        variants: 'larkspar, Larks Burr Payroll',
+        kind: 'company',
+      }),
+    );
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(notes.get('Companies/Larkspur Payroll.md')).toBe(
+      '---\ntype: company\nvariants:\n  - larkspar\n  - Larks Burr Payroll\n---\n\nPayroll vendor, [[Mara Quill]] runs it.\n',
+    );
+    expect(notes.has('Terms/Larkspur Payroll.md')).toBe(false);
+    expect(result.current.notice).toBeNull();
+    expect(result.current.added).toBe(
+      'Added to Companies/Larkspur Payroll.md: Larks Burr Payroll.',
+    );
+    expect(activity.reports).toEqual([]);
+
+    // Adding a term of its own takes the message down.
+    await act(async () =>
+      result.current.page.onAdd({ canonical: 'Fenn Ledger', variants: '', kind: null }),
+    );
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(2));
+    expect(result.current.added).toBeNull();
+  });
+
+  it('says so when the company already lists every misheard spelling given (#400)', async () => {
+    const company = '---\ntype: company\nvariants:\n  - larkspar\n---\n';
+    const { result, onChanged } = renderPage({
+      files: { 'Companies/Larkspur Payroll.md': company },
+    });
+    await act(async () =>
+      result.current.page.onAdd({ canonical: 'Larkspur Payroll', variants: 'larkspar', kind: null }),
+    );
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(result.current.added).toBe(
+      'Companies/Larkspur Payroll.md already lists those misheard spellings.',
+    );
   });
 
   it('edits variants in the file’s frontmatter only, when no pane holds the term', async () => {
