@@ -40,8 +40,8 @@ const props = {
 describe('BoardView', () => {
   it('shows a column per group', () => {
     render(<BoardView {...props} />);
-    expect(screen.getByRole('region', { name: 'backlog' })).toBeDefined();
-    expect(screen.getByRole('region', { name: 'doing' })).toBeDefined();
+    expect(screen.getByRole('region', { name: 'Backlog' })).toBeDefined();
+    expect(screen.getByRole('region', { name: 'Doing' })).toBeDefined();
   });
 
   it('names a status column, and its Add button, as its heading reads (#338)', () => {
@@ -66,21 +66,21 @@ describe('BoardView', () => {
     const atlas = screen.getByRole('region', { name: 'Atlas' });
     expect(atlas.querySelector('.status-pill')).toBeNull();
     expect(atlas.querySelector('.board__group-label')?.textContent).toBe('Atlas');
-    const review = screen.getByRole('region', { name: 'in review' });
+    const review = screen.getByRole('region', { name: 'In review' });
     expect(review.querySelector('.status-pill--dot')?.getAttribute('data-tone')).toBe('review');
     expect(review.querySelector('.board__group-label')?.textContent).toBe('In review');
   });
 
   it('keeps an empty column, because that is where a card goes next', () => {
     render(<BoardView {...props} />);
-    const doing = screen.getByRole('region', { name: 'doing' });
+    const doing = screen.getByRole('region', { name: 'Doing' });
     expect(within(doing).queryByRole('article')).toBeNull();
     expect(within(doing).getByLabelText('0 cards')).toBeDefined();
   });
 
   it('counts the cards in a column', () => {
     render(<BoardView {...props} />);
-    const backlog = screen.getByRole('region', { name: 'backlog' });
+    const backlog = screen.getByRole('region', { name: 'Backlog' });
     expect(within(backlog).getByLabelText('1 card')).toBeDefined();
   });
 
@@ -120,11 +120,11 @@ describe('BoardView', () => {
     const onAddCard = vi.fn();
     render(<BoardView {...props} onAddCard={onAddCard} />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add to doing' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add to Doing' }));
     expect(onAddCard).not.toHaveBeenCalled();
 
     await userEvent.type(
-      screen.getByRole('textbox', { name: 'New card in doing' }),
+      screen.getByRole('textbox', { name: 'New card in Doing' }),
       'Ship it{Enter}',
     );
     expect(onAddCard).toHaveBeenCalledWith({ value: 'doing', name: 'Ship it' });
@@ -134,8 +134,8 @@ describe('BoardView', () => {
     const onAddCard = vi.fn();
     render(<BoardView {...props} onAddCard={onAddCard} />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add to doing' }));
-    const field = screen.getByRole('textbox', { name: 'New card in doing' });
+    await userEvent.click(screen.getByRole('button', { name: 'Add to Doing' }));
+    const field = screen.getByRole('textbox', { name: 'New card in Doing' });
     await userEvent.type(field, 'One{Enter}');
     await userEvent.type(field, 'Two{Enter}');
 
@@ -147,22 +147,22 @@ describe('BoardView', () => {
     const onAddCard = vi.fn();
     render(<BoardView {...props} onAddCard={onAddCard} />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add to doing' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'New card in doing' }), '   {Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Add to Doing' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'New card in Doing' }), '   {Enter}');
 
     expect(onAddCard).not.toHaveBeenCalled();
-    expect(screen.queryByRole('textbox', { name: 'New card in doing' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'New card in Doing' })).toBeNull();
   });
 
   it('abandons the field on escape', async () => {
     const onAddCard = vi.fn();
     render(<BoardView {...props} onAddCard={onAddCard} />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add to doing' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'New card in doing' }), 'x{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'Add to Doing' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'New card in Doing' }), 'x{Escape}');
 
     expect(onAddCard).not.toHaveBeenCalled();
-    expect(screen.queryByRole('textbox', { name: 'New card in doing' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'New card in Doing' })).toBeNull();
   });
 
   it('can add to the column for cards with no value', async () => {
@@ -221,13 +221,13 @@ describe('BoardView card content', () => {
 
   it('offers an add control in the column header, where a full column cannot hide it', () => {
     render(<BoardView {...props} />);
-    const header = screen.getByRole('region', { name: 'doing' }).querySelector('header');
+    const header = screen.getByRole('region', { name: 'Doing' }).querySelector('header');
     expect(header?.querySelector('button')).not.toBeNull();
   });
 
   it('heads each column with its status’s bare dot, in its tone, beside the label', () => {
     render(<BoardView {...props} />);
-    const head = screen.getByRole('region', { name: 'doing' }).querySelector('header');
+    const head = screen.getByRole('region', { name: 'Doing' }).querySelector('header');
     const dot = head?.querySelector('.status-pill--dot');
     expect(dot?.getAttribute('data-tone')).toBe('doing');
     expect(head?.querySelector('.board__group-label')?.textContent).toBe('Doing');
@@ -235,7 +235,7 @@ describe('BoardView card content', () => {
 
   it('hides the head’s dot from a screen reader: the label beside it says the status once', () => {
     render(<BoardView {...props} />);
-    const head = screen.getByRole('region', { name: 'doing' }).querySelector('header');
+    const head = screen.getByRole('region', { name: 'Doing' }).querySelector('header');
     expect(head).not.toBeNull();
     expect(within(head as HTMLElement).queryByRole('img')).toBeNull();
     expect(head?.querySelector('.status-pill--dot')?.getAttribute('aria-hidden')).toBe('true');
@@ -243,9 +243,9 @@ describe('BoardView card content', () => {
 
   it('says an empty column has no tasks, and a full one does not', () => {
     render(<BoardView {...props} />);
-    const doing = screen.getByRole('region', { name: 'doing' });
+    const doing = screen.getByRole('region', { name: 'Doing' });
     expect(within(doing).getByText('No tasks')).toBeDefined();
-    const backlog = screen.getByRole('region', { name: 'backlog' });
+    const backlog = screen.getByRole('region', { name: 'Backlog' });
     expect(within(backlog).queryByText('No tasks')).toBeNull();
   });
 
@@ -396,8 +396,8 @@ describe('BoardView card content', () => {
         ]}
       />,
     );
-    const done = screen.getByRole('region', { name: 'done' });
-    const doing = screen.getByRole('region', { name: 'doing' });
+    const done = screen.getByRole('region', { name: 'Done' });
+    const doing = screen.getByRole('region', { name: 'Doing' });
     expect(within(done).getByRole('img', { name: 'Done' })).toBeDefined();
     expect(within(doing).queryByRole('img', { name: 'Done' })).toBeNull();
   });
@@ -485,7 +485,7 @@ describe('BoardView keyboard drag', () => {
       />,
     );
 
-    const moved = within(screen.getByRole('region', { name: 'doing' })).getByRole('button', {
+    const moved = within(screen.getByRole('region', { name: 'Doing' })).getByRole('button', {
       name: 'First',
     });
     await waitFor(() => expect(document.activeElement).toBe(moved));
@@ -511,7 +511,7 @@ describe('BoardView keyboard drag', () => {
       />,
     );
 
-    const doing = screen.getByRole('region', { name: 'doing' });
+    const doing = screen.getByRole('region', { name: 'Doing' });
     const moved = within(doing).getByRole('button', { name: 'First' });
     await waitFor(() => expect(document.activeElement).toBe(moved));
     expect(within(doing).getByRole('button', { name: '4 more' })).toBeDefined();
@@ -522,6 +522,6 @@ describe('BoardView keyboard drag', () => {
 
     await dragByKeyboard(screen.getByRole('button', { name: 'First' }), ['{ArrowRight}']);
 
-    await waitFor(() => expect(announced()).toBe('First moved to doing.'));
+    await waitFor(() => expect(announced()).toBe('First moved to Doing.'));
   });
 });

@@ -60,9 +60,9 @@ const cardHandle = (page: Page, title: string) =>
 test('a board shows a column per status, with the cards in them', async ({ page }) => {
   await openBoard(page);
 
-  await expect(page.getByRole('region', { name: 'backlog' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'doing' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'done' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Backlog' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Doing' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Done' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'first', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'second', exact: true })).toBeVisible();
 });
@@ -71,7 +71,7 @@ test('dragging a card writes the new status into its file', async ({ page }) => 
   const vault = await openBoard(page);
   await page.locator('[data-path="first.md"]').waitFor();
 
-  await dragCardTo(page, 'first.md', 'done');
+  await dragCardTo(page, 'first.md', 'Done');
 
   await expectFile(vault, 'first.md').toContain('status: done');
   // And the note itself is otherwise untouched.
@@ -90,7 +90,7 @@ test('a card can be moved to another column with the keyboard alone', async ({ p
   // The card is drawn anew in done; focus goes with it, so the next Tab
   // carries on from the card rather than from the top of the page.
   await expect(
-    page.getByRole('region', { name: 'done' }).getByRole('button', { name: 'first', exact: true }),
+    page.getByRole('region', { name: 'Done' }).getByRole('button', { name: 'first', exact: true }),
   ).toBeFocused();
 });
 
@@ -110,7 +110,7 @@ test('escape puts a keyboard-held card down without writing anything', async ({ 
 
 test('clicking a card after dragging another still opens it', async ({ page }) => {
   const vault = await openBoard(page);
-  await dragCardTo(page, 'second.md', 'done');
+  await dragCardTo(page, 'second.md', 'Done');
   await expectFile(vault, 'second.md').toContain('status: done');
 
   await page.getByRole('button', { name: 'first', exact: true }).click();
@@ -120,8 +120,8 @@ test('clicking a card after dragging another still opens it', async ({ page }) =
 test('adding a card puts it in the column it was added to', async ({ page }) => {
   const vault = await openBoard(page);
 
-  await page.getByRole('button', { name: 'Add to doing' }).click();
-  const input = page.getByRole('textbox', { name: 'New card in doing' });
+  await page.getByRole('button', { name: 'Add to Doing' }).click();
+  const input = page.getByRole('textbox', { name: 'New card in Doing' });
   await input.fill('A new card');
   await input.press('Enter');
 
@@ -190,8 +190,8 @@ test('every column takes the same share of the width, the empty one included', a
   }));
 
   const { board, columns } = measured;
-  expect(columns.map((column) => column.label)).toEqual(['backlog', 'doing', 'done']);
-  expect(columns.find((column) => column.label === 'done')?.cards).toBe(0);
+  expect(columns.map((column) => column.label)).toEqual(['Backlog', 'Doing', 'Done']);
+  expect(columns.find((column) => column.label === 'Done')?.cards).toBe(0);
   const [first, ...rest] = columns;
   expect(first?.width ?? 0).toBeGreaterThan(180);
   for (const column of rest) expect(column.width).toBeCloseTo(first?.width ?? 0, -1);
@@ -221,8 +221,8 @@ test('a card can be added with a name, from the column', async ({ page }) => {
   const vault = await openBoard(page);
   await page.locator('[data-path="first.md"]').waitFor();
 
-  await page.getByRole('button', { name: 'Add to doing' }).click();
-  const input = page.getByRole('textbox', { name: 'New card in doing' });
+  await page.getByRole('button', { name: 'Add to Doing' }).click();
+  const input = page.getByRole('textbox', { name: 'New card in Doing' });
   await input.fill('Write the release notes');
   await input.press('Enter');
 
@@ -232,7 +232,7 @@ test('a card can be added with a name, from the column', async ({ page }) => {
   // for a reason that has nothing to do with the board.
   await expect(
     page
-      .getByRole('region', { name: 'doing' })
+      .getByRole('region', { name: 'Doing' })
       .getByRole('button', { name: 'Write the release notes', exact: true }),
   ).toBeVisible();
 });
@@ -241,8 +241,8 @@ test('adding another card keeps the field open for the next one', async ({ page 
   const vault = await openBoard(page);
   await page.locator('[data-path="first.md"]').waitFor();
 
-  await page.getByRole('button', { name: 'Add to backlog' }).click();
-  const input = page.getByRole('textbox', { name: 'New card in backlog' });
+  await page.getByRole('button', { name: 'Add to Backlog' }).click();
+  const input = page.getByRole('textbox', { name: 'New card in Backlog' });
   await input.fill('First idea');
   await input.press('Enter');
   await input.fill('Second idea');
@@ -256,8 +256,8 @@ test('escape closes the add field without making a card', async ({ page }) => {
   await openBoard(page);
   await page.locator('[data-path="first.md"]').waitFor();
 
-  await page.getByRole('button', { name: 'Add to doing' }).click();
-  await page.getByRole('textbox', { name: 'New card in doing' }).press('Escape');
+  await page.getByRole('button', { name: 'Add to Doing' }).click();
+  await page.getByRole('textbox', { name: 'New card in Doing' }).press('Escape');
 
-  await expect(page.getByRole('textbox', { name: 'New card in doing' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'New card in Doing' })).toHaveCount(0);
 });

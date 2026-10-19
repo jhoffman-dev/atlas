@@ -7,6 +7,14 @@ import { StatusPill } from './status-pill.tsx';
 /** A column's key among its siblings; the column with no value has one no value can be. */
 export const keyOf = (column: Pick<BoardColumn, 'value'>) => column.value ?? '\u0000none';
 
+/**
+ * What a column is called wherever it is named — its heading, its region, its
+ * "Add to …" button: a status reads as its option label ("Next Action"), any
+ * other column by its plain label.
+ */
+export const columnName = (column: Pick<BoardColumn, 'label' | 'tone'>) =>
+  column.tone === null ? column.label : optionLabel(column.label);
+
 /** One column's cell in one lane, as the board draws it. */
 export interface LaneCell {
   readonly column: BoardColumn;
@@ -141,9 +149,7 @@ export function ColumnHeading({ column }: { column: BoardColumn }) {
           {...(column.tone !== undefined && { tone: column.tone })}
         />
       )}
-      <span className="board__group-label">
-        {status ? optionLabel(column.label) : column.label}
-      </span>
+      <span className="board__group-label">{columnName(column)}</span>
       <span className="board__count" aria-label={`${count} ${count === 1 ? 'card' : 'cards'}`}>
         {count}
       </span>
