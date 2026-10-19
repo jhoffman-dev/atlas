@@ -1,4 +1,6 @@
 export { AppShell, PaneSplit } from './app-shell.tsx';
+export { AsideToggleProvider, useAsideToggle } from './aside/aside-toggle.tsx';
+export type { AsideToggle } from './aside/aside-toggle.tsx';
 export { BacklinksPane } from './aside/backlinks-pane.tsx';
 export {
   ASIDE_COLLAPSES_BELOW,
@@ -224,7 +226,7 @@ export * from './activity/index.ts';
 export type { Choice } from './choice-select.tsx';
 export { ChatPanel } from './chat/chat-panel.tsx';
 export type { ChatNameHint } from './chat/chat-panel.tsx';
-export { ChatToggleButton, ChatToggleProvider, useChatToggle } from './chat/chat-toggle.tsx';
+export { ChatToggleProvider, useChatToggle } from './chat/chat-toggle.tsx';
 export type { ChatToggle } from './chat/chat-toggle.tsx';
 export type {
   ChatActions,

@@ -214,6 +214,12 @@
     min-width: 27px;
     padding: 0 6px;
   }
+
+  /* The right sidebar's button goes first: a pane this narrow has no room
+     beside it for an aside, and ⌥⌘\ still toggles it (#306). */
+  .page-bar__aside {
+    display: none;
+  }
 }
 
 @container page-bar (max-width: 340px) {

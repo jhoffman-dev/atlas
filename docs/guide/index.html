@@ -204,6 +204,7 @@ pnpm tauri:dev</pre>
         <li><b>Breadcrumb</b> shows where the page lives, and beside the name a quiet count says what it holds — <b>5 to process</b>, <b>3 templates</b>. A page's own buttons (<b>New template</b>, <b>Open the Inbox view</b>) sit in the bar too. Only a note, a template or a type keeps a title on the page itself; press it to rename.</li>
         <li><b>Saved / Saving… / Unsaved</b> is the save status. Notes save as you type; <kbd>⌘S</kbd> saves at once.</li>
         <li><b>Spark</b> button: <b>Ask Claude (⌘J)</b> — see <a href="#claude">Claude in Atlas</a>.</li>
+        <li><b>Right sidebar</b> button, beside the spark: <b>Show right sidebar (⌥⌘\)</b>, pressed while it is showing. See <a href="#right-sidebar">The right sidebar</a> below.</li>
         <li><b>Split</b> button, just before the <b>…</b>: <b>Split right (⇧⌘\)</b>. See <a href="#two-panes">Two pages side by side</a> below.</li>
         <li><b>…</b> menu: Link to…, Show in graph, Move to…, Archive (or Unarchive), Delete…, Split right, Close pane, and more for views and dashboards.</li>
         <li><b>×</b> <b>Close pane</b>, at the very end of the bar, once the window is split.</li>
@@ -229,7 +230,17 @@ pnpm tauri:dev</pre>
         <li><b>Nothing you type is lost.</b> What you typed in a pane as it closes is saved, and if the other pane shows the same note, it picks the change up.</li>
         <li>Each tab keeps its own Back and Forward, and the split and its tabs are still there after a restart.</li>
       </ul>
-      <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings and the light/dark switch sit at the bottom of the sidebar (<kbd>⌘,</kbd>), beside the <a href="#sync">sync</a> light once sync is set up. <kbd>⌘J</kbd> opens <a href="#claude">Claude</a> in a pane beside the page.</p>
+      <h3 id="right-sidebar">The right sidebar</h3>
+      <p>A panel on the right that follows whatever has the focus. Show or hide it with the <b>Right sidebar</b> button in any page's bar or <kbd>⌥⌘\</kbd>; the <b>×</b> at the end of its tab row hides it too. Whether it is open, and which tab, is remembered per vault.</p>
+      <ul>
+        <li><b>Properties</b> — the open note's properties, with the same editors as the page: change one here and the file is written. Empty ones fold behind <b>N empty properties</b>. While the sidebar shows them, the note's own properties block leaves the body so there is one place to edit them; hide the sidebar and it is back. <b>Open</b> and <b>New tab</b> at the foot open what is shown.</li>
+        <li><b>Backlinks</b> — what links to the note, what it links to, and its unlinked mentions, as the foot of the page has them.</li>
+        <li><b>Outline</b> — the note's headings; click one to scroll to it.</li>
+        <li><b>Claude</b> — the chat. See <a href="#claude">Claude in Atlas</a>.</li>
+        <li><b>A table's row.</b> Click into a row of a type's table or a view's table — any cell — and the sidebar shows that note's properties under <b>Task · selected row</b>, without opening it. Editing them writes the row's file and the table follows.</li>
+        <li><b>A narrow window</b> folds the right sidebar first — under about 1020px with the left sidebar open — and the left sidebar never folds on its own. Hide the left one with <kbd>⌘\</kbd> and the right comes back. <kbd>Esc</kbd> inside the sidebar puts the focus back on the page.</li>
+      </ul>
+      <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings and the light/dark switch sit at the bottom of the sidebar (<kbd>⌘,</kbd>), beside the <a href="#sync">sync</a> light once sync is set up. <kbd>⌘J</kbd> opens <a href="#claude">Claude</a> in the right sidebar's <b>Claude</b> tab.</p>
     </section>
 
     <section id="notes">
@@ -1699,7 +1710,7 @@ do: archive</pre>
       <p class="sub">Ask Claude about your vault without leaving the app. It starts out knowing the page you're on, can search and read everything, and proposes changes you accept — it never writes on its own.</p>
       <h3>Open it</h3>
       <ul>
-        <li>Press the spark button in any page's top bar (<b>Ask Claude (⌘J)</b>), or <kbd>⌘J</kbd>. It opens as a pane beside your work; the same button or <kbd>⌘J</kbd> closes it. Not while a dialog is open.</li>
+        <li>Press the spark button in any page's top bar (<b>Ask Claude (⌘J)</b>), or <kbd>⌘J</kbd>. It opens in the <a href="#right-sidebar">right sidebar</a>, on its <b>Claude</b> tab; the same button, <kbd>⌘J</kbd> or the chat's own <b>×</b> closes the sidebar. With the sidebar already open on another tab, <kbd>⌘J</kbd> switches it to Claude. Not while a dialog is open.</li>
         <li>What you have open comes along as a chip above the box: a note (its title, properties and text), a view (its first 20 rows), a dashboard (its widgets), or, on the Query page in <b>Atlas query</b>, the query you're writing and its first rows. The <b>×</b> on the chip (<b>Leave this out</b>) drops it.</li>
         <li>Nothing needs turning on first: the chat doesn't use the Local API, only the way to Claude chosen in <a href="#claude-setup">Settings → Claude</a>.</li>
       </ul>
@@ -2043,7 +2054,8 @@ pnpm tauri:dev</pre>
             <tr><td><kbd>⌥</kbd> + arrow</td><td>Move the add button to the next place, while it's focused</td></tr>
             <tr><td><kbd>⌥↑</kbd> <kbd>⌥↓</kbd></td><td>Move a sidebar section up or down, while its grip is focused</td></tr>
             <tr><td><kbd>⇧⌘D</kbd></td><td>Today's note</td></tr>
-            <tr><td><kbd>⌘J</kbd></td><td>Open or close <a href="#claude">Claude</a> beside the page</td></tr>
+            <tr><td><kbd>⌘J</kbd></td><td>Open or close <a href="#claude">Claude</a> in the right sidebar</td></tr>
+            <tr><td><kbd>⌥⌘\</kbd></td><td>Show or hide <a href="#right-sidebar">the right sidebar</a></td></tr>
             <tr><td><kbd>⌘S</kbd></td><td>Save now</td></tr>
             <tr><td><kbd>⌘[</kbd> <kbd>⌘]</kbd></td><td>Back, Forward</td></tr>
             <tr><td><kbd>⌘\</kbd></td><td>Show or hide the sidebar</td></tr>

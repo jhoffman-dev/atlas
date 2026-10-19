@@ -1,4 +1,13 @@
-import { memo, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useStore } from 'zustand';
 import {
   ARTIFACT_KEYS,
@@ -93,6 +102,8 @@ import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
 import { webviewImageProbe } from '../notes/webview-image-probe.ts';
 import { browserImagePlacementStore } from '../notes/browser-image-placement-store.ts';
 import { useNoteProperties } from '../types/use-note-properties.ts';
+import { focusRow, type AsideStore } from '../aside/aside-store.ts';
+import { usePublishShownNote, type ShownNote, type ShownNotes } from '../aside/shown-notes.ts';
 import { useAddProperty } from '../types/use-add-property.ts';
 import { useCreateRelated } from '../types/use-create-related.ts';
 import type { TabLanding } from '../types/use-type-views.ts';
@@ -262,6 +273,7 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
     path,
     context: wiring.pane,
     hidden,
+    aside: { store: wiring.aside, shown: wiring.shown, showsProperties: wiring.propertiesInAside },
     onOpenNote: (target, how = 'here') => {
       const place: NavigationPlace = { kind: 'note', path: target };
       if (how === 'here') openInPane(store, { pane, place });
@@ -326,11 +338,14 @@ function useNotePane({
   onDelete,
   onShowInGraph,
   arrangement,
+  aside,
 }: {
   /** The tab this is the content of; the editor is registered under it. */
   tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
+  /** The right sidebar (#306): where this tab says what it shows, and whether the aside shows its properties. */
+  aside: { store: AsideStore; shown: ShownNotes; showsProperties: boolean };
   /**
    * Whether the tab is behind another one. The editor stays mounted, so its
    * undo keeps; it flushes as it hides, and its autosave stands down until shown.
@@ -584,20 +599,83 @@ function useNotePane({
   const openTarget = (target: string, how?: OpenHow) => onOpenNote(createVaultPath(target), how);
   const pageKey = usePageKey(path, note.open);
   const template = templateNoticeFor(path, context);
+  const heading =
+    note.open === null
+      ? null
+      : pageHeading({
+          note: note.open,
+          typeName: noteProperties.typeName,
+          sql: savedView.result?.sql ?? sqlView.sql,
+        });
+  const customPropertyValues = useMemo(
+    () => ({
+      ...(artifact !== null && { [ARTIFACT_KEYS.cover]: thumbnailValue(artifact, loadImage) }),
+      ...(pageThumbnail !== null && {
+        [pageThumbnail.key]: pageThumbnailValue(pageThumbnail, loadImage),
+      }),
+    }),
+    [artifact, pageThumbnail, loadImage],
+  );
+  // What the aside shows for this tab (#306): said through the store, read by
+  // a selector there, so the aside follows the focused tab without `App`.
+  usePublishShownNote(
+    aside.shown,
+    tabId,
+    useMemo<ShownNote | null>(
+      () =>
+        note.open === null || heading === null || heading.kind !== 'note'
+          ? null
+          : {
+              path: note.open.path,
+              title: heading.title.text,
+              kicker: noteProperties.typeLabel ?? 'Note',
+              panel: {
+                typeName: noteProperties.typeName,
+                typeLabel: noteProperties.typeLabel,
+                rows: noteProperties.rows,
+                relationChoices: noteProperties.relationChoices,
+                relationTargets: noteProperties.relationTargets,
+                fileKeys: noteProperties.keys,
+                customValues: customPropertyValues,
+                onChange: note.setProperty,
+                onAdd: addProperty,
+                onOpenNote,
+                onCreateRelated: createRelated,
+              },
+              links: links.links,
+              mentions: links.mentions.state,
+              onFindMentions: links.mentions.find,
+              onLinkMention: links.mentions.link,
+              doc: note.open.doc,
+            },
+      [
+        note.open,
+        heading,
+        noteProperties,
+        customPropertyValues,
+        note.setProperty,
+        addProperty,
+        onOpenNote,
+        createRelated,
+        links,
+      ],
+    ),
+  );
+  // A row of a view in this note, as its focus lands: the aside shows the row's note.
+  const onRowFocus = useCallback(
+    (row: string) => {
+      if (path !== null)
+        focusRow(aside.store, { tab: tabId, path: createVaultPath(row), within: path });
+    },
+    [aside.store, tabId, path],
+  );
 
   return (
     <NotePane
       key={pageKey}
       state={note.state}
-      heading={
-        note.open === null
-          ? null
-          : pageHeading({
-              note: note.open,
-              typeName: noteProperties.typeName,
-              sql: savedView.result?.sql ?? sqlView.sql,
-            })
-      }
+      heading={heading}
+      propertiesInAside={aside.showsProperties}
       arrangement={arrangement}
       onChange={note.changeDoc}
       onSave={note.save}
@@ -626,12 +704,7 @@ function useNotePane({
       relationChoices={noteProperties.relationChoices}
       typeLabel={noteProperties.typeLabel}
       relationTargets={noteProperties.relationTargets}
-      customPropertyValues={{
-        ...(artifact !== null && { [ARTIFACT_KEYS.cover]: thumbnailValue(artifact, loadImage) }),
-        ...(pageThumbnail !== null && {
-          [pageThumbnail.key]: pageThumbnailValue(pageThumbnail, loadImage),
-        }),
-      }}
+      customPropertyValues={customPropertyValues}
       onChangeProperty={note.setProperty}
       onAddProperty={addProperty}
       onCreateRelated={createRelated}
@@ -705,6 +778,7 @@ function useNotePane({
               fs: notes.fs,
               choosing,
               folds,
+              onRowFocus,
             })
       }
       {...(template === null &&
@@ -934,6 +1008,7 @@ function paneBody({
   fs,
   choosing,
   folds,
+  onRowFocus,
 }: {
   source: ReturnType<typeof useSource>;
   dashboard: ReturnType<typeof useDashboard> & ReturnType<typeof useDashboardEditing>;
@@ -953,6 +1028,8 @@ function paneBody({
   fs: VaultFsPort;
   choosing: ViewChoosing;
   folds: GroupFolds;
+  /** Told the row a table's focus landed in, for the aside. */
+  onRowFocus: (path: string) => void;
 }): ReactNode {
   if (source.source !== null) {
     return (
@@ -1011,6 +1088,7 @@ function paneBody({
       fs={fs}
       choosing={choosing}
       folds={folds}
+      onRowFocus={onRowFocus}
     />
   );
 }

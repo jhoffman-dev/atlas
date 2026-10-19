@@ -56,6 +56,13 @@ export interface ChatVault {
   readonly onChanged: () => void;
 }
 
+/** Where the chat sits and whether it is showing, decided outside the chat. */
+export interface ChatSeat {
+  readonly open: boolean;
+  readonly toggle: () => void;
+  readonly close: () => void;
+}
+
 export interface ChatController {
   readonly open: boolean;
   readonly toggle: () => void;
@@ -87,6 +94,7 @@ export function useChat({
   window: shown,
   clipboard,
   settingsOpen,
+  seat,
   activity,
   profile,
 }: {
@@ -101,8 +109,13 @@ export function useChat({
   activity: ActivityLog;
   /** Who the person is, from Settings → Profile; told to the model with each question. */
   profile: ProfileState;
+  /**
+   * The chat's seat: the right sidebar's Claude tab (UI v2 plan, question 4).
+   * Whether it is on screen, and the way to bring it up or put it away.
+   */
+  seat: ChatSeat;
 }): ChatController {
-  const [open, setOpen] = useState(false);
+  const { open } = seat;
   const [settings, setStoredSettings] = useState(() => store.read());
   const latest = useRef({ vault, settings, ports });
   latest.current = { vault, settings, ports };
@@ -171,8 +184,8 @@ export function useChat({
 
   return {
     open,
-    toggle: () => setOpen((was) => !was),
-    close: () => setOpen(false),
+    toggle: seat.toggle,
+    close: seat.close,
     state,
     session,
     model: chatModelOrDefault(settings.model),

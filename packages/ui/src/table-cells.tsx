@@ -52,6 +52,12 @@ export interface RowLook {
    * or, with Shift held, extends the choice to it.
    */
   readonly onChoose?: ((path: string, how: { readonly shift: boolean }) => void) | undefined;
+  /**
+   * Given when something follows the focused row — the right sidebar's
+   * Properties: told as the focus lands anywhere in a row. Steady, as the
+   * rest of the look is, so a row is not drawn again for it.
+   */
+  readonly onFocusRow?: ((path: string) => void) | undefined;
 }
 
 /** The cells a row leads with before its name: a box to choose it, a box to tick it done. */
@@ -106,7 +112,7 @@ export const TableRow = memo(function TableRow({
   index,
   measure,
 }: TableRowProps) {
-  const { onChoose, onTick, onOpenNote, editor } = look;
+  const { onChoose, onTick, onOpenNote, editor, onFocusRow } = look;
   const title = String(values[TITLE] ?? path);
   return (
     <tr
@@ -114,6 +120,8 @@ export const TableRow = memo(function TableRow({
       ref={measure}
       data-index={index}
       aria-rowindex={index === undefined ? undefined : ariaRowIndex(index)}
+      // Focus bubbles in React: a cell's box, button or editor taking it says which row.
+      {...(onFocusRow !== undefined && { onFocus: () => onFocusRow(path) })}
     >
       {onChoose !== undefined && (
         <td className="table__choose">

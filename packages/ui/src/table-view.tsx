@@ -92,6 +92,12 @@ export interface TableViewProps {
   readonly selection?: RowSelection;
   /** Given while the view groups: its rows drawn under group header rows. */
   readonly grouping?: TableGrouping;
+  /**
+   * Told the row the focus landed in — a cell clicked, tabbed to, or edited —
+   * for what follows the focused row (the right sidebar). The rows are not
+   * drawn again for it: it reaches them through the steady look.
+   */
+  readonly onRowFocus?: (path: string) => void;
 }
 
 /**
@@ -116,6 +122,7 @@ export function TableView({
   hiddenColumns = [],
   selection,
   grouping,
+  onRowFocus,
 }: TableViewProps) {
   if (error !== null) {
     return (
@@ -140,6 +147,7 @@ export function TableView({
       {...(ticks !== undefined && { ticks })}
       {...(selection !== undefined && { selection })}
       {...(grouping !== undefined && { grouping })}
+      {...(onRowFocus !== undefined && { onRowFocus })}
     />
   );
 }
@@ -159,6 +167,7 @@ function TableSheet({
   hiddenColumns,
   selection,
   grouping,
+  onRowFocus,
 }: Omit<TableViewProps, 'result' | 'error' | 'schema' | 'hiddenColumns'> & {
   result: TableResult;
   schema: TableSchema;
@@ -208,6 +217,7 @@ function TableSheet({
     ticks,
     selection,
     order,
+    onRowFocus,
   });
   // The property the editing cell is under, when it edits in a picker.
   const picker = editing === null ? undefined : properties[editing.column];
@@ -338,6 +348,7 @@ function useRowLook({
   ticks,
   selection,
   order,
+  onRowFocus,
 }: {
   shown: readonly string[];
   kinds: RowLook['kinds'];
@@ -349,8 +360,11 @@ function useRowLook({
   selection: RowSelection | undefined;
   /** The rows' paths in the order the table shows them, for a shift-click's range. */
   order: () => readonly string[];
+  onRowFocus: TableViewProps['onRowFocus'];
 }): RowLook {
   const open = useSteadyCallback(onOpenNote);
+  const focusRow = useSteadyCallback((path: string) => onRowFocus?.(path));
+  const following = onRowFocus !== undefined;
   const tick = useSteadyCallback((args: { path: string; done: boolean }) => ticks?.onToggle(args));
   const choose = useSteadyCallback((path: string, how: { readonly shift: boolean }) => {
     if (how.shift) selection?.onToggle(path, { order: order() });
@@ -368,8 +382,22 @@ function useRowLook({
       editor,
       onTick: ticked ? tick : undefined,
       onChoose: choosing ? choose : undefined,
+      onFocusRow: following ? focusRow : undefined,
     }),
-    [shown, kinds, labels, properties, open, editor, tick, choose, ticked, choosing],
+    [
+      shown,
+      kinds,
+      labels,
+      properties,
+      open,
+      editor,
+      tick,
+      choose,
+      ticked,
+      choosing,
+      focusRow,
+      following,
+    ],
   );
 }
 

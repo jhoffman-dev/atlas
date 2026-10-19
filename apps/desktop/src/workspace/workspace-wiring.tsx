@@ -1,5 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { NavigationPlace, VaultPath } from '@atlas/domain';
+import type { AsideStore } from '../aside/aside-store.ts';
+import type { ShownNotes } from '../aside/shown-notes.ts';
 import type { OverlayStore } from '../overlay-store.ts';
 import type { PaneContext } from '../panes/note-pane-container.tsx';
 import type { RevealStore } from '../panes/reveals.ts';
@@ -18,6 +20,10 @@ export interface WorkspaceStores {
   readonly store: WorkspaceStore;
   readonly reveals: RevealStore;
   readonly overlays: OverlayStore;
+  /** The right sidebar: open, its tab, and the row each tab's table last focused (#306). */
+  readonly aside: AsideStore;
+  /** What each note tab shows, for the aside to follow the focused one. */
+  readonly shown: ShownNotes;
   /** What a place is called: a tab's title, and where Back goes. */
   readonly nameOf: (place: NavigationPlace) => string;
 }
@@ -45,6 +51,8 @@ export interface WorkspaceWiring extends WorkspaceStores {
   readonly note: NoteTabCommands;
   /** The way back to a hidden sidebar, given while it is hidden. */
   readonly onShowSidebar: (() => void) | null;
+  /** Whether the right sidebar is on screen showing Properties, so a note's body need not. */
+  readonly propertiesInAside: boolean;
 }
 
 const StoresContext = createContext<WorkspaceStores | null>(null);

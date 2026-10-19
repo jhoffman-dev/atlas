@@ -5,20 +5,13 @@
 /* --------------------------------------------------------------------------
    Claude (P27): the chat in the aside slot, drawn as the right sidebar is
    (FlowTable.dc.html, UI v2 slice 13i): a 36px bar on `bg`, then the
-   conversation as hairline rows on the surface, then the box to ask in. The
-   slot's width is the aside's own; slice 8b makes the chat one of its tabs.
+   conversation as hairline rows on the surface, then the box to ask in.
+   Since slice 8b the chat is the right sidebar's Claude tab, drawn inside
+   its panel: aside.css owns the slot and its width, and the chat has no edge
+   of its own there.
    -------------------------------------------------------------------------- */
-.shell__aside {
-  display: flex;
-  flex: none;
-  min-height: 0;
-  padding: 0;
-  width: 400px;
-}
-
 .chat {
   background: var(--surface);
-  border-left: 1px solid var(--line);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -538,10 +531,17 @@
   color: var(--status-done-ink);
 }
 
-/* The bar's chat button while the chat is open: a pressed toggle. */
-.page-bar__chat[aria-pressed='true'] {
+/* The bar's chat and right-sidebar buttons while they are open: pressed
+   toggles, told apart from rest at 3:1 (#273). The sidebar glyph is the
+   left sidebar's, mirrored. */
+.page-bar__chat[aria-pressed='true'],
+.page-bar__aside[aria-pressed='true'] {
   background: var(--selected);
   color: var(--ink);
+}
+
+.page-bar__aside-glyph {
+  transform: scaleX(-1);
 }
 
 /* A short text field in Settings → Claude and → Profile: a 28px field at

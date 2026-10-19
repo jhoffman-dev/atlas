@@ -67,6 +67,7 @@ import {
 } from '@atlas/application';
 import {
   AppShell,
+  AsideToggleProvider,
   ChatToggleProvider,
   useSteadyCallback,
   CapturePalette,
@@ -201,6 +202,21 @@ import { useActivity } from './activity/use-activity.ts';
 import { useActivityLog, useNoticeActivity } from './activity/use-activity-log.ts';
 import { usePeople } from './people/use-people.ts';
 import { useAppShortcuts } from './app-shortcuts.ts';
+import { AsideContainer } from './aside/aside-container.tsx';
+import {
+  createAsideStore,
+  hideAside,
+  loadVaultAside,
+  toggleAside as toggleAsideIn,
+  toggleClaude,
+  useAsideOpen,
+  useAsideTab,
+  useClaudeShown,
+} from './aside/aside-store.ts';
+import { browserAsideStore } from './aside/browser-aside-store.ts';
+import { ClaudeSeatProvider } from './aside/claude-seat.tsx';
+import { createShownNotes } from './aside/shown-notes.ts';
+import { useAsideCollapsed } from './aside/use-aside-collapsed.ts';
 import { browserFabStore } from './quick-add/browser-fab-store.ts';
 import { QuickAdd } from './quick-add/quick-add.tsx';
 import type { GlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
@@ -352,6 +368,9 @@ function AppWindow({
   // The tabs and panes, and where each tab was asked to scroll to (ADR-0040).
   const [workspace] = useState(() => createWorkspaceStore({ remembered: browserWorkspaceStore }));
   const [reveals] = useState(createRevealStore);
+  // The right sidebar (#306): remembered per vault as the tabs are, read in the same event.
+  const [asideStore] = useState(() => createAsideStore({ remembered: browserAsideStore }));
+  const [shownNotes] = useState(createShownNotes);
   // Set once the sync hook below exists: a switch waits for a sync under way,
   // whose remaining steps would otherwise be refused half-done (U-29).
   const settleSync = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -387,7 +406,10 @@ function AppWindow({
   } = useVault(choosing, {
     beforeSwitch: leaveVault,
     // In the same event as the location: the tabs' paths mean this vault (R14-01).
-    onSwitched: (next) => loadVault(workspace, next.absolutePath),
+    onSwitched: (next) => {
+      loadVault(workspace, next.absolutePath);
+      loadVaultAside(asideStore, next.absolutePath);
+    },
   });
   const vaultKey = location?.absolutePath ?? null;
   const tickMemory = useTickMemory(vaultKey);
@@ -745,8 +767,8 @@ function AppWindow({
   }, [workspace, notesListedFor, vaultKey, notePaths]);
   const nameOf = useSteadyCallback(nameOfPlace);
   const workspaceStores = useMemo<WorkspaceStores>(
-    () => ({ store: workspace, reveals, overlays, nameOf }),
-    [workspace, reveals, overlays, nameOf],
+    () => ({ store: workspace, reveals, overlays, nameOf, aside: asideStore, shown: shownNotes }),
+    [workspace, reveals, overlays, nameOf, asideStore, shownNotes],
   );
   /** Opens a note from outside the panes — the sidebar, search, a new note — where the click asked. */
   const openNote = useCallback(
@@ -856,9 +878,20 @@ function AppWindow({
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
+  // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings the aside up on it.
+  const claudeShown = useClaudeShown(asideStore);
+  const chatSeat = useMemo(
+    () => ({
+      open: claudeShown,
+      toggle: () => toggleClaude(asideStore),
+      close: () => hideAside(asideStore),
+    }),
+    [claudeShown, asideStore],
+  );
   const chat = useChat({
     ports: chatPorts,
     store: browserChatSettingsStore,
+    seat: chatSeat,
     vault: {
       api: apiDeps,
       fs: location === null ? null : vault.fs,
@@ -1467,6 +1500,7 @@ function AppWindow({
     forward: () => goForward(workspace),
     show: showOverlay,
     toggleChat: chat.toggle,
+    toggleAside: () => toggleAsideIn(asideStore),
     tabs: {
       newTab: () => newTabIn(workspace, workspaceNow(workspace).focused),
       closeTab: () => closeActiveTab(workspace),
@@ -1479,6 +1513,19 @@ function AppWindow({
 
   const treeRows = useMemo(() => sidebarTreeRows(rows), [rows]);
   const toggleSidebar = useCallback(() => setSidebarOpen((was) => !was), []);
+  // On screen when open and the window has room (collapse.ts): the toggle's
+  // pressed state and the note's body read what is shown, not what is remembered.
+  const asideOpen = useAsideOpen(asideStore);
+  const asideCollapsed = useAsideCollapsed({ sidebarOpen });
+  const asideShown = asideOpen && !asideCollapsed;
+  // A note's properties leave its body only while the aside is showing them.
+  const asideTab = useAsideTab(asideStore);
+  const propertiesInAside = asideShown && asideTab === 'properties';
+  const asideToggle = useMemo(
+    () => ({ shown: asideShown, onToggle: () => toggleAsideIn(asideStore) }),
+    [asideShown, asideStore],
+  );
+  const rowPorts = useMemo(() => ({ pane: paneContext, openNote }), [paneContext, openNote]);
 
   const syncBadge = syncIndicatorBadge(sync);
   const fromGitHub = useOpenFromGitHub({
@@ -1575,6 +1622,7 @@ function AppWindow({
       >
         <AppShell
           sidebarOpen={sidebarOpen}
+          asideOpen={asideShown}
           // Every page carries its own way back in its bar; only the empty
           // state, which has no page, needs the shell's.
           {...(location === null && { onShowSidebar: toggleSidebar })}
@@ -1710,6 +1758,7 @@ function AppWindow({
                     ...workspaceStores,
                     pane: paneContext,
                     onShowSidebar: sidebarOpen ? null : toggleSidebar,
+                    propertiesInAside,
                     note: {
                       onRename: renamePaneNote,
                       onToggleFavorite: toggleFavorite,
@@ -1795,26 +1844,43 @@ function AppWindow({
                   }}
                 >
                   {/* Keyed by vault: its editors, and what each pane keeps mounted, are that vault's (R14-01). */}
-                  <PanesContainer key={vaultKey ?? ''} />
+                  <AsideToggleProvider value={asideToggle}>
+                    <PanesContainer key={vaultKey ?? ''} />
+                  </AsideToggleProvider>
                 </WorkspaceWiringProvider>
               </WorkspaceStoresProvider>
             )
           }
           aside={
-            location !== null && chat.open ? (
-              <ChatPane
-                chat={chat}
-                onFollowLink={(target) =>
-                  followLinkInPane({ pane: workspaceNow(workspace).focused, target })
-                }
-                loadImage={noImages}
-                nameHint={
-                  profileSetting.profile !== 'unknown' && !hasFullName(profileSetting.profile)
-                    ? { placeholder: NAME_PLACEHOLDER, onSetName: () => showOverlay('settings') }
-                    : null
-                }
-              />
-            ) : null
+            location === null ? null : (
+              // The same stores the panes read; the chat reaches only its own tab.
+              <WorkspaceStoresProvider value={workspaceStores}>
+                <ClaudeSeatProvider
+                  value={
+                    chat.open && (
+                      <ChatPane
+                        chat={chat}
+                        onFollowLink={(target) =>
+                          followLinkInPane({ pane: workspaceNow(workspace).focused, target })
+                        }
+                        loadImage={noImages}
+                        nameHint={
+                          profileSetting.profile !== 'unknown' &&
+                          !hasFullName(profileSetting.profile)
+                            ? {
+                                placeholder: NAME_PLACEHOLDER,
+                                onSetName: () => showOverlay('settings'),
+                              }
+                            : null
+                        }
+                      />
+                    )
+                  }
+                >
+                  <AsideContainer rows={rowPorts} />
+                </ClaudeSeatProvider>
+              </WorkspaceStoresProvider>
+            )
           }
           status={location === null ? null : indexStatusText(indexStatus)}
           floating={
