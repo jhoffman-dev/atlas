@@ -5,12 +5,15 @@ import type { TermNote } from './term.ts';
 /**
  * A person's or a company's note: their name (its title) and the other
  * spellings of it. The aliases link an attendee to the person; they are never
- * used to rewrite text (ADR-0027), so the vocabulary reads only the name.
+ * used to rewrite text (ADR-0027). The variants are how a notetaker mishears
+ * the name, as a term's are, and are corrected to it (#400).
  */
 export interface NamedEntity {
   readonly path: VaultPath;
   readonly name: string;
   readonly aliases: readonly string[];
+  /** None when absent. */
+  readonly variants?: readonly string[];
 }
 
 /** Where a spelling in the vocabulary comes from. */
@@ -64,7 +67,8 @@ export interface Vocabulary {
  * The spellings Atlas knows and what each should be: every term's right
  * spelling and the ways it is misheard, and every person's and company's
  * name as its own right spelling — so `Mara Quill` is left alone and a
- * misheard spelling inside it is not corrected. A person's or a company's
+ * misheard spelling inside it is not corrected — with the ways their note
+ * says it is misheard (`variants`). A person's or a company's
  * aliases are not in it: they link people, they never rewrite text. What a
  * person goes by is kept beside the entries (`speakers`), only so a speaker
  * label that is their alias is left for linking to read.
@@ -113,9 +117,9 @@ function goingBy(people: readonly NamedEntity[]): Map<string, VaultPath[]> {
   return speakers;
 }
 
-/** A name is only its own right spelling: its aliases are left out on purpose. */
-function namedAsTerm({ path, name }: NamedEntity) {
-  return { path, canonical: name, variants: [] };
+/** A name is its own right spelling, misheard as its variants: its aliases are left out on purpose. */
+function namedAsTerm({ path, name, variants = [] }: NamedEntity) {
+  return { path, canonical: name, variants };
 }
 
 /** A note's claims: its right spelling, then each other spelling — each once, as written. */

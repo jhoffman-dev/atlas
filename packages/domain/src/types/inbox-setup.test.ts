@@ -57,6 +57,25 @@ describe('inboxTypePlan', () => {
     expect(inboxTypePlan([type({ name: 'task' })]).extensions).toEqual([]);
   });
 
+  it.each(['person', 'company'])(
+    'offers a %s type without them the misheard spellings a term has, as an offer only (#404)',
+    (name) => {
+      const lacking = type({ name, properties: { aliases: 'multiSelect' } });
+      const [extension] = inboxTypePlan([lacking]).extensions;
+      expect(extension?.added).toHaveLength(1);
+      expect(extension?.added[0]).toMatchObject({
+        key: 'variants',
+        kind: 'multiSelect',
+        label: 'Misheard as',
+        options: [],
+      });
+      expect(keys(extension?.after.properties)).toEqual(['aliases', 'variants']);
+
+      const having = type({ name, properties: { variants: 'multiSelect' } });
+      expect(inboxTypePlan([having]).extensions).toEqual([]);
+    },
+  );
+
   it('offers nothing on a Meeting type two files claim: Accept reads the first, the offer would pick one', () => {
     const mine = type({ name: 'meeting', label: 'Meeting' });
     const copy = type({ name: 'Meeting', label: 'Meeting (conflict copy)' });

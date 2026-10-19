@@ -2,11 +2,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type TermNote, type VocabularyConflict } from '@atlas/domain';
+import { createVaultPath, type ListedTerm, type VocabularyConflict } from '@atlas/domain';
 import { TermsPage, type TermsContents } from './terms-page.tsx';
 
-const term = (path: string, canonical: string, variants: string[], kind: TermNote['kind']) =>
-  ({ path: createVaultPath(path), canonical, variants, kind }) satisfies TermNote;
+const term = (path: string, canonical: string, variants: string[], kind: ListedTerm['kind']) =>
+  ({ path: createVaultPath(path), canonical, variants, kind, source: 'term' }) satisfies ListedTerm;
 
 const LARKSPUR = term('Terms/Larkspur.md', 'Larkspur', ['lark spur', 'Larks Burr'], 'company');
 const QUILL = term('Terms/Quill Desk.md', 'Quill Desk', [], null);
@@ -74,6 +74,29 @@ describe('the Terms page', () => {
     expect(variants.value).toBe('lark spur, Larks Burr');
     expect(rowOf('Quill Desk').getByText('—')).toBeTruthy();
     expect((rowOf('Quill Desk').getByRole('textbox') as HTMLInputElement).value).toBe('');
+  });
+
+  it('lists a company’s misheard spellings among the terms, saying which note holds them, and edits them there (#400)', async () => {
+    const onEditVariants = vi.fn();
+    const company: ListedTerm = {
+      ...term('Companies/Larkspur Payroll.md', 'Larkspur Payroll', ['larkspar'], null),
+      source: 'company',
+    };
+    renderPage({ contents: { ...CONTENTS, terms: [company, LARKSPUR] }, onEditVariants });
+    expect(
+      rowOf('Larkspur Payroll').getByText('Company · Companies/Larkspur Payroll.md'),
+    ).toBeTruthy();
+    // A term's own row names no other note.
+    expect(rowOf('Larkspur').queryByText(/Terms\/Larkspur\.md/)).toBeNull();
+    const field = rowOf('Larkspur Payroll').getByRole('textbox', {
+      name: 'Misheard spellings of Larkspur Payroll',
+    });
+    expect((field as HTMLInputElement).value).toBe('larkspar');
+    await userEvent.type(field, ', Larks Burr Payroll{Enter}');
+    expect(onEditVariants).toHaveBeenCalledExactlyOnceWith({
+      path: 'Companies/Larkspur Payroll.md',
+      variants: 'larkspar, Larks Burr Payroll',
+    });
   });
 
   it('opens a term from its name', async () => {

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, variantsFromInput, type TermNote } from '@atlas/domain';
+import { createVaultPath, variantsFromInput, type ListedTerm } from '@atlas/domain';
 import { TermsPage } from './terms-page.tsx';
 
 /*
@@ -13,11 +13,12 @@ import { TermsPage } from './terms-page.tsx';
  * splits the comma one in two, and each half is then corrected to the term.
  */
 
-const QUILL: TermNote = {
+const QUILL: ListedTerm = {
   path: createVaultPath('Terms/Mara Quill.md'),
   canonical: 'Mara Quill',
   variants: ['Quill, Mara', 'Mara Quil'],
   kind: 'person',
+  source: 'term',
 };
 
 describe('editing one variant of a term on the Terms page', () => {

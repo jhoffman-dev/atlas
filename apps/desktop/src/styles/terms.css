@@ -119,6 +119,16 @@
   white-space: nowrap;
 }
 
+/* Under a person's or a company's name: the note its spellings are kept in.
+   A row of its own under the name, so the row grows rather than the column. */
+.terms__held-by {
+  color: var(--ink-3);
+  display: block;
+  font-size: var(--text-meta);
+  margin: 0 0 2px 8px;
+  overflow-wrap: anywhere;
+}
+
 /* The field fits the 34px row; a note under it (a conflict, a warning) is
    the one thing that makes a row taller. */
 .terms__grid .terms__variants {

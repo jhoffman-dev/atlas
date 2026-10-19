@@ -20,6 +20,9 @@ properties:
   aliases:
     kind: multiSelect
     label: Also spelt
+  variants:
+    kind: multiSelect
+    label: Misheard as
 ---
 
 # Company
@@ -30,9 +33,11 @@ people and nothing else.
 Company is built in: meetings and terms point at companies, so it cannot be
 deleted. Its properties are yours to change.
 
-`aliases` are other spellings of its name — a short form, or how a notetaker
-mishears it. Atlas's vocabulary reads them (the Terms page), and spells each
-as the name.
+`aliases` are other spellings of its name — a short form — for matching
+meetings to it; they never change text. `variants` are how a notetaker
+mishears the name: Atlas corrects each to it, as it does a term's, and the
+Terms page lists and edits them. Adding a term named like the company on the
+Terms page adds its misheard spellings here.
 
 A meeting is linked to a company when an attendee's address is at one of
 its `domains` (or its `site`'s), or at a domain named for it

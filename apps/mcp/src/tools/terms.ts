@@ -11,13 +11,15 @@ export const terms = defineTool({
     'type term: { path, canonical, variants, kind } — the right spelling, the ways a notetaker ' +
     'mishears it, and product, person, company, acronym or other. "vocabulary" is every spelling ' +
     "Atlas puts right, longest first, { form, canonical, claims }: each term's spelling and " +
-    "variants, and each person's and company's name as its own right spelling — their aliases " +
+    "variants, and each person's and company's name as its own right spelling with its note's " +
+    'variants — their aliases ' +
     'are not in it, they link people and never correct text. A form matches exactly as written, ' +
     'capitals included (mark is not Mark); write its canonical. "conflicts" ' +
     'are spellings two notes claim for two different right spellings; they are not used until ' +
     'one note lets go, so never correct one. To add a term, call atlas_create_note with ' +
     'properties { type: "term", variants: [...], kind }; to change its variants, ' +
-    'atlas_update_properties. Read-only.',
+    "atlas_update_properties. A person's or company's misheard spellings go in that note's own " +
+    'variants, with atlas_update_properties, not in a term. Read-only.',
   inputSchema: noInput,
   annotations: { readOnlyHint: true },
   call: (client) => client.terms(),
