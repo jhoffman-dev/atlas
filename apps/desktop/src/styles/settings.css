@@ -3,88 +3,134 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- settings ----
-   An overlay like the palettes, holding the app's parts as cards on the
-   panel's tint — Connections, Index — the way a page holds its widgets. */
+   An overlay like the palettes (UI v2 slice 13f): a 44px head with the title
+   and its Close, then two columns — the sections as 28px rows on the left,
+   on the sidebar's grey, and the sections themselves on the right as
+   hairline groups under a 15/600 title. No cards, no tiles: a row is its
+   label, a line of metadata and a 28px control at the end. */
 
 .settings {
-  background: var(--panel);
   max-height: 84vh;
-  width: min(640px, 100%);
+  width: min(840px, 100%);
 }
 
 .settings__header {
   align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex: none;
   gap: var(--space-3);
-  padding: var(--space-5) var(--space-5) var(--space-4);
-}
-
-/* The page icon's tile, a size down. */
-.settings__tile {
-  align-items: center;
-  background: var(--navy);
-  border-radius: 11px;
-  box-shadow: var(--shadow-badge);
-  color: var(--tile-ink);
-  display: flex;
-  flex: none;
-  height: 36px;
-  justify-content: center;
-  width: 36px;
+  min-height: 44px;
+  padding: 0 var(--space-3) 0 var(--space-5);
 }
 
 .settings__title {
   flex: 1;
-  font-size: var(--text-subtitle);
-  font-weight: 800;
-  letter-spacing: var(--tracking-title);
+  font-size: var(--text-section);
+  font-weight: 600;
   margin: 0;
 }
 
-.settings__close {
-  border-radius: var(--radius-pill);
-  height: 32px;
-  width: 32px;
+.settings__columns {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The list of sections: the sidebar's language, on its grey. */
+.settings__nav {
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  flex: none;
+  overflow-y: auto;
+  padding: var(--sidebar-pad);
+  width: var(--sidebar-width);
+}
+
+/* One column that can shrink: a row's title clips to an ellipsis rather
+   than widening the list past its box. */
+.settings__nav-list {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: minmax(0, 1fr);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A block, not a flex row, so the title — a bare text node — gets the
+   ellipsis itself; the icon sits inline before it. */
+.settings__nav-row {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-row);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  font-size: var(--text-body);
+  height: var(--sidebar-row);
+  line-height: var(--sidebar-row);
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 var(--space-2);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.settings__nav-row:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.settings__nav-row:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* Inline, against `.icon`'s block (shell.css), with the row's own name in
+   the selector so it wins whatever order the sheets load in: a block icon
+   would take the line and push the title under the row's 28px. */
+.settings__nav-row .settings__nav-icon {
+  color: var(--ink-3);
+  display: inline-block;
+  margin-right: var(--space-2);
+  vertical-align: -3px;
 }
 
 .settings__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 0 var(--space-5) var(--space-5);
 }
 
-.settings__card {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+/* A section is a hairline group: the first has the head's line above it. */
+.settings__section {
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-5) var(--space-5);
+  padding: var(--space-4) 0 var(--space-5);
+}
+
+.settings__section:first-child {
+  border-top: 0;
 }
 
 .settings__heading {
-  align-items: center;
-  display: flex;
-  font-size: var(--text-card);
-  font-weight: 800;
-  gap: 10px;
-  letter-spacing: -0.01em;
+  font-size: var(--text-section);
+  font-weight: 600;
   margin: 0;
 }
 
-.settings__heading-icon {
-  align-items: center;
-  background: var(--chip);
-  border-radius: var(--radius-control);
-  color: var(--active-icon);
-  display: flex;
-  height: 28px;
-  justify-content: center;
-  width: 28px;
+/* The heading takes focus from its row in the list only to place the next
+   Tab; the row the person pressed is the control, so no ring here. */
+.settings__heading:focus {
+  outline: none;
 }
 
 .settings__mcp {
@@ -95,51 +141,48 @@
 }
 
 .settings__subtitle {
-  font-size: var(--text-ui);
-  font-weight: 800;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
   margin: 0;
 }
 
 .settings__lede,
 .settings__file {
   color: var(--ink-2);
-  font-size: var(--text-ui);
-  line-height: 1.5;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
   margin: 0;
 }
 
 .settings__file {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
 }
 
-/* A 44px row: what it is, how it stands, and its control on the right. */
+/* A row: what it is and how it stands on the left, its control on the right. */
 .settings__row {
   align-items: center;
-  background: var(--panel);
-  border-radius: var(--radius-button);
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-4);
   justify-content: space-between;
-  min-height: 52px;
-  padding: 6px var(--space-2) 6px var(--space-4);
+  min-height: 36px;
 }
 
 .settings__row-text {
   display: grid;
   gap: 1px;
+  min-width: 0;
 }
 
 .settings__row-label {
   font-size: var(--text-body);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .settings__status,
 .settings__notice {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
   margin: 0;
 }
 
@@ -147,7 +190,6 @@
 .settings__row > .settings__problem {
   color: var(--ink);
   font-size: var(--text-body);
-  font-weight: 700;
 }
 
 .settings__notice {
@@ -160,8 +202,7 @@
 
 .settings__problem {
   color: var(--danger);
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
   margin: 0;
 }
 
@@ -180,15 +221,42 @@
 .settings__code,
 .settings__file code {
   font-family: var(--font-mono);
-  font-size: var(--text-small);
+  font-size: var(--text-mono);
   overflow-wrap: anywhere;
 }
 
 .settings__code {
   background: var(--code-bg);
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-chip);
   color: var(--code-ink);
   display: block;
   line-height: 1.6;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+}
+
+.settings__lede code {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+/* A short text field in a row — Claude's model, a person's name: a 28px
+   field at the width a name needs. */
+.settings__field {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  flex: none;
+  font: inherit;
+  font-size: var(--text-column);
+  height: 28px;
+  padding: 0 8px;
+  width: 200px;
+}
+
+.settings__field:focus {
+  border-color: var(--focus);
+  box-shadow: var(--ring);
+  outline: none;
 }

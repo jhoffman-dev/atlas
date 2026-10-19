@@ -1,6 +1,7 @@
 import type { ImagePlacement } from '@atlas/domain';
 import { SegmentedControl, type SegmentedOption } from './segmented-control.tsx';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 const PLACEMENTS: readonly SegmentedOption<ImagePlacement>[] = [
   { value: 'attachments', label: 'Attachments folder' },
@@ -16,7 +17,7 @@ export function ImageSettings({
   onChange: (placement: ImagePlacement) => void;
 }) {
   return (
-    <SettingsCard id="settings-images" icon="image" title="Images">
+    <SettingsSection section={SETTINGS_SECTIONS.images}>
       <p className="settings__lede">
         An image pasted, dropped or picked into a note is copied into the vault, and the note links
         to the copy.
@@ -37,6 +38,6 @@ export function ImageSettings({
           onChange={onChange}
         />
       </div>
-    </SettingsCard>
+    </SettingsSection>
   );
 }

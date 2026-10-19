@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 /** Where the connection is: being checked, absent, waiting on the browser, or made. */
 export type GoogleCalendarPhase = 'loading' | 'disconnected' | 'connecting' | 'connected';
@@ -59,7 +60,7 @@ export function GoogleCalendarSettings({
   onCreate: () => void;
 }) {
   return (
-    <SettingsCard id="settings-google-calendar" icon="calendar" title="Google Calendar">
+    <SettingsSection section={SETTINGS_SECTIONS.googleCalendar}>
       <p className="settings__lede">
         Blocks show as busy on a calendar of their own on your Google account. You sign in in your
         browser; the sign-in stays in this Mac’s Keychain, and Atlas can only see and change
@@ -90,7 +91,7 @@ export function GoogleCalendarSettings({
           {view.problem.fix !== null && <p className="settings__lede">{view.problem.fix}</p>}
         </div>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -132,11 +133,7 @@ function ConnectForm({
         value={secret}
         onChange={(event) => setSecret(event.target.value)}
       />
-      <button
-        className="btn btn--primary btn--sm"
-        type="submit"
-        disabled={pending || client.trim() === ''}
-      >
+      <button className="btn btn--primary" type="submit" disabled={pending || client.trim() === ''}>
         Connect
       </button>
     </form>
@@ -147,7 +144,7 @@ function Waiting({ onCancel }: { onCancel: () => void }) {
   return (
     <div className="settings__row">
       <p className="settings__lede">Finish signing in in your browser…</p>
-      <button className="btn btn--ghost btn--sm" type="button" onClick={onCancel}>
+      <button className="btn btn--ghost" type="button" onClick={onCancel}>
         Cancel
       </button>
     </div>
@@ -198,7 +195,7 @@ function Connected({
         )}
         {view.canCreate && (
           <button
-            className="btn btn--tinted btn--sm"
+            className="btn btn--secondary"
             type="button"
             disabled={view.pending}
             onClick={onCreate}
@@ -208,7 +205,7 @@ function Connected({
         )}
         {!confirming && (
           <button
-            className="btn btn--ghost btn--sm"
+            className="btn btn--ghost"
             type="button"
             disabled={view.pending}
             onClick={() => setConfirming(true)}
@@ -225,7 +222,7 @@ function Connected({
           </p>
           <div className="settings__actions">
             <button
-              className="btn btn--primary btn--sm"
+              className="btn btn--primary"
               type="button"
               onClick={() => {
                 setConfirming(false);
@@ -234,11 +231,7 @@ function Connected({
             >
               Disconnect
             </button>
-            <button
-              className="btn btn--ghost btn--sm"
-              type="button"
-              onClick={() => setConfirming(false)}
-            >
+            <button className="btn btn--ghost" type="button" onClick={() => setConfirming(false)}>
               Cancel
             </button>
           </div>
