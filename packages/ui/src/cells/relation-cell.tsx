@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
 import {
   createVaultPath,
@@ -17,7 +17,7 @@ import { LinkedNote, useNoteNames } from '../note-names.tsx';
 import type { CreateRelated, RelationChoice } from '../properties-panel.tsx';
 import { linksTo, RelationPicker } from '../relation-options.tsx';
 import type { CellEditorHooks, CellValue } from './cell-editing.ts';
-import { useAnchoring, useReturningFocus } from './cell-focus.ts';
+import { useAnchoring, usePressOnOpenCell, useReturningFocus } from './cell-focus.ts';
 import type { CellAt } from './cell-keys.ts';
 
 /**
@@ -89,9 +89,7 @@ function RelationStop({
   const stop = useRef<HTMLButtonElement>(null);
   useReturningFocus(at, editor, stop);
   useAnchoring(editing, editor, cell);
-  // A press on the open cell closes its picker: the press itself closes it
-  // (Base UI's outside press), and the click that follows must not reopen it.
-  const closing = useRef(false);
+  const press = usePressOnOpenCell(editing);
   return (
     <span
       ref={cell}
@@ -109,16 +107,12 @@ function RelationStop({
         data-cell-stop={at.column}
         // The stop says it is editing too, as a status cell's button does.
         data-editing={editing ? '' : undefined}
-        onPointerDown={() => {
-          closing.current = editing;
-        }}
-        onClick={() => {
-          if (closing.current) {
-            closing.current = false;
-            return;
-          }
+        onPointerDown={press.onPointerDown}
+        onPointerLeave={press.onPointerLeave}
+        onPointerCancel={press.onPointerCancel}
+        onClick={(event) => {
           // Nothing to offer until the type says what the relation points at.
-          if (picks) editor.start(at);
+          if (picks && press.opens(event)) editor.start(at);
         }}
       >
         {/* The glyph is the stylesheet's: a component here would draw once per row. */}
@@ -154,7 +148,8 @@ export function RelationPickerPopover({
   value: unknown;
   /** The notes the relation may link. */
   choices: readonly RelationChoice[];
-  onWrite: (value: CellValue) => void;
+  /** A promise it returns says whether the write landed. */
+  onWrite: (value: CellValue) => unknown;
   onOpenNote: (path: VaultPath) => void;
   onCancel: () => void;
   onCreateRelated?: CreateRelated;
@@ -162,7 +157,9 @@ export function RelationPickerPopover({
   const held = useHeldValue(value);
   const write = (next: CellValue) => {
     held.set(next);
-    onWrite(next);
+    // A write the note refused was reported by whoever refused it; here the
+    // picker goes back to showing what the file still holds.
+    Promise.resolve(onWrite(next)).catch(held.reset);
   };
   return (
     <Popover.Root
@@ -207,16 +204,25 @@ export function RelationPickerPopover({
 /**
  * What the picker holds: the value as read, then each write's result in
  * turn until the next read — so the second of two quick removals builds on
- * the first, not on the value the file still showed.
+ * the first, not on the value the file still showed — and the value as
+ * read again once a write fails.
  */
-function useHeldValue(read: unknown): { value: unknown; set: (next: unknown) => void } {
+function useHeldValue(read: unknown): {
+  value: unknown;
+  set: (next: unknown) => void;
+  reset: () => void;
+} {
   const [value, setValue] = useState(read);
   const [seen, setSeen] = useState(read);
   if (seen !== read) {
     setSeen(read);
     setValue(read);
   }
-  return { value, set: setValue };
+  const latest = useRef(read);
+  useLayoutEffect(() => {
+    latest.current = read;
+  });
+  return { value, set: setValue, reset: () => setValue(latest.current) };
 }
 
 /** The notes linked, as chips with their own remove. */

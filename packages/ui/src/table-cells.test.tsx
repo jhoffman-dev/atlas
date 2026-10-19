@@ -277,6 +277,51 @@ describe('a status cell', () => {
     expect(onEditCell).toHaveBeenLastCalledWith({ path: 'b.md', column: 'status', value: 'done' });
   });
 
+  /** Status alone, so Tab from one row's picker reaches the next row's. */
+  const statusOnly: TableResult = {
+    ...result,
+    columns: ['path', 'title', 'status'],
+    rows: [
+      ['a.md', 'Book the hall', 'next'],
+      ['b.md', 'Order chairs', 'inbox'],
+    ],
+  };
+
+  it('Tab opens the next row’s picker afresh: ↵ at once keeps that row’s own status', async () => {
+    const onEditCell = table({ result: statusOnly });
+    await userEvent.click(cell('Next'));
+    await userEvent.keyboard('{ArrowDown}');
+    await userEvent.keyboard('{Tab}');
+    // The second row's picker, on Inbox: nothing of the first row's carries over.
+    expect(picker()).toBeDefined();
+    expect(cell('Inbox').getAttribute('data-editing')).toBe('');
+    await userEvent.keyboard('{Enter}');
+    expect(onEditCell).not.toHaveBeenCalled();
+  });
+
+  it('a filter typed in one picker does not carry into the next', async () => {
+    table({ result: statusOnly });
+    await userEvent.click(cell('Next'));
+    await userEvent.type(filter(), 'wa');
+    await userEvent.keyboard('{Tab}');
+    expect(filter().value).toBe('');
+    expect(within(picker()).getAllByRole('option')).toHaveLength(STATUSES.length);
+  });
+
+  it('a press dragged off the open cell swallows no later ↵', async () => {
+    table();
+    await userEvent.click(cell('Next'));
+    expect(picker()).toBeDefined();
+    // A press dragged off ends in no click, so it closes nothing; Esc does.
+    fireEvent.pointerDown(cell('Next'));
+    fireEvent.pointerLeave(cell('Next'));
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(cell('Next'));
+    await userEvent.keyboard('{Enter}');
+    expect(picker()).toBeDefined();
+  });
+
   it('writes nothing for the option the cell already holds, nor on Esc', async () => {
     const onEditCell = table();
     await userEvent.click(cell('Next'));
@@ -346,6 +391,21 @@ describe('a relation cell', () => {
       column: 'people',
       value: ['[[Mara]]'],
     });
+  });
+
+  it('shows the links as read again once a write of them fails', async () => {
+    const onEditCell = vi.fn().mockRejectedValue(new Error('refused'));
+    table({ onEditCell });
+    await userEvent.click(stop('Ada Lovelace'));
+    const people = () => popover('People');
+    await userEvent.click(
+      within(people()).getByRole('button', { name: 'Remove Ada Lovelace from People' }),
+    );
+    // The chip went as the write was made, and is back once the write failed.
+    await vi.waitFor(() =>
+      expect(within(people()).getByRole('button', { name: 'Open Ada Lovelace' })).toBeDefined(),
+    );
+    expect(onEditCell).toHaveBeenCalledTimes(1);
   });
 
   it('makes a note from "New …" through onCreateRelated and links it', async () => {

@@ -38,8 +38,11 @@ export interface CellEditorHooks {
   readonly end: (change?: { readonly value: CellValue }) => void;
   /** Ends the edit as `end` does, then opens the next or previous cell's editor. */
   readonly step: (to: 1 | -1, change?: { readonly value: CellValue }) => void;
-  /** Writes a change that needs no editor open: a box ticked, a link removed. */
-  readonly write: (edit: CellEdit) => void;
+  /**
+   * Writes a change that needs no editor open: a box ticked, a link removed.
+   * A promise the handler returns says whether the write landed.
+   */
+  readonly write: (edit: CellEdit) => unknown;
   /** The editing cell's element, which a picker hangs from. */
   readonly anchor: RefObject<HTMLElement | null>;
   /**

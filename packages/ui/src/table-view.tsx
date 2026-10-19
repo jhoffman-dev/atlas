@@ -76,7 +76,7 @@ export interface TableViewProps {
    * SQL view's cells, which have no kind, ever report — is still accepted:
    * a method's parameter is checked both ways.
    */
-  onEditCell?(edit: CellEdit): void;
+  onEditCell?(edit: CellEdit): unknown;
   /** The notes each relation column may link, by column, for its picker. */
   readonly relationChoices?: Readonly<Record<string, readonly RelationChoice[]>>;
   /** Given, a relation's picker offers "New <type>…". */
@@ -247,6 +247,9 @@ function TableSheet({
       </div>
       {editing !== null && editor !== undefined && picker !== undefined && picksFrom(picker) && (
         <CellPickers
+          // One picker per cell: a Tab on to the next cell's picker opens a
+          // fresh one, carrying no filter or highlight over from the last.
+          key={`${editing.path}\u0000${editing.column}`}
           editing={editing}
           def={picker}
           value={rows.find((row) => row.path === editing.path)?.values[editing.column]}

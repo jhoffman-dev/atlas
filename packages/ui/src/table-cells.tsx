@@ -7,7 +7,7 @@ import {
   type PropertyKind,
 } from '@atlas/domain';
 import type { CellEditing, CellEditorHooks } from './cells/cell-editing.ts';
-import { useAnchoring, useReturningFocus } from './cells/cell-focus.ts';
+import { useAnchoring, usePressOnOpenCell, useReturningFocus } from './cells/cell-focus.ts';
 import { CellInput } from './cells/cell-input.tsx';
 import { picksFrom } from './cells/cell-pickers.tsx';
 import type { CellAt } from './cells/cell-keys.ts';
@@ -295,9 +295,7 @@ function Cell({
   const button = useRef<HTMLButtonElement>(null);
   useReturningFocus(at, editor, button);
   useAnchoring(expanded, editor, button);
-  // A press on the open cell closes its picker: the press itself closes it
-  // (Base UI's outside press), and the click that follows must not reopen it.
-  const closing = useRef(false);
+  const press = usePressOnOpenCell(expanded);
   return (
     <button
       ref={button}
@@ -308,15 +306,11 @@ function Cell({
       data-cell-stop={at.column}
       data-editing={expanded ? '' : undefined}
       title={fullValue(text)}
-      onPointerDown={() => {
-        closing.current = expanded;
-      }}
-      onClick={() => {
-        if (closing.current) {
-          closing.current = false;
-          return;
-        }
-        editor.start(at);
+      onPointerDown={press.onPointerDown}
+      onPointerLeave={press.onPointerLeave}
+      onPointerCancel={press.onPointerCancel}
+      onClick={(event) => {
+        if (press.opens(event)) editor.start(at);
       }}
     >
       <CellFace text={text} look={face} />

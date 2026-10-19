@@ -21,8 +21,8 @@ export function useCellEditing({
   order,
   columns,
 }: {
-  /** Left out, cells are read only. */
-  onEditCell: ((edit: CellEdit) => void) | undefined;
+  /** Left out, cells are read only. A promise it returns says whether the write landed. */
+  onEditCell: ((edit: CellEdit) => unknown) | undefined;
   /** The rows' paths, to notice the edited row leaving. */
   paths: readonly string[];
   /** The rows' paths in the order the table shows them, read when Tab moves on. */
@@ -41,9 +41,13 @@ export function useCellEditing({
   });
 
   const write = useSteadyCallback((edit: CellEdit) => onEditCell?.(edit));
-  /** Writes an edit's change, given one, as the edit is left. */
+  /**
+   * Writes an edit's change, given one, as the edit is left — once: the
+   * table leaving the page in the same frame finds nothing left to write.
+   */
   const leave = (at: CellAt, change: Change | null) => {
     if (change !== null) write({ path: at.path, column: at.column, value: change.value });
+    latest.current = null;
     anchor.current = null;
   };
   const start = useSteadyCallback((at: CellAt) => {
