@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import {
   jsonLinesMarkdown,
@@ -25,6 +26,12 @@ function duplicateAwareMarkdown(): MarkdownPort {
       const keys = (frontmatter ?? '').split('\n').map((line) => /^([^:\s][^:]*):/.exec(line)?.[1]);
       const named = keys.filter((key) => key !== undefined);
       const listedTwice = new Set(named).size !== named.length;
+      const refused = read?.refusingDuplicated?.find(
+        (key) => named.filter((each) => each === key).length > 1,
+      );
+      if (refused !== undefined) {
+        throw new FrontmatterRefusedError({ key: refused, message: `"${refused}" twice` });
+      }
       return listedTwice && read?.forWriting !== true
         ? {}
         : inner.frontmatterProperties(frontmatter);
@@ -32,9 +39,12 @@ function duplicateAwareMarkdown(): MarkdownPort {
   };
 }
 
-function setup() {
+function setup({ twice: key = 'tags' }: { twice?: 'tags' | 'type' } = {}) {
   const task = jsonLinesNote({ type: 'task', status: 'next-action', tags: ['a'] });
-  const twice = task.replace('tags: ["a"]\n', 'tags: ["a"]\ntags: ["b"]\n');
+  const twice =
+    key === 'tags'
+      ? task.replace('tags: ["a"]\n', 'tags: ["a"]\ntags: ["b"]\n')
+      : task.replace('type: "task"\n', 'type: "note"\ntype: "task"\n');
   const vault = proposalVault({
     '.atlas/types/task.md': jsonLinesNote({
       name: 'task',
@@ -61,5 +71,19 @@ describe('a link proposal through a task whose block lists an unrelated key twic
       today: TODAY,
     });
     expect(ruled).toMatchObject({ changes: { status: 'archive', completed: TODAY } });
+  });
+});
+
+describe('a link proposal through a task whose block lists `type` twice', () => {
+  it('is refused before anything is written: which type to judge cannot be told', async () => {
+    const ports = setup({ twice: 'type' });
+    const link = await readLinkNote(ports, { note: vaultPath(TASK), property: 'project' });
+    expect(() =>
+      heldToTaskRules(ports, {
+        write: { kind: 'set', path: vaultPath(TASK), changes: { status: 'archive' } },
+        link,
+        today: TODAY,
+      }),
+    ).toThrow(expect.objectContaining({ name: 'FrontmatterRefusedError', key: 'type' }));
   });
 });

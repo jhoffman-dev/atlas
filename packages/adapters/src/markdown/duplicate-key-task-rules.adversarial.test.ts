@@ -9,9 +9,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptProposal,
+  apiFixture,
+  createChatToolbox,
   fakeVaultFs,
   memoryVault,
   openNote,
+  ProposalRefused,
   proposeEdit,
   saveNote,
   setNoteProperty,
@@ -123,7 +126,7 @@ describe('#376 a block listing a key the task rules read refuses a ruled write',
     expect(v.writes).toEqual([]);
   });
 
-  it('`completed` twice: a chat proposal is refused before it is shown', async () => {
+  it('`completed` twice: a chat proposal is refused before it is shown, in words for the model', async () => {
     const before = note(
       'type: task',
       'status: archive',
@@ -139,7 +142,54 @@ describe('#376 a block listing a key the task rules read refuses a ruled write',
         id: 'p1',
         today: TODAY,
       }),
+    ).rejects.toThrow(new ProposalRefused(twice('completed')));
+  });
+
+  it('`recurrence` twice: a repeating task ticked done from a board is refused, nothing written', async () => {
+    // The roll writes `due`, `status` and `lastCompleted`, none of them listed
+    // twice: only the rules' own read can refuse it.
+    const before = note(
+      'type: task',
+      'status: next-action',
+      'recurrence: weekly',
+      'due: 2026-10-14',
+      'recurrence: monthly',
+    );
+    const v = vault(before);
+    await expect(
+      setNoteProperty({
+        fs: v.fs,
+        markdown,
+        path: NOTE,
+        key: 'status',
+        value: 'archive',
+        today: TODAY,
+        completion: { statusKey: 'status', doneValue: 'archive', resetStatus: 'next-action' },
+      }),
+    ).rejects.toMatchObject({ name: 'FrontmatterRefusedError', key: 'recurrence' });
+    expect(v.writes).toEqual([]);
+    expect(v.text()).toBe(before);
+  });
+
+  it('`completed` twice: finishing the task is refused, though the writer would let `status` change', async () => {
+    const before = note(
+      'type: task',
+      'status: next-action',
+      'completed: 2026-10-01',
+      'completed: 2026-10-02',
+    );
+    const v = vault(before);
+    await expect(
+      setNoteProperty({
+        fs: v.fs,
+        markdown,
+        path: NOTE,
+        key: 'status',
+        value: 'archive',
+        today: TODAY,
+      }),
     ).rejects.toMatchObject({ name: 'FrontmatterRefusedError', key: 'completed' });
+    expect(v.writes).toEqual([]);
   });
 
   it('a key the rules do not read, listed twice, still lets the write through', async () => {
@@ -156,5 +206,45 @@ describe('#376 a block listing a key the task rules read refuses a ruled write',
     expect(v.text()).toBe(
       note('type: task', 'status: archive', 'tags: [a]', 'tags: [b]', `completed: ${TODAY}`),
     );
+  });
+});
+
+describe('#376 the chat toolbox, on a block that refuses the edit', () => {
+  const box = (text: string) => {
+    const fixture = apiFixture({ files: { [NOTE]: text }, markdown });
+    return createChatToolbox({ api: fixture.deps, fs: fixture.fs, markdown, newId: () => 'p1' });
+  };
+
+  it('answers propose_edit with the reason as a tool error, and the turn goes on', async () => {
+    const before = note(
+      'type: task',
+      'status: archive',
+      'completed: 2026-10-01',
+      'completed: 2026-10-02',
+    );
+    const outcome = await box(before).run({
+      id: 'c1',
+      name: 'propose_edit',
+      input: { path: NOTE, properties: { status: 'next-action' } },
+    });
+    expect(outcome).toEqual({
+      proposal: null,
+      result: { callId: 'c1', name: 'propose_edit', content: twice('completed'), isError: true },
+    });
+  });
+
+  it('answers a change to a duplicated key the writer refuses the same way', async () => {
+    const before = note('type: note', 'tags: [a]', 'tags: [b]');
+    const outcome = await box(before).run({
+      id: 'c2',
+      name: 'propose_edit',
+      input: { path: NOTE, properties: { tags: ['c'] } },
+    });
+    expect(outcome.result).toEqual({
+      callId: 'c2',
+      name: 'propose_edit',
+      content: twice('tags'),
+      isError: true,
+    });
   });
 });
