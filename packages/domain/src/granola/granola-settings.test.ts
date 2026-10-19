@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_GRANOLA_TIME_ZONE,
   GRANOLA_GROUP_ADDRESSES_KEY,
@@ -199,6 +200,93 @@ describe('parseGranolaSettings', () => {
   });
 });
 
+/**
+ * Characters the reader hands to the regex engine and cuts out of the text:
+ * a count of its work that, unlike a clock, is the same on every machine.
+ * A regex execution counts what it scanned, from where it started to the end
+ * of its match, so a global replace is counted once over the text.
+ */
+function workOf(read: () => unknown): number {
+  const { exec } = RegExp.prototype;
+  const { slice, split } = String.prototype;
+  let work = 0;
+  const spies = [
+    vi.spyOn(RegExp.prototype, 'exec').mockImplementation(function (this: RegExp, input: string) {
+      const from = this.global || this.sticky ? this.lastIndex : 0;
+      const found = exec.call(this, input);
+      work += (found === null ? input.length : found.index + found[0].length) - from;
+      return found;
+    }),
+    vi.spyOn(String.prototype, 'slice').mockImplementation(function (
+      this: string,
+      ...range: [number?, number?]
+    ) {
+      const part = slice.apply(this, range);
+      work += part.length;
+      return part;
+    }),
+    vi.spyOn(String.prototype, 'split').mockImplementation(function (
+      this: string,
+      ...how: Parameters<string['split']>
+    ) {
+      work += this.length;
+      return split.apply(this, how);
+    }),
+  ];
+  try {
+    read();
+  } finally {
+    for (const spy of spies) spy.mockRestore();
+  }
+  return work;
+}
+
+/** The regex literals `source` keeps as module constants, as their pattern text. */
+function regexConstantsOf(source: string): string[] {
+  return [...source.matchAll(/^const [A-Z_]+ = \/(.+)\/[a-z]*;$/gm)].map(([, pattern]) => {
+    expect(() => new RegExp(pattern ?? '', 'u')).not.toThrow();
+    return pattern ?? '';
+  });
+}
+
+/** Whether `at` starts a quantifier that repeats without bound: `*`, `+` or `{n,`. */
+function repeatsAt(pattern: string, at: number): boolean {
+  const next = pattern[at];
+  return next === '*' || next === '+' || (next === '{' && /^\{\d+,/.test(pattern.slice(at)));
+}
+
+/**
+ * Whether a group that repeats without bound holds a quantifier or an
+ * alternation, as `(a+)+` and `(a|a)*` do: the shape that makes a backtracking
+ * engine try exponentially many ways to fail. Escapes and classes hold none.
+ */
+function hasNestedQuantifier(pattern: string): boolean {
+  const groups: boolean[] = [];
+  const holdsChoice = () => {
+    if (groups.length > 0) groups[groups.length - 1] = true;
+  };
+  let inClass = false;
+  for (let at = 0; at < pattern.length; at += 1) {
+    const character = pattern[at];
+    if (character === '\\') {
+      // `\p{…}` and `\u{…}` are one escape, braces and all.
+      const braced = 'pPu'.includes(pattern[at + 1] ?? '') && pattern[at + 2] === '{';
+      at = braced ? Math.max(pattern.indexOf('}', at), at + 1) : at + 1;
+    } else if (inClass) inClass = character !== ']';
+    else if (character === '[') inClass = true;
+    else if (character === '(') groups.push(false);
+    else if (character === '|') holdsChoice();
+    else if (character === ')') {
+      const holds = groups.pop() ?? false;
+      if (holds && repeatsAt(pattern, at + 1)) return true;
+      if (holds) holdsChoice();
+    } else if (repeatsAt(pattern, at) || (character === '?' && pattern[at - 1] !== '(')) {
+      holdsChoice();
+    }
+  }
+  return false;
+}
+
 describe('selfEmailsFromText', () => {
   it('reads addresses however they were separated, each once and in lower case, in order', () => {
     expect(
@@ -347,20 +435,30 @@ describe('selfEmailsFromText', () => {
     });
   });
 
-  it('reads 10 KB in time that grows with its length, whatever it holds', () => {
-    const shapes = [
-      'word '.repeat(2_048),
-      '<'.repeat(10_240),
-      '"'.repeat(10_240),
-      `"${'\\'.repeat(10_238)}`,
-      'a@'.repeat(5_120),
-      'a.'.repeat(5_120),
-      `x <${' '.repeat(10_230)}`,
+  it('reads 10 KB with work that grows with its length, whatever it holds', () => {
+    // Pathological shapes, each built to a length: 10× the text may be 10× the work, not 100×.
+    const shapes: readonly ((length: number) => string)[] = [
+      (length) => 'word '.repeat(length / 5),
+      (length) => '<'.repeat(length),
+      (length) => '"'.repeat(length),
+      (length) => `"${'\\'.repeat(length - 2)}`,
+      (length) => 'a@'.repeat(length / 2),
+      (length) => 'a.'.repeat(length / 2),
+      (length) => `x <${' '.repeat(length - 10)}`,
     ];
     for (const shape of shapes) {
-      const started = performance.now();
-      selfEmailsFromText(shape);
-      expect(performance.now() - started, shape.slice(0, 8)).toBeLessThan(50);
+      const small = workOf(() => selfEmailsFromText(shape(1_024)));
+      const large = workOf(() => selfEmailsFromText(shape(10_240)));
+      expect(small, shape(16).slice(0, 8)).toBeGreaterThan(0);
+      expect(large, shape(16).slice(0, 8)).toBeLessThanOrEqual(12 * small);
     }
+  });
+
+  it('matches with no pattern that can backtrack catastrophically', () => {
+    const source = readFileSync(new URL('../profile/email-addresses.ts', import.meta.url), 'utf8');
+    const patterns = regexConstantsOf(source);
+    expect(patterns.length).toBeGreaterThan(0);
+    expect(source).not.toContain('new RegExp');
+    for (const pattern of patterns) expect(hasNestedQuantifier(pattern), pattern).toBe(false);
   });
 });
