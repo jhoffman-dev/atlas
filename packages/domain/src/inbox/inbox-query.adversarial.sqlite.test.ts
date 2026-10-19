@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
+import { correlatedReads } from '../testing/query-plan.ts';
 import { compileInboxQuery } from './inbox.ts';
 
 /**
@@ -50,32 +51,6 @@ function fill(database: DatabaseSync, total: number): number {
   return waits;
 }
 
-/**
- * How each correlated subquery in the statement's plan finds its rows, as the
- * planner chose with no statistics. A subquery that seeks by the outer note's
- * path reads that note's rows alone; one that seeks by `key` reads every note
- * holding the key, once per note asked about — the whole vault, squared. The
- * plan is what decides that, so it is asserted rather than the time it takes.
- */
-function correlatedReads(database: DatabaseSync, startInInbox: boolean): string[] {
-  const { sql, parameters } = compileInboxQuery({ limit: 501, tasksStartInInbox: startInInbox });
-  const plan = database.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as {
-    id: number;
-    parent: number;
-    detail: string;
-  }[];
-  const correlated = new Set<number>();
-  for (const step of plan) {
-    if (step.detail.startsWith('CORRELATED') || correlated.has(step.parent))
-      correlated.add(step.id);
-  }
-  return plan
-    .filter(
-      (step) => correlated.has(step.parent) && /^(SEARCH|SCAN) (?!\(subquery)/.test(step.detail),
-    )
-    .map((step) => step.detail);
-}
-
 describe('the Inbox’s statement on a vault of 2,400 notes', () => {
   it.each([
     ['tasks start in the Inbox', true],
@@ -92,7 +67,7 @@ describe('the Inbox’s statement on a vault of 2,400 notes', () => {
 
       // As the host leaves it: no ANALYZE, so the planner guesses.
       expect(database.prepare(sql).all(...parameters)).toHaveLength(waits);
-      const reads = correlatedReads(database, startInInbox);
+      const reads = correlatedReads(database, { sql, parameters });
       expect(reads.length).toBeGreaterThan(0);
       for (const read of reads) expect(read).toMatch(/ \((path|src)=\?/);
     },

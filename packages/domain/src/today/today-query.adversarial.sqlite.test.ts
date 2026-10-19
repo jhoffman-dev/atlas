@@ -9,6 +9,7 @@ import {
 } from '../review/review-query.ts';
 import type { ReviewTask } from '../review/weekly-review.ts';
 import { countedWork } from '../testing/counted-work.ts';
+import { correlatedReads } from '../testing/query-plan.ts';
 import { todayLists } from './today-lists.ts';
 
 /**
@@ -82,37 +83,6 @@ function fill(database: DatabaseSync, tasks: number): void {
 }
 
 /**
- * How each correlated subquery in the page's two statements finds its rows,
- * as the planner chose with no statistics. A subquery that seeks by the outer
- * note's path reads that note's rows alone; one that seeks by `key` reads
- * every note holding the key, once per task. The plan is what decides that,
- * so it is asserted rather than the time it takes.
- */
-function correlatedReads(database: DatabaseSync): string[] {
-  return [compileReviewTasksQuery(), compileReviewProjectsQuery()].flatMap(
-    ({ sql, parameters }) => {
-      const plan = database.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as {
-        id: number;
-        parent: number;
-        detail: string;
-      }[];
-      const correlated = new Set<number>();
-      for (const step of plan) {
-        if (step.detail.startsWith('CORRELATED') || correlated.has(step.parent)) {
-          correlated.add(step.id);
-        }
-      }
-      return plan
-        .filter(
-          (step) =>
-            correlated.has(step.parent) && /^(SEARCH|SCAN) (?!\(subquery)/.test(step.detail),
-        )
-        .map((step) => step.detail);
-    },
-  );
-}
-
-/**
  * Measured at 5,000 open tasks on 2026-10-12 (a loaded Mac): 188,536 ms as
  * hosted against 67 ms once ANALYZE had run — every correlated read of `props`
  * goes by `props_key (key=?)`, all the rows of that key, for each task.
@@ -129,7 +99,7 @@ describe('the Today page’s read on a vault of 1,000 open tasks', () => {
     // As the host leaves it: no ANALYZE, so the planner guesses.
     expect(database.prepare(tasks.sql).all(...tasks.parameters)).toHaveLength(OPEN_TASKS);
     expect(database.prepare(projects.sql).all(...projects.parameters)).toHaveLength(PROJECTS);
-    const reads = correlatedReads(database);
+    const reads = [tasks, projects].flatMap((statement) => correlatedReads(database, statement));
     expect(reads.length).toBeGreaterThan(0);
     for (const read of reads) expect(read).toMatch(/ \((path|src|dst)=\?/);
   });
