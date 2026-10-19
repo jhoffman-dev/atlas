@@ -59,8 +59,8 @@ const newNoteMenu = async (page: Page) => {
 test('a status option another program adds to a type shows as a board column', async ({ page }) => {
   const vault = await openVault(page);
   await sidebarSection(page, 'views').getByRole('button', { name: 'Board', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'doing' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'waiting' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Doing' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Waiting' })).toHaveCount(0);
 
   await vault.write(
     '.atlas/types/task.md',
@@ -68,7 +68,7 @@ test('a status option another program adds to a type shows as a board column', a
   );
   await emitVaultChanged(page, ['.atlas/types/task.md']);
 
-  await expect(page.getByRole('region', { name: 'waiting' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Waiting' })).toBeVisible();
 });
 
 test('a template another program renames is offered by its new name only', async ({ page }) => {

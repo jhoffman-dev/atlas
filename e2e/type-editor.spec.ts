@@ -175,12 +175,12 @@ test('renaming a status option brings the tasks along, and the board column foll
   await expectFile(vault, '.atlas/types/task.md').toMatch(/---\n\n# Task\n$/);
 
   await sidebarSection(page, 'views').getByRole('button', { name: 'Board', exact: true }).click();
-  const inReview = page.getByRole('region', { name: 'in review' });
+  const inReview = page.getByRole('region', { name: 'In review' });
   await expect(inReview.getByRole('button', { name: 'first', exact: true })).toBeVisible();
   await expect(inReview.getByRole('button', { name: 'second', exact: true })).toBeVisible();
   await expect(inReview.locator('.status-pill')).toHaveAttribute('data-tone', 'review');
-  await expect(page.getByRole('region', { name: 'done' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'review', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Done' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Review', exact: true })).toHaveCount(0);
 });
 
 test('a board grouped by project has a column per project', async ({ page }) => {

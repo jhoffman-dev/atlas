@@ -652,12 +652,12 @@ async function dragACard(pass: Pass): Promise<void> {
   );
   const board = page.locator('.board');
   const card = board
-    .getByRole('region', { name: 'active', exact: true })
+    .getByRole('region', { name: 'Active', exact: true })
     .locator('.board__card')
     .first();
   const cardPath = (await card.getAttribute('data-path')) ?? '';
   const start = await centreOf(card);
-  const end = await centreOf(board.getByRole('region', { name: 'paused', exact: true }));
+  const end = await centreOf(board.getByRole('region', { name: 'Paused', exact: true }));
   const hop = { x: start.x + 8, y: start.y + 8 };
   const announced = (text: string) =>
     [...document.querySelectorAll('[id^="DndLiveRegion"]')].some((region) =>
@@ -682,7 +682,7 @@ async function dragACard(pass: Pass): Promise<void> {
         }
       },
       announced,
-      'is over paused.',
+      'is over Paused.',
     ),
     // The board's own word once the card has landed.
     phase(
@@ -691,7 +691,7 @@ async function dragACard(pass: Pass): Promise<void> {
         [...document.querySelectorAll('[role="status"]')].some((each) =>
           (each.textContent ?? '').endsWith(text),
         ),
-      'moved to paused.',
+      'moved to Paused.',
     ),
   ]);
   await expect.poll(() => pass.vault.read(cardPath)).toMatch(/^status: paused$/m);
