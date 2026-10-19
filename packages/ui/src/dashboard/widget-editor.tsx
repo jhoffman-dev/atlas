@@ -301,7 +301,7 @@ function KindSettings({ draft, options, onChange, fields, groupValues }: WidgetE
           fields={fields}
           filters={draft.progress}
           onChange={(progress) => set({ progress })}
-          empty="No ring. Add a filter for the finished part — status is done, say."
+          empty="No finished part. Add a filter for it to show a share and a status bar — status is done, say."
         />
       )}
       {options.limit && (
