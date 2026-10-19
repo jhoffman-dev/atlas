@@ -28,6 +28,12 @@ describe('the gallery shots config (#328)', () => {
     expect(e2e.testDir).toBe('./e2e');
     expect(shots.testMatch).toBe('shots.spec.ts');
     expect(gallery.testDir).toBe('./tools/design');
-    expect(gallery.testMatch).toBe('gallery.spec.ts');
+    // The gallery's own shots and the attack specs that judge it, by name — never an e2e spec.
+    const match = gallery.testMatch;
+    if (!(match instanceof RegExp)) throw new Error('the gallery config matches by regex');
+    expect(match.test('/repo/tools/design/gallery.spec.ts')).toBe(true);
+    expect(match.test('/repo/tools/design/gallery-cells.attack-354.spec.ts')).toBe(true);
+    expect(match.test('/repo/e2e/table-keyboard.spec.ts')).toBe(false);
+    expect(match.test('/repo/tools/design/shots.spec.ts')).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Key } from '../key-hints.tsx';
 
 export interface PopupItem {
@@ -46,10 +47,21 @@ export function SuggestionPopup({
   /** `blocks`: a note's blocks, each a line or two of what it says (P26-02). */
   variant?: 'notes' | 'blocks';
 }) {
+  const list = useRef<HTMLUListElement>(null);
+  // The list scrolls past 320px and the arrow keys wrap, so the row Enter
+  // would pick is brought into view each time it moves; jsdom has no
+  // scrollIntoView, hence the guard.
+  useEffect(() => {
+    const row = list.current?.querySelector('[aria-selected="true"]');
+    if (row instanceof HTMLElement && typeof row.scrollIntoView === 'function')
+      row.scrollIntoView({ block: 'nearest' });
+  }, [selected, items]);
+
   if (items.length === 0) return null;
 
   return (
     <ul
+      ref={list}
       className={variant === 'blocks' ? 'suggestions suggestions--blocks' : 'suggestions'}
       role="listbox"
       aria-label={label}

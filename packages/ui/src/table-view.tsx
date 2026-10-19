@@ -9,9 +9,13 @@ import {
   toBoardRows,
   type BoardRow,
   type GroupLine,
+  type PropertyDef,
   type PropertyKind,
   type QuerySort,
 } from '@atlas/domain';
+import type { CellEdit, CellEditing, CellEditorHooks } from './cells/cell-editing.ts';
+import { CellPickers, picksFrom } from './cells/cell-pickers.tsx';
+import { useCellEditing } from './cells/use-cell-editing.ts';
 import type { DoneTicks } from './done-checkbox.tsx';
 import { FlatRows } from './flat-rows.tsx';
 import {
@@ -25,7 +29,8 @@ import { Icon } from './icon.tsx';
 import { SelectAllBox, type RowSelection } from './row-selection.tsx';
 import { useSteadyCallback } from './steady-callback.ts';
 import { sameEntries, sameItems, useSteadyValue } from './steady-value.ts';
-import { leadCellCount, TableRow, TITLE, type RowLook } from './table-cells.tsx';
+import type { CreateRelated, RelationChoice } from './properties-panel.tsx';
+import { editableColumns, leadCellCount, TableRow, TITLE, type RowLook } from './table-cells.tsx';
 
 export interface TableResult {
   readonly columns: readonly string[];
@@ -42,9 +47,16 @@ export interface TableSchema {
   readonly labels: Readonly<Record<string, string>>;
   /** The type's name, for "New task" and "177 tasks". */
   readonly noun: string;
+  /**
+   * The declared property under each key, for the editor its cells open: a
+   * select's options, a relation's targets. Left out, those cells edit as text.
+   */
+  readonly properties?: Readonly<Record<string, PropertyDef>>;
 }
 
 const NO_SCHEMA: TableSchema = { kinds: {}, labels: {}, noun: '' };
+const NO_PROPERTIES: Readonly<Record<string, PropertyDef>> = {};
+const NO_CHOICES: readonly RelationChoice[] = [];
 
 /** What the index hands back beside the properties, which are not columns to read. */
 const HIDDEN_COLUMNS: readonly string[] = ['path', 'summary'];
@@ -56,8 +68,19 @@ export interface TableViewProps {
   readonly schema?: TableSchema;
   /** Opens a row's note; `how` is where the click asked for it, when it said. */
   readonly onOpenNote: (path: string, how?: OpenHow) => void;
-  /** Left out, the cells are read-only: a SQL result's columns need not be properties. */
-  readonly onEditCell?: (args: { path: string; column: string; value: string }) => void;
+  /**
+   * One write per commit: what a cell's editor typed or picked, typed by the
+   * column's kind — text, a number, a tick, a day, a link or links. Left out,
+   * the cells are read-only: a SQL result's columns need not be properties.
+   * A method, not a property, so a handler declared for text alone — all a
+   * SQL view's cells, which have no kind, ever report — is still accepted:
+   * a method's parameter is checked both ways.
+   */
+  onEditCell?(edit: CellEdit): unknown;
+  /** The notes each relation column may link, by column, for its picker. */
+  readonly relationChoices?: Readonly<Record<string, readonly RelationChoice[]>>;
+  /** Given, a relation's picker offers "New <type>…". */
+  readonly onCreateRelated?: CreateRelated;
   readonly onToggleSort: (column: string) => void;
   /** Adds a note of the view's type; the footer offers it when given. */
   readonly onNewNote?: () => void;
@@ -85,6 +108,8 @@ export function TableView({
   schema = NO_SCHEMA,
   onOpenNote,
   onEditCell,
+  relationChoices,
+  onCreateRelated,
   onToggleSort,
   onNewNote,
   ticks,
@@ -109,6 +134,8 @@ export function TableView({
       onToggleSort={onToggleSort}
       hiddenColumns={hiddenColumns}
       {...(onEditCell !== undefined && { onEditCell })}
+      {...(relationChoices !== undefined && { relationChoices })}
+      {...(onCreateRelated !== undefined && { onCreateRelated })}
       {...(onNewNote !== undefined && { onNewNote })}
       {...(ticks !== undefined && { ticks })}
       {...(selection !== undefined && { selection })}
@@ -124,6 +151,8 @@ function TableSheet({
   schema,
   onOpenNote,
   onEditCell,
+  relationChoices,
+  onCreateRelated,
   onToggleSort,
   onNewNote,
   ticks,
@@ -149,23 +178,39 @@ function TableSheet({
     ),
     sameItems,
   );
-  const paths = pathAt === -1 ? [] : result.rows.map((row) => String(row[pathAt] ?? ''));
   // Once per result: the window draws the open table again for whatever else
   // happens in it — every key typed in ⌘K — and a table can hold hundreds (#217).
   const { columns, rows: read } = result;
   const rows = useMemo(() => toBoardRows({ columns, rows: read }), [columns, read]);
+  const paths = useMemo(
+    () => (pathAt === -1 ? [] : read.map((row) => String(row[pathAt] ?? ''))),
+    [pathAt, read],
+  );
   const grouped = grouping !== undefined && grouping.groups.length > 0;
   const lines = useGroupLines(grouped ? grouping : undefined);
+  // Read on a shift-click or a Tab only, so the rows are not drawn again for it.
+  const order = () => (grouped ? rowOrder(lines) : rows.map((row) => row.path));
+  const kinds = useSteadyValue(schema.kinds, sameEntries);
+  const properties = useSteadyValue(schema.properties ?? NO_PROPERTIES, sameEntries);
+  const { editing, editor } = useCellEditing({
+    onEditCell,
+    paths,
+    order,
+    columns: () => editableColumns({ shown, kinds, properties }),
+  });
   const look = useRowLook({
     shown,
-    kinds: useSteadyValue(schema.kinds, sameEntries),
+    kinds,
+    labels: useSteadyValue(schema.labels, sameEntries),
+    properties,
     onOpenNote,
-    onEditCell,
+    editor,
     ticks,
     selection,
-    // Read on a shift-click only, so the rows are not drawn again for it.
-    order: () => (grouped ? rowOrder(lines) : rows.map((row) => row.path)),
+    order,
   });
+  // The property the editing cell is under, when it edits in a picker.
+  const picker = editing === null ? undefined : properties[editing.column];
 
   return (
     <div className="table">
@@ -191,6 +236,7 @@ function TableSheet({
             rows={rows}
             lines={lines}
             look={look}
+            editing={editing}
             noun={schema.noun}
             scroller={sheet}
             {...(ticks !== undefined && { ticks })}
@@ -199,6 +245,20 @@ function TableSheet({
           />
         )}
       </div>
+      {editing !== null && editor !== undefined && picker !== undefined && picksFrom(picker) && (
+        <CellPickers
+          // One picker per cell: a Tab on to the next cell's picker opens a
+          // fresh one, carrying no filter or highlight over from the last.
+          key={`${editing.path}\u0000${editing.column}`}
+          editing={editing}
+          def={picker}
+          value={rows.find((row) => row.path === editing.path)?.values[editing.column]}
+          choices={relationChoices?.[editing.column] ?? NO_CHOICES}
+          editor={editor}
+          onOpenNote={onOpenNote}
+          {...(onCreateRelated !== undefined && { onCreateRelated })}
+        />
+      )}
       <TableFooter
         result={result}
         sorts={sorts}
@@ -271,43 +331,45 @@ function columnLabel(column: string, schema: TableSchema): string {
 function useRowLook({
   shown,
   kinds,
+  labels,
+  properties,
   onOpenNote,
-  onEditCell,
+  editor,
   ticks,
   selection,
   order,
 }: {
   shown: readonly string[];
   kinds: RowLook['kinds'];
+  labels: RowLook['labels'];
+  properties: RowLook['properties'];
   onOpenNote: TableViewProps['onOpenNote'];
-  onEditCell: TableViewProps['onEditCell'];
+  editor: CellEditorHooks | undefined;
   ticks: DoneTicks | undefined;
   selection: RowSelection | undefined;
   /** The rows' paths in the order the table shows them, for a shift-click's range. */
   order: () => readonly string[];
 }): RowLook {
   const open = useSteadyCallback(onOpenNote);
-  const edit = useSteadyCallback((args: { path: string; column: string; value: string }) =>
-    onEditCell?.(args),
-  );
   const tick = useSteadyCallback((args: { path: string; done: boolean }) => ticks?.onToggle(args));
   const choose = useSteadyCallback((path: string, how: { readonly shift: boolean }) => {
     if (how.shift) selection?.onToggle(path, { order: order() });
     else selection?.onToggle(path);
   });
-  const editable = onEditCell !== undefined;
   const ticked = ticks !== undefined;
   const choosing = selection !== undefined;
   return useMemo(
     () => ({
       shown,
       kinds,
+      labels,
+      properties,
       onOpenNote: open,
-      onEditCell: editable ? edit : undefined,
+      editor,
       onTick: ticked ? tick : undefined,
       onChoose: choosing ? choose : undefined,
     }),
-    [shown, kinds, open, edit, tick, choose, editable, ticked, choosing],
+    [shown, kinds, labels, properties, open, editor, tick, choose, ticked, choosing],
   );
 }
 
@@ -321,6 +383,7 @@ function TableGrid({
   rows,
   lines,
   look,
+  editing,
   noun,
   scroller,
   ticks,
@@ -332,6 +395,8 @@ function TableGrid({
   /** The lines `useGroupLines` worked out, while the table groups. */
   lines: readonly GroupLine[];
   look: RowLook;
+  /** The cell being edited, handed to the one row it is in. */
+  editing: CellEditing | null;
   noun: string;
   scroller: HTMLElement | null;
   ticks?: DoneTicks;
@@ -348,6 +413,7 @@ function TableGrid({
       look={look}
       done={ticks?.isDone(found.values) === true}
       chosen={selection?.selected.has(found.path) === true}
+      editing={editing?.path === found.path ? editing : null}
       index={place.index}
       measure={place.measure}
     />

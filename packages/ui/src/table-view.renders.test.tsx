@@ -7,7 +7,7 @@
  * screenful in the page and the keyboard still reaches its last row.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DoneTicks } from './done-checkbox.tsx';
 import type { RowSelection } from './row-selection.tsx';
@@ -197,6 +197,17 @@ describe('TableView — what a change of its own draws', () => {
     expect(drawn).toBe(1);
     expect(cellsOf('Task 5')).toContain('play');
     expect(cellsOf('Task 4')).not.toContain('play');
+  });
+
+  it('draws the one row whose cell is edited: once to open it, once per key typed, once to commit', () => {
+    render(<TableView {...props(read(12))} />);
+    const cells = screen.getAllByRole('button', { name: 'Doing' });
+    expect(rowsDrawnBy(() => fireEvent.click(cells[6] as HTMLElement))).toBe(1);
+    const input = document.querySelector('.table__input') as HTMLInputElement;
+    expect(input.closest('tr')?.textContent).toContain('Task 6');
+    expect(rowsDrawnBy(() => fireEvent.change(input, { target: { value: 'done' } }))).toBe(1);
+    expect(rowsDrawnBy(() => fireEvent.keyDown(input, { key: 'Enter' }))).toBe(1);
+    expect(document.querySelector('.table__input')).toBeNull();
   });
 
   it('ticks a row whose done-ness changed though its values did not', () => {

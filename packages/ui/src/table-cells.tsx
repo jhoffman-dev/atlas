@@ -1,15 +1,31 @@
-import { memo, useEffect, useRef, useState } from 'react';
-import { holdsLinks, isYou, linkedNames, propertyRole, type PropertyKind } from '@atlas/domain';
+import { memo, useRef } from 'react';
+import {
+  holdsLinks,
+  isYou,
+  propertyRole,
+  type PropertyDef,
+  type PropertyKind,
+} from '@atlas/domain';
+import type { CellEditing, CellEditorHooks } from './cells/cell-editing.ts';
+import { useAnchoring, usePressOnOpenCell, useReturningFocus } from './cells/cell-focus.ts';
+import { CellInput } from './cells/cell-input.tsx';
+import { picksFrom } from './cells/cell-pickers.tsx';
+import type { CellAt } from './cells/cell-keys.ts';
+import { CheckboxCell } from './cells/checkbox-cell.tsx';
+import { DateCellEditor } from './cells/date-cell.tsx';
+import { NumberCellEditor } from './cells/number-cell.tsx';
+import { RelationCell } from './cells/relation-cell.tsx';
 import { ChecklistProgress } from './checklist-progress.tsx';
 import { DoneCheckbox, type DoneTicks } from './done-checkbox.tsx';
 import { ariaRowIndex, type LinePlace } from './grouped-rows.tsx';
 import { ROW_STOP } from './row-focus.ts';
 import { Icon } from './icon.tsx';
 import { openHowFrom, type OpenHow } from './open-how.ts';
-import { LinkedNote, useNoteNames } from './note-names.tsx';
 import { SelectBox } from './row-selection.tsx';
 import { sameEntries } from './steady-value.ts';
 import { StatusPill } from './status-pill.tsx';
+
+export type { CellEdit, CellValue } from './cells/cell-editing.ts';
 
 /** The column every row is named by. */
 export const TITLE = 'title';
@@ -22,9 +38,13 @@ export const TITLE = 'title';
 export interface RowLook {
   readonly shown: readonly string[];
   readonly kinds: Readonly<Record<string, PropertyKind>>;
+  /** The declared label of each property, which names a box or a picker. */
+  readonly labels: Readonly<Record<string, string>>;
+  /** The declared property under each key, for the editor it opens. */
+  readonly properties: Readonly<Record<string, PropertyDef>>;
   readonly onOpenNote: (path: string, how?: OpenHow) => void;
-  readonly onEditCell?:
-    ((args: { path: string; column: string; value: string }) => void) | undefined;
+  /** Given while cells edit in place; left out, the cells are read only. */
+  readonly editor?: CellEditorHooks | undefined;
   /** Given when the view's type can be ticked done: each row leads with a box. */
   readonly onTick?: DoneTicks['onToggle'] | undefined;
   /**
@@ -39,6 +59,21 @@ export function leadCellCount(look: RowLook): number {
   return (look.onChoose === undefined ? 0 : 1) + (look.onTick === undefined ? 0 : 1);
 }
 
+/**
+ * The columns of a table whose cells Tab walks: every shown column but the
+ * name, which opens the note, and a relation the type says nothing about,
+ * whose cell has no picker to open (the app's schema before slice 5b).
+ */
+export function editableColumns({
+  shown,
+  kinds,
+  properties,
+}: Pick<RowLook, 'shown' | 'kinds' | 'properties'>): string[] {
+  return shown.filter(
+    (column) => column !== TITLE && (kinds[column] !== 'relation' || picksFrom(properties[column])),
+  );
+}
+
 /** One row as the table hands it over: the note, and what it says of the row. */
 export interface TableRowProps {
   readonly path: string;
@@ -48,6 +83,8 @@ export interface TableRowProps {
   readonly done: boolean;
   /** Whether the row is chosen, while rows can be. */
   readonly chosen: boolean;
+  /** The cell of this row being edited, or null while none is. */
+  readonly editing: CellEditing | null;
   /** Where the row sits among the lines a virtualised table measures. */
   readonly index?: number;
   /** The virtualiser's ref, which measures the row as drawn. */
@@ -65,10 +102,12 @@ export const TableRow = memo(function TableRow({
   look,
   done,
   chosen,
+  editing,
   index,
   measure,
 }: TableRowProps) {
-  const { onChoose, onTick, onOpenNote, onEditCell } = look;
+  const { onChoose, onTick, onOpenNote, editor } = look;
+  const title = String(values[TITLE] ?? path);
   return (
     <tr
       className={done ? 'table__row table__row--done' : 'table__row'}
@@ -79,7 +118,7 @@ export const TableRow = memo(function TableRow({
       {onChoose !== undefined && (
         <td className="table__choose">
           <SelectBox
-            label={`Select ${String(values[TITLE] ?? path)}`}
+            label={`Select ${title}`}
             checked={chosen}
             onChange={(_checked, how) => onChoose(path, how)}
           />
@@ -102,14 +141,14 @@ export const TableRow = memo(function TableRow({
           data-kind={look.kinds[column]}
         >
           <CellFor
-            column={column}
-            kind={look.kinds[column]}
+            at={{ path, column }}
+            title={title}
+            look={look}
             value={values[column]}
+            editing={editing?.column === column ? editing : null}
+            editor={editor}
             onOpen={(how) => onOpenNote(path, how)}
             onOpenNote={onOpenNote}
-            {...(onEditCell !== undefined && {
-              onCommit: (next: string) => onEditCell({ path, column, value: next }),
-            })}
           />
           {column === TITLE && <ChecklistProgress values={values} kinds={look.kinds} />}
         </td>
@@ -125,30 +164,42 @@ function sameRow(before: TableRowProps, after: TableRowProps): boolean {
     before.look === after.look &&
     before.done === after.done &&
     before.chosen === after.chosen &&
+    before.editing === after.editing &&
     before.index === after.index &&
     before.measure === after.measure &&
     (before.values === after.values || sameEntries(before.values, after.values))
   );
 }
 
-/** A cell drawn by what it holds: the name opens the note, the rest edit in place. */
+/**
+ * A cell drawn by what it holds: the name opens the note, the rest edit in
+ * place — a box ticks, a relation or a status opens its picker, the others
+ * open the field their kind calls for.
+ */
 function CellFor({
-  column,
-  kind,
+  at,
+  title,
+  look,
   value,
+  editing,
+  editor,
   onOpen,
   onOpenNote,
-  onCommit,
 }: {
-  column: string;
-  kind: PropertyKind | undefined;
+  at: CellAt;
+  /** The row's name, which names its boxes for a screen reader. */
+  title: string;
+  look: RowLook;
   value: unknown;
+  /** This cell's edit, while it is the one being edited. */
+  editing: CellEditing | null;
+  editor: CellEditorHooks | undefined;
   /** Opens the row's note; `how` is where the click asked for it. */
   onOpen: (how: OpenHow) => void;
   /** Opens a note a relation in the row links. */
   onOpenNote: (path: string) => void;
-  onCommit?: (value: string) => void;
 }) {
+  const { column } = at;
   if (column === TITLE) {
     return (
       <button
@@ -161,145 +212,110 @@ function CellFor({
       </button>
     );
   }
+  const kind = look.kinds[column];
+  const label = look.labels[column] ?? column;
   // A column no type declares — a SQL view's — is a relation when it holds links.
   if (kind === 'relation' || (kind === undefined && holdsLinks(value))) {
-    return <RelationCell value={value} onOpenNote={onOpenNote} />;
+    return (
+      <RelationCell
+        at={at}
+        label={label}
+        value={value}
+        editing={editing !== null}
+        picks={picksFrom(look.properties[column])}
+        editor={editor}
+        onOpenNote={onOpenNote}
+      />
+    );
   }
-  const look =
+  if (kind === 'checkbox') {
+    return (
+      <CheckboxCell
+        at={at}
+        label={`${label} for ${title}`}
+        value={value}
+        editing={editing !== null}
+        editor={editor}
+      />
+    );
+  }
+  const face =
     kind === 'select' ? 'pill' : propertyRole(column) === 'person' && isYou(value) ? 'you' : 'text';
-  if (onCommit === undefined) {
-    const text = value === null || value === undefined ? '' : String(value);
+  const text = value === null || value === undefined ? '' : String(value);
+  if (editor === undefined) {
     return (
       <span className="table__cell" title={fullValue(text)}>
-        <CellFace text={text} look={look} />
+        <CellFace text={text} look={face} />
       </span>
     );
   }
-  return <Cell value={value} look={look} onCommit={onCommit} />;
-}
-
-/**
- * A relation's cell: the notes it links, by name, each opening its note. The
- * cell holds `[[…]]` as the file does; it is never shown that way. A relation
- * is changed on its note, where the notes it may link are offered.
- */
-function RelationCell({
-  value,
-  onOpenNote,
-}: {
-  value: unknown;
-  onOpenNote: (path: string) => void;
-}) {
-  const names = linkedNames(value, useNoteNames());
-  if (names.length === 0) {
-    return (
-      <span className="table__cell">
-        <CellFace text={value === null || value === undefined ? '' : String(value)} look="text" />
-      </span>
-    );
+  const picks = picksFrom(look.properties[column]);
+  if (editing !== null && !picks) {
+    const field = { text, draft: editing.draft, editor };
+    if (kind === 'number') return <NumberCellEditor {...field} />;
+    if (kind === 'date') return <DateCellEditor {...field} />;
+    return <CellInput {...field} />;
   }
   return (
-    <span className="table__cell table__links" title={names.join(', ')}>
-      {names.map((name, at) => (
-        <LinkedNote key={at} name={name} className="table__note" onOpen={onOpenNote} />
-      ))}
-    </span>
-  );
-}
-
-/**
- * A cell that becomes an input when clicked and writes back when it is left.
- *
- * An empty one stays blank (Table.dc.html); its button still says it is an
- * empty value, so a screen reader finds something to fill in.
- */
-function Cell({
-  value,
-  look,
-  onCommit,
-}: {
-  value: unknown;
-  look: 'pill' | 'you' | 'text';
-  onCommit: (value: string) => void;
-}) {
-  const text = value === null || value === undefined ? '' : String(value);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(text);
-  const unsaved = useUnsavedEdit({ pending: editing && draft !== text, draft, onCommit });
-
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        className="table__cell"
-        aria-label={text === '' ? EMPTY_CELL_NAME : undefined}
-        title={fullValue(text)}
-        onClick={() => {
-          setDraft(text);
-          setEditing(true);
-        }}
-      >
-        <CellFace text={text} look={look} />
-      </button>
-    );
-  }
-
-  const commit = () => {
-    unsaved.settled();
-    setEditing(false);
-    if (draft !== text) onCommit(draft);
-  };
-
-  return (
-    <input
-      className="table__input"
-      // The input exists only because the cell was just clicked, so focusing it
-      // is what the click asked for rather than a focus steal.
-      autoFocus
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') commit();
-        if (event.key === 'Escape') {
-          unsaved.settled();
-          setEditing(false);
-        }
-      }}
+    <Cell
+      at={at}
+      text={text}
+      face={face}
+      editor={editor}
+      picks={picks}
+      expanded={picks && editing !== null}
     />
   );
 }
 
 /**
- * Writes an edit still in progress when its cell leaves the page — a
- * virtualised table drops a row scrolled out of reach, and a removed input
- * gets no blur — so what was typed is kept, as leaving the cell keeps it.
- * `settled` marks the edit written or abandoned, so it is never written twice.
+ * A cell as it reads, which opens its editor when clicked, or on ↵ or
+ * Space: a field in its place, or — for a status — a picker under it, while
+ * which it wears the ring. An empty one stays blank (Table.dc.html); its
+ * button still says it is an empty value, so a screen reader finds
+ * something to fill in.
  */
-function useUnsavedEdit({
-  pending,
-  draft,
-  onCommit,
+function Cell({
+  at,
+  text,
+  face,
+  editor,
+  picks,
+  expanded,
 }: {
-  pending: boolean;
-  draft: string;
-  onCommit: (value: string) => void;
+  at: CellAt;
+  text: string;
+  face: 'pill' | 'you' | 'text';
+  editor: CellEditorHooks;
+  /** Whether the cell edits in a picker under it, rather than a field in it. */
+  picks: boolean;
+  /** Whether this cell's picker is open under it. */
+  expanded: boolean;
 }) {
-  const latest = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    latest.current = pending ? () => onCommit(draft) : null;
-  }, [pending, draft, onCommit]);
-  useEffect(
-    () => () => {
-      latest.current?.();
-    },
-    [],
+  const button = useRef<HTMLButtonElement>(null);
+  useReturningFocus(at, editor, button);
+  useAnchoring(expanded, editor, button);
+  const press = usePressOnOpenCell(expanded);
+  return (
+    <button
+      ref={button}
+      type="button"
+      className="table__cell"
+      aria-label={text === '' ? EMPTY_CELL_NAME : undefined}
+      {...(picks && { 'aria-haspopup': 'listbox', 'aria-expanded': expanded })}
+      data-cell-stop={at.column}
+      data-editing={expanded ? '' : undefined}
+      title={fullValue(text)}
+      onPointerDown={press.onPointerDown}
+      onPointerLeave={press.onPointerLeave}
+      onPointerCancel={press.onPointerCancel}
+      onClick={(event) => {
+        if (press.opens(event)) editor.start(at);
+      }}
+    >
+      <CellFace text={text} look={face} />
+    </button>
   );
-  return {
-    settled: () => {
-      latest.current = null;
-    },
-  };
 }
 
 /** What an empty editable cell's button is called, since it shows nothing. */

@@ -102,9 +102,8 @@
     },
     "Close a pane": {
       "commits": 4,
-      "renders": 48,
-      "calls": {},
-      "rendersFromCi": true
+      "renders": 41,
+      "calls": {}
     },
     "Open Settings": {
       "commits": 13,

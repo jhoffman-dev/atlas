@@ -103,6 +103,7 @@
   --sep: #c4c4ca; /* the · between metadata */
   --chart-grid: #f1f1f3;
   --chart-bar: #8e8e96; /* 3.25:1 on the surface: a bar is read by its height alone */
+  --code-bg: var(--hover); /* inline code's ground (the brief, §6); dark sits on the well */
 
   /* Status: the dot, the pill's text and the pill's tint. Every status also
      carries its label — the dots alone do not separate for everyone. A dot
@@ -194,6 +195,7 @@
     --sep: #4a4a52;
     --chart-grid: #232328;
     --chart-bar: #6e6e76; /* 3.5:1 on the surface */
+    --code-bg: var(--well);
 
     --status-inbox-dot: #9db4c8;
     --status-inbox-ink: #b8cbdb;
@@ -271,6 +273,7 @@
   --sep: #4a4a52;
   --chart-grid: #232328;
   --chart-bar: #6e6e76; /* 3.5:1 on the surface */
+  --code-bg: var(--well);
 
   --status-inbox-dot: #9db4c8;
   --status-inbox-ink: #b8cbdb;
@@ -377,7 +380,6 @@
 
   --page: var(--surface);
   --ink-body: var(--ink);
-  --code-bg: var(--hover);
   --code-ink: var(--ink);
 
   --active: var(--selected);

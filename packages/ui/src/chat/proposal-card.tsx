@@ -66,7 +66,7 @@ export function ProposalCard({
           <>
             <button
               type="button"
-              className="btn btn--ghost"
+              className="btn btn--destructive"
               onClick={onReject}
               disabled={state === 'accepting'}
             >
@@ -74,7 +74,7 @@ export function ProposalCard({
             </button>
             <button
               type="button"
-              className="btn btn--primary"
+              className="btn btn--positive"
               onClick={onAccept}
               disabled={state === 'accepting'}
             >

@@ -45,6 +45,13 @@ describe('IndexSettings', () => {
     expect(onRebuild).toHaveBeenCalledTimes(1);
   });
 
+  it('draws Rebuild as a secondary control, not a row-sized one (#318)', () => {
+    render(<IndexSettings index={{ kind: 'ready', notes: 3 }} app={ready} onRebuild={noop} />);
+    const rebuild = screen.getByRole('button', { name: 'Rebuild' });
+    expect(rebuild.classList).toContain('btn--secondary');
+    expect(rebuild.classList).not.toContain('btn--sm');
+  });
+
   it('disables rebuilding while the index is being built', () => {
     render(
       <IndexSettings index={{ kind: 'working', done: 0, total: 0 }} app={ready} onRebuild={noop} />,
