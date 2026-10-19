@@ -190,16 +190,17 @@ function TableSheet({
   const lines = useGroupLines(grouped ? grouping : undefined);
   // Read on a shift-click or a Tab only, so the rows are not drawn again for it.
   const order = () => (grouped ? rowOrder(lines) : rows.map((row) => row.path));
+  const kinds = useSteadyValue(schema.kinds, sameEntries);
+  const properties = useSteadyValue(schema.properties ?? NO_PROPERTIES, sameEntries);
   const { editing, editor } = useCellEditing({
     onEditCell,
     paths,
     order,
-    columns: () => editableColumns(shown),
+    columns: () => editableColumns({ shown, kinds, properties }),
   });
-  const properties = useSteadyValue(schema.properties ?? NO_PROPERTIES, sameEntries);
   const look = useRowLook({
     shown,
-    kinds: useSteadyValue(schema.kinds, sameEntries),
+    kinds,
     labels: useSteadyValue(schema.labels, sameEntries),
     properties,
     onOpenNote,

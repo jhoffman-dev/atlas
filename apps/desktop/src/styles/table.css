@@ -280,11 +280,6 @@ button.props__link-title:focus-visible {
   box-shadow: 0 0 0 1.5px var(--focus);
 }
 
-/* A relation cell that edits is a stop: a click beside its names opens the picker. */
-.table__links[role='button'] {
-  cursor: pointer;
-}
-
 /* A checkbox cell is its box: ticked where it is, one write per tick. */
 .table__check {
   accent-color: var(--accent);
@@ -326,6 +321,62 @@ button.props__link-title:focus-visible {
   gap: 6px;
   padding: 8px;
   width: 260px;
+}
+
+/* The rows are bounded and scroll, so a long list of options stays on screen. */
+.cell-picker__list {
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+}
+
+/* The names a relation cell links, cut at the cell's measure, then the button that opens its picker. */
+.table__link-names {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table__link-edit {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  width: 20px;
+}
+
+.table__link-edit:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* "+" to link a first note, "…" to change what is linked: drawn in CSS, not
+   as an icon component, so a long table's rows cost no more to draw. */
+.table__link-glyph[data-glyph='add']::before {
+  content: '+';
+  font-size: 14px;
+  line-height: 1;
+}
+
+.table__link-glyph[data-glyph='edit']::before {
+  content: '…';
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.table__link-edit:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
 }
 
 .cell-picker__filter {

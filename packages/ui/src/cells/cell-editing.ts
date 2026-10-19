@@ -17,6 +17,12 @@ export interface CellEdit extends CellAt {
 export interface CellEditing extends CellAt {
   /** What a typed-in editor holds so far; null until something is typed. */
   readonly draft: string | null;
+  /**
+   * What the draft would commit, or null while it would commit nothing —
+   * written when the edit is overtaken rather than ended: by another cell
+   * opened, the row leaving the result, or the table leaving the page.
+   */
+  readonly pending: { readonly value: CellValue } | null;
 }
 
 /**
@@ -26,8 +32,8 @@ export interface CellEditing extends CellAt {
 export interface CellEditorHooks {
   /** Opens the editor in a cell. */
   readonly start: (at: CellAt) => void;
-  /** Keeps what a typed-in editor holds so far. */
-  readonly draft: (text: string) => void;
+  /** Keeps what a typed-in editor holds so far, and what that would commit. */
+  readonly draft: (text: string, pending: { readonly value: CellValue } | null) => void;
   /** Ends the edit: with a change, writing it; without one, as it was. */
   readonly end: (change?: { readonly value: CellValue }) => void;
   /** Ends the edit as `end` does, then opens the next or previous cell's editor. */
@@ -36,6 +42,13 @@ export interface CellEditorHooks {
   readonly write: (edit: CellEdit) => void;
   /** The editing cell's element, which a picker hangs from. */
   readonly anchor: RefObject<HTMLElement | null>;
+  /**
+   * Set as the reader opens an edit; the editor that appears for it takes
+   * the focus and clears it. An editor drawn again later — its row scrolled
+   * back into the page — finds it clear, and takes the focus only if that
+   * has nowhere else to be.
+   */
+  readonly opening: RefObject<boolean>;
   /**
    * The cell an edit just ended in, which takes the focus back once it is
    * drawn as a cell again — and clears this, so no later draw takes it.

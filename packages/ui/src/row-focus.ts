@@ -27,6 +27,11 @@ function stopIn(line: Element, column: string | null): HTMLElement | null {
   return line.querySelector<HTMLElement>(ROW);
 }
 
+/** Whether a stop's line has cells of its own — a row — rather than a group's header. */
+function lineHasCells(stop: HTMLElement): boolean {
+  return stop.closest('tr')?.querySelector('[data-cell-stop]') !== null;
+}
+
 /** The stop beside one along its row, or null at the row's end. */
 function besideStop(origin: HTMLElement, step: 1 | -1): HTMLElement | null {
   const line = origin.closest('tr');
@@ -186,6 +191,9 @@ export function useRowFocus({
 }): (event: KeyboardEvent) => void {
   const stops: Stops = { count, stopKey, pageSize };
   const wanted = useRef<PendingMove | null>(null);
+  // The column a move kept to when it landed on a line with no cells — a
+  // group's header — so the next move on carries it to the row beyond.
+  const carried = useRef<string | null>(null);
   const stopAt = (index: number, column: string | null) => {
     const line = body.current?.querySelector(`tr[data-index="${index}"]`) ?? null;
     return line === null ? null : stopIn(line, column);
@@ -193,6 +201,11 @@ export function useRowFocus({
   const drop = () => {
     wanted.current?.release();
     wanted.current = null;
+  };
+  /** Focuses a stop reached for a column, remembering the column past a line without cells. */
+  const land = (stop: HTMLElement, column: string | null) => {
+    carried.current = columnOf(stop) === null ? column : null;
+    focusWhole(stop);
   };
 
   // Finishes a move to a line that was not drawn when it was asked for: the
@@ -210,7 +223,7 @@ export function useRowFocus({
     const stop = stopAt(index, move.column);
     if (stop !== null) {
       drop();
-      focusWhole(stop);
+      land(stop, move.column);
     } else if (index !== move.index) {
       // The lines changed under it: scroll to where its line is now.
       wanted.current = { ...move, index };
@@ -252,10 +265,11 @@ export function useRowFocus({
     event.preventDefault();
     // Any move overtakes one still waiting for its line.
     drop();
-    const column = columnOf(origin);
+    // From a header reached for a column, the move keeps to that column.
+    const column = columnOf(origin) ?? (lineHasCells(origin) ? null : carried.current);
     const stop = stopAt(to, column);
     if (stop !== null) {
-      focusWhole(stop);
+      land(stop, column);
       return;
     }
     wanted.current = {

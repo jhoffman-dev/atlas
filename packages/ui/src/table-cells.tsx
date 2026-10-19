@@ -59,9 +59,19 @@ export function leadCellCount(look: RowLook): number {
   return (look.onChoose === undefined ? 0 : 1) + (look.onTick === undefined ? 0 : 1);
 }
 
-/** The columns of a table whose cells edit: every shown column but the name, which opens the note. */
-export function editableColumns(shown: readonly string[]): string[] {
-  return shown.filter((column) => column !== TITLE);
+/**
+ * The columns of a table whose cells Tab walks: every shown column but the
+ * name, which opens the note, and a relation the type says nothing about,
+ * whose cell has no picker to open (the app's schema before slice 5b).
+ */
+export function editableColumns({
+  shown,
+  kinds,
+  properties,
+}: Pick<RowLook, 'shown' | 'kinds' | 'properties'>): string[] {
+  return shown.filter(
+    (column) => column !== TITLE && (kinds[column] !== 'relation' || picksFrom(properties[column])),
+  );
 }
 
 /** One row as the table hands it over: the note, and what it says of the row. */
@@ -212,13 +222,22 @@ function CellFor({
         label={label}
         value={value}
         editing={editing !== null}
+        picks={picksFrom(look.properties[column])}
         editor={editor}
         onOpenNote={onOpenNote}
       />
     );
   }
   if (kind === 'checkbox') {
-    return <CheckboxCell at={at} label={`${label} for ${title}`} value={value} editor={editor} />;
+    return (
+      <CheckboxCell
+        at={at}
+        label={`${label} for ${title}`}
+        value={value}
+        editing={editing !== null}
+        editor={editor}
+      />
+    );
   }
   const face =
     kind === 'select' ? 'pill' : propertyRole(column) === 'person' && isYou(value) ? 'you' : 'text';
@@ -276,6 +295,9 @@ function Cell({
   const button = useRef<HTMLButtonElement>(null);
   useReturningFocus(at, editor, button);
   useAnchoring(expanded, editor, button);
+  // A press on the open cell closes its picker: the press itself closes it
+  // (Base UI's outside press), and the click that follows must not reopen it.
+  const closing = useRef(false);
   return (
     <button
       ref={button}
@@ -286,7 +308,16 @@ function Cell({
       data-cell-stop={at.column}
       data-editing={expanded ? '' : undefined}
       title={fullValue(text)}
-      onClick={() => editor.start(at)}
+      onPointerDown={() => {
+        closing.current = expanded;
+      }}
+      onClick={() => {
+        if (closing.current) {
+          closing.current = false;
+          return;
+        }
+        editor.start(at);
+      }}
     >
       <CellFace text={text} look={face} />
     </button>

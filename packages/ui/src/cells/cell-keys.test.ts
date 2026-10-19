@@ -3,8 +3,10 @@ import {
   acceptsNumberDraft,
   editorKeyAction,
   isIsoDay,
+  isWritableNumber,
   neighbourCell,
   numberOf,
+  numberText,
   optionPickedByNumber,
 } from './cell-keys.ts';
 
@@ -66,15 +68,16 @@ describe('neighbourCell', () => {
 });
 
 describe('optionPickedByNumber', () => {
-  it('picks the nth option by its number key, 1 to 8', () => {
+  it('picks the nth option shown by its number key, 1 to 8, while nothing is typed', () => {
     expect(optionPickedByNumber({ key: '1', filter: '', count: 8 })).toBe(0);
-    expect(optionPickedByNumber({ key: '3', filter: 'do', count: 8 })).toBe(2);
+    expect(optionPickedByNumber({ key: '3', filter: '', count: 8 })).toBe(2);
     expect(optionPickedByNumber({ key: '8', filter: '', count: 8 })).toBe(7);
   });
 
-  it('lets the filter win once it starts with a digit', () => {
+  it('types a digit into the filter once anything is in it: "q3" finds a quarter', () => {
+    expect(optionPickedByNumber({ key: '3', filter: 'q', count: 8 })).toBeNull();
     expect(optionPickedByNumber({ key: '3', filter: '2', count: 8 })).toBeNull();
-    expect(optionPickedByNumber({ key: '3', filter: '2nd', count: 8 })).toBeNull();
+    expect(optionPickedByNumber({ key: '1', filter: 'wa', count: 1 })).toBeNull();
   });
 
   it('picks nothing for a key past the options, 0, 9 or a letter', () => {
@@ -101,6 +104,21 @@ describe('a number cell', () => {
     expect(numberOf('')).toBeNull();
     expect(numberOf('-')).toBeNull();
     expect(numberOf('.')).toBeNull();
+  });
+
+  it('writes only a finite number the file keeps exactly', () => {
+    expect(isWritableNumber(3.5)).toBe(true);
+    expect(isWritableNumber(-Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(isWritableNumber(Number('9'.repeat(400)))).toBe(false);
+    expect(isWritableNumber(Number.MAX_SAFE_INTEGER + 2)).toBe(false);
+    expect(isWritableNumber(Number.NaN)).toBe(false);
+  });
+
+  it('shows a number held with an exponent as its digits, to be typed into', () => {
+    expect(numberText('1e+21')).toBe('1000000000000000000000');
+    expect(numberText('2.5e-7')).toBe('0.00000025');
+    expect(numberText('42')).toBe('42');
+    expect(numberText('')).toBe('');
   });
 });
 

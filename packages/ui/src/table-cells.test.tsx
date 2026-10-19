@@ -130,6 +130,15 @@ describe('a typed-in cell', () => {
     expect(document.activeElement).toBe(cell('first'));
   });
 
+  it('takes the focus on a click even where the click left it elsewhere, as WebKit does', async () => {
+    render(<input aria-label="Search" />);
+    table();
+    screen.getByRole('textbox', { name: 'Search' }).focus();
+    // fireEvent moves no focus: the click lands with the search box still focused.
+    fireEvent.click(cell('first'));
+    expect(document.activeElement).toBe(field());
+  });
+
   it('opens on ↵ from the cell, and Esc puts it back as it was with the focus on it', async () => {
     const onEditCell = table();
     cell('first').focus();
@@ -254,10 +263,10 @@ describe('a status cell', () => {
     });
   });
 
-  it('↓ moves the highlight and a click picks', async () => {
+  it('↓ moves the highlight on from the held option, and a click picks', async () => {
     const onEditCell = table();
     await userEvent.click(cell('Next'));
-    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
     expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
       path: 'a.md',
       column: 'status',
@@ -300,6 +309,7 @@ describe('a status cell', () => {
 
 describe('a relation cell', () => {
   const stop = (name: string) => screen.getByRole('button', { name });
+  const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement;
   const popover = (label: string) => screen.getByRole('dialog', { name: `Set ${label}` });
 
   it('opens a picker of the notes not linked yet, and links the one picked', async () => {
@@ -327,10 +337,15 @@ describe('a relation cell', () => {
       column: 'people',
       value: ['[[Ada]]', '[[Mara]]'],
     });
+    // The removal builds on the pick just made, not on what the file still shows.
     await userEvent.click(
       within(popover('People')).getByRole('button', { name: 'Remove Ada Lovelace from People' }),
     );
-    expect(onEditCell).toHaveBeenLastCalledWith({ path: 'a.md', column: 'people', value: null });
+    expect(onEditCell).toHaveBeenLastCalledWith({
+      path: 'a.md',
+      column: 'people',
+      value: ['[[Mara]]'],
+    });
   });
 
   it('makes a note from "New …" through onCreateRelated and links it', async () => {
@@ -363,6 +378,22 @@ describe('a relation cell', () => {
     expect(onEditCell).not.toHaveBeenCalled();
   });
 
+  it('Tab skips a relation the type says nothing about, whose stop opens nothing', async () => {
+    const rest = { ...properties };
+    delete rest['project'];
+    const onEditCell = table({ schema: { ...schema, properties: rest } });
+    // The cell is still a stop for the arrows, but a click opens no picker.
+    await userEvent.click(stop('Larkspur launch'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(stop('Larkspur launch').getAttribute('data-editing')).toBeNull();
+    // Tab from the box before it walks straight on to the people picker.
+    box('Urgent for Book the hall').focus();
+    await userEvent.click(cell('3'));
+    await userEvent.keyboard('{Tab}{Tab}');
+    expect(popover('People')).toBeDefined();
+    expect(onEditCell).not.toHaveBeenCalled();
+  });
+
   it('still opens the linked note from its chip, not the picker', async () => {
     const onOpenNote = vi.fn();
     table({ onOpenNote });
@@ -374,6 +405,20 @@ describe('a relation cell', () => {
 
 describe('a checkbox cell', () => {
   const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement;
+
+  it('takes the focus when Tab reaches it, and ⇧Tab or Esc leave it as from any editor', async () => {
+    const onEditCell = table();
+    await userEvent.click(cell('3'));
+    await userEvent.keyboard('{Tab}');
+    expect(document.activeElement).toBe(box('Urgent for Book the hall'));
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(field().value).toBe('3');
+    await userEvent.keyboard('{Tab}');
+    await userEvent.keyboard('{Escape}');
+    expect(document.querySelector('.table__input')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onEditCell).not.toHaveBeenCalled();
+  });
 
   it('ticks on Space, one write per tick, and on a click', async () => {
     const onEditCell = table();

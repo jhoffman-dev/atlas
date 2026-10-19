@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import type { CellEditorHooks, CellValue } from './cell-editing.ts';
+import { useOpeningFocus } from './cell-focus.ts';
 import { editorKeyAction } from './cell-keys.ts';
 
 /** What a draft commits, or null for one that commits nothing. */
@@ -35,6 +37,8 @@ export function CellInput({
   inputMode?: 'text' | 'decimal';
   className?: string;
 }) {
+  const input = useRef<HTMLInputElement>(null);
+  useOpeningFocus(editor, input);
   const typed = draft ?? text;
   const change = typed === text ? null : changeOf(typed);
   const end = () => (change === null ? editor.end() : editor.end(change));
@@ -42,14 +46,13 @@ export function CellInput({
   return (
     <input
       {...field}
+      ref={input}
       className={field.className ?? 'table__input'}
       type={type}
-      // The field exists only because the cell was just opened, so focusing it
-      // is what the opening asked for rather than a focus steal.
-      autoFocus
       value={typed}
       onChange={(event) => {
-        if (accepts(event.target.value)) editor.draft(event.target.value);
+        const next = event.target.value;
+        if (accepts(next)) editor.draft(next, next === text ? null : changeOf(next));
       }}
       onBlur={(event) => {
         // A field that has left the page lost its focus to the scroll, not to

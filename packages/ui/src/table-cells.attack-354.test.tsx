@@ -356,7 +356,9 @@ describe('attack #354 — the status picker', () => {
   it('↓ from the last option wraps to the first', async () => {
     table();
     await userEvent.click(cell('Next'));
-    await userEvent.keyboard('{ArrowDown}'.repeat(STATUSES.length));
+    // The picker opens on the held option, Next (the second): one press short
+    // of a full round lands on the first.
+    await userEvent.keyboard('{ArrowDown}'.repeat(STATUSES.length - 1));
     const highlighted = within(picker())
       .getAllByRole('option')
       .findIndex((option) => option.hasAttribute('data-highlighted'));

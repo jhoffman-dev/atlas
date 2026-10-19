@@ -1,4 +1,4 @@
-import { useRef, type ReactNode, type RefObject } from 'react';
+import { useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
 import {
   createVaultPath,
@@ -8,6 +8,7 @@ import {
   relationTypesText,
   withLink,
   withoutLink,
+  type NoteNames,
   type PropertyDef,
   type VaultPath,
 } from '@atlas/domain';
@@ -22,14 +23,17 @@ import type { CellAt } from './cell-keys.ts';
 /**
  * A relation's cell: the notes it links, by name, each opening its note.
  * The cell holds `[[…]]` as the file does; it is never shown that way.
- * Where cells edit, the cell is a stop too: a click beside the names, ↵ or
- * Space opens its picker under it, and it wears the ring while that is open.
+ * Where cells edit and the type says what the relation points at, a button
+ * beside the names — the cell's stop — opens its picker under the cell, and
+ * the cell wears the ring while that is open. The names stay plain links:
+ * nothing is nested in anything that acts as a button.
  */
 export function RelationCell({
   at,
   label,
   value,
   editing,
+  picks,
   editor,
   onOpenNote,
 }: {
@@ -39,6 +43,8 @@ export function RelationCell({
   value: unknown;
   /** Whether this cell's picker is open. */
   editing: boolean;
+  /** Whether a picker can open: the type declared what the relation points at. */
+  picks: boolean;
   editor: CellEditorHooks | undefined;
   onOpenNote: (path: string) => void;
 }) {
@@ -55,18 +61,19 @@ export function RelationCell({
     );
   }
   return (
-    <RelationStop at={at} label={label} text={text} editing={editing} editor={editor}>
+    <RelationStop at={at} label={label} text={text} editing={editing} picks={picks} editor={editor}>
       {chips}
     </RelationStop>
   );
 }
 
-/** The relation cell as a stop: focusable, opening its picker, taking the focus back after. */
+/** The relation cell with its stop: the button that opens the picker and takes the focus back after. */
 function RelationStop({
   at,
   label,
   text,
   editing,
+  picks,
   editor,
   children,
 }: {
@@ -74,32 +81,49 @@ function RelationStop({
   label: string;
   text: string;
   editing: boolean;
+  picks: boolean;
   editor: CellEditorHooks;
   children: ReactNode;
 }) {
-  const stop = useRef<HTMLSpanElement>(null);
+  const cell = useRef<HTMLSpanElement>(null);
+  const stop = useRef<HTMLButtonElement>(null);
   useReturningFocus(at, editor, stop);
-  useAnchoring(editing, editor, stop);
+  useAnchoring(editing, editor, cell);
+  // A press on the open cell closes its picker: the press itself closes it
+  // (Base UI's outside press), and the click that follows must not reopen it.
+  const closing = useRef(false);
   return (
     <span
-      ref={stop}
-      role="button"
-      tabIndex={0}
+      ref={cell}
       className="table__cell table__links"
-      aria-label={text === '' ? `No ${label.toLowerCase()}` : text}
-      aria-haspopup="dialog"
-      aria-expanded={editing}
-      data-cell-stop={at.column}
       data-editing={editing ? '' : undefined}
       title={text === '' ? undefined : text}
-      onClick={() => editor.start(at)}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        editor.start(at);
-      }}
     >
-      {children}
+      <span className="table__link-names">{children}</span>
+      <button
+        ref={stop}
+        type="button"
+        className="table__link-edit"
+        aria-label={text === '' ? `No ${label.toLowerCase()}` : text}
+        {...(picks && { 'aria-haspopup': 'dialog', 'aria-expanded': editing })}
+        data-cell-stop={at.column}
+        // The stop says it is editing too, as a status cell's button does.
+        data-editing={editing ? '' : undefined}
+        onPointerDown={() => {
+          closing.current = editing;
+        }}
+        onClick={() => {
+          if (closing.current) {
+            closing.current = false;
+            return;
+          }
+          // Nothing to offer until the type says what the relation points at.
+          if (picks) editor.start(at);
+        }}
+      >
+        {/* The glyph is the stylesheet's: a component here would draw once per row. */}
+        <span className="table__link-glyph" data-glyph={text === '' ? 'add' : 'edit'} />
+      </button>
     </span>
   );
 }
@@ -108,7 +132,9 @@ function RelationStop({
  * The picker a relation cell opens: a chip per note it links, each with its
  * own remove, then the relation's picker (the properties panel's), offering
  * the notes not linked yet and "New <type>…". Each pick or removal is one
- * write; Esc and a press outside close it.
+ * write, made on what the picker holds — the last pick's result, not the
+ * value last read back, so two quick removals remove both. Esc and a press
+ * outside close it.
  */
 export function RelationPickerPopover({
   open,
@@ -133,18 +159,11 @@ export function RelationPickerPopover({
   onCancel: () => void;
   onCreateRelated?: CreateRelated;
 }) {
-  const names = useNoteNames();
-  const links = linkedNotes(value);
-  const { label, many } = def;
-  const unlinked = choices.filter(
-    (choice) => !links.some((link) => linksTo(link, createVaultPath(choice.path), names)),
-  );
-  const what = relationTypesText(def);
-  const prompt = many
-    ? `Add a ${what}…`
-    : links.length === 0
-      ? `— no ${what} —`
-      : `Change ${what}…`;
+  const held = useHeldValue(value);
+  const write = (next: CellValue) => {
+    held.set(next);
+    onWrite(next);
+  };
   return (
     <Popover.Root
       open={open}
@@ -162,40 +181,20 @@ export function RelationPickerPopover({
         >
           <Popover.Popup
             className="cell-picker cell-picker--relation"
-            aria-label={`Set ${label}`}
+            aria-label={`Set ${def.label}`}
             finalFocus={false}
           >
-            {links.length > 0 && (
-              <ul className="props__link-list" aria-label={label}>
-                {links.map((link) => {
-                  const [name] = linkedNames(link, names);
-                  const title = name?.text ?? link;
-                  return (
-                    <li key={link} className="props__chip props__link">
-                      {name === undefined ? (
-                        <span className="props__link-title">{link}</span>
-                      ) : (
-                        <LinkedNote name={name} className="props__link-title" onOpen={onOpenNote} />
-                      )}
-                      <button
-                        type="button"
-                        className="props__link-remove"
-                        aria-label={`Remove ${title} from ${label}`}
-                        onClick={() => onWrite(withoutLink(value, link))}
-                      >
-                        <Icon name="close" size={12} />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <RelationPicker
-              choices={unlinked}
-              names={names}
-              prompt={prompt}
-              pointsAt={relationTypes(def)}
-              onPick={(link) => onWrite(withLink({ value, link, many }))}
+            <LinkChips
+              label={def.label}
+              value={held.value}
+              onOpenNote={onOpenNote}
+              onRemove={(link) => write(withoutLink(held.value, link))}
+            />
+            <LinkPicker
+              def={def}
+              value={held.value}
+              choices={choices}
+              onLink={(link) => write(withLink({ value: held.value, link, many: def.many }))}
               {...(onCreateRelated !== undefined && { onCreateRelated })}
             />
           </Popover.Popup>
@@ -203,4 +202,100 @@ export function RelationPickerPopover({
       </Popover.Portal>
     </Popover.Root>
   );
+}
+
+/**
+ * What the picker holds: the value as read, then each write's result in
+ * turn until the next read — so the second of two quick removals builds on
+ * the first, not on the value the file still showed.
+ */
+function useHeldValue(read: unknown): { value: unknown; set: (next: unknown) => void } {
+  const [value, setValue] = useState(read);
+  const [seen, setSeen] = useState(read);
+  if (seen !== read) {
+    setSeen(read);
+    setValue(read);
+  }
+  return { value, set: setValue };
+}
+
+/** The notes linked, as chips with their own remove. */
+function LinkChips({
+  label,
+  value,
+  onOpenNote,
+  onRemove,
+}: {
+  label: string;
+  value: unknown;
+  onOpenNote: (path: VaultPath) => void;
+  onRemove: (link: string) => void;
+}) {
+  const names = useNoteNames();
+  const links = linkedNotes(value);
+  if (links.length === 0) return null;
+  return (
+    <ul className="props__link-list" aria-label={label}>
+      {links.map((link) => {
+        const [name] = linkedNames(link, names);
+        const title = name?.text ?? link;
+        return (
+          <li key={link} className="props__chip props__link">
+            {name === undefined ? (
+              <span className="props__link-title">{link}</span>
+            ) : (
+              <LinkedNote name={name} className="props__link-title" onOpen={onOpenNote} />
+            )}
+            <button
+              type="button"
+              className="props__link-remove"
+              aria-label={`Remove ${title} from ${label}`}
+              onClick={() => onRemove(link)}
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** The relation's picker, offering the notes not linked yet. */
+function LinkPicker({
+  def,
+  value,
+  choices,
+  onLink,
+  onCreateRelated,
+}: {
+  def: Pick<PropertyDef, 'label' | 'many' | 'target' | 'targets'>;
+  value: unknown;
+  choices: readonly RelationChoice[];
+  onLink: (link: string) => void;
+  onCreateRelated?: CreateRelated;
+}) {
+  const names = useNoteNames();
+  const links = linkedNotes(value);
+  const unlinked = choices.filter((choice) => !links.some((link) => linksAt(link, choice, names)));
+  const what = relationTypesText(def);
+  const prompt = def.many
+    ? `Add a ${what}…`
+    : links.length === 0
+      ? `— no ${what} —`
+      : `Change ${what}…`;
+  return (
+    <RelationPicker
+      choices={unlinked}
+      names={names}
+      prompt={prompt}
+      pointsAt={relationTypes(def)}
+      onPick={onLink}
+      {...(onCreateRelated !== undefined && { onCreateRelated })}
+    />
+  );
+}
+
+function linksAt(link: string, choice: RelationChoice, names: NoteNames): boolean {
+  return linksTo(link, createVaultPath(choice.path), names);
 }

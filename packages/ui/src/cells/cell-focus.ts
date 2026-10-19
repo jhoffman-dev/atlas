@@ -21,6 +21,34 @@ export function useReturningFocus(
   });
 }
 
+/**
+ * Gives an editor the focus as it appears. Opened by the reader — a click,
+ * ↵, Tab — it takes the focus outright: that is what the opening asked for,
+ * and WebKit leaves a clicked button unfocused, so where the focus was says
+ * nothing. Drawn again later, when its row scrolls back into the page, it
+ * is not what the reader is doing now if they went on to the search box
+ * meanwhile: it takes the focus only while that is still on the table, or
+ * on nothing at all.
+ */
+export function useOpeningFocus(
+  editor: CellEditorHooks,
+  element: RefObject<HTMLElement | null>,
+  editing = true,
+): void {
+  useLayoutEffect(() => {
+    const field = element.current;
+    if (!editing || field === null) return;
+    if (editor.opening.current) {
+      editor.opening.current = false;
+      field.focus();
+      return;
+    }
+    const focused = document.activeElement;
+    const table = field.closest('table');
+    if (focused === null || focused === document.body || table?.contains(focused)) field.focus();
+  }, [editing, editor, element]);
+}
+
 /** Hands a picker the cell it hangs from, while the cell's picker is open. */
 export function useAnchoring(
   expanded: boolean,

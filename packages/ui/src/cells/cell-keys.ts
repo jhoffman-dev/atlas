@@ -66,14 +66,17 @@ export function neighbourCell({
   return path === undefined || next === undefined ? null : { path, column: next };
 }
 
-/** How many options a picker gives a number key: 1 to 8, the eight GTD statuses (Q3). */
+/**
+ * How many options a picker gives a number key: 1 to 8. James's answer to
+ * Q3 is eight statuses with the keys 1–8; the brief's "1–7" predates it.
+ */
 export const NUMBER_KEYS = 8;
 
 /**
- * The option a number key picks in a status picker: `1` the first, up to the
- * eighth. The filter wins once it holds text starting with a digit — a
- * status that begins with a number is being searched for, not picked — and
- * a key past the options picks nothing.
+ * The option a number key picks in a status picker: `1` the first of those
+ * shown, up to the eighth. Only while the filter is empty: once anything is
+ * typed, a digit is more of the filter — "q3" finds the third quarter, not
+ * the third option — and a key past the options shown picks nothing.
  */
 export function optionPickedByNumber({
   key,
@@ -82,10 +85,10 @@ export function optionPickedByNumber({
 }: {
   key: string;
   filter: string;
+  /** How many options the filter leaves shown. */
   count: number;
 }): number | null {
-  if (!/^[1-8]$/.test(key)) return null;
-  if (/^\d/.test(filter)) return null;
+  if (filter !== '' || !/^[1-8]$/.test(key)) return null;
   const at = Number(key) - 1;
   return at < count ? at : null;
 }
@@ -103,6 +106,24 @@ export function numberOf(text: string): number | null {
   const trimmed = text.trim();
   if (trimmed === '' || trimmed === '-' || trimmed === '.' || trimmed === '-.') return null;
   return Number(trimmed);
+}
+
+/**
+ * Whether a number may be written: finite, and within the integers the file
+ * keeps exactly. Four hundred nines read as Infinity, and a note never holds
+ * that; a number past 2^53 would come back as a different one.
+ */
+export function isWritableNumber(value: number): boolean {
+  return Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * A number as a cell shows it to be typed into: a value the file holds as
+ * `1e+21` reads as its digits, since a typed draft takes no exponent.
+ */
+export function numberText(text: string): string {
+  if (!/e/i.test(text) || !Number.isFinite(Number(text))) return text;
+  return Number(text).toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 });
 }
 
 /** Whether text is a day as a date cell commits one: `YYYY-MM-DD`. */

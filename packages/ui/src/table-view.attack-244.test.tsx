@@ -338,4 +338,50 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     fireEvent.keyDown(back, { key: 'Enter' });
     expect(edits).toEqual([{ path: 'r0.md', column: 'due', value: '2026-04-01' }]);
   });
+
+  it('a draft left in a row scrolled out is written once when another cell is opened', () => {
+    const model = startModel(300);
+    const edits: CellEdit[] = [];
+    render(<TableView {...propsOf(model)} onEditCell={(edit) => edits.push(edit)} />);
+    const sheet = sheetOf();
+    fireEvent.click(screen.getAllByRole('button', { name: '2026-03-01' })[0] as HTMLElement);
+    fireEvent.change(document.querySelector('.table__input') as HTMLInputElement, {
+      target: { value: '2026-04-01' },
+    });
+    scrollSheet(sheet, 250 * ROW_ESTIMATE);
+    expect(document.querySelector('tr[data-index="0"]')).toBeNull();
+
+    const drawn = document.querySelector('tr[data-index] [data-cell-stop="due"]') as HTMLElement;
+    // The cell's button gives way to the field, so its line is read before the click.
+    const line = drawn.closest('tr');
+    fireEvent.click(drawn);
+    expect(edits).toEqual([{ path: 'r0.md', column: 'due', value: '2026-04-01' }]);
+    const opened = document.querySelector('.table__input') as HTMLInputElement;
+    expect(opened.closest('tr')).toBe(line);
+    expect(document.activeElement).toBe(opened);
+  });
+
+  it('a field drawn again when its row scrolls back does not take the focus from elsewhere', () => {
+    const model = startModel(300);
+    const view = render(
+      <>
+        <input aria-label="Search" />
+        <TableView {...propsOf(model)} onEditCell={() => {}} />
+      </>,
+    );
+    const sheet = sheetOf();
+    fireEvent.click(screen.getAllByRole('button', { name: '2026-03-01' })[0] as HTMLElement);
+    fireEvent.change(document.querySelector('.table__input') as HTMLInputElement, {
+      target: { value: '2026-04-01' },
+    });
+    scrollSheet(sheet, 250 * ROW_ESTIMATE);
+    const search = screen.getByRole('textbox', { name: 'Search' });
+    search.focus();
+
+    scrollSheet(sheet, 0);
+    const back = document.querySelector('tr[data-index="0"] .table__input') as HTMLInputElement;
+    expect(back.value).toBe('2026-04-01');
+    expect(document.activeElement).toBe(search);
+    view.unmount();
+  });
 });

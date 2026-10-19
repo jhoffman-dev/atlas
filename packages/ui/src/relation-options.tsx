@@ -145,6 +145,8 @@ function NewRelatedName({
         onKeyDown={(event) => {
           if (busy.current) return;
           if (event.key === 'Escape') {
+            // The name field's own Esc: the picker it sits in stays open.
+            event.stopPropagation();
             onDone();
             return;
           }
