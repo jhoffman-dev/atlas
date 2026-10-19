@@ -28,6 +28,7 @@ import {
   type ViewTabEditing,
   type OpenHow,
 } from '@atlas/ui';
+import { PageFrameFallback } from '../page-frame-fallback.tsx';
 import { schemaOf } from '../panes/table-schema.ts';
 import type { useTypeTable } from './use-type-table.ts';
 import { useTypeEditor } from './use-type-editor.ts';
@@ -92,7 +93,15 @@ export function TypePage({
   const defined = types.find((candidate) => candidate.name === table.type?.name) ?? null;
   const editor = useTypeEditor({ ...ports, type: defined, types, onSaved });
   const type = editor.draft ?? table.type;
-  if (type === null) return null;
+  // A type that is gone — deleted under its page — keeps the page's frame: Back still leads out.
+  if (type === null) {
+    return (
+      <PageFrameFallback
+        {...(onShowSidebar !== undefined && { onShowSidebar })}
+        {...(history !== undefined && { history })}
+      />
+    );
+  }
   const page = { kind: 'type', typeName: type.name } as const;
 
   return (

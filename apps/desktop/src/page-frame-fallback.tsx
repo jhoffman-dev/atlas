@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { PageBar, type PageHistory } from '@atlas/ui';
 
 /** What a page's frame keeps from the page: the way back to the sidebar, and Back and Forward. */
@@ -31,4 +31,14 @@ export function PageFrameFallback({
       </div>
     </>
   );
+}
+
+/**
+ * A page loaded on first use (`pages-on-first-use.ts`), drawn into its frame
+ * once its chunk arrives, so nothing moves when it lands. The boundary sits
+ * inside the page's container, so the container's reads begin while the
+ * chunk is on its way.
+ */
+export function LoadedLater({ chrome, children }: { chrome: PageChrome; children: ReactNode }) {
+  return <Suspense fallback={<PageFrameFallback {...chrome} />}>{children}</Suspense>;
 }

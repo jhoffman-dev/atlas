@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { WindowClosingPort } from '@atlas/application';
 
 /** Whose answer a write is: the vault it was given in, named by any object that stands for it. */
@@ -32,56 +32,56 @@ interface VaultCount {
  * write, `onDrained` runs — once for a run of answers, not once for each.
  */
 export function useAnswerQueue(onDrained: () => void): AnswerQueue {
-  const tail = useRef<Promise<void>>(Promise.resolve());
-  const pending = useRef(0);
-  const counts = useRef(new WeakMap<AnswerVault, VaultCount>());
   const drained = useRef(onDrained);
   useEffect(() => {
     drained.current = onDrained;
   });
+  const [queue] = useState(() => createAnswerQueue(() => drained.current()));
+  return queue;
+}
 
-  const countOf = useCallback((vault: AnswerVault): VaultCount => {
-    const known = counts.current.get(vault);
+/**
+ * The queue itself, outside React: a window holds one per vault for the
+ * Inbox and the Proposals (tab-model.md, PR B), so the answers stay in
+ * order whichever tab asks for them, and however many tabs show the page.
+ */
+export function createAnswerQueue(onDrained: () => void): AnswerQueue {
+  let tail: Promise<void> = Promise.resolve();
+  let pending = 0;
+  const counts = new WeakMap<AnswerVault, VaultCount>();
+  const countOf = (vault: AnswerVault): VaultCount => {
+    const known = counts.get(vault);
     if (known !== undefined) return known;
     const fresh = { pending: 0, changes: 0 };
-    counts.current.set(vault, fresh);
+    counts.set(vault, fresh);
     return fresh;
-  }, []);
-
-  const enqueue = useCallback(
-    (vault: AnswerVault, work: () => Promise<void>) => {
+  };
+  return {
+    enqueue(vault, work) {
       const count = countOf(vault);
-      pending.current += 1;
+      pending += 1;
       count.pending += 1;
       count.changes += 1;
-      tail.current = tail.current
+      tail = tail
         .then(work)
         .catch((cause: unknown) => {
           // Each answer says its own failure; one that escapes it must still not stop the rest.
           console.error('An answer to a proposal failed unsaid:', cause);
         })
         .finally(() => {
-          pending.current -= 1;
+          pending -= 1;
           count.pending -= 1;
           count.changes += 1;
-          if (pending.current === 0) drained.current();
+          if (pending === 0) onDrained();
         });
     },
-    [countOf],
-  );
-  const mark = useCallback((vault: AnswerVault) => countOf(vault).changes, [countOf]);
-  const quietSince = useCallback(
-    (vault: AnswerVault, begun: number) => {
+    mark: (vault) => countOf(vault).changes,
+    quietSince(vault, begun) {
       const count = countOf(vault);
       return count.pending === 0 && count.changes === begun;
     },
-    [countOf],
-  );
-  const whenDrained = useCallback(() => tail.current, []);
-  return useMemo(
-    () => ({ enqueue, mark, quietSince, drained: whenDrained }),
-    [enqueue, mark, quietSince, whenDrained],
-  );
+    drained: () => tail,
+  };
 }
 
 /** The longest closing the window, or leaving a vault, waits for the answers still being written. */
@@ -104,7 +104,10 @@ export function answersWrittenOrGivenUp(drained: Promise<unknown>): Promise<void
  * an answer given just before closing is not lost with the window. A hung
  * disk must not keep the window open, so the wait has an end.
  */
-export function useAnswersWrittenBeforeClose(queue: AnswerQueue, closing: WindowClosingPort) {
+export function useAnswersWrittenBeforeClose(
+  queue: Pick<AnswerQueue, 'drained'>,
+  closing: WindowClosingPort,
+) {
   useEffect(() => {
     let stop: (() => void) | null = null;
     let live = true;

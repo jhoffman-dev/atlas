@@ -1,6 +1,7 @@
 import {
   ATLAS_DIRECTORY,
   INDEX_FACETS,
+  PROPOSALS_FOLDER,
   TEMPLATES_DIRECTORY,
   TYPES_DIRECTORY,
   VAULT_SETTINGS_PATH,
@@ -14,8 +15,9 @@ import {
  * definitions and the templates from their folders, the vault's settings
  * from their note, and the sidebar's catalogue and counts (#293) — the
  * notes under `.atlas` it walks, the marks the index holds (a view, a
- * dashboard, a star), how many notes each type has, and the Today and
- * Inbox counts.
+ * dashboard, a star), how many notes each type has, the Today and Inbox
+ * counts, and what the Inbox's own row counts: the notes waiting to be
+ * filed and the proposals still open.
  */
 export type VaultRead =
   | IndexFacet
@@ -25,7 +27,8 @@ export type VaultRead =
   | 'sidebar-atlas'
   | 'sidebar-marks'
   | 'type-counts'
-  | 'quick-counts';
+  | 'quick-counts'
+  | 'inbox-waiting';
 
 export const VAULT_READS: readonly VaultRead[] = [
   ...INDEX_FACETS,
@@ -36,6 +39,7 @@ export const VAULT_READS: readonly VaultRead[] = [
   'sidebar-marks',
   'type-counts',
   'quick-counts',
+  'inbox-waiting',
 ];
 
 /**
@@ -49,6 +53,7 @@ const PATH_READS: readonly (readonly [string, readonly VaultRead[]])[] = [
   [TEMPLATES_DIRECTORY, ['templates']],
   [VAULT_SETTINGS_PATH, ['settings']],
   [ATLAS_DIRECTORY, ['sidebar-atlas', 'quick-counts']],
+  [PROPOSALS_FOLDER, ['inbox-waiting']],
 ];
 
 /**
@@ -62,6 +67,7 @@ export const READS_ON_INDEX_NEWS: ReadonlySet<VaultRead> = new Set<VaultRead>([
   'sidebar-marks',
   'type-counts',
   'quick-counts',
+  'inbox-waiting',
 ]);
 
 /**

@@ -7,21 +7,18 @@ const note = createVaultPath('Plan.md');
 
 describe('chatWindowOf', () => {
   it('is the query being written while the query page is open', () => {
-    expect(chatWindowOf({ query: 'FROM task', otherPage: false, focused: note })).toEqual({
+    expect(chatWindowOf({ query: 'FROM task', focused: note })).toEqual({
       kind: 'query',
       text: 'FROM task',
     });
   });
 
-  it('is the focused pane, unless another page covers it', () => {
-    expect(chatWindowOf({ query: null, otherPage: false, focused: note })).toEqual({
+  it('is the note the focused tab shows, or nothing while it shows a page', () => {
+    expect(chatWindowOf({ query: null, focused: note })).toEqual({
       kind: 'path',
       path: 'Plan.md',
     });
-    expect(chatWindowOf({ query: null, otherPage: true, focused: note })).toEqual({ kind: 'none' });
-    expect(chatWindowOf({ query: null, otherPage: false, focused: null })).toEqual({
-      kind: 'none',
-    });
+    expect(chatWindowOf({ query: null, focused: null })).toEqual({ kind: 'none' });
   });
 });
 

@@ -5,8 +5,7 @@ import {
   type NavigationHistory,
   type NavigationPlace,
 } from './navigation-history.ts';
-import { MAX_PANES, parseRememberedPanes } from './pane-layout.ts';
-import type { Pane, Tab, Workspace } from './workspace.ts';
+import { MAX_PANES, type Pane, type Tab, type Workspace } from './workspace.ts';
 
 /**
  * The workspace as it goes into storage and comes back (tab-model.md §2).
@@ -104,7 +103,7 @@ function readNextId(value: unknown): number {
 
 /** The old split, as one tab per pane on the note the pane held. */
 function upgradeSplit(remembered: unknown, vaultKey: string): Workspace | null {
-  const layout = parseRememberedPanes(remembered, vaultKey);
+  const layout = parseRememberedSplit(remembered, vaultKey);
   if (layout === null) return null;
   const panes = layout.paths.map((path, index): Pane => {
     const id = `t${index + 1}`;
@@ -254,4 +253,42 @@ function readPath(value: unknown): VaultPath | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The split the app remembered before it had tabs (`atlas.panes`): the
+ * note each pane held, and which pane was focused. Only for the vault it was
+ * remembered against, since the paths are relative to one; anything
+ * unrecognised reads as nothing remembered, because a stale split should
+ * cost a single pane rather than an error.
+ */
+function parseRememberedSplit(
+  remembered: unknown,
+  vaultKey: string,
+): { paths: readonly (VaultPath | null)[]; focused: number } | null {
+  if (typeof remembered !== 'object' || remembered === null) return null;
+  const record = remembered as { vault?: unknown; paths?: unknown; focused?: unknown };
+  if (record.vault !== vaultKey) return null;
+  if (!Array.isArray(record.paths) || record.paths.length === 0) return null;
+
+  // `Array.from` rather than `map`, which preserves a hole: a hole is neither a
+  // path nor null, so `focused` could name a pane that is not there, and every
+  // later open would be skipped by the same hole rather than shown.
+  const paths = Array.from(record.paths.slice(0, MAX_PANES), readSplitPath);
+  const focused = typeof record.focused === 'number' ? record.focused : 0;
+  return {
+    paths,
+    focused: Number.isInteger(focused) && focused >= 0 && focused < paths.length ? focused : 0,
+  };
+}
+
+function readSplitPath(value: unknown): VaultPath | null {
+  if (typeof value !== 'string' || value === '') return null;
+  try {
+    return createVaultPath(value);
+  } catch {
+    // A hand-edited or stale path that no longer parses costs an empty pane,
+    // which is what a first run shows anyway.
+    return null;
+  }
 }

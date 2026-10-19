@@ -15,7 +15,7 @@ import {
 } from '@atlas/domain';
 import { fakeIndexPort, fakeVaultFs, type ArchivePorts, type IndexPort } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
-import { useArchive, type ArchiveOptions } from './use-archive.ts';
+import { useArchive, useArchivePage, type ArchiveOptions } from './use-archive.ts';
 
 const path = (raw: string): VaultPath => createVaultPath(raw);
 
@@ -88,7 +88,20 @@ function setUp(notes: Record<string, string>, overrides: Partial<ArchiveOptions>
     offerLinks: vi.fn(async () => {}),
     ...overrides,
   };
-  const hook = renderHook((props: ArchiveOptions) => useArchive(props), { initialProps: options });
+  // The window's commands with the page's list on them, as the Archive tab reads them.
+  const hook = renderHook(
+    (props: ArchiveOptions) => {
+      const { commands, notice } = useArchive(props);
+      const page = useArchivePage({
+        ports: props.ports,
+        indexKey: props.indexKey,
+        open: props.open,
+        commands,
+      });
+      return { commands, notice, page };
+    },
+    { initialProps: options },
+  );
   return { ...disk, hook, options, query };
 }
 
