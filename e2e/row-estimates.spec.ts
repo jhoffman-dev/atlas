@@ -18,6 +18,16 @@ import { createVault, installHost, sidebarSection } from './host.ts';
 const GROUP_NAME_HEIGHT = 18;
 /** The table view's row, which Today's rows are since UI v2 slice 13a. */
 const TODAY_ROW_HEIGHT = 34;
+/**
+ * The rest of a named Today group placed after another: the 12px gap above
+ * it, the 4px under its name, and the half of its last row's collapsed 1px
+ * border that lies outside the table (today-page.tsx GROUP_GAP,
+ * GROUP_NAME_GAP, TABLE_EDGE).
+ */
+const TODAY_GROUP_GAP = 12;
+const TODAY_GROUP_NAME_GAP = 4;
+const TODAY_TABLE_EDGE = 0.5;
+const TODAY_GROUPS = 40;
 const INBOX_ROW_HEIGHT = 59;
 const TABLE_ROW_HEIGHT = 34;
 const TABLE_GROUP_HEIGHT = 32;
@@ -89,6 +99,74 @@ test('a Today group name is drawn at the height the list places it by', async ({
   const name = page.locator('.today__group-name').first();
   await expect(name).toBeVisible();
   expect((await name.boundingBox())!.height).toBeCloseTo(GROUP_NAME_HEIGHT, 1);
+});
+
+/**
+ * More named groups than the window shows: the list stands in for those it
+ * has not placed with a spacer of their estimates, and a named one-task
+ * group it has placed measures what one of those estimates must be, or the
+ * page's scroll height moves under every fast scroll.
+ */
+test('a Today group not yet placed is given the height a placed one measures', async ({ page }) => {
+  const vault = await createVault();
+  for (const folder of ['.atlas/types', 'Tasks', 'Projects']) await vault.mkdir(folder);
+  await vault.write(
+    '.atlas/types/task.md',
+    [
+      '---',
+      'name: task',
+      'label: Task',
+      'properties:',
+      '  status:',
+      '    kind: select',
+      '    options: [inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive]',
+      '    done: archive',
+      '---',
+      '',
+    ].join('\n'),
+  );
+  await vault.write('.atlas/types/project.md', '---\nname: project\nlabel: Project\n---\n');
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const writes: Promise<void>[] = [];
+  for (let n = 1; n <= TODAY_GROUPS; n += 1) {
+    writes.push(
+      vault.write(`Projects/Project ${pad(n)}.md`, '---\ntype: project\nstatus: active\n---\n'),
+      vault.write(
+        `Tasks/Task ${pad(n)}.md`,
+        `---\ntype: task\nstatus: next-action\nproject: "[[Project ${pad(n)}]]"\n---\n`,
+      ),
+    );
+  }
+  await Promise.all(writes);
+  await installHost(page, vault);
+  await page.clock.setFixedTime(NOW);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Today' }).click();
+  const next = page.getByRole('region', { name: 'Next actions', exact: true });
+  await expect(next.locator('.review__count').first()).toHaveText(String(TODAY_GROUPS));
+
+  const placed = next.locator('.today__group');
+  await expect(placed.nth(1)).toBeVisible();
+  const shown = await placed.count();
+  expect(shown).toBeLessThan(TODAY_GROUPS);
+  const measured = (await placed.nth(1).boundingBox())!.height;
+  expect(measured).toBeCloseTo(
+    TODAY_GROUP_GAP +
+      GROUP_NAME_HEIGHT +
+      TODAY_GROUP_NAME_GAP +
+      TODAY_ROW_HEIGHT +
+      TODAY_TABLE_EDGE,
+    1,
+  );
+
+  // What stands in for the groups after the last one placed: their estimates, summed.
+  const spacer = next.locator('.today__groups > div[aria-hidden="true"]').last();
+  const after = await spacer.evaluate((element) =>
+    parseFloat((element as HTMLElement).style.height),
+  );
+  expect(after / (TODAY_GROUPS - shown)).toBeCloseTo(measured, 1);
 });
 
 test('a Today row is drawn at the height the list places it by', async ({ page }) => {
