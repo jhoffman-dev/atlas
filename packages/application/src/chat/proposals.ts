@@ -20,6 +20,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import type { OpenNotes } from '../api/index.ts';
+import { taskRuleProperties } from '../gtd/task-rules.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { noteModified } from '../notes/note-modified.ts';
 import { openNote } from '../notes/open-note.ts';
@@ -134,7 +135,12 @@ export async function proposeEdit({
   }
 
   const note = await readForEdit({ fs, markdown, path });
-  const properties = asked === null ? null : ruledProperties(note.properties, asked, today);
+  // Ruled against the block as the write reads it, not as shown: Accept writes
+  // exactly the contents built here.
+  const properties =
+    asked === null
+      ? null
+      : ruledProperties(taskRuleProperties(markdown, note.frontmatter), asked, today);
   const edited = applyTextEdits(note.originalBody, edits);
   if (!edited.ok) throw new ProposalRefused(edited.problem);
   const afterBody = append === null ? edited.text : appendToBody(edited.text, append);

@@ -1,4 +1,6 @@
 import { parse, parseDocument } from 'yaml';
+import { FrontmatterRefusedError, type WritingRead } from '@atlas/application';
+import { duplicatedProperties } from './frontmatter-write.ts';
 
 /** The YAML between the delimiters. */
 const yamlOf = (frontmatter: string) =>
@@ -33,12 +35,18 @@ export function frontmatterProblem(frontmatter: string | null): string | null {
  */
 export function parseFrontmatterProperties(
   frontmatter: string | null,
-  read?: { readonly forWriting: true },
+  read?: WritingRead,
 ): Record<string, unknown> {
   if (frontmatter === null) return {};
 
   const body = yamlOf(frontmatter);
   if (body.trim() === '') return {};
+  const refusing = read?.refusingDuplicated ?? [];
+  if (refusing.length > 0) {
+    // Outside the catch below: a refusal is the caller's answer, not an unreadable block.
+    const refused = duplicatedProperties(body).find(({ key }) => refusing.includes(key));
+    if (refused !== undefined) throw new FrontmatterRefusedError(refused);
+  }
 
   try {
     // Read for writing, a key listed twice is its last copy, as the writer reads it.

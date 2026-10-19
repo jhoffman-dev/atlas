@@ -2,7 +2,7 @@ import { joinFrontmatter, type EditorDocument } from '@atlas/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from './ports.ts';
 import type { OpenNote } from './open-note.ts';
-import { withTaskRules } from '../gtd/task-rules.ts';
+import { taskRuleProperties, withTaskRules } from '../gtd/task-rules.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 
 export interface SavedNote {
@@ -49,7 +49,7 @@ export async function saveNote({
       : withTaskRules({ values: changes.values, today: changes.today })(
           // Read again as the write reads it: a block listing a key twice shows
           // no properties, and the rules must judge what the write will change.
-          markdown.frontmatterProperties(note.frontmatter, { forWriting: true }),
+          taskRuleProperties(markdown, note.frontmatter),
         );
   const body = markdown.serializeBody({
     originalBody: note.originalBody,

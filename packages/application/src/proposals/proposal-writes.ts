@@ -25,7 +25,7 @@ import {
   undoProposal,
   type AppliedProposal,
 } from '../chat/proposals.ts';
-import { newNoteTaskRules, withTaskRules } from '../gtd/task-rules.ts';
+import { newNoteTaskRules, taskRuleProperties, withTaskRules } from '../gtd/task-rules.ts';
 import { archiveTaskChange } from '../review/review-actions.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { homeFolderFor } from '../notes/home-folder.ts';
@@ -75,7 +75,10 @@ export async function readLinkNote(
   });
   if (read === null) return null;
   const document = splitFrontmatter(read.text);
-  const properties = ports.markdown.frontmatterProperties(document.frontmatter);
+  // As the write reads it: a block listing a key twice is otherwise read as nothing.
+  const properties = ports.markdown.frontmatterProperties(document.frontmatter, {
+    forWriting: true,
+  });
   const types = await loadObjectTypes({ fs: ports.fs, markdown: ports.markdown });
   const type = typeNamed(types, properties['type']);
   const relation = type?.properties.find(
@@ -129,9 +132,7 @@ export function heldToTaskRules(
     };
   }
   if (link === null) return write;
-  const properties = ports.markdown.frontmatterProperties(link.document.frontmatter, {
-    forWriting: true,
-  });
+  const properties = taskRuleProperties(ports.markdown, link.document.frontmatter);
   return { ...write, changes: withTaskRules({ values: write.changes, today })(properties) };
 }
 

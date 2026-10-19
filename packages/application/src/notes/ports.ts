@@ -4,6 +4,16 @@ import type { BodyRange, EditorDocument, ParsedBody, RawPart } from '@atlas/doma
  * Turning markdown into an editable document and back. The implementation is a
  * markdown library; the use-cases only need the two directions.
  */
+/** How {@link MarkdownPort.frontmatterProperties} reads a block a write is about to change. */
+export interface WritingRead {
+  readonly forWriting: true;
+  /**
+   * Keys the caller's rules read. A block listing one of them twice is refused
+   * with `FrontmatterRefusedError` naming it, rather than read as its last copy.
+   */
+  readonly refusingDuplicated?: readonly string[];
+}
+
 export interface MarkdownPort {
   parseBody(body: string): ParsedBody;
   /**
@@ -14,10 +24,7 @@ export interface MarkdownPort {
    * plain read gives up on the block. That is the read a change is held to the
    * task rules against, so the rules see what the write sees; never for showing.
    */
-  frontmatterProperties(
-    frontmatter: string | null,
-    read?: { readonly forWriting: true },
-  ): Record<string, unknown>;
+  frontmatterProperties(frontmatter: string | null, read?: WritingRead): Record<string, unknown>;
   /**
    * Why a frontmatter block cannot be read, in one line; null when it can. The
    * properties of such a block read as none, which is right for indexing but

@@ -130,10 +130,10 @@ function parsedForWriting(source: string, changing: readonly string[]): Document
   // `{title: New}` on a single line.
   if (source.trim() === '') return new Document({});
   const document = parseDocument(source);
-  const duplicates = document.errors.filter((error) => error.code === 'DUPLICATE_KEY');
-  if (duplicates.length === 0) return document;
-  for (const error of duplicates) {
-    const refusal = refusalAt(document, error.pos[0]) ?? {
+  const found = duplicates(document);
+  if (found.length === 0) return document;
+  for (const placed of found) {
+    const refusal = placed ?? {
       // No property holds this duplicate, so the refusal is pinned on the first
       // change asked for: it always matches below, and every change is refused.
       // With no changes at all there is nothing to refuse: '' matches none, and
@@ -148,10 +148,35 @@ function parsedForWriting(source: string, changing: readonly string[]): Document
 }
 
 /**
+ * Each key the block writes twice, as the property holding it and why a change
+ * to that property is refused; null for one no property holds.
+ */
+function duplicates(document: Document): (Refusal | null)[] {
+  return document.errors
+    .filter((error) => error.code === 'DUPLICATE_KEY')
+    .map((error) => refusalAt(document, error.pos[0]));
+}
+
+/**
+ * The top-level properties of a block's YAML that hold a key written twice,
+ * each with why a change to it is refused — as {@link updateFrontmatter}
+ * refuses it.
+ */
+export function duplicatedProperties(source: string): Refusal[] {
+  return duplicates(parseDocument(source)).filter((refusal) => refusal !== null);
+}
+
+/** A property a change to which is refused, and why, in the person's words. */
+interface Refusal {
+  readonly key: string;
+  readonly message: string;
+}
+
+/**
  * The top-level property holding the key written twice at `offset`, and why a
  * change to it is refused, in the person's words. Null when no property holds it.
  */
-function refusalAt(document: Document, offset: number): { key: string; message: string } | null {
+function refusalAt(document: Document, offset: number): Refusal | null {
   const contents = document.contents;
   if (!isMap(contents)) return null;
   const fix = 'fix it in the source before changing it.';
