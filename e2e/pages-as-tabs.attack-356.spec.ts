@@ -115,7 +115,7 @@ async function decideCello(page: Page, which: 1 | 2 = 1) {
     .getByRole('combobox', { name: 'Status of Learn the cello' })
     .selectOption({ label: 'Someday' });
   await rowIn(page, which, 'Learn the cello')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 }
 

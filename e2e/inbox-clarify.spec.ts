@@ -151,7 +151,7 @@ test('a task is clarified to Next Action with a project: one Done sets the statu
   // Nothing is written until Done.
   expect(await vault.read('Inbox/Call the bank.md')).toBe(CALL);
   await row(page, 'Call the bank')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 
   // The link is stamped once the note has landed: waited for, not read once.
@@ -189,7 +189,7 @@ test('Waiting offers who on the same row, needs no one, and writes both together
 
   await who.selectOption({ label: 'Mara Quill' });
   await row(page, 'Chase the quote')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 
   await expectFile(vault, 'Inbox/Chase the quote.md').toContain('status: waiting');
@@ -204,7 +204,7 @@ test('Waiting offers who on the same row, needs no one, and writes both together
     .selectOption({ label: 'Waiting' });
   await expect(inbox.getByRole('combobox', { name: 'Who Learn the cello waits on' })).toBeVisible();
   await row(page, 'Learn the cello')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 
   await expectFile(vault, 'Inbox/Learn the cello.md').toContain('status: waiting');
@@ -224,7 +224,7 @@ test('a status alone, with no project, takes a task off the list and leaves its 
     .getByRole('combobox', { name: 'Status of Learn the cello' })
     .selectOption({ label: 'Someday' });
   await row(page, 'Learn the cello')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 
   await expectFile(vault, 'Inbox/Learn the cello.md').toContain('status: someday');
@@ -250,7 +250,7 @@ test('a task at Inbox outside the Inbox folder is clarified where it lives, link
     .selectOption({ label: 'Atlas' });
   await inbox.getByLabel('Renew the passport is due').fill('2027-04-01');
   await row(page, 'Renew the passport')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 
   await expectFile(vault, 'Tasks/Renew the passport.md').toContain('status: backlog');
@@ -279,7 +279,7 @@ test('Undo takes the last clarification back: the file returns, saying what it s
     .getByRole('combobox', { name: 'File Call the bank under' })
     .selectOption({ label: 'Atlas' });
   await row(page, 'Call the bank')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
   await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
   expect(await vault.read(FILED_CALL)).toContain('status: waiting');
@@ -305,7 +305,7 @@ test('once a row is done the next row has the focus, and Tab walks its controls'
   // The first task as the page orders them, and whatever row is under it.
   const tasks = inbox
     .getByRole('row')
-    .filter({ has: page.getByRole('button', { name: 'Done', exact: true }) });
+    .filter({ has: page.getByRole('button', { name: 'Save', exact: true }) });
   await expect(tasks).toHaveCount(4);
   const first = (await tasks.first().locator('.table__title').textContent()) ?? '';
   const listed = await inbox.locator('tbody .table__title').allTextContents();
@@ -315,7 +315,7 @@ test('once a row is done the next row has the focus, and Tab walks its controls'
   await inbox
     .getByRole('combobox', { name: `Status of ${first}` })
     .selectOption({ label: 'Backlog' });
-  await row(page, first).getByRole('button', { name: 'Done', exact: true }).press('Enter');
+  await row(page, first).getByRole('button', { name: 'Save', exact: true }).press('Enter');
 
   await expect(row(page, first)).toHaveCount(0);
   await expect(row(page, second)).toBeFocused();
@@ -355,7 +355,7 @@ test('after a vault switch the Inbox lists the new vault only, and clarifies int
     .getByRole('combobox', { name: 'Status of Call the bank' })
     .selectOption({ label: 'Backlog' });
   await row(page, 'Call the bank')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 
   await expectFile(b, 'Inbox/Call the bank.md').toContain('status: backlog');
@@ -374,7 +374,7 @@ test('a decided row leaves the Inbox before its write lands (#260)', async ({ pa
     .getByRole('combobox', { name: 'Status of Learn the cello' })
     .selectOption({ label: 'Someday' });
   await row(page, 'Learn the cello')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
 
   // Gone while its file still says Inbox: the page did not wait for the write.
@@ -403,7 +403,7 @@ test('a decided row whose write fails comes back to the Inbox, saying why (#260)
     .getByRole('combobox', { name: 'Status of Learn the cello' })
     .selectOption({ label: 'Someday' });
   await row(page, 'Learn the cello')
-    .getByRole('button', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
   await expect(row(page, 'Learn the cello')).toHaveCount(0);
 

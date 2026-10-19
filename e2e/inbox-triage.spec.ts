@@ -42,6 +42,9 @@ const MEETING_TYPE = [
   '    kind: relation',
   '    target: person',
   '    many: true',
+  '  owner:',
+  '    kind: relation',
+  '    target: person',
   '---',
   '',
 ].join('\n');
@@ -54,7 +57,7 @@ const note = (frontmatter: string[], body: string) =>
 const STANDUP = 'Inbox/Meetings/2026-10-16 Platform Standup.md';
 
 /** Three links for one mention in one block: the same kind, source and slot, three values. */
-const maraLink = (link: string) =>
+const maraLink = (link: string, property = 'owner') =>
   [
     '---',
     'type: proposal',
@@ -65,7 +68,7 @@ const maraLink = (link: string) =>
     'made_by: after-meeting · run 1',
     'payload:',
     `  note: ${STANDUP}`,
-    '  property: people',
+    `  property: ${property}`,
     `  link: "${link}"`,
     '---',
     '',
@@ -73,7 +76,9 @@ const maraLink = (link: string) =>
     '',
   ].join('\n');
 
-const TODAY = new Date().toLocaleDateString('en-CA');
+// A fixed day, set on the page's clock, so the folder a task is filed into does not move with the real one.
+const NOW = new Date(2026, 9, 14, 12);
+const TODAY = NOW.toLocaleDateString('en-CA');
 const FILED_CALL = `Tasks/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}/Call the bank.md`;
 
 async function triageVault(): Promise<FakeVault> {
@@ -85,6 +90,7 @@ async function triageVault(): Promise<FakeVault> {
   await vault.write('.atlas/types/meeting.md', MEETING_TYPE);
   await vault.write('.atlas/types/person.md', PERSON_TYPE);
   await vault.write('Projects/Atlas.md', note(['type: project'], 'The app.'));
+  await vault.write('Projects/Alpha.md', note(['type: project'], 'The first.'));
   await vault.write('People/Mara Quill.md', note(['type: person'], 'A neighbour.'));
   await vault.write('People/Mara Quill (Larkspur).md', note(['type: person'], 'At Larkspur.'));
   await vault.write('People/Tobias Fenn.md', note(['type: person'], 'A friend.'));
@@ -103,6 +109,7 @@ async function withConflict(vault: FakeVault): Promise<void> {
 }
 
 async function open(page: Page, vault: FakeVault): Promise<void> {
+  await page.clock.setFixedTime(NOW);
   await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
@@ -125,7 +132,7 @@ async function listedTasks(page: Page): Promise<string[]> {
   const inbox = inboxPage(page);
   const tasks = inbox
     .getByRole('row')
-    .filter({ has: page.getByRole('button', { name: 'Done', exact: true }) });
+    .filter({ has: page.getByRole('button', { name: 'Save', exact: true }) });
   await expect(tasks).toHaveCount(3);
   return tasks.locator('.table__title').allTextContents();
 }
@@ -176,7 +183,7 @@ test('a letter typed in one of the row’s fields is a letter, not a triage key'
   expect(await vault.exists('Archive')).toBe(false);
 });
 
-test('P opens the project picker, and the project picked files the task at once with its status as it was', async ({
+test('P opens the project picker; the project picked is held until Enter, then files the task with its status as it was', async ({
   page,
 }) => {
   const vault = await triageVault();
@@ -186,11 +193,53 @@ test('P opens the project picker, and the project picked files the task at once 
   await page.keyboard.press('p');
   const picker = inboxPage(page).getByRole('combobox', { name: 'File Call the bank under' });
   await expect(picker).toBeFocused();
+  // As typeahead on a closed select does: a change with no Enter and no pointer behind it.
   await picker.selectOption({ label: 'Atlas' });
+  await expect(picker).toHaveValue('Projects/Atlas.md');
+  await page.waitForTimeout(300);
+  expect(await vault.exists('Inbox/Call the bank.md')).toBe(true);
+  expect(await vault.read('Inbox/Call the bank.md')).not.toContain('Atlas');
 
+  await picker.press('Enter');
   await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
   expect(await vault.read(FILED_CALL)).toContain('status: inbox');
   expect(await vault.exists('Inbox/Call the bank.md')).toBe(false);
+});
+
+test('typing into the P picker files nothing until Enter, and Escape drops what was typed', async ({
+  page,
+}) => {
+  const vault = await triageVault();
+  await open(page, vault);
+
+  await row(page, 'Call the bank').focus();
+  await page.keyboard.press('p');
+  const picker = inboxPage(page).getByRole('combobox', { name: 'File Call the bank under' });
+  await expect(picker).toBeFocused();
+  // Typeahead on the picker: each letter may change the selection, and none is a pick.
+  await page.keyboard.type('al');
+  await page.waitForTimeout(300);
+  expect(await vault.read('Inbox/Call the bank.md')).not.toContain('Alpha');
+  expect(await vault.exists('Inbox/Call the bank.md')).toBe(true);
+
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Call the bank')).toBeFocused();
+  await expect(picker).toHaveValue('');
+  expect(await vault.read('Inbox/Call the bank.md')).not.toContain('Alpha');
+});
+
+test('proposals for a relation that holds many are two rows, not a question', async ({ page }) => {
+  const vault = await triageVault();
+  await vault.mkdir('Inbox/Proposals');
+  await vault.write(STANDUP, note(['type: meeting'], 'Who brings what. ^t0002'));
+  await vault.write('Inbox/Proposals/Mara 1.md', maraLink('[[Mara Quill]]', 'people'));
+  await vault.write('Inbox/Proposals/Tobias.md', maraLink('[[Tobias Fenn]]', 'people'));
+  await open(page, vault);
+  const inbox = inboxPage(page);
+
+  await expect(inbox.getByRole('region', { name: /^Pick one: / })).toHaveCount(0);
+  await expect(inbox.getByRole('region', { name: /^Link: / })).toHaveCount(2);
 });
 
 test('proposals that disagree are one question: Accept choice accepts the one picked and rejects the rest', async ({
@@ -202,7 +251,7 @@ test('proposals that disagree are one question: Accept choice accepts the one pi
   const inbox = inboxPage(page);
 
   const question = inbox.getByRole('region', {
-    name: 'Pick one: Which link for people of 2026-10-16 Platform Standup?',
+    name: 'Pick one: Which link for owner of 2026-10-16 Platform Standup?',
   });
   await expect(question).toBeVisible();
   await expect(
@@ -236,6 +285,6 @@ test('Reject all files every proposal of the question as rejected, writing nothi
   for (const name of ['Mara 1', 'Mara 2', 'Mara 3']) {
     await expectFile(vault, `Archive/Inbox/Proposals/${name}.md`).toContain('state: rejected');
   }
-  expect(await vault.read(STANDUP)).not.toContain('people');
+  expect(await vault.read(STANDUP)).not.toContain('owner');
   await expect(question).toHaveCount(0);
 });
