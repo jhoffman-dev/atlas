@@ -305,6 +305,13 @@ describe('updateFrontmatter, on a block that lists a key twice', () => {
  * and every line nothing changed keeps its bytes (ADR-0003).
  */
 describe('updateFrontmatter, on a block whose keys are indented (#377)', () => {
+  const unreadable = (key: string, problem: string) =>
+    expect.objectContaining({
+      name: 'FrontmatterRefusedError',
+      key,
+      message: `This note's properties cannot be read (${problem}); fix them in the source before changing them.`,
+    });
+
   it('changing a key keeps the block indent', () => {
     const written = updateFrontmatter(block('  a: 1', '  t: T', '  b: 2'), { t: 'U' });
     expect(written).toBe(block('  a: 1', '  t: U', '  b: 2'));
@@ -350,7 +357,9 @@ describe('updateFrontmatter, on a block whose keys are indented (#377)', () => {
   // rewritten key line takes the keys' indent.
   it('mixed indents: keys at different columns are refused, not rewritten', () => {
     const before = block('  a: 1', '    t: T');
-    expect(() => updateFrontmatter(before, { t: 'U' })).toThrow();
+    expect(() => updateFrontmatter(before, { t: 'U' })).toThrowError(
+      unreadable('t', 'Nested mappings are not allowed in compact mappings at line 1, column 6:'),
+    );
   });
 
   it('mixed indents: comments at other columns keep their own', () => {
@@ -361,7 +370,9 @@ describe('updateFrontmatter, on a block whose keys are indented (#377)', () => {
   });
 
   it('tab indents are refused (YAML allows no tab as indentation); a tab after the indent is kept', () => {
-    expect(() => updateFrontmatter(block('\ta: 1', '\tt: T'), { t: 'U' })).toThrow();
+    expect(() => updateFrontmatter(block('\ta: 1', '\tt: T'), { t: 'U' })).toThrowError(
+      unreadable('t', 'Tabs are not allowed as indentation at line 1, column 1:'),
+    );
     expect(updateFrontmatter(block('  a:\t1', '  t: T'), { t: 'U' })).toBe(
       block('  a:\t1', '  t: U'),
     );

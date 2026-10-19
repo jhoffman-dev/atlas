@@ -52,12 +52,21 @@ describe('updateFrontmatter with a key given as written', () => {
     ['two keys', 'archived: 1\nstatus: open\n'],
     ['a document marker', 'archived: |\n  x\n---\ny: 1\n'],
     ['text that is not YAML', 'archived: [unclosed\n'],
-    ['an indented key', '  archived: 1\n'],
   ])('removes the key rather than write text holding %s', (_label, text) => {
     expect(
       updateFrontmatter('---\ntitle: Plan\narchived: 2026-09-27\n---\n', {
         archived: new KeyAsWritten(text),
       }),
     ).toBe('---\ntitle: Plan\n---\n');
+  });
+
+  // #394: text read from an indented block holds that block's indent. Removing
+  // the key for it deleted a note's own keys on unarchive and on the Today undo.
+  it('writes text read from an indented block at this block’s column, its lines as deep as they were', () => {
+    expect(
+      updateFrontmatter('---\ntitle: Plan\narchived: 2026-09-27\n---\n', {
+        archived: new KeyAsWritten('  # mine\n  archived:\n    - a\n'),
+      }),
+    ).toBe('---\ntitle: Plan\n# mine\narchived:\n  - a\n---\n');
   });
 });

@@ -43,9 +43,12 @@ import { KeyAsWritten } from '@atlas/domain';
  * found, so a file written on Windows stays written on Windows.
  *
  * A change given as {@link KeyAsWritten} is written as exactly that text, in
- * the key's place — how archiving gives a note back its own keys. Text that is
- * not that one key, alone, at the start of its line, is not written: the key
- * is removed instead, since it could otherwise break the block around it.
+ * the key's place — how archiving gives a note back its own keys — moved from
+ * the column its key is written at to the block's. Text that is not that one
+ * key, alone, is not written: the key is removed instead, since it could
+ * otherwise break the block around it.
+ *
+ * A block that cannot be read is refused with a {@link FrontmatterRefusedError}.
  *
  * A property that lists a key twice is refused with a
  * {@link FrontmatterRefusedError} — which of the two was meant cannot be told —
@@ -131,7 +134,7 @@ function parsedForWriting(source: string, changing: readonly string[]): Document
   if (source.trim() === '') return new Document({});
   const document = parseDocument(source);
   const found = duplicates(document);
-  if (found.length === 0) return document;
+  if (found.length === 0) return readable(document, changing);
   for (const placed of found) {
     const refusal = placed ?? {
       // No property holds this duplicate, so the refusal is pinned on the first
@@ -144,7 +147,21 @@ function parsedForWriting(source: string, changing: readonly string[]): Document
     };
     if (changing.includes(refusal.key)) throw new FrontmatterRefusedError(refusal);
   }
-  return parseDocument(source, { uniqueKeys: false });
+  return readable(parseDocument(source, { uniqueKeys: false }), changing);
+}
+
+/**
+ * The document, when it can be read. One that cannot — keys at two columns, a
+ * tab as indentation — refuses every change, pinned on the first: where the
+ * change would go cannot be told, and the library will not write it anyway.
+ */
+function readable(document: Document, changing: readonly string[]): Document {
+  const [error] = document.errors;
+  if (error === undefined || changing.length === 0) return document;
+  throw new FrontmatterRefusedError({
+    key: changing[0] ?? '',
+    message: `This note's properties cannot be read (${error.message.split('\n')[0] ?? error.message}); fix them in the source before changing them.`,
+  });
 }
 
 /**
@@ -208,12 +225,15 @@ function keyAt(document: Document, node: Node, offset: number): string | null {
 }
 
 /**
- * The value `text` gives `key`, when `text` is that key and nothing else: one
- * block-map entry, at the start of its line, in text that parses cleanly.
+ * The value `given` gives `key`, when it is that key and nothing else: one
+ * block-map entry, in text that parses cleanly once its key is at column 0.
  * Null otherwise. The value is kept as a node, so a key whose text cannot be
  * put back in — in a flow map — is still written with the value it holds.
  */
-function writtenValue(key: string, text: string): Node | null {
+function writtenValue(key: string, given: string): Node | null {
+  // Text read from an indented block is read as if at column 0: the key's own
+  // indent is the block's, not part of what the key holds.
+  const text = shifted(given, -keyColumnOf(given));
   if (!text.endsWith('\n') || /^(?:---|\.\.\.)(?:[ \t]|$)/m.test(text)) return null;
   const parsed = parseDocument(text);
   const contents = parsed.contents;
@@ -625,7 +645,8 @@ interface Segments {
  *
  * The library writes every key at column 0, so a key it wrote is put at the
  * block's own indent, under the comment lines the original key had — those
- * keep their own columns, as every line the change did not reach does.
+ * keep their own columns, as every line the change did not reach does. A key
+ * given as written is moved from the column it was written at to the block's.
  */
 function keepUntouched({
   original,
@@ -645,24 +666,24 @@ function keepUntouched({
   if (before === null) {
     // Nothing of the original to keep, but a key given as written is still written so.
     if (asWritten.size === 0) return written;
-    const keys = after.keys.map((segment) => asWritten.get(segment.id) ?? segment.text);
+    const keys = after.keys.map((segment) => {
+      const given = asWritten.get(segment.id);
+      return given === undefined ? segment.text : shifted(given, -keyColumnOf(given));
+    });
     return `${after.head}${keys.join('')}${after.tail}`.replace(/\n$/, '');
   }
   const found = new Map(before.keys.map((segment) => [segment.id, segment]));
-  const first = after.keys[0]?.id;
-  const head =
-    first !== undefined && first === before.keys[0]?.id && !touched.has(first)
-      ? before.head
-      : after.head;
+  const indent = before.indent.length;
   const keys = after.keys.map((segment) => {
     const given = asWritten.get(segment.id);
-    if (given !== undefined) return indented(given, before.indent);
+    if (given !== undefined) return shifted(given, indent - keyColumnOf(given));
     const original = found.get(segment.id);
-    if (original === undefined) return indented(segment.text, before.indent);
+    if (original === undefined) return shifted(segment.text, indent);
     if (!touched.has(segment.id)) return original.text;
-    return `${original.above}${indented(segment.text.slice(segment.above.length), before.indent)}`;
+    return `${original.above}${shifted(segment.text.slice(segment.above.length), indent)}`;
   });
-  return `${head}${keys.join('')}${before.tail}`.replace(/\n$/, '');
+  // The head is comments and blank lines no key owns: no change reaches them.
+  return `${before.head}${keys.join('')}${before.tail}`.replace(/\n$/, '');
 }
 
 function segments(text: string): Segments | null {
@@ -698,24 +719,41 @@ function segments(text: string): Segments | null {
 }
 
 /**
- * Where a key's line starts, moved up over the comment lines directly above it.
- * A comment indented deeper than the keys is read as the end of the value
- * above it, not as the start of the key below.
+ * Where a key's line starts, moved up over the comment lines that open it: of
+ * the comment lines directly above it, the ones from the first that is no
+ * deeper than the keys. As the library reads them, comments deeper than the
+ * keys before that one end the value above (or head the block); every comment
+ * from it on belongs to the key below, whatever its column.
  */
 function withCommentsAbove(source: string, lineStart: number, indent: number): number {
   let start = lineStart;
+  let opens = lineStart;
   while (start > 0) {
     const previous = source.lastIndexOf('\n', start - 2) + 1;
     const comment = /^( *)#/.exec(source.slice(previous, start));
-    if (comment === null || (comment[1]?.length ?? 0) > indent) break;
+    if (comment === null) break;
     start = previous;
+    if ((comment[1]?.length ?? 0) <= indent) opens = start;
   }
-  return start;
+  return opens;
 }
 
-/** Text written at column 0, moved to `indent`; empty lines stay empty. */
-function indented(text: string, indent: string): string {
-  return indent === '' ? text : text.replace(/^(?=.)/gm, indent);
+/** The column a key's text writes its key at: its first line that is neither blank nor a comment. */
+function keyColumnOf(text: string): number {
+  const line = /^(?! *(?:#|$))( *)/m.exec(text);
+  return line?.[1]?.length ?? 0;
+}
+
+/**
+ * Text moved `by` columns: right by prefixing every non-empty line, left by
+ * taking up to that many leading spaces off each — a comment standing left of
+ * the key keeps what it has. Moving a key's text by the difference between
+ * two indents writes it at the other, its lines still deep as they were.
+ */
+function shifted(text: string, by: number): string {
+  if (by > 0) return text.replace(/^(?=.)/gm, ' '.repeat(by));
+  if (by < 0) return text.replace(new RegExp(`^ {1,${-by}}`, 'gm'), '');
+  return text;
 }
 
 /** Just past the newline that ends a node's value (and its comment on the same line). */
