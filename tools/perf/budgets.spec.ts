@@ -230,6 +230,7 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
     },
     async budgeted(action, phases, { settleFirst = true } = {}) {
       if (settleFirst) await runUntil(page, {});
+      await expectPointerAtRest(page, action);
       await startCounting(page);
       for (const { act, ready, arg } of phases) {
         await act();
@@ -239,6 +240,7 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
     },
     async idle(action) {
       await runUntil(page, {});
+      await expectPointerAtRest(page, action);
       await startCounting(page);
       await runUntil(page, { settleMs: IDLE_MS });
       into.set(action, await stopCounting(page));
@@ -253,6 +255,26 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
   // After the app has started and settled, so what its start does is not counted as the open.
   await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)]);
   return pass;
+}
+
+/**
+ * What under the pointer would draw again as it comes or goes: a note and its
+ * links, a control, a dialog. An action that starts with the pointer over one
+ * counts where the last action left the pointer, not its own work (#359).
+ */
+const REACTS_TO_POINTER =
+  'main, [role="dialog"], a, button, input, select, textarea, [role="treeitem"], [role="tab"], [contenteditable]';
+
+/** Fails the action if the pointer it starts from is over anything in `REACTS_TO_POINTER`. */
+async function expectPointerAtRest(page: Page, action: BudgetedAction): Promise<void> {
+  const under = await page.evaluate((reacts) => {
+    const hovered = [...document.querySelectorAll(':hover')].at(-1);
+    const reacting = hovered?.closest(reacts);
+    if (reacting === null || reacting === undefined) return null;
+    const label = reacting.getAttribute('aria-label');
+    return `${reacting.tagName.toLowerCase()}${label === null ? '' : `[aria-label="${label}"]`}`;
+  }, REACTS_TO_POINTER);
+  expect.soft(under, `"${action}" began with the pointer over ${under}`).toBeNull();
 }
 
 /**
