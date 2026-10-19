@@ -146,6 +146,26 @@ test('a card opens its note by a click or Mod+Enter; Enter starts a line after i
   await expect(page.getByRole('article', { name: 'Rome' })).toBeVisible();
 });
 
+test('a card is a hairline card at rest and wears the focus ring once selected', async ({
+  page,
+}) => {
+  await openVault(page, `# Plans\n\n[[Rome]] ${MARKER}\n\nPacking list.\n`);
+  await openPlans(page);
+
+  const card = page.getByRole('group', { name: 'Bookmark: Rome' });
+  await expect(card).toBeVisible();
+  // No shadow on content (the brief, §3): a 1px line and a 4px radius.
+  await expect(card).toHaveCSS('box-shadow', 'none');
+  await expect(card).toHaveCSS('border-top-width', '1px');
+  await expect(card).toHaveCSS('border-radius', '4px');
+
+  await page.getByText('Packing list.').click();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('ArrowUp');
+  await expect(card).toHaveClass(/bookmark--selected/);
+  await expect(card).not.toHaveCSS('box-shadow', 'none');
+});
+
 test('a card shows what its note says after that note changes', async ({ page }) => {
   const vault = await openVault(page, `# Plans\n\n[[Rome]] ${MARKER}\n\nPacking list.\n`);
   await openPlans(page);

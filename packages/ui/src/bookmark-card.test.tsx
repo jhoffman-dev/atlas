@@ -76,6 +76,10 @@ describe('a bookmark card', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('rests as a plain card: its one class, never a lifted or raised one', () => {
+    expect(bookmarkClass(NOTE, false)).toBe('bookmark');
+  });
+
   it('is drawn selected with its own class', () => {
     expect(bookmarkClass(NOTE, true).split(' ')).toEqual(['bookmark', 'bookmark--selected']);
     expect(bookmarkClass({ kind: 'loading' }, false)).toBe('bookmark bookmark--loading');

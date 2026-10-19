@@ -67,6 +67,28 @@ test('a callout renders with its kind and title', async ({ page }) => {
   await expect(callout).toBeVisible();
   await expect(callout.locator('.callout__title')).toHaveText('Be careful');
   await expect(callout).toContainText('This is a callout.');
+  // A hairline card with a 4px radius, not a filled block (UI v2 slice 13h).
+  await expect(callout).toHaveCSS('border-top-width', '1px');
+  await expect(callout).toHaveCSS('border-radius', '4px');
+});
+
+test('a table is a hairline card and inline code sits on its own ground', async ({ page }) => {
+  const vault = await openVaultWith(page);
+  await vault.write('code.md', 'Inline `code` here.\n');
+  await page.getByRole('treeitem', { name: 'today', exact: true }).click();
+
+  const table = page.locator('.editor .tableWrapper');
+  await expect(table).toBeVisible();
+  await expect(table).toHaveCSS('border-top-width', '1px');
+  await expect(table).toHaveCSS('border-radius', '4px');
+
+  await page.getByRole('treeitem', { name: 'code', exact: true }).click();
+  const code = page.locator('.editor code');
+  await expect(code).toHaveText('code');
+  // 12.5 mono on the code ground, radius 4 (the brief, §6).
+  await expect(code).toHaveCSS('font-size', '12.5px');
+  await expect(code).toHaveCSS('border-radius', '4px');
+  await expect(code).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
 });
 
 test('a table is a real table, not a block of source', async ({ page }) => {
@@ -83,6 +105,8 @@ test('code is highlighted', async ({ page }) => {
   await page.getByRole('treeitem', { name: 'today', exact: true }).click();
 
   await expect(page.locator('.editor pre code .hljs-keyword').first()).toBeVisible();
+  // A code block's text is the block's 12px, not the inline atom's 12.5px.
+  await expect(page.locator('.editor pre code').first()).toHaveCSS('font-size', '12px');
 });
 
 test('typing [[ offers notes and inserts a link', async ({ page }) => {
@@ -121,6 +145,11 @@ test('typing / offers blocks to insert', async ({ page }) => {
   const popup = page.getByRole('listbox', { name: 'Insert block' });
   await expect(popup).toBeVisible();
   await expect(popup.getByRole('option', { name: /Quote/ })).toBeVisible();
+  // A popover with 36px rows (UI v2 slice 13h).
+  await expect(popup).toHaveCSS('border-radius', '8px');
+  await expect(popup).not.toHaveCSS('box-shadow', 'none');
+  const row = await popup.getByRole('option', { name: /Quote/ }).boundingBox();
+  expect(row?.height).toBe(36);
 
   await page.keyboard.press('Enter');
   await expect(page.locator('.editor blockquote')).toBeVisible();

@@ -127,6 +127,8 @@
 
 .query__editor {
   background: var(--code-bg);
+  /* A hairline: in dark the code ground is a step off the surface, not a field. */
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
   display: grid;
   font: 13px / 1.6 var(--font-mono);
@@ -568,7 +570,8 @@
 
 .qtext__area {
   background: var(--code-bg);
-  border: 0;
+  /* A hairline: in dark the code ground is a step off the surface, not a field. */
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
   color: var(--code-ink);
   font: 13px / 1.6 var(--font-mono);
