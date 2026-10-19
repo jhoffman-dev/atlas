@@ -37,21 +37,21 @@
     },
     "Click a sidebar note": {
       "commits": 8,
-      "renders": 158,
+      "renders": 157,
       "calls": {
         "read_text_file": 3
       }
     },
     "Switch notes": {
       "commits": 9,
-      "renders": 188,
+      "renders": 186,
       "calls": {
         "read_text_file": 3
       }
     },
     "Open in a new tab": {
       "commits": 10,
-      "renders": 226,
+      "renders": 225,
       "calls": {
         "list_directory": 3,
         "read_text_file": 3
@@ -89,7 +89,7 @@
     },
     "Split the window": {
       "commits": 8,
-      "renders": 195,
+      "renders": 194,
       "calls": {
         "list_directory": 3,
         "read_text_file": 3
@@ -102,9 +102,8 @@
     },
     "Close a pane": {
       "commits": 4,
-      "renders": 48,
-      "calls": {},
-      "rendersFromCi": true
+      "renders": 41,
+      "calls": {}
     },
     "Open Settings": {
       "commits": 13,
@@ -189,7 +188,7 @@
     },
     "Open a person's page": {
       "commits": 12,
-      "renders": 337,
+      "renders": 336,
       "calls": {
         "index_query": 6,
         "list_directory": 3,

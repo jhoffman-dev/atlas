@@ -137,9 +137,9 @@ interface Pass {
   /** Does `step` uncounted: getting the app to where the next action starts. */
   setUp(step: Phase): Promise<void>;
   /**
-   * Does an action's phases, and keeps what it took. It first lets the work
-   * before it finish, unless `settleFirst` is false: the autosave is that
-   * work, and is the action.
+   * Does an action's phases, and keeps what it took. It first puts the
+   * pointer at rest, and lets the work before it finish, unless `settleFirst`
+   * is false: the autosave is that work, and is the action.
    */
   budgeted(
     action: BudgetedAction,
@@ -229,7 +229,9 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
       await runUntil(page, { ready, arg: arg as never });
     },
     async budgeted(action, phases, { settleFirst = true } = {}) {
+      await restThePointer(page);
       if (settleFirst) await runUntil(page, {});
+      await expectPointerAtRest(page, action);
       await startCounting(page);
       for (const { act, ready, arg } of phases) {
         await act();
@@ -238,7 +240,9 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
       into.set(action, await stopCounting(page));
     },
     async idle(action) {
+      await restThePointer(page);
       await runUntil(page, {});
+      await expectPointerAtRest(page, action);
       await startCounting(page);
       await runUntil(page, { settleMs: IDLE_MS });
       into.set(action, await stopCounting(page));
@@ -253,6 +257,39 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
   // After the app has started and settled, so what its start does is not counted as the open.
   await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)]);
   return pass;
+}
+
+/**
+ * What under the pointer would draw again as it comes or goes: a note and its
+ * links, a control, a dialog. An action that starts with the pointer over one
+ * counts where the last action left the pointer, not its own work (#359).
+ */
+const REACTS_TO_POINTER =
+  'main, [role="dialog"], a, button, input, select, textarea, [role="treeitem"], [role="tab"], [contenteditable]';
+
+/**
+ * The sidebar's top corner, where the pointer starts: over none of
+ * `REACTS_TO_POINTER` in any view the actions reach.
+ */
+const POINTER_REST = { x: 0, y: 0 };
+
+/**
+ * Moves the pointer off whatever the last action clicked, so every action
+ * starts from the same place. The settle after it lets what drew on the way
+ * out, a link's "…" going, land before the count.
+ */
+const restThePointer = (page: Page) => page.mouse.move(POINTER_REST.x, POINTER_REST.y);
+
+/** Fails the action if the pointer it starts from is over anything in `REACTS_TO_POINTER`. */
+async function expectPointerAtRest(page: Page, action: BudgetedAction): Promise<void> {
+  const under = await page.evaluate((reacts) => {
+    const hovered = [...document.querySelectorAll(':hover')].at(-1);
+    const reacting = hovered?.closest(reacts);
+    if (reacting === null || reacting === undefined) return null;
+    const label = reacting.getAttribute('aria-label');
+    return `${reacting.tagName.toLowerCase()}${label === null ? '' : `[aria-label="${label}"]`}`;
+  }, REACTS_TO_POINTER);
+  expect.soft(under, `"${action}" began with the pointer over ${under}`).toBeNull();
 }
 
 /**
@@ -280,6 +317,7 @@ async function timedPass(browser: Browser): Promise<Pass> {
     phases: readonly Phase[],
     { settleFirst = true }: { readonly settleFirst?: boolean } = {},
   ) => {
+    await restThePointer(page);
     if (settleFirst) await waitForQuiet(page);
     let inputToReady = 0;
     let longestFrame = 0;
