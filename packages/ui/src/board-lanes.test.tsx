@@ -136,6 +136,12 @@ describe('a board with swimlanes', () => {
     expect(screen.getByRole('button', { name: 'First' })).toBeDefined();
   });
 
+  it('names a cell, and its Add button, as its column and lane headings read (#338)', () => {
+    render(<Board />);
+    expect(screen.getByRole('region', { name: 'Doing, in Home' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Add to Doing, in Home' })).toBeDefined();
+  });
+
   it('adds a card in a cell with both its column’s and its lane’s value', async () => {
     const onAddCard = vi.fn();
     render(<Board onAddCard={onAddCard} />);
