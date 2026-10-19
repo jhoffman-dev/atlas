@@ -30,7 +30,8 @@ export function useCreateNote({
   fs: VaultFsPort;
   markdown: MarkdownPort;
   notePaths: readonly VaultPath[];
-  beside: VaultPath | null;
+  /** The note in view as the note is made, which the new one goes beside. */
+  beside: () => VaultPath | null;
   templates: readonly NoteTemplate[];
   contentsOf: (template: NoteTemplate) => Promise<string>;
   onCreated: (path: VaultPath) => void;
@@ -58,7 +59,7 @@ export function useCreateNote({
           markdown,
           today: localToday(),
           name,
-          beside,
+          beside: beside(),
           notePaths,
           ...(contents === undefined
             ? {}

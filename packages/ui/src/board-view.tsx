@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import type { OpenHow } from './open-how.ts';
 import {
   DndContext,
   DragOverlay,
@@ -89,7 +90,8 @@ export function BoardView({
   fields: readonly string[];
   /** The declared kind of each property, so a card's chips can say what they hold. */
   kinds?: Readonly<Record<string, PropertyKind>>;
-  onOpenNote: (path: string) => void;
+  /** Opens a card's note; `how` is where the click asked for it, when it said. */
+  onOpenNote: (path: string, how?: OpenHow) => void;
   onMoveCard: (move: CardMove) => void;
   onAddCard: (add: CardAdd) => void;
   /** Given when the type can be ticked done: every card leads with a box. */

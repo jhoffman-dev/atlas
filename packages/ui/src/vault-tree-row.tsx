@@ -9,6 +9,7 @@ import {
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { FavoriteStar } from './favorite-star.tsx';
 import { isImeKey } from './ime.ts';
+import { openHowFrom, type OpenHow } from './open-how.ts';
 import { sameEntries } from './steady-value.ts';
 
 const DROP_PREFIX = 'into:';
@@ -52,7 +53,8 @@ export type MenuOpenedBy = 'keyboard' | 'pointer';
  * to the next, so a row draws again only for a change of its own (#238).
  */
 export interface TreeRowActions {
-  readonly onActivate: (row: SidebarTreeRow) => void;
+  /** Opens or toggles the row; `how` is where the click asked a note to open. */
+  readonly onActivate: (row: SidebarTreeRow, how: OpenHow) => void;
   /** Moves the tab order to the row. */
   readonly onFocusRow: (path: VaultPath) => void;
   readonly onToggleFavorite: (path: VaultPath) => void;
@@ -145,10 +147,10 @@ export const VaultTreeRow = memo(function VaultTreeRow({
         // too: it is the row's turn only when the row itself was focused.
         if (event.target === event.currentTarget) actions.onFocusRow(path);
       }}
-      onClick={() => {
+      onClick={(event) => {
         if (renaming) return;
         actions.onFocusRow(path);
-        actions.onActivate(row);
+        actions.onActivate(row, openHowFrom(event));
       }}
       onContextMenu={(event) => {
         if (editing === null) return;

@@ -133,7 +133,7 @@ describe('TableView', () => {
     const onOpenNote = vi.fn();
     render(<TableView {...props} result={result} onOpenNote={onOpenNote} />);
     await userEvent.click(screen.getByRole('button', { name: 'First task' }));
-    expect(onOpenNote).toHaveBeenCalledWith('a.md');
+    expect(onOpenNote).toHaveBeenCalledWith('a.md', 'here');
   });
 
   it('asks to sort when a heading is clicked', async () => {

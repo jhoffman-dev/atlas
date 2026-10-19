@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core';
 import type { SidebarTreeRow, VaultEntry, VaultPath } from '@atlas/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
+import type { OpenHow } from './open-how.ts';
 import type { MenuCommand } from './menu-items.tsx';
 import { EntryMenu, type MenuAnchor } from './vault-tree-menu.tsx';
 import { dropTargetWithin, snapToNextRow, useDragSensors } from './drag/dnd.ts';
@@ -108,7 +109,7 @@ const MEASURED_WHERE_DRAWN: MeasuringConfiguration = {
  * section's ends — sweeping across the sidebar's five sections is a different
  * design, recorded in ADR-0013.
  */
-export function VaultTree({
+export const VaultTree = memo(function VaultTree({
   rows,
   open,
   starred,
@@ -125,7 +126,8 @@ export function VaultTree({
   /** The notes that are favourites, so a starred row shows it without asking. */
   starred: ReadonlySet<string>;
   onToggleDirectory: (path: VaultPath) => void;
-  onSelectFile: (path: VaultPath) => void;
+  /** Opens a note; `how` is where the click asked for it (a key opens here). */
+  onSelectFile: (path: VaultPath, how: OpenHow) => void;
   onToggleFavorite: (path: VaultPath) => void;
   /** What the Archive's row does in place of opening: shows the Archive. */
   onOpenArchive?: () => void;
@@ -241,10 +243,10 @@ export function VaultTree({
     wantedIndex.current = focusRendered(index) ? null : index;
   };
 
-  const activate = (row: SidebarTreeRow) => {
+  const activate = (row: SidebarTreeRow, how: OpenHow = 'here') => {
     if (row.opensArchive) onOpenArchive?.();
     else if (row.entry.kind === 'directory') onToggleDirectory(row.entry.path);
-    else onSelectFile(row.entry.path);
+    else onSelectFile(row.entry.path, how);
   };
 
   const jumpToTyped = (letter: string, from: number) => {
@@ -480,7 +482,7 @@ export function VaultTree({
       />
     </DndContext>
   );
-}
+});
 
 /**
  * What every row can do, as one object that stays the same from one render to

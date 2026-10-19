@@ -372,7 +372,7 @@ describe('a shown block', () => {
     act(() => {
       name.click();
     });
-    expect(rendered.onFollowLink).toHaveBeenCalledWith('Plans', '#^t1');
+    expect(rendered.onFollowLink).toHaveBeenCalledWith('Plans', '#^t1', 'here');
   });
 });
 

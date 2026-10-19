@@ -73,7 +73,7 @@ function setup({
     templates: [TASK_TEMPLATE],
     contentsOf: async () => '---\ntype: task\nstatus: backlog\n---\n\n',
     notePaths: [],
-    beside: null,
+    beside: () => null,
     overlay: { show, hide },
     onCreated,
   };

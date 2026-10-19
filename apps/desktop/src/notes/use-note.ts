@@ -106,6 +106,7 @@ export function useNote({
   recoverStranded,
   settleStranded,
   onSaveFailed,
+  paused = false,
 }: {
   ports: NotePorts;
   /**
@@ -137,6 +138,11 @@ export function useNote({
    * for someone else: its rejection tells them.
    */
   onSaveFailed?: (failure: { path: VaultPath; cause: unknown }) => void;
+  /**
+   * Whether the autosave stands down: a tab hidden behind another one flushes
+   * as it hides and cannot be typed in, so no timer need run for it.
+   */
+  paused?: boolean;
 }): NoteView {
   const [note, setNote] = useState<OpenNote | null>(null);
   const [doc, setDoc] = useState<EditorDocument | null>(null);
@@ -541,10 +547,10 @@ export function useNote({
   // Writing after a pause means an edit is never more than a moment from being on
   // disk, which is what people expect of a notes app.
   useEffect(() => {
-    if (!dirty || note === null || doc === null) return;
+    if (!dirty || paused || note === null || doc === null) return;
     const timer = setTimeout(() => void write().catch(shownInPane(path)), AUTOSAVE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [dirty, doc, note, write, shownInPane, path]);
+  }, [dirty, paused, doc, note, write, shownInPane, path]);
 
   // Leaving a note with unsaved changes must not discard them. This writes the
   // note being left, not the one being opened, which is why it reads the ref.
@@ -558,7 +564,11 @@ export function useNote({
     return () => {
       const { note: leaving, doc: unwritten, dirty: hasEdits, outdated: held } = latest.current;
       const holdingRecovered = recovered.current;
-      if (!hasEdits || leaving === null || unwritten === null || vault === null) return;
+      // `unsaved` is the truth as of now; `dirty` is the last render's. A pane
+      // unmounted in the same commit its write landed in — the vault switched
+      // under it (R14-01) — has not drawn since, and must not write again.
+      if (!hasEdits || !unsaved.current || leaving === null || unwritten === null || vault === null)
+        return;
       // Re-pointed by a move and still on screen under its new path: the pane
       // has not left the note, so its edits stay in it, unsaved, to be saved
       // there. Saving them here as well would move the file on underneath it.

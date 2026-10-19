@@ -1,4 +1,4 @@
-export { AppShell } from './app-shell.tsx';
+export { AppShell, PaneSplit } from './app-shell.tsx';
 export { IndexSettings, indexStatusText } from './index-status.tsx';
 export { ImageSettings } from './image-settings.tsx';
 export { GlobalCaptureSettings } from './global-capture-settings.tsx';
@@ -28,6 +28,8 @@ export { useSidebarSections } from './sidebar-sections.ts';
 export type { SectionOrder, SectionStore } from './sidebar-sections.ts';
 export { NotePane } from './note-pane.tsx';
 export { PaneFrame } from './pane-frame.tsx';
+export { openHowFrom } from './open-how.ts';
+export type { OpenHow } from './open-how.ts';
 export { TabStrip } from './tab-strip.tsx';
 export type { TabStripTab } from './tab-strip.tsx';
 export type { NotePaneState, PageHeading, PaneArrangement } from './note-pane.tsx';
@@ -207,7 +209,7 @@ export * from './activity/index.ts';
 export type { Choice } from './choice-select.tsx';
 export { ChatPanel } from './chat/chat-panel.tsx';
 export type { ChatNameHint } from './chat/chat-panel.tsx';
-export { ChatToggleButton, ChatToggleProvider } from './chat/chat-toggle.tsx';
+export { ChatToggleButton, ChatToggleProvider, useChatToggle } from './chat/chat-toggle.tsx';
 export type { ChatToggle } from './chat/chat-toggle.tsx';
 export type {
   ChatActions,
