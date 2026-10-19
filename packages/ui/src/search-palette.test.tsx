@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearchPalette } from './search-palette.tsx';
@@ -219,6 +220,32 @@ describe('SearchPalette keeps the selected result in view (#372)', () => {
       expect(spy.scrolled[0]?.options).toEqual({ block: 'nearest' });
     } finally {
       spy.restore();
+    }
+  });
+
+  it('arrows through the results where there is no scrollIntoView, as in jsdom', async () => {
+    const original = Element.prototype.scrollIntoView;
+    // As jsdom has it, and as an app test that arrows through real rows meets it.
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    function Arrowed() {
+      const [selected, setSelected] = useState(0);
+      return (
+        <SearchPalette
+          {...props}
+          selected={selected}
+          onMove={(delta) => setSelected(selected + delta)}
+        />
+      );
+    }
+    try {
+      render(<Arrowed />);
+      await userEvent.type(
+        screen.getByRole('searchbox', { name: 'Search the vault' }),
+        '{ArrowDown}',
+      );
+      expect(screen.getAllByRole('option')[1]?.getAttribute('aria-selected')).toBe('true');
+    } finally {
+      Element.prototype.scrollIntoView = original;
     }
   });
 
