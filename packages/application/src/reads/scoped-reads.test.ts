@@ -184,11 +184,12 @@ describe('what the pages and the window’s readers of one kind of note are made
     expect(reaches(PEOPLE_SCOPE, tick)).toBe(false);
   });
 
-  it('reads Today, the Inbox’s choices and the projects again for a project, not the Inbox’s list', () => {
+  it('reads Today, the Inbox (its rows resolve projects), its choices and the projects again for a project', () => {
     expect(reaches(REVIEW_SCOPE, project)).toBe(true);
     expect(reaches(INBOX_CHOICES_SCOPE, project)).toBe(true);
     expect(reaches(PROJECTS_SCOPE, project)).toBe(true);
-    expect(reaches(INBOX_SCOPE, project)).toBe(false);
+    expect(reaches(INBOX_SCOPE, project)).toBe(true);
+    expect(reaches(PEOPLE_SCOPE, project)).toBe(false);
   });
 
   it('reads the people, the choices and the owner’s addresses again for a person; a company for the addresses', () => {

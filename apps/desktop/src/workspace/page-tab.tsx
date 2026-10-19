@@ -44,7 +44,10 @@ interface PageTabProps {
   place: PagePlace;
 }
 
-/** The parts of the wiring every page's tab reads; its own kind's part is compared apart. */
+/**
+ * The parts of the wiring every page's tab reads; its own kind's part is
+ * compared apart. Any new part a page tab reads must be added here (#325).
+ */
 const PAGE_TAB_WIRING = ['pane', 'store', 'nameOf', 'onShowSidebar', 'overlays'] as const;
 
 /** The tab drawn: a hook, since its hooks are the tab component's own. */

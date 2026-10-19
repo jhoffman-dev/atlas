@@ -237,7 +237,11 @@ export const NotePaneContainer = memo(
   (before, after) => (before.hidden && after.hidden) || sameNoteTab(before, after),
 );
 
-/** The parts of the wiring a note's tab reads. */
+/**
+ * The parts of the wiring a note's tab reads. Any new part a note tab reads
+ * must be added here: a part left out is compared by nobody, and the tab keeps
+ * drawing what it was handed before (#325).
+ */
 const NOTE_TAB_WIRING = [
   'pane',
   'note',

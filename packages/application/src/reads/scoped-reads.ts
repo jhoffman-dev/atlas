@@ -3,6 +3,7 @@ import {
   COMPANY_TYPE,
   DASHBOARD_MARKER,
   FILED_UNDER_TYPES,
+  foldedLinkName,
   INBOX_DIRECTORY,
   MEETING_TYPE,
   PERSON_TYPE,
@@ -37,21 +38,30 @@ export interface ReadScope {
  * What the Inbox lists (`listInbox`): every note in the Inbox folder, the
  * proposals in it included, tasks that start there wherever they are, and the
  * meetings the import brought in until they are filed (#214) — and so the
- * summaries it says are pending (#186).
+ * summaries it says are pending (#186). Also the notes its rows' pickers
+ * resolve to — the projects and areas a row is filed under, the people a task
+ * waits on: moving one re-resolves the row's relation in the index without
+ * changing the row's own text, so no news names the row (#390).
  */
 export const INBOX_SCOPE: ReadScope = {
   folders: [INBOX_DIRECTORY],
-  types: [TASK_TYPE, MEETING_TYPE],
+  types: [TASK_TYPE, MEETING_TYPE, ...FILED_UNDER_TYPES, PERSON_TYPE],
   imports: true,
 };
 
 /**
  * What Today and the weekly review read (`readReviewSources`): the tasks, the
- * projects they are filed under, and the Inbox's count.
+ * notes they are filed under, whose titles head their groups — the filed-under
+ * types (project, area) — and the Inbox's count.
+ *
+ * Not covered: a `project:` link a task resolves to a note of no filed-under
+ * type (an untyped note). Its retitle, move or deletion changes the group's
+ * heading without news of any covered note; the group is right again on the
+ * next news Today hears (#392).
  */
 export const REVIEW_SCOPE: ReadScope = {
   ...INBOX_SCOPE,
-  types: [TASK_TYPE, MEETING_TYPE, PROJECT_TYPE],
+  types: [TASK_TYPE, MEETING_TYPE, ...FILED_UNDER_TYPES],
 };
 
 /** What the Inbox files under and says a task waits on: the projects and areas, and the people. */
@@ -87,12 +97,17 @@ export interface IndexNews {
 export const UNKNOWN_NEWS: IndexNews = { changes: null, facets: new Set() };
 
 /** A name as the Mac's disk reads it, and as a link finds a note by it: case aside. */
-const folded = (name: string) => name.trim().toLowerCase();
+const folded = (name: string) => name.trim().normalize('NFC').toLowerCase();
 
-/** The name a note goes by in a link: its file's name, without the folders or `.md`. */
-function nameOf(path: string): string {
-  const file = path.slice(path.lastIndexOf('/') + 1);
-  return folded(file.toLowerCase().endsWith('.md') ? file.slice(0, -3) : file);
+/**
+ * The name a note goes by in a link, as the link resolver compares it
+ * (`foldedLinkName`: extension dropped, accents composed, case folded): the
+ * last part of a path or of a link written by path. Both sides of a match are
+ * spelled by it, so a file named in one Unicode form and a link typed in the
+ * other still meet (A21-02).
+ */
+function nameOf(pathOrTarget: string): string {
+  return foldedLinkName(pathOrTarget.slice(pathOrTarget.lastIndexOf('/') + 1));
 }
 
 /**
@@ -118,7 +133,7 @@ function changeTouches(scope: ReadScope, change: NoteChange): boolean {
   if (scope.anyNote === true) return true;
   const path = folded(change.path);
   if (scope.notes?.some((note) => folded(note) === path) === true) return true;
-  if (scope.linkedNames?.some((name) => folded(name) === nameOf(change.path)) === true) return true;
+  if (scope.linkedNames?.some((name) => nameOf(name) === nameOf(change.path)) === true) return true;
   if (scope.folders?.some((folder) => within(change.path, folder)) === true) return true;
   if (scope.imports === true && imported(change)) return true;
   const types = new Set(scope.types?.map(folded));
