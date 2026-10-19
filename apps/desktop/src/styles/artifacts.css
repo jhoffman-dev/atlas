@@ -6,7 +6,9 @@
    New artifact (a palette like New type) with a place to drop the page; the
    saved copy under an artifact's properties, in a sandboxed frame on a white
    canvas, with Full screen filling the pane; the gallery's drawn card face for
-   a copy with no picture, and a gallery's groups. */
+   a copy with no picture, and a gallery's groups. By the brief: the viewer and
+   the drop zone are hairline cards with a 4px radius, weights stay at 600 or
+   under, and a count is metadata rather than a pill. */
 
 .new-artifact__copy {
   padding: 0 var(--space-5) var(--space-3);
@@ -14,8 +16,9 @@
 
 .file-drop {
   align-items: center;
-  background: var(--track);
-  border-radius: var(--radius-card);
+  background: var(--well);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-chip);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -23,12 +26,13 @@
   text-align: center;
   transition:
     background 120ms ease,
-    box-shadow 120ms ease;
+    border-color 120ms ease;
 }
 
 .file-drop--over {
-  background: var(--you);
-  box-shadow: var(--ring);
+  background: var(--hover);
+  border-color: var(--focus);
+  border-style: solid;
 }
 
 .file-drop__icon {
@@ -70,15 +74,15 @@
   color: var(--accent-text);
   cursor: pointer;
   font: inherit;
-  font-weight: 700;
+  font-weight: 500;
   margin-left: var(--space-2);
   padding: 0;
 }
 
 .artifact-viewer {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
   display: flex;
   flex-direction: column;
   margin: var(--space-2) 0 var(--space-5);
@@ -88,8 +92,8 @@
 /* Fills the pane — the panel is the nearest positioned box — until Escape or
    the button gives it back. */
 .artifact-viewer--full {
-  border-radius: var(--radius-panel);
-  box-shadow: none;
+  border: 0;
+  border-radius: 0;
   inset: 0;
   margin: 0;
   position: absolute;
@@ -108,8 +112,8 @@
   align-items: center;
   color: var(--ink-2);
   display: inline-flex;
-  font-size: var(--text-small);
-  font-weight: 800;
+  font-size: var(--text-meta);
+  font-weight: 500;
   gap: 6px;
 }
 
@@ -153,7 +157,7 @@
 .artifact-viewer__empty-title {
   color: var(--ink);
   font-size: var(--text-body);
-  font-weight: 800;
+  font-weight: 500;
   margin: 0;
 }
 
@@ -166,8 +170,8 @@
 .artifact-face {
   align-items: center;
   aspect-ratio: 16 / 7;
-  background: var(--you);
-  color: var(--active-icon);
+  background: var(--well);
+  color: var(--ink-3);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -177,8 +181,8 @@
 
 .artifact-face__title {
   color: var(--ink-2);
-  font-size: var(--text-small);
-  font-weight: 800;
+  font-size: var(--text-meta);
+  font-weight: 500;
   max-width: 90%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,8 +193,8 @@
    quiet word under the title rather than a spinner over it. */
 .artifact-face__status {
   color: var(--ink-3);
-  font-size: var(--text-label);
-  font-weight: 700;
+  font-size: var(--text-header);
+  font-weight: 500;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
 }
@@ -295,20 +299,16 @@
 .gallery-group__label {
   align-items: center;
   display: flex;
-  font-size: var(--text-card);
-  font-weight: 800;
+  font-size: var(--text-column);
+  font-weight: 600;
   gap: var(--space-2);
-  letter-spacing: var(--tracking-title);
   margin: 0 0 var(--space-3);
   text-transform: capitalize;
 }
 
 .gallery-group__count {
-  background: var(--chip);
-  border-radius: var(--radius-pill);
-  color: var(--chip-ink);
-  font-size: var(--text-small);
+  color: var(--ink-3);
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  padding: 1px 8px;
+  font-weight: 400;
 }
