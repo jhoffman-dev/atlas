@@ -15,6 +15,7 @@ import {
   toggleClaude,
   useAsideOpen,
   useAsideShown,
+  useClaudeAsked,
   useClaudeShown,
   useFocusedRow,
   withinOf,
@@ -179,5 +180,49 @@ describe('the aside store, let go and folded (#387 review)', () => {
     expect(remembered.write).toHaveBeenCalledTimes(1);
     act(() => setAsideFolded(store, false));
     expect(result.current).toBe(true);
+  });
+});
+
+describe('the aside store, folded by the window (#387 verification)', () => {
+  it('Claude is not shown while the window folds the aside, whatever open remembers', () => {
+    const store = createAsideStore(remembering());
+    loadVaultAside(store, '/v');
+    toggleClaude(store);
+    const { result } = renderHook(() => useClaudeShown(store));
+    expect(result.current).toBe(true);
+    act(() => setAsideFolded(store, true));
+    expect(result.current).toBe(false);
+  });
+
+  it('asked for while folded, the aside opens rather than closing: the ask decides on what is shown', () => {
+    const store = createAsideStore(remembering());
+    loadVaultAside(store, '/v');
+    toggleClaude(store);
+    setAsideFolded(store, true);
+    toggleClaude(store);
+    expect(store.getState()).toMatchObject({ open: true, tab: 'claude' });
+    setAsideFolded(store, false);
+    toggleClaude(store);
+    expect(store.getState().open).toBe(false);
+
+    toggleAside(store);
+    setAsideFolded(store, true);
+    toggleAside(store);
+    expect(store.getState().open).toBe(true);
+  });
+
+  it('knows whether Claude was asked for, as against remembered across a launch', () => {
+    const store = createAsideStore(remembering({ '/v': { open: true, tab: 'claude' } }));
+    loadVaultAside(store, '/v');
+    const { result } = renderHook(() => useClaudeAsked(store));
+    expect(result.current).toBe(false);
+    act(() => hideAside(store));
+    act(() => toggleClaude(store));
+    expect(result.current).toBe(true);
+    act(() => selectAsideTab(store, 'properties'));
+    act(() => selectAsideTab(store, 'claude'));
+    expect(result.current).toBe(true);
+    act(() => loadVaultAside(store, '/w'));
+    expect(result.current).toBe(false);
   });
 });

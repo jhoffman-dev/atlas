@@ -65,7 +65,10 @@ const TASKS_VIEW = [
   '',
 ].join('\n');
 
-async function openVault(page: Page, { withView = false } = {}): Promise<FakeVault> {
+async function openVault(
+  page: Page,
+  { withView = false, width = 1440 }: { withView?: boolean; width?: number } = {},
+): Promise<FakeVault> {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.write('.atlas/types/task.md', TASK_TYPE);
@@ -76,7 +79,7 @@ async function openVault(page: Page, { withView = false } = {}): Promise<FakeVau
   await vault.write('Ship it.md', SHIP);
   await vault.write('Plan.md', PLAN);
   await installHost(page, vault);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width, height: 900 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
@@ -291,4 +294,63 @@ test('Escape in the aside returns the focus to the work', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(tab).not.toBeFocused();
   await expect(page.locator('.pane--focused')).toBeFocused();
+});
+
+test.describe('a narrow window, asked for the aside twice (#387 verification)', () => {
+  const chat = (page: Page) => page.getByRole('complementary', { name: 'Claude' });
+
+  test('⌘J, then ⌘\\ bringing the sidebar back, then ⌘J again shows Claude', async ({ page }) => {
+    await openVault(page, { width: 1000 });
+    await openNote(page, 'Ship it');
+    await page.keyboard.press('Meta+j');
+    await expect(chat(page)).toBeVisible();
+    await expect(leftSidebar(page)).toHaveCount(0);
+    // The sidebar back: the window is too narrow for both, so the aside folds.
+    await page.keyboard.press('Meta+Backslash');
+    await expect(leftSidebar(page)).toBeVisible();
+    await expect(chat(page)).toHaveCount(0);
+    // Asked for again, Claude comes back on screen: one press, not three.
+    await page.keyboard.press('Meta+j');
+    await expect(chat(page)).toBeVisible();
+    await expect(leftSidebar(page)).toHaveCount(0);
+  });
+
+  test('the bar’s button, in the same state, changes what is on screen and says so', async ({
+    page,
+  }) => {
+    await openVault(page, { width: 1000 });
+    await openNote(page, 'Ship it');
+    await toggle(page).click();
+    await expect(aside(page)).toBeVisible();
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Meta+Backslash');
+    await expect(leftSidebar(page)).toBeVisible();
+    await expect(aside(page)).toHaveCount(0);
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
+    await toggle(page).click();
+    await expect(aside(page)).toBeVisible();
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect(leftSidebar(page)).toHaveCount(0);
+  });
+
+  test('⌥⌘\\ in the same state shows the aside with one press', async ({ page }) => {
+    await openVault(page, { width: 1000 });
+    await openNote(page, 'Ship it');
+    await altCmdBackslash(page);
+    await expect(aside(page)).toBeVisible();
+    await page.keyboard.press('Meta+Backslash');
+    await expect(aside(page)).toHaveCount(0);
+    await altCmdBackslash(page);
+    await expect(aside(page)).toBeVisible();
+  });
+
+  test('at 750px, where hiding the sidebar would make no room, ⌘J leaves it as it was', async ({
+    page,
+  }) => {
+    await openVault(page, { width: 750 });
+    await openNote(page, 'Ship it');
+    await page.keyboard.press('Meta+j');
+    await expect(leftSidebar(page)).toBeVisible();
+    await expect(chat(page)).toHaveCount(0);
+  });
 });
