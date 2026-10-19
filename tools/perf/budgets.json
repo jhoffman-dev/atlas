@@ -106,7 +106,7 @@
       "calls": {}
     },
     "Tick a task on Today": {
-      "commits": 37,
+      "commits": 15,
       "renders": 1315,
       "calls": {
         "index_manifest": 4,
