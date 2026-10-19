@@ -71,6 +71,19 @@ describe('WidgetEditor', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Icon' })).toBeNull();
   });
 
+  // #351: since UI slice 10 the hero is strip cells and a status bar, not a ring.
+  it('hints at a status bar, not a ring, when the hero has no progress filter', () => {
+    const hero = newWidgetDraft({ kind: 'hero', type: 'task' });
+    render(<WidgetEditor {...props({ draft: hero })} />);
+    const progress = screen.getByRole('group', { name: 'Progress' });
+    expect(
+      within(progress).getByText(
+        'No finished part. Add a filter for it to show a share and a status bar — status is done, say.',
+      ),
+    ).toBeTruthy();
+    expect(within(progress).queryByText(/ring/i)).toBeNull();
+  });
+
   it('changes the title, grouping and width', async () => {
     const given = props();
     render(<WidgetEditor {...given} />);
