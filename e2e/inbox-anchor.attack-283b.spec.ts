@@ -39,9 +39,22 @@ const inbox = (page: Page) => page.getByRole('article', { name: 'Inbox' });
 const warning = (page: Page) => inbox(page).locator('.inbox__offer--warning');
 const newAbove = (page: Page) => page.getByRole('button', { name: /New above/ });
 const tidy = (page: Page) => page.getByRole('region', { name: 'Tidy the vault' });
+const gtd = (page: Page) => page.getByRole('region', { name: 'Move tasks to GTD statuses' });
 
-/** Opens a vault with `rows` Inbox notes (past "Show more" when many), plus a loose note for the tidy. */
-async function openInbox(page: Page, rows: number): Promise<FakeVault> {
+/** A task outside the Inbox and the tidy's folders, whose read lets the move to GTD's offer be held. */
+const LATE_TASK = 'Projects/Ship it.md';
+
+/**
+ * Opens a vault with `rows` Inbox notes (past "Show more" when many), plus a
+ * loose note for the tidy. With `lateTasks`, the move to GTD's read of the
+ * vault's one task is held until the Inbox shows, so its offer lands after
+ * the Inbox stopped waiting for it, as it does on a loaded machine (#378).
+ */
+async function openInbox(
+  page: Page,
+  rows: number,
+  { lateTasks = false }: { readonly lateTasks?: boolean } = {},
+): Promise<FakeVault> {
   const vault = await createVault();
   await vault.mkdir('Inbox');
   await Promise.all(
@@ -52,9 +65,17 @@ async function openInbox(page: Page, rows: number): Promise<FakeVault> {
   await vault.write('Loose idea.md', 'A thought.\n');
   await vault.mkdir('.atlas');
   await vault.write('.atlas/settings.md', GOOD_SETTINGS);
+  if (lateTasks) {
+    await vault.mkdir('Projects');
+    await vault.write(
+      LATE_TASK,
+      ['---', 'type: task', 'status: todo', '---', '', 'Ship it.', ''].join('\n'),
+    );
+  }
   // Listing what it indexed, as the real index does: the Inbox's offers are read
   // ahead from that list (#130, last fix round), so the page opens with them known.
-  await installHost(page, vault, { keepsManifest: true });
+  const host = await installHost(page, vault, { keepsManifest: true });
+  const releaseTasks = lateTasks ? host.holdReads(LATE_TASK, { alone: true }) : () => {};
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 60_000 });
@@ -65,6 +86,8 @@ async function openInbox(page: Page, rows: number): Promise<FakeVault> {
   await expect(tidy(page)).toBeVisible({ timeout: 30_000 });
   if (rows > 500) await inbox(page).getByRole('button', { name: 'Show more' }).click();
   await settle(page);
+  releaseTasks();
+  await expect(gtd(page)).toBeVisible();
   return vault;
 }
 
@@ -362,7 +385,7 @@ test('resizing the window while scrolled down the list keeps the row in the midd
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await openInbox(page, 600);
+  await openInbox(page, 600, { lateTasks: true });
   await scrollTo(page, 3000);
   await settle(page, 30);
   const { title } = await rowAtMiddle(page);
