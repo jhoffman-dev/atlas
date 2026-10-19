@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { focusedRing } from './focus-ring.ts';
 import { createVault, installHost } from './host.ts';
 
 // Attack on #332: the rewrite of #328's ring tests focuses each primitive from
@@ -134,18 +135,13 @@ async function optionTabWalk(page: Page, steps: number) {
   const clipped: string[] = [];
   for (let step = 0; step < steps; step += 1) {
     await page.keyboard.press('Alt+Tab');
-    const now = await page.evaluate(() => {
-      const focused = document.activeElement;
-      if (!(focused instanceof HTMLElement)) return null;
-      if (!focused.matches('.btn, .field, .chip, .segmented__option')) return null;
-      return {
-        label: `${[...focused.classList].join('.')} "${(focused.getAttribute('aria-label') ?? focused.textContent ?? '').trim().slice(0, 24)}"`,
-        visible: focused.matches(':focus-visible'),
-        ring: getComputedStyle(focused).boxShadow,
-      };
-    });
+    const now = await focusedRing(page);
     if (now === null) continue;
-    landed.push(now);
+    landed.push({
+      label: `${now.classes.join('.')} "${now.name.slice(0, 24)}"`,
+      visible: now.visible,
+      ring: now.ring,
+    });
     const cut = await ringClipping(page);
     if (cut !== null) clipped.push(cut);
   }

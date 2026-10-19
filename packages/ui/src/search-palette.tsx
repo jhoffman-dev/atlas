@@ -210,7 +210,7 @@ function Hit({
         onPick(hit.path);
       }}
     >
-      <span className="palette__kind">
+      <span className="palette__kind" aria-hidden="true">
         <Icon name={sidebarGlyph(place.icon)} size={16} />
       </span>
       <span className="palette__text">
