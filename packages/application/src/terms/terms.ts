@@ -197,21 +197,43 @@ async function namedNoteOpenedBy({
   if (path === null || !isVocabularyNote(path)) return null;
   const { frontmatter } = splitFrontmatter(await readNamedNote(fs, path));
   const properties = readTypeOf(markdown, frontmatter);
-  const into = vocabularySourceOf(properties['type']);
-  if (into !== 'person' && into !== 'company') return null;
-
+  // Whatever its type: a block that cannot be read may well say person or company.
   const problem = markdown.frontmatterProblem(frontmatter);
   if (problem !== null) {
     throw new TermRefusedError(`${path} has properties Atlas can't change safely: ${problem}`);
   }
-  const spelt = tidySpelling(pageTitle({ fileTitle: noteTitle(path), properties }).text);
-  if (spelt !== name) {
-    throw new TermRefusedError(
-      `${path} is spelt “${spelt}”. Add the term as “${spelt}”, or rename the note first.`,
-    );
-  }
+  const into = vocabularySourceOf(properties['type']);
+  if (into !== 'person' && into !== 'company') return null;
+
+  const title = pageTitle({ fileTitle: noteTitle(path), properties });
+  const spelt = tidySpelling(title.text);
+  if (spelt !== name)
+    throw misspeltRefusal({ path, spelt, name, titled: title.source === 'property' });
   if (withVariantsAdded(properties[VARIANTS_KEY], []) === null) throw variantsShapeRefusal(path);
   return { path, into };
+}
+
+/**
+ * Why a name is not the note's own spelling, and what to do. A note titled
+ * other than its file name is reached by the file name, so adding the term
+ * as the title would make a second note claiming it: the two are to agree.
+ */
+function misspeltRefusal({
+  path,
+  spelt,
+  name,
+  titled,
+}: {
+  path: VaultPath;
+  spelt: string;
+  name: string;
+  titled: boolean;
+}): TermRefusedError {
+  return new TermRefusedError(
+    titled
+      ? `${path} is titled “${spelt}”, but [[${name}]] opens it by its file name. Rename the note or change its title so the two agree, then add the term again.`
+      : `${path} is spelt “${spelt}”. Add the term as “${spelt}”, or rename the note first.`,
+  );
 }
 
 /** The note's text; a note gone since the vault was listed is a refusal, not a fault. */

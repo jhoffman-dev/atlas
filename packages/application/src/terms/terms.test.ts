@@ -456,7 +456,9 @@ describe('addTerm', () => {
         addTo(vault, { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' }, [
           'Companies/Larkspur Payroll.md',
         ]),
-      ).rejects.toThrow(/is spelt “Larkspur Payroll Co”/);
+      ).rejects.toThrow(
+        /is titled “Larkspur Payroll Co”, but \[\[Larkspur Payroll\]\] opens it by its file name/,
+      );
     });
 
     it('refuses a variants that is not a list before writing anything, the panes not asked (#404)', async () => {
