@@ -277,9 +277,14 @@ async function focusEachAndCollectClipping(
       if (!(one instanceof HTMLElement)) return null;
       one.focus();
       if (document.activeElement !== one) return null;
+      // A field's ring is drawn on `:focus` (primitives.css), not `:focus-visible`:
+      // WebKit hands a date input's focus to its inner segment, which never
+      // matches `:focus-visible`, and the ring is there all the same.
+      const ringedOn = one.classList.contains('field') ? ':focus' : ':focus-visible';
       return {
         label: `${one.tagName.toLowerCase()}.${[...one.classList].join('.')}`,
-        visible: one.matches(':focus-visible'),
+        visible: one.matches(ringedOn),
+        ringedOn,
         ring: getComputedStyle(one).boxShadow,
       };
     }, at);
@@ -287,7 +292,7 @@ async function focusEachAndCollectClipping(
     if (focused === null) continue;
     seen += 1;
     // A ring that is clipped nowhere because it is drawn nowhere is no ring.
-    if (!focused.visible) found.push(`${focused.label}: not :focus-visible`);
+    if (!focused.visible) found.push(`${focused.label}: not ${focused.ringedOn}`);
     if (focused.ring === 'none') found.push(`${focused.label}: no ring drawn`);
     const clipped = await ringClipping(page);
     if (clipped !== null) found.push(clipped);
