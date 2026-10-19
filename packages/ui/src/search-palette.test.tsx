@@ -167,6 +167,13 @@ describe('SearchPalette', () => {
     expect(rows.map((row) => row.classList.contains('palette__hit--on'))).toEqual([false, true]);
   });
 
+  it('hides the kind icon on a hit as on a command: the place says what it is', () => {
+    render(<SearchPalette {...props} commands={[{ id: 'new-view', label: 'New view' }]} />);
+    const kinds = document.querySelectorAll('.palette__kind');
+    expect(kinds.length).toBe(3);
+    for (const kind of kinds) expect(kind.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('keeps the keys along its foot out of what a screen reader is read', () => {
     const { baseElement } = render(<SearchPalette {...props} />);
     const hints = baseElement.querySelector('.key-hints');

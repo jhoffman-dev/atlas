@@ -92,8 +92,12 @@ describe('a palette row', () => {
   const row = styleOf('.palette__hit');
   const chosen = styleOf('.palette__hit--on');
 
-  it('is 36px, and takes the hover fill under the pointer', () => {
+  // A command row is one line and sits at the 36px minimum; a hit keeps its
+  // two lines (the title, then the place and the snippet) and is taller.
+  it('is 36px when it is one line, and takes the hover fill under the pointer', () => {
     expect(row.get('min-height')).toBe('36px');
+    expect(row.has('height')).toBe(false);
+    expect(styleOf('.palette__text').get('display')).toBe('grid');
     expect(styleOf('.palette__hit:hover').get('background')).toBe('var(--hover)');
   });
 

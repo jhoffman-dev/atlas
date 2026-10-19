@@ -207,10 +207,7 @@ function FieldControl({
         </span>
       );
     case 'date':
-      // Its own variant, not `.field`: see quick-add.css for the WebKit reason.
-      return (
-        <input {...common} className="quick-add__control quick-add__control--date" type="date" />
-      );
+      return <input {...common} type="date" />;
     case 'number':
       return <input {...common} type="number" />;
     case 'checkbox':

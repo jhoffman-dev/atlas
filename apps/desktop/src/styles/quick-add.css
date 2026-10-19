@@ -313,29 +313,6 @@
   min-width: 0;
 }
 
-/* The date is the field's box drawn again rather than a `.field` by class:
-   WebKit hands a date input's focus to its inner segment, which never matches
-   `:focus-visible`, and e2e/primitives.attack-328.spec.ts reads every `.field`
-   it can focus by that pseudo-class. Its ring is `:focus`'s, like the field's. */
-.quick-add__control--date {
-  appearance: none;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-control);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-column);
-  height: 28px;
-  padding: 0 8px;
-  width: 100%;
-}
-
-.quick-add__control--date:focus {
-  border-color: var(--focus);
-  box-shadow: var(--ring);
-  outline: none;
-}
-
 .quick-add__check {
   accent-color: var(--accent-solid);
   justify-self: start;

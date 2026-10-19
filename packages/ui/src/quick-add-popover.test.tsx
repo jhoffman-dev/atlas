@@ -77,16 +77,18 @@ describe('QuickAddPopover', () => {
     expect(screen.queryByLabelText('Email')).toBeNull();
   });
 
-  it('asks in the field primitive, with a chooser drawn as a select and a date as its own box', () => {
+  it('asks in the field primitive, with a chooser drawn as a select', () => {
     renderFor(TASK);
-    for (const control of [screen.getByLabelText('Status'), screen.getByLabelText('Project')]) {
+    for (const control of [
+      screen.getByLabelText('Status'),
+      screen.getByLabelText('Project'),
+      screen.getByLabelText('Due'),
+    ]) {
       expect(control.classList.contains('field')).toBe(true);
-      expect(control.closest('.select')).not.toBeNull();
     }
-    const due = screen.getByLabelText('Due');
-    expect(due.classList.contains('quick-add__control--date')).toBe(true);
-    expect(due.classList.contains('field')).toBe(false);
-    expect(due.closest('.select')).toBeNull();
+    expect(screen.getByLabelText('Status').closest('.select')).not.toBeNull();
+    expect(screen.getByLabelText('Project').closest('.select')).not.toBeNull();
+    expect(screen.getByLabelText('Due').closest('.select')).toBeNull();
   });
 
   it('offers its buttons at full height, not the row-sized small ones', () => {
