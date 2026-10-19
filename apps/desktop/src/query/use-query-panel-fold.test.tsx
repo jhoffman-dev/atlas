@@ -58,6 +58,18 @@ describe('useQueryPanelFold', () => {
     expect(folded.result.current.collapsed).toBe(true);
   });
 
+  it('keeps the builder open when a new view’s query is first saved', () => {
+    const { store } = memoryStore();
+    const { result, rerender } = renderHook(
+      ({ savedText }) => useQueryPanelFold({ store, view: 'new-view', savedText }),
+      { initialProps: { savedText: '' } },
+    );
+    expect(result.current.collapsed).toBe(false);
+    // Save writes the query to the file: the view stays as it is, mid-edit.
+    rerender({ savedText: SAVED });
+    expect(result.current.collapsed).toBe(false);
+  });
+
   it('reads another view’s fold when the pane opens it', () => {
     const { store } = memoryStore({ waiting: false });
     const { result, rerender } = renderHook(
