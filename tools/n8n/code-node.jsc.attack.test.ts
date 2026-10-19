@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -123,5 +123,16 @@ describe.skipIf(!existsSync(JSC))('a meeting’s instant mapped in the webview�
     const meeting = { ...MEETING, date };
     const [webview] = inJavaScriptCore([meeting], MEETING_RUN);
     expect(webview).toEqual(inNode(meeting));
+  });
+});
+
+describe.skipIf(!existsSync(JSC))('running a script in the webview’s engine', () => {
+  // Issue #397: every run left its folder behind, 230 of them a night.
+  const scratch = () => readdirSync(tmpdir()).filter((name) => name.startsWith('atlas-jsc-'));
+
+  it('leaves no folder behind in the temp folder', () => {
+    const before = scratch();
+    inJavaScriptCore([scheduled('2026-10-06T17:00:00Z')]);
+    expect(scratch()).toEqual(before);
   });
 });
