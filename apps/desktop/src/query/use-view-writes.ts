@@ -15,6 +15,7 @@ import {
   type MarkdownPort,
   type PropertyChanges,
   type VaultFsPort,
+  FrontmatterRefusedError,
 } from '@atlas/application';
 import type { CardMove } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
@@ -82,7 +83,12 @@ export function useWriteProperties({
 }): WriteProperties {
   return useCallback(
     ({ path, values }) => {
-      const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
+      const edit = {
+        activity,
+        write: 'edit',
+        path,
+        refusal: [TaskRuleRefusedError, FrontmatterRefusedError],
+      } as const;
       return withGiveUpRecorded(edit, () =>
         writeNoteProperties({ editors, fs, markdown, path, values }),
       );

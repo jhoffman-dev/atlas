@@ -20,11 +20,11 @@ const NO_PANE: OpenEditors = {
   reloadOthers: () => {},
 };
 
-function changing({ refuse }: { refuse: string | Error | null }) {
+function changing({ refuse, text = TEXT }: { refuse: string | Error | null; text?: string }) {
   const activity = recordingActivity();
   const written: string[] = [];
   const fs = fakeVaultFs({
-    readTextFile: async () => ({ text: TEXT, modified: 1 }),
+    readTextFile: async () => ({ text, modified: 1 }),
     writeTextFile: async ({ contents }: { contents: string }) => {
       if (refuse !== null) throw typeof refuse === 'string' ? new Error(refuse) : refuse;
       written.push(contents);
@@ -69,6 +69,19 @@ describe('useChangeProperties and the Activity log', () => {
     change();
     await waitFor(() => expect(onError).toHaveBeenCalledWith('A rule says no.'));
     expect(activity.reports).toEqual([]);
+  });
+
+  it('records nothing for the frontmatter writer’s refusal, which the view shows to act on (#284)', async () => {
+    const twice = ['---', 'type: task', 'status: todo', 'status: doing', '---', ''].join('\n');
+    const { activity, onError, change, written } = changing({ refuse: null, text: twice });
+    change();
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(
+        `This note's properties list "status" twice; fix it in the source before changing it.`,
+      ),
+    );
+    expect(activity.reports).toEqual([]);
+    expect(written).toEqual([]);
   });
 
   it('moves a card dragged to Waiting with nobody to wait on, asking for no one (#202)', async () => {

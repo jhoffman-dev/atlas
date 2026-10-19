@@ -214,3 +214,87 @@ describe('updateFrontmatter, on two spellings of one key inside a map', () => {
     expect(parseFrontmatterProperties(written)).toEqual({ m: { x: 1 }, t: 'T' });
   });
 });
+
+/**
+ * #284: a key written twice makes the block a YAML document with errors. A
+ * change to any other key writes only that key's bytes (ADR-0003); a change to
+ * the duplicated key — removing it included — is refused with a reason the
+ * person can act on, never the library's "cannot be stringified".
+ */
+describe('updateFrontmatter, on a block that lists a key twice', () => {
+  const refusedFor = (key: string, message: string) =>
+    expect.objectContaining({ name: 'FrontmatterRefusedError', key, message });
+  const twice = (key: string) =>
+    `This note's properties list "${key}" twice; fix it in the source before changing it.`;
+
+  it('changes another key by its own bytes alone, every other byte as it was', () => {
+    const before = block('# head', 'a:   1  # one', 't: T', 'list:  [x,  y]', 'a: 2', '# tail');
+    expect(updateFrontmatter(before, { t: 'U' })).toBe(
+      block('# head', 'a:   1  # one', 't: U', 'list:  [x,  y]', 'a: 2', '# tail'),
+    );
+  });
+
+  it('removes another key, the duplicated lines kept byte for byte', () => {
+    const before = block('a: 1', 't: T', 'a:  2');
+    expect(updateFrontmatter(before, { t: null })).toBe(block('a: 1', 'a:  2'));
+  });
+
+  it('keeps CRLF line endings when changing another key', () => {
+    const before = '---\r\na: 1\r\nt: T\r\na: 2\r\n---\r\n';
+    expect(updateFrontmatter(before, { t: 'U' })).toBe('---\r\na: 1\r\nt: U\r\na: 2\r\n---\r\n');
+  });
+
+  it('refuses a change to the duplicated key, with the reason', () => {
+    const before = block('a: 1', 't: T', 'a: 2');
+    expect(() => updateFrontmatter(before, { a: 3 })).toThrowError(refusedFor('a', twice('a')));
+  });
+
+  it('refuses a change to the duplicated key even when given with another key', () => {
+    const before = block('a: 1', 't: T', 'a: 2');
+    expect(() => updateFrontmatter(before, { t: 'U', a: 3 })).toThrowError(
+      refusedFor('a', twice('a')),
+    );
+  });
+
+  it.each([null, undefined])('refuses removing the duplicated key (%s)', (removal) => {
+    const before = block('a: 1', 't: T', 'a: 2');
+    expect(() => updateFrontmatter(before, { a: removal })).toThrowError(
+      refusedFor('a', twice('a')),
+    );
+  });
+
+  it('adds a new key after the others, every line already there kept', () => {
+    const before = block('a: 1', 't: T', 'a:  2');
+    expect(updateFrontmatter(before, { n: 'N' })).toBe(block('a: 1', 't: T', 'a:  2', 'n: N'));
+  });
+
+  it('with two keys each listed twice, changes a third and refuses either', () => {
+    const before = block('a: 1', 'b: x', 't: T', 'a: 2', 'b:  y');
+    expect(updateFrontmatter(before, { t: 'U' })).toBe(
+      block('a: 1', 'b: x', 't: U', 'a: 2', 'b:  y'),
+    );
+    expect(() => updateFrontmatter(before, { a: 3 })).toThrowError(refusedFor('a', twice('a')));
+    expect(() => updateFrontmatter(before, { b: null })).toThrowError(refusedFor('b', twice('b')));
+  });
+
+  it('a key listed twice inside a key written as a map refuses every change', () => {
+    const before = block('? {x: 1, x: 2}', ': v', 't: T');
+    expect(() => updateFrontmatter(before, { t: 'U' })).toThrowError(
+      refusedFor(
+        't',
+        "This note's properties list a key twice; fix it in the source before changing them.",
+      ),
+    );
+  });
+
+  it('a key listed twice inside a map refuses only that property', () => {
+    const before = block('m:', '  x: 1', '  x: 2', 't: T');
+    expect(updateFrontmatter(before, { t: 'U' })).toBe(block('m:', '  x: 1', '  x: 2', 't: U'));
+    expect(() => updateFrontmatter(before, { m: { x: 3 } })).toThrowError(
+      refusedFor(
+        'm',
+        `This note's property "m" lists "x" twice; fix it in the source before changing it.`,
+      ),
+    );
+  });
+});

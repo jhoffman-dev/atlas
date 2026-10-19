@@ -13,6 +13,7 @@ import {
   YAMLMap,
   type YAMLSeq,
 } from 'yaml';
+import { FrontmatterRefusedError } from '@atlas/application';
 import { KeyAsWritten } from '@atlas/domain';
 
 /**
@@ -45,6 +46,10 @@ import { KeyAsWritten } from '@atlas/domain';
  * the key's place — how archiving gives a note back its own keys. Text that is
  * not that one key, alone, at the start of its line, is not written: the key
  * is removed instead, since it could otherwise break the block around it.
+ *
+ * A property that lists a key twice is refused with a
+ * {@link FrontmatterRefusedError} — which of the two was meant cannot be told —
+ * while a change to any other key still writes only that key's bytes.
  */
 export function updateFrontmatter(
   frontmatter: string | null,
@@ -54,10 +59,7 @@ export function updateFrontmatter(
   const eol = opening.endsWith('\r\n') ? '\r\n' : '\n';
   const source = body.replace(/\r\n/g, '\n');
 
-  // An empty block parses to null and has nothing to set keys on. Starting from a
-  // fresh Document gives a block map; parsing `{}` would give a flow one and write
-  // `{title: New}` on a single line.
-  const document: Document = source.trim() === '' ? new Document({}) : parseDocument(source);
+  const document = parsedForWriting(source, Object.keys(changes));
   // A key given the value it already holds is no change: its line keeps its bytes.
   const changed = Object.entries(changes).filter(([key, value]) => !holds(document, key, value));
   // Nothing to write — only removals of keys that are not there — leaves the
@@ -113,6 +115,96 @@ export function updateFrontmatter(
   // Blank lines were all a block held: they stay above the keys it now has.
   const blank = source.trim() === '' ? content.replace(/\r\n/g, '\n') : '';
   return `${opening}${`${blank}${kept}`.replace(/\n/g, eol)}${eol}${closing}`;
+}
+
+/**
+ * The block as a document to write. A key written twice is an error the library
+ * will not write past, so such a block is read again with duplicates allowed —
+ * once no change names the property that holds one. A duplicate that no
+ * property holds (inside a key written as a map) refuses every change, since
+ * none can be shown not to touch it.
+ */
+function parsedForWriting(source: string, changing: readonly string[]): Document {
+  // An empty block parses to null and has nothing to set keys on. Starting from a
+  // fresh Document gives a block map; parsing `{}` would give a flow one and write
+  // `{title: New}` on a single line.
+  if (source.trim() === '') return new Document({});
+  const document = parseDocument(source);
+  const found = duplicates(document);
+  if (found.length === 0) return document;
+  for (const placed of found) {
+    const refusal = placed ?? {
+      // No property holds this duplicate, so the refusal is pinned on the first
+      // change asked for: it always matches below, and every change is refused.
+      // With no changes at all there is nothing to refuse: '' matches none, and
+      // the block is handed back as it was.
+      key: changing[0] ?? '',
+      message:
+        "This note's properties list a key twice; fix it in the source before changing them.",
+    };
+    if (changing.includes(refusal.key)) throw new FrontmatterRefusedError(refusal);
+  }
+  return parseDocument(source, { uniqueKeys: false });
+}
+
+/**
+ * Each key the block writes twice, as the property holding it and why a change
+ * to that property is refused; null for one no property holds.
+ */
+function duplicates(document: Document): (Refusal | null)[] {
+  return document.errors
+    .filter((error) => error.code === 'DUPLICATE_KEY')
+    .map((error) => refusalAt(document, error.pos[0]));
+}
+
+/**
+ * The top-level properties of a block's YAML that hold a key written twice,
+ * each with why a change to it is refused — as {@link updateFrontmatter}
+ * refuses it.
+ */
+export function duplicatedProperties(source: string): Refusal[] {
+  return duplicates(parseDocument(source)).filter((refusal) => refusal !== null);
+}
+
+/** A property a change to which is refused, and why, in the person's words. */
+interface Refusal {
+  readonly key: string;
+  readonly message: string;
+}
+
+/**
+ * The top-level property holding the key written twice at `offset`, and why a
+ * change to it is refused, in the person's words. Null when no property holds it.
+ */
+function refusalAt(document: Document, offset: number): Refusal | null {
+  const contents = document.contents;
+  if (!isMap(contents)) return null;
+  const fix = 'fix it in the source before changing it.';
+  for (const pair of contents.items) {
+    if (!isNode(pair.key)) continue;
+    const key = keyOf(pair.key, document);
+    if (pair.key.range?.[0] === offset) {
+      return { key, message: `This note's properties list "${key}" twice; ${fix}` };
+    }
+    const inner = isNode(pair.value) ? keyAt(document, pair.value, offset) : null;
+    if (inner !== null) {
+      return { key, message: `This note's property "${key}" lists "${inner}" twice; ${fix}` };
+    }
+  }
+  return null;
+}
+
+/** The name of the key that starts at `offset` somewhere inside `node`, if one does. */
+function keyAt(document: Document, node: Node, offset: number): string | null {
+  let found: string | null = null;
+  visit(node, {
+    Pair: (_, pair) => {
+      if (!isNode(pair.key) || pair.key.range?.[0] !== offset) return undefined;
+      found = keyOf(pair.key, document);
+      return visit.BREAK;
+    },
+  });
+  return found;
 }
 
 /**

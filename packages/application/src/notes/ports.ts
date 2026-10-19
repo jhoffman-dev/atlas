@@ -4,10 +4,27 @@ import type { BodyRange, EditorDocument, ParsedBody, RawPart } from '@atlas/doma
  * Turning markdown into an editable document and back. The implementation is a
  * markdown library; the use-cases only need the two directions.
  */
+/** How {@link MarkdownPort.frontmatterProperties} reads a block a write is about to change. */
+export interface WritingRead {
+  readonly forWriting: true;
+  /**
+   * Keys the caller's rules read. A block listing one of them twice is refused
+   * with `FrontmatterRefusedError` naming it, rather than read as its last copy.
+   */
+  readonly refusingDuplicated?: readonly string[];
+}
+
 export interface MarkdownPort {
   parseBody(body: string): ParsedBody;
-  /** Frontmatter read as plain values, for indexing. Never used to write it back. */
-  frontmatterProperties(frontmatter: string | null): Record<string, unknown>;
+  /**
+   * Frontmatter read as plain values, for indexing. Never used to write it back.
+   *
+   * Read `forWriting`, a key the block lists twice reads as its last copy —
+   * the one {@link MarkdownPort.updateFrontmatter} works around — where the
+   * plain read gives up on the block. That is the read a change is held to the
+   * task rules against, so the rules see what the write sees; never for showing.
+   */
+  frontmatterProperties(frontmatter: string | null, read?: WritingRead): Record<string, unknown>;
   /**
    * Why a frontmatter block cannot be read, in one line; null when it can. The
    * properties of such a block read as none, which is right for indexing but
@@ -32,7 +49,8 @@ export interface MarkdownPort {
    * formatting, comments and key order — exactly as it was. A change whose
    * value is null or undefined removes the key rather than writing it; one
    * given as `KeyAsWritten` is written as exactly that text, when it is that
-   * key alone, and otherwise removes it.
+   * key alone, and otherwise removes it. A change to a key the block lists
+   * twice throws `FrontmatterRefusedError`, and nothing is written.
    */
   updateFrontmatter(frontmatter: string | null, changes: Readonly<Record<string, unknown>>): string;
   /**
