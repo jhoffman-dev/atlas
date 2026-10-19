@@ -88,25 +88,40 @@ function declarationsOf(sheet: string, selector: string): string {
   throw new Error(`no rule ${selector}`);
 }
 
-it('the done box fills with --navy-data and draws its tick in --status-done-tick', () => {
-  expect(declarationsOf(layouts, '.done-check:checked')).toMatch(
-    /background:\s*var\(--navy-data\)/,
+/**
+ * The token the done box fills with when ticked: `--navy-data` before slice
+ * 13d, `--status-done-dot` after. Both are the done dot, so the test reads
+ * whichever the rule names and resolves it, rather than naming one.
+ */
+function fillOfDoneBox(): string {
+  const fill = /background:\s*var\((--[\w-]+)\)/.exec(
+    declarationsOf(layouts, '.done-check:checked'),
   );
+  if (fill === null) throw new Error('.done-check:checked does not fill with a token');
+  return fill[1] ?? '';
+}
+
+it('the done box fills with a token and draws its tick in --status-done-tick', () => {
+  expect(fillOfDoneBox()).toMatch(/^--[\w-]+$/);
   expect(declarationsOf(layouts, '.done-check:checked::after')).toMatch(
     /border:\s*solid var\(--status-done-tick\)/,
   );
 });
 
 describe.each(Object.entries(themes))('the done box, %s theme', (_name, theme) => {
+  it('fills with the done dot', () => {
+    expect(paint(theme, fillOfDoneBox())).toEqual(paint(theme, '--status-done-dot'));
+  });
+
   it('draws its tick at 3:1 or better on the done dot (WCAG 1.4.11)', () => {
     expect(
       contrast(paint(theme, '--status-done-tick'), paint(theme, '--status-done-dot')),
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it('draws its tick at 3:1 or better on --navy-data, the fill it actually paints', () => {
+  it('draws its tick at 3:1 or better on the fill it actually paints', () => {
     expect(
-      contrast(paint(theme, '--status-done-tick'), paint(theme, '--navy-data')),
+      contrast(paint(theme, '--status-done-tick'), paint(theme, fillOfDoneBox())),
     ).toBeGreaterThanOrEqual(3);
   });
 
