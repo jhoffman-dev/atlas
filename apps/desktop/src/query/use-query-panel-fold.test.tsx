@@ -70,6 +70,17 @@ describe('useQueryPanelFold', () => {
     expect(result.current.collapsed).toBe(false);
   });
 
+  it('folds a saved query once its file is read, not before', () => {
+    const { store } = memoryStore();
+    const { result, rerender } = renderHook(
+      ({ savedText }) => useQueryPanelFold({ store, view: 'open-work', savedText }),
+      { initialProps: { savedText: null as string | null } },
+    );
+    // The pane shows the view before its file has been read: nothing to decide yet.
+    rerender({ savedText: SAVED });
+    expect(result.current.collapsed).toBe(true);
+  });
+
   it('reads another view’s fold when the pane opens it', () => {
     const { store } = memoryStore({ waiting: false });
     const { result, rerender } = renderHook(
