@@ -261,6 +261,16 @@
   background: color-mix(in srgb, var(--accent-text) 20%, transparent);
 }
 
+/* Each tag in its own pastel (#413), the same one wherever the tag is shown. */
+.editor .tag[data-hue] {
+  background: var(--pill);
+  color: var(--pill-ink);
+}
+
+.editor .tag[data-hue]:hover {
+  text-decoration: underline;
+}
+
 /* The tags page (UI v2 slice 13g): the tree beside the chosen tag's notes,
    the two divided by a hairline, each a fixed page's list (page.css
    .page-list) — 34px rows at 13/500, the count in ink-3 at the row's end and
@@ -364,6 +374,14 @@
 
 .tags__item--on > .tags__row .tags__icon {
   color: var(--active-icon);
+}
+
+/* A tag's name on the pastel it wears in a note (#413). */
+.tags__pill {
+  background: var(--pill);
+  border-radius: var(--radius-chip);
+  color: var(--pill-ink);
+  padding: 1px 6px;
 }
 
 .tags__name,

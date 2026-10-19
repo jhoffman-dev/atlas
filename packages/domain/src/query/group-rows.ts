@@ -1,5 +1,5 @@
 import { splitWikiLinks } from '../markdown/wikilink.ts';
-import { statusTone, type StatusTone } from '../page/status-tone.ts';
+import { optionColor, type OptionColor } from '../page/pill-colour.ts';
 import { noteNames, type NoteNames } from '../types/relation-names.ts';
 
 /**
@@ -22,11 +22,12 @@ export interface BoardColumn {
   readonly label: string;
   readonly rows: readonly BoardRow[];
   /**
-   * The tone the column's heading is drawn in. Null for a column that is not a
-   * status at all — a project, say — which is drawn as a plain label. Absent,
-   * the heading is toned by its name.
+   * The colour the column's heading is drawn in: an option's (`optionColor`).
+   * Null for a column that is not an option at all — a project, say — which
+   * is drawn as a plain label, its name written as the note's. Absent, the
+   * heading is coloured by its name.
    */
-  readonly tone?: StatusTone | null;
+  readonly tone?: OptionColor | null;
 }
 
 /**
@@ -68,14 +69,14 @@ export function groupRows({
   /** The values the type declares, in the order they should appear. */
   options: readonly string[];
   grouping?: GroupingKind;
-  /** Tones the type chose for its options; the rest are toned by name. */
-  colors?: Readonly<Record<string, StatusTone>>;
+  /** Colours the type chose for its options; the rest are coloured by value. */
+  colors?: Readonly<Record<string, OptionColor>>;
   /** The vault's notes, which a relation's columns are named by. */
   names?: NoteNames;
 }): BoardColumn[] {
   const spelling = SPELLINGS[grouping];
-  const toneOf = (value: string): StatusTone | null =>
-    grouping === 'relation' ? null : (colors[value] ?? statusTone(value));
+  const toneOf = (value: string): OptionColor | null =>
+    grouping === 'relation' ? null : optionColor({ colors }, value);
 
   // A column is keyed by what its value means, so a repeated option — or one
   // note linked two ways — cannot be two columns. The first spelling seen of a

@@ -24,6 +24,20 @@ export {
 } from './status-tone.ts';
 export type { StatusTone } from './status-tone.ts';
 export {
+  HASHED_HUES,
+  heldOptions,
+  hueOf,
+  isOptionColor,
+  isPillHue,
+  OPTION_COLORS,
+  optionColor,
+  optionColorsByKey,
+  PILL_HUES,
+  relationHue,
+  tagHue,
+} from './pill-colour.ts';
+export type { OptionColor, OptionColors, PillHue } from './pill-colour.ts';
+export {
   newPropertyKey,
   newPropertyValue,
   notePropertyKind,

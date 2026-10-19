@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
+  OPTION_COLORS,
+  optionColor,
   optionLabel,
-  optionTone,
-  STATUS_TONES,
+  type OptionColor,
   type PropertyDef,
-  type StatusTone,
   type TypeEdit,
 } from '@atlas/domain';
 import { CommitField } from './commit-field.tsx';
@@ -14,7 +14,7 @@ import { SortableList } from './sortable-list.tsx';
 import { StatusPill } from './status-pill.tsx';
 
 /**
- * A select's options: renamed in place, coloured on the status ramp, put in
+ * A select's options: renamed in place, coloured — a status tone or a hue — put in
  * order — the order a board shows its columns in — removed, and added to.
  */
 export function OptionsEditor({
@@ -40,7 +40,7 @@ export function OptionsEditor({
         {(option, handle) => (
           <div className="type-editor__option">
             {handle}
-            <StatusPill value={option} tone={optionTone(property, option)} />
+            <StatusPill value={option} tone={optionColor(property, option)} />
             <CommitField
               value={option}
               label={`Rename ${option}`}
@@ -49,19 +49,19 @@ export function OptionsEditor({
             <select
               className="type-editor__tone"
               aria-label={`Colour of ${option}`}
-              value={optionTone(property, option)}
+              value={optionColor(property, option)}
               onChange={(event) =>
                 onEdit({
                   kind: 'setOptionColor',
                   key,
                   option,
-                  tone: event.target.value as StatusTone,
+                  tone: event.target.value as OptionColor,
                 })
               }
             >
-              {STATUS_TONES.map((tone) => (
-                <option key={tone} value={tone}>
-                  {optionLabel(tone)}
+              {OPTION_COLORS.map((color) => (
+                <option key={color} value={color}>
+                  {optionLabel(color)}
                 </option>
               ))}
             </select>

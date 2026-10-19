@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
-import { optionLabel, type StatusTone } from '@atlas/domain';
+import { optionLabel, type OptionColor } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
 import { StatusPill } from '../status-pill.tsx';
 import { NUMBER_KEYS, optionPickedByNumber } from './cell-keys.ts';
@@ -30,8 +30,8 @@ export function StatusPicker({
   /** The column's label: "Status". */
   label: string;
   options: readonly string[];
-  /** The tone the type chose for an option; one without is toned by its name. */
-  tones?: Readonly<Record<string, StatusTone>>;
+  /** The colour the type chose for an option; one without is coloured by its value. */
+  tones?: Readonly<Record<string, OptionColor>>;
   /** The option the cell holds now, or null. */
   value: string | null;
   onPick: (option: string) => void;
@@ -94,7 +94,7 @@ function PickerBody({
 }: {
   label: string;
   options: readonly string[];
-  tones: Readonly<Record<string, StatusTone>>;
+  tones: Readonly<Record<string, OptionColor>>;
   value: string | null;
   onPick: (option: string) => void;
   onStep: (to: 1 | -1) => void;
@@ -192,7 +192,7 @@ function OptionList({
   /** An option's number key, by its place among every option: the keys do not move as the filter narrows. */
   number: (option: string) => number;
   optionId: (option: string) => string;
-  tones: Readonly<Record<string, StatusTone>>;
+  tones: Readonly<Record<string, OptionColor>>;
   value: string | null;
   highlighted: string | undefined;
   onHighlight: (option: string) => void;
@@ -240,9 +240,9 @@ function OptionList({
 
 /** The `tone` prop for an option the type coloured; none for one it did not. */
 function tonedAs(
-  tones: Readonly<Record<string, StatusTone>>,
+  tones: Readonly<Record<string, OptionColor>>,
   option: string,
-): { tone?: StatusTone } {
+): { tone?: OptionColor } {
   const tone = tones[option];
   return tone === undefined ? {} : { tone };
 }

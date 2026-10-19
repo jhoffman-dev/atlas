@@ -229,6 +229,15 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
+/* A hued option has no dot — only a status's tone carries meaning in one. */
+.props__pill[data-hue] .props__dot {
+  display: none;
+}
+
+.props__pill[data-hue] .props__pill-select {
+  padding-left: 11px;
+}
+
 .props__dot {
   background: var(--pill-dot);
   border-radius: 50%;
@@ -452,6 +461,17 @@
   font-weight: 700;
   gap: 6px;
   padding: 0 4px 0 29px;
+}
+
+/* A linked note's chip in its hue (#413). */
+.props__link[data-hue] {
+  background: var(--pill);
+  color: var(--pill-ink);
+}
+
+.props__link[data-hue] .props__chip-icon,
+.props__link[data-hue] .props__link-remove {
+  color: var(--pill-ink);
 }
 
 .props__link-remove {

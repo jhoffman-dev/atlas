@@ -4,6 +4,7 @@ import {
   createVaultPath,
   linkedNames,
   linkedNotes,
+  relationHue,
   relationTypes,
   relationTypesText,
   withLink,
@@ -51,7 +52,13 @@ export function RelationCell({
   const names = linkedNames(value, useNoteNames());
   const text = names.map((name) => name.text).join(', ');
   const chips = names.map((name, index) => (
-    <LinkedNote key={index} name={name} className="table__note" onOpen={onOpenNote} />
+    <LinkedNote
+      key={index}
+      name={name}
+      className="table__note"
+      hue={relationHue({ name: name.text })}
+      onOpen={onOpenNote}
+    />
   ));
   if (editor === undefined) {
     return (
@@ -246,7 +253,11 @@ function LinkChips({
         const [name] = linkedNames(link, names);
         const title = name?.text ?? link;
         return (
-          <li key={link} className="props__chip props__link">
+          <li
+            key={link}
+            className="props__chip props__link"
+            data-hue={name?.missing === true ? undefined : relationHue({ name: title })}
+          >
             {name === undefined ? (
               <span className="props__link-title">{link}</span>
             ) : (

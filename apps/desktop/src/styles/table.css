@@ -184,6 +184,20 @@ td[data-kind='number'] .table__cell {
   padding: 1px 6px;
 }
 
+/* A linked note in its hue (#413): the pastel its name gives it, everywhere it is shown. */
+.table__note[data-hue] {
+  background: var(--pill);
+  color: var(--pill-ink);
+}
+
+/* A multi-select's options, a pill each, on the row's one line. */
+.table__pills {
+  display: inline-flex;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 button.table__note,
 button.props__link-title {
   cursor: pointer;
@@ -193,6 +207,12 @@ button.table__note:hover,
 button.props__link-title:hover {
   color: var(--accent-text);
   text-decoration: underline;
+}
+
+/* On a hued chip the ink stays its own: only the underline says it opens. */
+button.table__note[data-hue]:hover,
+.props__link[data-hue] button.props__link-title:hover {
+  color: var(--pill-ink);
 }
 
 button.table__note:focus-visible,

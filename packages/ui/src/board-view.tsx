@@ -14,6 +14,7 @@ import {
   type BoardColumn,
   type BoardLane,
   type BoardRow,
+  type OptionColors,
   type PropertyKind,
 } from '@atlas/domain';
 import { AddCard, Card, LiftedCard, type CardLook } from './board-card.tsx';
@@ -55,6 +56,9 @@ interface DropTarget {
   readonly lane: BoardColumn | null;
 }
 
+/** A board whose type chose no option colours: one object, so the cards' look stays steady. */
+const NO_COLORS: Readonly<Record<string, OptionColors>> = {};
+
 /**
  * A view drawn as columns of cards — and, when the view sub-groups, as
  * swimlanes across those columns.
@@ -75,6 +79,7 @@ export function BoardView({
   groupBy,
   fields,
   kinds = {},
+  colors = NO_COLORS,
   onOpenNote,
   onMoveCard,
   onAddCard,
@@ -90,6 +95,8 @@ export function BoardView({
   fields: readonly string[];
   /** The declared kind of each property, so a card's chips can say what they hold. */
   kinds?: Readonly<Record<string, PropertyKind>>;
+  /** The colours each select's type chose for its options, which a card's pills are drawn in. */
+  colors?: Readonly<Record<string, OptionColors>>;
   /** Opens a card's note; `how` is where the click asked for it, when it said. */
   onOpenNote: (path: string, how?: OpenHow) => void;
   onMoveCard: (move: CardMove) => void;
@@ -128,17 +135,19 @@ export function BoardView({
   // is drawn again only for a change of its own (#260).
   const steadyFields = useSteadyValue(fields, sameItems);
   const steadyKinds = useSteadyValue(kinds, sameEntries);
+  const steadyColors = useSteadyValue(colors, sameEntries);
   const looks = useMemo(() => {
     const look = (done: boolean): CardLook => ({
       fields: steadyFields,
       groupBy,
       ...(laneBy !== undefined && { laneBy }),
       kinds: steadyKinds,
+      colors: steadyColors,
       done,
       ...(ticks !== undefined && { ticks }),
     });
     return { open: look(false), done: look(true) };
-  }, [steadyFields, groupBy, laneBy, steadyKinds, ticks]);
+  }, [steadyFields, groupBy, laneBy, steadyKinds, steadyColors, ticks]);
   const lookOf = (column: BoardColumn | undefined): CardLook =>
     column !== undefined && isDoneColumn(column) ? looks.done : looks.open;
   const openNote = useSteadyCallback(onOpenNote);

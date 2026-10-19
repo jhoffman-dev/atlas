@@ -8,6 +8,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   noteNames,
+  relationHue,
   UNGROUPED_LABEL,
   type BoardColumn,
   type BoardRow,
@@ -129,7 +130,14 @@ describe('the metadata line: which fields it shows, and in what order', () => {
       kinds: { stage: 'select' },
     });
     // CardLook.fields: "Properties to show on the metadata line, in the view's order."
-    expect(metaText()).toBe('Phase 14 · Review');
+    // The choice is a pill (#413), set apart by its fill rather than a dot.
+    expect(metaText()).toBe('Phase 14 Review');
+    const line = document.querySelector('.board__meta');
+    expect([...(line?.children ?? [])].map((child) => child.textContent)).toEqual([
+      'Phase 14',
+      'Review',
+    ]);
+    expect(line?.querySelector('.status-pill')?.textContent).toBe('Review');
   });
 
   it('is one paragraph however many values it holds', () => {
@@ -172,11 +180,14 @@ describe('the metadata line: a relation', () => {
     );
   }
 
-  it('does not strike a relation when only some of its notes are missing', () => {
+  it('draws each linked note on its own: one there as a pill, one missing struck', () => {
     relationCard(['[[Here]]', '[[Gone]]']);
-    const item = document.querySelector('.board__meta-item');
-    expect(item?.textContent).toContain('Here');
-    expect(item?.getAttribute('data-missing')).toBe('false');
+    const pill = document.querySelector('.board__meta .status-pill');
+    expect(pill?.textContent).toBe('Here');
+    expect(pill?.getAttribute('data-hue')).toBe(relationHue({ name: 'Here' }));
+    const gone = document.querySelector('.board__meta-item');
+    expect(gone?.textContent).toBe('Gone');
+    expect(gone?.getAttribute('data-missing')).toBe('true');
   });
 
   it('strikes a relation array whose every note is missing', () => {

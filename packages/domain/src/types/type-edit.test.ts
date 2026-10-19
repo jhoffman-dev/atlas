@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { hueOf, optionColor } from '../page/pill-colour.ts';
 import { parseObjectType, type ObjectType } from './property-def.ts';
 import {
   addOption,
@@ -9,7 +10,6 @@ import {
   moveProperty,
   NEW_PROPERTY_LABEL,
   newObjectType,
-  optionTone,
   removeOption,
   removeProperty,
   renameOption,
@@ -253,7 +253,7 @@ describe('options', () => {
   it('keeps the colour a renamed option had from its old name', () => {
     const change = renameOption(TASK, { key: 'status', from: 'review', to: 'in review' });
     const status = property(change.type, 'status') ?? null;
-    expect(optionTone(status, 'in review')).toBe('review');
+    expect(optionColor(status, 'in review')).toBe('review');
     expect(status?.colors).toEqual({ 'in review': 'review' });
   });
 
@@ -263,6 +263,18 @@ describe('options', () => {
     expect(property(change.type, 'status')?.colors).toEqual({ todo: 'next' });
     const same = renameOption(TASK, { key: 'status', from: 'backlog', to: 'todo' });
     expect(property(same.type, 'status')?.colors).toBeUndefined();
+  });
+
+  it('keeps the hue an option had from its value, so a rename does not recolour it', () => {
+    const change = renameOption(TASK, { key: 'tags', from: 'a', to: 'Larkspur Payroll' });
+    expect(property(change.type, 'tags')?.colors).toEqual({ 'Larkspur Payroll': hueOf('a') });
+  });
+
+  it('takes a palette hue as an option’s colour, and forgets it when set back', () => {
+    const blue = setOptionColor(TASK, { key: 'tags', option: 'a', tone: 'blue' });
+    expect(optionColor(property(blue, 'tags') ?? null, 'a')).toBe('blue');
+    const reset = setOptionColor(blue, { key: 'tags', option: 'a', tone: hueOf('a') });
+    expect(property(reset, 'tags')?.colors).toBeUndefined();
   });
 
   it('refuses to rename onto another option, or one that is not there', () => {
@@ -297,7 +309,7 @@ describe('options', () => {
 
   it('colours one, and going back to the tone its name gives it forgets the choice', () => {
     const coloured = setOptionColor(TASK, { key: 'status', option: 'next', tone: 'doing' });
-    expect(optionTone(property(coloured, 'status') ?? null, 'next')).toBe('doing');
+    expect(optionColor(property(coloured, 'status') ?? null, 'next')).toBe('doing');
     const reset = setOptionColor(coloured, { key: 'status', option: 'next', tone: 'next' });
     expect(property(reset, 'status')?.colors).toBeUndefined();
     expect(() => setOptionColor(TASK, { key: 'status', option: 'x', tone: null })).toThrow(
@@ -306,7 +318,7 @@ describe('options', () => {
   });
 
   it('tones an option by its name when there is no property to ask', () => {
-    expect(optionTone(null, 'done')).toBe('done');
+    expect(optionColor(null, 'done')).toBe('done');
   });
 });
 
