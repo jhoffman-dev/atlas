@@ -110,13 +110,21 @@ test('work that cannot be saved on a switch is kept for its own vault, not the n
   await expect(keptNotice(page)).toHaveCount(0);
 
   // Back in A, the work is waiting, and A's file was not written over either.
+  // The pane carries `notes` across the switch and takes the work back as soon
+  // as its read of A's note lands, which ends the notice: held, the notice is a
+  // state to wait for rather than a moment to catch (#360).
+  const releaseRead = host.holdReads('notes.md');
   await switchTo(page, host, b, a);
   await expect(keptNotice(page)).toContainText('notes');
   expect(await a.read('notes.md')).toBe(A_MOVED);
+  releaseRead();
   await sidebarSection(page, 'userSpace')
     .getByRole('treeitem', { name: 'notes', exact: true })
     .click();
   await expect(pane(page).getByText('Written in vault A. Typed in A. More.')).toBeVisible();
+  // Handed to the pane, it is not offered again.
+  await expect(keptNotice(page)).toHaveCount(0);
+  expect(await a.read('notes.md')).toBe(A_MOVED);
   expect(await b.read('notes.md')).toBe(B_NOTE);
 });
 
