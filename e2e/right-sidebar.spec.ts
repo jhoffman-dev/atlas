@@ -213,7 +213,11 @@ test('selecting a table row shows the row’s properties, and editing one writes
   await owner.fill('Mara Quill');
   await owner.press('Enter');
   await expectFile(vault, 'Plan.md').toMatch(/\nowner: Mara Quill\n/);
-  await expect(table.getByRole('button', { name: 'Mara Quill' })).toBeVisible();
+  // Ship it's owner is already Mara Quill, so only Plan's own row proves the edit landed.
+  const planRow = table
+    .getByRole('row')
+    .filter({ has: page.getByRole('button', { name: 'Plan', exact: true }) });
+  await expect(planRow.getByRole('button', { name: 'Mara Quill', exact: true })).toBeVisible();
 });
 
 test('a row focused in a view’s table gives way once the focus returns to the page around it', async ({
