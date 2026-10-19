@@ -170,6 +170,62 @@ test('a new view can be made as a feed', async ({ page }) => {
   ).toContainText('pointing at');
 });
 
+/**
+ * UI v2 slice 13d: what each layout *renders* — a list row is the table's
+ * 34px row on `line-soft`; a gallery card is the board's card, one hairline
+ * with no shadow and no lift under the pointer; a feed row sits on
+ * `line-soft`. Measured against the token as painted, not the sheet's words.
+ */
+test('list rows are 34px on line-soft, gallery cards hairline and still, feed rows on line-soft', async ({
+  page,
+}) => {
+  await openVault(page);
+  await openView(page, 'All tasks');
+  const choose = async (layout: string) => {
+    await page.getByRole('button', { name: 'Layout', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: new RegExp(`^${layout}`) }).click();
+  };
+  // A token as the browser paints it, so the comparison is colour to colour.
+  const painted = (token: string) =>
+    page.evaluate((name) => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = `var(${name})`;
+      document.body.append(probe);
+      const colour = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return colour;
+    }, token);
+  const lineSoft = await painted('--line-soft');
+  const line = await painted('--line');
+  // The row holding First, wherever the query's order puts it.
+  const rowOf = (inner: ReturnType<Page['getByRole']>) =>
+    page.getByRole('list', { name: 'Notes' }).getByRole('listitem').filter({ has: inner });
+
+  await choose('List');
+  const row = rowOf(page.getByRole('button', { name: 'first', exact: true }));
+  await expect(row).toHaveCSS('height', '34px');
+  await expect(row).toHaveCSS('border-bottom-color', lineSoft);
+  await expect(row).toHaveCSS('border-bottom-width', '1px');
+
+  await choose('Gallery');
+  const card = rowOf(page.getByRole('button', { name: 'first', exact: true }));
+  await expect(card).toHaveCSS('border-top-width', '1px');
+  await expect(card).toHaveCSS('border-top-color', line);
+  await expect(card).toHaveCSS('border-top-left-radius', '0px');
+  await expect(card).toHaveCSS('box-shadow', 'none');
+  const resting = await card.boundingBox();
+  await card.hover();
+  await expect(card).toHaveCSS('box-shadow', 'none');
+  await expect(card).toHaveCSS('transform', 'none');
+  expect(await card.boundingBox()).toEqual(resting);
+
+  await choose('Feed');
+  const feedRow = rowOf(page.getByRole('article', { name: 'First' }));
+  await expect(feedRow).toHaveCSS('border-bottom-color', lineSoft);
+  await expect(feedRow).toHaveCSS('box-shadow', 'none');
+  await expect(feedRow.getByRole('checkbox', { name: 'Mark First done' })).toBeVisible();
+});
+
 test('the Layout menu says why a calendar cannot be chosen for a type with no date', async ({
   page,
 }) => {
