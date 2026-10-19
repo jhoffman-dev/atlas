@@ -391,6 +391,14 @@ export interface FakeHost {
    * the Rust host answers `Err`, and write nothing.
    */
   holdWrites(relativePath: string): (outcome?: { readonly fail: string }) => void;
+  /**
+   * Holds every read of this file in flight — on its own or in a batch —
+   * until the returned function is called, so a test can make one of the
+   * app's reads land late without racing a timer (#130). A batch that also
+   * reads `except` is let through: held from before the vault opens, the
+   * index's own read of every note (which reads `except` too) goes ahead.
+   */
+  holdReads(relativePath: string, options?: { readonly except?: string }): () => void;
   /** What the app has put in the Trash, by vault path, in order. */
   trashed(): readonly string[];
   /** Every link the app asked the host to open in the browser, in order. */
@@ -607,6 +615,18 @@ export async function installHost(
   const writes = new Map<string, number>();
   /** Files whose writes wait, and what lets them go. */
   const held = new Map<string, Promise<void>>();
+  /** Files whose reads wait, and what lets them go. */
+  const heldReads = new Map<string, { until: Promise<void>; except: string | undefined }>();
+  /** What a read of these files waits for: each held one's release, unless the batch is excepted. */
+  const readsHeld = (paths: readonly string[]) =>
+    Promise.all(
+      paths.map((relative) => {
+        const hold = heldReads.get(relative);
+        return hold === undefined || (hold.except !== undefined && paths.includes(hold.except))
+          ? undefined
+          : hold.until;
+      }),
+    );
   const countWrite = (relative: string) => writes.set(relative, (writes.get(relative) ?? 0) + 1);
   /** The last text write, which the next one waits for. */
   let textWriteTail: Promise<unknown> = Promise.resolve();
@@ -893,6 +913,7 @@ export async function installHost(
       case 'read_notes': {
         const { readFile, stat: statFile } = await import('node:fs/promises');
         const wanted = (args as { paths: string[] }).paths;
+        await readsHeld(wanted);
         const files = [];
         for (const relative of wanted) {
           try {
@@ -1411,6 +1432,7 @@ export async function installHost(
         return entries.filter((entry) => entry !== null);
       }
       case 'read_text_file': {
+        await readsHeld([path]);
         const file = containedPath(openRoot(), path);
         const { readFile, stat: statFile } = await import('node:fs/promises');
         // A note that is not there is refused with a message, as the real
@@ -1905,6 +1927,15 @@ export async function installHost(
         held.delete(relativePath);
         if (outcome === undefined) release();
         else refuse(new Error(outcome.fail));
+      };
+    },
+    holdReads(relativePath, options) {
+      let release: () => void = () => {};
+      const until = new Promise<void>((resolve) => (release = resolve));
+      heldReads.set(relativePath, { until, except: options?.except });
+      return () => {
+        heldReads.delete(relativePath);
+        release();
       };
     },
   };

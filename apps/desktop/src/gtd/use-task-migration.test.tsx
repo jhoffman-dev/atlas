@@ -71,12 +71,13 @@ function setup({
 }
 
 describe('useTaskMigration', () => {
-  it('reads nothing until the Inbox shows', async () => {
+  // Since #130 the preview is read as soon as the index is ready, so the Inbox opens on it.
+  it('reads the preview before the Inbox shows, and has it ready as it opens', async () => {
     const { hook } = setup({ open: false });
-    await act(async () => {});
-    expect(hook.result.current).toBeNull();
-    hook.rerender({ open: true });
     await waitFor(() => expect(hook.result.current?.preview?.tasks).toHaveLength(2));
+    hook.rerender({ open: true });
+    expect(hook.result.current?.reading).toBe(false);
+    expect(hook.result.current?.preview?.tasks).toHaveLength(2);
   });
 
   it('moves the tasks from the preview, says so in Activity, and undoes it byte for byte', async () => {
@@ -163,5 +164,22 @@ describe('useTaskMigration — the undo is offered once (#163)', () => {
     hook.unmount();
 
     expect(await relaunched(Object.fromEntries(files))).toBeNull();
+  });
+});
+
+describe('useTaskMigration — while its preview is read (#130)', () => {
+  it('says it is still reading until the preview is back, so the Inbox can hold its rows', async () => {
+    const { hook } = setup();
+    expect(hook.result.current?.reading).toBe(true);
+    expect(hook.result.current?.preview).toBeNull();
+    await waitFor(() => expect(hook.result.current?.preview?.tasks).toHaveLength(2));
+    expect(hook.result.current?.reading).toBe(false);
+  });
+
+  it('is never reading while the Inbox is not showing', async () => {
+    const { hook } = setup({ open: false });
+    expect(hook.result.current?.reading ?? false).toBe(false);
+    await waitFor(() => expect(hook.result.current?.preview?.tasks).toHaveLength(2));
+    expect(hook.result.current?.reading).toBe(false);
   });
 });

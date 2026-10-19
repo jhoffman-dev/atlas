@@ -28,9 +28,17 @@ export interface TidyPorts {
  * What tidying the vault would do now (#214), read and not done: every note
  * loose at the root, and every meeting in the older `Inbox/Meetings`, with
  * where each would go or why it stays (`tidyPlan`). Nothing is written.
+ *
+ * `known` is the vault's notes as already listed — the index's, read ahead of
+ * the Inbox (#130) — in place of walking the vault for them. A walk then would
+ * be taken for a refresh after whatever the vault last reported (#254).
  */
-export async function previewVaultTidy(ports: TidyPorts, today: string): Promise<TidyPlan> {
-  const notePaths = await listVaultNotes({ fs: ports.fs });
+export async function previewVaultTidy(
+  ports: TidyPorts,
+  today: string,
+  known?: readonly VaultPath[],
+): Promise<TidyPlan> {
+  const notePaths = known ?? (await listVaultNotes({ fs: ports.fs }));
   const candidates = notePaths.filter(isTidyCandidate);
   const files = candidates.length === 0 ? [] : await ports.fs.readNotes(candidates);
   const notes = files.map((file) => ({

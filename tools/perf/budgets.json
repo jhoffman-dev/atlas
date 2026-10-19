@@ -7,6 +7,34 @@
     "`commitsFromCi: true` marks commits set by hand from CI's count plus headroom (CI counts a few more than a Mac for that action), and `rendersFromCi: true` the same for renders; `write` keeps them, so never lower them from a Mac run."
   ],
   "actions": {
+    "Open a vault": {
+      "commits": 123,
+      "renders": 4659,
+      "calls": {
+        "activity_append": 3,
+        "activity_read": 3,
+        "create_folder": 3,
+        "create_note": 4,
+        "git_run": 3,
+        "git_run_in": 3,
+        "granola_status": 3,
+        "index_manifest": 6,
+        "index_notes_of_type": 6,
+        "index_open": 3,
+        "index_put": 47,
+        "index_query": 138,
+        "index_rebuild_views": 3,
+        "index_stats": 4,
+        "list_directory": 79,
+        "list_notes": 8,
+        "open_vault": 3,
+        "pick_vault": 3,
+        "read_notes": 80,
+        "read_text_file": 3,
+        "watch_vault": 3,
+        "write_text_file": 3
+      }
+    },
     "Click a sidebar note": {
       "commits": 8,
       "renders": 157,
@@ -127,8 +155,8 @@
       "commitsFromCi": true
     },
     "Open the Inbox": {
-      "commits": 11,
-      "renders": 850,
+      "commits": 6,
+      "renders": 463,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
