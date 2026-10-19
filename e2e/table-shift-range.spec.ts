@@ -4,7 +4,7 @@
  * run are not drawn when it is chosen — and Shift+Space on a focused box does
  * the same from the keyboard.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const TASKS = 420;

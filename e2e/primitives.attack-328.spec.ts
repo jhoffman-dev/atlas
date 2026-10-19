@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { focusedRing, RINGED_PRIMITIVES } from './focus-ring.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 import { TABLE_GROUP_HEIGHT, TABLE_ROW_HEIGHT, TODAY_ROW_HEIGHT } from './row-heights.ts';

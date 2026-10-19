@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { otherMac } from './git-host.ts';
 import { createVault, installHost } from './host.ts';
 

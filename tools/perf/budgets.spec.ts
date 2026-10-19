@@ -20,7 +20,7 @@
  */
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '../../e2e/fixtures.ts';
 import { installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
 import { installRenderCounter } from '../../packages/ui/src/testing/render-counter.ts';
 import { BUDGETED_ACTIONS, type BudgetedAction } from './budgeted-actions.ts';

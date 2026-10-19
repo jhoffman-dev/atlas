@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -70,8 +70,12 @@ function inJavaScriptCore(notes: readonly unknown[], run = GRANOLA_RUN): unknown
     'print(JSON.stringify(notes.map((note) => { try { return mapInNode(note); } catch (error) { return `${error.name}: ${error.message}`; } })));',
   ].join('\n');
   const file = join(dir, 'driver.js');
-  writeFileSync(file, driver);
-  return JSON.parse(execFileSync(JSC, [file], { encoding: 'utf8' })) as unknown[];
+  try {
+    writeFileSync(file, driver);
+    return JSON.parse(execFileSync(JSC, [file], { encoding: 'utf8' })) as unknown[];
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function inApp(note: unknown): unknown {

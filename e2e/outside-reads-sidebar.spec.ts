@@ -3,7 +3,7 @@
  * dashboards and types again only when one of them changes (#293). Another
  * program changing any of them must still show, without a restart.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   emitVaultChanged,

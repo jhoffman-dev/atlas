@@ -33,6 +33,8 @@ export default defineConfig({
     // Node by default; component tests opt in with `// @vitest-environment jsdom`.
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
+    // A temp folder of the run's own, removed when it ends (issue #397).
+    globalSetup: ['./tools/temp-folder-per-run.ts'],
     include: [
       'packages/*/src/**/*.test.{ts,tsx}',
       'apps/*/src/**/*.test.{ts,tsx}',

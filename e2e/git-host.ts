@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { makeTempFolder } from './temp-folders.ts';
 
 const run = promisify(execFile);
 
@@ -54,7 +54,7 @@ const SYNC_FILES = new Set(['journal.json', 'exclude']);
 
 /** A home of its own, so no one's global git settings or identity reach the test. */
 async function isolatedEnv(): Promise<NodeJS.ProcessEnv> {
-  const home = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-home-')));
+  const home = await makeTempFolder('atlas-e2e-home-');
   return {
     PATH: process.env['PATH'] ?? '/usr/bin:/bin',
     HOME: home,
@@ -96,7 +96,7 @@ export interface ListedRepository {
  */
 export async function createGitStub() {
   const env = await isolatedEnv();
-  const remotes = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-github-')));
+  const remotes = await makeTempFolder('atlas-e2e-github-');
   let macName = 'Studio';
   let repositories: ListedRepository[] = [];
   /** A run of git the test holds until it lets go, by its verb (`fetch`, `push`). */
@@ -191,7 +191,7 @@ export type GitStub = Awaited<ReturnType<typeof createGitStub>>;
 
 /** Another Mac: a clone of the vault's repository, edited and pushed from the test. */
 export async function otherMac(stub: GitStub, remote: string, name: string) {
-  const parent = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-other-mac-')));
+  const parent = await makeTempFolder('atlas-e2e-other-mac-');
   const root = join(parent, 'vault');
   const cloned = await gitIn(parent, ['clone', '--quiet', remote, root], stub.env);
   if (cloned.code !== 0) throw new Error(`the other Mac could not clone: ${cloned.stderr}`);

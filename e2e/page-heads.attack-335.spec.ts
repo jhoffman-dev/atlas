@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection, splitWindow } from './host.ts';
 
 // Attack on #335 (UI v2 slice 3b, #295): every page headed by its nav bar,

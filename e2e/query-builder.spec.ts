@@ -3,7 +3,7 @@
  * kept as a view, grouped and sub-grouped, and put on a dashboard. The compiled
  * statement runs for real against SQLite in the stand-in host.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
 
 const front = (lines: string[], body: string) => ['---', ...lines, '---', '', body, ''].join('\n');

@@ -2,7 +2,7 @@
  * Adversarial pass on issue #11 (ADR-0023): a type's tabs, renamed to what a
  * person might type. A refused name is said, not hung on.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
 
 const TASK_TYPE = [

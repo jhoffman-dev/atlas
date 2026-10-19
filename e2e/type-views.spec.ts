@@ -3,7 +3,7 @@
  * the tabs add, rename, copy and delete views, and drag (or Alt+arrow) to
  * reorder, the order kept in each view's own frontmatter (ADR-0023).
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { dragWithPointer } from './drag.ts';
 import {
   createVault,

@@ -11,7 +11,7 @@
  * linked pages, its backlinks, its properties' choices — lands around a cursor
  * without moving it.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
 
 const front = (lines: string[], body: string) => ['---', ...lines, '---', '', body, ''].join('\n');

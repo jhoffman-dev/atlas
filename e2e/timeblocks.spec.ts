@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { dragAnnouncement, dragWithPointer } from './drag.ts';
 import {
   createVault,

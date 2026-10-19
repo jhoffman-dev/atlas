@@ -4,7 +4,7 @@
  * how it was shown — in the table, on the board's cards, on a dashboard's bars.
  * Wherever a relation is shown it is the linked note's name.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   emitVaultChanged,

@@ -3,7 +3,7 @@
  * nothing he could see and offered no kind, and a relation set to "Several
  * notes" still linked only one.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
 
 const BOOK_TYPE = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';

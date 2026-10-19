@@ -12,7 +12,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '../../e2e/fixtures.ts';
 import { sidebarSection } from '../../e2e/host.ts';
 import {
   installRenderCounter,

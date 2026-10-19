@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
 import { dragCardTo, dragWithKeyboard } from './drag.ts';
 

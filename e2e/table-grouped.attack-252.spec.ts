@@ -4,7 +4,7 @@
  * End take the focus, it is on a stop that is in view and uncovered, and
  * never lost to the body, however fast the keys come.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const TASKS = 2000;

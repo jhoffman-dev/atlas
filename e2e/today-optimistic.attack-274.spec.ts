@@ -1,6 +1,6 @@
 import { utimes } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, emitVaultChanged, expectFile, installHost, type FakeHost } from './host.ts';
 
 /**

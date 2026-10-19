@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectSaved, installHost, saveNow } from './host.ts';
 
 const NOTE = [

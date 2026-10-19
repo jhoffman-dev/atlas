@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost } from './host.ts';
 
 // P13-02, moved by P16-02, one button since UI v2 slice 3a (#294): light or

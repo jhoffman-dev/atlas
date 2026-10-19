@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures.ts';
 import { createVault, installHost } from './host.ts';
 
 // More than the palette's LIMIT (20), so the list holds a full page of hits and scrolls.
