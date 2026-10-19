@@ -204,4 +204,10 @@ describe('the Terms page', () => {
     rerender(<TermsPage {...props} contents={null} error="index closed" />);
     expect(screen.getByRole('alert').textContent).toBe('index closed');
   });
+
+  it('shows no count while there is nothing to count', () => {
+    renderPage({ contents: { terms: [], conflicts: [], warnings: [], spellings: 0 } });
+    expect(screen.getByText(/^No terms yet/)).toBeTruthy();
+    expect(document.querySelector('.page-bar__count')).toBeNull();
+  });
 });

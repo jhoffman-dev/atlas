@@ -109,7 +109,7 @@ function Filters({ level, kinds, text, onLevel, onToggleKind, onText }: Activity
           <button
             key={kind}
             type="button"
-            className="activity__kind"
+            className="btn btn--ghost btn--sm activity__kind"
             aria-pressed={kinds.includes(kind)}
             onClick={() => onToggleKind(kind)}
           >
@@ -117,11 +117,11 @@ function Filters({ level, kinds, text, onLevel, onToggleKind, onText }: Activity
           </button>
         ))}
       </div>
-      <label className="activity__search">
-        <Icon name="search" size={15} />
+      <label className="page-search activity__search">
+        <Icon name="search" size={14} />
         <input
           type="search"
-          className="activity__search-input"
+          className="page-search__input"
           aria-label="Search activity"
           placeholder="Search the activity…"
           value={text}
@@ -151,24 +151,32 @@ function Lines({ rows, total, error, onOpenSubject }: ActivityPageProps) {
   }
   if (rows.length === 0) return <p className="activity__empty">No lines match.</p>;
   return (
-    <ol className="activity__list" aria-label="Activity lines">
+    <ol className="page-list activity__list" aria-label="Activity lines">
       {rows.map((row) => (
-        <li key={row.id} className={`activity-line activity-line--${row.level}`}>
-          <time className="activity-line__time" dateTime={row.dateTime}>
+        <li key={row.id} className={`page-list__row activity-line activity-line--${row.level}`}>
+          <time className="page-list__meta activity-line__time" dateTime={row.dateTime}>
             {row.time}
           </time>
-          <span className={`activity-line__level activity-line__level--${row.level}`}>
+          <span
+            className={`page-list__meta activity-line__level activity-line__level--${row.level}`}
+          >
             {LEVEL_LABELS[row.level]}
           </span>
-          <span className="activity-line__kind">{ACTIVITY_KIND_LABELS[row.kind]}</span>
-          <span className="activity-line__message">{row.message}</span>
+          <span className="page-list__meta activity-line__kind">
+            {ACTIVITY_KIND_LABELS[row.kind]}
+          </span>
+          {/* One line per row, so a long message is cut short; its title holds the whole of it. */}
+          <span className="activity-line__message" title={row.message}>
+            {row.message}
+          </span>
           {row.subject !== null && (
             <button
               type="button"
               className="btn btn--ghost btn--sm activity-line__open"
+              title={`Open ${row.subject}`}
               onClick={() => onOpenSubject(row.id)}
             >
-              Open {row.subject}
+              <span className="activity-line__open-text">Open {row.subject}</span>
             </button>
           )}
         </li>

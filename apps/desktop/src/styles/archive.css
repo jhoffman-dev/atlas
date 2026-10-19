@@ -3,59 +3,35 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- the Archive (U-22) ----
-   A page like a type's: its head, then a table of what is archived. Each row
-   can be chosen, and a bar over the table puts the chosen ones back. */
+   A page like a type's: its bar, then the table view's own rows and header
+   (table.css, slice 4) of what is archived — the title at 13/500, where it
+   came from and the day in ink-3 — each row choosable, and a bar over the
+   table that puts the chosen ones back (UI v2 slice 13b). Nothing here
+   redraws what the table already draws. */
 
 /* Lives in the nav bar: 28px like its other controls, so the 4px focus ring
    fits the 40px row; gives way with the bar's other buttons, down to 120px. */
 .archive__search {
-  align-items: center;
-  background: var(--raised);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-soft);
-  color: var(--ink-3);
-  display: flex;
   flex: 0 1 280px;
-  gap: var(--space-2);
-  height: 28px;
   min-width: 120px;
-  padding: 0 10px;
 }
 
-.archive__search:focus-within {
-  box-shadow: var(--ring);
-}
-
-.archive__search-input {
-  appearance: none;
-  background: none;
-  border: 0;
-  color: var(--ink);
-  flex: 1;
-  font: inherit;
-  font-size: var(--text-ui);
-  min-width: 0;
-  outline: none;
-}
-
-.archive__search-input::-webkit-search-cancel-button {
-  appearance: none;
-}
-
+/* The table's column header (table.css .table__heading), on a plain th. */
 .archive__grid th {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 700;
-  padding-left: 10px;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  padding-left: 8px;
 }
 
 /* Scoped to the grid: `.table__grid td` zeroes a cell's padding, and a lone
    class loses to it — which once left the path running into the date. */
 .archive__grid .archive__from,
 .archive__grid .archive__date {
-  color: var(--ink-2);
-  font-size: var(--text-ui);
-  padding-left: 10px;
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  padding-left: 8px;
   white-space: nowrap;
 }
 
@@ -77,11 +53,6 @@
 .archive__actions {
   text-align: right;
   width: 1%;
-}
-
-.archive__unarchive {
-  font-size: var(--text-small);
-  padding: 0 14px;
 }
 
 .archive__empty {
