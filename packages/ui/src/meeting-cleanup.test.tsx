@@ -134,3 +134,23 @@ describe('MeetingCleanup', () => {
     expect(container.innerHTML).toBe('');
   });
 });
+
+/** #319: the offer is the one-line notice bar, its verbs at the end, grown open for the preview. */
+describe('MeetingCleanup as the notice bar (#319)', () => {
+  it('is the bar, with Review them as the secondary verb and Not now as the ghost one', () => {
+    draw();
+    expect(region().className).toBe('notice-bar inbox__offer meeting-cleanup');
+    const verbs = screen
+      .getAllByRole('button')
+      .map((button) => [button.textContent, button.className]);
+    expect(verbs).toEqual([
+      ['Review them', 'btn btn--secondary btn--sm'],
+      ['Not now', 'btn btn--ghost btn--sm'],
+    ]);
+  });
+
+  it('carries --open while the preview shows under the line', () => {
+    draw({ open: true });
+    expect(region().classList.contains('notice-bar--open')).toBe(true);
+  });
+});

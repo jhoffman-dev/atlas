@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Icon } from './icon.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
+import { noticeBarClass } from './notice-bar.ts';
 
 /** One note the tidy would move, as the preview lists it. */
 export interface VaultTidyMove {
@@ -48,9 +49,12 @@ export function VaultTidy(props: VaultTidyProps) {
   const { preview, open, result, problem } = props;
   if (preview === null && result === null && problem === null) return null;
   return (
-    <section className="inbox__offer vault-tidy" aria-label="Tidy the vault">
-      <Icon name="folder" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+    <section
+      className={noticeBarClass('inbox__offer vault-tidy', open)}
+      aria-label="Tidy the vault"
+    >
+      <Icon name="folder" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         {preview !== null && !open && <Offer {...props} preview={preview} />}
         {preview !== null && open && <Preview {...props} preview={preview} />}
         {result !== null && <p role="status">{result}</p>}
@@ -81,7 +85,7 @@ function Offer({ preview, onOpen, onDismiss }: VaultTidyProps & { preview: Vault
         Every type has a home folder now. {notes(preview.moves.length)} could move to theirs, out of
         the root of the vault and the old Inbox/Meetings.
       </p>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpen}>
+      <button type="button" className="btn btn--secondary btn--sm" onClick={onOpen}>
         Preview the tidy
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={onDismiss}>
@@ -102,7 +106,12 @@ function Preview(props: VaultTidyProps & { preview: VaultTidyPreviewData }) {
       <MoveTable moves={preview.moves} />
       <Refused refused={preview.refused} />
       <div className="vault-tidy__actions">
-        <button type="button" className="btn btn--sm" onClick={onApply} disabled={busy}>
+        <button
+          type="button"
+          className="btn btn--primary btn--sm"
+          onClick={onApply}
+          disabled={busy}
+        >
           Move {notes(preview.moves.length)}
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose} disabled={busy}>

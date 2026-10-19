@@ -114,3 +114,28 @@ describe('PromotionBanner — a refusal stays until read (review)', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
+
+/** #319: the line under the page bar is the notice bar, Open its secondary verb, the rest ghost. */
+describe('PromotionBanner as the notice bar (#319)', () => {
+  it('is the bar, with Open as the secondary verb and Undo and Dismiss as ghost ones', () => {
+    render(
+      <PromotionBanner
+        notice={{
+          message: '“Order chairs” is a task now.',
+          onOpen: vi.fn(),
+          onUndo: vi.fn(),
+          onDismiss: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getByRole('status').className).toBe('notice-bar promotion-notice');
+    const verbs = screen
+      .getAllByRole('button')
+      .map((button) => [button.getAttribute('aria-label') ?? button.textContent, button.className]);
+    expect(verbs).toEqual([
+      ['Open', 'btn btn--secondary btn--sm'],
+      ['Undo', 'btn btn--ghost btn--sm'],
+      ['Dismiss', 'btn btn--ghost btn--sm'],
+    ]);
+  });
+});

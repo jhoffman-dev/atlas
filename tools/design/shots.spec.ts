@@ -330,6 +330,13 @@ async function shootViews(page: Page, theme: string): Promise<void> {
     name: /^Inbox/,
   });
   if (await open('list', [inbox])) await shoot(page, `list-${theme}`);
+  // The Inbox with one offer showing, judged against FlowInbox.dc.html's notice bar:
+  // the repo's vault keeps a note at its root, so the tidy is offered.
+  const offer = page.getByRole('region', { name: 'Tidy the vault' });
+  // An Inbox with no offer is warned about just below.
+  await offer.waitFor({ timeout: 5_000 }).catch(() => undefined);
+  if (await offer.isVisible()) await shoot(page, `inbox-${theme}`);
+  else console.warn('inbox: no offer showing — skipped');
   const types = sidebarSection(page, 'types');
   if (await open('type', [types.getByRole('button', { name: /^Task, / })])) {
     await shoot(page, `type-${theme}`);

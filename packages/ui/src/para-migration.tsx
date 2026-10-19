@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Icon } from './icon.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
+import { noticeBarClass } from './notice-bar.ts';
 
 /** What moving the vault's PARA notes onto the Project type would do, as the preview shows it. */
 export interface ParaMigrationPreviewData {
@@ -40,9 +41,12 @@ export function ParaMigration(props: ParaMigrationProps) {
   const { preview, open, result, problem } = props;
   if (preview === null && result === null && problem === null) return null;
   return (
-    <section className="inbox__offer task-migration" aria-label="Move notes onto the Project type">
-      <Icon name="board" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+    <section
+      className={noticeBarClass('inbox__offer task-migration', open)}
+      aria-label="Move notes onto the Project type"
+    >
+      <Icon name="board" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         {preview !== null && !open && <Offer {...props} preview={preview} />}
         {preview !== null && open && <Preview {...props} preview={preview} />}
         {result !== null && <p role="status">{result}</p>}
@@ -72,7 +76,7 @@ function Offer({
         Projects, areas and resources are one Project type now, with a PARA property.{' '}
         {notes(preview.notes.length)} would move onto it.
       </p>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpen}>
+      <button type="button" className="btn btn--secondary btn--sm" onClick={onOpen}>
         Preview the move
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>
@@ -104,7 +108,7 @@ function Preview(props: ParaMigrationProps & { preview: ParaMigrationPreviewData
         lines={preview.skipped.map((note) => ({ key: note.path, line: note.line }))}
       />
       <div className="task-migration__actions">
-        <button type="button" className="btn btn--sm" onClick={onRun} disabled={busy}>
+        <button type="button" className="btn btn--primary btn--sm" onClick={onRun} disabled={busy}>
           Move {notes(preview.notes.length)}
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose} disabled={busy}>

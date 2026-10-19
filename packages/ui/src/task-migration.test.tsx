@@ -157,3 +157,25 @@ describe('TaskMigration', () => {
     expect(container.textContent).toBe('');
   });
 });
+
+/** #319: the offer is the one-line notice bar, its verbs at the end, grown open for the preview. */
+describe('TaskMigration as the notice bar (#319)', () => {
+  const region = () => screen.getByRole('region', { name: 'Move tasks to GTD statuses' });
+
+  it('is the bar, with Preview the move as the secondary verb and Not now as the ghost one', () => {
+    panel();
+    expect(region().className).toBe('notice-bar inbox__offer task-migration');
+    const verbs = screen
+      .getAllByRole('button')
+      .map((button) => [button.textContent, button.className]);
+    expect(verbs).toEqual([
+      ['Preview the move', 'btn btn--secondary btn--sm'],
+      ['Not now', 'btn btn--ghost btn--sm'],
+    ]);
+  });
+
+  it('carries --open while the preview shows under the line', () => {
+    panel({ open: true });
+    expect(region().classList.contains('notice-bar--open')).toBe(true);
+  });
+});

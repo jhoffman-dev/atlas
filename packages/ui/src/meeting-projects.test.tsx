@@ -104,3 +104,25 @@ describe('MeetingProjects (#227)', () => {
     expect(container.innerHTML).toBe('');
   });
 });
+
+/** #319: the offer is the one-line notice bar, its verbs at the end, grown open for the preview. */
+describe('MeetingProjects as the notice bar (#319)', () => {
+  const region = () => screen.getByRole('region', { name: 'File meetings under projects' });
+
+  it('is the bar, with Preview as the secondary verb and Not now as the ghost one', () => {
+    render(<MeetingProjects {...props()} />);
+    expect(region().className).toBe('notice-bar inbox__offer task-migration');
+    const verbs = screen
+      .getAllByRole('button')
+      .map((button) => [button.textContent, button.className]);
+    expect(verbs).toEqual([
+      ['Preview', 'btn btn--secondary btn--sm'],
+      ['Not now', 'btn btn--ghost btn--sm'],
+    ]);
+  });
+
+  it('carries --open while the preview shows under the line', () => {
+    render(<MeetingProjects {...props({ open: true })} />);
+    expect(region().classList.contains('notice-bar--open')).toBe(true);
+  });
+});

@@ -69,3 +69,25 @@ describe('VaultTidy (#214)', () => {
     expect(given.onDismiss).toHaveBeenCalledOnce();
   });
 });
+
+/** #319: the offer is the one-line notice bar, its verbs at the end, grown open for the preview. */
+describe('VaultTidy as the notice bar (#319)', () => {
+  const region = () => screen.getByRole('region', { name: 'Tidy the vault' });
+
+  it('is the bar, with Preview the tidy as the secondary verb and Not now as the ghost one', () => {
+    render(<VaultTidy {...props()} />);
+    expect(region().className).toBe('notice-bar inbox__offer vault-tidy');
+    const verbs = screen
+      .getAllByRole('button')
+      .map((button) => [button.textContent, button.className]);
+    expect(verbs).toEqual([
+      ['Preview the tidy', 'btn btn--secondary btn--sm'],
+      ['Not now', 'btn btn--ghost btn--sm'],
+    ]);
+  });
+
+  it('carries --open while the preview shows under the line', () => {
+    render(<VaultTidy {...props({ open: true })} />);
+    expect(region().classList.contains('notice-bar--open')).toBe(true);
+  });
+});
