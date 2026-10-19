@@ -148,6 +148,13 @@ describe('what a note’s pane is made from', () => {
     expect(nested.content[0]?.type).toBe(QUERY_BLOCK_NODE);
   });
 
+  it('hears its own note changed under the other Unicode form of its name (A21-02)', () => {
+    const composed = plain('Words.', { path: 'Notes/Caf\u00e9.md' });
+    const decomposed = plain('Words.', { path: 'Notes/Cafe\u0301.md' });
+    expect(reaches(notePaneScope(composed, composed.path), changed(decomposed.path))).toBe(true);
+    expect(reaches(notePaneScope(decomposed, decomposed.path), changed(composed.path))).toBe(true);
+  });
+
   it('is the note’s path and the graph while the note is still being read', () => {
     expect(notePaneScope(null, 'Notes/Recipes.md')).toEqual({
       notes: ['Notes/Recipes.md'],
@@ -176,6 +183,14 @@ describe('what the pages and the window’s readers of one kind of note are made
       expect(reaches(scope, plainEdit)).toBe(false);
     }
     expect(reaches(MENTIONS_SCOPE, plainEdit)).toBe(true);
+  });
+
+  it('hears a note in a folder it reads whatever Unicode form the folder is spelt in (A21-02)', () => {
+    // `Inbox` is plain ASCII; a folder read by its name, as the Inbox reads its own, may not be.
+    const composed = { folders: ['Inbox/Caf\u00e9'] };
+    const decomposed = { folders: ['Inbox/Cafe\u0301'] };
+    expect(reaches(composed, changed('Inbox/Cafe\u0301/Call.md'))).toBe(true);
+    expect(reaches(decomposed, changed('Inbox/Caf\u00e9/Call.md'))).toBe(true);
   });
 
   it('reads Today and the Inbox again for a task, and a note leaving the Inbox', () => {

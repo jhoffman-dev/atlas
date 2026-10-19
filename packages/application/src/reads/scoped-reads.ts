@@ -42,6 +42,11 @@ export interface ReadScope {
  * resolve to — the projects and areas a row is filed under, the people a task
  * waits on: moving one re-resolves the row's relation in the index without
  * changing the row's own text, so no news names the row (#390).
+ *
+ * Not covered: a relation a row resolves to a note of another type, or of
+ * none — `waiting_on: [[Acme]]` naming a company or an untyped note. Its move
+ * or retitle reaches no covered note; the row is right again on the next news
+ * the Inbox hears (#392).
  */
 export const INBOX_SCOPE: ReadScope = {
   folders: [INBOX_DIRECTORY],
