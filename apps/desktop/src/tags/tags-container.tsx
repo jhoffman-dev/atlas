@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { tagsScreen } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
+import { useIndexKey } from '../index/index-status-store.ts';
 
 const TagsScreen = tagsScreen.Component;
 
@@ -24,6 +25,8 @@ export function TagsContainer({
   selected,
 }: PageContainerProps & { selected: string | null }) {
   const { pages, pane } = wiring;
+  // Still read again on every news of the index: what it reads is not yet scoped (#325).
+  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
   return (
     <LoadedLater chrome={chrome}>
       <TagsScreen
@@ -35,7 +38,7 @@ export function TagsContainer({
           renames: pages.tags.renames,
         }}
         tags={pages.tags.tags}
-        indexKey={pane.indexKey}
+        indexKey={indexKey}
         onChanged={pane.onChanged}
         onSelect={(tag) => pages.openPage({ kind: 'tags', tag })}
         onOpenNote={pages.openNote}

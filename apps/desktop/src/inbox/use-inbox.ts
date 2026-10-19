@@ -52,6 +52,12 @@ export interface InboxOptions {
   readonly clock: Pick<Clock, 'today'>;
   /** Changes when the index does, so the Inbox lists what it now holds. */
   readonly indexKey: string;
+  /**
+   * Changes when the projects, areas or people it offers may have: what to
+   * file under and who a task waits on are read again on it. The index's key
+   * when not said.
+   */
+  readonly choicesKey?: string;
   /** Whether the index is ready to be asked; while it builds, nothing is read or shown. Ready unless said. */
   readonly indexReady?: boolean;
   /** Whether the Inbox page is showing, which is when what to file under is read. */
@@ -102,6 +108,7 @@ function outcomeProblem(outcome: ClarifyOutcome): string | null {
  */
 export function useInbox(options: InboxOptions) {
   const { ports, notePaths, vaultKey, types, clock, indexKey, open, onSettled, activity } = options;
+  const choicesKey = options.choicesKey ?? indexKey;
   const settled = useIndexMovedOn({ vaultKey, indexKey });
   // Asked only while it is ready; what it last answered for this vault stays up while it re-reads.
   const fresh = settled && (options.indexReady ?? true);
@@ -163,7 +170,7 @@ export function useInbox(options: InboxOptions) {
     return () => {
       cancelled = true;
     };
-  }, [ports.index, indexKey, fresh, vaultKey, open]);
+  }, [ports.index, choicesKey, fresh, vaultKey, open]);
 
   const shown = settled && listing?.vaultKey === vaultKey ? listing : null;
   const offered = settled && choices?.vaultKey === vaultKey ? choices : null;

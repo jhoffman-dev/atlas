@@ -1,7 +1,8 @@
 import { useEffect, type ComponentProps } from 'react';
-import type { WindowClosingPort } from '@atlas/application';
+import { INBOX_CHOICES_SCOPE, INBOX_SCOPE, type WindowClosingPort } from '@atlas/application';
 import { InboxPage } from '@atlas/ui';
 import { useProposals } from '../proposals/use-proposals.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import type { PendingWrites } from '../workspace/pending-writes.ts';
@@ -51,13 +52,28 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
   // The offers are spread below, since each is given only while the window makes it.
   const { closing, pendingWrites, onOpenSource, ...offers } = pages.inbox;
+  // The list and the proposals are read again for news of the Inbox's notes
+  // alone, the projects and people it offers for news of those (#325).
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['inbox'],
+    scope: INBOX_SCOPE,
+  });
+  const choicesKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['inbox-choices'],
+    scope: INBOX_CHOICES_SCOPE,
+  });
   const inbox = useInbox({
     ports: pages.ports,
     notePaths: pane.notePaths,
     vaultKey: pane.vault,
     types: pane.types,
     clock: localClock,
-    indexKey: pane.indexKey,
+    indexKey,
+    choicesKey,
     indexReady: pages.indexReady,
     open: true,
     onSettled: pages.onSettled,
@@ -68,7 +84,7 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
   const proposals = useProposals({
     ports: pages.ports,
     clock: localClock,
-    indexKey: pane.indexKey,
+    indexKey,
     onSettled: pages.onSettled,
     activity: pane.activity,
     closing,

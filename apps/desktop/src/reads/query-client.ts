@@ -1,5 +1,5 @@
 import { notifyManager, QueryClient } from '@tanstack/react-query';
-import type { VaultRead } from '@atlas/application';
+import type { ReadScope, VaultRead } from '@atlas/application';
 
 /**
  * The window's one query cache (ADR-0040). A read is made again only when it
@@ -51,6 +51,28 @@ export const vaultQueries = (vault: string) => ['vault', vault] as const;
 /** One whole-vault read, of one vault: the vault is in the key, so no answer is shown for another. */
 export const vaultReadKey = (vault: string, read: VaultRead) =>
   [...vaultQueries(vault), read] as const;
+
+/**
+ * A read of one vault made from part of it (#325): a pane's reader, or the
+ * window's reader of one type's notes. Under the vault's key, so it is
+ * dropped with the vault's reads, and named by what it reads. Its query says
+ * what it is made from as `meta` ({@link scopedReadMeta}); the index's news
+ * reads it again only when it touched that (`scopeTouched`).
+ */
+export const scopedReadKey = (vault: string, ...what: readonly unknown[]) =>
+  [...vaultQueries(vault), 'scoped', ...what] as const;
+
+/** Every scoped read of the vault at `vault`. */
+export const scopedQueries = (vault: string) => [...vaultQueries(vault), 'scoped'] as const;
+
+/** What a scoped read is made from, as its query's `meta` says it. */
+export const scopedReadMeta = (scope: ReadScope) => ({ scope });
+
+/** The scope a scoped read's query was given, or any note for one that said none. */
+export function scopeOfQuery(meta: Readonly<Record<string, unknown>> | undefined): ReadScope {
+  const scope = meta?.['scope'];
+  return typeof scope === 'object' && scope !== null ? (scope as ReadScope) : { anyNote: true };
+}
 
 /**
  * Marks a read stale and reads it again if anything shows it. A read already

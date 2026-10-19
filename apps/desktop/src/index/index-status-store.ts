@@ -84,10 +84,13 @@ export function useIndexFailure(store: IndexStatusStore, open: string | null): s
  * the phase does, not twice per refresh.
  */
 export function useIndexKey(store: IndexStatusStore, open: string | null): string {
-  return useStore(store, (state) => {
-    const phase = phaseFor(state, open);
-    return phase === 'ready' || phase === 'failed' ? `${phase}:${state.revision}` : phase;
-  });
+  return useStore(store, (state) => indexKeyOf(state, open));
+}
+
+/** The key {@link useIndexKey} reads, as the store holds it now. */
+export function indexKeyOf(state: IndexStatusState, open: string | null): string {
+  const phase = phaseFor(state, open);
+  return phase === 'ready' || phase === 'failed' ? `${phase}:${state.revision}` : phase;
 }
 
 /** The open vault's status, for what shows it. */

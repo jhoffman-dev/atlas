@@ -1,6 +1,7 @@
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { archivePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
+import { useIndexKey } from '../index/index-status-store.ts';
 import { useArchivePage } from './use-archive.ts';
 
 const ArchivePage = archivePage.Component;
@@ -13,9 +14,11 @@ const ArchivePage = archivePage.Component;
  */
 export function ArchiveContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
+  // Still read again on every news of the index: what it reads is not yet scoped (#325).
+  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
   const page = useArchivePage({
     ports: pages.ports,
-    indexKey: pane.indexKey,
+    indexKey,
     open: true,
     commands: pane.archive,
   });
