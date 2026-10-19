@@ -11,6 +11,7 @@ import {
   Pair,
   type Scalar,
   YAMLMap,
+  type YAMLError,
   type YAMLSeq,
 } from 'yaml';
 import { FrontmatterRefusedError } from '@atlas/application';
@@ -48,7 +49,8 @@ import { KeyAsWritten } from '@atlas/domain';
  * key, alone, is not written: the key is removed instead, since it could
  * otherwise break the block around it.
  *
- * A block that cannot be read is refused with a {@link FrontmatterRefusedError}.
+ * A change that writes to a block that cannot be read is refused with a
+ * {@link FrontmatterRefusedError}, on the key it would write.
  *
  * A property that lists a key twice is refused with a
  * {@link FrontmatterRefusedError} — which of the two was meant cannot be told —
@@ -70,6 +72,10 @@ export function updateFrontmatter(
   if (frontmatter !== null && changed.every(([key, value]) => absent(document, key, value))) {
     return frontmatter;
   }
+  refuseUnreadable(
+    document,
+    changed.find(([key, value]) => !absent(document, key, value))?.[0] ?? '',
+  );
 
   const lists = listIndent(
     document,
@@ -134,7 +140,7 @@ function parsedForWriting(source: string, changing: readonly string[]): Document
   if (source.trim() === '') return new Document({});
   const document = parseDocument(source);
   const found = duplicates(document);
-  if (found.length === 0) return readable(document, changing);
+  if (found.length === 0) return document;
   for (const placed of found) {
     const refusal = placed ?? {
       // No property holds this duplicate, so the refusal is pinned on the first
@@ -147,21 +153,27 @@ function parsedForWriting(source: string, changing: readonly string[]): Document
     };
     if (changing.includes(refusal.key)) throw new FrontmatterRefusedError(refusal);
   }
-  return readable(parseDocument(source, { uniqueKeys: false }), changing);
+  return parseDocument(source, { uniqueKeys: false });
 }
 
 /**
- * The document, when it can be read. One that cannot — keys at two columns, a
- * tab as indentation — refuses every change, pinned on the first: where the
- * change would go cannot be told, and the library will not write it anyway.
+ * Refuses `key`'s write on a block that cannot be read — keys at two columns,
+ * a tab as indentation: where the change would go cannot be told, and the
+ * library will not write it anyway. Only a change that writes gets here, so
+ * removing a key such a block lacks stays no change.
  */
-function readable(document: Document, changing: readonly string[]): Document {
+function refuseUnreadable(document: Document, key: string): void {
   const [error] = document.errors;
-  if (error === undefined || changing.length === 0) return document;
+  if (error === undefined) return;
   throw new FrontmatterRefusedError({
-    key: changing[0] ?? '',
-    message: `This note's properties cannot be read (${error.message.split('\n')[0] ?? error.message}); fix them in the source before changing them.`,
+    key,
+    message: `This note's properties cannot be read (${problemLine(error)}); fix them in the source before changing them.`,
   });
+}
+
+/** YAML's message for an error, without the lines that draw a caret under its column. */
+export function problemLine(error: YAMLError): string {
+  return error.message.split('\n')[0] ?? error.message;
 }
 
 /**
