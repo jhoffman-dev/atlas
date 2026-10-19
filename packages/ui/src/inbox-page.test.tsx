@@ -56,6 +56,7 @@ const PROPOSALS: NonNullable<InboxPageProps['proposals']> = {
   problems: new Map(),
   onAccept: vi.fn(),
   onReject: vi.fn(),
+  onAcceptChoice: vi.fn(),
   selection: { selected: new Set(), onToggle: vi.fn(), onToggleAll: vi.fn() },
   onClearSelection: vi.fn(),
   onAcceptMany: vi.fn(),

@@ -8,15 +8,15 @@ export interface ConflictGroupProps {
   readonly busy: boolean;
   /** Why the last answer to each member was refused, by its path. */
   readonly problems: ReadonlyMap<VaultPath, string>;
-  /** Accepts the proposal picked; its duplicates and the other choices are rejected with `onRejectMany`. */
-  readonly onAccept: (path: VaultPath) => void;
+  /** Accepts the proposal picked, then rejects the rest — its copies and the other choices — if that was written. */
+  readonly onAcceptChoice: (picked: VaultPath, rest: readonly VaultPath[]) => void;
   readonly onRejectMany: (paths: readonly VaultPath[]) => void;
 }
 
 /**
  * Proposals that disagree (#307, Q12), as one "pick one" question with a
- * radio per value: Accept choice accepts the one picked and rejects the
- * rest; Reject all rejects every one. Which conflict is which is worked out
+ * radio per value: Accept choice accepts the one picked and, once that is
+ * written, rejects the rest; Reject all rejects every one. Which conflict is which is worked out
  * afresh from the open proposals each time (`conflictGroups`), so nothing
  * here is kept.
  */
@@ -24,7 +24,7 @@ export function ConflictGroupRow({
   group,
   busy,
   problems,
-  onAccept,
+  onAcceptChoice,
   onRejectMany,
 }: ConflictGroupProps) {
   const name = useId();
@@ -36,8 +36,10 @@ export function ConflictGroupRow({
     const choice = group.choices.find((each) => each.value === picked);
     const chosen = choice?.proposals[0];
     if (chosen === undefined) return;
-    onAccept(chosen.path);
-    onRejectMany(members.filter((path) => path !== chosen.path));
+    onAcceptChoice(
+      chosen.path,
+      members.filter((path) => path !== chosen.path),
+    );
   };
   return (
     <section className="proposal-row proposal-row--choice" aria-label={`Pick one: ${question}`}>

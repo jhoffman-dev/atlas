@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { acceptableAtOnce, createVaultPath, proposalEntries, type VaultPath } from '@atlas/domain';
+import { createVaultPath, proposalEntries, type VaultPath } from '@atlas/domain';
 import { recordingActivity, type ProposalPorts } from '@atlas/application';
 import { inMemoryProposalVault as vault } from './proposals.test-support.ts';
 import { useProposals } from './use-proposals.ts';
@@ -38,7 +38,7 @@ payload:
 const NOTES = {
   [MEETING]: '---\ntype: meeting\npeople: []\n---\n',
   '.atlas/types/meeting.md':
-    '---\nname: meeting\nproperties:\n  people:\n    kind: relation\n    target: person\n    many: true\n---\n',
+    '---\nname: meeting\nproperties:\n  people:\n    kind: relation\n    target: person\n    many: false\n---\n',
   [LARKSPUR]: personText('Mara Quill (Larkspur)'),
   [GARDEN]: personText('Mara Quill (Garden)'),
 };
@@ -63,8 +63,7 @@ const acceptChoice = (
   rest: readonly VaultPath[],
 ) =>
   act(() => {
-    hook.result.current.section.onAccept(picked);
-    hook.result.current.section.onRejectMany(rest);
+    hook.result.current.section.onAcceptChoice(picked, rest);
   });
 
 const openPaths = (hook: ReturnType<typeof drive>) =>
@@ -113,7 +112,6 @@ describe('Accept choice — as the section fires it (attack #406)', () => {
     await waitFor(() =>
       expect(hook.result.current.section.problems.has(path(LARKSPUR))).toBe(true),
     );
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
 
     // Nothing was accepted, so the question must still stand: Garden open, not rejected.
     expect(setup.files.get(`Archive/${GARDEN}`)?.text ?? '').not.toContain('state: rejected');
@@ -142,7 +140,13 @@ describe('Accept choice — as the section fires it (attack #406)', () => {
     const open = hook.result.current.section.contents?.open ?? [];
     expect(open.map((each) => each.path)).toContain(GARDEN);
 
-    // Larkspur already fills people of the Standup for this mention: Garden is not "sure, no choice needed".
-    expect(acceptableAtOnce(proposalEntries(open))).not.toContain(GARDEN);
+    // Garden is open on its own now, so "Accept all" would offer it; the apply refuses it, saying why.
+    act(() => hook.result.current.section.onAcceptMany([path(GARDEN)]));
+    await waitFor(() =>
+      expect(hook.result.current.section.problems.get(path(GARDEN))).toMatch(/already links/),
+    );
+    expect(setup.files.get(MEETING)?.text).toContain('Mara Quill (Larkspur)');
+    expect(setup.files.get(MEETING)?.text).not.toContain('Garden');
+    expect(setup.files.has('People/Mara Quill (Garden).md')).toBe(false);
   });
 });

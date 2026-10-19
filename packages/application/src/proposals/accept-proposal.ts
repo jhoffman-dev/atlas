@@ -254,7 +254,7 @@ async function refuseAlreadyMade(
 }
 
 /** Marks the proposal open again, with no record of the answer undone. */
-async function reopen(ports: ProposalPorts, path: VaultPath): Promise<void> {
+export async function reopen(ports: ProposalPorts, path: VaultPath): Promise<void> {
   const { text, modified } = await ports.fs.readTextFile(path);
   await stampProposal(
     ports,
@@ -289,9 +289,10 @@ function spelledAsVault(proposal: ProposalNote, notePaths: readonly VaultPath[])
 }
 
 /** Where the proposal is once it is out of the Archive — or where it stayed, when it never went. */
-async function backFromArchive(
+export async function backFromArchive(
   ports: ProposalPorts,
-  accepted: AcceptedProposal,
+  accepted: ProposalArchived & { readonly proposal: VaultPath },
+  lead = 'What it made was taken back, but the proposal stays in the Archive',
 ): Promise<VaultPath> {
   if (accepted.archivedAt === null) return accepted.proposal;
   const outcome = await unarchiveNotes({
@@ -303,9 +304,7 @@ async function backFromArchive(
   const back = outcome.moves[0]?.move.to;
   if (back === undefined) {
     const why = outcome.failed[0]?.reason ?? 'it could not be moved';
-    throw new ProposalRefused(
-      `What it made was taken back, but the proposal stays in the Archive: ${why}`,
-    );
+    throw new ProposalRefused(`${lead}: ${why}`);
   }
   return back;
 }

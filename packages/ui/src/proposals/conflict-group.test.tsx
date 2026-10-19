@@ -53,6 +53,7 @@ function section(open: readonly ProposalNote[], more: Partial<ProposalsSectionPr
   const handlers = {
     onAccept: vi.fn<(path: VaultPath, payload?: unknown) => void>(),
     onReject: vi.fn<(path: VaultPath) => void>(),
+    onAcceptChoice: vi.fn<(picked: VaultPath, rest: readonly VaultPath[]) => void>(),
     onClearSelection: vi.fn(),
     onAcceptMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
     onRejectMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
@@ -114,31 +115,36 @@ describe('ConflictGroupRow', () => {
     expect((accept as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(radio('[[Mara Quill (Larkspur)]]'));
     expect((accept as HTMLButtonElement).disabled).toBe(false);
-    expect(handlers.onAccept).not.toHaveBeenCalled();
+    expect(handlers.onAcceptChoice).not.toHaveBeenCalled();
   });
 
   it('Accept choice accepts the one picked and rejects the rest, its duplicates among them', async () => {
     const handlers = section([MARA, MARA_LARKSPUR, MARA_AGAIN]);
     await userEvent.click(radio('[[Mara Quill (Larkspur)]]'));
     await userEvent.click(within(question()).getByRole('button', { name: 'Accept choice' }));
-    expect(handlers.onAccept).toHaveBeenCalledWith(MARA_LARKSPUR.path);
-    expect(handlers.onRejectMany).toHaveBeenCalledWith([MARA.path, MARA_AGAIN.path]);
+    expect(handlers.onAcceptChoice).toHaveBeenCalledWith(MARA_LARKSPUR.path, [
+      MARA.path,
+      MARA_AGAIN.path,
+    ]);
+    // The rejects are the hook's to run after the accept: the row asks for no reject itself.
+    expect(handlers.onRejectMany).not.toHaveBeenCalled();
   });
 
   it('accepts the first of a value proposed twice, and rejects its twin', async () => {
     const handlers = section([MARA, MARA_LARKSPUR, MARA_AGAIN]);
     await userEvent.click(radio('[[Mara Quill]]'));
     await userEvent.click(within(question()).getByRole('button', { name: 'Accept choice' }));
-    expect(handlers.onAccept).toHaveBeenCalledWith(MARA.path);
-    // Its twin first, with the value it shares, then the other choice.
-    expect(handlers.onRejectMany).toHaveBeenCalledWith([MARA_AGAIN.path, MARA_LARKSPUR.path]);
+    expect(handlers.onAcceptChoice).toHaveBeenCalledWith(MARA.path, [
+      MARA_AGAIN.path,
+      MARA_LARKSPUR.path,
+    ]);
   });
 
   it('Reject all rejects every proposal of the question', async () => {
     const handlers = section([SEND, MARA, MARA_LARKSPUR]);
     await userEvent.click(within(question()).getByRole('button', { name: 'Reject all' }));
     expect(handlers.onRejectMany).toHaveBeenCalledWith([MARA.path, MARA_LARKSPUR.path]);
-    expect(handlers.onAccept).not.toHaveBeenCalled();
+    expect(handlers.onAcceptChoice).not.toHaveBeenCalled();
   });
 
   it('says why an answer to one of them was refused, on the question', () => {

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   acceptableAtOnce,
+  duplicatesOf,
+  isPickOne,
   proposalEntries,
   proposalHeadline,
   type ProposalEntry,
   type ProposalNote,
+  type ProposalSlot,
   type VaultPath,
 } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from '../dismiss-after.ts';
@@ -21,6 +24,8 @@ export interface ProposalsContents {
   readonly reasons?: ReadonlyMap<VaultPath, string>;
   /** Answered, yet still in the Inbox: the Archive refused them. */
   readonly stranded: readonly ProposalNote[];
+  /** The slots whose relation holds many values: proposals for them are never a pick-one. */
+  readonly manyValued?: readonly ProposalSlot[];
   /** Notes that say they are proposals and cannot be read, with why. */
   readonly unreadable: readonly { readonly path: VaultPath; readonly problem: string }[];
 }
@@ -54,6 +59,12 @@ export interface ProposalsSectionProps {
   /** Accepts a proposal — with its payload as edited, when it was. */
   readonly onAccept: (path: VaultPath, payload?: unknown) => void;
   readonly onReject: (path: VaultPath) => void;
+  /**
+   * Accepts the proposal picked and, once that is written, rejects `rest`:
+   * the other values of its question, and copies of the one picked. A refused
+   * accept rejects nothing. One notice, one Undo for the whole choice.
+   */
+  readonly onAcceptChoice: (picked: VaultPath, rest: readonly VaultPath[]) => void;
   /** Which open proposals are chosen, to answer together (#168). */
   readonly selection: RowSelection;
   readonly onClearSelection: () => void;
@@ -94,7 +105,12 @@ export function ProposalsSection(props: ProposalsSectionProps) {
   const { heading, list, keepingFocus } = useFocusKeptOnAnswer(props.contents);
   const [filter, setFilter] = useState<Filter>('all');
   const open = props.contents?.open;
-  const entries = useMemo(() => (open === undefined ? NO_ENTRIES : proposalEntries(open)), [open]);
+  const manyValued = props.contents?.manyValued;
+  const entries = useMemo(
+    () =>
+      open === undefined ? NO_ENTRIES : proposalEntries(open, { manyValued: manyIn(manyValued) }),
+    [open, manyValued],
+  );
   const shown = useMemo(() => entries.filter(passes(filter)), [entries, filter]);
   const sure = useMemo(() => acceptableAtOnce(entries), [entries]);
   return (
@@ -124,7 +140,7 @@ export function ProposalsSection(props: ProposalsSectionProps) {
             type="button"
             className="btn btn--sm btn--positive"
             disabled={props.busy !== null}
-            onClick={() => props.onAcceptMany(sure)}
+            onClick={() => acceptAtOnce(props, entries, sure)}
           >
             Accept all high confidence
           </button>
@@ -145,8 +161,29 @@ export function ProposalsSection(props: ProposalsSectionProps) {
 
 function passes(filter: Filter): (entry: ProposalEntry) => boolean {
   if (filter === 'all') return () => true;
-  if (filter === 'choice') return (entry) => 'choice' in entry;
-  return (entry) => 'one' in entry && entry.one.confidence === 'high';
+  if (filter === 'choice') return isPickOne;
+  return (entry) =>
+    'one' in entry
+      ? entry.one.confidence === 'high'
+      : !isPickOne(entry) && entry.choice.confidence === 'high';
+}
+
+/** Which slots the type says hold many values. */
+function manyIn(slots: readonly ProposalSlot[] | undefined): (slot: ProposalSlot) => boolean {
+  if (slots === undefined || slots.length === 0) return () => false;
+  return (slot) => slots.some((each) => each.note === slot.note && each.property === slot.property);
+}
+
+/** Accepts the sure ones at once; the copies of one are rejected only once it is accepted, so it is never applied twice. */
+function acceptAtOnce(
+  props: ProposalsSectionProps,
+  entries: readonly ProposalEntry[],
+  sure: readonly VaultPath[],
+) {
+  const copied = sure.filter((path) => duplicatesOf(entries, path).length > 0);
+  for (const path of copied) props.onAcceptChoice(path, duplicatesOf(entries, path));
+  const alone = sure.filter((path) => !copied.includes(path));
+  if (alone.length > 0) props.onAcceptMany(alone);
 }
 
 /** Whether the section has anything to show: something to answer, to look at, to undo, or being written. */
@@ -249,14 +286,25 @@ function ProposalList({
   return (
     <ul className="proposals__list" aria-label="Open proposals" ref={list}>
       {entries.map((entry, at) =>
-        'choice' in entry ? (
+        'choice' in entry && isPickOne(entry) ? (
           <li key={entry.choice.choices.map((choice) => choice.proposals[0]?.path).join('\n')}>
             <ConflictGroupRow
               group={entry.choice}
               busy={props.busy !== null}
               problems={props.problems}
-              onAccept={(path) => keepingFocus(at, () => props.onAccept(path))}
+              onAcceptChoice={(picked, rest) =>
+                keepingFocus(at, () => props.onAcceptChoice(picked, rest))
+              }
               onRejectMany={props.onRejectMany}
+            />
+          </li>
+        ) : 'choice' in entry ? (
+          <li key={entry.choice.choices[0]?.proposals[0]?.path}>
+            <CopiedRow
+              proposals={entry.choice.choices[0]?.proposals ?? []}
+              {...props}
+              reasons={contents.reasons}
+              keepingFocus={(answer) => keepingFocus(at, answer)}
             />
           </li>
         ) : (
@@ -284,6 +332,43 @@ function ProposalList({
         ),
       )}
     </ul>
+  );
+}
+
+/** One proposal made more than once, as the first of them: accepting it rejects the copies, rejecting it all of them. */
+function CopiedRow({
+  proposals,
+  reasons,
+  keepingFocus,
+  ...props
+}: ProposalsSectionProps & {
+  proposals: readonly ProposalNote[];
+  reasons: ProposalsContents['reasons'];
+  keepingFocus: (answer: () => void) => void;
+}) {
+  const [first, ...copies] = proposals;
+  if (first === undefined) return null;
+  return (
+    <>
+      <ProposalRow
+        proposal={first}
+        reason={reasons?.get(first.path) ?? null}
+        busy={props.busy !== null}
+        problem={props.problems.get(first.path) ?? null}
+        onAccept={() =>
+          keepingFocus(() =>
+            props.onAcceptChoice(
+              first.path,
+              copies.map((copy) => copy.path),
+            ),
+          )
+        }
+        onReject={() => keepingFocus(() => props.onRejectMany(proposals.map((each) => each.path)))}
+        onOpen={() => props.onOpen(first.path)}
+        onOpenSource={props.onOpenSource}
+      />
+      <p className="proposal-row__dup">Proposed {proposals.length} times; the copies go with it.</p>
+    </>
   );
 }
 
