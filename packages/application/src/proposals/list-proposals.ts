@@ -11,11 +11,13 @@ import {
   VAULT_ROOT,
   VAULT_WALK_DEPTH,
   type ProposalNote,
+  type ProposalSlot,
   type VaultPath,
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { listVaultDirectory } from '../vault/read-vault.ts';
+import { manyValuedSlots } from './many-valued-slots.ts';
 
 /** An open proposal, and when its file last changed. */
 export interface ListedProposal {
@@ -47,6 +49,8 @@ export interface ProposalListing {
    */
   readonly stranded: readonly ListedProposal[];
   readonly unreadable: readonly UnreadableProposal[];
+  /** The slots that open proposals share and whose relation holds many values: their proposals do not conflict. */
+  readonly manyValued: readonly ProposalSlot[];
 }
 
 /**
@@ -65,7 +69,7 @@ export async function listProposals({
 }): Promise<ProposalListing> {
   const folder = await proposalsFolderOf(fs);
   const paths = folder === null ? [] : await notesUnder(fs, folder);
-  if (paths.length === 0) return { open: [], stranded: [], unreadable: [] };
+  if (paths.length === 0) return { open: [], stranded: [], unreadable: [], manyValued: [] };
 
   const open: ListedProposal[] = [];
   const stranded: ListedProposal[] = [];
@@ -88,7 +92,13 @@ export async function listProposals({
       (reading.proposal.state === 'open' ? open : stranded).push(listed);
     }
   }
-  return { open: open.sort(newestFirst), stranded: stranded.sort(newestFirst), unreadable };
+  const sorted = open.sort(newestFirst);
+  const manyValued = await manyValuedSlots({
+    fs,
+    markdown,
+    open: sorted.map((listed) => listed.proposal),
+  });
+  return { open: sorted, stranded: stranded.sort(newestFirst), unreadable, manyValued };
 }
 
 /**

@@ -6,10 +6,12 @@ import {
   vaultPath,
   type ProposalVault,
 } from '../testing/proposal-vault.ts';
+import { ProposalRefused } from '../chat/proposals.ts';
+import { VaultAccessError } from '../vault/ports.ts';
 import { acceptProposalNote, undoAcceptedProposal } from './accept-proposal.ts';
 import type { ProposalPorts } from './proposal-file.ts';
 import { listProposals } from './list-proposals.ts';
-import { rejectProposalNote } from './reject-proposal.ts';
+import { rejectProposalNote, undoRejectedProposal } from './reject-proposal.ts';
 
 const TODAY = '2026-10-08';
 const MEETING = 'Inbox/Meetings/2026-10-01 Standup.md';
@@ -313,13 +315,24 @@ describe('rejectProposalNote', () => {
       today: TODAY,
     });
 
-    expect(rejected).toEqual({ archivedAt: `Archive/${PROPOSAL}`, archiveProblem: null });
+    expect(rejected).toEqual({
+      proposal: PROPOSAL,
+      archivedAt: `Archive/${PROPOSAL}`,
+      archiveProblem: null,
+    });
     expect(setup.propertiesOf(`Archive/${PROPOSAL}`)).toMatchObject({
       state: 'rejected',
       answered_via: 'app',
     });
     expect(setup.paths()).not.toContain(TASK);
     expect((await listProposals(setup.ports)).open).toEqual([]);
+
+    // Taking the reject back opens it again, in the Inbox, as if never answered.
+    const back = await undoRejectedProposal({ ports: setup.ports, rejected });
+    expect(back).toBe(PROPOSAL);
+    expect(setup.propertiesOf(PROPOSAL)).toMatchObject({ state: 'open' });
+    expect(setup.paths()).not.toContain(`Archive/${PROPOSAL}`);
+    expect((await listProposals(setup.ports)).open).toHaveLength(1);
   });
 
   it('refuses one already accepted', async () => {
@@ -370,7 +383,12 @@ describe('listProposals', () => {
 
   it('is empty in a vault with no proposals', async () => {
     const setup = proposalVault({ 'A.md': 'A.\n' });
-    expect(await listProposals(setup.ports)).toEqual({ open: [], stranded: [], unreadable: [] });
+    expect(await listProposals(setup.ports)).toEqual({
+      open: [],
+      stranded: [],
+      unreadable: [],
+      manyValued: [],
+    });
   });
 });
 
@@ -542,5 +560,83 @@ describe('undo and link reads that fail', () => {
     await expect(
       acceptProposalNote({ ports: failing, path: vaultPath(PROPOSAL), today: TODAY }),
     ).rejects.toThrow('permission denied');
+  });
+});
+
+describe('undoRejectedProposal — when the proposal is back but cannot be opened again', () => {
+  it('says where it is and why, rather than failing without a word', async () => {
+    const setup = vault();
+    const rejected = await rejectProposalNote({
+      ports: setup.ports,
+      path: vaultPath(PROPOSAL),
+      today: TODAY,
+    });
+    const ports: ProposalPorts = {
+      ...setup.ports,
+      fs: {
+        ...setup.ports.fs,
+        writeTextFile: async () => {
+          throw new Error('the disk is full');
+        },
+      },
+    };
+    const undone = undoRejectedProposal({ ports, rejected });
+    await expect(undone).rejects.toBeInstanceOf(ProposalRefused);
+    await expect(undone).rejects.toThrow(
+      /back at .*could not be marked open again: the disk is full/,
+    );
+    // It did leave the Archive: only the mark is missing.
+    expect(setup.paths()).toContain(PROPOSAL);
+  });
+});
+
+describe('listProposals — which shared slots hold many values', () => {
+  const twoLinks = {
+    [PROPOSAL]: linkProposal(),
+    'Inbox/Proposals/Second.md': jsonLinesNote({
+      type: 'proposal',
+      kind: 'link',
+      payload: {
+        note: 'People/Mara Quill.md',
+        property: 'companies',
+        link: '[[Other Co]]',
+        digest: null,
+      },
+    }),
+  };
+
+  it('reads a slot’s note that is not there as one that holds one', async () => {
+    const setup = proposalVault({ ...twoLinks });
+    expect((await listProposals(setup.ports)).manyValued).toEqual([]);
+  });
+
+  it('propagates a fault reading the note, rather than reading it as a single value', async () => {
+    const setup = proposalVault({ 'People/Mara Quill.md': MARA, ...twoLinks });
+    const ports: ProposalPorts = {
+      ...setup.ports,
+      fs: {
+        ...setup.ports.fs,
+        readTextFile: async (path) => {
+          if (path === 'People/Mara Quill.md') throw new Error('input/output error');
+          return setup.ports.fs.readTextFile(path);
+        },
+      },
+    };
+    await expect(listProposals(ports)).rejects.toThrow('input/output error');
+  });
+
+  it('reads a refused read (denied or gone) as a note with no many-valued slot', async () => {
+    const setup = proposalVault({ 'People/Mara Quill.md': MARA, ...twoLinks });
+    const ports: ProposalPorts = {
+      ...setup.ports,
+      fs: {
+        ...setup.ports.fs,
+        readTextFile: async (path) => {
+          if (path === 'People/Mara Quill.md') throw new VaultAccessError('denied');
+          return setup.ports.fs.readTextFile(path);
+        },
+      },
+    };
+    expect((await listProposals(ports)).manyValued).toEqual([]);
   });
 });

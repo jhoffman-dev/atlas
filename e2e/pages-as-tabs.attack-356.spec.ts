@@ -114,7 +114,9 @@ async function decideCello(page: Page, which: 1 | 2 = 1) {
   await inboxIn(page, which)
     .getByRole('combobox', { name: 'Status of Learn the cello' })
     .selectOption({ label: 'Someday' });
-  await rowIn(page, which, 'Learn the cello').getByRole('button', { name: 'Done' }).press('Enter');
+  await rowIn(page, which, 'Learn the cello')
+    .getByRole('button', { name: 'Save', exact: true })
+    .press('Enter');
 }
 
 /** The number the sidebar's Inbox row shows. */

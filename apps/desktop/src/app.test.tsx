@@ -2213,7 +2213,7 @@ describe('pages as tabs', () => {
     // The write behind the row is held, so what is counted is the row leaving, not the index moving after.
     const reads = vault.holdReads();
     startCountingRenders();
-    await userEvent.click(within(row).getByRole('button', { name: 'Done' }));
+    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(screen.queryByRole('form', { name: 'Clarify Loose task' })).toBeNull(),
     );
@@ -2472,7 +2472,7 @@ describe('pages as tabs', () => {
       'next-action',
     );
     const reads = vault.holdReads();
-    await userEvent.click(within(first).getByRole('button', { name: 'Done' }));
+    await userEvent.click(within(first).getByRole('button', { name: 'Save' }));
     // Gone from both panes while the write is held: the window's hold, not the tab's.
     await waitFor(() =>
       expect(within(pane(1)).queryByRole('form', { name: 'Clarify Loose task' })).toBeNull(),

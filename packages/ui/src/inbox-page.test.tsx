@@ -56,6 +56,7 @@ const PROPOSALS: NonNullable<InboxPageProps['proposals']> = {
   problems: new Map(),
   onAccept: vi.fn(),
   onReject: vi.fn(),
+  onAcceptChoice: vi.fn(),
   selection: { selected: new Set(), onToggle: vi.fn(), onToggleAll: vi.fn() },
   onClearSelection: vi.fn(),
   onAcceptMany: vi.fn(),
@@ -268,7 +269,7 @@ describe('InboxPage', () => {
 describe('InboxPage — clarifying a task on its row', () => {
   const TASK = 'Inbox/Call the bank.md';
   const control = (name: string) => screen.getByRole('combobox', { name });
-  const done = () => within(rowOf('Call the bank')).getByRole('button', { name: 'Done' });
+  const done = () => within(rowOf('Call the bank')).getByRole('button', { name: 'Save' });
 
   it('offers the eight statuses, with the task’s own picked', () => {
     page();
@@ -403,7 +404,7 @@ describe('InboxPage — clarifying a task on its row', () => {
     );
 
     await userEvent.clear(screen.getByLabelText('Chase is due'));
-    await userEvent.click(within(rowOf('Chase')).getByRole('button', { name: 'Done' }));
+    await userEvent.click(within(rowOf('Chase')).getByRole('button', { name: 'Save' }));
     expect(props.onClarify).toHaveBeenCalledWith({
       path: 'Tasks/Chase.md',
       clarification: { due: null },
@@ -769,5 +770,264 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     view.rerender({ vaultTidy: null });
     view.rerender({ vaultTidy: { ...VAULT_TIDY, preview: null, result: 'Tidied the vault.' } });
     expect(within(tidyOffer()!).getByRole('status').textContent).toBe('Tidied the vault.');
+  });
+});
+
+describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
+  const TITLES = [
+    'Call the bank',
+    'Chase the quote',
+    'Learn the cello',
+    'Renew the passport',
+    'Fix the gate',
+  ];
+  const tasks = (): InboxContents => ({
+    items: TITLES.map((title) => item(`Inbox/${title}.md`, title, 'task')),
+    truncated: false,
+    total: TITLES.length,
+  });
+  const clarified = (onClarify: InboxPageProps['onClarify']) =>
+    (onClarify as ReturnType<typeof vi.fn>).mock.calls.map(([args]) => args);
+  const keyButton = (title: string, name: string) =>
+    within(rowOf(title)).getByRole('button', { name });
+  const focusRow = (title: string) => act(() => rowOf(title).focus());
+
+  it('works five rows top to bottom by key alone: each status is written at once, and the focus moves on', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    await userEvent.keyboard('n');
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Call the bank.md', clarification: { status: 'next-action' } },
+    ]);
+    expect(document.activeElement).toBe(rowOf('Chase the quote'));
+
+    await userEvent.keyboard('w');
+    await userEvent.keyboard('s');
+    await userEvent.keyboard('d');
+    await userEvent.keyboard('n');
+    expect(clarified(onClarify).slice(1)).toEqual([
+      { path: 'Inbox/Chase the quote.md', clarification: { status: 'waiting' } },
+      { path: 'Inbox/Learn the cello.md', clarification: { status: 'someday' } },
+      { path: 'Inbox/Renew the passport.md', clarification: { status: 'archive' } },
+      { path: 'Inbox/Fix the gate.md', clarification: { status: 'next-action' } },
+    ]);
+    // The last row was the only one left to go to: the focus stays on it.
+    expect(document.activeElement).toBe(rowOf('Renew the passport'));
+  });
+
+  it('shows the six keys on the focused row only, in the order Next, Waiting, Someday, Schedule, Project, Done', () => {
+    page({ contents: tasks() });
+    expect(screen.queryAllByRole('button', { name: /, key [A-Z]$/ })).toHaveLength(0);
+    focusRow('Chase the quote');
+    const shown = within(rowOf('Chase the quote')).getAllByRole('button', { name: /, key [A-Z]$/ });
+    expect(shown.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Next, key N',
+      'Waiting, key W',
+      'Someday, key S',
+      'Schedule, key T',
+      'Project, key P',
+      'Done, key D',
+    ]);
+    expect(within(rowOf('Call the bank')).queryAllByRole('button', { name: /, key/ })).toHaveLength(
+      0,
+    );
+  });
+
+  it('acts on a click of the key as on the key itself', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Learn the cello');
+    await userEvent.click(keyButton('Learn the cello', 'Done, key D'));
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Learn the cello.md', clarification: { status: 'archive' } },
+    ]);
+  });
+
+  it('does nothing while a field has the focus: the letter is typed, not acted on', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    const status = screen.getByRole('combobox', { name: 'Status of Call the bank' });
+    act(() => status.focus());
+    await userEvent.keyboard('n');
+    act(() => screen.getByLabelText('Defer Call the bank until').focus());
+    await userEvent.keyboard('n');
+    expect(onClarify).not.toHaveBeenCalled();
+    // The row itself, though, is live.
+    focusRow('Call the bank');
+    await userEvent.keyboard('n');
+    expect(onClarify).toHaveBeenCalledOnce();
+  });
+
+  it('does nothing for a chord: ⌘N, ⌃N and ⌥N are the app’s or the system’s', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    await userEvent.keyboard('{Meta>}n{/Meta}');
+    await userEvent.keyboard('{Control>}n{/Control}');
+    await userEvent.keyboard('{Alt>}n{/Alt}');
+    expect(onClarify).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Shift>}n{/Shift}');
+    expect(onClarify).toHaveBeenCalledOnce();
+  });
+
+  it('P opens the project picker; the project picked is held, and Enter writes it, the status unchanged', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    await userEvent.keyboard('p');
+    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
+    expect(document.activeElement).toBe(picker);
+    // A closed select changes as typeahead passes over it: that alone writes nothing.
+    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    expect(onClarify).not.toHaveBeenCalled();
+    fireEvent.keyDown(picker, { key: 'Enter' });
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Call the bank.md', clarification: { project: 'Projects/Atlas.md' } },
+    ]);
+  });
+
+  it('T opens the defer date; the day picked is held, and Enter writes it', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    await userEvent.keyboard('t');
+    const defer = screen.getByLabelText('Defer Call the bank until');
+    expect(document.activeElement).toBe(defer);
+    fireEvent.change(defer, { target: { value: '2026-11-02' } });
+    expect(onClarify).not.toHaveBeenCalled();
+    fireEvent.keyDown(defer, { key: 'Enter' });
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Call the bank.md', clarification: { defer: '2026-11-02' } },
+    ]);
+  });
+
+  it('holds a pick for Done again once the picker a key opened is left without one', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    await userEvent.keyboard('p');
+    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
+    act(() => picker.blur());
+    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    expect(onClarify).not.toHaveBeenCalled();
+    const done = within(rowOf('Call the bank')).getByRole('button', { name: 'Save' });
+    expect((done as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('offers no key for a status the vault’s Task type lacks, and the key does nothing', async () => {
+    const { onClarify } = page({
+      contents: tasks(),
+      statuses: ['inbox', 'next-action', 'waiting', 'archive'],
+    });
+    focusRow('Call the bank');
+    expect(
+      within(rowOf('Call the bank')).queryByRole('button', { name: 'Someday, key S' }),
+    ).toBeNull();
+    expect(keyButton('Call the bank', 'Next, key N')).toBeTruthy();
+    await userEvent.keyboard('s');
+    expect(onClarify).not.toHaveBeenCalled();
+  });
+
+  it('offers a note that is not a task only P, which files it; a status key does nothing to it', async () => {
+    const { onClarify } = page();
+    focusRow('Standup');
+    const shown = within(rowOf('Standup')).getAllByRole('button', { name: /, key [A-Z]$/ });
+    expect(shown.map((button) => button.getAttribute('aria-label'))).toEqual(['Project, key P']);
+    await userEvent.keyboard('n');
+    expect(onClarify).not.toHaveBeenCalled();
+    await userEvent.keyboard('p');
+    const picker = screen.getByRole('combobox', { name: 'File Standup under' });
+    expect(document.activeElement).toBe(picker);
+    fireEvent.change(picker, { target: { value: 'Areas/Garden.md' } });
+    expect(onClarify).not.toHaveBeenCalled();
+    fireEvent.keyDown(picker, { key: 'Enter' });
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Meetings/Standup.md', clarification: { project: 'Areas/Garden.md' } },
+    ]);
+  });
+
+  it('writes a pick the pointer made from the opened list at once', () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    fireEvent.keyDown(rowOf('Call the bank'), { key: 'p' });
+    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
+    fireEvent.pointerDown(picker);
+    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Call the bank.md', clarification: { project: 'Projects/Atlas.md' } },
+    ]);
+  });
+
+  it('does not take a pointer pick for the keys typed after it: typeahead still waits for Enter', () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    fireEvent.keyDown(rowOf('Call the bank'), { key: 'p' });
+    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
+    fireEvent.pointerDown(picker);
+    fireEvent.keyDown(picker, { key: 'a' });
+    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    expect(onClarify).not.toHaveBeenCalled();
+  });
+
+  it('Escape leaves the armed picker, gives the row the focus back and drops the pick it held', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    await userEvent.keyboard('p');
+    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
+    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    await userEvent.keyboard('{Escape}');
+    expect(document.activeElement).toBe(rowOf('Call the bank'));
+    expect((picker as HTMLSelectElement).value).toBe('');
+    fireEvent.keyDown(picker, { key: 'Enter' });
+    expect(onClarify).not.toHaveBeenCalled();
+  });
+
+  it('Escape gives back the pick the row held before the key armed the picker', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
+    // Held with the mouse, before any key.
+    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    fireEvent.keyDown(rowOf('Call the bank'), { key: 'p' });
+    fireEvent.change(picker, { target: { value: '' } });
+    await userEvent.keyboard('{Escape}');
+    expect((picker as HTMLSelectElement).value).toBe('Projects/Atlas.md');
+    expect(onClarify).not.toHaveBeenCalled();
+  });
+
+  it('writes the picks a row holds together with a status key', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    fireEvent.change(screen.getByRole('combobox', { name: 'File Call the bank under' }), {
+      target: { value: 'Projects/Atlas.md' },
+    });
+    fireEvent.keyDown(rowOf('Call the bank'), { key: 'w' });
+    await act(async () => {});
+    expect(clarified(onClarify)).toEqual([
+      {
+        path: 'Inbox/Call the bank.md',
+        clarification: { status: 'waiting', project: 'Projects/Atlas.md' },
+      },
+    ]);
+  });
+
+  it('leaves a letter typed into anything editable inside the row alone', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    const editable = document.createElement('div');
+    // jsdom does not compute isContentEditable; a browser does, also for the editing host's children.
+    Object.defineProperty(editable, 'isContentEditable', { value: true });
+    rowOf('Call the bank').appendChild(editable);
+    fireEvent.keyDown(editable, { key: 'n' });
+    await act(async () => {});
+    expect(onClarify).not.toHaveBeenCalled();
+  });
+
+  it('offers no P when there is nothing to file under', () => {
+    page({ contents: tasks(), filing: [] });
+    focusRow('Call the bank');
+    expect(
+      within(rowOf('Call the bank')).queryByRole('button', { name: 'Project, key P' }),
+    ).toBeNull();
+  });
+
+  it('holds its keys while a write is on its way, as every control does', () => {
+    page({ contents: tasks(), busy: true });
+    focusRow('Call the bank');
+    expect((keyButton('Call the bank', 'Next, key N') as HTMLButtonElement).disabled).toBe(true);
   });
 });

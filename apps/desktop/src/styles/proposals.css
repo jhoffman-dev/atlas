@@ -12,19 +12,33 @@
   margin: 0 0 var(--space-5);
 }
 
+/* The section's head (FlowInbox.dc.html, #307): its name and count, then
+   the filters and "Accept all high confidence" at the right end. */
+.proposals__head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
 .proposals__heading {
   align-items: center;
   display: flex;
   font-size: var(--text-ui);
   font-weight: 700;
   gap: 6px;
-  margin: 0 0 var(--space-1);
+  margin: 0;
 }
 
 .proposals__summary {
   color: var(--ink-3);
   font-size: var(--text-small);
-  margin: 0 0 var(--space-3);
+  margin: 0;
+}
+
+.proposals__filters {
+  margin-left: auto;
 }
 
 .proposals__notice {
@@ -71,73 +85,95 @@
   gap: 6px;
 }
 
+/* The rows (#307): dense, one under another, each under its hairline —
+   box, KIND, what it would write and why, the confidence pill, and
+   Reject / Edit / Accept in destructive / ghost / positive so the three
+   are told apart at a glance. */
 .proposals__list {
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.proposal-card {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
+.proposal-row {
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: 6px 0;
 }
 
-.proposal-card__head {
-  align-items: baseline;
+.proposal-row__line {
+  align-items: center;
+  column-gap: var(--space-2);
+  display: grid;
+  grid-template-columns: 28px 64px minmax(0, 1fr) auto auto;
+  min-height: 44px;
+}
+
+.proposal-row__select {
   display: flex;
-  gap: var(--space-2);
-  min-width: 0;
+  justify-content: center;
 }
 
-.proposal-card__kind {
-  color: var(--accent-text);
+.proposal-row__kind {
+  color: var(--ink-3);
   font-size: var(--text-small);
-  font-weight: 700;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.proposal-card__title {
-  color: var(--ink);
-  flex: 1 1 auto;
-  font-weight: 600;
+.proposal-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+}
+
+.proposal-row__title {
+  color: var(--ink);
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
-.proposal-card__confidence {
-  background: var(--chip);
-  border-radius: var(--radius-pill);
-  color: var(--ink-2);
-  font-size: var(--text-small);
-  padding: 1px 8px;
-  white-space: nowrap;
+/* How sure its maker was, on the status pills' tints (primitives.css). */
+.proposal-row__confidence {
+  min-width: 72px;
 }
 
-.proposal-card__confidence--low {
-  color: var(--warning);
-  font-weight: 600;
+.proposal-row__confidence--high {
+  --pill: var(--status-done-tint);
+  --pill-ink: var(--status-done-ink);
+  --pill-dot: var(--status-done-dot);
+}
+
+.proposal-row__confidence--medium {
+  --pill: var(--status-inbox-tint);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
+.proposal-row__confidence--low {
+  --pill: var(--status-doing-tint);
+  --pill-ink: var(--status-doing-ink);
+  --pill-dot: var(--status-doing-dot);
 }
 
 /* A proposal its maker was unsure of: marked down its edge, so it is checked before it is accepted. */
-.proposal-card--low {
-  border-left: 3px solid var(--warning);
+.proposal-row--low {
+  box-shadow: inset 3px 0 0 var(--warning);
 }
 
-.proposal-card__why {
-  color: var(--ink-2);
+.proposal-row__why {
+  color: var(--ink-3);
   font-size: var(--text-small);
   margin: 0;
 }
 
-.proposal-card__provenance {
+.proposal-row__provenance {
   align-items: center;
   color: var(--ink-3);
   display: flex;
@@ -147,8 +183,8 @@
   margin: 0;
 }
 
-.proposal-card__source,
-.proposal-card__file,
+.proposal-row__source,
+.proposal-row__file,
 .proposals__path {
   align-items: center;
   background: none;
@@ -163,19 +199,20 @@
   text-align: start;
 }
 
-.proposal-card__uncited {
+.proposal-row__uncited {
   color: var(--warning);
   font-weight: 600;
 }
 
-.proposal-card__change,
-.proposal-card__body {
+.proposal-row__change,
+.proposal-row__body {
   color: var(--ink-2);
+  font-size: var(--text-small);
   margin: 0;
   white-space: pre-wrap;
 }
 
-.proposal-card__props {
+.proposal-row__props {
   display: grid;
   font-size: var(--text-small);
   gap: 2px var(--space-3);
@@ -183,33 +220,34 @@
   margin: 0;
 }
 
-.proposal-card__props > div {
+.proposal-row__props > div {
   display: contents;
 }
 
-.proposal-card__props dt {
+.proposal-row__props dt {
   color: var(--ink-3);
 }
 
-.proposal-card__props dd {
+.proposal-row__props dd {
   color: var(--ink);
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-.proposal-card__form {
+.proposal-row__form {
   display: grid;
   gap: var(--space-2);
+  margin: var(--space-1) 0;
 }
 
-.proposal-card__form label {
+.proposal-row__form label {
   color: var(--ink-3);
   display: grid;
   font-size: var(--text-small);
   gap: 2px;
 }
 
-.proposal-card__form :is(input, textarea) {
+.proposal-row__form :is(input, textarea) {
   background: var(--chip);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
@@ -219,16 +257,53 @@
   padding: 4px 8px;
 }
 
-.proposal-card__problem {
+.proposal-row__problem {
   color: var(--danger);
   font-size: var(--text-small);
   margin: 0;
 }
 
-.proposal-card__actions {
+.proposal-row__actions {
   display: flex;
-  gap: var(--space-2);
+  gap: 2px;
   justify-content: flex-end;
+}
+
+/* A "pick one" question (#307, Q12): the choices as radios under the line,
+   each on a 30px row, indented past the box and the kind. */
+.proposal-row__choices {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 2px;
+}
+
+.proposal-row__choice {
+  align-items: center;
+  column-gap: var(--space-2);
+  display: grid;
+  font-size: var(--text-small);
+  grid-template-columns: 28px 64px minmax(0, 1fr) auto;
+  height: 30px;
+}
+
+/* The radio sits under the kind, the answer under the title: the first
+   column, the box's, stays empty. */
+.proposal-row__choice input {
+  grid-column: 2;
+  justify-self: end;
+  margin: 0;
+}
+
+.proposal-row__choice > span {
+  grid-column: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal-row__dup {
+  color: var(--ink-3);
+  grid-column: 4;
 }
 
 .proposals__unreadable {

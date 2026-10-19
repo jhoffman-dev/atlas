@@ -47,6 +47,7 @@ function page(props: Partial<ProposalsSectionProps> = {}) {
   const handlers = {
     onAccept: vi.fn<(path: VaultPath, payload?: unknown) => void>(),
     onReject: vi.fn<(path: VaultPath) => void>(),
+    onAcceptChoice: vi.fn<(picked: VaultPath, rest: readonly VaultPath[]) => void>(),
     onClearSelection: vi.fn(),
     onAcceptMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
     onRejectMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
@@ -81,7 +82,7 @@ describe('ProposalsSection', () => {
   it('lists each open proposal with what it would write, the line it cites and its maker', () => {
     page();
     const task = card(/^Task: Send Mara the payroll file/);
-    expect(within(task).getByText('high confidence')).toBeTruthy();
+    expect(within(task).getByText('High').textContent).toBe('High confidence');
     expect(within(task).getByRole('button', { name: /2026-10-01 Standup#\^t0003/ })).toBeTruthy();
     expect(within(task).getByText('after-meeting · run 1')).toBeTruthy();
     expect(within(task).getByText('[[Mara Quill]], [[Tobias Fenn]]')).toBeTruthy();
@@ -267,15 +268,15 @@ describe('ProposalsSection', () => {
     });
 
     const low = screen.getByRole('region', { name: 'Task: Send the contract' });
-    expect(within(low).getByText('low confidence')).toBeTruthy();
-    expect(low.classList.contains('proposal-card--low')).toBe(true);
+    expect(within(low).getByText('Low').textContent).toBe('Low confidence');
+    expect(low.classList.contains('proposal-row--low')).toBe(true);
     expect(within(low).getByText(why)).toBeTruthy();
     expect(within(low).getByText('Lena Hart')).toBeTruthy();
     // A sure one is not marked, and a proposal with no reason shows none.
     const sure = screen.getByRole('region', { name: 'Task: Send Mara the payroll file' });
-    expect(sure.classList.contains('proposal-card--low')).toBe(false);
-    expect(sure.querySelector('.proposal-card__why')).toBeNull();
-    expect(low.querySelector('.proposal-card__why')).not.toBeNull();
+    expect(sure.classList.contains('proposal-row--low')).toBe(false);
+    expect(sure.querySelector('.proposal-row__why')).toBeNull();
+    expect(low.querySelector('.proposal-row__why')).not.toBeNull();
   });
 
   it('lets the owner be set before accepting: an empty waiting_on is a field to fill in', async () => {
@@ -504,6 +505,7 @@ describe('proposalsToShow — while the last answers are written (review)', () =
       problems: new Map(),
       onAccept: vi.fn(),
       onReject: vi.fn(),
+      onAcceptChoice: vi.fn(),
       selection: NONE_CHOSEN,
       onClearSelection: vi.fn(),
       onAcceptMany: vi.fn(),
@@ -515,5 +517,44 @@ describe('proposalsToShow — while the last answers are written (review)', () =
     };
     expect(proposalsToShow(none)).toBe(false);
     expect(proposalsToShow({ ...none, answering: true })).toBe(true);
+  });
+});
+
+describe('ProposalsSection — the same proposal made twice', () => {
+  const twin = (name: string, to = '[[Mara Quill]]') =>
+    proposal(name, {
+      kind: 'link',
+      confidence: 'high',
+      source: '[[2026-10-01 Standup#^t0003]]',
+      payload: {
+        note: 'Inbox/Meetings/2026-10-01 Standup.md',
+        property: 'owner',
+        link: to,
+        digest: null,
+      },
+    });
+  const FIRST = twin('Mara 1');
+  const SECOND = twin('Mara 2', '[[mara quill|Mara]]');
+  const contents = { open: [FIRST, SECOND], stranded: [], unreadable: [] };
+
+  it('lists the copies as one card, and accepting it rejects the copies behind it', async () => {
+    const handlers = page({ contents });
+    expect(screen.getAllByRole('region', { name: /^Link: / })).toHaveLength(1);
+    await userEvent.click(within(card(/^Link: /)).getByRole('button', { name: 'Accept' }));
+    expect(handlers.onAcceptChoice).toHaveBeenCalledWith(FIRST.path, [SECOND.path]);
+    expect(handlers.onAccept).not.toHaveBeenCalled();
+  });
+
+  it('rejecting the card rejects every copy', async () => {
+    const handlers = page({ contents });
+    await userEvent.click(within(card(/^Link: /)).getByRole('button', { name: 'Reject' }));
+    expect(handlers.onRejectMany).toHaveBeenCalledWith([FIRST.path, SECOND.path]);
+  });
+
+  it('Accept all high confidence accepts the first once and rejects its copies after it', async () => {
+    const handlers = page({ contents });
+    await userEvent.click(screen.getByRole('button', { name: 'Accept all high confidence' }));
+    expect(handlers.onAcceptChoice).toHaveBeenCalledWith(FIRST.path, [SECOND.path]);
+    expect(handlers.onAcceptMany).not.toHaveBeenCalled();
   });
 });
