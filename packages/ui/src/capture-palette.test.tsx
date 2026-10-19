@@ -31,6 +31,14 @@ describe('CapturePalette', () => {
     expect(screen.getByText(/a Task/)).toBeDefined();
   });
 
+  it('keeps the keys along its foot out of what a screen reader is read', () => {
+    const { baseElement } = render(<CapturePalette {...props} />);
+    const hints = baseElement.querySelector('.key-hints');
+    expect(hints?.getAttribute('aria-hidden')).toBe('true');
+    expect(hints?.textContent).toContain('to add, and add another');
+    expect(screen.getByRole('dialog', { name: 'Capture a task' }).textContent).toContain('a Task');
+  });
+
   it('captures what was typed', async () => {
     const onCapture = vi.fn();
     render(<CapturePalette {...props} onCapture={onCapture} />);

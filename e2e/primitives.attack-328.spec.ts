@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { focusedRing, RINGED_PRIMITIVES } from './focus-ring.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 /**
@@ -260,35 +261,31 @@ async function focusEachAndCollectClipping(
   page: Page,
 ): Promise<{ seen: number; clipped: string[] }> {
   await page.keyboard.press('Tab');
-  const count = await page.evaluate(() => {
+  const count = await page.evaluate((primitives) => {
     const scope =
       document.querySelector('[role="dialog"]') ?? document.querySelector('.shell__main');
-    const primitives = [
-      ...(scope?.querySelectorAll('.btn, .field, .chip, .segmented__option') ?? []),
-    ];
-    (globalThis as { attack328Primitives?: Element[] }).attack328Primitives = primitives;
-    return primitives.length;
-  });
+    const found = [...(scope?.querySelectorAll(primitives) ?? [])];
+    (globalThis as { attack328Primitives?: Element[] }).attack328Primitives = found;
+    return found.length;
+  }, RINGED_PRIMITIVES);
   const found: string[] = [];
   let seen = 0;
   for (let at = 0; at < count; at += 1) {
-    const focused = await page.evaluate((index) => {
+    const took = await page.evaluate((index) => {
       const one = (globalThis as { attack328Primitives?: Element[] }).attack328Primitives?.[index];
-      if (!(one instanceof HTMLElement)) return null;
+      if (!(one instanceof HTMLElement)) return false;
       one.focus();
-      if (document.activeElement !== one) return null;
-      return {
-        label: `${one.tagName.toLowerCase()}.${[...one.classList].join('.')}`,
-        visible: one.matches(':focus-visible'),
-        ring: getComputedStyle(one).boxShadow,
-      };
+      return document.activeElement === one;
     }, at);
     // A primitive that cannot take the focus — hidden, or disabled — has no ring to clip.
+    if (!took) continue;
+    const focused = await focusedRing(page);
     if (focused === null) continue;
     seen += 1;
+    const label = `${focused.tag}.${focused.classes.join('.')}`;
     // A ring that is clipped nowhere because it is drawn nowhere is no ring.
-    if (!focused.visible) found.push(`${focused.label}: not :focus-visible`);
-    if (focused.ring === 'none') found.push(`${focused.label}: no ring drawn`);
+    if (!focused.visible) found.push(`${label}: not ${focused.ringedOn}`);
+    if (focused.ring === 'none') found.push(`${label}: no ring drawn`);
     const clipped = await ringClipping(page);
     if (clipped !== null) found.push(clipped);
   }
