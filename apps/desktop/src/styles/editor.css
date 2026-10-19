@@ -1292,9 +1292,10 @@
   margin-left: -8px;
 }
 
-/* A glance, not a view: rows sit closer than a list view's. */
+/* A glance, not a view: the row keeps the list's height but not its gutter,
+   so its title lines up with the section's heading. */
 .linked .list-view__row {
-  min-height: 34px;
+  padding: 0;
 }
 
 .linked .list-view__title {
