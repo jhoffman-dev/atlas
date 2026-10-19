@@ -1,3 +1,4 @@
+import { foldedLinkName } from '../markdown/resolve-wikilink.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import {
@@ -29,7 +30,7 @@ export interface ConflictGroup {
   readonly slot: ProposalSlot;
   /** As the first member cites it; null when none cites a source. */
   readonly source: string | null;
-  /** Two or more, in the order the proposals came. */
+  /** In the order the proposals came: two or more for a conflict, one when the same proposal was made more than once. */
   readonly choices: readonly ConflictChoice[];
   /** As sure as the least sure member; null when none says. */
   readonly confidence: ProposalConfidence | null;
@@ -78,55 +79,107 @@ function sameSource(a: SourceKey, b: SourceKey): boolean {
   return a.block === null || b.block === null || a.block === b.block;
 }
 
-interface Gathering {
+/** What a proposal proposes as slots compare it: the note a link opens, ignoring its alias and case. */
+export function proposalValueKey(proposal: ProposalNote): string {
+  const value = proposalValueOf(proposal);
+  const link = readWikiLink(value);
+  return foldedLinkName(link === null ? value : link.target);
+}
+
+/** Whether a relation holds many notes, so its proposals are all welcome rather than a pick-one. */
+export type ManyValued = (slot: ProposalSlot) => boolean;
+
+export interface GroupingOptions {
+  /** Which slots hold several values; none does unless this says so. */
+  readonly manyValued?: ManyValued;
+}
+
+/** The proposals that fill one slot, as one entry: every value proposed and each proposal of it. */
+interface Component {
   readonly kind: ProposalKind;
   readonly slot: ProposalSlot;
-  readonly sources: SourceKey[];
-  readonly members: ProposalNote[];
+  /** In the order the proposals came. */
+  readonly members: readonly ProposalNote[];
 }
 
-function belongs(
-  gathering: Gathering,
-  proposal: ProposalNote,
-  slot: ProposalSlot,
-  source: SourceKey,
-) {
-  return (
-    gathering.kind === proposal.kind &&
-    gathering.slot.note === slot.note &&
-    gathering.slot.property === slot.property &&
-    gathering.sources.some((each) => sameSource(each, source))
-  );
+interface Candidate {
+  readonly proposal: ProposalNote;
+  readonly slot: ProposalSlot;
+  readonly source: SourceKey;
+  readonly value: string;
 }
 
-/** Each slot's proposals, gathered in the order they came, however many values they hold. */
-function gather(open: readonly ProposalNote[]): readonly Gathering[] {
-  const gatherings: Gathering[] = [];
-  for (const proposal of open) {
+/**
+ * Whether two proposals belong together: the same kind and slot, sources that
+ * overlap, and — for a slot holding one value — any value, since different
+ * ones are a conflict and equal ones a duplicate; for a many-valued slot,
+ * only the same value, which is a duplicate.
+ */
+function related(a: Candidate, b: Candidate, many: ManyValued): boolean {
+  if (a.proposal.kind !== b.proposal.kind) return false;
+  if (a.slot.note !== b.slot.note || a.slot.property !== b.slot.property) return false;
+  if (!sameSource(a.source, b.source)) return false;
+  return a.value === b.value || !many(a.slot);
+}
+
+/**
+ * The connected components of "related": "same source" is not transitive (a
+ * note-level citation sits with every block, two blocks do not sit together),
+ * so the groups are closed under it with union-find, and come out the same
+ * whatever order the proposals arrive in.
+ */
+function components(open: readonly ProposalNote[], many: ManyValued): readonly Component[] {
+  const candidates = open.flatMap((proposal): Candidate[] => {
     const slot = proposalSlotOf(proposal);
-    if (slot === null) continue;
-    const source = sourceKeyOf(proposal.source);
-    const found = gatherings.find((each) => belongs(each, proposal, slot, source));
-    if (found !== undefined) {
-      found.members.push(proposal);
-      found.sources.push(source);
-    } else {
-      gatherings.push({ kind: proposal.kind, slot, sources: [source], members: [proposal] });
+    if (slot === null) return [];
+    return [
+      { proposal, slot, source: sourceKeyOf(proposal.source), value: proposalValueKey(proposal) },
+    ];
+  });
+  const root = candidates.map((_, at) => at);
+  const find = (at: number): number => {
+    let top = at;
+    while (root[top] !== top) top = root[top] as number;
+    root[at] = top;
+    return top;
+  };
+  candidates.forEach((each, at) => {
+    for (let before = 0; before < at; before += 1) {
+      if (related(candidates[before] as Candidate, each, many)) root[find(before)] = find(at);
     }
-  }
-  return gatherings;
+  });
+  const byRoot = new Map<number, Candidate[]>();
+  candidates.forEach((each, at) => {
+    const held = byRoot.get(find(at));
+    if (held === undefined) byRoot.set(find(at), [each]);
+    else held.push(each);
+  });
+  // Map order is the order roots were first met, not first members: sort by the first member's place.
+  return [...byRoot.values()]
+    .map((members) => ({
+      kind: (members[0] as Candidate).proposal.kind,
+      slot: (members[0] as Candidate).slot,
+      members: members.map((each) => each.proposal),
+    }))
+    .sort(
+      (a, b) =>
+        open.indexOf(a.members[0] as ProposalNote) - open.indexOf(b.members[0] as ProposalNote),
+    );
 }
 
 /** The proposals of one slot by value, each value once, in the order first proposed. */
 function choicesOf(members: readonly ProposalNote[]): readonly ConflictChoice[] {
   const byValue = new Map<string, ProposalNote[]>();
   for (const proposal of members) {
-    const value = proposalValueOf(proposal);
-    const held = byValue.get(value);
-    if (held === undefined) byValue.set(value, [proposal]);
+    const key = proposalValueKey(proposal);
+    const held = byValue.get(key);
+    if (held === undefined) byValue.set(key, [proposal]);
     else held.push(proposal);
   }
-  return [...byValue].map(([value, proposals]) => ({ value, proposals }));
+  return [...byValue.values()].map((proposals) => ({
+    value: proposalValueOf(proposals[0] as ProposalNote),
+    proposals,
+  }));
 }
 
 /** The least sure of the confidences given; null when none is. */
@@ -137,53 +190,88 @@ function leastConfidence(members: readonly ProposalNote[]): ProposalConfidence |
   return [...PROPOSAL_CONFIDENCES].reverse().find((each) => said.includes(each)) ?? null;
 }
 
+function groupOf(component: Component): ConflictGroup {
+  return {
+    kind: component.kind,
+    slot: component.slot,
+    source: component.members[0]?.source ?? null,
+    choices: choicesOf(component.members),
+    confidence: leastConfidence(component.members),
+  };
+}
+
+const NO_MANY: ManyValued = () => false;
+
 /**
  * The open proposals that conflict, each group one "pick one" question, in
  * the order their first members came. Computed afresh from what is open:
  * nothing about a group is persisted.
  */
-export function conflictGroups(open: readonly ProposalNote[]): readonly ConflictGroup[] {
-  return gather(open).flatMap((gathering) => {
-    const choices = choicesOf(gathering.members);
-    if (choices.length < 2) return [];
-    return [
-      {
-        kind: gathering.kind,
-        slot: gathering.slot,
-        source: gathering.members[0]?.source ?? null,
-        choices,
-        confidence: leastConfidence(gathering.members),
-      },
-    ];
-  });
+export function conflictGroups(
+  open: readonly ProposalNote[],
+  { manyValued = NO_MANY }: GroupingOptions = {},
+): readonly ConflictGroup[] {
+  return components(open, manyValued)
+    .map(groupOf)
+    .filter((group) => group.choices.length >= 2);
 }
 
 /**
  * The open proposals as the section lists them: each on its own, except
- * those in a conflict group, which stand together where the first of them
- * was.
+ * those that belong together, which stand as one entry where the first of
+ * them was. A conflict has several choices; the same proposal made more than
+ * once is one choice held by each of them, listed once.
  */
-export function proposalEntries(open: readonly ProposalNote[]): readonly ProposalEntry[] {
-  const groups = conflictGroups(open);
-  const groupOf = new Map<VaultPath, ConflictGroup>();
-  for (const group of groups) {
-    for (const choice of group.choices) {
-      for (const proposal of choice.proposals) groupOf.set(proposal.path, group);
-    }
+export function proposalEntries(
+  open: readonly ProposalNote[],
+  options: GroupingOptions = {},
+): readonly ProposalEntry[] {
+  const placed = new Map<VaultPath, ConflictGroup>();
+  for (const component of components(open, options.manyValued ?? NO_MANY)) {
+    if (component.members.length < 2) continue;
+    const group = groupOf(component);
+    for (const member of component.members) placed.set(member.path, group);
   }
-  const placed = new Set<ConflictGroup>();
+  const shown = new Set<ConflictGroup>();
   return open.flatMap((proposal): ProposalEntry[] => {
-    const group = groupOf.get(proposal.path);
+    const group = placed.get(proposal.path);
     if (group === undefined) return [{ one: proposal }];
-    if (placed.has(group)) return [];
-    placed.add(group);
+    if (shown.has(group)) return [];
+    shown.add(group);
     return [{ choice: group }];
   });
 }
 
-/** The proposals "Accept all high confidence" accepts: the sure ones that need no choice. */
+/** Whether an entry asks the person to pick between different values. */
+export function isPickOne(entry: ProposalEntry): boolean {
+  return 'choice' in entry && entry.choice.choices.length > 1;
+}
+
+/**
+ * The proposals "Accept all high confidence" accepts: the sure ones that need
+ * no choice — a proposal on its own, or the first of those that are one and
+ * the same, so a link is never applied twice. Their duplicates are rejected
+ * behind them (`duplicatesOf`).
+ */
 export function acceptableAtOnce(entries: readonly ProposalEntry[]): readonly VaultPath[] {
-  return entries.flatMap((entry) =>
-    'one' in entry && entry.one.confidence === 'high' ? [entry.one.path] : [],
-  );
+  return entries.flatMap((entry) => {
+    if ('one' in entry) return entry.one.confidence === 'high' ? [entry.one.path] : [];
+    const [only] = entry.choice.choices;
+    const first = only?.proposals[0];
+    if (isPickOne(entry) || first === undefined || entry.choice.confidence !== 'high') return [];
+    return [first.path];
+  });
+}
+
+/** The proposals that are the very same as `path`, which accepting it makes redundant; none for a proposal on its own. */
+export function duplicatesOf(
+  entries: readonly ProposalEntry[],
+  path: VaultPath,
+): readonly VaultPath[] {
+  for (const entry of entries) {
+    if (!('choice' in entry) || isPickOne(entry)) continue;
+    const proposals = entry.choice.choices[0]?.proposals ?? [];
+    if (proposals[0]?.path === path) return proposals.slice(1).map((each) => each.path);
+  }
+  return [];
 }

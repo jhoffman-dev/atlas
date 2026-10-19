@@ -295,6 +295,9 @@ describe('conflictGroups — cases the properties found (attack #406)', () => {
     // "Mara Quill and Tobias Fenn will pair on it" — one block, two attendees, both right.
     const mara = link('Mara', '[[Mara Quill]]', '[[2026-10-16 Platform Standup#^t0004]]');
     const tobias = link('Tobias', '[[Tobias Fenn]]', '[[2026-10-16 Platform Standup#^t0004]]');
-    expect(conflictGroups([mara, tobias])).toEqual([]);
+    // The relation's type says it holds many: the domain is told, it does not look.
+    const manyValued = (slot: { property: string }) => slot.property === 'people';
+    expect(conflictGroups([mara, tobias], { manyValued })).toEqual([]);
+    expect(proposalEntries([mara, tobias], { manyValued })).toHaveLength(2);
   });
 });

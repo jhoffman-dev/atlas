@@ -3,6 +3,8 @@ import { createVaultPath } from '../vault/vault-path.ts';
 import {
   acceptableAtOnce,
   conflictGroups,
+  duplicatesOf,
+  isPickOne,
   proposalEntries,
   type ConflictGroup,
 } from './conflict-groups.ts';
@@ -203,5 +205,49 @@ describe('acceptableAtOnce', () => {
     ];
     const entries = proposalEntries([unsure, ...choice, sure, silent]);
     expect(acceptableAtOnce(entries)).toEqual([sure.path]);
+  });
+});
+
+describe('the same proposal made more than once', () => {
+  const sure = (name: string, to: string) => link(name, to, { confidence: 'high' });
+
+  it('is one entry beside a rival too: the duplicate stands with the value it repeats', () => {
+    const entries = proposalEntries([
+      sure('A1', '[[Mara Quill]]'),
+      sure('B', '[[Tobias Fenn]]'),
+      sure('A2', '[[mara quill|Mara]]'),
+    ]);
+    expect(entries).toHaveLength(1);
+    const [only] = entries;
+    expect(only !== undefined && isPickOne(only)).toBe(true);
+    expect(
+      'choice' in entries[0]! && entries[0].choice.choices.map((c) => c.proposals.length),
+    ).toEqual([2, 1]);
+  });
+
+  it('is accepted once, the first, and the rest named to be rejected', () => {
+    const first = sure('A1', '[[Mara Quill]]');
+    const second = sure('A2', '[[Mara Quill|Mara]]');
+    const entries = proposalEntries([first, second]);
+    expect(acceptableAtOnce(entries)).toEqual([first.path]);
+    expect(duplicatesOf(entries, first.path)).toEqual([second.path]);
+    expect(duplicatesOf(entries, second.path)).toEqual([]);
+  });
+
+  it('is not taken at once unless every copy is sure', () => {
+    const entries = proposalEntries([sure('A1', '[[Mara Quill]]'), link('A2', '[[Mara Quill]]')]);
+    expect(acceptableAtOnce(entries)).toEqual([]);
+  });
+
+  it('collapses in a many-valued slot too, while different values there stay separate', () => {
+    const manyValued = () => true;
+    const entries = proposalEntries(
+      [sure('A1', '[[Mara Quill]]'), sure('A2', '[[Mara Quill]]'), sure('B', '[[Tobias Fenn]]')],
+      { manyValued },
+    );
+    expect(entries).toHaveLength(2);
+    expect(
+      conflictGroups([sure('A1', '[[Mara Quill]]'), sure('B', '[[Tobias Fenn]]')], { manyValued }),
+    ).toEqual([]);
   });
 });
