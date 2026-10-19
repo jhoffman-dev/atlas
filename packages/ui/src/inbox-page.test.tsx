@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
-import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
+import {
+  INBOX_OFFERS_AFTER_INDEX_WAIT_MS,
+  INBOX_OFFERS_WAIT_MS,
+  InboxPage,
+  type InboxContents,
+  type InboxPageProps,
+} from './inbox-page.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 
 /** A captured task, as the Inbox reads one that says nothing yet but its status. */
@@ -603,6 +609,23 @@ describe('InboxPage: while the vault’s settings note cannot be read (#226)', (
   });
 });
 
+const VAULT_TIDY: NonNullable<InboxPageProps['vaultTidy']> = {
+  preview: {
+    moves: [{ from: 'Loose idea.md', to: 'Notes/2026/Loose idea.md' }],
+    refused: [],
+  },
+  open: false,
+  busy: false,
+  result: null,
+  problem: null,
+  onOpen: vi.fn(),
+  onApply: vi.fn(),
+  onClose: vi.fn(),
+  onDismiss: vi.fn(),
+};
+/** The tidy while the vault is still read for it: nothing known to offer yet. */
+const READING = { ...VAULT_TIDY, preview: null, reading: true };
+
 describe('InboxPage — an offer read late does not move the ones already shown (#227)', () => {
   const TYPES_OFFER: NonNullable<InboxPageProps['typesOffer']> = {
     lines: ['Task gains Project, linking project or area notes.'],
@@ -639,13 +662,112 @@ describe('InboxPage — an offer read late does not move the ones already shown 
     (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
   it('puts an offer read after another below it, so what is under the pointer stays put', () => {
-    const view = page({ meetingProjects: MEETING_PROJECTS });
-    view.rerender({ meetingProjects: MEETING_PROJECTS, typesOffer: TYPES_OFFER });
+    // While another is still read, so the rows are not drawn yet (#130).
+    const view = page({ meetingProjects: MEETING_PROJECTS, vaultTidy: READING });
+    view.rerender({
+      meetingProjects: MEETING_PROJECTS,
+      vaultTidy: READING,
+      typesOffer: TYPES_OFFER,
+    });
     expect(precedes(meetingOffer(), typesOffer())).toBe(true);
   });
 
   it('keeps the usual order for the offers read together', () => {
     page({ meetingProjects: MEETING_PROJECTS, typesOffer: TYPES_OFFER });
     expect(precedes(typesOffer(), meetingOffer())).toBe(true);
+  });
+});
+
+describe('InboxPage — nothing moves under the pointer once the rows are drawn (#130)', () => {
+  const TYPES_OFFER: NonNullable<InboxPageProps['typesOffer']> = {
+    lines: ['Task gains Project, linking project or area notes.'],
+    onAccept: vi.fn(),
+    onDismiss: vi.fn(),
+  };
+  const tidyOffer = () => screen.queryByRole('region', { name: 'Tidy the vault' });
+  const firstRow = () => screen.queryByRole('button', { name: 'Call the bank' });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('holds the rows back while an offer is still being read, then draws them below it', () => {
+    const view = page({ vaultTidy: READING, proposals: PROPOSALS });
+    expect(firstRow()).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Proposals' })).toBeNull();
+    // Drawn in place, so showing them costs nothing, but out of reach until then.
+    const held = screen.getByText('Call the bank');
+    expect(held.closest('[inert]')).not.toBeNull();
+
+    view.rerender({ vaultTidy: VAULT_TIDY, proposals: PROPOSALS });
+    const offer = tidyOffer();
+    const row = firstRow();
+    expect(offer).not.toBeNull();
+    expect(row).not.toBeNull();
+    expect((offer!.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(
+      true,
+    );
+  });
+
+  // Late now means shown at once: the rows are held still on screen as it lands (list-anchor.test.tsx).
+  it('draws the rows anyway once a slow read has had its time, and shows that offer when it comes', () => {
+    vi.useFakeTimers();
+    const view = page({ vaultTidy: READING });
+    expect(firstRow()).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_WAIT_MS);
+    });
+    expect(firstRow()).not.toBeNull();
+
+    view.rerender({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).not.toBeNull();
+    expect(firstRow()).not.toBeNull();
+  });
+
+  it('holds the rows with no time limit while an offer waits for the index, then a longer limit once it is ready', () => {
+    vi.useFakeTimers();
+    const waiting = { ...READING, waitingForIndex: true };
+    const view = page({ vaultTidy: waiting });
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_WAIT_MS * 20);
+    });
+    // Still drawn in place, unseen and out of reach: a vault just opened has no index yet.
+    expect(firstRow()).toBeNull();
+    expect(screen.getByText('Call the bank').closest('[inert]')).not.toBeNull();
+
+    // Index ready: the offers are read all at once, so the page waits its longer limit.
+    view.rerender({ vaultTidy: READING });
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_WAIT_MS);
+    });
+    expect(firstRow()).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_AFTER_INDEX_WAIT_MS);
+    });
+    expect(firstRow()).not.toBeNull();
+  });
+
+  it('shows an offer that arrives after the rows are drawn, without waiting for the next open', () => {
+    const view = page();
+    expect(firstRow()).not.toBeNull();
+    view.rerender({ typesOffer: TYPES_OFFER });
+    expect(screen.queryByRole('complementary', { name: /Set your types up/ })).not.toBeNull();
+    expect(firstRow()).not.toBeNull();
+  });
+
+  it('still changes an offer already shown, as the person answers it', () => {
+    const view = page({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).not.toBeNull();
+    view.rerender({ vaultTidy: { ...VAULT_TIDY, preview: null, result: 'Tidied the vault.' } });
+    expect(within(tidyOffer()!).getByRole('status').textContent).toBe('Tidied the vault.');
+  });
+
+  it('keeps showing an offer already shown that is briefly read as nothing, as a run settles', () => {
+    const view = page({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).not.toBeNull();
+    // Read again mid-run: the moves are made, and the run has not said so yet.
+    view.rerender({ vaultTidy: null });
+    view.rerender({ vaultTidy: { ...VAULT_TIDY, preview: null, result: 'Tidied the vault.' } });
+    expect(within(tidyOffer()!).getByRole('status').textContent).toBe('Tidied the vault.');
   });
 });

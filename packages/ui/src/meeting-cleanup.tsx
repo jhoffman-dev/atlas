@@ -1,4 +1,5 @@
 import { Icon } from './icon.tsx';
+import type { InboxOfferReading } from './inbox-offer.ts';
 
 /** One task the cleanup would archive, as the preview lists it. */
 export interface MeetingCleanupTask {
@@ -8,7 +9,7 @@ export interface MeetingCleanupTask {
   readonly why: string;
 }
 
-export interface MeetingCleanupProps {
+export interface MeetingCleanupProps extends InboxOfferReading {
   /** The tasks that fail today's rules; null when there are none. */
   readonly tasks: readonly MeetingCleanupTask[] | null;
   /** The ones the person chose to keep, by path. */

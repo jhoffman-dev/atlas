@@ -1851,6 +1851,7 @@ function AppWindow({
                         busy: archiveCommands.busy,
                       },
                       inbox: {
+                        vaultKey,
                         contents: inbox.contents,
                         error: inbox.error,
                         filing: inbox.filing,
