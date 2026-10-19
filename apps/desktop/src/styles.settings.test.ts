@@ -101,7 +101,7 @@ function inkOf(selector: string): string | null {
 /** The text Settings draws, and the ground each run sits on. */
 const SETTINGS_TEXT: readonly { readonly selector: string; readonly ground: string }[] = [
   { selector: '.settings__nav-row', ground: '--bg' },
-  { selector: '.settings__nav-icon', ground: '--bg' },
+  { selector: '.settings__nav-row .settings__nav-icon', ground: '--bg' },
   { selector: '.settings__lede', ground: '--surface' },
   { selector: '.settings__file', ground: '--surface' },
   { selector: '.settings__status', ground: '--surface' },

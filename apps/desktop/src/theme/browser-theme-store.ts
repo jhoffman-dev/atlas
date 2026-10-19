@@ -25,11 +25,13 @@ export function createBrowserThemeStore(): ThemeStore {
   const listeners = new Set<() => void>();
   const tell = () => listeners.forEach((listener) => listener());
 
-  // Another window's write to the key (or its clearing of storage, which
-  // has no key): taken as this window's choice too, subscribers or not, so a
-  // read after it answers the same as that window's. One listener for the
-  // store's lifetime, which is the app's.
+  // Another window's write to the key (or its clearing of localStorage,
+  // which has no key): taken as this window's choice too, subscribers or
+  // not, so a read after it answers the same as that window's. One listener
+  // for the store's lifetime: the app makes a single store, and it lives as
+  // long as the window does, so there is nothing to remove it for.
   window.addEventListener('storage', (event) => {
+    if (event.storageArea !== window.localStorage) return;
     if (event.key !== KEY && event.key !== null) return;
     session = { choice: isTheme(event.newValue) ? event.newValue : null };
     tell();
