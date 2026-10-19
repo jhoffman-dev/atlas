@@ -112,7 +112,7 @@ export function useQueryView({
     onChanged,
   });
   const names = useNoteNames();
-  const fold = useQueryPanelFold({ ...queryFold, savedText: saved?.text ?? '' });
+  const fold = useQueryPanelFold({ ...queryFold, savedText: saved?.text ?? null });
   const path = note?.path ?? null;
   const text = editor.text;
 
