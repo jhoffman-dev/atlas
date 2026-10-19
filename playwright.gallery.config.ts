@@ -17,7 +17,8 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
   ...e2e,
   testDir: './tools/design',
-  testMatch: 'gallery.spec.ts',
+  // The gallery's own shots, and the attack specs that judge it in a real engine.
+  testMatch: /\/gallery[^/]*\.spec\.ts$/,
   fullyParallel: false,
   workers: 1,
   use: { ...e2e.use, baseURL: BASE_URL },

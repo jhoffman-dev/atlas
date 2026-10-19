@@ -1,22 +1,29 @@
 import { useState } from 'react';
 import {
   createVaultPath,
+  noteNames,
   sidebarEntry,
   sidebarTreeRows,
   STATUS_TONES,
   type ActiveSidebarPage,
+  type PropertyDef,
   type SidebarSectionId,
 } from '@atlas/domain';
 import {
   Icon,
   KeyHints,
+  NoteNamesProvider,
   SegmentedControl,
   Sidebar,
   StatusPill,
+  TableView,
   TabStrip,
   Toast,
   Toggle,
+  type RelationChoice,
   type SectionStore,
+  type TableResult,
+  type TableSchema,
   type TabStripTab,
 } from '@atlas/ui';
 
@@ -152,6 +159,103 @@ const PANE_TABS: readonly TabStripTab[] = [
 ];
 
 /** A pane's strip, live: clicking shows, × and middle-click close, + adds. */
+/** A property as a type declares it, for the table's editors. */
+function property(
+  key: string,
+  kind: PropertyDef['kind'],
+  more: Partial<PropertyDef> = {},
+): PropertyDef {
+  return {
+    key,
+    kind,
+    label: key.charAt(0).toUpperCase() + key.slice(1),
+    required: false,
+    options: [],
+    target: null,
+    many: false,
+    ...more,
+  };
+}
+
+const TABLE_PROPERTIES: readonly PropertyDef[] = [
+  property('status', 'select', {
+    options: ['inbox', 'next', 'waiting', 'someday', 'scheduled', 'longterm', 'done', 'archive'],
+  }),
+  property('due', 'date'),
+  property('estimate', 'number', { label: 'Hours' }),
+  property('urgent', 'checkbox'),
+  property('project', 'relation', { target: 'project' }),
+  property('owner', 'text'),
+];
+
+const TABLE_SCHEMA: TableSchema = {
+  kinds: Object.fromEntries(TABLE_PROPERTIES.map((def) => [def.key, def.kind])),
+  labels: Object.fromEntries(TABLE_PROPERTIES.map((def) => [def.key, def.label])),
+  noun: 'task',
+  properties: Object.fromEntries(TABLE_PROPERTIES.map((def) => [def.key, def])),
+};
+
+const TABLE_RESULT: TableResult = {
+  columns: ['path', 'title', 'status', 'due', 'estimate', 'urgent', 'project', 'owner'],
+  rows: [
+    ['t1.md', 'Book the hall', 'next', '2026-10-21', 1.5, true, '[[P-01]]', 'Mara Quill'],
+    ['t2.md', 'Order the chairs', 'waiting', '2026-10-24', 2, false, '[[P-01]]', 'Tobias Fenn'],
+    ['t3.md', 'Write the invitation', 'inbox', null, null, false, null, null],
+    [
+      't4.md',
+      'Review the Larkspur contract',
+      'scheduled',
+      '2026-10-28',
+      4,
+      false,
+      '[[P-02]]',
+      'Mara Quill',
+    ],
+    ['t5.md', 'Water the garden', 'done', '2026-10-18', 0.5, false, '[[P-03]]', null],
+  ],
+  truncated: false,
+  sql: '',
+};
+
+const TABLE_NAMES = noteNames([
+  { path: createVaultPath('projects/P-01.md'), title: 'Autumn fête' },
+  { path: createVaultPath('projects/P-02.md'), title: 'Larkspur Payroll onboarding' },
+  { path: createVaultPath('projects/P-03.md'), title: 'Garden' },
+]);
+
+const TABLE_CHOICES: Readonly<Record<string, readonly RelationChoice[]>> = {
+  project: [
+    { path: 'projects/P-01.md', title: 'Autumn fête', type: 'project' },
+    { path: 'projects/P-02.md', title: 'Larkspur Payroll onboarding', type: 'project' },
+    { path: 'projects/P-03.md', title: 'Garden', type: 'project' },
+  ],
+};
+
+/**
+ * Every cell editor on one sheet (#299): a status that opens the picker, a
+ * date, a number, a checkbox, a relation and plain text. Edits go nowhere;
+ * the gallery shows the editors, not a vault.
+ */
+function TableSpecimen() {
+  return (
+    <div className="gallery-page__table">
+      <NoteNamesProvider value={TABLE_NAMES}>
+        <TableView
+          result={TABLE_RESULT}
+          sorts={[{ key: 'due', direction: 'asc' }]}
+          error={null}
+          schema={TABLE_SCHEMA}
+          relationChoices={TABLE_CHOICES}
+          onOpenNote={() => {}}
+          onEditCell={() => {}}
+          onCreateRelated={() => Promise.resolve('[[P-04]]')}
+          onToggleSort={() => {}}
+        />
+      </NoteNamesProvider>
+    </div>
+  );
+}
+
 function TabStripSpecimen({ focused }: { focused: boolean }) {
   const [tabs, setTabs] = useState(PANE_TABS);
   const [active, setActive] = useState(focused ? 't3' : 't1');
@@ -310,6 +414,10 @@ function Specimens() {
       <Row title="Tab strip">
         <TabStripSpecimen focused />
         <TabStripSpecimen focused={false} />
+      </Row>
+
+      <Row title="Table">
+        <TableSpecimen />
       </Row>
 
       <Row title="Elevation">

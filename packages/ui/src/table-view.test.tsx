@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, noteNames } from '@atlas/domain';
@@ -169,7 +169,7 @@ describe('TableView', () => {
     expect(onEditCell).toHaveBeenCalledWith({ path: 'a.md', column: 'status', value: 'done' });
   });
 
-  it('keeps an edit in progress when its row leaves the page, as a scrolled-away row does', async () => {
+  it('writes an edit in progress once when its row leaves the result: the note is still there', async () => {
     const onEditCell = vi.fn();
     const { rerender } = render(<TableView {...props} result={result} onEditCell={onEditCell} />);
 
@@ -190,6 +190,40 @@ describe('TableView', () => {
       path: 'a.md',
       column: 'status',
       value: 'done',
+    });
+    // The row back again is not being edited.
+    rerender(<TableView {...props} result={result} onEditCell={onEditCell} />);
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByRole('button', { name: 'doing' })).toBeDefined();
+  });
+
+  it('writes an edit once when it ends and the table leaves the page in the same frame', async () => {
+    const onEditCell = vi.fn();
+    const view = render(<TableView {...props} result={result} onEditCell={onEditCell} />);
+    await userEvent.click(screen.getByRole('button', { name: 'doing' }));
+    const input = screen.getByDisplayValue('doing');
+    await userEvent.type(input, '!');
+    act(() => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+      view.unmount();
+    });
+    expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
+      path: 'a.md',
+      column: 'status',
+      value: 'doing!',
+    });
+  });
+
+  it('writes an edit in progress once when the table leaves the page', async () => {
+    const onEditCell = vi.fn();
+    const view = render(<TableView {...props} result={result} onEditCell={onEditCell} />);
+    await userEvent.click(screen.getByRole('button', { name: 'doing' }));
+    await userEvent.type(screen.getByDisplayValue('doing'), '!');
+    view.unmount();
+    expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
+      path: 'a.md',
+      column: 'status',
+      value: 'doing!',
     });
   });
 
