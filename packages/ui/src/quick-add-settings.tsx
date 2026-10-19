@@ -1,5 +1,6 @@
 import { Icon, type IconName } from './icon.tsx';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 import { SortableList } from './sortable-list.tsx';
 
 /** A type the add button is set to offer. */
@@ -39,7 +40,7 @@ export function QuickAddSettings({
   const full = rows.length >= limit;
 
   return (
-    <SettingsCard id="settings-quick-add" icon="plus" title="Quick add">
+    <SettingsSection section={SETTINGS_SECTIONS.quickAdd}>
       <p className="settings__lede">
         What the + button in the corner adds, up to {limit}. With one, pressing it asks for that
         straight away; with more, it opens a list to pick from.
@@ -99,6 +100,6 @@ export function QuickAddSettings({
           {problem}
         </p>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }

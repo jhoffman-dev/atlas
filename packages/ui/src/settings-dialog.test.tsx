@@ -1,13 +1,32 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SettingsDialog, type ConnectionSettingsState } from './settings-dialog.tsx';
+import { SETTINGS_SECTIONS, type SettingsSectionLink } from './settings-section-links.ts';
+import { systemPreferring, themeStoreHolding } from './theme-test-support.ts';
+import type { Theme } from './theme.ts';
 
 const RUNNING = { enabled: true, port: 7420, running: true, file: '/Users/j/api.json' };
 const OFF = { enabled: false, port: null, running: false, file: '/Users/j/api.json' };
 
 function show(connection: Partial<ConnectionSettingsState> = {}, placeholder = false) {
+  return showWith({ connection, placeholder });
+}
+
+function showWith({
+  connection = {},
+  placeholder = false,
+  chosen = null,
+  sections = [],
+}: {
+  connection?: Partial<ConnectionSettingsState>;
+  placeholder?: boolean;
+  /** The theme the store holds; null for none chosen. */
+  chosen?: Theme | null;
+  sections?: readonly SettingsSectionLink[];
+}) {
+  const store = themeStoreHolding(chosen);
   const handlers = {
     onEnable: vi.fn(),
     onCopyToken: vi.fn(),
@@ -19,10 +38,20 @@ function show(connection: Partial<ConnectionSettingsState> = {}, placeholder = f
     <SettingsDialog
       connection={{ status: OFF, problem: null, notice: null, pending: false, ...connection }}
       mcp={{ command: 'claude mcp add atlas -- node /x/main.js', placeholder }}
+      themeStore={store}
+      sections={sections}
       {...handlers}
-    />,
+    >
+      {sections.map((section) => (
+        <section key={section.id} aria-labelledby={section.id}>
+          <h2 id={section.id} tabIndex={-1}>
+            {section.title}
+          </h2>
+        </section>
+      ))}
+    </SettingsDialog>,
   );
-  return handlers;
+  return { ...handlers, store };
 }
 
 const statusText = () => screen.getByTestId('api-status').textContent;
@@ -128,5 +157,103 @@ describe('SettingsDialog, Connections', () => {
     const { onClose } = show();
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+const matchSystem = () => screen.getByRole('switch', { name: 'Match system' });
+
+describe('SettingsDialog, Appearance', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete document.documentElement.dataset['theme'];
+  });
+
+  it('has Match system on while nothing is chosen, and says what the system is', () => {
+    vi.stubGlobal('matchMedia', systemPreferring(true).matchMedia);
+    showWith({ chosen: null });
+    expect(matchSystem().getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByTestId('theme-status').textContent).toContain('dark now');
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+  });
+
+  it('has Match system off while a theme is chosen, and says which', () => {
+    showWith({ chosen: 'dark' });
+    expect(matchSystem().getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('theme-status').textContent).toMatch(/^Dark, chosen/);
+  });
+
+  it('turning Match system on clears the choice, and the system theme applies', async () => {
+    vi.stubGlobal('matchMedia', systemPreferring(false).matchMedia);
+    const { store } = showWith({ chosen: 'dark' });
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+
+    await userEvent.click(matchSystem());
+
+    expect(store.read()).toBeNull();
+    expect(store.written).toEqual([null]);
+    expect(matchSystem().getAttribute('aria-checked')).toBe('true');
+    expect(document.documentElement.dataset['theme']).toBe('light');
+  });
+
+  it('turning Match system off keeps the theme showing, as the choice', async () => {
+    vi.stubGlobal('matchMedia', systemPreferring(true).matchMedia);
+    const { store } = showWith({ chosen: null });
+
+    await userEvent.click(matchSystem());
+
+    expect(store.read()).toBe('dark');
+    expect(matchSystem().getAttribute('aria-checked')).toBe('false');
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+  });
+
+  it('follows the system while matching it', () => {
+    const system = systemPreferring(false);
+    vi.stubGlobal('matchMedia', system.matchMedia);
+    showWith({ chosen: null });
+    expect(document.documentElement.dataset['theme']).toBe('light');
+
+    act(() => system.prefer(true));
+
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+    expect(screen.getByTestId('theme-status').textContent).toContain('dark now');
+  });
+});
+
+describe('SettingsDialog, the list of sections', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('lists its own sections, then the app’s, as rows', () => {
+    showWith({ sections: [SETTINGS_SECTIONS.profile, SETTINGS_SECTIONS.sync] });
+    const list = screen.getByRole('navigation', { name: 'Settings sections' });
+    expect(
+      within(list)
+        .getAllByRole('button')
+        .map((row) => row.textContent),
+    ).toEqual(['Appearance', 'Connections', 'Profile', 'Sync']);
+  });
+
+  it('draws a section as a hairline group, not a card', () => {
+    show();
+    const connections = screen.getByRole('region', { name: 'Connections' });
+    expect(connections.className).toBe('settings__section');
+    expect(document.querySelector('.settings__card')).toBeNull();
+  });
+
+  it('a row brings its section into view and hands it the focus', async () => {
+    // jsdom lays nothing out, so it has no scrollIntoView to call; given
+    // one for this test, and taken away again by the afterEach's restore.
+    Element.prototype.scrollIntoView = () => {};
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView');
+    showWith({ sections: [SETTINGS_SECTIONS.sync] });
+    const list = screen.getByRole('navigation', { name: 'Settings sections' });
+
+    await userEvent.click(within(list).getByRole('button', { name: 'Sync' }));
+
+    const heading = screen.getByRole('heading', { name: 'Sync' });
+    expect(document.activeElement).toBe(heading);
+    expect(scrolled).toHaveBeenCalledOnce();
+    expect(scrolled.mock.instances[0]).toBe(heading);
   });
 });

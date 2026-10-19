@@ -1,8 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import type { ApiConnectionStatus } from '@atlas/application';
+import { AppearanceSettings } from './appearance-settings.tsx';
 import { Icon } from './icon.tsx';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS, type SettingsSectionLink } from './settings-section-links.ts';
+import type { ThemeStore } from './theme.ts';
 import { Toggle } from './toggle.tsx';
 import { useReturnFocus, type FocusFallback } from './return-focus.ts';
 
@@ -26,10 +29,17 @@ function statusLine(state: ConnectionSettingsState): string {
   return 'On, but not running';
 }
 
+/** The sections the dialog draws itself, before the app's. */
+const OWN_SECTIONS: readonly SettingsSectionLink[] = [
+  SETTINGS_SECTIONS.appearance,
+  SETTINGS_SECTIONS.connections,
+];
+
 /**
- * Settings, as a dialog. Connections — the local API that lets
- * other tools on this machine read and write the vault through Atlas — and
- * whatever sections the app adds after it.
+ * Settings, as a dialog: a list of its sections on the left and the sections
+ * as hairline groups on the right. Appearance and Connections — the local API
+ * that lets other tools on this machine read and write the vault through
+ * Atlas — are its own; the app adds its sections after them.
  *
  * Focus trapping, Escape and the portal are Base UI's, as for the palettes
  * (ADR-0015).
@@ -37,6 +47,8 @@ function statusLine(state: ConnectionSettingsState): string {
 export function SettingsDialog({
   connection,
   mcp,
+  themeStore,
+  sections = [],
   onEnable,
   onCopyToken,
   onRotateToken,
@@ -48,6 +60,9 @@ export function SettingsDialog({
   connection: ConnectionSettingsState;
   /** The Claude Code command that adds the MCP server; `placeholder` when its path must be filled in. */
   mcp: { readonly command: string; readonly placeholder: boolean };
+  themeStore: ThemeStore;
+  /** The app's sections, in the order `children` draws them, for the list on the left. */
+  sections?: readonly SettingsSectionLink[];
   onEnable: (enabled: boolean) => void;
   onCopyToken: () => void;
   onRotateToken: () => void;
@@ -63,9 +78,11 @@ export function SettingsDialog({
   return settingsFrame({
     onClose,
     finalFocus,
+    sections: [...OWN_SECTIONS, ...sections],
     body: (
       <>
-        <SettingsCard id="settings-connections" icon="link" title="Connections">
+        <AppearanceSettings store={themeStore} />
+        <SettingsSection section={SETTINGS_SECTIONS.connections}>
           <p className="settings__lede">
             Let other tools on this Mac, such as Claude Code, read and write this vault through
             Atlas while it is open.
@@ -99,7 +116,7 @@ export function SettingsDialog({
               Connection file <code>{status.file}</code>
             </p>
           )}
-        </SettingsCard>
+        </SettingsSection>
         {children}
       </>
     ),
@@ -126,7 +143,7 @@ function TokenActions({
         </p>
         <div className="settings__actions">
           <button
-            className="btn btn--primary btn--sm"
+            className="btn btn--primary"
             type="button"
             onClick={() => {
               setConfirming(false);
@@ -135,11 +152,7 @@ function TokenActions({
           >
             Rotate
           </button>
-          <button
-            className="btn btn--ghost btn--sm"
-            type="button"
-            onClick={() => setConfirming(false)}
-          >
+          <button className="btn btn--ghost" type="button" onClick={() => setConfirming(false)}>
             Cancel
           </button>
         </div>
@@ -149,11 +162,11 @@ function TokenActions({
 
   return (
     <div className="settings__actions">
-      <button className="btn btn--tinted btn--sm" type="button" disabled={pending} onClick={onCopy}>
+      <button className="btn btn--secondary" type="button" disabled={pending} onClick={onCopy}>
         Copy token
       </button>
       <button
-        className="btn btn--tinted btn--sm"
+        className="btn btn--secondary"
         type="button"
         disabled={pending}
         onClick={() => setConfirming(true)}
@@ -183,12 +196,7 @@ function McpCommand({
         </p>
       )}
       <div className="settings__actions">
-        <button
-          className="btn btn--tinted btn--sm"
-          type="button"
-          disabled={pending}
-          onClick={onCopy}
-        >
+        <button className="btn btn--secondary" type="button" disabled={pending} onClick={onCopy}>
           Copy MCP command
         </button>
       </div>
@@ -196,18 +204,48 @@ function McpCommand({
   );
 }
 
+/** Brings a section into view and hands it the focus, by its heading. */
+function reveal(section: SettingsSectionLink): void {
+  const heading = document.getElementById(section.id);
+  if (heading === null) return;
+  heading.scrollIntoView({ block: 'start' });
+  // Focus would scroll too, and might not agree about where.
+  heading.focus({ preventScroll: true });
+}
+
+/** The sections, as 28px rows on the left, each a way to its section. */
+function SectionList({ sections }: { sections: readonly SettingsSectionLink[] }) {
+  return (
+    <nav className="settings__nav" aria-label="Settings sections">
+      <ul className="settings__nav-list">
+        {sections.map((section) => (
+          <li key={section.id}>
+            <button className="settings__nav-row" type="button" onClick={() => reveal(section)}>
+              <Icon name={section.icon} size={15} className="settings__nav-icon" />
+              {section.title}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 /**
- * Settings' window — its title, its Close and Escape, the focus it returns —
- * around `body`. A plain function rather than a component, so that drawing
- * Settings through it adds nothing to each render.
+ * Settings' window — its title, its Close and Escape, the focus it returns,
+ * and the list of sections when there are any — around `body`. A plain
+ * function rather than a component, so that drawing Settings through it adds
+ * nothing to each render.
  */
 function settingsFrame({
   onClose,
   finalFocus,
+  sections = [],
   body,
 }: {
   onClose: () => void;
   finalFocus: ReturnType<typeof useReturnFocus>;
+  sections?: readonly SettingsSectionLink[];
   body: ReactNode;
 }) {
   return (
@@ -221,15 +259,15 @@ function settingsFrame({
         <Dialog.Viewport className="palette__backdrop">
           <Dialog.Popup className="palette settings" finalFocus={finalFocus} aria-label="Settings">
             <header className="settings__header">
-              <span className="settings__tile" aria-hidden="true">
-                <Icon name="gear" size={20} />
-              </span>
               <h1 className="settings__title">Settings</h1>
-              <Dialog.Close className="icon-button settings__close" aria-label="Close">
+              <Dialog.Close className="icon-button" aria-label="Close">
                 <Icon name="close" size={16} />
               </Dialog.Close>
             </header>
-            <div className="settings__body">{body}</div>
+            <div className="settings__columns">
+              {sections.length > 0 && <SectionList sections={sections} />}
+              <div className="settings__body">{body}</div>
+            </div>
           </Dialog.Popup>
         </Dialog.Viewport>
       </Dialog.Portal>

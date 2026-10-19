@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 /** One secret as Settings shows it. There is no value here to show. */
 export interface SecretRow {
@@ -47,7 +48,7 @@ export function SecretsSettings({
   onDelete: (name: string) => void;
 }) {
   return (
-    <SettingsCard id="settings-secrets" icon="key" title="Secrets">
+    <SettingsSection section={SETTINGS_SECTIONS.secrets}>
       <p className="settings__lede">
         Tokens a source sends, kept in this Mac’s Keychain and never in the vault. A source names
         one as <code>{'{{secret:name}}'}</code>, or with <code>auth: {'{ secret: name }'}</code>.
@@ -75,7 +76,7 @@ export function SecretsSettings({
           {problem}
         </p>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -171,7 +172,7 @@ function ItemActions({
   return (
     <span className="settings__actions">
       <button
-        className="btn btn--tinted btn--sm"
+        className="btn btn--secondary"
         type="button"
         disabled={pending}
         onClick={() => onMode('replacing')}
@@ -180,7 +181,7 @@ function ItemActions({
       </button>
       {secret.stored && (
         <button
-          className="btn btn--tinted btn--sm"
+          className="btn btn--secondary"
           type="button"
           disabled={pending}
           onClick={() => onMode('binding')}
@@ -190,7 +191,7 @@ function ItemActions({
       )}
       {secret.stored && (
         <button
-          className="btn btn--ghost btn--sm"
+          className="btn btn--ghost"
           type="button"
           disabled={pending}
           aria-label={`Delete ${secret.name}`}
@@ -220,10 +221,10 @@ function ConfirmDelete({
           : `${secret.usedBy.join(', ')} will fail to refresh until it is set again.`}
       </p>
       <div className="settings__actions">
-        <button className="btn btn--primary btn--sm" type="button" onClick={onConfirm}>
+        <button className="btn btn--primary" type="button" onClick={onConfirm}>
           Delete
         </button>
-        <button className="btn btn--ghost btn--sm" type="button" onClick={onCancel}>
+        <button className="btn btn--ghost" type="button" onClick={onCancel}>
           Cancel
         </button>
       </div>
@@ -264,10 +265,10 @@ function ValueForm({
         <SitesField label={`Sites ${name} may be sent to`} value={sites} onChange={setSites} />
       )}
       <div className="settings__actions">
-        <button className="btn btn--primary btn--sm" type="submit" disabled={pending}>
+        <button className="btn btn--primary" type="submit" disabled={pending}>
           Save
         </button>
-        <button className="btn btn--ghost btn--sm" type="button" onClick={onCancel}>
+        <button className="btn btn--ghost" type="button" onClick={onCancel}>
           Cancel
         </button>
       </div>
@@ -304,10 +305,10 @@ function SitesForm({
         autoFocus
       />
       <div className="settings__actions">
-        <button className="btn btn--primary btn--sm" type="submit" disabled={pending}>
+        <button className="btn btn--primary" type="submit" disabled={pending}>
           Save
         </button>
-        <button className="btn btn--ghost btn--sm" type="button" onClick={onCancel}>
+        <button className="btn btn--ghost" type="button" onClick={onCancel}>
           Cancel
         </button>
       </div>
@@ -343,7 +344,7 @@ function AddSecret({ pending, onSave }: { pending: boolean; onSave: Saving<Secre
       <SecretValueField label="Secret value" value={value} onChange={setValue} />
       <SitesField label="Sites it may be sent to" value={sites} onChange={setSites} />
       <button
-        className="btn btn--tinted btn--sm"
+        className="btn btn--secondary"
         type="submit"
         disabled={pending || name.trim() === '' || value === '' || sites.trim() === ''}
       >

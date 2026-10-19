@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 /**
  * What this Mac holds for the vault: being asked; no key; a key; a key
@@ -70,7 +71,7 @@ export function GranolaSettings({
 }) {
   const hasKey = view.keyState !== 'none' && view.keyState !== 'checking';
   return (
-    <SettingsCard id="settings-granola" icon="event" title="Granola">
+    <SettingsSection section={SETTINGS_SECTIONS.granola}>
       <p className="settings__lede">
         Meetings you record in Granola land in Meetings, a folder for each month, as they open and
         every 15 minutes. The API key stays in this Mac’s Keychain, never in the vault.
@@ -83,7 +84,7 @@ export function GranolaSettings({
           </span>
         </span>
         <button
-          className="btn btn--tinted btn--sm"
+          className="btn btn--secondary"
           type="button"
           disabled={!hasKey || view.waiting || view.pulling || view.pending}
           onClick={onSyncNow}
@@ -130,7 +131,7 @@ export function GranolaSettings({
         </p>
       )}
       {hasKey && <ForgetKey pending={view.pending} onForget={onForgetKey} />}
-    </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -162,11 +163,7 @@ function KeyForm({
         value={key}
         onChange={(event) => setKey(event.target.value)}
       />
-      <button
-        className="btn btn--primary btn--sm"
-        type="submit"
-        disabled={pending || key.trim() === ''}
-      >
+      <button className="btn btn--primary" type="submit" disabled={pending || key.trim() === ''}>
         Save
       </button>
     </form>
@@ -189,7 +186,7 @@ function NotWritten({
             <span className="settings__row-label">{title}</span>
             <span className="settings__status">{problem}</span>
             {url !== null && (
-              <button className="btn btn--ghost btn--sm" type="button" onClick={() => onOpen(url)}>
+              <button className="btn btn--ghost" type="button" onClick={() => onOpen(url)}>
                 Open in Granola
               </button>
             )}
@@ -206,7 +203,7 @@ function ForgetKey({ pending, onForget }: { pending: boolean; onForget: () => vo
     return (
       <div className="settings__actions">
         <button
-          className="btn btn--ghost btn--sm"
+          className="btn btn--ghost"
           type="button"
           disabled={pending}
           onClick={() => setConfirming(true)}
@@ -224,7 +221,7 @@ function ForgetKey({ pending, onForget }: { pending: boolean; onForget: () => vo
       </p>
       <div className="settings__actions">
         <button
-          className="btn btn--primary btn--sm"
+          className="btn btn--primary"
           type="button"
           // The host does not order a forget after a save under way: the save could undo it.
           disabled={pending}
@@ -235,11 +232,7 @@ function ForgetKey({ pending, onForget }: { pending: boolean; onForget: () => vo
         >
           Forget key
         </button>
-        <button
-          className="btn btn--ghost btn--sm"
-          type="button"
-          onClick={() => setConfirming(false)}
-        >
+        <button className="btn btn--ghost" type="button" onClick={() => setConfirming(false)}>
           Cancel
         </button>
       </div>

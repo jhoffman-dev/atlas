@@ -369,8 +369,8 @@
      `--track`, which is the well tint a switch or a code block sits on. */
   --chart-track: var(--chart-bar);
   --tile-ink: var(--ink-2);
-  /* The hero is a well fill now, not a gradient; the sidebar's empty-vault
-     card is the one thing still drawn on it. */
+  /* The hero is a well fill now, not a gradient, and since slice 13f nothing
+     is drawn on it: these stay until the clean-up slice drops them. */
   --hero: var(--well);
   --hero-ink: var(--ink);
   --hero-muted: var(--ink-3);

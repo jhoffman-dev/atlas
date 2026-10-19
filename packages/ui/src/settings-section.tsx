@@ -1,26 +1,24 @@
 import type { ReactNode } from 'react';
-import { Icon, type IconName } from './icon.tsx';
+import type { SettingsSectionLink } from './settings-section-links.ts';
 
-/** One part of Settings, as a card with an icon and a title — Connections, Index. */
-export function SettingsCard({
-  id,
-  icon,
-  title,
+/**
+ * One part of Settings — Connections, Index — as a hairline group under a
+ * 15/600 title (UI v2 slice 13f): no card, no icon tile. The heading takes
+ * focus when its row in the dialog's list is chosen, so the next Tab lands on
+ * the section's first control.
+ */
+export function SettingsSection({
+  section,
   children,
 }: {
   /** Names the section for assistive technology, through its heading. */
-  id: string;
-  icon: IconName;
-  title: string;
+  section: SettingsSectionLink;
   children: ReactNode;
 }) {
   return (
-    <section className="settings__card" aria-labelledby={id}>
-      <h2 className="settings__heading" id={id}>
-        <span className="settings__heading-icon">
-          <Icon name={icon} size={16} />
-        </span>
-        {title}
+    <section className="settings__section" aria-labelledby={section.id}>
+      <h2 className="settings__heading" id={section.id} tabIndex={-1}>
+        {section.title}
       </h2>
       {children}
     </section>

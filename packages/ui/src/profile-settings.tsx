@@ -1,6 +1,7 @@
 import { CommitField } from './commit-field.tsx';
 import { SelfEmailsForm, type SelfEmailsView } from './self-emails-form.tsx';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 /**
  * Settings → Profile: who uses this vault. Claude in Atlas writes this name
@@ -36,7 +37,7 @@ export function ProfileSettings({
   onSaveEmails: (emails: string) => Promise<boolean>;
 }) {
   return (
-    <SettingsCard id="settings-profile" icon="person" title="Profile">
+    <SettingsSection section={SETTINGS_SECTIONS.profile}>
       <p className="settings__lede">
         Claude in Atlas uses your name wherever a note needs it — an owner, an author, an attendee.
         It is kept in this vault’s settings, so every Mac that syncs the vault has it.
@@ -81,6 +82,6 @@ export function ProfileSettings({
           {problem}
         </p>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }

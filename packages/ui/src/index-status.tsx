@@ -1,5 +1,6 @@
 import type { AppInfo } from '@atlas/domain';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 export type IndexSummary =
   | { readonly kind: 'idle' }
@@ -43,7 +44,7 @@ export function IndexSettings({
   onRebuild: () => void;
 }) {
   return (
-    <SettingsCard id="settings-index" icon="search" title="Index">
+    <SettingsSection section={SETTINGS_SECTIONS.index}>
       {index === null ? (
         <p className="settings__lede">Open a vault to index it.</p>
       ) : (
@@ -74,6 +75,6 @@ export function IndexSettings({
           {app.message}
         </p>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }

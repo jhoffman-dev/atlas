@@ -4,7 +4,8 @@ import {
   globalShortcutFromKeys,
   globalShortcutLabel,
 } from '@atlas/domain';
-import { SettingsCard } from './settings-card.tsx';
+import { SettingsSection } from './settings-section.tsx';
+import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 /** The shortcut as the host holds it. */
 export interface GlobalCaptureView {
@@ -66,7 +67,7 @@ export function GlobalCaptureSettings({
 
   const shortcut = view?.shortcut ?? null;
   return (
-    <SettingsCard id="settings-global-capture" icon="inbox" title="Quick capture from anywhere">
+    <SettingsSection section={SETTINGS_SECTIONS.globalCapture}>
       <p className="settings__lede">
         Press it in any app: Atlas comes forward with quick capture open, and what you type lands in
         the Inbox. It is set for this Mac only.
@@ -79,7 +80,7 @@ export function GlobalCaptureSettings({
         <div className="settings__actions">
           <button
             type="button"
-            className="btn btn--tinted btn--sm"
+            className="btn btn--secondary"
             ref={field}
             aria-pressed={recording}
             onClick={() => (recording ? stopRecording() : startRecording())}
@@ -91,14 +92,14 @@ export function GlobalCaptureSettings({
           {shortcut !== DEFAULT_GLOBAL_CAPTURE_SHORTCUT && (
             <button
               type="button"
-              className="btn btn--ghost btn--sm"
+              className="btn btn--ghost"
               onClick={() => onChange(DEFAULT_GLOBAL_CAPTURE_SHORTCUT)}
             >
               Use {globalShortcutLabel(DEFAULT_GLOBAL_CAPTURE_SHORTCUT)}
             </button>
           )}
           {shortcut !== null && (
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => onChange(null)}>
+            <button type="button" className="btn btn--ghost" onClick={() => onChange(null)}>
               Turn off
             </button>
           )}
@@ -114,7 +115,7 @@ export function GlobalCaptureSettings({
           {view.problem}
         </p>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }
 

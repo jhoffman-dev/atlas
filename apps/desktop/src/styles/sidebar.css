@@ -473,8 +473,8 @@ ul.sidebar__sections {
   padding: var(--space-3) var(--space-4);
 }
 
-/* Before a vault is open: one hero card, centred — the screen's one gradient,
-   the app's tile, a title, and the single thing to do. */
+/* Before a vault is open: a title, one paragraph and the ways to open one,
+   centred on the surface — no card, no tile (UI v2 slice 13f). */
 .empty {
   align-items: center;
   display: flex;
@@ -483,53 +483,34 @@ ul.sidebar__sections {
   padding: var(--space-7);
 }
 
-.empty__card {
+.empty__intro {
   align-items: center;
-  background: var(--hero);
-  border-radius: var(--radius-hero);
-  box-shadow: var(--shadow-hero);
-  color: var(--hero-ink);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   max-width: 460px;
-  padding: 40px 44px 36px;
   text-align: center;
 }
 
-.empty__tile {
-  align-items: center;
-  background: var(--hero-tile);
-  border-radius: 18px;
-  box-shadow: var(--glow);
-  color: var(--tile-ink);
-  display: flex;
-  font-size: 30px;
-  font-weight: 800;
-  height: 64px;
-  justify-content: center;
-  margin-bottom: var(--space-2);
-  width: 64px;
-}
-
 .empty__title {
-  font-size: var(--text-title);
-  font-weight: 800;
+  font-size: var(--text-note-title);
+  font-weight: 600;
   letter-spacing: var(--tracking-title);
   margin: 0;
 }
 
 .empty__body {
-  color: var(--hero-muted);
-  font-size: var(--text-body);
+  color: var(--ink-2);
+  font-size: var(--text-body-lg);
   line-height: var(--leading-body);
   margin: 0;
-  max-width: 38ch;
+  max-width: 44ch;
 }
 
-.empty__action {
-  font-size: var(--text-body);
-  font-weight: 800;
-  margin-top: var(--space-3);
-  padding: 0 24px;
+.empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-top: var(--space-2);
 }
