@@ -8,6 +8,7 @@ import {
   type MarkdownPort,
   type VaultFsPort,
   type ViewResult,
+  FrontmatterRefusedError,
 } from '@atlas/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
@@ -111,7 +112,12 @@ export function useTypeTable({
       // Through the pane holding the note, when one does: writing the file
       // underneath it would leave its next save to be refused.
       const values = { [column]: value === '' ? null : value };
-      const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
+      const edit = {
+        activity,
+        write: 'edit',
+        path,
+        refusal: [TaskRuleRefusedError, FrontmatterRefusedError],
+      } as const;
       withGiveUpRecorded(edit, () => writeNoteProperties({ editors, fs, markdown, path, values }))
         .then(onChanged)
         .catch((cause: unknown) => setError(message(cause)));
