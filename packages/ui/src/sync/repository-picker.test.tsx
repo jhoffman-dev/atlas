@@ -76,6 +76,13 @@ describe('RepositoryPicker', () => {
     ]);
   });
 
+  it('draws Connect as a secondary control, not a row-sized one (#318)', () => {
+    show(ready);
+    const connect = screen.getByRole('button', { name: 'Connect james/notes' });
+    expect(connect.classList).toContain('btn--secondary');
+    expect(connect.classList).not.toContain('btn--sm');
+  });
+
   it('narrows the list as the person searches, and says when nothing matches', async () => {
     show(ready);
     await userEvent.type(screen.getByRole('searchbox'), 'vault');

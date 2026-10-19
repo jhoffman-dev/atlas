@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState, type ReactNode } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
@@ -18,8 +18,41 @@ import { ParaMigration, type ParaMigrationProps } from './para-migration.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
 import { MeetingCleanup, type MeetingCleanupProps } from './meeting-cleanup.tsx';
+import type { InboxOfferReading } from './inbox-offer.ts';
+import { useListAnchor, type ListAnchorParts } from './list-anchor.ts';
 
 const NO_REFUSALS: readonly InboxRefusal[] = [];
+
+/**
+ * How long the Inbox holds its rows back for an offer still being read (#130),
+ * once none is waiting for the index (that wait has no limit). Most offers are
+ * read ahead of the Inbox; the tidy walks the vault as it opens. An offer read
+ * later lands above rows already shown, and they are held still as it does.
+ *
+ * Timed in the page on the 2,000-note fixture, first open: main 72 ms; a
+ * 300 ms hold 319 ms, and it still did not keep the heading from moving 68 px
+ * when the tidy's walk outlasted it; 100 ms, 117 ms; no hold, 78 ms, but a
+ * resize at the top and a vault switch then move what they must not. James
+ * may want to revisit it.
+ */
+export const INBOX_OFFERS_WAIT_MS = 100;
+
+/**
+ * The limit instead, on a page that first waited for its vault's index — a
+ * vault just opened, or switched to with the Inbox open (#130). Its offers
+ * are read only once the index is ready, all at once, so they take longer
+ * than an open's; and the list has only just come, so nothing is yet under
+ * the pointer to keep waiting from. On CI they outlasted 100 ms.
+ */
+export const INBOX_OFFERS_AFTER_INDEX_WAIT_MS = 1000;
+
+/**
+ * The proposals and rows, laid out as if the wrapper were not there. Held
+ * back, they are drawn and measured as usual but not seen and not reached by
+ * pointer or keyboard, so they cost no commit of their own when shown (#130).
+ * Hidden by a class (`inbox__held`), not `visibility`: see inbox.css.
+ */
+const IN_PLACE = { display: 'contents' } as const;
 
 /** What the Inbox lists, once it has been read. */
 export interface InboxContents {
@@ -118,6 +151,20 @@ export function InboxPage(props: InboxPageProps) {
   const problem = props.problem ?? leftRefusal(props);
   const counted = describe(props.contents, proposals?.contents?.open.length ?? 0);
   const scroller = useRef<HTMLDivElement>(null);
+  const article = useRef<HTMLElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const answers = useRef<HTMLDivElement>(null);
+  const room = useRef<HTMLDivElement>(null);
+  const parts = useMemo<ListAnchorParts>(
+    () => ({ scroller, page: article, list, answers, room }),
+    [],
+  );
+  const offersRead = [migration, paraMigration, tidy, cleanup, meetingProjects];
+  const live = useOffersKnown(
+    offersRead.some((read) => read?.reading === true),
+    offersRead.some((read) => read?.waitingForIndex === true),
+  );
+  const anchor = useListAnchor(parts, live);
   return (
     <>
       <PageBar
@@ -132,46 +179,141 @@ export function InboxPage(props: InboxPageProps) {
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
-      <div className="panel__body panel__body--rows" ref={scroller} {...ROW_SCROLLER_MARK}>
+      <NewAbove {...anchor} />
+      <div
+        className="panel__body panel__body--rows"
+        style={NOT_ANCHORED}
+        ref={scroller}
+        {...ROW_SCROLLER_MARK}
+      >
         <RowScrollerContext.Provider value={scroller}>
-          <article className="page page--wide inbox" aria-label="Inbox">
+          <article className="page page--wide inbox" aria-label="Inbox" ref={article}>
             <HiddenTitle>To process</HiddenTitle>
             {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
             {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
             <Offers
               offers={[
                 ['types', offer && <TypesOffer {...offer} />],
-                ['tasks', migration && <TaskMigration {...migration} />],
-                ['para', paraMigration && <ParaMigration {...paraMigration} />],
-                ['tidy', tidy && <VaultTidy {...tidy} />],
-                ['cleanup', cleanup && <MeetingCleanup {...cleanup} />],
-                ['meetings', meetingProjects && <MeetingProjects {...meetingProjects} />],
+                slot('tasks', migration, (known) => <TaskMigration {...known} />),
+                slot('para', paraMigration, (known) => <ParaMigration {...known} />),
+                slot('tidy', tidy, (known) => <VaultTidy {...known} />),
+                slot('cleanup', cleanup, (known) => <MeetingCleanup {...known} />),
+                slot('meetings', meetingProjects, (known) => <MeetingProjects {...known} />),
               ]}
             />
-            {problem !== null && (
-              <p className="table__error" role="alert">
-                {problem}
-              </p>
-            )}
-            <LastAction {...props} />
-            {proposals !== null && proposalsToShow(proposals) && (
-              <ProposalsSection {...proposals} />
-            )}
-            <InboxList {...props} />
+            <div style={IN_PLACE} ref={answers}>
+              {problem !== null && (
+                <p className="table__error" role="alert">
+                  {problem}
+                </p>
+              )}
+              <LastAction {...props} />
+            </div>
+            <div
+              style={IN_PLACE}
+              className={live ? undefined : 'inbox__held'}
+              inert={!live}
+              aria-hidden={live ? undefined : true}
+              ref={list}
+            >
+              {proposals !== null && proposalsToShow(proposals) && (
+                <ProposalsSection {...proposals} />
+              )}
+              <InboxList {...props} />
+            </div>
           </article>
+          <div ref={room} style={ROOM} aria-hidden="true" />
         </RowScrollerContext.Provider>
       </div>
     </>
   );
 }
 
+/** One offer's slot: drawn once it is known, null while it is still read. */
+type OfferSlot = readonly [key: string, offer: ReactNode];
+
+function slot<Offer extends InboxOfferReading>(
+  key: string,
+  offer: Offer | null,
+  draw: (known: Offer) => ReactNode,
+): OfferSlot {
+  return [key, offer === null || offer.reading === true ? null : draw(offer)];
+}
+
+/**
+ * Says that something arrived above the list while the person was on it, and
+ * takes them to it (#130). It hangs over the top of the page rather than
+ * taking room, so saying so moves nothing; the region is always there, so a
+ * screen reader hears it arrive.
+ */
+const NewAbove = memo(function NewAbove({
+  newAbove,
+  showNewAbove,
+}: {
+  newAbove: boolean;
+  showNewAbove: () => void;
+}) {
+  return (
+    <div style={NEW_ABOVE_HANGER} aria-live="polite">
+      {newAbove && (
+        <button
+          type="button"
+          className="btn btn--sm"
+          style={NEW_ABOVE_BUTTON}
+          onClick={showNewAbove}
+        >
+          <span aria-hidden="true">↑</span> New above
+        </button>
+      )}
+    </div>
+  );
+});
+
+/**
+ * The browser does not anchor the Inbox's scroller: the list anchor does, and
+ * with both, each move would be corrected twice (WebKit supports
+ * `overflow-anchor`, and its `auto` held the rows the other way).
+ */
+const NOT_ANCHORED = { overflowAnchor: 'none' } as const;
+/** The room the list anchor gives below the page; its height is set there, never here. */
+const ROOM = { flexShrink: 0 } as const;
+const NEW_ABOVE_HANGER = { position: 'relative', height: 0, zIndex: 2 } as const;
+const NEW_ABOVE_BUTTON = {
+  position: 'absolute',
+  top: 8,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  boxShadow: 'var(--shadow-panel)',
+} as const;
+
+/**
+ * Whether the Inbox's offers are known, so its rows can be drawn below them
+ * (#130): once none is still being read, or once it has waited for one —
+ * counted only once none is waiting for the index, since until then the list
+ * has no rows either, and for longer on a page that did wait for it. Known
+ * stays known while the page shows.
+ */
+function useOffersKnown(reading: boolean, waitingForIndex: boolean): boolean {
+  const [offersKnown, setOffersKnown] = useState(!reading);
+  const [waitedForIndex, setWaitedForIndex] = useState(waitingForIndex);
+  if (!reading && !offersKnown) setOffersKnown(true);
+  if (waitingForIndex && !waitedForIndex) setWaitedForIndex(true);
+  useEffect(() => {
+    if (offersKnown || waitingForIndex) return;
+    const limit = waitedForIndex ? INBOX_OFFERS_AFTER_INDEX_WAIT_MS : INBOX_OFFERS_WAIT_MS;
+    const timer = setTimeout(() => setOffersKnown(true), limit);
+    return () => clearTimeout(timer);
+  }, [offersKnown, waitingForIndex, waitedForIndex]);
+  return offersKnown;
+}
+
 /**
  * The Inbox's offers, each read on its own and shown once it is (#227). One
- * read after the others goes below those already shown: arriving above them
- * would move what is under the person's pointer as they reach for it. Offers
- * read together keep the order given.
+ * read after the others goes below those already shown, and one shown keeps
+ * its place for as long as the page shows — read as nothing for a moment as
+ * its run settles, it comes back where it was.
  */
-function Offers({ offers }: { offers: readonly (readonly [string, ReactNode])[] }) {
+function Offers({ offers }: { offers: readonly OfferSlot[] }) {
   const shown = offers.filter(([, offer]) => offer !== null);
   const [order, setOrder] = useState<readonly string[]>(() => shown.map(([key]) => key));
   const next = inArrivalOrder(
@@ -180,13 +322,15 @@ function Offers({ offers }: { offers: readonly (readonly [string, ReactNode])[] 
   );
   if (next.join('\n') !== order.join('\n')) setOrder(next);
   const byKey = new Map(shown);
-  return next.map((key) => <Fragment key={key}>{byKey.get(key)}</Fragment>);
+  return next.flatMap((key) => {
+    const offer = byKey.get(key);
+    return offer === undefined ? [] : [<Fragment key={key}>{offer}</Fragment>];
+  });
 }
 
 /** The offers shown before, in their order, then each newly shown one, in the order given. */
 function inArrivalOrder(before: readonly string[], shown: readonly string[]): readonly string[] {
-  const kept = before.filter((key) => shown.includes(key));
-  return [...kept, ...shown.filter((key) => !kept.includes(key))];
+  return [...before, ...shown.filter((key) => !before.includes(key))];
 }
 
 /** What waits, in a few words beside the page's name; nothing when nothing does. */

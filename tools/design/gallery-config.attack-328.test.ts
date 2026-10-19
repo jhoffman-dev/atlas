@@ -28,14 +28,14 @@ describe('the gallery shots config (#328)', () => {
     expect(e2e.testDir).toBe('./e2e');
     expect(shots.testMatch).toBe('shots.spec.ts');
     expect(gallery.testDir).toBe('./tools/design');
-    // Its own spec and the attacks on its specimens, never the app's shots
-    // spec beside them, which runs against `dist` under its own config.
+    // The gallery's own shots and the attack specs that judge it, by name — never an e2e spec.
     const match = gallery.testMatch;
-    expect(match).toBeInstanceOf(RegExp);
-    const matches = (file: string) => (match as RegExp).test(`/tools/design/${file}`);
-    expect(matches('gallery.spec.ts')).toBe(true);
-    expect(matches('gallery.right-sidebar.attack-353.spec.ts')).toBe(true);
-    expect(matches('shots.spec.ts')).toBe(false);
-    expect(matches('right-sidebar.attack-353.spec.ts')).toBe(false);
+    if (!(match instanceof RegExp)) throw new Error('the gallery config matches by regex');
+    expect(match.test('/repo/tools/design/gallery.spec.ts')).toBe(true);
+    expect(match.test('/repo/tools/design/gallery-cells.attack-354.spec.ts')).toBe(true);
+    expect(match.test('/repo/e2e/table-keyboard.spec.ts')).toBe(false);
+    expect(match.test('/repo/tools/design/shots.spec.ts')).toBe(false);
+    expect(match.test('/repo/tools/design/gallery.right-sidebar.attack-353.spec.ts')).toBe(true);
+    expect(match.test('/repo/tools/design/right-sidebar.attack-353.spec.ts')).toBe(false);
   });
 });

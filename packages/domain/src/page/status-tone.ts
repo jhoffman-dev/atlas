@@ -64,9 +64,24 @@ const STATUS_KEY = 'status';
  * than drawn as backlog it may not be.
  */
 export function noteTone(values: Readonly<Record<string, unknown>>): StatusTone | null {
+  const status = rawStatus(values);
+  return status === null ? null : statusTone(status);
+}
+
+/**
+ * The status a note's tint stands for, as its pill would write it — "Doing" —
+ * so an event or a bar drawn with only a dot or an edge can still say it in
+ * its title. Null when the note has no status.
+ */
+export function noteStatus(values: Readonly<Record<string, unknown>>): string | null {
+  const status = rawStatus(values);
+  return status === null ? null : optionLabel(status);
+}
+
+/** The status as written in the note, which the tone is keyed by; null when blank or absent. */
+function rawStatus(values: Readonly<Record<string, unknown>>): string | null {
   const status = values[STATUS_KEY];
-  if (typeof status !== 'string' || status.trim() === '') return null;
-  return statusTone(status);
+  return typeof status !== 'string' || status.trim() === '' ? null : status;
 }
 
 /**

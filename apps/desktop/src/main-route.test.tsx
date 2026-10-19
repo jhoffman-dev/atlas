@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { createVaultPath } from '@atlas/domain';
+import type { InboxPageProps } from '@atlas/ui';
 import { render, screen } from '@testing-library/react';
 import { pageForPlace, type PageProps } from './main-route.tsx';
 
@@ -57,5 +59,67 @@ describe('pageForPlace', () => {
     );
     expect(container.querySelector('.panel__body[aria-busy="true"]')).not.toBeNull();
     expect(screen.getByRole('group', { name: 'History' })).toBeDefined();
+  });
+});
+
+/**
+ * #130: the Inbox page is keyed by its vault, so another vault opening with
+ * the Inbox open starts the page afresh — its rows held back for that vault's
+ * own offers — rather than keeping what the last vault's page had decided.
+ */
+const PAGE: InboxPageProps = {
+  contents: {
+    items: [
+      {
+        path: createVaultPath('Inbox/Idea.md'),
+        title: 'Idea',
+        type: null,
+        arrivedIn: '',
+        importOutcome: null,
+        importError: null,
+        task: null,
+      },
+    ],
+    truncated: false,
+    total: 1,
+  },
+  error: null,
+  filing: [],
+  onOpen: vi.fn(),
+  onShowMore: vi.fn(),
+  onClarify: vi.fn(async () => true),
+  busy: false,
+  problem: null,
+};
+
+const TIDY_READING: NonNullable<InboxPageProps['vaultTidy']> = {
+  preview: null,
+  reading: true,
+  open: false,
+  busy: false,
+  result: null,
+  problem: null,
+  onOpen: vi.fn(),
+  onApply: vi.fn(),
+  onClose: vi.fn(),
+  onDismiss: vi.fn(),
+};
+
+/** The Inbox page, as the tab showing it draws it, for the vault `vaultKey`. */
+const route = (vaultKey: string, page: InboxPageProps) =>
+  pageForPlace({
+    place: { kind: 'inbox' },
+    pages: { ...pages(), inbox: { ...page, vaultKey } },
+    chrome,
+  });
+
+const rowHeld = () => screen.getByText('Idea').closest('[inert]') !== null;
+
+describe('pageForPlace — the Inbox page for another vault (#130)', () => {
+  it('starts afresh, holding its rows while that vault’s offers are read', () => {
+    const view = render(<>{route('/vaults/home', PAGE)}</>);
+    expect(rowHeld()).toBe(false);
+    view.rerender(<>{route('/vaults/work', { ...PAGE, vaultTidy: TIDY_READING })}</>);
+    expect(rowHeld()).toBe(true);
   });
 });

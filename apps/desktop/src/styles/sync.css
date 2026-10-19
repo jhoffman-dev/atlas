@@ -3,55 +3,60 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- Sync (U-29) ----
-   Settings → Sync in the settings rows' language: a status line tinted by how
-   the last sync went, the two ways to set it up as compact forms, and a
-   warning block when both Macs changed a file. The sidebar's light is a cloud
-   with a dot in the same tones. */
+   Settings → Sync in the settings rows' language (UI v2 slice 13i): a status
+   line in the ink of how the last sync went, the ways to set it up as
+   hairline-separated forms with 28px fields, and a hairline block when both
+   Macs changed a file. The sidebar's light is a cloud with a dot in the same
+   tones; its state is always a word too (its label), never the colour alone. */
 
 .sync-status--ok {
-  color: var(--success);
+  color: var(--status-done-ink);
 }
 
 .sync-status--warning {
-  color: var(--warning);
+  color: var(--status-doing-ink);
 }
 
 .sync-status--error {
-  color: var(--danger);
+  color: var(--btn-destructive-ink);
 }
 
 .sync-status--busy,
 .sync-status--behind {
-  color: var(--accent-text);
+  color: var(--btn-primary-ink);
+}
+
+.sync-status--paused {
+  color: var(--ink-3);
 }
 
 .sync-form {
   align-items: center;
-  background: var(--panel);
-  border-radius: var(--radius-button);
+  border-top: 1px solid var(--line);
   display: grid;
-  gap: var(--space-2) var(--space-3);
+  gap: 8px 12px;
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
+  padding: 12px 0 0;
 }
 
 .sync-form__label {
   font-size: var(--text-body);
-  font-weight: 700;
+  font-weight: 500;
   grid-column: 1 / -1;
 }
 
 .sync-form__field {
   font-family: var(--font-mono);
-  font-size: var(--text-small);
+  font-size: var(--text-mono);
   min-width: 0;
 }
 
+/* In the "open from GitHub" dialog the form stands alone, so no hairline. */
 .sync-form--dialog {
-  background: none;
+  border-top: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 12px;
   padding: 0;
 }
 
@@ -60,27 +65,26 @@
 }
 
 .sync-conflicts {
-  background: color-mix(in srgb, var(--warning) 12%, var(--raised));
-  border-radius: var(--radius-button);
+  border-top: 1px solid var(--line);
   color: var(--ink);
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  gap: 8px;
+  padding: 12px 0 0;
 }
 
 .sync-conflicts__title {
-  color: var(--warning);
-  font-size: var(--text-ui);
-  font-weight: 700;
+  color: var(--status-doing-ink);
+  font-size: var(--text-body);
+  font-weight: 500;
   margin: 0;
 }
 
 .sync-conflicts__list {
   display: grid;
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   gap: 4px;
   margin: 0;
-  padding-left: var(--space-4);
+  padding-left: 16px;
 }
 
 .sync-conflicts__list code {
@@ -88,20 +92,21 @@
   overflow-wrap: anywhere;
 }
 
+/* The light is a sidebar-row square like the theme button beside it. */
 .sync-indicator {
   align-items: center;
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   color: var(--ink-3);
   cursor: pointer;
   display: flex;
   flex: none;
-  height: 32px;
+  height: var(--sidebar-row);
   justify-content: center;
   position: relative;
-  width: 32px;
+  width: var(--sidebar-row);
 }
 
 .sync-indicator:hover {
@@ -116,41 +121,41 @@
 
 .sync-indicator__dot {
   background: var(--ink-3);
-  border: 2px solid var(--ground);
+  border: 2px solid var(--bg);
   border-radius: 50%;
-  bottom: 6px;
+  bottom: 4px;
   height: 9px;
   position: absolute;
-  right: 5px;
+  right: 3px;
   width: 9px;
 }
 
 .sync-indicator--ok .sync-indicator__dot {
-  background: var(--success);
+  background: var(--status-done-dot);
 }
 
 .sync-indicator--warning .sync-indicator__dot {
-  background: var(--warning);
+  background: var(--status-doing-dot);
 }
 
 .sync-indicator--error .sync-indicator__dot {
-  background: var(--danger);
+  background: var(--btn-destructive-ink);
 }
 
 .sync-indicator--busy .sync-indicator__dot {
-  background: var(--accent-solid);
+  background: var(--focus);
 }
 
-/* Behind: other Macs' changes are waiting on GitHub — an open accent ring,
-   not yet the solid dot of a sync under way. Paused: an open grey ring, a
-   light switched off rather than one that has not lit yet. Both are drawn
-   a little larger, so the ring reads as a ring at this size. */
+/* Behind: other Macs' changes are waiting on GitHub — an open focus-blue
+   ring, not yet the solid dot of a sync under way. Paused: an open grey
+   ring, a light switched off rather than one that has not lit yet. Both are
+   drawn a little larger, so the ring reads as a ring at this size. */
 .sync-indicator--behind .sync-indicator__dot,
 .sync-indicator--paused .sync-indicator__dot {
-  background: var(--ground);
-  bottom: 5px;
+  background: var(--bg);
+  bottom: 3px;
   height: 11px;
-  right: 4px;
+  right: 2px;
   width: 11px;
 }
 
@@ -162,37 +167,36 @@
   box-shadow: inset 0 0 0 2px var(--ink-3);
 }
 
-.sync-status--paused {
-  color: var(--ink-3);
-}
-
 /* The repository picker (A29-01): a search over the person's own GitHub
-   repositories, each a row with its privacy and default branch, in the
-   same panel as the other two ways to set sync up. */
+   repositories, each a table-height row under a soft hairline with its
+   privacy and default branch as one metadata line, in the same form as the
+   other two ways to set sync up. */
 .sync-picker__search {
-  font-size: var(--text-ui);
+  font-size: var(--text-column);
   grid-column: 1 / -1;
   min-width: 0;
 }
 
 .sync-picker__list {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
   grid-column: 1 / -1;
   list-style: none;
   margin: 0;
-  max-height: 232px;
+  /* Seven rows, then it scrolls. */
+  max-height: 238px;
   overflow-y: auto;
   padding: 0;
 }
 
 .sync-picker__item {
   align-items: center;
-  border-radius: var(--radius-control);
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
-  gap: var(--space-3);
+  gap: 12px;
   justify-content: space-between;
-  padding: 6px var(--space-2);
+  min-height: 34px;
+  padding: 0 0 0 4px;
 }
 
 .sync-picker__item:hover {
@@ -200,13 +204,15 @@
 }
 
 .sync-picker__text {
-  display: grid;
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
   min-width: 0;
 }
 
 .sync-picker__name {
   font-family: var(--font-mono);
-  font-size: var(--text-small);
+  font-size: var(--text-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,12 +220,13 @@
 
 .sync-picker__meta {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  flex: none;
+  font-size: var(--text-meta);
 }
 
 .sync-picker__note {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   grid-column: 1 / -1;
   margin: 0;
 }

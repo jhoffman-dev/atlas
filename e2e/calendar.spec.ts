@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
 import { dragWithKeyboard, dragWithPointer } from './drag.ts';
 
@@ -45,8 +45,9 @@ function dayAfter(date: string): string {
   return new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) + 1)).toISOString().slice(0, 10);
 }
 
-async function openCalendar(page: Page) {
+async function openCalendar(page: Page, extra: Readonly<Record<string, string>> = {}) {
   const vault = await createVault();
+  for (const [path, body] of Object.entries(extra)) await vault.write(path, body);
   await vault.mkdir('.atlas/types');
   await vault.mkdir('.atlas/views');
   await vault.mkdir('.atlas/templates');
@@ -84,6 +85,56 @@ test('a note appears on the day it is due', async ({ page }) => {
 
   const day = page.getByLabel(today, { exact: true });
   await expect(day.getByRole('button', { name: 'scheduled' })).toBeVisible();
+});
+
+const LONG = 'A title long enough to run past the edge of its day in any month of the year';
+
+/** Whether the element's text is cut, and cut with an ellipsis rather than clipped. */
+const truncation = (title: Locator) =>
+  title.evaluate((element) => ({
+    cut: element.scrollWidth > element.clientWidth,
+    overflow: getComputedStyle(element).textOverflow,
+  }));
+
+test('a long title is cut with an ellipsis in the day, in "+N more" and in the lifted copy', async ({
+  page,
+}) => {
+  const date = dayOfMonth(10);
+  const note = (name: string) =>
+    ['---', 'type: task', `due: ${date}`, '---', '', `${name}.`, ''].join('\n');
+  // Four on one day: three would all fit, so two are shown and two are listed.
+  await openCalendar(page, {
+    [`${LONG} one.md`]: note('one'),
+    [`${LONG} two.md`]: note('two'),
+    [`${LONG} three.md`]: note('three'),
+    [`${LONG} four.md`]: note('four'),
+  });
+  await openCalendarView(page);
+  const day = page.getByRole('group', { name: date });
+  const title = day.locator('.calendar__entry .calendar__title').first();
+  await expect(title).toBeVisible();
+  expect(await truncation(title)).toEqual({ cut: true, overflow: 'ellipsis' });
+
+  await day.getByRole('button', { name: '+2 more' }).click();
+  const more = page.getByRole('dialog', { name: `More on ${date}` });
+  const listed = more.locator('.calendar__more-item .calendar__title');
+  await expect(listed).toHaveCount(2);
+  expect(await truncation(listed.first())).toEqual({ cut: true, overflow: 'ellipsis' });
+  await page.keyboard.press('Escape');
+  await expect(more).toHaveCount(0);
+
+  const at = (await day.locator('.calendar__entry').first().boundingBox())!;
+  await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(at.x + at.width / 2 + 10, at.y + at.height / 2 + 10, { steps: 3 });
+  await page.mouse.move(at.x + at.width / 2 + 60, at.y + at.height / 2 + 40, { steps: 6 });
+  const lifted = page.locator('.calendar__entry--lifted .calendar__title');
+  await expect(lifted).toBeVisible();
+  expect(await truncation(lifted)).toEqual({ cut: true, overflow: 'ellipsis' });
+  // Put it down where it was: nothing is written.
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect(lifted).toHaveCount(0);
 });
 
 test('a note with no date is counted rather than hidden silently', async ({ page }) => {

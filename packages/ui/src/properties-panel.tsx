@@ -12,14 +12,13 @@ import {
   withDatePart,
   withLink,
   withoutLink,
-  type NoteNames,
   type PropertyDef,
   type VaultPath,
 } from '@atlas/domain';
 import { AddPropertyPopover, type NewProperty } from './add-property-popover.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { LinkedNote, useNoteNames } from './note-names.tsx';
-import { RelationOptions } from './relation-options.tsx';
+import { linksTo, RelationPicker } from './relation-options.tsx';
 import type { RelationTarget } from './type-editor.tsx';
 
 export type { NewProperty } from './add-property-popover.tsx';
@@ -344,12 +343,6 @@ function MultiSelectEditor({ id, row, onChange }: EditorProps) {
   );
 }
 
-/** Whether `link` is a link to this note, by what it opens or, before that is known, by how it is written. */
-function linksTo(link: string, path: VaultPath, names: NoteNames): boolean {
-  const opens = names.opens(link);
-  return opens === null ? link.trim() === names.linkTo(path) : opens === path;
-}
-
 /**
  * A relation: a chip for each note it links, named as the note is and opening
  * it, with its own remove — then a picker that stays, offering the notes not
@@ -375,8 +368,6 @@ function RelationEditor({
   onCreateRelated?: CreateRelated;
 }) {
   const names = useNoteNames();
-  /** The type of the note being named for the picker's "New …", or null while none is. */
-  const [naming, setNaming] = useState<string | null>(null);
   const links = linkedNotes(row.value);
   const { label, many } = row.def;
   const pointsAt = relationTypes(row.def);
@@ -428,104 +419,16 @@ function RelationEditor({
         </ul>
       )}
       {/* A relation to no type in particular has nothing to offer. */}
-      {pointsAt.length > 0 && (
-        <span className="props__chip props__chip--add">
-          <Icon name="plus" size={14} className="props__chip-icon" />
-          <select
-            id={id}
-            className="props__chip-select"
-            // Always back on the prompt, ready for the next one.
-            value=""
-            onChange={(event) => {
-              const picked = event.target.value;
-              if (picked === '') return;
-              if (picked.startsWith(NEW_RELATED)) {
-                setNaming(picked.slice(NEW_RELATED.length));
-                return;
-              }
-              // One note is put in place of the one there; another of several is
-              // added to what the file holds when the write lands.
-              link(picked);
-            }}
-          >
-            <option value="">{prompt}</option>
-            <RelationOptions choices={unlinked} names={names} />
-            {onCreateRelated !== undefined &&
-              pointsAt.map((type) => (
-                <option key={type} value={`${NEW_RELATED}${type}`}>
-                  New {type}…
-                </option>
-              ))}
-          </select>
-        </span>
-      )}
-      {naming !== null && onCreateRelated !== undefined && (
-        <NewRelatedName
-          target={naming}
-          onCreate={(name) => onCreateRelated({ target: naming, name }).then(link)}
-          onDone={() => setNaming(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * The start of the picker's "New …" entries, each followed by the type it
- * makes. Never a link a note could have: a link is written `[[…]]`, and this
- * starts with a character no name can hold.
- */
-const NEW_RELATED = '\u0000new';
-
-/** The name of a note about to be made from a relation's picker. */
-function NewRelatedName({
-  target,
-  onCreate,
-  onDone,
-}: {
-  target: string;
-  onCreate: (name: string) => Promise<void>;
-  onDone: () => void;
-}) {
-  const [problem, setProblem] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  // Read as the key lands, before a render: a second Enter while the first
-  // note is still being made would make a second one.
-  const busy = useRef(false);
-  return (
-    <span className="props__new-related">
-      <input
-        className="props__input"
-        type="text"
-        aria-label={`Name of the new ${target}`}
-        aria-busy={creating}
-        placeholder={`Name of the new ${target}`}
-        readOnly={creating}
-        autoFocus
-        onKeyDown={(event) => {
-          if (busy.current) return;
-          if (event.key === 'Escape') {
-            onDone();
-            return;
-          }
-          if (event.key !== 'Enter') return;
-          const name = event.currentTarget.value.trim();
-          if (name === '') return;
-          busy.current = true;
-          setCreating(true);
-          onCreate(name).then(onDone, (cause: unknown) => {
-            busy.current = false;
-            setCreating(false);
-            setProblem(cause instanceof Error ? cause.message : String(cause));
-          });
-        }}
+      <RelationPicker
+        id={id}
+        choices={unlinked}
+        names={names}
+        prompt={prompt}
+        pointsAt={pointsAt}
+        onPick={link}
+        {...(onCreateRelated !== undefined && { onCreateRelated })}
       />
-      {problem !== null && (
-        <span className="props__error" role="alert">
-          {problem}
-        </span>
-      )}
-    </span>
+    </div>
   );
 }
 

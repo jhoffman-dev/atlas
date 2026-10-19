@@ -96,3 +96,12 @@
   border: 1px solid var(--line);
   height: 560px;
 }
+
+/* The table specimen: a sheet wide enough for every kind of cell, tall enough
+   for a status picker to open under its first row. */
+.gallery-page__table {
+  border: 1px solid var(--line);
+  height: 360px;
+  overflow: hidden;
+  width: 960px;
+}

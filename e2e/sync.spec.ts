@@ -155,6 +155,17 @@ test('opens a vault from GitHub into a folder of its name', async ({ page }) => 
   await page.getByRole('menuitem', { name: 'Open a vault from GitHub…' }).click();
   const dialog = page.getByRole('dialog', { name: 'Open a vault from GitHub' });
   await dialog.getByRole('textbox', { name: 'Repository address' }).fill(bare);
+  if (process.env['ATLAS_SHOTS'] === '1') {
+    // Set directly: the sidebar's switch is behind the dialog, and the Escape
+    // that `useTheme` presses would close it.
+    await mkdir(SHOTS, { recursive: true });
+    for (const theme of ['light', 'dark'] as const) {
+      await page.evaluate((chosen) => {
+        document.documentElement.dataset['theme'] = chosen;
+      }, theme);
+      await page.screenshot({ path: join(SHOTS, `sync-open-from-github-${theme}.png`) });
+    }
+  }
   await dialog.getByRole('button', { name: 'Choose folder…' }).click();
 
   await expect(dialog).toHaveCount(0);

@@ -81,6 +81,7 @@ export type {
 } from './properties-panel.tsx';
 export { TableView } from './table-view.tsx';
 export type { TableResult, TableSchema } from './table-view.tsx';
+export type { CellEdit, CellValue } from './table-cells.tsx';
 export type { TableGrouping } from './grouped-rows.tsx';
 export { BoardView } from './board-view.tsx';
 export type { CardAdd, CardMove } from './board-view.tsx';
@@ -186,6 +187,7 @@ export type { TemplateNotice } from './template-banner.tsx';
 export { lostUsesText, TEMPLATE_EXPLANATION, templateUsesText } from './template-words.ts';
 export type { ArchiveContents, ArchivePageProps } from './archive-page.tsx';
 export type { InboxContents, InboxPageProps, InboxTypesOffer } from './inbox-page.tsx';
+export type { InboxOfferReading } from './inbox-offer.ts';
 export type { InboxRefusal } from './inbox/inbox-rows.tsx';
 export type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
 export { WeeklyReviewPage } from './weekly-review-page.tsx';

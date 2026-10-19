@@ -7,6 +7,8 @@ const TASK_TYPE = [
   'name: task',
   'properties:',
   '  id: text',
+  '  status:',
+  '    kind: select',
   '  scheduled: date',
   '  due: date',
   '  blocked_by:',
@@ -23,7 +25,7 @@ const ROADMAP = [
   'layout: timeline',
   'startKey: scheduled',
   'endKey: due',
-  'columns: [scheduled, due, id, blocked_by]',
+  'columns: [scheduled, due, status, id, blocked_by]',
   'limit: 100',
   '---',
   '',
@@ -40,7 +42,12 @@ async function openRoadmap(page: Page) {
   await vault.mkdir('.atlas/views');
   await vault.write('.atlas/types/task.md', TASK_TYPE);
   await vault.write('.atlas/views/Roadmap.md', ROADMAP);
-  await vault.write('design.md', task('A', ['scheduled: 2026-09-01', 'due: 2026-09-03']));
+  // A status on the chain's first bar: its tone rule competes with the
+  // critical edge, which must still win.
+  await vault.write(
+    'design.md',
+    task('A', ['scheduled: 2026-09-01', 'due: 2026-09-03', 'status: doing']),
+  );
   await vault.write(
     'build.md',
     task('B', ['scheduled: 2026-09-04', 'due: 2026-09-08', 'blocked_by: [A]']),
@@ -76,6 +83,23 @@ test('the chain that decides the end date is picked out', async ({ page }) => {
   await expect(page.locator('[data-path="design.md"]')).toHaveClass(/timeline__bar--critical/);
   await expect(page.locator('[data-path="build.md"]')).toHaveClass(/timeline__bar--critical/);
   await expect(page.locator('[data-path="aside.md"]')).not.toHaveClass(/timeline__bar--critical/);
+
+  // The chain is told apart by its edge: the danger colour, whatever status
+  // the bar has, which the tone rules must not override.
+  const edgeOf = (path: string) =>
+    page.locator(`[data-path="${path}"]`).evaluate((bar) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--danger)';
+      document.body.append(probe);
+      const danger = getComputedStyle(probe).color;
+      probe.remove();
+      return { edge: getComputedStyle(bar).borderLeftColor, danger };
+    });
+  await expect(page.locator('[data-path="design.md"]')).toHaveAttribute('data-tone', 'doing');
+  const critical = await edgeOf('design.md');
+  expect(critical.edge).toBe(critical.danger);
+  const plain = await edgeOf('aside.md');
+  expect(plain.edge).not.toBe(plain.danger);
 });
 
 test('clicking a bar opens the work it stands for', async ({ page }) => {

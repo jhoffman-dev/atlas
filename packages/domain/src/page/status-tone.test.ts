@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isKnownStatus, statusTone } from './status-tone.ts';
+import { isKnownStatus, noteStatus, statusTone } from './status-tone.ts';
 
 describe('isKnownStatus', () => {
   it('knows the seven tones, their aliases and the GTD statuses, however they are cased', () => {
@@ -44,5 +44,18 @@ describe('isKnownStatus', () => {
   it('reads the ramp only, not the prototype: "constructor" is no status', () => {
     expect(isKnownStatus('constructor')).toBe(false);
     expect(isKnownStatus('toString')).toBe(false);
+  });
+});
+
+describe('noteStatus', () => {
+  it('reads the status as its pill writes it', () => {
+    expect(noteStatus({ status: 'doing' })).toBe('Doing');
+    expect(noteStatus({ status: 'next-action' })).toBe('Next Action');
+  });
+
+  it('is null with no status, a blank one, or one that is not text', () => {
+    expect(noteStatus({})).toBeNull();
+    expect(noteStatus({ status: '   ' })).toBeNull();
+    expect(noteStatus({ status: 3 })).toBeNull();
   });
 });

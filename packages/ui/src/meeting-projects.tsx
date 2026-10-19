@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Icon } from './icon.tsx';
+import type { InboxOfferReading } from './inbox-offer.ts';
 
 /** A meeting with no project, as the preview lists it. */
 export interface MeetingProjectRow {
@@ -16,7 +17,7 @@ export interface MeetingProjectRow {
   readonly chosen: boolean;
 }
 
-export interface MeetingProjectsProps {
+export interface MeetingProjectsProps extends InboxOfferReading {
   /** Every meeting with no project; null when there is none, or the offer was put away. */
   readonly rows: readonly MeetingProjectRow[] | null;
   /** Whether the whole preview is shown, rather than the one-line offer. */
