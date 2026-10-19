@@ -1,7 +1,6 @@
-import { mkdtemp, mkdir, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   emitVaultChanged,
@@ -11,6 +10,7 @@ import {
   type FakeVault,
 } from './host.ts';
 import { gitIn, otherMac } from './git-host.ts';
+import { makeTempFolder } from './temp-folders.ts';
 
 /**
  * U-29: a vault synced between Macs through GitHub. The host's git is the
@@ -120,7 +120,7 @@ test('sets up sync with a private repository, then keeps both versions of a note
 test('refuses a vault inside another repository, and offers no way to set it up', async ({
   page,
 }) => {
-  const code = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-code-')));
+  const code = await makeTempFolder('atlas-e2e-code-');
   const init = await gitIn(code, ['init', '--quiet', '--initial-branch=main'], process.env);
   expect(init.code).toBe(0);
   const vault = await createVault();
@@ -142,14 +142,14 @@ test('opens a vault from GitHub into a folder of its name', async ({ page }) => 
   const host = await openVault(page, vault);
 
   // A repository some other Mac filled.
-  const seed = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-seed-')));
+  const seed = await makeTempFolder('atlas-e2e-seed-');
   const bare = join(seed, 'Team-Notes.git');
   await gitIn(seed, ['init', '--quiet', '--bare', '--initial-branch=main', bare], host.git.env);
   const laptop = await otherMac(host.git, bare, 'Laptop');
   await writeFile(join(laptop.root, 'From GitHub.md'), '# From GitHub\n');
   await laptop.commitAndPush('Atlas sync set up on Laptop');
 
-  const parent = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-clones-')));
+  const parent = await makeTempFolder('atlas-e2e-clones-');
   host.offerFolder(parent);
   await page.getByRole('button', { name: basename(vault.root), exact: true }).click();
   await page.getByRole('menuitem', { name: 'Open a vault from GitHub…' }).click();
@@ -184,7 +184,7 @@ test('refuses to copy a vault from GitHub into the vault that is open, and says 
   const vault = await createVault();
   await vault.write('Here.md', '# Here\n');
   const host = await openVault(page, vault);
-  const seed = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-seed-')));
+  const seed = await makeTempFolder('atlas-e2e-seed-');
   const bare = join(seed, 'pkm-space.git');
   await gitIn(seed, ['init', '--quiet', '--bare', '--initial-branch=main', bare], host.git.env);
 

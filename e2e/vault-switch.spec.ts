@@ -1,6 +1,6 @@
 import { utimes } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   expectFile,

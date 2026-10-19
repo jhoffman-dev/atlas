@@ -7,7 +7,7 @@
  * changes is pictured again once it rests.
  */
 import { readdir } from 'node:fs/promises';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures.ts';
 import {
   createVault,
   expectFile,

@@ -5,7 +5,7 @@
  * not yet drawn is scrolled into the page first. A grouped table moves the
  * same way between rows' names and its group headers (#248).
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const TASKS = 150;

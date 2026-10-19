@@ -3,7 +3,7 @@
  * option's pill is cut short inside its cell rather than spilling past it,
  * and the sticky header stays above a done box's tick when the sheet scrolls.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const LONG_OPTION = 'waiting-for-the-quarterly-planning-review-to-be-scheduled-and-signed-off';

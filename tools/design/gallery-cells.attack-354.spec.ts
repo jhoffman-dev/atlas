@@ -1,7 +1,7 @@
 // Attack on PR #354 (#299): the in-place cell editors as the gallery draws
 // them, in a real engine — the row's height while editing, the ring's
 // paint, the picker's bounds and the editors' contrast, in both themes.
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../e2e/fixtures.ts';
 import type { Locator, Page } from '@playwright/test';
 
 const THEMES = ['light', 'dark'] as const;

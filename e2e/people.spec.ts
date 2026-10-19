@@ -4,7 +4,7 @@
  * name makes a person from the Person template; the person's page lists
  * where they are mentioned; and the built-in Person type cannot be deleted.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   emitVaultChanged,

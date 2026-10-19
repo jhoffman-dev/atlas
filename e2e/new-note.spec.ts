@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { createVault, expectFile, expectSaved, installHost, saveNow } from './host.ts';
 
 test('a new note is created, opened and saved to disk', async ({ page }) => {

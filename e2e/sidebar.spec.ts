@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { createVault, expectSaved, installHost, saveNow } from './host.ts';
 
 // U-04: make the sidebar collapsible.

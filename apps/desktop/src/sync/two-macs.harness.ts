@@ -25,7 +25,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { expect } from 'vitest';
+import { expect, onTestFinished } from 'vitest';
 import { createVaultPath, VAULT_ROOT, type SyncReport } from '@atlas/domain';
 import {
   fakeVaultFs,
@@ -373,6 +373,8 @@ export function macAt({
 
 export async function isolatedWorld() {
   const base = await realpath(await mkdtemp(join(tmpdir(), 'atlas-two-macs-')));
+  // Issue #397: left behind, a night of runs filled the disk. Runs whether the test passed or not.
+  onTestFinished(() => rm(base, { recursive: true, force: true }));
   const home = join(base, 'home');
   const trash = join(base, 'trash');
   await mkdir(home);

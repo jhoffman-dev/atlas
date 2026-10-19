@@ -2,7 +2,7 @@
  * The window keeps its types and templates until something changes them
  * (#259). Another program changing them must still show, without a restart.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, emitVaultChanged, installHost } from './host.ts';
 
 const BOOK_TYPE = ['---', 'name: book', 'label: Book', 'properties:', '  author: text', '---', ''];

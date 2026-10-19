@@ -8,7 +8,7 @@
  * as typed; the template is never offered, never linked and never renamed
  * from a note's title.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
 
 const PERSON_TYPE = [

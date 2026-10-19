@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, emitVaultChanged, expectFile, installHost, type FakeVault } from './host.ts';
 
 /**

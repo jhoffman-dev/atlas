@@ -4,7 +4,7 @@
 // found is skipped with a warning, because the shell is being restyled under it.
 import { cp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../e2e/fixtures.ts';
 import type { Locator, Page } from '@playwright/test';
 import {
   createVault,

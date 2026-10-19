@@ -3,7 +3,7 @@
  * relation to another; a select's option renamed with its notes brought along,
  * which the board's columns follow; and a board grouped by a relation.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   expectFile,

@@ -3,7 +3,7 @@
  * and many-valued cells, the footer under the floating "+", the view bar and
  * its save notice, contrast in both themes, and the editing input's ring.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const ROW_HEIGHT = 34;

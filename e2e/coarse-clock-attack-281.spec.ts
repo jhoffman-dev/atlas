@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { stat, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import {

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, emitVaultChanged, installHost, pageCommand, sidebarSection } from './host.ts';
 
 const TASK_TYPE = [
