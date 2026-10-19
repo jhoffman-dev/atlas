@@ -516,16 +516,31 @@ function Section({
  * draws them: a row measured at its estimate does not place the list again.
  */
 const GROUP_NAME_HEIGHT = 18;
+/** Under the name: `.today__group-name`'s margin-bottom (today.css). */
+const GROUP_NAME_GAP = 4;
 const GROUP_GAP = 12;
 /** The table view's row (table.css `.table__grid td`), pinned by e2e/row-estimates.spec.ts. */
 const ROW_HEIGHT = 34;
+/**
+ * The half of the last row's 1px border that a collapsed table draws outside
+ * itself: left out, every group was 0.5px short of what it measured, and the
+ * page's scroll height moved under each fast scroll.
+ */
+const TABLE_EDGE = 0.5;
 
-/** A group's height before it is measured: the gap above it, its name, and its rows. */
+/**
+ * A group's height before it is measured: the gap above it, its name and the
+ * room under it, its rows, and the table's edge. Pinned to what a placed
+ * group measures by e2e/row-estimates.spec.ts.
+ */
 function groupHeight(sectionId: TodaySectionId, group: TodayGroup | undefined, at: number): number {
   if (group === undefined) return 0;
   const named = (group.label ?? UNNAMED[sectionId] ?? null) !== null;
   return (
-    (at === 0 ? 0 : GROUP_GAP) + (named ? GROUP_NAME_HEIGHT : 0) + group.tasks.length * ROW_HEIGHT
+    (at === 0 ? 0 : GROUP_GAP) +
+    (named ? GROUP_NAME_HEIGHT + GROUP_NAME_GAP : 0) +
+    group.tasks.length * ROW_HEIGHT +
+    TABLE_EDGE
   );
 }
 

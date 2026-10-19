@@ -27,7 +27,14 @@ const TODAY_ROW_HEIGHT = 34;
 const TODAY_GROUP_GAP = 12;
 const TODAY_GROUP_NAME_GAP = 4;
 const TODAY_TABLE_EDGE = 0.5;
-const TODAY_GROUPS = 40;
+/**
+ * Enough groups that a piece left out of the estimate shows against what
+ * the list keeps of a group it placed while the page first laid out, which
+ * can be a few pixels off in all (6px here) whatever the count: the table's
+ * half-pixel edge alone is 0.44px a group over 94 unplaced, that noise 0.06.
+ */
+const TODAY_GROUPS = 100;
+const TODAY_ESTIMATE_TOLERANCE = 0.25;
 const INBOX_ROW_HEIGHT = 59;
 const TABLE_ROW_HEIGHT = 34;
 const TABLE_GROUP_HEIGHT = 32;
@@ -126,7 +133,7 @@ test('a Today group not yet placed is given the height a placed one measures', a
     ].join('\n'),
   );
   await vault.write('.atlas/types/project.md', '---\nname: project\nlabel: Project\n---\n');
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(3, '0');
   const writes: Promise<void>[] = [];
   for (let n = 1; n <= TODAY_GROUPS; n += 1) {
     writes.push(
@@ -166,7 +173,8 @@ test('a Today group not yet placed is given the height a placed one measures', a
   const after = await spacer.evaluate((element) =>
     parseFloat((element as HTMLElement).style.height),
   );
-  expect(after / (TODAY_GROUPS - shown)).toBeCloseTo(measured, 1);
+  const estimate = after / (TODAY_GROUPS - shown);
+  expect(Math.abs(estimate - measured)).toBeLessThan(TODAY_ESTIMATE_TOLERANCE);
 });
 
 test('a Today row is drawn at the height the list places it by', async ({ page }) => {

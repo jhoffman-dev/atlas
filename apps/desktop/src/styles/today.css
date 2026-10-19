@@ -28,6 +28,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
+  /* 12.5px/500: what `.btn` reads (primitives.css), this being a button. */
   font-size: var(--text-column);
   font-weight: 500;
   gap: var(--space-2);
@@ -69,6 +70,8 @@
   color: var(--ink);
   display: flex;
   flex-wrap: wrap;
+  /* 12.5px, the size the shared `.notice-bar` says its words at, so the two
+     bars read alike once this becomes it. */
   font-size: var(--text-column);
   gap: var(--space-2) 10px;
   margin-top: var(--space-3);
