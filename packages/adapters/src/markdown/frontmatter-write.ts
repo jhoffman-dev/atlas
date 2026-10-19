@@ -602,8 +602,15 @@ const isScalarValue = (value: unknown) =>
 interface Segments {
   /** Comments and blank lines before the first key. */
   readonly head: string;
-  /** Each key's name, its {@link idOf} id, and its text. */
-  readonly keys: readonly { readonly key: string; readonly id: string; readonly text: string }[];
+  /** The spaces the keys' lines start with; YAML has every top-level key share them. */
+  readonly indent: string;
+  /** Each key's name, its {@link idOf} id, its text, and the comment lines that open it. */
+  readonly keys: readonly {
+    readonly key: string;
+    readonly id: string;
+    readonly text: string;
+    readonly above: string;
+  }[];
   /** Whatever follows the last key's value: a trailing comment. */
   readonly tail: string;
 }
@@ -615,6 +622,10 @@ interface Segments {
  * key goes. Both texts are cut the same way, which is what lets a key's
  * written text be swapped for its original. A trailing comment is kept as it
  * was found.
+ *
+ * The library writes every key at column 0, so a key it wrote is put at the
+ * block's own indent, under the comment lines the original key had — those
+ * keep their own columns, as every line the change did not reach does.
  */
 function keepUntouched({
   original,
@@ -637,17 +648,20 @@ function keepUntouched({
     const keys = after.keys.map((segment) => asWritten.get(segment.id) ?? segment.text);
     return `${after.head}${keys.join('')}${after.tail}`.replace(/\n$/, '');
   }
-  const found = new Map(before.keys.map((segment) => [segment.id, segment.text]));
+  const found = new Map(before.keys.map((segment) => [segment.id, segment]));
   const first = after.keys[0]?.id;
   const head =
     first !== undefined && first === before.keys[0]?.id && !touched.has(first)
       ? before.head
       : after.head;
-  const keys = after.keys.map(
-    (segment) =>
-      asWritten.get(segment.id) ??
-      (touched.has(segment.id) ? segment.text : (found.get(segment.id) ?? segment.text)),
-  );
+  const keys = after.keys.map((segment) => {
+    const given = asWritten.get(segment.id);
+    if (given !== undefined) return indented(given, before.indent);
+    const original = found.get(segment.id);
+    if (original === undefined) return indented(segment.text, before.indent);
+    if (!touched.has(segment.id)) return original.text;
+    return `${original.above}${indented(segment.text.slice(segment.above.length), before.indent)}`;
+  });
   return `${head}${keys.join('')}${before.tail}`.replace(/\n$/, '');
 }
 
@@ -659,11 +673,13 @@ function segments(text: string): Segments | null {
   // be cut into one run of lines per key; the library writes it back whole,
   // in its own flow style, which leaves an untouched key as it was.
   if (!isMap(contents) || contents.flow === true || contents.items.length === 0) return null;
-  const starts: number[] = [];
+  const lines: number[] = [];
   for (const pair of contents.items) {
     if (!isNode(pair.key) || pair.key.range === undefined || pair.key.range === null) return null;
-    starts.push(withCommentsAbove(source, source.lastIndexOf('\n', pair.key.range[0] - 1) + 1));
+    lines.push(source.lastIndexOf('\n', pair.key.range[0] - 1) + 1);
   }
+  const indent = /^ */.exec(source.slice(lines[0]))?.[0] ?? '';
+  const starts = lines.map((line) => withCommentsAbove(source, line, indent.length));
   const last = contents.items[contents.items.length - 1] as Pair;
   const end = lineEnd(source, isNode(last.value) ? last.value.range : (last.key as Node).range);
   const seen = new Map<string, number>();
@@ -675,20 +691,31 @@ function segments(text: string): Segments | null {
       key,
       id: idOf(key, occurrence),
       text: source.slice(starts[at], starts[at + 1] ?? end),
+      above: source.slice(starts[at], lines[at]),
     };
   });
-  return { head: source.slice(0, starts[0]), keys, tail: source.slice(end) };
+  return { head: source.slice(0, starts[0]), indent, keys, tail: source.slice(end) };
 }
 
-/** Where a key's line starts, moved up over the comment lines directly above it. */
-function withCommentsAbove(source: string, lineStart: number): number {
+/**
+ * Where a key's line starts, moved up over the comment lines directly above it.
+ * A comment indented deeper than the keys is read as the end of the value
+ * above it, not as the start of the key below.
+ */
+function withCommentsAbove(source: string, lineStart: number, indent: number): number {
   let start = lineStart;
   while (start > 0) {
     const previous = source.lastIndexOf('\n', start - 2) + 1;
-    if (!source.startsWith('#', previous)) break;
+    const comment = /^( *)#/.exec(source.slice(previous, start));
+    if (comment === null || (comment[1]?.length ?? 0) > indent) break;
     start = previous;
   }
   return start;
+}
+
+/** Text written at column 0, moved to `indent`; empty lines stay empty. */
+function indented(text: string, indent: string): string {
+  return indent === '' ? text : text.replace(/^(?=.)/gm, indent);
 }
 
 /** Just past the newline that ends a node's value (and its comment on the same line). */
