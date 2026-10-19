@@ -547,7 +547,10 @@ imported`.
   `aliases` out of the vocabulary. Linking never read them from there: its
   directory (`compileLinkDirectoryQuery`) reads `aliases` from the Person and
   Company notes, so an attendee named by an alias is still linked, and the
-  alias still rewrites nothing.
+  alias still rewrites nothing. Since #400 a Person or Company note may also
+  carry `variants`, which correct to its name as a term's do: a term named
+  like one is added there, since its own note would take the name's links.
+  `aliases` still only link.
 - **Undo corrections is not stopped by the links.** Its digests are of the
   body alone; linking, a proposal accepted later, or a rule setting a property
   change only the frontmatter.

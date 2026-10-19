@@ -230,7 +230,11 @@ describe('useTermsPage', () => {
       files: { 'Companies/Larkspur Payroll.md': company },
     });
     await act(async () =>
-      result.current.page.onAdd({ canonical: 'Larkspur Payroll', variants: 'larkspar', kind: null }),
+      result.current.page.onAdd({
+        canonical: 'Larkspur Payroll',
+        variants: 'larkspar',
+        kind: null,
+      }),
     );
     await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
     expect(result.current.added).toBe(

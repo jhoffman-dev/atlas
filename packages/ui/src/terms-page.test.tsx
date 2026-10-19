@@ -83,7 +83,9 @@ describe('the Terms page', () => {
       source: 'company',
     };
     renderPage({ contents: { ...CONTENTS, terms: [company, LARKSPUR] }, onEditVariants });
-    expect(rowOf('Larkspur Payroll').getByText('Company · Companies/Larkspur Payroll.md')).toBeTruthy();
+    expect(
+      rowOf('Larkspur Payroll').getByText('Company · Companies/Larkspur Payroll.md'),
+    ).toBeTruthy();
     // A term's own row names no other note.
     expect(rowOf('Larkspur').queryByText(/Terms\/Larkspur\.md/)).toBeNull();
     const field = rowOf('Larkspur Payroll').getByRole('textbox', {

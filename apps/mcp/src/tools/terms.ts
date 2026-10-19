@@ -11,7 +11,8 @@ export const terms = defineTool({
     'type term: { path, canonical, variants, kind } — the right spelling, the ways a notetaker ' +
     'mishears it, and product, person, company, acronym or other. "vocabulary" is every spelling ' +
     "Atlas puts right, longest first, { form, canonical, claims }: each term's spelling and " +
-    "variants, and each person's and company's name as its own right spelling — their aliases " +
+    "variants, and each person's and company's name as its own right spelling with its note's " +
+    'variants — their aliases ' +
     'are not in it, they link people and never correct text. A form matches exactly as written, ' +
     'capitals included (mark is not Mark); write its canonical. "conflicts" ' +
     'are spellings two notes claim for two different right spellings; they are not used until ' +

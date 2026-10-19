@@ -7,7 +7,9 @@ const at = createVaultPath;
 describe('what the Terms page lists (#400)', () => {
   it('is every term, and every person and company with misheard spellings, by right spelling', () => {
     const listed = listedTerms({
-      terms: [{ path: at('Terms/Quill Desk.md'), canonical: 'Quill Desk', variants: [], kind: null }],
+      terms: [
+        { path: at('Terms/Quill Desk.md'), canonical: 'Quill Desk', variants: [], kind: null },
+      ],
       people: [
         {
           path: at('People/Mara Quill.md'),

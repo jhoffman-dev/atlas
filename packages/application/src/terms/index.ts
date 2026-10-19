@@ -6,4 +6,4 @@ export {
   TERMS_FOLDER,
   termVariantsChange,
 } from './terms.ts';
-export type { TermsCatalog } from './terms.ts';
+export type { AddedTerm, TermsCatalog } from './terms.ts';

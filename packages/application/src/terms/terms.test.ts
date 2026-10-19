@@ -381,10 +381,7 @@ describe('addTerm', () => {
       expect(vault.written).toEqual([
         {
           path: 'Companies/Larkspur Payroll.md',
-          contents: COMPANY.replace(
-            'variants: larkspar',
-            'variants: larkspar,Larks Burr Payroll',
-          ),
+          contents: COMPANY.replace('variants: larkspar', 'variants: larkspar,Larks Burr Payroll'),
         },
       ]);
     });

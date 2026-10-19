@@ -29,5 +29,8 @@ export {
   vocabularySourcesOf,
 } from './vocabulary-query.ts';
 export type { VocabularyRow } from './vocabulary-query.ts';
+export { vocabularySourceOf, withVariantsAdded } from './name-variants.ts';
+export { listedTerms } from './listed-terms.ts';
+export type { ListedTerm } from './listed-terms.ts';
 export { canCorrect, correctTerms } from './correct-terms.ts';
 export type { CorrectedText, TermChange } from './correct-terms.ts';
