@@ -1,16 +1,14 @@
-import type { AsideTab } from '@atlas/ui';
+import { ASIDE_TABS, type AsideTab } from '@atlas/ui';
 import type { RememberedAside, RememberedAsides } from './aside-store.ts';
 
 /** One key per vault, so one vault's aside never reads as another's. */
 const keyFor = (vaultKey: string) => `atlas.aside:${vaultKey}`;
 
-const TABS: readonly AsideTab[] = ['properties', 'backlinks', 'outline', 'claude'];
-
 /** The stored shape, or null for anything else: a stale or hand-edited value opens as a first run. */
 export function parseRememberedAside(stored: unknown): RememberedAside | null {
   if (typeof stored !== 'object' || stored === null) return null;
   const { open, tab } = stored as { open?: unknown; tab?: unknown };
-  if (typeof open !== 'boolean' || !TABS.includes(tab as AsideTab)) return null;
+  if (typeof open !== 'boolean' || !ASIDE_TABS.includes(tab as AsideTab)) return null;
   return { open, tab: tab as AsideTab };
 }
 

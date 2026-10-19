@@ -12,7 +12,7 @@ export {
 } from './aside/collapse.ts';
 export { OutlinePane } from './aside/outline-pane.tsx';
 export { PropertiesPane } from './aside/properties-pane.tsx';
-export { RightSidebar } from './aside/right-sidebar.tsx';
+export { ASIDE_TABS, RightSidebar } from './aside/right-sidebar.tsx';
 export type { AsideTab } from './aside/right-sidebar.tsx';
 export { IndexSettings, indexStatusText } from './index-status.tsx';
 export { ImageSettings } from './image-settings.tsx';
@@ -225,7 +225,7 @@ export * from './linked-pages/index.ts';
 export * from './activity/index.ts';
 export type { Choice } from './choice-select.tsx';
 export { ChatPanel } from './chat/chat-panel.tsx';
-export type { ChatNameHint } from './chat/chat-panel.tsx';
+export type { ChatDraft, ChatNameHint } from './chat/chat-panel.tsx';
 export { ChatToggleProvider, useChatToggle } from './chat/chat-toggle.tsx';
 export type { ChatToggle } from './chat/chat-toggle.tsx';
 export type {

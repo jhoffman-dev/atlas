@@ -32,6 +32,7 @@ export function ChatPane({
         history={chat.history}
         loadImage={loadImage}
         nameHint={nameHint}
+        draft={chat.draft}
         actions={{
           onSend: (text) => void session.send(text),
           onStop: () => session.stop(),

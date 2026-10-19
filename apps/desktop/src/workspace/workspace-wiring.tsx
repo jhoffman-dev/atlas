@@ -51,8 +51,6 @@ export interface WorkspaceWiring extends WorkspaceStores {
   readonly note: NoteTabCommands;
   /** The way back to a hidden sidebar, given while it is hidden. */
   readonly onShowSidebar: (() => void) | null;
-  /** Whether the right sidebar is on screen showing Properties, so a note's body need not. */
-  readonly propertiesInAside: boolean;
 }
 
 const StoresContext = createContext<WorkspaceStores | null>(null);

@@ -156,13 +156,9 @@ test.describe('wrong subject (attack #387)', () => {
 });
 
 test.describe('lost property edits (attack #387)', () => {
-  // fixme, not left failing: against the fake host the race loses the last key in about
-  // two runs of five, and a test that fails only sometimes is a flaky test. The
-  // deterministic proof is aside-container.attack-387.test.tsx ("typing a property of a
-  // focused row quickly..."). Un-fixme this once the row's writes are one at a time.
-  test.fixme('a focused row’s property typed key by key reaches the file whole', async ({
-    page,
-  }) => {
+  // The row's writes are one at a time and coalesced (row-aside.tsx), so the
+  // last key always lands; the deterministic proof is aside-container.attack-387.test.tsx.
+  test('a focused row’s property typed key by key reaches the file whole', async ({ page }) => {
     const { vault } = await openVault(page);
     await sidebarSection(page, 'types')
       .getByRole('button', { name: /^Task, / })

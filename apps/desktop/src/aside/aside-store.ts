@@ -34,6 +34,8 @@ export interface AsideState {
   readonly vault: string | null;
   readonly open: boolean;
   readonly tab: AsideTab;
+  /** Folded by a narrow window (collapse.ts), whatever `open` remembers. */
+  readonly folded: boolean;
   readonly rows: ReadonlyMap<TabId, FocusedRow>;
   readonly remembered: RememberedAsides;
 }
@@ -43,6 +45,8 @@ export interface AsideState {
  * a note's path (a view in a note), a type's name (its table), else the page
  * kind. Null for an empty tab, which no table is on.
  */
+export function withinOf(place: NavigationPlace): string;
+export function withinOf(place: NavigationPlace | null): string | null;
 export function withinOf(place: NavigationPlace | null): string | null {
   if (place === null) return null;
   if (place.kind === 'note') return place.path;
@@ -66,6 +70,7 @@ export function createAsideStore({ remembered }: { remembered: RememberedAsides 
   return createStore<AsideState>()(() => ({
     vault: null,
     ...FRESH,
+    folded: false,
     rows: new Map(),
     remembered,
   }));
@@ -81,6 +86,22 @@ export function useAsideTab(store: AsideStore): AsideTab {
   return useStore(store, (state) => state.tab);
 }
 
+/** Whether the aside is on screen: open by the viewer's choice and not folded by the window. */
+export function useAsideShown(store: AsideStore): boolean {
+  return useStore(store, asideShown);
+}
+
+export const asideShown = (state: AsideState): boolean => state.open && !state.folded;
+
+/** The row `tab` holds while the tab is still on the page it was focused on, read outside a render. */
+export function focusedRowOf(
+  state: AsideState,
+  { tab, within }: { tab: TabId; within: string | null },
+): VaultPath | null {
+  const row = state.rows.get(tab);
+  return row !== undefined && row.within === within ? row.path : null;
+}
+
 /** Whether the chat is on screen: the aside open on its Claude tab. */
 export function useClaudeShown(store: AsideStore): boolean {
   return useStore(store, claudeShown);
@@ -93,10 +114,7 @@ export function useFocusedRow(
   store: AsideStore,
   { tab, within }: { tab: TabId; within: string | null },
 ): VaultPath | null {
-  return useStore(store, (state) => {
-    const row = state.rows.get(tab);
-    return row !== undefined && row.within === within ? row.path : null;
-  });
+  return useStore(store, (state) => focusedRowOf(state, { tab, within }));
 }
 
 // ---- Changing --------------------------------------------------------------
@@ -116,6 +134,11 @@ export function loadVaultAside(store: AsideStore, vaultKey: string | null): void
 
 export function toggleAside(store: AsideStore): void {
   remember(store, { open: !store.getState().open });
+}
+
+/** Told by the app as the window folds the aside or makes room for it again. */
+export function setAsideFolded(store: AsideStore, folded: boolean): void {
+  if (store.getState().folded !== folded) store.setState({ folded });
 }
 
 export function hideAside(store: AsideStore): void {
@@ -147,6 +170,15 @@ export function focusRow(
   const held = rows.get(tab);
   if (held !== undefined && held.path === path && held.within === within) return;
   store.setState({ rows: new Map(rows).set(tab, { path, within }) });
+}
+
+/** The row `tab` held, let go: its table lost the focus to the page around it, or the tab closed. */
+export function clearRow(store: AsideStore, tab: TabId): void {
+  const { rows } = store.getState();
+  if (!rows.has(tab)) return;
+  const next = new Map(rows);
+  next.delete(tab);
+  store.setState({ rows: next });
 }
 
 function remember(store: AsideStore, change: Partial<RememberedAside>): void {

@@ -29,6 +29,7 @@ export function ChatPanel({
   actions,
   loadImage,
   nameHint = null,
+  draft,
 }: {
   state: ChatPanelState;
   model: string;
@@ -39,6 +40,11 @@ export function ChatPanel({
   loadImage: (src: string) => Promise<string | null>;
   /** Shown before the first question while Settings → Profile has no name; null otherwise. */
   nameHint?: ChatNameHint | null;
+  /**
+   * The question being typed, kept by the app when given: the panel is
+   * unmounted as the aside shows another tab, and a draft must outlive that.
+   */
+  draft?: ChatDraft;
 }) {
   const lastAnswer = [...state.items].reverse().find((item) => item.kind === 'assistant');
   return (
@@ -78,7 +84,7 @@ export function ChatPanel({
         )}
         {state.notice !== null && <p className="chat__notice">{state.notice}</p>}
       </div>
-      <Composer state={state} actions={actions} />
+      <Composer state={state} actions={actions} {...(draft !== undefined && { draft })} />
     </aside>
   );
 }
@@ -244,9 +250,26 @@ function ChatEntry({
   }
 }
 
-function Composer({ state, actions }: { state: ChatPanelState; actions: ChatActions }) {
-  const [draft, setDraft] = useState('');
+/** The question being typed, and where it is kept. */
+export interface ChatDraft {
+  readonly text: string;
+  readonly onChange: (text: string) => void;
+}
+
+function Composer({
+  state,
+  actions,
+  draft: kept,
+}: {
+  state: ChatPanelState;
+  actions: ChatActions;
+  draft?: ChatDraft;
+}) {
+  const [own, setOwn] = useState('');
+  const draft = kept?.text ?? own;
+  const setDraft = kept?.onChange ?? setOwn;
   const box = useRef<HTMLTextAreaElement>(null);
+  // Mounted only as Claude is asked for — ⌘J, the bar's spark, its tab — so the box takes the keys.
   useEffect(() => box.current?.focus(), []);
 
   const send = () => {

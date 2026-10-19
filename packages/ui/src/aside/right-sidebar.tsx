@@ -22,7 +22,8 @@ const TAB_LABELS: Readonly<Record<AsideTab, string>> = {
   claude: 'Claude',
 };
 
-const TAB_ORDER: readonly AsideTab[] = ['properties', 'backlinks', 'outline', 'claude'];
+/** The tabs in the order the row draws them; the app reads it to know which are offered. */
+export const ASIDE_TABS: readonly AsideTab[] = ['properties', 'backlinks', 'outline', 'claude'];
 
 /** Where ← → Home and End move the focus along the tabs, as the tab strip's do. */
 const STEPS: Readonly<Record<string, (at: number, count: number) => number>> = {
@@ -73,7 +74,7 @@ export function RightSidebar({
   const list = useRef<HTMLDivElement>(null);
   /** The tab whose button last took the focus, while the focus is in the row. */
   const holding = useRef<AsideTab | null>(null);
-  const offered = TAB_ORDER.filter((each) => Boolean(panels[each]));
+  const offered = ASIDE_TABS.filter((each) => Boolean(panels[each]));
   const shown = offered.includes(tab) ? tab : offered[0];
 
   const focusTab = (at: number) => {

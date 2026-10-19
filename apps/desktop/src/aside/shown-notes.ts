@@ -9,8 +9,9 @@ type BacklinksProps = Parameters<typeof BacklinksPane>[0];
 /**
  * What a note tab shows, as the aside needs it: the properties as the page's
  * own panel draws them (so the aside's rows write through the same
- * `onChange`, with the same commit rules), the links, and the document for
- * the outline.
+ * `onChange`, with the same commit rules) and the links. The document is
+ * published apart (`publishShownDoc`): it changes with every keystroke, and
+ * only the Outline reads it.
  */
 export interface ShownNote {
   readonly path: VaultPath;
@@ -22,11 +23,11 @@ export interface ShownNote {
   readonly mentions: BacklinksProps['mentions'];
   readonly onFindMentions: BacklinksProps['onFindMentions'];
   readonly onLinkMention: BacklinksProps['onLinkMention'];
-  readonly doc: EditorDocument;
 }
 
 interface ShownNotesState {
   readonly byTab: ReadonlyMap<TabId, ShownNote>;
+  readonly docByTab: ReadonlyMap<TabId, EditorDocument>;
 }
 
 /**
@@ -39,31 +40,62 @@ interface ShownNotesState {
 export type ShownNotes = StoreApi<ShownNotesState>;
 
 export function createShownNotes(): ShownNotes {
-  return createStore<ShownNotesState>()(() => ({ byTab: new Map() }));
+  return createStore<ShownNotesState>()(() => ({ byTab: new Map(), docByTab: new Map() }));
 }
 
 export function publishShownNote(store: ShownNotes, tab: TabId, shown: ShownNote | null): void {
   const { byTab } = store.getState();
   if (byTab.get(tab) === (shown ?? undefined)) return;
-  const next = new Map(byTab);
-  if (shown === null) next.delete(tab);
-  else next.set(tab, shown);
-  store.setState({ byTab: next });
+  store.setState({ byTab: replaced(byTab, tab, shown) });
+}
+
+export function publishShownDoc(store: ShownNotes, tab: TabId, doc: EditorDocument | null): void {
+  const { docByTab } = store.getState();
+  if (docByTab.get(tab) === (doc ?? undefined)) return;
+  store.setState({ docByTab: replaced(docByTab, tab, doc) });
+}
+
+function replaced<Value>(
+  held: ReadonlyMap<TabId, Value>,
+  tab: TabId,
+  value: Value | null,
+): Map<TabId, Value> {
+  const next = new Map(held);
+  if (value === null) next.delete(tab);
+  else next.set(tab, value);
+  return next;
 }
 
 export function useShownNote(store: ShownNotes, tab: TabId): ShownNote | null {
   return useStore(store, (state) => state.byTab.get(tab) ?? null);
 }
 
+export function useShownDoc(store: ShownNotes, tab: TabId): EditorDocument | null {
+  return useStore(store, (state) => state.docByTab.get(tab) ?? null);
+}
+
 /**
- * Publishes a tab's note after each render that changed it, and withdraws it
- * as the tab unmounts. The caller memoises `shown` on what the aside reads,
- * so a keystroke that changes only the document publishes the document and
- * nothing else draws for it.
+ * Publishes a tab's note and its document after each render that changed
+ * either, and withdraws both as the tab unmounts. The caller memoises
+ * `shown` on what the aside's Properties and Backlinks read, so a keystroke
+ * publishes the document and nothing else draws for it.
  */
-export function usePublishShownNote(store: ShownNotes, tab: TabId, shown: ShownNote | null): void {
+export function usePublishShownNote(
+  store: ShownNotes,
+  tab: TabId,
+  { shown, doc }: { shown: ShownNote | null; doc: EditorDocument | null },
+): void {
   useEffect(() => {
     publishShownNote(store, tab, shown);
   }, [store, tab, shown]);
-  useEffect(() => () => publishShownNote(store, tab, null), [store, tab]);
+  useEffect(() => {
+    publishShownDoc(store, tab, doc);
+  }, [store, tab, doc]);
+  useEffect(
+    () => () => {
+      publishShownNote(store, tab, null);
+      publishShownDoc(store, tab, null);
+    },
+    [store, tab],
+  );
 }

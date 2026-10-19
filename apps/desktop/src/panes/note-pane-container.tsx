@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type ReactNode,
 } from 'react';
 import { useStore } from 'zustand';
@@ -72,6 +73,7 @@ import {
   type Planner,
   type TemplateNotice,
   type ViewTabEditing,
+  useSteadyCallback,
 } from '@atlas/ui';
 import { useNote, type NotePorts } from '../notes/use-note.ts';
 import { hideOverlay, showOverlay } from '../overlay-store.ts';
@@ -84,6 +86,7 @@ import {
   openInPane,
   openPlace,
   splitPane,
+  type WorkspaceStore,
 } from '../workspace/workspace-store.ts';
 import type { WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
 import { useTabReveal } from './reveals.ts';
@@ -102,8 +105,9 @@ import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
 import { webviewImageProbe } from '../notes/webview-image-probe.ts';
 import { browserImagePlacementStore } from '../notes/browser-image-placement-store.ts';
 import { useNoteProperties } from '../types/use-note-properties.ts';
-import { focusRow, type AsideStore } from '../aside/aside-store.ts';
+import { clearRow, focusRow, type AsideStore } from '../aside/aside-store.ts';
 import { usePublishShownNote, type ShownNote, type ShownNotes } from '../aside/shown-notes.ts';
+import { usePropertiesInAside } from '../aside/use-properties-in-aside.ts';
 import { useAddProperty } from '../types/use-add-property.ts';
 import { useCreateRelated } from '../types/use-create-related.ts';
 import type { TabLanding } from '../types/use-type-views.ts';
@@ -273,7 +277,7 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
     path,
     context: wiring.pane,
     hidden,
-    aside: { store: wiring.aside, shown: wiring.shown, showsProperties: wiring.propertiesInAside },
+    aside: { store: wiring.aside, shown: wiring.shown, workspace: store },
     onOpenNote: (target, how = 'here') => {
       const place: NavigationPlace = { kind: 'note', path: target };
       if (how === 'here') openInPane(store, { pane, place });
@@ -314,8 +318,14 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
       }),
     },
   });
+  // The focus landing on the page around a table — the editor, the bar — lets
+  // the row the table held go, so the aside follows the note again. A cell's
+  // picker is drawn outside the tab, so it is not a landing here.
+  const onFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest('.table') === null) clearRow(wiring.aside, tab.id);
+  };
   return (
-    <div className="pane__tab" hidden={hidden}>
+    <div className="pane__tab" hidden={hidden} onFocusCapture={onFocusCapture}>
       <NoteNamesProvider value={names}>
         <ChatToggleProvider value={chat}>{drawn}</ChatToggleProvider>
       </NoteNamesProvider>
@@ -344,8 +354,8 @@ function useNotePane({
   tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
-  /** The right sidebar (#306): where this tab says what it shows, and whether the aside shows its properties. */
-  aside: { store: AsideStore; shown: ShownNotes; showsProperties: boolean };
+  /** The right sidebar (#306): where this tab says what it shows, and the workspace it follows. */
+  aside: { store: AsideStore; shown: ShownNotes; workspace: WorkspaceStore };
   /**
    * Whether the tab is behind another one. The editor stays mounted, so its
    * undo keeps; it flushes as it hides, and its autosave stands down until shown.
@@ -618,49 +628,75 @@ function useNotePane({
   );
   // What the aside shows for this tab (#306): said through the store, read by
   // a selector there, so the aside follows the focused tab without `App`.
-  usePublishShownNote(
-    aside.shown,
-    tabId,
-    useMemo<ShownNote | null>(
+  // Memoised on what its Properties and Backlinks read; the callbacks are
+  // steady, so a render of this tab publishes nothing new unless those
+  // changed, and the document goes apart, since it changes with every key.
+  const steadyOpenNote = useSteadyCallback(onOpenNote);
+  const steadyAdd = useSteadyCallback(addProperty);
+  const steadyCreateRelated = useSteadyCallback(createRelated);
+  const steadyFind = useSteadyCallback(links.mentions.find);
+  const steadyLink = useSteadyCallback(links.mentions.link);
+  const { typeName, typeLabel, rows, relationChoices, relationTargets, keys } = noteProperties;
+  const shownPath = note.open?.path ?? null;
+  const shownTitle = heading?.title.text ?? null;
+  usePublishShownNote(aside.shown, tabId, {
+    shown: useMemo<ShownNote | null>(
       () =>
-        note.open === null || heading === null || heading.kind !== 'note'
+        shownPath === null || shownTitle === null
           ? null
           : {
-              path: note.open.path,
-              title: heading.title.text,
-              kicker: noteProperties.typeLabel ?? 'Note',
+              path: shownPath,
+              title: shownTitle,
+              kicker: typeLabel ?? 'Note',
               panel: {
-                typeName: noteProperties.typeName,
-                typeLabel: noteProperties.typeLabel,
-                rows: noteProperties.rows,
-                relationChoices: noteProperties.relationChoices,
-                relationTargets: noteProperties.relationTargets,
-                fileKeys: noteProperties.keys,
+                typeName,
+                typeLabel,
+                rows,
+                relationChoices,
+                relationTargets,
+                fileKeys: keys,
                 customValues: customPropertyValues,
                 onChange: note.setProperty,
-                onAdd: addProperty,
-                onOpenNote,
-                onCreateRelated: createRelated,
+                onAdd: steadyAdd,
+                onOpenNote: steadyOpenNote,
+                onCreateRelated: steadyCreateRelated,
               },
               links: links.links,
               mentions: links.mentions.state,
-              onFindMentions: links.mentions.find,
-              onLinkMention: links.mentions.link,
-              doc: note.open.doc,
+              onFindMentions: steadyFind,
+              onLinkMention: steadyLink,
             },
       [
-        note.open,
-        heading,
-        noteProperties,
+        shownPath,
+        shownTitle,
+        typeName,
+        typeLabel,
+        rows,
+        relationChoices,
+        relationTargets,
+        keys,
         customPropertyValues,
         note.setProperty,
-        addProperty,
-        onOpenNote,
-        createRelated,
-        links,
+        steadyAdd,
+        steadyOpenNote,
+        steadyCreateRelated,
+        links.links,
+        links.mentions.state,
+        steadyFind,
+        steadyLink,
       ],
     ),
-  );
+    doc: note.open?.doc ?? null,
+  });
+  // Whether the aside is showing this tab's properties, so the body need not: the tab's own answer.
+  const propertiesInAside = usePropertiesInAside({
+    aside: aside.store,
+    workspace: aside.workspace,
+    tab: tabId,
+    path,
+  });
+  // The row this tab's tables held goes with the tab.
+  useEffect(() => () => clearRow(aside.store, tabId), [aside.store, tabId]);
   // A row of a view in this note, as its focus lands: the aside shows the row's note.
   const onRowFocus = useCallback(
     (row: string) => {
@@ -675,7 +711,7 @@ function useNotePane({
       key={pageKey}
       state={note.state}
       heading={heading}
-      propertiesInAside={aside.showsProperties}
+      propertiesInAside={propertiesInAside}
       arrangement={arrangement}
       onChange={note.changeDoc}
       onSave={note.save}

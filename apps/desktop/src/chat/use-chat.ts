@@ -23,7 +23,7 @@ import {
   type ProfileState,
   type VaultPath,
 } from '@atlas/domain';
-import type { ChatProblemView } from '@atlas/ui';
+import type { ChatDraft, ChatProblemView } from '@atlas/ui';
 import { localClock } from '../today.ts';
 import type { ClipboardWriter } from '../settings/clipboard.ts';
 import type { ChatSettings, ChatSettingsStore } from './chat-settings-store.ts';
@@ -65,6 +65,8 @@ export interface ChatSeat {
 
 export interface ChatController {
   readonly open: boolean;
+  /** The question being typed: kept here, since the panel comes and goes with the aside's tab. */
+  readonly draft: ChatDraft;
   readonly toggle: () => void;
   readonly close: () => void;
   readonly state: ChatState;
@@ -116,6 +118,11 @@ export function useChat({
   seat: ChatSeat;
 }): ChatController {
   const { open } = seat;
+  const [draftText, setDraftText] = useState('');
+  const draft = useMemo<ChatDraft>(
+    () => ({ text: draftText, onChange: setDraftText }),
+    [draftText],
+  );
   const [settings, setStoredSettings] = useState(() => store.read());
   const latest = useRef({ vault, settings, ports });
   latest.current = { vault, settings, ports };
@@ -184,6 +191,7 @@ export function useChat({
 
   return {
     open,
+    draft,
     toggle: seat.toggle,
     close: seat.close,
     state,

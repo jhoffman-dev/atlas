@@ -69,6 +69,7 @@ import {
   AppShell,
   AsideToggleProvider,
   ChatToggleProvider,
+  collapseFor,
   useSteadyCallback,
   CapturePalette,
   DeleteDialog,
@@ -207,10 +208,10 @@ import {
   createAsideStore,
   hideAside,
   loadVaultAside,
+  setAsideFolded,
   toggleAside as toggleAsideIn,
   toggleClaude,
-  useAsideOpen,
-  useAsideTab,
+  useAsideShown,
   useClaudeShown,
 } from './aside/aside-store.ts';
 import { browserAsideStore } from './aside/browser-aside-store.ts';
@@ -878,15 +879,32 @@ function AppWindow({
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
+  // The aside folds where the window is too narrow for it beside the left
+  // sidebar (collapse.ts). Showing it there — ⌘J, the bar's button, ⌥⌘\ —
+  // hides the left sidebar instead, so Claude is reachable in a 1000px window;
+  // ⌘\ brings the sidebar back. The store is told as the window folds it, so
+  // the toggle's pressed state and each note's body read what is on screen.
+  const asideCollapsed = useAsideCollapsed({ sidebarOpen });
+  useEffect(() => setAsideFolded(asideStore, asideCollapsed), [asideStore, asideCollapsed]);
+  const roomForAside = useCallback(() => {
+    if (collapseFor({ width: window.innerWidth, sidebarOpen: true }).aside) setSidebarOpen(false);
+  }, []);
+  const showAside = useCallback(
+    (show: (store: typeof asideStore) => void) => {
+      roomForAside();
+      show(asideStore);
+    },
+    [asideStore, roomForAside],
+  );
   // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings the aside up on it.
   const claudeShown = useClaudeShown(asideStore);
   const chatSeat = useMemo(
     () => ({
       open: claudeShown,
-      toggle: () => toggleClaude(asideStore),
+      toggle: () => (claudeShown ? hideAside(asideStore) : showAside(toggleClaude)),
       close: () => hideAside(asideStore),
     }),
-    [claudeShown, asideStore],
+    [claudeShown, asideStore, showAside],
   );
   const chat = useChat({
     ports: chatPorts,
@@ -1500,7 +1518,8 @@ function AppWindow({
     forward: () => goForward(workspace),
     show: showOverlay,
     toggleChat: chat.toggle,
-    toggleAside: () => toggleAsideIn(asideStore),
+    toggleAside: () =>
+      asideStore.getState().open ? hideAside(asideStore) : showAside(toggleAsideIn),
     tabs: {
       newTab: () => newTabIn(workspace, workspaceNow(workspace).focused),
       closeTab: () => closeActiveTab(workspace),
@@ -1513,17 +1532,13 @@ function AppWindow({
 
   const treeRows = useMemo(() => sidebarTreeRows(rows), [rows]);
   const toggleSidebar = useCallback(() => setSidebarOpen((was) => !was), []);
-  // On screen when open and the window has room (collapse.ts): the toggle's
-  // pressed state and the note's body read what is shown, not what is remembered.
-  const asideOpen = useAsideOpen(asideStore);
-  const asideCollapsed = useAsideCollapsed({ sidebarOpen });
-  const asideShown = asideOpen && !asideCollapsed;
-  // A note's properties leave its body only while the aside is showing them.
-  const asideTab = useAsideTab(asideStore);
-  const propertiesInAside = asideShown && asideTab === 'properties';
+  const asideShown = useAsideShown(asideStore);
   const asideToggle = useMemo(
-    () => ({ shown: asideShown, onToggle: () => toggleAsideIn(asideStore) }),
-    [asideShown, asideStore],
+    () => ({
+      shown: asideShown,
+      onToggle: () => (asideShown ? hideAside(asideStore) : showAside(toggleAsideIn)),
+    }),
+    [asideShown, asideStore, showAside],
   );
   const rowPorts = useMemo(() => ({ pane: paneContext, openNote }), [paneContext, openNote]);
 
@@ -1758,7 +1773,6 @@ function AppWindow({
                     ...workspaceStores,
                     pane: paneContext,
                     onShowSidebar: sidebarOpen ? null : toggleSidebar,
-                    propertiesInAside,
                     note: {
                       onRename: renamePaneNote,
                       onToggleFavorite: toggleFavorite,

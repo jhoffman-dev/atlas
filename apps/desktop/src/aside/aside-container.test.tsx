@@ -22,7 +22,12 @@ import { AsideContainer } from './aside-container.tsx';
 import { createAsideStore, focusRow, showAsideTab } from './aside-store.ts';
 import { ClaudeSeatProvider } from './claude-seat.tsx';
 import type { RowPorts } from './row-aside.tsx';
-import { createShownNotes, publishShownNote, type ShownNote } from './shown-notes.ts';
+import {
+  createShownNotes,
+  publishShownDoc,
+  publishShownNote,
+  type ShownNote,
+} from './shown-notes.ts';
 
 const NOTE = createVaultPath('Tasks/Ship it.md');
 
@@ -75,7 +80,6 @@ function published(path: VaultPath, onChange = vi.fn()): ShownNote {
     mentions: { kind: 'idle' },
     onFindMentions: vi.fn(),
     onLinkMention: vi.fn(),
-    doc: { type: 'doc', content: [heading('Steps'), heading('Expected')] },
   };
 }
 
@@ -121,6 +125,10 @@ describe('AsideContainer', () => {
   it('offers Backlinks and Outline for a note, and the Outline asks the tab to reveal a heading', async () => {
     const stores = openOn({ kind: 'note', path: NOTE });
     publishShownNote(stores.shown, stores.tab, published(NOTE));
+    publishShownDoc(stores.shown, stores.tab, {
+      type: 'doc',
+      content: [heading('Steps'), heading('Expected')],
+    });
     show(stores);
 
     await userEvent.click(screen.getByRole('tab', { name: 'Outline' }));

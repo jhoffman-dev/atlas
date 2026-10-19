@@ -123,7 +123,6 @@ function published(path: VaultPath): ShownNote {
     mentions: { kind: 'idle' },
     onFindMentions: vi.fn(),
     onLinkMention: vi.fn(),
-    doc: { type: 'doc', content: [] },
   };
 }
 

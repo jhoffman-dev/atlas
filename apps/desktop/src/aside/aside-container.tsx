@@ -1,7 +1,14 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { activeTabOf, outlineOf, type TabId, type VaultPath } from '@atlas/domain';
-import { BacklinksPane, OutlinePane, PropertiesPane, RightSidebar } from '@atlas/ui';
+import {
+  ASIDE_TABS,
+  BacklinksPane,
+  OutlinePane,
+  PropertiesPane,
+  RightSidebar,
+  type AsideTab,
+} from '@atlas/ui';
 import { requestReveal } from '../panes/reveals.ts';
 import { openNote } from '../workspace/open-place.ts';
 import { useFocusedPlace } from '../workspace/workspace-store.ts';
@@ -9,7 +16,7 @@ import { useWorkspaceStores } from '../workspace/workspace-wiring.tsx';
 import { hideAside, selectAsideTab, useAsideTab, useFocusedRow, withinOf } from './aside-store.ts';
 import { ClaudeSeat } from './claude-seat.tsx';
 import { RowAside, type RowPorts } from './row-aside.tsx';
-import type { ShownNotes } from './shown-notes.ts';
+import { useShownDoc, useShownNote, type ShownNotes } from './shown-notes.ts';
 
 /**
  * The right sidebar, wired (#306): it follows the focused tab through the
@@ -22,23 +29,28 @@ import type { ShownNotes } from './shown-notes.ts';
  */
 export const AsideContainer = memo(function AsideContainer({ rows }: { rows: RowPorts }) {
   const { store, aside, shown } = useWorkspaceStores();
-  const tab = useAsideTab(aside);
+  const chosen = useAsideTab(aside);
   const activeTab = useStore(store, (state) => activeTabOf(state.workspace).id);
   const place = useFocusedPlace(store);
   const row = useFocusedRow(aside, { tab: activeTab, within: withinOf(place) });
   const notePath = place?.kind === 'note' ? place.path : null;
   // Properties is always offered, empty on a page with nothing selected, so
   // leaving a note for Today does not fall the aside through to Claude.
-  const subject =
+  const subject: Partial<Record<AsideTab, ReactNode>> =
     row !== null
-      ? { properties: <RowAside path={row} ports={rows} /> }
+      ? { properties: <RowAside key={row} path={row} tab={activeTab} ports={rows} aside={aside} /> }
       : notePath !== null
         ? notePanels({ shown, tab: activeTab, path: notePath })
         : { properties: <NothingSelected /> };
+  const panels = { ...subject, claude: <ClaudeSeat /> };
+  // Shown for the page at hand only: a page without an Outline does not
+  // forget that the person chose Outline, so the choice is not written over.
+  const offered = ASIDE_TABS.filter((tab) => Boolean(panels[tab]));
+  const tab = offered.includes(chosen) ? chosen : (offered[0] ?? chosen);
   return (
     <RightSidebar
       tab={tab}
-      panels={{ ...subject, claude: <ClaudeSeat /> }}
+      panels={panels}
       onSelectTab={(next) => selectAsideTab(aside, next)}
       onHide={() => hideAside(aside)}
       onEscape={focusTheWork}
@@ -64,23 +76,17 @@ interface NotePanelProps {
 }
 
 function NoteProperties({ shown, tab, path }: NotePanelProps) {
-  const { store } = useWorkspaceStores();
-  const note = useStore(shown, (state) => state.byTab.get(tab) ?? null);
+  const note = useShownNote(shown, tab);
   if (note === null || note.path !== path) return <Reading />;
+  // No Open or New tab at the foot: the note is the tab the aside follows.
   return (
-    <PropertiesPane
-      {...note.panel}
-      context={note.kicker}
-      title={note.title}
-      path={note.path}
-      onOpenInNewTab={() => openNote(store, note.path, 'new-tab')}
-    />
+    <PropertiesPane {...note.panel} context={note.kicker} title={note.title} path={note.path} />
   );
 }
 
 function NoteBacklinks({ shown, tab, path }: NotePanelProps) {
   const { store } = useWorkspaceStores();
-  const note = useStore(shown, (state) => state.byTab.get(tab) ?? null);
+  const note = useShownNote(shown, tab);
   if (note === null || note.path !== path) return <Reading />;
   return (
     <BacklinksPane
@@ -96,12 +102,10 @@ function NoteBacklinks({ shown, tab, path }: NotePanelProps) {
 function NoteOutline({ shown, tab, path }: NotePanelProps) {
   const { reveals } = useWorkspaceStores();
   // The document alone: a keystroke publishes a new one and draws this, not the rows.
-  const doc = useStore(shown, (state) => {
-    const note = state.byTab.get(tab);
-    return note !== undefined && note.path === path ? note.doc : null;
-  });
+  const doc = useShownDoc(shown, tab);
+  const current = useStore(shown, (state) => state.byTab.get(tab)?.path === path);
   const headings = useMemo(() => (doc === null ? [] : outlineOf(doc)), [doc]);
-  if (doc === null) return <Reading />;
+  if (doc === null || !current) return <Reading />;
   return (
     <OutlinePane
       headings={headings}

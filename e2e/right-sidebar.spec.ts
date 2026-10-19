@@ -52,10 +52,27 @@ const PLAN = [
   '',
 ].join('\n');
 
-async function openVault(page: Page): Promise<FakeVault> {
+/** A saved view of the tasks as a table: a note with a table in its body. */
+const TASKS_VIEW = [
+  '---',
+  'atlas: view',
+  'type: task',
+  'layout: table',
+  'columns: [owner, status]',
+  '---',
+  '',
+  '# All tasks',
+  '',
+].join('\n');
+
+async function openVault(page: Page, { withView = false } = {}): Promise<FakeVault> {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.write('.atlas/types/task.md', TASK_TYPE);
+  if (withView) {
+    await vault.mkdir('.atlas/views');
+    await vault.write('.atlas/views/All tasks.md', TASKS_VIEW);
+  }
   await vault.write('Ship it.md', SHIP);
   await vault.write('Plan.md', PLAN);
   await installHost(page, vault);
@@ -194,6 +211,30 @@ test('selecting a table row shows the row’s properties, and editing one writes
   await owner.press('Enter');
   await expectFile(vault, 'Plan.md').toMatch(/\nowner: Mara Quill\n/);
   await expect(table.getByRole('button', { name: 'Mara Quill' })).toBeVisible();
+});
+
+test('a row focused in a view’s table gives way once the focus returns to the page around it', async ({
+  page,
+}) => {
+  await openVault(page, { withView: true });
+  await sidebarSection(page, 'views')
+    .getByRole('button', { name: 'All tasks', exact: true })
+    .click();
+  const view = page.getByRole('article', { name: 'All tasks' });
+  await expect(view.getByRole('button', { name: 'Tobias Fenn' })).toBeVisible();
+  await toggle(page).click();
+  const panel = aside(page);
+  await expect(panel.getByRole('heading', { name: 'All tasks' })).toBeVisible();
+
+  await view.getByRole('button', { name: 'Tobias Fenn' }).focus();
+  await expect(panel.getByText('Task · selected row')).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Plan' })).toBeVisible();
+
+  // The focus landing on the page around the table — its bar's More, which sits
+  // above the article in the same tab — lets the row go.
+  await page.getByRole('button', { name: 'More' }).first().focus();
+  await expect(panel.getByRole('heading', { name: 'All tasks' })).toBeVisible();
+  await expect(panel.getByText('Task · selected row')).toHaveCount(0);
 });
 
 test('⌘J seats Claude in the aside’s Claude tab, and closes it from there', async ({ page }) => {

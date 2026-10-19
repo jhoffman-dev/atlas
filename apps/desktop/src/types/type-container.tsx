@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentProps } from 'react';
 import { createVaultPath } from '@atlas/domain';
-import { focusRow, withinOf } from '../aside/aside-store.ts';
+import { clearRow, focusRow, withinOf } from '../aside/aside-store.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
@@ -44,6 +44,8 @@ export function TypeContainer({
 }: PageContainerProps & { name: string }) {
   const { pages, pane } = wiring;
   const { aside } = useWorkspaceStores();
+  // The row this tab's table held goes with the tab.
+  useEffect(() => () => clearRow(aside, tabId), [aside, tabId]);
   const { editAsked, onNotes, onNewNote, onDelete, onEditTemplate } = pages.type;
   // This tab's mode: the editor when the window asked for it here, else the notes.
   const modeAsked = (): TypePageMode =>
@@ -114,7 +116,7 @@ export function TypeContainer({
           focusRow(aside, {
             tab: tabId,
             path: createVaultPath(path),
-            within: withinOf({ kind: 'type', name }) ?? '',
+            within: withinOf({ kind: 'type', name }),
           })
         }
         {...chrome}

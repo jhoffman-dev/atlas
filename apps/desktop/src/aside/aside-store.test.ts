@@ -1,17 +1,20 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { createVaultPath } from '@atlas/domain';
 import {
+  clearRow,
   createAsideStore,
   focusRow,
   hideAside,
   loadVaultAside,
   selectAsideTab,
+  setAsideFolded,
   showAsideTab,
   toggleAside,
   toggleClaude,
   useAsideOpen,
+  useAsideShown,
   useClaudeShown,
   useFocusedRow,
   withinOf,
@@ -149,5 +152,32 @@ describe('the aside store', () => {
     expect(withinOf({ kind: 'type', name: 'task' })).toBe('type:task');
     expect(withinOf({ kind: 'today' })).toBe('today');
     expect(withinOf(null)).toBeNull();
+  });
+});
+
+describe('the aside store, let go and folded (#387 review)', () => {
+  it('lets a tab’s row go, and a tab holding none is left as it is', () => {
+    const store = createAsideStore(remembering());
+    focusRow(store, { tab: 't1', path: task, within: 'type:task' });
+    const before = store.getState();
+    clearRow(store, 't2');
+    expect(store.getState()).toBe(before);
+    clearRow(store, 't1');
+    expect(store.getState().rows.has('t1')).toBe(false);
+  });
+
+  it('folded by the window hides what open remembers, and remembers nothing for it', () => {
+    const { remembered } = remembering();
+    const store = createAsideStore({ remembered });
+    loadVaultAside(store, '/v');
+    toggleAside(store);
+    const { result } = renderHook(() => useAsideShown(store));
+    expect(result.current).toBe(true);
+    act(() => setAsideFolded(store, true));
+    expect(result.current).toBe(false);
+    expect(store.getState().open).toBe(true);
+    expect(remembered.write).toHaveBeenCalledTimes(1);
+    act(() => setAsideFolded(store, false));
+    expect(result.current).toBe(true);
   });
 });
