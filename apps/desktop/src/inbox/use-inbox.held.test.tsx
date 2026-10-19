@@ -47,19 +47,21 @@ function listingIndex(titles: readonly string[]) {
   });
 }
 
-/** A vault whose writes to `held` wait until `release`: a write in flight. */
+/** A vault whose writes to `held` wait until `release`: a write in flight. It keeps the order writes began in. */
 function vaultHoldingWrites(held: string) {
   const memory = memoryVault(FILES);
   let release = () => {};
   const gate = new Promise<void>((resolve) => (release = resolve));
+  const began: string[] = [];
   const fs = fakeVaultFs({
     ...memory.fs,
     writeTextFile: async (args) => {
+      began.push(args.path);
       if (args.path === held) await gate;
       return memory.fs.writeTextFile(args);
     },
   });
-  return { memory, fs, release };
+  return { memory, fs, release, began };
 }
 
 function options(ports: ArchivePorts, overrides: Partial<InboxOptions> = {}): InboxOptions {
@@ -120,7 +122,7 @@ describe('useInbox on a window-held set of writes', () => {
   });
 
   it('writes asked for from two tabs go one after another through the one queue', async () => {
-    const { memory, fs, release } = vaultHoldingWrites(CALL);
+    const { memory, fs, release, began } = vaultHoldingWrites(CALL);
     const ports: ArchivePorts = {
       fs,
       markdown: fakeMarkdown(),
@@ -145,12 +147,15 @@ describe('useInbox on a window-held set of writes', () => {
     act(() => {
       void second.result.current.clarify({ path: QUOTE, clarification: { status: 'backlog' } });
     });
-    // The second waits behind the first, held: nothing of it is written yet.
-    await new Promise((turn) => setTimeout(turn, 20));
+    // The first write begins and is held; the second waits behind it in the one
+    // queue, so it has not begun — not merely not landed.
+    await waitFor(() => expect(began).toContain(CALL));
+    expect(began).toEqual([CALL]);
     expect(memory.files.get(QUOTE)).toContain('status: inbox');
 
     release();
     await waitFor(() => expect(memory.files.get(QUOTE)).toContain('status: backlog'));
     expect(memory.files.get(CALL)).toContain('status: someday');
+    expect(began).toEqual([CALL, QUOTE]);
   });
 });

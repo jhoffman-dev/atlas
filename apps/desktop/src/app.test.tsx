@@ -2299,10 +2299,14 @@ describe('pages as tabs', () => {
   it('starts the Inbox page afresh for another vault opened with the Inbox open', async () => {
     const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
     const task = 'Inbox/Loose task.md';
-    const files = { [task]: '---\ntype: task\n---\n# Loose task\n' };
+    // A note loose at the root is what the tidy offers to move: its read is the offers' read.
+    const files = { [task]: '---\ntype: task\n---\n# Loose task\n', 'loose.md': '# Loose\n' };
     const vault = fakeVault({
       remembered: location,
-      directories: { '': [entry('Inbox', 'directory')], Inbox: [entry(task, 'file')] },
+      directories: {
+        '': [entry('Inbox', 'directory'), entry('loose.md', 'file')],
+        Inbox: [entry(task, 'file')],
+      },
       files,
       elsewhere: { [other.absolutePath]: files },
       picks: [other],
@@ -2329,13 +2333,140 @@ describe('pages as tabs', () => {
       (remembered ?? '').replace(location.absolutePath, other.absolutePath),
     );
 
+    // The other vault's offers take their time to read: its tidy reads the loose
+    // note, on its own. The index's reads, which carry every note, go through.
+    const readNotes = vault.fs.readNotes;
+    let holdingOffers: Promise<void> | null = null;
+    let releaseOffers = () => {};
+    vault.fs.readNotes = async (paths) => {
+      const theTidys = paths.length === 1 && paths[0] === 'loose.md';
+      if (theTidys && holdingOffers !== null) await holdingOffers;
+      return readNotes(paths);
+    };
+    holdingOffers = new Promise<void>((resolve) => (releaseOffers = resolve));
     await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
     expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
     const after = await screen.findByRole('article', { name: 'Inbox' });
-    await within(after).findByRole('form', { name: 'Clarify Loose task' });
-    // A page made afresh is a new one on the screen, not the first vault's kept.
+    // A page made afresh is a new one on the screen, not the first vault's kept,
+    // and holds its rows — inert, so out of the accessibility tree: found by
+    // their text — while this vault's offers are still being read.
     expect(after).not.toBe(before);
+    const title = await within(after).findByText('Loose task');
+    expect(title.closest('[inert]')).not.toBeNull();
+    releaseOffers();
+    await waitFor(() => expect(title.closest('[inert]')).toBeNull());
+    expect(within(after).getByRole('form', { name: 'Clarify Loose task' })).toBeDefined();
+  });
+
+  it('a proposal answered in one vault: another vault lists its own, at the same path, with no undo', async () => {
+    const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
+    const proposal = 'Inbox/Proposals/Call Tobias.md';
+    const text = [
+      '---',
+      'type: proposal',
+      'kind: task',
+      'state: open',
+      'payload:',
+      '  title: Call Tobias',
+      '  properties:',
+      '    status: next-action',
+      '---',
+      '',
+      'He asked on the call.',
+      '',
+    ].join('\n');
+    const vault = fakeVault({
+      remembered: location,
+      directories: {
+        '': [entry('Inbox', 'directory')],
+        Inbox: [entry('Inbox/Proposals', 'directory')],
+        'Inbox/Proposals': [entry(proposal, 'file')],
+      },
+      files: { [proposal]: text },
+      elsewhere: { [other.absolutePath]: { [proposal]: text } },
+      picks: [other],
+    });
+    // The fake's `readNotes` reads the first vault's files; `readTextFile` reads the open one's.
+    vault.fs.readNotes = async (paths) => {
+      const read = await Promise.all(
+        paths.map((at) =>
+          vault.fs.readTextFile(createVaultPath(at)).then(
+            ({ text: body, modified }) => ({ path: at, text: body, modified, size: body.length }),
+            () => null,
+          ),
+        ),
+      );
+      return read.filter((note) => note !== null);
+    };
+    renderOn(vault);
+    // The sidebar counts the proposal; the Inbox lists it and accepts it.
+    const inboxRow = await screen.findByRole('button', { name: /^Inbox/ });
+    await waitFor(() => expect(inboxRow.textContent).toContain('1'));
+    await userEvent.click(inboxRow);
+    const inbox = await screen.findByRole('article', { name: 'Inbox' });
+    await within(inbox).findByText('Call Tobias');
+    await userEvent.click(within(inbox).getByRole('button', { name: 'Accept' }));
+    await within(inbox).findByRole('button', { name: 'Undo' });
+    const remembered = window.localStorage.getItem(`atlas.workspace:${location.absolutePath}`);
+    window.localStorage.setItem(
+      `atlas.workspace:${other.absolutePath}`,
+      (remembered ?? '').replace(location.absolutePath, other.absolutePath),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
+    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
+    const after = await screen.findByRole('article', { name: 'Inbox' });
+    // The other vault's proposal, at the same path, is its own: listed, and nothing to take back.
+    expect(await within(after).findByText('Call Tobias')).toBeDefined();
+    expect(within(after).getByRole('button', { name: 'Accept' })).toBeDefined();
+    expect(within(after).queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
+  it('the Inbox in both panes: a row decided in one leaves the other while its write is held', async () => {
+    const task = 'Inbox/Loose task.md';
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('Inbox', 'directory')], Inbox: [entry(task, 'file')] },
+      files: { [task]: '---\ntype: task\n---\n# Loose task\n' },
+    });
+    const index = fakeIndexPorts(vault);
+    index.index.query = async (sql: string) =>
+      sql.includes('"importStamped"')
+        ? {
+            columns: ['path', 'title', 'type', 'modified'],
+            rows: [[task, 'Loose task', 'task', 1]],
+            truncated: false,
+          }
+        : sql.includes('AS "total"')
+          ? { columns: ['total'], rows: [[1]], truncated: false }
+          : { columns: [], rows: [], truncated: false };
+    renderOn(vault, index);
+    const inboxRow = await screen.findByRole('button', { name: /^Inbox/ });
+    await waitFor(() => expect(inboxRow.textContent).toContain('1'));
+    await userEvent.click(inboxRow);
+    await within(pane(1)).findByRole('form', { name: 'Clarify Loose task' });
+    // Split (⇧⌘\\): the new pane is focused, and the Inbox opens there too.
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    const second = await within(pane(2)).findByRole('form', { name: 'Clarify Loose task' });
+    const first = within(pane(1)).getByRole('form', { name: 'Clarify Loose task' });
+
+    await userEvent.selectOptions(
+      within(first).getByRole('combobox', { name: 'Status of Loose task' }),
+      'next-action',
+    );
+    const reads = vault.holdReads();
+    await userEvent.click(within(first).getByRole('button', { name: 'Done' }));
+    // Gone from both panes while the write is held: the window's hold, not the tab's.
+    await waitFor(() =>
+      expect(within(pane(1)).queryByRole('form', { name: 'Clarify Loose task' })).toBeNull(),
+    );
+    await waitFor(() => expect(second.isConnected).toBe(false));
+    expect(within(pane(2)).queryByRole('form', { name: 'Clarify Loose task' })).toBeNull();
+    reads.release();
   });
 });
 
