@@ -172,7 +172,7 @@ describe('SettingsDialog, Appearance', () => {
     vi.stubGlobal('matchMedia', systemPreferring(true).matchMedia);
     showWith({ chosen: null });
     expect(matchSystem().getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByTestId('theme-status').textContent).toContain('dark now');
+    expect(screen.getByTestId('theme-status').textContent).toContain('Dark now');
     expect(document.documentElement.dataset['theme']).toBe('dark');
   });
 
@@ -215,7 +215,7 @@ describe('SettingsDialog, Appearance', () => {
     act(() => system.prefer(true));
 
     expect(document.documentElement.dataset['theme']).toBe('dark');
-    expect(screen.getByTestId('theme-status').textContent).toContain('dark now');
+    expect(screen.getByTestId('theme-status').textContent).toContain('Dark now');
   });
 });
 

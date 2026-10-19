@@ -12,19 +12,31 @@ const isTheme = (value: string | null): value is Theme => value === 'light' || v
  * Neither is an error worth showing — the app falls back to the system theme,
  * which is what it would have done on a first run anyway. A choice made this
  * session holds even where storage refuses it, as in
- * `browser-image-placement-store.ts`.
+ * `browser-image-placement-store.ts`; a choice another window makes is
+ * heard through the `storage` event and taken over.
  */
 export const browserThemeStore: ThemeStore = createBrowserThemeStore();
 
 export function createBrowserThemeStore(): ThemeStore {
-  // This session's choice or clearing, once one has been made; before that,
-  // what storage holds. `null` inside is "cleared", which storage cannot say
-  // apart from "never chosen" when it refuses the write.
+  // What this window last settled on — read from storage once, then kept
+  // here: `null` inside is "cleared", which storage cannot say apart from
+  // "never chosen" when it refuses the write.
   let session: { readonly choice: Theme | null } | null = null;
   const listeners = new Set<() => void>();
   const tell = () => listeners.forEach((listener) => listener());
+
+  // Another window's write to the key (or its clearing of storage, which
+  // has no key): taken as this window's choice too, subscribers or not, so a
+  // read after it answers the same as that window's. One listener for the
+  // store's lifetime, which is the app's.
+  window.addEventListener('storage', (event) => {
+    if (event.key !== KEY && event.key !== null) return;
+    session = { choice: isTheme(event.newValue) ? event.newValue : null };
+    tell();
+  });
+
   return {
-    read: () => (session === null ? readStored() : session.choice),
+    read: () => (session ??= { choice: readStored() }).choice,
     write: (theme) => {
       session = { choice: theme };
       try {

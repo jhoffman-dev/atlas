@@ -18,6 +18,24 @@
   <body>
     <div id="root"></div>
     <script>
+      // The theme chosen last time, on the root before the first paint: the
+      // app's own hook sets it again once it runs, but until then the
+      // stylesheet would follow the system and a dark choice would flash
+      // light. Classic and inline, like the reporter below; the policy in
+      // the meta above names only frames, so nothing has to allow it.
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('atlas.theme');
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.dataset.theme = stored;
+          }
+        } catch (_) {
+          /* Safe to ignore: storage may be blocked, as in a private window;
+             the app sets the theme itself once it runs. */
+        }
+      })();
+    </script>
+    <script>
       // Classic script, so it runs before the module bundle and can report a
       // failure to load it. Tauri injects its internals before any page script.
       (function () {

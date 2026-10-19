@@ -20,7 +20,7 @@ export function AppearanceSettings({ store }: { store: ThemeStore }) {
           <span className="settings__row-label">Match system</span>
           <span className="settings__status" data-testid="theme-status">
             {matching
-              ? `Light or dark as macOS is set: ${theme} now.`
+              ? `${NAMED[theme]} now, as macOS is set.`
               : `${NAMED[theme]}, chosen with the sidebar’s theme button, whatever macOS is set to.`}
           </span>
         </span>

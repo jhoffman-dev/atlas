@@ -47,30 +47,36 @@
   width: var(--sidebar-width);
 }
 
+/* One column that can shrink: a row's title clips to an ellipsis rather
+   than widening the list past its box. */
 .settings__nav-list {
   display: grid;
   gap: 1px;
+  grid-template-columns: minmax(0, 1fr);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
+/* A block, not a flex row, so the title — a bare text node — gets the
+   ellipsis itself; the icon sits inline before it. */
 .settings__nav-row {
-  align-items: center;
   appearance: none;
   background: transparent;
   border: 0;
   border-radius: var(--radius-row);
   color: var(--ink-2);
   cursor: pointer;
-  display: flex;
+  display: block;
   font: inherit;
   font-size: var(--text-body);
-  gap: var(--space-2);
   height: var(--sidebar-row);
+  line-height: var(--sidebar-row);
+  min-width: 0;
   overflow: hidden;
   padding: 0 var(--space-2);
   text-align: left;
+  text-overflow: ellipsis;
   white-space: nowrap;
   width: 100%;
 }
@@ -87,7 +93,8 @@
 
 .settings__nav-icon {
   color: var(--ink-3);
-  flex: none;
+  margin-right: var(--space-2);
+  vertical-align: -3px;
 }
 
 .settings__body {
