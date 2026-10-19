@@ -63,6 +63,19 @@ describe('the week, three days and a day', () => {
     expect(meeting.textContent).toContain('14:30');
   });
 
+  it('puts a status dot before a note’s title, on the clock and in the all-day strip', () => {
+    const withStatus = rows.map((row) => ({ ...row, values: { ...row.values, status: 'review' } }));
+    render(<CalendarView {...props} rows={withStatus} />);
+    for (const path of ['meet.md', 'trip.md']) {
+      const box = note(path);
+      expect(box?.getAttribute('data-tone')).toBe('review');
+      const button = box?.querySelector('button');
+      expect(button?.firstElementChild?.className).toBe('calendar__dot');
+      expect(button?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+    }
+    expect(note('trip.md')?.textContent).toBe('Trip');
+  });
+
   it('spans a note to its end, when the view reads one', () => {
     render(<CalendarView {...props} endKey="end" />);
     const review = note('long.md') as HTMLElement;

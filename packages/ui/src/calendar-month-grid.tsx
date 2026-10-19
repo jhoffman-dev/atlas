@@ -21,6 +21,7 @@ import {
 } from '@atlas/domain';
 import { AddCard } from './board-card.tsx';
 import { pieceId, pieceOf, type CalendarGestures } from './calendar-gestures.ts';
+import { CalendarStatusDot } from './calendar-status-dot.tsx';
 import { calendarWords } from './drag/announcements.ts';
 import { dropTargetUnder, snapToDropTarget, useDragSensors } from './drag/dnd.ts';
 import { useClaimFocus, useFocusFollower, type FocusFollower } from './drag/focus.ts';
@@ -136,8 +137,15 @@ export function CalendarMonthGrid({
           assistive technology; the announcements say where it is. */}
       <DragOverlay dropAnimation={null}>
         {held === null ? null : (
-          <article className="calendar__entry calendar__entry--lifted" aria-hidden="true">
-            <span className="calendar__lifted-title">{held.title}</span>
+          <article
+            className="calendar__entry calendar__entry--lifted"
+            data-tone={noteTone(held.values) ?? undefined}
+            aria-hidden="true"
+          >
+            <span className="calendar__lifted-title">
+              <CalendarStatusDot />
+              {held.title}
+            </span>
           </article>
         )}
       </DragOverlay>
@@ -198,6 +206,7 @@ function MoreOnDay({
                 data-tone={noteTone(entry.values) ?? undefined}
                 onClick={() => onOpen(entry.path)}
               >
+                <CalendarStatusDot />
                 {entry.title}
               </button>
             ))}
@@ -287,6 +296,7 @@ function Entry({
       {...listeners}
     >
       <button type="button" ref={buttonRef} {...attributes} onClick={() => onOpen(entry.path)}>
+        <CalendarStatusDot />
         {entry.title}
       </button>
     </article>

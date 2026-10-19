@@ -64,6 +64,29 @@ describe('CalendarView', () => {
     expect(onReschedule).not.toHaveBeenCalled();
   });
 
+  it('marks today’s cell with the ring class, and no other day', () => {
+    render(<CalendarView {...props} />);
+    expect(screen.getByLabelText('2026-09-20').className).toContain('calendar__day--today');
+    expect(screen.getByLabelText('2026-09-21').className).not.toContain('calendar__day--today');
+  });
+
+  it('shows an event’s status as a dot beside its title, so the tint is never the only cue', () => {
+    render(
+      <CalendarView
+        {...props}
+        rows={[{ path: 'a.md', title: 'Doing it', values: { due: '2026-09-20', status: 'doing' } }]}
+      />,
+    );
+    const entry = screen.getByRole('button', { name: 'Doing it' });
+    expect(entry.closest('.calendar__entry')?.getAttribute('data-tone')).toBe('doing');
+    const dot = entry.querySelector('.calendar__dot');
+    expect(dot).not.toBeNull();
+    expect(dot?.getAttribute('aria-hidden')).toBe('true');
+    // The dot leads and the title follows it, on the same line.
+    expect(entry.firstElementChild).toBe(dot);
+    expect(entry.textContent).toBe('Doing it');
+  });
+
   it('places a note with a time on its day, whatever the time', () => {
     render(
       <CalendarView
@@ -185,6 +208,20 @@ describe('a crowded day in the month', () => {
     const more = await screen.findByRole('dialog', { name: 'More on 2026-09-22' });
     await userEvent.click(within(more).getByRole('button', { name: 'Two' }));
     expect(onOpenNote).toHaveBeenCalledWith('Two.md');
+  });
+
+  it('lists the rest with their status dots, as the day does', async () => {
+    const withStatus = crowded.map((row) => ({
+      ...row,
+      values: { ...row.values, status: 'next' },
+    }));
+    render(<CalendarView {...props} rows={withStatus} />);
+
+    await userEvent.click(screen.getByRole('button', { name: '+3 more' }));
+    const more = await screen.findByRole('dialog', { name: 'More on 2026-09-22' });
+    const item = within(more).getByRole('button', { name: 'Two' });
+    expect(item.getAttribute('data-tone')).toBe('next');
+    expect(item.firstElementChild?.className).toBe('calendar__dot');
   });
 
   it('leaves keys pressed in "+N more" to the list, not to paging the calendar', async () => {

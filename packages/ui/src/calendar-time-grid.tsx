@@ -26,6 +26,7 @@ import {
 } from '@atlas/domain';
 import { AddCard } from './board-card.tsx';
 import { pieceId, type CalendarGestures } from './calendar-gestures.ts';
+import { CalendarStatusDot } from './calendar-status-dot.tsx';
 import { clockWords, spokenDate } from './drag/announcements.ts';
 import { endHandleId, HOUR_HEIGHT, MINUTE_HEIGHT, useClockDrag } from './drag/clock-drag.ts';
 import { useClaimFocus, useFocusFollower, type FocusFollower } from './drag/focus.ts';
@@ -591,6 +592,7 @@ function ClockNoteBox({
         {...(placing !== null && { 'aria-label': `Plan ${placing} in ${event.title}` })}
         onClick={() => gestures.open(event.path)}
       >
+        <CalendarStatusDot />
         <span className="clock__note-title">{event.title}</span>
         {block !== undefined && <span className="clock__note-time">{timeLabel(event, date)}</span>}
       </button>
