@@ -88,3 +88,21 @@ describe('the notice about work refused for a vault that is not open', () => {
     expect(result.current.notice).toContain('today in Vault could not be saved or stored');
   });
 });
+
+describe('work handed over through a `keep` made under the vault that was switched away from', () => {
+  it('is filed for that vault and not offered to the one open now', () => {
+    const { result, rerender } = mount(VAULT);
+    const keepUnderOld = result.current.keep;
+    rerender({ vaultKey: ANOTHER_VAULT });
+    // The pane closed by the switch strands after it: its closure's vault is
+    // the old one, and so is the work's.
+    act(() => keepUnderOld(stranding(VAULT)));
+
+    expect(result.current.take(NOTE)).toBeNull();
+    expect(result.current.waiting).toEqual([]);
+    // It is still reported, as work for the other vault.
+    expect(result.current.notice).toContain('Vault');
+    rerender({ vaultKey: VAULT });
+    expect(result.current.take(NOTE)?.doc).toEqual(doc('Typed.'));
+  });
+});

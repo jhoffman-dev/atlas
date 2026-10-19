@@ -1,4 +1,5 @@
-import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useStore } from 'zustand';
 import {
   ARTIFACT_KEYS,
   createVaultPath,
@@ -19,13 +20,20 @@ import {
   type TagSuggestion,
   type QueryViewSummary,
   type SavedViewSummary,
+  isWorkspaceSplit,
+  tabPlace,
+  type NavigationPlace,
+  type NoteNames,
   type SidebarEntry,
+  type Tab,
+  type TabId,
   type VaultGraph,
   type VaultPath,
 } from '@atlas/domain';
 import type {
   ActivityLog,
   DefinedType,
+  NoteChanges,
   ExternalLinkPort,
   IndexPort,
   LinkedRangeStore,
@@ -36,23 +44,41 @@ import type {
 } from '@atlas/application';
 import {
   ThumbnailValue,
+  ChatToggleProvider,
   CustomizeToggle,
+  NoteNamesProvider,
   LinkedSections,
   NotePane,
   SourcePanel,
   TaskScheduleSummary,
   useCalendarNav,
   type CalendarNavigation,
+  type ChatToggle,
   type GroupFolds,
   type GroupFoldStore,
   type NotePeople,
   type NoteReveal,
+  type OpenHow,
   type PaneArrangement,
   type Planner,
   type TemplateNotice,
   type ViewTabEditing,
 } from '@atlas/ui';
 import { useNote, type NotePorts } from '../notes/use-note.ts';
+import { hideOverlay, showOverlay } from '../overlay-store.ts';
+import { pageMenuOverlay, panePopupOverlay, paneOverlayOf } from '../overlay.ts';
+import { followLink } from '../workspace/open-place.ts';
+import { useTabPageHistory } from '../workspace/tab-history.ts';
+import {
+  closePane,
+  focusPane,
+  openInPane,
+  openPlace,
+  splitPane,
+} from '../workspace/workspace-store.ts';
+import type { WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
+import { useTabReveal } from './reveals.ts';
+import { useOutsideChangeReload } from './use-outside-change-reload.ts';
 import { artifactViewer, dashboardView, widgetEditor } from '../pages-on-first-use.ts';
 import { useUnlinkedMentions } from '../graph/use-unlinked-mentions.ts';
 import { useImages } from '../notes/use-images.ts';
@@ -126,6 +152,8 @@ export interface PaneContext {
   readonly indexKey: string;
   /** Re-reads the tree and the index, after this pane wrote something. */
   readonly onChanged: () => void;
+  /** Every sync of the index's news: a hidden tab hears here that its note changed outside. */
+  readonly changes: NoteChanges;
   /** Re-reads the types as well, after this pane wrote a type file. */
   readonly onTypeSaved: () => void;
   readonly suggestNotes: (query: string) => NoteSuggestion[];
@@ -165,8 +193,8 @@ export interface PaneContext {
   readonly viewDrafts: ViewDrafts;
   /** Puts notes in the Archive and takes them out: a page's menu, a view's chosen rows. */
   readonly archive: ArchiveCommands;
-  /** Tells the person a link could not be made or followed, and why. */
-  readonly onLinkProblem: (message: string) => void;
+  /** Told the problem with a link — one that could not be made or followed — or null once one leads somewhere. */
+  readonly onLinkProblem: (message: string | null) => void;
   /** A template's own ways to be renamed, deleted and made a note, and the page listing them all (ADR-0026). */
   readonly templateCommands: TemplateCommands;
 }
@@ -180,16 +208,115 @@ export interface TemplateCommands {
 }
 
 /**
- * One pane: a note, and everything derived from it.
+ * A tab on a note, or an empty one: the note pane with everything it needs
+ * drawn from the wiring and the stores. What it subscribes to is its own —
+ * its history, its reveal, its pane's popups, whether the window is split —
+ * so the other pane's tabs cost it no draw.
  *
- * Every hook here answers a question about *this* pane's note, which is why
- * they live together in a component rather than in the app around it — two
- * panes are two of these, and nothing else has to know that.
+ * While hidden it is not drawn again at all — the editor waits as it was,
+ * its autosave stood down — so the window's other work does not cost a draw
+ * per hidden tab; it is drawn afresh as it shows. The wiring comes as a prop
+ * rather than from its context for exactly that reason: a context change
+ * would draw its readers under a memo, a prop does not. The contexts the
+ * page reads — the note names, the chat's switch — come the same way and are
+ * provided again here: a change above stops at a provider of the same
+ * context, so a hidden tab's page is not drawn for it either.
  */
-export function NotePaneContainer({
-  paneId,
+export const NotePaneContainer = memo(
+  // Named as the export: what the render counts know the tab by.
+  function NotePaneContainer(props: NoteTabProps) {
+    return useNoteTab(props);
+  },
+  (before, after) => before.hidden && after.hidden,
+);
+
+export interface NoteTabProps {
+  wiring: WorkspaceWiring;
+  names: NoteNames;
+  chat: ChatToggle | null;
+  pane: number;
+  tab: Tab;
+  /**
+   * Whether the tab is behind another one. The editor stays mounted, so its
+   * undo keeps; it flushes as it hides, and its autosave stands down until shown.
+   */
+  hidden: boolean;
+}
+
+/** The tab drawn: a hook, since its hooks are the tab component's own. */
+function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
+  const { store, reveals, overlays, nameOf, note, onShowSidebar } = wiring;
+  const place = tabPlace(tab);
+  const path = place?.kind === 'note' ? place.path : null;
+  const history = useTabPageHistory({ store, pane, id: tab.id, nameOf });
+  const reveal = useTabReveal(reveals, { tab: tab.id, path });
+  // A hidden tab draws none of its pane's popups: the shown tab draws them,
+  // and two menus up at once would fight over the focus.
+  const overlay = useStore(overlays, (state) =>
+    hidden ? null : paneOverlayOf(state.overlay, pane),
+  );
+  const split = useStore(store, (state) => isWorkspaceSplit(state.workspace));
+  const menu = pageMenuOverlay(pane);
+  const drawn = useNotePane({
+    tabId: tab.id,
+    path,
+    context: wiring.pane,
+    hidden,
+    onOpenNote: (target, how = 'here') => {
+      const place: NavigationPlace = { kind: 'note', path: target };
+      if (how === 'here') openInPane(store, { pane, place });
+      else {
+        focusPane(store, pane);
+        openPlace(store, place, how);
+      }
+    },
+    onFollowLink: (target, heading, how) =>
+      followLink(
+        { store, reveals, notePaths: wiring.pane.notePaths, onProblem: wiring.pane.onLinkProblem },
+        { pane, target, heading: heading ?? null, ...(how !== undefined && { how }) },
+      ),
+    reveal,
+    onRename: note.onRename,
+    onToggleFavorite: note.onToggleFavorite,
+    onMoveTo: note.onMoveTo,
+    onDelete: note.onDelete,
+    onShowInGraph: note.onShowInGraph,
+    arrangement: {
+      // Which of these a pane offers is the domain's rule; the bar draws a
+      // button and a menu item for each it is given.
+      ...(!split && { onSplit: () => splitPane(store, pane) }),
+      ...(split && { onClose: () => closePane(store, pane) }),
+      // The way back to a hidden sidebar sits where it went: the first
+      // pane's top-left corner.
+      ...(pane === 0 && onShowSidebar !== null && { onShowSidebar }),
+      history,
+      menuOpen: overlay === menu,
+      onMenuOpenChange: (open) =>
+        open ? showOverlay(overlays, menu) : hideOverlay(overlays, menu),
+      popups: (name) => ({
+        open: overlay === panePopupOverlay(pane, name),
+        onOpenChange: (open) =>
+          open
+            ? showOverlay(overlays, panePopupOverlay(pane, name))
+            : hideOverlay(overlays, panePopupOverlay(pane, name)),
+      }),
+    },
+  });
+  return (
+    <div className="pane__tab" hidden={hidden}>
+      <NoteNamesProvider value={names}>
+        <ChatToggleProvider value={chat}>{drawn}</ChatToggleProvider>
+      </NoteNamesProvider>
+    </div>
+  );
+}
+
+/** The note pane of a tab, drawn: its hooks are the tab's, which is why this is a hook. */
+function useNotePane({
+  tabId,
   path,
   context,
+  hidden = false,
   onOpenNote,
   onFollowLink,
   reveal = null,
@@ -200,13 +327,19 @@ export function NotePaneContainer({
   onShowInGraph,
   arrangement,
 }: {
-  paneId: number;
+  /** The tab this is the content of; the editor is registered under it. */
+  tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
-  /** Opens a note in this pane — a backlink, a table row, a board card. */
-  onOpenNote: (path: VaultPath) => void;
+  /**
+   * Whether the tab is behind another one. The editor stays mounted, so its
+   * undo keeps; it flushes as it hides, and its autosave stands down until shown.
+   */
+  hidden?: boolean;
+  /** Opens a note in this pane — a backlink, a table row, a board card — or where the click asked. */
+  onOpenNote: (path: VaultPath, how?: OpenHow) => void;
   /** Opens the note a link names, at the heading or block it names when it does. */
-  onFollowLink: (target: string, heading?: string | null) => void;
+  onFollowLink: (target: string, heading?: string | null, how?: OpenHow) => void;
   /** A block or heading of this pane's note to bring into view: where a followed link pointed. */
   reveal?: NoteReveal | null;
   onRename: (args: { path: VaultPath; name: string }) => void;
@@ -219,11 +352,11 @@ export function NotePaneContainer({
   onShowInGraph?: (path: VaultPath) => void;
   /** Splitting, closing and the page menu's open state, which the app owns. */
   arrangement: PaneArrangement;
-}) {
+}): ReactNode {
   const { notes, index, sources, types, notePaths, indexKey, onChanged, editors, savedViews } =
     context;
 
-  const note = usePaneNote({ paneId, path, context });
+  const note = usePaneNote({ tabId, path, context, hidden });
   const links = useNoteLinks({ context, path });
   const linkCheck = useMemo(
     () => ({ fs: notes.fs, markdown: notes.markdown, notePaths }),
@@ -448,7 +581,7 @@ export function NotePaneContainer({
     fs: notes.fs,
     markdown: notes.markdown,
   });
-  const openTarget = (target: string) => onOpenNote(createVaultPath(target));
+  const openTarget = (target: string, how?: OpenHow) => onOpenNote(createVaultPath(target), how);
   const pageKey = usePageKey(path, note.open);
   const template = templateNoticeFor(path, context);
 
@@ -700,20 +833,23 @@ function useNoteLinks({ context, path }: { context: PaneContext; path: VaultPath
  * a board card moved, a table cell edited — can reach this editor.
  */
 function usePaneNote({
-  paneId,
+  tabId,
   path,
   context,
+  hidden,
 }: {
-  paneId: number;
+  tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
+  hidden: boolean;
 }) {
-  const { editors, stranded } = context;
+  const { editors, stranded, changes } = context;
   const note = useNote({
     ports: context.notes,
     vault: context.vault,
     path,
-    onSaved: (saved) => editors.reloadOthers({ paneId, path: saved }),
+    paused: hidden,
+    onSaved: (saved) => editors.reloadOthers({ tabId, path: saved }),
     onStranded: stranded.keep,
     recoverStranded: stranded.take,
     settleStranded: stranded.settle,
@@ -738,9 +874,17 @@ function usePaneNote({
     live.current = note;
   });
 
+  // Written as the tab hides: what was typed is on disk before the editor
+  // waits behind another tab, and the autosave has stood down by then.
+  useEffect(() => {
+    if (hidden) void live.current.flush();
+  }, [hidden]);
+
+  useOutsideChangeReload({ changes, vault: context.vault, path, live });
+
   useEffect(() => {
     if (path === null) return;
-    editors.register(paneId, {
+    editors.register(tabId, {
       path,
       setProperties: (changes) => live.current.setProperties(changes),
       save: () => live.current.save(),
@@ -750,8 +894,8 @@ function usePaneNote({
       repoint: (to) => live.current.repoint(to),
       abandon: () => live.current.abandon(),
     });
-    return () => editors.register(paneId, null);
-  }, [editors, paneId, path]);
+    return () => editors.register(tabId, null);
+  }, [editors, tabId, path]);
 
   return note;
 }

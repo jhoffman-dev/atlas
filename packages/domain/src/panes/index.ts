@@ -76,3 +76,4 @@ export {
   WORKSPACE_FORMAT_VERSION,
 } from './remember-workspace.ts';
 export type { RememberedWorkspace } from './remember-workspace.ts';
+export { HIDDEN_EDITOR_LIMIT, keepMounted } from './mounted-tabs.ts';

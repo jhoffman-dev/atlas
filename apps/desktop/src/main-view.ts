@@ -1,76 +1,64 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { GraphScope } from '@atlas/domain';
+import type { GraphScope, NavigationPlace } from '@atlas/domain';
 import type { TypePageMode } from './types/type-page.tsx';
+import { openPlace, useShownPages, type WorkspaceStore } from './workspace/workspace-store.ts';
 
 /**
- * What fills the main area: the panes, or one page in their place — a type's
- * table or editor, the graph, the query page, the tags (with the key of the
- * tag whose notes are listed, if one is), the Archive, the Inbox, the weekly review, the Today page, the Automations page, the Activity page,
- * the Templates page or the Terms page.
- * Only one at a time; the panes
- * keep what they hold underneath, and leaving the page puts them back.
+ * The pages the panes show, as the app that assembles their props sees them
+ * (tab-model.md, PR A): a page is a tab's place now, so this reads which
+ * pages the panes' shown tabs are on — the focused pane's first — and offers
+ * the ways to open each in the active tab. It is drawn again for a page
+ * coming or going, not for a switch between notes.
+ *
+ * One of each page at a time: the type whose table is assembled is the
+ * focused pane's, else the other pane's. PR B gives each page kind a
+ * container of its own and deletes this.
  */
-export type MainView =
-  | { readonly kind: 'panes' }
-  | { readonly kind: 'type'; readonly name: string; readonly mode: TypePageMode }
-  | { readonly kind: 'graph'; readonly scope: GraphScope }
-  | { readonly kind: 'query' }
-  | { readonly kind: 'tags'; readonly tag: string | null }
-  | { readonly kind: 'archive' }
-  | { readonly kind: 'inbox' }
-  | { readonly kind: 'review' }
-  | { readonly kind: 'today' }
-  | { readonly kind: 'automations' }
-  | { readonly kind: 'activity' }
-  | { readonly kind: 'templates' }
-  | { readonly kind: 'terms' };
+export function useMainView(store: WorkspaceStore) {
+  const pages = useShownPages(store);
+  const [typeMode, setTypeMode] = useState<TypePageMode>('notes');
+  const open = useCallback((place: NavigationPlace) => openPlace(store, place, 'here'), [store]);
 
-const PANES: MainView = { kind: 'panes' };
-
-/** The page over the panes, and the ways to open and leave each. */
-export function useMainView() {
-  const [view, setView] = useState<MainView>(PANES);
-
-  const showPanes = useCallback(() => setView(PANES), []);
   const openType = useCallback(
-    (name: string, mode: TypePageMode = 'notes') => setView({ kind: 'type', name, mode }),
-    [],
+    (name: string, mode: TypePageMode = 'notes') => {
+      setTypeMode(mode);
+      open({ kind: 'type', name });
+    },
+    [open],
   );
-  const setTypeMode = useCallback(
-    (mode: TypePageMode) => setView((was) => (was.kind === 'type' ? { ...was, mode } : was)),
-    [],
-  );
-  const openGraph = useCallback((scope: GraphScope) => setView({ kind: 'graph', scope }), []);
-  const openQuery = useCallback(() => setView({ kind: 'query' }), []);
-  const openTags = useCallback((tag: string | null = null) => setView({ kind: 'tags', tag }), []);
-  const openArchive = useCallback(() => setView({ kind: 'archive' }), []);
-  const openInbox = useCallback(() => setView({ kind: 'inbox' }), []);
-  const openReview = useCallback(() => setView({ kind: 'review' }), []);
-  const openToday = useCallback(() => setView({ kind: 'today' }), []);
-  const openAutomations = useCallback(() => setView({ kind: 'automations' }), []);
-  const openActivity = useCallback(() => setView({ kind: 'activity' }), []);
-  const openTemplates = useCallback(() => setView({ kind: 'templates' }), []);
-  const openTerms = useCallback(() => setView({ kind: 'terms' }), []);
+  const openGraph = useCallback((scope: GraphScope) => open({ kind: 'graph', scope }), [open]);
+  const openQuery = useCallback(() => open({ kind: 'query' }), [open]);
+  const openTags = useCallback((tag: string | null = null) => open({ kind: 'tags', tag }), [open]);
+  const openArchive = useCallback(() => open({ kind: 'archive' }), [open]);
+  const openInbox = useCallback(() => open({ kind: 'inbox' }), [open]);
+  const openReview = useCallback(() => open({ kind: 'review' }), [open]);
+  const openToday = useCallback(() => open({ kind: 'today' }), [open]);
+  const openAutomations = useCallback(() => open({ kind: 'automations' }), [open]);
+  const openActivity = useCallback(() => open({ kind: 'activity' }), [open]);
+  const openTemplates = useCallback(() => open({ kind: 'templates' }), [open]);
+  const openTerms = useCallback(() => open({ kind: 'terms' }), [open]);
 
-  return useMemo(
-    () => ({
-      view,
+  return useMemo(() => {
+    const first = <Kind extends NavigationPlace['kind']>(kind: Kind) =>
+      pages.find((page): page is Extract<NavigationPlace, { kind: Kind }> => page.kind === kind) ??
+      null;
+    const shown = (kind: NavigationPlace['kind']) => pages.some((page) => page.kind === kind);
+    return {
       /** The type whose page is open, or null. */
-      openTypeName: view.kind === 'type' ? view.name : null,
-      typeMode: view.kind === 'type' ? view.mode : ('notes' as const),
-      graphScope: view.kind === 'graph' ? view.scope : null,
-      queryOpen: view.kind === 'query',
+      openTypeName: first('type')?.name ?? null,
+      typeMode,
+      graphScope: first('graph')?.scope ?? null,
+      queryOpen: shown('query'),
       /** The tags page's chosen tag; undefined while the page is not open. */
-      tagsTag: view.kind === 'tags' ? view.tag : undefined,
-      archiveOpen: view.kind === 'archive',
-      inboxOpen: view.kind === 'inbox',
-      reviewOpen: view.kind === 'review',
-      todayOpen: view.kind === 'today',
-      automationsOpen: view.kind === 'automations',
-      activityOpen: view.kind === 'activity',
-      templatesOpen: view.kind === 'templates',
-      termsOpen: view.kind === 'terms',
-      showPanes,
+      tagsTag: first('tags')?.tag,
+      archiveOpen: shown('archive'),
+      inboxOpen: shown('inbox'),
+      reviewOpen: shown('review'),
+      todayOpen: shown('today'),
+      automationsOpen: shown('automations'),
+      activityOpen: shown('activity'),
+      templatesOpen: shown('templates'),
+      termsOpen: shown('terms'),
       openType,
       setTypeMode,
       openGraph,
@@ -84,23 +72,21 @@ export function useMainView() {
       openActivity,
       openTemplates,
       openTerms,
-    }),
-    [
-      view,
-      showPanes,
-      openType,
-      setTypeMode,
-      openGraph,
-      openQuery,
-      openTags,
-      openArchive,
-      openInbox,
-      openReview,
-      openToday,
-      openAutomations,
-      openActivity,
-      openTemplates,
-      openTerms,
-    ],
-  );
+    };
+  }, [
+    pages,
+    typeMode,
+    openType,
+    openGraph,
+    openQuery,
+    openTags,
+    openArchive,
+    openInbox,
+    openReview,
+    openToday,
+    openAutomations,
+    openActivity,
+    openTemplates,
+    openTerms,
+  ]);
 }

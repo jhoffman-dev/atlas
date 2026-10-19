@@ -16,6 +16,11 @@ const ChatToggleContext = createContext<ChatToggle | null>(null);
  */
 export const ChatToggleProvider = ChatToggleContext.Provider;
 
+/** The chat's switch as handed down, or null where the app offers no chat. */
+export function useChatToggle(): ChatToggle | null {
+  return useContext(ChatToggleContext);
+}
+
 /** The chat's button in a page's bar; nothing when the app offers no chat. */
 export function ChatToggleButton() {
   const toggle = useContext(ChatToggleContext);

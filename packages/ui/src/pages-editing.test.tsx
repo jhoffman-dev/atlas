@@ -123,7 +123,7 @@ describe('a row in Pages', () => {
     await userEvent.keyboard('[Escape]');
     expect(onSelectFile).not.toHaveBeenCalled();
     await userEvent.keyboard('[Enter]');
-    expect(onSelectFile).toHaveBeenCalledWith('one.md');
+    expect(onSelectFile).toHaveBeenCalledWith('one.md', 'here');
   });
 });
 

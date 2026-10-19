@@ -524,7 +524,9 @@ test('switching vaults with the Inbox open: the new vault\'s offers land above i
   await page.getByRole('button', { name: nameOf(a), exact: true }).click();
   await page.getByRole('menuitem', { name: 'Open another folder…' }).click();
   await expect(page.getByRole('button', { name: nameOf(b), exact: true })).toBeVisible();
-  // The Inbox stays open across the switch, on B's page, while B is indexed.
+  // Since the workspace store (#346) each vault has its own tabs, so B opens on a
+  // new tab rather than on A's Inbox; its Inbox is opened there, while B is indexed.
+  await page.getByRole('button', { name: /^Inbox/ }).click();
   await expect(inbox(page).getByRole('button', { name: 'Other 1', exact: true })).toBeVisible();
   await expect(
     inbox(page).getByRole('complementary', { name: 'Set your types up for the Inbox' }),

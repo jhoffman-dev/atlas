@@ -2,18 +2,28 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AppShell } from './app-shell.tsx';
+import { AppShell, PaneSplit } from './app-shell.tsx';
 
 describe('AppShell', () => {
   it('renders the sidebar and the panes it is given', () => {
-    render(<AppShell sidebar={<p>tree</p>} panes={[<p key="a">left</p>, <p key="b">right</p>]} />);
+    render(
+      <AppShell
+        sidebar={<p>tree</p>}
+        panes={
+          <PaneSplit count={2}>
+            <p>left</p>
+            <p>right</p>
+          </PaneSplit>
+        }
+      />,
+    );
     expect(screen.getByText('tree')).toBeDefined();
     expect(screen.getByText('left')).toBeDefined();
     expect(screen.getByText('right')).toBeDefined();
   });
 
   it('shows a whole-width surface in place of the panes', () => {
-    render(<AppShell sidebar={null} main={<p>table</p>} panes={[<p key="a">note</p>]} />);
+    render(<AppShell sidebar={null} main={<p>table</p>} panes={<p>note</p>} />);
     expect(screen.getByText('table')).toBeDefined();
     expect(screen.queryByText('note')).toBeNull();
   });

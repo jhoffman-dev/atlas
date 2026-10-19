@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { createVaultPath } from '@atlas/domain';
 import { fakeIndexPort } from '@atlas/application';
 import { createOverlayStore, overlayNow, showOverlay } from './overlay-store.ts';
+import { createWorkspaceStore } from './workspace/workspace-store.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
 
 const RECIPES = { path: createVaultPath('recipes.md'), title: 'Recipes', snippet: 'Sourdough' };
@@ -17,8 +18,9 @@ function slot() {
   render(
     <SearchPaletteSlot
       store={store}
+      workspace={createWorkspaceStore({ remembered: { read: () => null, write: () => {} } })}
       index={fakeIndexPort({ search: async () => [RECIPES] })}
-      commands={[NEW_VIEW]}
+      commandsFor={() => [NEW_VIEW]}
       offerFor={() => []}
       changeKey="ready:1"
       onCommand={onCommand}

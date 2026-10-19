@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { movedPath, type EntryMove, type VaultPath } from '@atlas/domain';
+import { movedPath, type EntryMove, type TabId, type VaultPath } from '@atlas/domain';
 import type { OpenNoteState, PropertyChanges } from '@atlas/application';
 
 /**
- * One pane's live editor, as the rest of the app needs to reach it.
+ * One tab's live editor, as the rest of the app needs to reach it.
  *
- * The functions read the pane's current state when they are called rather than
+ * The functions read the tab's current state when they are called rather than
  * closing over the render they were made in, so a registration survives every
- * keystroke in that pane.
+ * keystroke in that tab.
  */
 export interface OpenEditor {
   readonly path: VaultPath;
@@ -26,8 +26,8 @@ export interface OpenEditor {
 }
 
 export interface OpenEditors {
-  /** `null` unregisters the pane, which is what a pane does as it goes away. */
-  readonly register: (paneId: number, editor: OpenEditor | null) => void;
+  /** `null` unregisters the tab, which is what a tab does as it goes away. */
+  readonly register: (tabId: TabId, editor: OpenEditor | null) => void;
   /**
    * Writes properties through a pane that already holds the note, if one does.
    *
@@ -41,14 +41,15 @@ export interface OpenEditors {
     path: VaultPath;
     values: PropertyChanges;
   }) => Promise<boolean>;
-  readonly savePane: (paneId: number) => void;
+  /** Writes one tab's note now: ⌘S in the focused pane's shown tab. */
+  readonly savePane: (tabId: TabId) => void;
   /**
-   * Re-reads the same note in every other pane, after one pane has written it.
+   * Re-reads the same note in every other tab, after one tab has written it.
    *
-   * The same note can be open in both panes, and the pane that did not write is
+   * The same note can be open in two tabs, and the tab that did not write is
    * left holding the modification time from before the write.
    */
-  readonly reloadOthers: (args: { paneId: number; path: VaultPath }) => void;
+  readonly reloadOthers: (args: { tabId: TabId; path: VaultPath }) => void;
 }
 
 /** What only the app that owns the panes does with them. */
@@ -69,13 +70,13 @@ export interface PaneEditors extends OpenEditors {
   readonly abandon: (paths: readonly VaultPath[]) => void;
 }
 
-/** The panes' editors, by pane, so one pane can reach the note another holds. */
+/** The tabs' editors, by tab, so one tab can reach the note another holds. */
 export function useOpenEditors(): PaneEditors {
-  const editors = useRef<Map<number, OpenEditor>>(new Map());
+  const editors = useRef<Map<TabId, OpenEditor>>(new Map());
 
-  const register = useCallback((paneId: number, editor: OpenEditor | null) => {
-    if (editor === null) editors.current.delete(paneId);
-    else editors.current.set(paneId, editor);
+  const register = useCallback((tabId: TabId, editor: OpenEditor | null) => {
+    if (editor === null) editors.current.delete(tabId);
+    else editors.current.set(tabId, editor);
   }, []);
 
   const setPropertiesIfOpen = useCallback(
@@ -94,13 +95,13 @@ export function useOpenEditors(): PaneEditors {
     [],
   );
 
-  const savePane = useCallback((paneId: number) => {
-    editors.current.get(paneId)?.save();
+  const savePane = useCallback((tabId: TabId) => {
+    editors.current.get(tabId)?.save();
   }, []);
 
-  const reloadOthers = useCallback(({ paneId, path }: { paneId: number; path: VaultPath }) => {
+  const reloadOthers = useCallback(({ tabId, path }: { tabId: TabId; path: VaultPath }) => {
     for (const [id, editor] of editors.current) {
-      if (id === paneId || editor.path !== path) continue;
+      if (id === tabId || editor.path !== path) continue;
       // A pane with unsaved edits is left alone: re-reading it would throw that
       // typing away. Its next save reports the conflict instead, which is the
       // honest outcome of editing one note in two places.

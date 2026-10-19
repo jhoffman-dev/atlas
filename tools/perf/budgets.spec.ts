@@ -339,6 +339,10 @@ const TYPED = 'ledger 10.';
 
 const editorOf = (title: string) =>
   `article[aria-label="${title}"] .ProseMirror[contenteditable="true"]`;
+/** The editor of a note whose tab is the shown one: a hidden tab's editor stays in the page. */
+const shownEditorOf = (title: string) => `.pane__tab:not([hidden]) ${editorOf(title)}`;
+const PANE_1 = 'section[aria-label="Pane 1"]';
+const PANE_2 = 'section[aria-label="Pane 2"]';
 
 const exists = (selector: string) => document.querySelector(selector) !== null;
 const gone = (selector: string) => document.querySelector(selector) === null;
@@ -349,8 +353,27 @@ async function everyAction(pass: Pass): Promise<void> {
   const [first = '', second = ''] = await toggleFolder(pass, 'Notes');
   await pass.budgeted('Click a sidebar note', [openNote(pass, first)]);
   await pass.budgeted('Switch notes', [openNote(pass, second)]);
+  // The first note again, in a tab beside the second: two editors in the pane.
+  await pass.budgeted('Open in a new tab', [openInNewTab(pass, first)]);
+  // Back to the second's tab: its editor was kept, hidden, and is shown again.
+  await pass.budgeted('Switch tabs', [switchToTab(pass, second)]);
+  // Typed with the first note's editor waiting behind this one.
   await typeAndSave(pass, second);
   await pass.idle('Idle 3 s with a note open');
+  await pass.budgeted('Split the window', [
+    phase(() => page.keyboard.press('Shift+Meta+Backslash'), exists, PANE_2),
+  ]);
+  await pass.budgeted('Focus the other pane', [
+    phase(
+      () => page.locator(`${PANE_1} ${editorOf(second)}`).click(),
+      exists,
+      `${PANE_1}.pane--focused`,
+    ),
+  ]);
+  // The focused pane, with its two tabs, closes; the other keeps the second note.
+  await pass.budgeted('Close a pane', [
+    phase(() => page.keyboard.press('Shift+Meta+Backslash'), gone, PANE_2),
+  ]);
 
   await pass.budgeted('Open Settings', [
     phase(
@@ -403,6 +426,29 @@ const openNote = ({ page }: Pass, title: string) =>
       sidebarSection(page, 'userSpace').getByRole('treeitem', { name: title, exact: true }).click(),
     exists,
     editorOf(title),
+  );
+
+/** ⌘-clicks a note in the tree; ready once its editor is the one shown, in a second tab. */
+const openInNewTab = ({ page }: Pass, title: string) =>
+  phase(
+    () =>
+      sidebarSection(page, 'userSpace')
+        .getByRole('treeitem', { name: title, exact: true })
+        .click({ modifiers: ['Meta'] }),
+    // Evaluated in the page, so the selectors come in as the argument.
+    ({ editor, tabs, pane }) =>
+      document.querySelector(editor) !== null &&
+      document.querySelectorAll(`${pane} [role="tab"]`).length === tabs,
+    { editor: shownEditorOf(title), tabs: 2, pane: PANE_1 },
+  );
+
+/** Clicks a tab in the first pane's strip; ready once that note's editor is the one shown. */
+const switchToTab = ({ page }: Pass, title: string) =>
+  phase(
+    () =>
+      page.getByRole('tablist', { name: 'Pane 1 tabs' }).getByRole('tab', { name: title }).click(),
+    exists,
+    shownEditorOf(title),
   );
 
 /** Opens or shuts a top-level folder in the tree, and names the notes it then shows. */

@@ -1,4 +1,5 @@
 import { Fragment, memo, useState, type ReactNode } from 'react';
+import { openHowFrom, type OpenHow } from './open-how.ts';
 import { useDraggable } from '@dnd-kit/core';
 import { cardMeta, plainText, type BoardRow, type PropertyKind } from '@atlas/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
@@ -42,7 +43,8 @@ export const Card = memo(function Card({
 }: {
   row: BoardRow;
   look: CardLook;
-  onOpen: (path: string) => void;
+  /** Opens the card's note; `how` is where the click asked for it. */
+  onOpen: (path: string, how?: OpenHow) => void;
   claimFocus: FocusFollower['claim'];
 }) {
   const { setNodeRef, setActivatorNodeRef, listeners, attributes } = useDraggable({
@@ -80,7 +82,7 @@ export const Card = memo(function Card({
             className="board__title"
             ref={titleRef}
             {...attributes}
-            onClick={() => onOpen(row.path)}
+            onClick={(event) => onOpen(row.path, openHowFrom(event))}
           >
             <TitleText>{row.title}</TitleText>
           </button>

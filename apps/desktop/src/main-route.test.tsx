@@ -3,44 +3,44 @@ import { describe, expect, it, vi } from 'vitest';
 import { createVaultPath } from '@atlas/domain';
 import type { InboxPageProps } from '@atlas/ui';
 import { render, screen } from '@testing-library/react';
-import { mainRoute } from './main-route.tsx';
+import { pageForPlace, type PageProps } from './main-route.tsx';
 
-type RouteArgs = Parameters<typeof mainRoute>[0];
-
-// Pages that are closed are never drawn, so what they would be handed does not matter.
+// Pages that are not drawn are never handed anything, so what they would be does not matter.
 const unused = {} as never;
 
-/** Every page closed but Terms, which loads on first use; nothing is preloaded here. */
-function termsOpen(): RouteArgs {
+/** Every page's props, Terms the only one with real ones; nothing is preloaded here. */
+function pages(): PageProps {
   return {
-    graph: { ...(unused as RouteArgs['graph']), scope: null },
-    type: { ...(unused as RouteArgs['type']), table: { type: null } as RouteArgs['type']['table'] },
-    query: { open: false, screen: unused },
-    tags: { selected: undefined, screen: unused },
-    archive: { open: false, page: unused },
-    inbox: { open: false, vaultKey: null, page: unused },
-    review: { open: false, page: unused },
-    today: { open: false, page: unused },
-    automations: { open: false, screen: unused },
-    activity: { open: false, screen: unused },
-    templates: { open: false, page: unused },
+    graph: unused,
+    type: { ...(unused as PageProps['type']), table: { type: null } as PageProps['type']['table'] },
+    query: unused,
+    tags: unused,
+    archive: unused,
+    inbox: unused,
+    review: unused,
+    today: unused,
+    automations: unused,
+    activity: unused,
+    templates: unused,
     terms: {
-      open: true,
-      page: {
-        contents: { terms: [], conflicts: [], warnings: [] } as never,
-        error: null,
-        onAdd: vi.fn(),
-        onEditVariants: vi.fn(),
-        onOpen: vi.fn(),
-      },
+      contents: { terms: [], conflicts: [], warnings: [] } as never,
+      error: null,
+      onAdd: vi.fn(),
+      onEditVariants: vi.fn(),
+      onOpen: vi.fn(),
     },
-    history: { back: 'Today', forward: null, onBack: vi.fn(), onForward: vi.fn() },
   };
 }
 
-describe('mainRoute', () => {
+const chrome = {
+  history: { back: 'Today', forward: null, onBack: vi.fn(), onForward: vi.fn() },
+};
+
+describe('pageForPlace', () => {
   it('draws a page that has not loaded yet in its frame, then the page in it', async () => {
-    const { container } = render(<>{mainRoute(termsOpen())}</>);
+    const { container } = render(
+      <>{pageForPlace({ place: { kind: 'terms' }, pages: pages(), chrome })}</>,
+    );
     // The frame first: the bar with Back and Forward, over a body still loading.
     expect(screen.getByRole('group', { name: 'History' })).toBeDefined();
     expect(container.querySelector('.panel__body[aria-busy="true"]')).not.toBeNull();
@@ -53,9 +53,12 @@ describe('mainRoute', () => {
     expect(screen.getByRole('group', { name: 'History' })).toBeDefined();
   }, 20_000);
 
-  it('leaves the panes when no page is open', () => {
-    const args = termsOpen();
-    expect(mainRoute({ ...args, terms: { ...args.terms, open: false } })).toBeNull();
+  it('draws a type page only once its table is that type’s, keeping the frame till then', () => {
+    const { container } = render(
+      <>{pageForPlace({ place: { kind: 'type', name: 'task' }, pages: pages(), chrome })}</>,
+    );
+    expect(container.querySelector('.panel__body[aria-busy="true"]')).not.toBeNull();
+    expect(screen.getByRole('group', { name: 'History' })).toBeDefined();
   });
 });
 
@@ -102,20 +105,17 @@ const TIDY_READING: NonNullable<InboxPageProps['vaultTidy']> = {
   onDismiss: vi.fn(),
 };
 
-/** The route with only the Inbox open. */
+/** The Inbox page, as the tab showing it draws it, for the vault `vaultKey`. */
 const route = (vaultKey: string, page: InboxPageProps) =>
-  mainRoute({
-    graph: { scope: null },
-    type: { table: { type: null } },
-    query: { open: false },
-    tags: { selected: undefined },
-    archive: { open: false },
-    inbox: { open: true, vaultKey, page },
-  } as unknown as Parameters<typeof mainRoute>[0]);
+  pageForPlace({
+    place: { kind: 'inbox' },
+    pages: { ...pages(), inbox: { ...page, vaultKey } },
+    chrome,
+  });
 
 const rowHeld = () => screen.getByText('Idea').closest('[inert]') !== null;
 
-describe('mainRoute — the Inbox page for another vault (#130)', () => {
+describe('pageForPlace — the Inbox page for another vault (#130)', () => {
   it('starts afresh, holding its rows while that vault’s offers are read', () => {
     const view = render(<>{route('/vaults/home', PAGE)}</>);
     expect(rowHeld()).toBe(false);

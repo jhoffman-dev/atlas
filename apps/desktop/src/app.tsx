@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ComponentProps,
+} from 'react';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
-  activeSidebarPage,
+  activeTabOf,
   createVaultPath,
-  canClosePane,
-  canSplit,
   favoriteValue,
   rankNoteSuggestions,
-  linkFragment,
   readWikiLink,
-  resolveWikiLinkTarget,
   sidebarTreeRows,
   vaultInitial,
   FAVORITE_KEY,
@@ -67,8 +71,6 @@ import {
   lostUsesText,
   TemplateToNoteDialog,
   MovePicker,
-  PaneFrame,
-  Sidebar,
   IndexSettings,
   indexStatusText,
   SidebarFooter,
@@ -82,6 +84,7 @@ import {
   NoteNamesProvider,
   Toast,
   type AppInfoState,
+  type OpenHow,
 } from '@atlas/ui';
 import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
@@ -113,19 +116,42 @@ import { useTemplates } from './types/use-templates.ts';
 import { useOpenEditors } from './panes/open-editors.ts';
 import { useStrandedEdits } from './notes/stranded-edits.ts';
 import { browserStrandedStore } from './notes/browser-stranded-store.ts';
-import { paneKey, usePanes } from './panes/use-panes.ts';
-import { useFocusAfterArrange } from './panes/use-focus-after-arrange.ts';
-import { useReveals } from './panes/use-reveals.ts';
-import { useNavigation } from './panes/use-navigation.ts';
 import { placeName } from './panes/place-name.ts';
-import { browserPaneStore } from './panes/browser-pane-store.ts';
-import { NotePaneContainer, type PaneContext } from './panes/note-pane-container.tsx';
+import type { PaneContext } from './panes/note-pane-container.tsx';
+import { createRevealStore } from './panes/reveals.ts';
+import { ActiveSidebar } from './workspace/active-sidebar.tsx';
+import { browserWorkspaceStore } from './workspace/browser-workspace-store.ts';
+import { followLink, openNote as openNotePlace } from './workspace/open-place.ts';
+import { PanesContainer } from './workspace/panes-container.tsx';
+import {
+  closeActiveTab,
+  closeNotes as closeNotesIn,
+  createWorkspaceStore,
+  focusedNotePath,
+  followMove as followMoveIn,
+  goBack,
+  goForward,
+  keepNotes,
+  loadVault,
+  newTabIn,
+  nextTab,
+  previousTab,
+  activateNthTab,
+  reopenClosedTab,
+  toggleSplit as toggleSplitIn,
+  workspaceNow,
+} from './workspace/workspace-store.ts';
+import {
+  WorkspaceStoresProvider,
+  WorkspaceWiringProvider,
+  type WorkspaceStores,
+} from './workspace/workspace-wiring.tsx';
 import { browserThemeStore } from './theme/browser-theme-store.ts';
 import { useVaultGraph } from './graph/use-vault-graph.ts';
 
 import { localClock, localTimeZone, localToday } from './today.ts';
 import { cryptoRng } from './random.ts';
-import { pageMenuOverlay, panePopupOverlay, type Overlay } from './overlay.ts';
+import type { Overlay } from './overlay.ts';
 import {
   createOverlayStore,
   hideOverlay as hideIn,
@@ -166,7 +192,6 @@ import { answersWrittenOrGivenUp } from './proposals/answer-queue.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
 import { useQueryPage } from './query/use-query-page.ts';
-import { mainRoute } from './main-route.tsx';
 import { AppNotices } from './app-notices.tsx';
 import { browserActivitySeenStore } from './activity/browser-activity-seen-store.ts';
 import { useActivity } from './activity/use-activity.ts';
@@ -321,6 +346,9 @@ function AppWindow({
   // The last sync runs before the Activity log's final write, so its line is kept.
   const closing = useMemo(() => closingInStages(activityPorts.closing), [activityPorts.closing]);
   const editors = useOpenEditors();
+  // The tabs and panes, and where each tab was asked to scroll to (ADR-0040).
+  const [workspace] = useState(() => createWorkspaceStore({ remembered: browserWorkspaceStore }));
+  const [reveals] = useState(createRevealStore);
   // Set once the sync hook below exists: a switch waits for a sync under way,
   // whose remaining steps would otherwise be refused half-done (U-29).
   const settleSync = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -342,6 +370,7 @@ function AppWindow({
     location,
     rows,
     notePaths,
+    notesListedFor,
     error,
     chooseVault,
     showVault,
@@ -350,7 +379,11 @@ function AppWindow({
     forgetDirectory,
     isExpanded,
     reload,
-  } = useVault(choosing, { beforeSwitch: leaveVault });
+  } = useVault(choosing, {
+    beforeSwitch: leaveVault,
+    // In the same event as the location: the tabs' paths mean this vault (R14-01).
+    onSwitched: (next) => loadVault(workspace, next.absolutePath),
+  });
   const vaultKey = location?.absolutePath ?? null;
   const tickMemory = useTickMemory(vaultKey);
   const [groupFolds] = useState(createBrowserGroupFoldStore);
@@ -399,11 +432,8 @@ function AppWindow({
     const stale = () => reads.waitingFor(vaultKey);
     return { ...bound, index: reportingIndexWrites({ index: opened, report, stale }) };
   }, [indexPorts, vaultKey, ownWrites, reads]);
-  const panes = usePanes({ store: browserPaneStore, vaultKey: location?.absolutePath ?? null });
-  const { openInFocusedPane, openInPane, openBeside, followMove, closeNotes, toggleSplit } = panes;
-  useFocusAfterArrange(panes.layout.paths.length);
-  /** The note the person is working in, which is where the next open lands. */
-  const focusedPath = panes.layout.paths[panes.layout.focused] ?? null;
+  /** The note the person is working in, read as it is needed: the window is not drawn for a switch. */
+  const focusedNote = useCallback(() => focusedNotePath(workspaceNow(workspace)), [workspace]);
   const {
     status: indexStatus,
     store: indexStore,
@@ -591,10 +621,10 @@ function AppWindow({
   const indexRevision = useIndexRevision(indexStore);
   useSqlViews({ index: index.index, types, ready: indexReady, revision: indexRevision });
 
-  const paletteCommands = useMemo(
-    () => [...PALETTE_COMMANDS, ...paletteArchiveCommands(focusedPath)],
-    [focusedPath],
-  );
+  const paletteCommandsFor = useSteadyCallback((focused: NavigationPlace | null) => [
+    ...PALETTE_COMMANDS,
+    ...paletteArchiveCommands(focused?.kind === 'note' ? focused.path : null),
+  ]);
   const paletteOffersFor = useCallback(
     (query: string) => [...paletteOffers(query), ...paletteEditTypeOffers(types, query)],
     [types],
@@ -632,8 +662,8 @@ function AppWindow({
     indexReady,
   });
 
-  /** The page open over the panes, if any: a type's, the graph, or the query page. */
-  const main = useMainView();
+  /** The pages the panes' shown tabs are on, and the ways to open each. */
+  const main = useMainView(workspace);
   const {
     openTypeName,
     typeMode,
@@ -646,7 +676,6 @@ function AppWindow({
     todayOpen,
     automationsOpen,
     activityOpen,
-    templatesOpen,
     termsOpen,
   } = main;
   const activity = useActivity({
@@ -656,7 +685,7 @@ function AppWindow({
     seen: browserActivitySeenStore,
     clock: localClock,
   });
-  const { showPanes, openType, openGraph, openQuery, openTags, openArchive } = main;
+  const { openType, openGraph, openQuery, openTags, openArchive } = main;
   const vaultGraph = useVaultGraph({ index: index.index, vaultKey, ready: indexReady });
   const vaultTags = useVaultTags({ index: index.index, vaultKey, ready: indexReady });
   const openTag = useCallback((name: string) => openTags(tagKey(name)), [openTags]);
@@ -681,20 +710,22 @@ function AppWindow({
       }),
     [vaultGraph, types, vaultTags.state],
   );
-  const navigation = useNavigation({
-    panes,
-    mainView: main.view,
-    open: main,
-    nameOf: nameOfPlace,
-  });
-
-  /** Opens a note from outside the panes: the sidebar, search, a new note. */
+  // Steady, and the stores never change: the frames and strips read these and
+  // are not drawn when the window is (tab-model.md §6).
+  // Tabs remembered from the last launch may name notes deleted since: once
+  // this vault's notes are listed, those tabs open on nothing (#346 attack).
+  useEffect(() => {
+    if (notesListedFor !== null && notesListedFor === vaultKey) keepNotes(workspace, notePaths);
+  }, [workspace, notesListedFor, vaultKey, notePaths]);
+  const nameOf = useSteadyCallback(nameOfPlace);
+  const workspaceStores = useMemo<WorkspaceStores>(
+    () => ({ store: workspace, reveals, overlays, nameOf }),
+    [workspace, reveals, overlays, nameOf],
+  );
+  /** Opens a note from outside the panes — the sidebar, search, a new note — where the click asked. */
   const openNote = useCallback(
-    (path: VaultPath) => {
-      showPanes();
-      openInFocusedPane(path);
-    },
-    [showPanes, openInFocusedPane],
+    (path: VaultPath, how: OpenHow = 'here') => openNotePlace(workspace, path, how),
+    [workspace],
   );
 
   const viewDrafts = useViewDrafts(vaultKey);
@@ -850,13 +881,23 @@ function AppWindow({
         inboxOpen ||
         reviewOpen ||
         todayOpen,
-      focused: focusedPath,
+      focused: focusedNote(),
     }),
     clipboard: browserClipboard,
     settingsOpen: overlay === 'settings',
     activity: activityLog,
     profile: profileSetting.profile,
   });
+  // The chat follows the note being worked in while it is open: a switch of
+  // note draws the window again then, and only then, since the chat's window
+  // is read from a render. Shut, a switch costs the window nothing.
+  const [, noteSwitched] = useReducer((drawn: number) => drawn + 1, 0);
+  useEffect(() => {
+    if (!chat.open) return;
+    return workspace.subscribe((state, before) => {
+      if (focusedNotePath(state.workspace) !== focusedNotePath(before.workspace)) noteSwitched();
+    });
+  }, [chat.open, workspace]);
 
   const favoritePaths = useMemo(
     () => new Set(catalog.favorites.map((entry) => entry.path)),
@@ -929,7 +970,7 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
     notePaths,
-    beside: focusedPath,
+    beside: focusedNote,
     templates,
     contentsOf,
     onCreated: openCreated,
@@ -939,11 +980,11 @@ function AppWindow({
   // unsaved edits of a view under it, and what its ticks remembered.
   const followEntryMove = useCallback(
     (move: EntryMove) => {
-      followMove(move);
+      followMoveIn(workspace, move);
       viewDrafts.follow(move);
       tickMemory.follow(move);
     },
-    [followMove, viewDrafts, tickMemory],
+    [workspace, viewDrafts, tickMemory],
   );
   useEffect(() => apiMoves.point(followEntryMove), [apiMoves, followEntryMove]);
 
@@ -951,10 +992,10 @@ function AppWindow({
   // unsaved edits — or a new view made under its name would wear them.
   const closeDeleted = useCallback(
     (gone: readonly VaultPath[]) => {
-      closeNotes(gone);
+      closeNotesIn(workspace, gone);
       viewDrafts.forget(gone);
     },
-    [closeNotes, viewDrafts],
+    [workspace, viewDrafts],
   );
 
   const entryPorts = useMemo<VaultEntryPorts>(
@@ -1043,9 +1084,14 @@ function AppWindow({
     [typeLanding, openType, openNote],
   );
   // Whichever of a type's views the person is in is the one its type opens on next.
-  useEffect(() => {
-    if (focusedPath !== null) rememberTypeTab(focusedPath);
-  }, [focusedPath, rememberTypeTab]);
+  useEffect(
+    () =>
+      workspace.subscribe((state) => {
+        const path = focusedNotePath(state.workspace);
+        if (path !== null) rememberTypeTab(path);
+      }),
+    [workspace, rememberTypeTab],
+  );
 
   const archivePorts = useMemo(
     () => ({ ...entryPorts, markdown: notes.markdown }),
@@ -1303,7 +1349,7 @@ function AppWindow({
     templates,
     contentsOf,
     notePaths,
-    beside: focusedPath,
+    beside: focusedNote,
     overlay: { show: showOverlay, hide: hideOverlay },
     onCreated: ({ path, open }) => {
       onChanged();
@@ -1348,39 +1394,11 @@ function AppWindow({
     [notesInUse, notePaths],
   );
 
-  /**
-   * Follows a wiki link in the pane it was clicked in, never the other one.
-   *
-   * This is the rule the card is about: a link opens where you are reading, so
-   * the note beside it is still there to be read against.
-   */
-  const reveals = useReveals();
+  /** Follows a wiki link in the pane it was clicked in — a link opens where you are reading. */
   const followLinkInPane = useCallback(
-    ({
-      pane,
-      target,
-      heading = null,
-    }: {
-      pane: number;
-      target: string;
-      heading?: string | null;
-    }) => {
-      // `[[Note#^id]]` and `[[Note#Heading]]` open the note there (P26-03);
-      // `[[#^id]]`, naming no note, is a place in the note it is in.
-      const fragment = heading === null ? null : linkFragment({ heading });
-      const here = panes.layout.paths[pane] ?? null;
-      const resolved =
-        target.trim() === '' && fragment !== null ? here : resolveWikiLinkTarget(target, notePaths);
-      if (resolved === null) {
-        setLinkError(`No note called "${target}"`);
-        return;
-      }
-      setLinkError(null);
-      showPanes();
-      openInPane({ pane, path: resolved });
-      if (fragment !== null) reveals.request({ pane, path: resolved, fragment });
-    },
-    [notePaths, openInPane, showPanes, panes.layout.paths, reveals],
+    (link: { pane: number; target: string; heading?: string | null }) =>
+      followLink({ store: workspace, reveals, notePaths, onProblem: setLinkError }, link),
+    [workspace, reveals, notePaths],
   );
   /** Opens the line a proposal cites — `[[2026-10-01 Standup#^t0003]]` — in the focused pane. */
   const followSource = useCallback(
@@ -1390,9 +1408,13 @@ function AppWindow({
         setLinkError(`${link} is not a link to a note`);
         return;
       }
-      followLinkInPane({ pane: panes.layout.focused, target: read.target, heading: read.heading });
+      followLinkInPane({
+        pane: workspaceNow(workspace).focused,
+        target: read.target,
+        heading: read.heading,
+      });
     },
-    [followLinkInPane, panes.layout.focused],
+    [followLinkInPane, workspace],
   );
 
   const paneOpenNotes = useMemo(() => openNotesIn(editors), [editors]);
@@ -1410,6 +1432,7 @@ function AppWindow({
       notePaths,
       indexKey,
       onChanged,
+      changes: noteChanges,
       onTypeSaved,
       suggestNotes,
       suggestTags: vaultTags.suggest,
@@ -1446,6 +1469,7 @@ function AppWindow({
       notePaths,
       indexKey,
       onChanged,
+      noteChanges,
       onTypeSaved,
       suggestNotes,
       vaultTags.suggest,
@@ -1487,17 +1511,25 @@ function AppWindow({
   useAppShortcuts({
     // Read at the key press: the window is not drawn again as ⌘K opens.
     overlay: () => overlayNow(overlays),
-    // The editors are registered under the panes' keys, not their places.
-    save: () => editors.savePane(paneKey(panes.keys, 0)),
+    // The editors are registered under their tabs: the focused pane's shown one saves.
+    save: () => editors.savePane(activeTabOf(workspaceNow(workspace)).id),
     newNote: () => void createNewNote(),
     toggleSidebar: () => setSidebarOpen((was) => !was),
-    toggleSplit,
+    toggleSplit: () => toggleSplitIn(workspace),
     dailyNote: () => void openDailyNote(),
     quickAdd: quickAdd.start,
-    back: navigation.back,
-    forward: navigation.forward,
+    back: () => goBack(workspace),
+    forward: () => goForward(workspace),
     show: showOverlay,
     toggleChat: chat.toggle,
+    tabs: {
+      newTab: () => newTabIn(workspace, workspaceNow(workspace).focused),
+      closeTab: () => closeActiveTab(workspace),
+      nextTab: () => nextTab(workspace),
+      previousTab: () => previousTab(workspace),
+      nthTab: (n) => activateNthTab(workspace, n),
+      reopenClosedTab: () => reopenClosedTab(workspace),
+    },
   });
 
   const treeRows = useMemo(() => sidebarTreeRows(rows), [rows]);
@@ -1557,7 +1589,7 @@ function AppWindow({
     const pasted = claudeArtifactUrl(query) ?? '';
     if (
       runPaletteArchiveCommand(id, {
-        focused: focusedPath,
+        focused: focusedNote(),
         commands: archiveCommands,
         openArchive,
       })
@@ -1622,7 +1654,9 @@ function AppWindow({
                       open ? showOverlay('new-note-menu') : hideOverlay('new-note-menu')
                     }
                   />
-                  <Sidebar
+                  <ActiveSidebar
+                    store={workspace}
+                    viewOwner={typeViews.ownerOf}
                     favorites={catalog.favorites}
                     types={sidebarTypes}
                     views={catalog.views}
@@ -1662,21 +1696,6 @@ function AppWindow({
                           open ? showOverlay('pages-menu') : hideOverlay('pages-menu'),
                       },
                     }}
-                    active={activeSidebarPage({
-                      layout: panes.layout,
-                      openTypeName,
-                      graphOpen: graphScope !== null,
-                      tagsOpen: tagsTag !== undefined,
-                      archiveOpen,
-                      inboxOpen,
-                      reviewOpen,
-                      todayOpen,
-                      automationsOpen,
-                      activityOpen,
-                      templatesOpen,
-                      termsOpen,
-                      viewOwner: typeViews.ownerOf,
-                    })}
                     sectionStore={browserSectionStore}
                     sectionOrder={sidebarOrder.order}
                     onSearch={() => showOverlay('search')}
@@ -1739,257 +1758,202 @@ function AppWindow({
                 onChooseVault={chooseVault}
                 onOpenFromGitHub={() => showOverlay('open-from-github')}
               />
-            ) : (
-              mainRoute({
-                graph: {
-                  state: vaultGraph,
-                  scope: graphScope,
-                  types,
-                  onScopeChange: openGraph,
-                  onOpen: (path, { split }) => {
-                    showPanes();
-                    if (split) openBeside(path);
-                    else openInFocusedPane(path);
-                  },
-                },
-                type: {
-                  table: typeTable,
-                  types,
-                  mode: typeMode,
-                  onModeChange: (mode) =>
-                    mode === 'notes' && openTypeName !== null
-                      ? openTypePage(openTypeName)
-                      : main.setTypeMode(mode),
-                  ports: {
-                    fs: vault.fs,
-                    markdown: notes.markdown,
-                    index: index.index,
-                    openNotes: editors,
-                  },
-                  onSaved: onTypeSaved,
-                  onOpenNote: openNote,
-                  // An artifact is saved from its link or its page, not made blank.
-                  onNewNote: (type) =>
-                    type.name === ARTIFACT_TYPE ? startNewArtifact() : newNoteOfType.create(type),
-                  tabs: typeTable.type === null ? [] : typeTabsShown(catalog, typeTable.type),
-                  tabEditing:
-                    openTypeName === null
-                      ? undefined
-                      : typeViews.editingFor({ typeName: openTypeName, onOpenView: openNote }),
-                  onOpenView: openNote,
-                  onDelete: (path) => entries.askDelete({ path, kind: 'file' }),
-                  onEditTemplate: (type) => editTypeTemplate(type.name),
-                },
-                query: {
-                  open: queryOpen,
-                  screen: {
-                    query,
-                    onOpenNote: openNote,
-                    popups: (name) => ({
-                      open: overlay === `query-${name}`,
-                      onOpenChange: (open) =>
-                        open ? showOverlay(`query-${name}`) : hideOverlay(`query-${name}`),
-                    }),
-                  },
-                },
-                tags: {
-                  selected: tagsTag,
-                  screen: {
-                    ports: {
-                      index: index.index,
-                      fs: vault.fs,
-                      markdown: notes.markdown,
-                      editors: entryPorts.editors,
-                      renames: tagRenames.forVault(location.absolutePath),
-                    },
-                    tags: vaultTags.state,
-                    indexKey,
-                    onChanged,
-                    onSelect: openTags,
-                    onOpenNote: openNote,
-                  },
-                },
-                archive: {
-                  open: archiveOpen,
-                  page: {
-                    contents: archive.page.contents,
-                    error: archive.page.error,
-                    search: archive.page.search,
-                    onSearch: archive.page.setSearch,
-                    selection: archive.page.choosing.selection,
-                    onClearSelection: archive.page.choosing.clear,
-                    onOpen: openNote,
-                    onUnarchive: archive.page.unarchive,
-                    busy: archiveCommands.busy,
-                  },
-                },
-                inbox: {
-                  open: inboxOpen,
-                  vaultKey,
-                  page: {
-                    contents: inbox.contents,
-                    error: inbox.error,
-                    filing: inbox.filing,
-                    people: inbox.people,
-                    statuses: inbox.statuses,
-                    onOpen: openNote,
-                    onShowMore: inbox.showMore,
-                    onClarify: inbox.clarify,
-                    busy: inbox.busy,
-                    problem: inbox.problem,
-                    refusals: inbox.refusals,
-                    summaryPending: inbox.summaryPending,
-                    lastAction: inbox.lastAction,
-                    onUndo: () => void inbox.undo(),
-                    onDismissLastAction: inbox.dismissLastAction,
-                    typesOffer:
-                      typesOffer === null
-                        ? null
-                        : {
-                            lines: typesOffer.lines,
-                            onAccept: () => void typesOffer.accept(),
-                            onDismiss: typesOffer.dismiss,
-                          },
-                    taskMigration,
-                    paraMigration,
-                    vaultTidy,
-                    meetingCleanup,
-                    settingsUnreadable:
-                      settingsProblem === null
-                        ? null
-                        : {
-                            problem: settingsProblem,
-                            onOpenSettings: () => showOverlay('settings'),
-                          },
-                    ownerUnknown:
-                      ownerKnown &&
-                      automations.listing !== null &&
-                      ownerNeededBy(
-                        automations.listing.automations.map(({ rule }) => rule),
-                        { selfName: ownerName, selfEmails: ownerEmails, people: [] },
-                      )
-                        ? { onOpenSettings: () => showOverlay('settings') }
-                        : null,
-                    meetingProjects,
-                    view:
-                      inboxView === null
-                        ? null
-                        : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
-                    proposals: {
-                      ...proposals.section,
-                      onOpen: openNote,
-                      onOpenSource: (link) => followSource(link),
-                    },
-                  },
-                },
-                review: {
-                  open: reviewOpen,
-                  page: {
-                    ...review.page,
-                    onOpen: openNote,
-                    onOpenInbox: main.openInbox,
-                  },
-                },
-                today: {
-                  open: todayOpen,
-                  page: {
-                    ...today.page,
-                    view:
-                      todayView === null
-                        ? null
-                        : { title: todayView.title, onOpen: () => openNote(todayView.path) },
-                    onOpen: openNote,
-                    onOpenInbox: main.openInbox,
-                    onOpenReview: main.openReview,
-                    onOpenDailyNote: () => void openDailyNote(),
-                  },
-                },
-                automations: {
-                  open: automationsOpen,
-                  screen: {
-                    automations,
-                    ports: automationPorts,
-                    clock: localClock,
-                    indexKey,
-                    activity: activityLog,
-                    onOpenNote: openNote,
-                  },
-                },
-                activity: {
-                  open: activityOpen,
-                  screen: {
-                    activity,
-                    clock: localClock,
-                    onOpenSubject: (subject) =>
-                      subject.kind === 'rule' ? main.openAutomations() : openNote(subject.path),
-                  },
-                },
-                templates: { open: templatesOpen, page: templatesPage.page },
-                terms: { open: termsOpen, page: { ...termsPage.page, onOpen: openNote } },
-                ...(!sidebarOpen && { onShowSidebar: toggleSidebar }),
-                history: navigation.historyFor(panes.layout.focused),
-              })
-            )
+            ) : null
           }
           panes={
-            location === null
-              ? []
-              : panes.layout.paths.map((path, pane) => (
-                  <PaneFrame
-                    key={paneKey(panes.keys, pane)}
-                    label={`Pane ${pane + 1}`}
-                    focused={pane === panes.layout.focused}
-                    onFocus={() => panes.focus(pane)}
-                  >
-                    <NotePaneContainer
-                      paneId={paneKey(panes.keys, pane)}
-                      path={path}
-                      context={paneContext}
-                      onOpenNote={(target) => openInPane({ pane, path: target })}
-                      onFollowLink={(target, heading) =>
-                        followLinkInPane({ pane, target, heading: heading ?? null })
-                      }
-                      reveal={reveals.revealFor(pane, path)}
-                      onRename={renamePaneNote}
-                      onToggleFavorite={toggleFavorite}
-                      onMoveTo={(target) => entries.askMove({ path: target, kind: 'file' })}
-                      onDelete={(target) => entries.askDelete({ path: target, kind: 'file' })}
-                      onShowInGraph={(target) =>
-                        openGraph({ kind: 'note', path: target, depth: 1 })
-                      }
-                      arrangement={{
-                        // Which of these a pane offers is the domain's rule; the
-                        // bar draws a button and a menu item for each it is given.
-                        ...(canSplit(panes.layout) && { onSplit: () => panes.split(pane) }),
-                        ...(canClosePane(panes.layout) && { onClose: () => panes.close(pane) }),
-                        // The shortcut closes the focused pane, so only its Close names it.
-                        closesFromShortcut: pane === panes.layout.focused,
-                        // The way back to a hidden sidebar sits where it went: the
-                        // first pane's top-left corner.
-                        ...(pane === 0 && !sidebarOpen && { onShowSidebar: toggleSidebar }),
-                        history: navigation.historyFor(pane),
-                        menuOpen: overlay === pageMenuOverlay(pane),
-                        onMenuOpenChange: (open) =>
-                          open
-                            ? showOverlay(pageMenuOverlay(pane))
-                            : hideOverlay(pageMenuOverlay(pane)),
+            location === null ? null : (
+              <WorkspaceStoresProvider value={workspaceStores}>
+                <WorkspaceWiringProvider
+                  value={{
+                    ...workspaceStores,
+                    pane: paneContext,
+                    onShowSidebar: sidebarOpen ? null : toggleSidebar,
+                    note: {
+                      onRename: renamePaneNote,
+                      onToggleFavorite: toggleFavorite,
+                      onMoveTo: (target) => entries.askMove({ path: target, kind: 'file' }),
+                      onDelete: (target) => entries.askDelete({ path: target, kind: 'file' }),
+                      onShowInGraph: (target) =>
+                        openGraph({ kind: 'note', path: target, depth: 1 }),
+                    },
+                    pages: {
+                      graph: {
+                        state: vaultGraph,
+                        types,
+                        onScopeChange: openGraph,
+                        onOpen: (path, { split }) => openNote(path, split ? 'split' : 'here'),
+                      },
+                      type: {
+                        table: typeTable,
+                        types,
+                        mode: typeMode,
+                        onModeChange: (mode) =>
+                          mode === 'notes' && openTypeName !== null
+                            ? openTypePage(openTypeName)
+                            : main.setTypeMode(mode),
+                        ports: {
+                          fs: vault.fs,
+                          markdown: notes.markdown,
+                          index: index.index,
+                          openNotes: editors,
+                        },
+                        onSaved: onTypeSaved,
+                        onOpenNote: openNote,
+                        // An artifact is saved from its link or its page, not made blank.
+                        onNewNote: (type) =>
+                          type.name === ARTIFACT_TYPE
+                            ? startNewArtifact()
+                            : newNoteOfType.create(type),
+                        tabs: typeTable.type === null ? [] : typeTabsShown(catalog, typeTable.type),
+                        tabEditing:
+                          openTypeName === null
+                            ? undefined
+                            : typeViews.editingFor({
+                                typeName: openTypeName,
+                                onOpenView: openNote,
+                              }),
+                        onOpenView: openNote,
+                        onDelete: (path) => entries.askDelete({ path, kind: 'file' }),
+                        onEditTemplate: (type) => editTypeTemplate(type.name),
+                      },
+                      query: {
+                        query,
+                        onOpenNote: openNote,
                         popups: (name) => ({
-                          open: overlay === panePopupOverlay(pane, name),
+                          open: overlay === `query-${name}`,
                           onOpenChange: (open) =>
-                            open
-                              ? showOverlay(panePopupOverlay(pane, name))
-                              : hideOverlay(panePopupOverlay(pane, name)),
+                            open ? showOverlay(`query-${name}`) : hideOverlay(`query-${name}`),
                         }),
-                      }}
-                    />
-                  </PaneFrame>
-                ))
+                      },
+                      tags: {
+                        ports: {
+                          index: index.index,
+                          fs: vault.fs,
+                          markdown: notes.markdown,
+                          editors: entryPorts.editors,
+                          renames: tagRenames.forVault(location.absolutePath),
+                        },
+                        tags: vaultTags.state,
+                        indexKey,
+                        onChanged,
+                        onSelect: openTags,
+                        onOpenNote: openNote,
+                      },
+                      archive: {
+                        contents: archive.page.contents,
+                        error: archive.page.error,
+                        search: archive.page.search,
+                        onSearch: archive.page.setSearch,
+                        selection: archive.page.choosing.selection,
+                        onClearSelection: archive.page.choosing.clear,
+                        onOpen: openNote,
+                        onUnarchive: archive.page.unarchive,
+                        busy: archiveCommands.busy,
+                      },
+                      inbox: {
+                        vaultKey,
+                        contents: inbox.contents,
+                        error: inbox.error,
+                        filing: inbox.filing,
+                        people: inbox.people,
+                        statuses: inbox.statuses,
+                        onOpen: openNote,
+                        onShowMore: inbox.showMore,
+                        onClarify: inbox.clarify,
+                        busy: inbox.busy,
+                        problem: inbox.problem,
+                        refusals: inbox.refusals,
+                        summaryPending: inbox.summaryPending,
+                        lastAction: inbox.lastAction,
+                        onUndo: () => void inbox.undo(),
+                        onDismissLastAction: inbox.dismissLastAction,
+                        typesOffer:
+                          typesOffer === null
+                            ? null
+                            : {
+                                lines: typesOffer.lines,
+                                onAccept: () => void typesOffer.accept(),
+                                onDismiss: typesOffer.dismiss,
+                              },
+                        taskMigration,
+                        paraMigration,
+                        vaultTidy,
+                        meetingCleanup,
+                        settingsUnreadable:
+                          settingsProblem === null
+                            ? null
+                            : {
+                                problem: settingsProblem,
+                                onOpenSettings: () => showOverlay('settings'),
+                              },
+                        ownerUnknown:
+                          ownerKnown &&
+                          automations.listing !== null &&
+                          ownerNeededBy(
+                            automations.listing.automations.map(({ rule }) => rule),
+                            { selfName: ownerName, selfEmails: ownerEmails, people: [] },
+                          )
+                            ? { onOpenSettings: () => showOverlay('settings') }
+                            : null,
+                        meetingProjects,
+                        view:
+                          inboxView === null
+                            ? null
+                            : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
+                        proposals: {
+                          ...proposals.section,
+                          onOpen: openNote,
+                          onOpenSource: (link) => followSource(link),
+                        },
+                      },
+                      review: {
+                        ...review.page,
+                        onOpen: openNote,
+                        onOpenInbox: main.openInbox,
+                      },
+                      today: {
+                        ...today.page,
+                        view:
+                          todayView === null
+                            ? null
+                            : { title: todayView.title, onOpen: () => openNote(todayView.path) },
+                        onOpen: openNote,
+                        onOpenInbox: main.openInbox,
+                        onOpenReview: main.openReview,
+                        onOpenDailyNote: () => void openDailyNote(),
+                      },
+                      automations: {
+                        automations,
+                        ports: automationPorts,
+                        clock: localClock,
+                        indexKey,
+                        activity: activityLog,
+                        onOpenNote: openNote,
+                      },
+                      activity: {
+                        activity,
+                        clock: localClock,
+                        onOpenSubject: (subject) =>
+                          subject.kind === 'rule' ? main.openAutomations() : openNote(subject.path),
+                      },
+                      templates: templatesPage.page,
+                      terms: { ...termsPage.page, onOpen: openNote },
+                    },
+                  }}
+                >
+                  {/* Keyed by vault: its editors, and what each pane keeps mounted, are that vault's (R14-01). */}
+                  <PanesContainer key={vaultKey ?? ''} />
+                </WorkspaceWiringProvider>
+              </WorkspaceStoresProvider>
+            )
           }
           aside={
             location !== null && chat.open ? (
               <ChatPane
                 chat={chat}
-                onFollowLink={(target) => followLinkInPane({ pane: panes.layout.focused, target })}
+                onFollowLink={(target) =>
+                  followLinkInPane({ pane: workspaceNow(workspace).focused, target })
+                }
                 loadImage={noImages}
                 nameHint={
                   profileSetting.profile !== 'unknown' && !hasFullName(profileSetting.profile)
@@ -2141,8 +2105,9 @@ function AppWindow({
             ) : (
               <SearchPaletteSlot
                 store={overlays}
+                workspace={workspace}
                 index={index.index}
-                commands={paletteCommands}
+                commandsFor={paletteCommandsFor}
                 offerFor={paletteOffersFor}
                 changeKey={indexKey}
                 onCommand={runPaletteCommand}
