@@ -27,7 +27,7 @@ describe('the panes an app can reach into', () => {
   it('writes properties through the pane that holds the note', async () => {
     const registry = editors();
     const pane = fakeEditor(today);
-    registry.register(0, pane);
+    registry.register('t0', pane);
 
     const handled = await registry.setPropertiesIfOpen({
       path: today,
@@ -42,8 +42,8 @@ describe('the panes an app can reach into', () => {
     const registry = editors();
     const left = fakeEditor(board);
     const right = fakeEditor(today);
-    registry.register(0, left);
-    registry.register(1, right);
+    registry.register('t0', left);
+    registry.register('t1', right);
 
     expect(await registry.setPropertiesIfOpen({ path: today, values: { favorite: true } })).toBe(
       true,
@@ -54,7 +54,7 @@ describe('the panes an app can reach into', () => {
 
   it('says so when no pane holds the note, so the caller writes the file itself', async () => {
     const registry = editors();
-    registry.register(0, fakeEditor(board));
+    registry.register('t0', fakeEditor(board));
 
     expect(await registry.setPropertiesIfOpen({ path: today, values: { favorite: true } })).toBe(
       false,
@@ -64,8 +64,8 @@ describe('the panes an app can reach into', () => {
   it('forgets a pane that has gone', async () => {
     const registry = editors();
     const pane = fakeEditor(today);
-    registry.register(0, pane);
-    registry.register(0, null);
+    registry.register('t0', pane);
+    registry.register('t0', null);
 
     expect(await registry.setPropertiesIfOpen({ path: today, values: { favorite: true } })).toBe(
       false,
@@ -80,7 +80,7 @@ describe('the panes an app can reach into', () => {
       ...fakeEditor(today),
       setProperties: vi.fn(() => new Promise<void>((resolve) => (land = resolve))),
     };
-    registry.register(0, pane);
+    registry.register('t0', pane);
 
     let answered = false;
     const asked = registry
@@ -98,10 +98,10 @@ describe('the panes an app can reach into', () => {
     const registry = editors();
     const left = fakeEditor(board);
     const right = fakeEditor(today);
-    registry.register(0, left);
-    registry.register(1, right);
+    registry.register('t0', left);
+    registry.register('t1', right);
 
-    registry.savePane(1);
+    registry.savePane('t1');
 
     expect(right.save).toHaveBeenCalled();
     expect(left.save).not.toHaveBeenCalled();
@@ -111,10 +111,10 @@ describe('the panes an app can reach into', () => {
     const registry = editors();
     const writer = fakeEditor(today);
     const other = fakeEditor(today);
-    registry.register(0, writer);
-    registry.register(1, other);
+    registry.register('t0', writer);
+    registry.register('t1', other);
 
-    registry.reloadOthers({ paneId: 0, path: today });
+    registry.reloadOthers({ tabId: 't0', path: today });
 
     expect(other.reload).toHaveBeenCalled();
     // The pane that wrote already holds the new modification time.
@@ -124,10 +124,10 @@ describe('the panes an app can reach into', () => {
   it('leaves a pane showing a different note alone', () => {
     const registry = editors();
     const other = fakeEditor(board);
-    registry.register(0, fakeEditor(today));
-    registry.register(1, other);
+    registry.register('t0', fakeEditor(today));
+    registry.register('t1', other);
 
-    registry.reloadOthers({ paneId: 0, path: today });
+    registry.reloadOthers({ tabId: 't0', path: today });
 
     expect(other.reload).not.toHaveBeenCalled();
   });
@@ -135,10 +135,10 @@ describe('the panes an app can reach into', () => {
   it('does not throw away unsaved typing to pick up someone else’s write', () => {
     const registry = editors();
     const other = fakeEditor(today, true);
-    registry.register(0, fakeEditor(today));
-    registry.register(1, other);
+    registry.register('t0', fakeEditor(today));
+    registry.register('t1', other);
 
-    registry.reloadOthers({ paneId: 0, path: today });
+    registry.reloadOthers({ tabId: 't0', path: today });
 
     expect(other.reload).not.toHaveBeenCalled();
   });
@@ -151,8 +151,8 @@ describe('leaving the vault', () => {
     const left = fakeEditor(today, true);
     left.flush.mockImplementation(() => new Promise<void>((resolve) => (landLeft = resolve)));
     const right = fakeEditor(board, true);
-    registry.register(0, left);
-    registry.register(1, right);
+    registry.register('t0', left);
+    registry.register('t1', right);
 
     let settled = false;
     const flushing = registry.flushAll().then(() => void (settled = true));
@@ -169,8 +169,8 @@ describe('leaving the vault', () => {
   it('does not reach a pane that has gone away', async () => {
     const registry = editors();
     const gone = fakeEditor(today, true);
-    registry.register(0, gone);
-    registry.register(0, null);
+    registry.register('t0', gone);
+    registry.register('t0', null);
 
     await registry.flushAll();
 
@@ -185,8 +185,8 @@ describe('the panes a move or a delete reaches', () => {
     const registry = editors();
     const left = fakeEditor(plan);
     const right = fakeEditor(today);
-    registry.register(0, left);
-    registry.register(1, right);
+    registry.register('t0', left);
+    registry.register('t1', right);
 
     registry.follow({ from: createVaultPath('Projects'), to: createVaultPath('Archive/Projects') });
 
@@ -198,8 +198,8 @@ describe('the panes a move or a delete reaches', () => {
     const registry = editors();
     const left = fakeEditor(plan, true);
     const right = fakeEditor(today, true);
-    registry.register(0, left);
-    registry.register(1, right);
+    registry.register('t0', left);
+    registry.register('t1', right);
 
     await registry.flushHolding([plan]);
 
@@ -211,8 +211,8 @@ describe('the panes a move or a delete reaches', () => {
     const registry = editors();
     const left = fakeEditor(plan, true);
     const right = fakeEditor(today, true);
-    registry.register(0, left);
-    registry.register(1, right);
+    registry.register('t0', left);
+    registry.register('t1', right);
 
     registry.abandon([plan]);
 

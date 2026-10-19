@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
 import {
@@ -53,12 +53,38 @@ function fakeVault({
   directories = {},
   files = {},
   remembered = null,
+  picks = [],
+  elsewhere = {},
 }: {
   directories?: Record<string, VaultEntry[]>;
   files?: Record<string, string>;
   remembered?: VaultLocation | null;
-} = {}): VaultPorts & { picked: VaultPickerPort; written: Record<string, string> } {
+  /** What the folder picker answers, in order, before it answers `location`. */
+  picks?: VaultLocation[];
+  /** Another vault's files, by its path: what reads and writes reach once it is the open one. */
+  elsewhere?: Record<string, Record<string, string>>;
+} = {}): VaultPorts & {
+  picked: VaultPickerPort;
+  written: Record<string, string>;
+  /** Holds every read of a note until `release` is called: a host that takes its time. */
+  holdReads: () => { release: () => void };
+} {
   const written: Record<string, string> = {};
+  // The host holds one open vault and refuses a write meant for another (R14-01).
+  let open: string | null = remembered?.absolutePath ?? null;
+  const filesOf = (): Record<string, string> =>
+    open === null ? files : (elsewhere[open] ?? files);
+  let holding: (() => void)[] | null = null;
+  const holdReads = () => {
+    holding = [];
+    return {
+      release: () => {
+        const waiting = holding ?? [];
+        holding = null;
+        for (const go of waiting) go();
+      },
+    };
+  };
   const fs: VaultFsPort = {
     listDirectory: async (path: VaultPath) => directories[path] ?? [],
     listNotes: async () =>
@@ -95,13 +121,25 @@ function fakeVault({
       return 0;
     },
     readTextFile: async (path: VaultPath) => {
-      const text = files[path];
+      if (holding !== null) await new Promise<void>((go) => holding?.push(go));
+      const text = filesOf()[path];
       if (text === undefined) throw new VaultAccessError('no such entry');
       return { text, modified: 1 };
     },
-    writeTextFile: async ({ path, contents }) => {
+    writeTextFile: async ({
+      path,
+      contents,
+      vault,
+    }: {
+      path: VaultPath;
+      contents: string;
+      vault?: string;
+    }) => {
+      if (vault !== undefined && vault !== open) {
+        throw new VaultAccessError(`${vault} is not the open vault`);
+      }
       written[path] = contents;
-      files[path] = contents;
+      filesOf()[path] = contents;
       return 2;
     },
   };
@@ -112,9 +150,15 @@ function fakeVault({
       held = next;
     },
   };
-  const picker: VaultPickerPort = { pickDirectory: async () => location };
+  const picker: VaultPickerPort = {
+    pickDirectory: async () => {
+      const picked = picks.shift() ?? location;
+      open = picked.absolutePath;
+      return picked;
+    },
+  };
   const watch = { start: async () => {}, onChange: async () => () => {} };
-  return { fs, store, picker, watch, picked: picker, written };
+  return { fs, store, picker, watch, picked: picker, written, holdReads };
 }
 
 const notesFor = (vault: VaultPorts): NotePorts => ({
@@ -267,6 +311,9 @@ const renderApp = (
       globalCapture={globalCapture.ports}
     />,
   );
+
+// The shortcuts read the platform: jsdom's is none, and these tests press ⌘.
+beforeAll(() => vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel'));
 
 // The window now remembers its split per vault, in local storage, and every
 // test here opens the same vault. Without this each test would inherit the
@@ -1519,7 +1566,7 @@ describe('what ⌘K draws (#261)', () => {
 
     // The counter saw the palette drawn for each key, so a zero below is real.
     expect(renders.SearchPalette ?? 0).toBeGreaterThanOrEqual(5);
-    expect(renders.App ?? 0).toBe(0);
+    expect(renders.AppWindow ?? 0).toBe(0);
     expect(renders.AppShell ?? 0).toBe(0);
     expect(renders.VaultTree ?? 0).toBe(0);
     expect(renders.PaneFrame ?? 0).toBe(0);
@@ -1720,8 +1767,333 @@ describe('⌘K held in the overlay store (#261, attack)', () => {
     const { renders } = stopCountingRenders();
 
     expect(renders.SearchPalette ?? 0).toBeGreaterThanOrEqual(3);
-    expect(renders.App ?? 0).toBe(0);
+    expect(renders.AppWindow ?? 0).toBe(0);
     expect(renders.PaneFrame ?? 0).toBe(0);
     expect(renders.VaultTree ?? 0).toBe(0);
   });
 });
+
+describe('tabs (docs/design/tab-model.md, Performance 8)', () => {
+  // jsdom lays nothing out, and ProseMirror measures the selection when the
+  // focus lands back in an editor after a switch.
+  beforeAll(() => {
+    Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+    Range.prototype.getBoundingClientRect = () =>
+      DOMRect.fromRect({ x: 0, y: 0, width: 0, height: 0 });
+  });
+
+  const twoNotes = () =>
+    fakeVault({
+      remembered: location,
+      directories: { '': [entry('alpha.md', 'file'), entry('beta.md', 'file')] },
+      files: { 'alpha.md': '# Alpha\n\nThe first.\n', 'beta.md': '# Beta\n\nThe second.\n' },
+    });
+
+  const pane = (which: 1 | 2) => screen.getByRole('region', { name: `Pane ${which}` });
+  const tabsOf = (which: 1 | 2) =>
+    within(pane(which))
+      .getAllByRole('tab')
+      .map((tab) => tab.textContent);
+  const tabIn = (which: 1 | 2, name: string) => within(pane(which)).getByRole('tab', { name });
+  const row = (name: string) => screen.getByRole('treeitem', { name });
+  /** Lets whatever an open set going settle, so a count that follows is the action's alone. */
+  const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+  /** ⌘-clicks a row: the modifier is held across the click by one user, as a hand holds it. */
+  async function commandClick(element: HTMLElement) {
+    const user = userEvent.setup();
+    await user.keyboard('{Meta>}');
+    await user.click(element);
+    await user.keyboard('{/Meta}');
+  }
+
+  /** Opens alpha, then beta in a tab beside it, so the pane holds both. */
+  async function alphaThenBetaInTabs(vault = twoNotes()) {
+    renderApp(vault);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'alpha' }));
+    await screen.findByRole('article', { name: 'alpha' });
+    await commandClick(row('beta'));
+    await screen.findByRole('article', { name: 'beta' });
+    expect(tabsOf(1)).toEqual(['alpha', 'beta']);
+    return vault;
+  }
+
+  it('opens a ⌘-clicked note in a new tab beside the active one, and a plain click activates an open tab', async () => {
+    await alphaThenBetaInTabs();
+    expect(tabIn(1, 'beta').getAttribute('aria-selected')).toBe('true');
+
+    await userEvent.click(row('alpha'));
+    expect(tabsOf(1)).toEqual(['alpha', 'beta']);
+    expect(tabIn(1, 'alpha').getAttribute('aria-selected')).toBe('true');
+    // A plain click on a note no tab holds replaces the active one.
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'beta' }));
+    expect(tabIn(1, 'beta').getAttribute('aria-selected')).toBe('true');
+    // Beside the active tab, which is beta's now: so a run of ⌘-clicks reads in order.
+    await commandClick(row('alpha'));
+    expect(tabsOf(1)).toEqual(['alpha', 'beta', 'alpha']);
+  });
+
+  it('closes a tab with ⌘W, never the window, and brings it back with ⌘⇧T', async () => {
+    await alphaThenBetaInTabs();
+    await userEvent.keyboard('{Meta>}w{/Meta}');
+    expect(tabsOf(1)).toEqual(['alpha']);
+    await userEvent.keyboard('{Meta>}w{/Meta}');
+    expect(tabsOf(1)).toEqual(['New tab']);
+    expect(pane(1)).toBeDefined();
+    await userEvent.keyboard('{Meta>}{Shift>}t{/Shift}{/Meta}');
+    expect(tabsOf(1)).toEqual(['alpha']);
+    expect(await within(pane(1)).findByRole('article', { name: 'alpha' })).toBeDefined();
+  });
+
+  it('switching tabs draws the strip and the shown tab alone: not the app, the shell, the tree or the other pane', async () => {
+    await alphaThenBetaInTabs();
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Split right/ }));
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await userEvent.click(within(pane(1)).getByRole('article', { name: 'beta' }));
+    await settle();
+
+    startCountingRenders();
+    await userEvent.click(tabIn(1, 'alpha'));
+    await settle();
+    const { renders } = stopCountingRenders();
+
+    expect(tabIn(1, 'alpha').getAttribute('aria-selected')).toBe('true');
+    // The strip drawn, so the zeros below are real; alpha's editor was kept
+    // mounted and is shown again, beta's hides: one draw each, none for pane 2.
+    expect(renders.TabStrip ?? 0).toBe(1);
+    expect(renders.NotePaneContainer ?? 0).toBe(2);
+    expect(renders.AppWindow ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+    // The sidebar moves its mark from beta to alpha, and draws the tree once for it.
+    expect(renders.VaultTree ?? 0).toBe(1);
+  });
+
+  it('switching between tabs on the same note draws the tree not at all', async () => {
+    await alphaThenBetaInTabs();
+    await commandClick(row('beta'));
+    expect(tabsOf(1)).toEqual(['alpha', 'beta', 'beta']);
+    await settle();
+
+    startCountingRenders();
+    await userEvent.click(within(pane(1)).getAllByRole('tab', { name: 'beta' })[0] as HTMLElement);
+    await settle();
+    const { renders } = stopCountingRenders();
+
+    expect(renders.TabStrip ?? 0).toBe(1);
+    expect(renders.VaultTree ?? 0).toBe(0);
+    expect(renders.AppWindow ?? 0).toBe(0);
+  });
+
+  it('focusing the other pane draws the frames and strips, not the pages in them', async () => {
+    await alphaThenBetaInTabs();
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Split right/ }));
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await settle();
+
+    startCountingRenders();
+    await userEvent.click(within(pane(1)).getByRole('article', { name: 'beta' }));
+    await settle();
+    const { renders } = stopCountingRenders();
+
+    expect(renders.PaneFrame ?? 0).toBe(2);
+    expect(renders.TabStrip ?? 0).toBe(2);
+    expect(renders.NotePaneContainer ?? 0).toBe(0);
+    expect(renders.NotePane ?? 0).toBe(0);
+    expect(renders.AppWindow ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+  });
+
+  it('⌘[ steps the focused tab back and draws nothing in the other pane', async () => {
+    const vault = twoNotes();
+    renderApp(vault);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'alpha' }));
+    await screen.findByRole('article', { name: 'alpha' });
+    await userEvent.click(row('beta'));
+    await screen.findByRole('article', { name: 'beta' });
+    await settle();
+
+    // What the step costs alone: the tab's note read and drawn.
+    startCountingRenders();
+    await userEvent.keyboard('{Meta>}[[{/Meta}');
+    await within(pane(1)).findByRole('article', { name: 'alpha' });
+    await settle();
+    const alone = stopCountingRenders().renders;
+    expect(alone.NotePaneContainer ?? 0).toBeGreaterThan(0);
+
+    await userEvent.keyboard('{Meta>}]]{/Meta}');
+    await within(pane(1)).findByRole('article', { name: 'beta' });
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Split right/ }));
+    await within(pane(2)).findByRole('article', { name: 'beta' });
+    await settle();
+
+    // The same step in the focused pane 2, with pane 1 beside it: the same cost.
+    startCountingRenders();
+    await userEvent.keyboard('{Meta>}[[{/Meta}');
+    await within(pane(2)).findByRole('article', { name: 'alpha' });
+    await settle();
+    const { renders } = stopCountingRenders();
+
+    expect(within(pane(1)).getByRole('article', { name: 'beta' })).toBeDefined();
+    expect(renders.NotePaneContainer ?? 0).toBe(alone.NotePaneContainer);
+    expect(renders.NotePane ?? 0).toBe(alone.NotePane);
+    expect(renders.TabStrip ?? 0).toBe(1);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+    expect(renders.AppWindow ?? 0).toBe(0);
+  });
+
+  it('opening from the sidebar draws neither the app nor the shell', async () => {
+    const vault = twoNotes();
+    renderApp(vault);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'alpha' }));
+    await screen.findByRole('article', { name: 'alpha' });
+    await settle();
+
+    startCountingRenders();
+    await userEvent.click(row('beta'));
+    await screen.findByRole('article', { name: 'beta' });
+    await settle();
+    const { renders } = stopCountingRenders();
+
+    expect(renders.NotePaneContainer ?? 0).toBeGreaterThan(0);
+    expect(renders.AppWindow ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+  });
+
+  it('draws the shown tab alone when the window is drawn again: a hidden tab waits as it was', async () => {
+    await alphaThenBetaInTabs();
+    await settle();
+
+    // Hiding the sidebar draws the whole window, as any change of the app's own state does.
+    startCountingRenders();
+    await userEvent.keyboard('{Meta>}\\{/Meta}');
+    await settle();
+    const { renders } = stopCountingRenders();
+
+    expect(renders.AppWindow ?? 0).toBeGreaterThan(0);
+    expect(renders.NotePaneContainer ?? 0).toBe(1);
+  });
+
+  it('lets no editor of one vault outlive the switch to the next: a star there never writes the old vault’s text (R14-01)', async () => {
+    const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('shared.md', 'file'), entry('beta.md', 'file')] },
+      files: { 'shared.md': '# Shared\n\nIn A.\n', 'beta.md': '# Beta\n' },
+      elsewhere: {
+        [other.absolutePath]: { 'shared.md': '# Shared\n\nIn B.\n', 'beta.md': '# Beta\n' },
+      },
+      picks: [other],
+    });
+    renderApp(vault);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'shared' }));
+    await screen.findByRole('article', { name: 'shared' });
+    await commandClick(row('beta'));
+    await screen.findByRole('article', { name: 'beta' });
+    expect(tabsOf(1)).toEqual(['shared', 'beta']);
+    // The other vault remembers the same tabs, with the same ids, on the same paths.
+    const remembered = window.localStorage.getItem(`atlas.workspace:${location.absolutePath}`);
+    window.localStorage.setItem(
+      `atlas.workspace:${other.absolutePath}`,
+      (remembered ?? '').replace(location.absolutePath, other.absolutePath),
+    );
+
+    // Its notes take their time to arrive: the window in which an editor kept
+    // from the first vault would still hold that vault's text.
+    const reads = vault.holdReads();
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
+    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
+    expect(tabsOf(1)).toEqual(['shared', 'beta']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Add shared to favorites' }));
+    await settle();
+    reads.release();
+    // The star went to this vault's file, read once it arrived: never the
+    // first vault's text, which only an editor kept across the switch holds.
+    await waitFor(() => expect(vault.written['shared.md']).toContain('favorite: true'));
+    expect(vault.written['shared.md']).toContain('In B.');
+    expect(vault.written['shared.md']).not.toContain('In A.');
+    await userEvent.click(tabIn(1, 'shared'));
+    expect(await screen.findByText('In B.')).toBeDefined();
+  });
+
+  it('writes a tab’s typing once as it hides, and its autosave stands down behind the other tab', async () => {
+    const vault = await alphaThenBetaInTabs();
+    await userEvent.click(tabIn(1, 'alpha'));
+    const editor = await editorIn(pane(1), 'alpha');
+    await settle();
+    // The host takes its time: a write still in flight when the autosave would fire.
+    const landings: (() => void)[] = [];
+    const writes = vi.spyOn(vault.fs, 'writeTextFile').mockImplementation(
+      ({ path, contents }) =>
+        new Promise((resolve) => {
+          landings.push(() => {
+            vault.written[path] = contents;
+            resolve(2);
+          });
+        }),
+    );
+    vi.useFakeTimers();
+    try {
+      act(() => typeInto(editor, 'Typed.'));
+      // A plain DOM click: the fake clock would hold a user-event click waiting.
+      await act(async () => void fireEvent.click(tabIn(1, 'beta')));
+      await act(async () => void vi.advanceTimersByTime(3_000));
+      expect(writes).toHaveBeenCalledTimes(1);
+      await act(async () => landings.forEach((land) => land()));
+      await act(async () => void vi.advanceTimersByTime(3_000));
+      expect(writes).toHaveBeenCalledTimes(1);
+      expect(vault.written['alpha.md']).toContain('Typed.');
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 20_000);
+});
+
+/** What typing needs of TipTap's editor, which the ui package holds; the desktop app does not depend on it. */
+interface Editor {
+  readonly state: {
+    readonly selection: { readonly from: number; readonly to: number };
+    readonly tr: { insertText: (text: string, from: number, to: number) => unknown };
+  };
+  readonly view: {
+    dispatch: (tr: unknown) => void;
+    someProp: (
+      name: 'handleTextInput',
+      f: (
+        handle: (
+          view: unknown,
+          from: number,
+          to: number,
+          text: string,
+          deflt: () => unknown,
+        ) => boolean | void,
+      ) => boolean | void,
+    ) => boolean | void | undefined;
+  };
+}
+
+/** The live editor of the shown note in a pane: TipTap hangs it on its element. */
+async function editorIn(region: HTMLElement, title: string): Promise<Editor> {
+  const article = await within(region).findByRole('article', { name: title });
+  const element = await waitFor(() => {
+    const found = article.querySelector('.ProseMirror');
+    if (found === null) throw new Error('no editor yet');
+    return found;
+  });
+  return (element as HTMLElement & { editor: Editor }).editor;
+}
+
+/** Types as a person does, one character at a time through the editor's own input handling. */
+function typeInto(instance: Editor, text: string): void {
+  for (const char of text) {
+    const { from, to } = instance.state.selection;
+    const handled = instance.view.someProp('handleTextInput', (handle) =>
+      handle(instance.view, from, to, char, () => instance.state.tr.insertText(char, from, to)),
+    );
+    if (handled !== true) instance.view.dispatch(instance.state.tr.insertText(char, from, to));
+  }
+}

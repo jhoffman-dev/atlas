@@ -19,6 +19,7 @@ import { SortableList } from './sortable-list.tsx';
 import { TypeRowMenu, type TypeMenuAnchor } from './type-row-menu.tsx';
 import { useReorderTransition } from './reorder-transition.ts';
 import { useSidebarSections, type SectionOrder, type SectionStore } from './sidebar-sections.ts';
+import { openHowFrom, type OpenHow } from './open-how.ts';
 import { useSteadyCallback } from './steady-callback.ts';
 
 /** One of the vault's types, with how many notes declare it. */
@@ -148,7 +149,8 @@ export function Sidebar({
    * saved view titled Today, which the page then links to (#111) — never two rows.
    */
   onOpenToday?: () => void;
-  onOpen: (path: VaultPath) => void;
+  /** Opens a note; `how` is where the click asked for it: here, a new tab or a split. */
+  onOpen: (path: VaultPath, how: OpenHow) => void;
   onOpenType: (name: string) => void;
   /** Opens a type's definition; a type's menu offers it when given. */
   onEditType?: (name: string) => void;
@@ -349,7 +351,7 @@ function QuickRows({
   inbox?: InboxRowLink;
   onOpenReview?: () => void;
   onOpenToday?: () => void;
-  onOpen: (path: VaultPath) => void;
+  onOpen: (path: VaultPath, how: OpenHow) => void;
 }) {
   // A page's row stands in for the saved view of its name: one Today, one Inbox.
   const views = quick.filter(
@@ -389,7 +391,7 @@ function QuickRows({
               type="button"
               className="sidebar__row"
               aria-current={on ? 'page' : undefined}
-              onClick={() => onOpen(entry.path)}
+              onClick={(event) => onOpen(entry.path, openHowFrom(event))}
             >
               <Icon name={QUICK_GLYPHS[id]} className="sidebar__icon" />
               <span className="sidebar__name">{entry.title}</span>
@@ -708,7 +710,7 @@ const EntryList = memo(function EntryList({
   /** The page you are on, when it is a note: the row shown as open. */
   open: ReadonlySet<string>;
   starred: ReadonlySet<string>;
-  onOpen: (path: VaultPath) => void;
+  onOpen: (path: VaultPath, how: OpenHow) => void;
   onToggleFavorite: (path: VaultPath) => void;
 }) {
   if (entries.length === 0) return <p className="sidebar__empty">{empty}</p>;
@@ -725,7 +727,7 @@ const EntryList = memo(function EntryList({
             className="sidebar__row"
             title={entry.title}
             aria-current={open.has(entry.path) ? 'page' : undefined}
-            onClick={() => onOpen(entry.path)}
+            onClick={(event) => onOpen(entry.path, openHowFrom(event))}
           >
             <Icon name={sidebarGlyph(entry.icon)} className="sidebar__icon" />
             <span className="sidebar__name">{entry.title}</span>

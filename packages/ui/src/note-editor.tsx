@@ -8,6 +8,7 @@ import {
   type Ref,
 } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
+import { openHowFrom, type OpenHow } from './open-how.ts';
 import type { Editor } from '@tiptap/core';
 import {
   IMAGE_PICKER_ACCEPT,
@@ -107,7 +108,8 @@ export function NoteEditor({
   doc: EditorDocument;
   onChange: (doc: EditorDocument) => void;
   /** Opens the note a link names, at the heading or block it names when it does. */
-  onFollowLink: (target: string, heading?: string | null) => void;
+  /** Opens the note a link names; `how` is where the click asked for it. */
+  onFollowLink: (target: string, heading?: string | null, how?: OpenHow) => void;
   suggestNotes: (query: string) => NoteSuggestion[];
   /** Tags offered after `#` and a letter; left out, none are. */
   suggestTags?: (query: string) => readonly TagSuggestion[];
@@ -316,16 +318,22 @@ export function NoteEditor({
   const linkMenu = useLinkMenu({ editor, onFollowLink });
 
   // Delegated rather than bound per link, so links added while typing work too.
-  const followLink = (event: { target: EventTarget | null; preventDefault: () => void }) => {
+  const followLink = (event: {
+    target: EventTarget | null;
+    preventDefault: () => void;
+    metaKey: boolean;
+    ctrlKey: boolean;
+    shiftKey: boolean;
+  }) => {
     const element =
       event.target instanceof HTMLElement ? event.target.closest('[data-wikilink]') : null;
     if (element === null) return;
     event.preventDefault();
     const target = element.getAttribute('data-wikilink') ?? '';
     const heading = element.getAttribute('data-heading');
-    // A link to a heading or a block opens its note there (P26-03).
-    if (heading === null) onFollowLink(target);
-    else onFollowLink(target, heading);
+    // A link to a heading or a block opens its note there (P26-03); ⌘-click
+    // opens it in a new tab and ⌘⇧-click beside, as everywhere else.
+    onFollowLink(target, heading, openHowFrom(event));
   };
 
   useReveal(editor, reveal);

@@ -1,6 +1,6 @@
 import { Suspense, type ComponentProps, type ReactNode } from 'react';
-import type { GraphScope } from '@atlas/domain';
-import { InboxPage, TodayPage, type PageHistory } from '@atlas/ui';
+import type { NavigationPlace } from '@atlas/domain';
+import { InboxPage, TodayPage } from '@atlas/ui';
 import {
   activityScreen,
   archivePage,
@@ -13,7 +13,7 @@ import {
   typePage,
   weeklyReviewPage,
 } from './pages-on-first-use.ts';
-import { PageFrameFallback } from './page-frame-fallback.tsx';
+import { PageFrameFallback, type PageChrome } from './page-frame-fallback.tsx';
 
 // Loaded on first use (`pages-on-first-use.ts`); Today and the Inbox are what start-up shows.
 const GraphPage = graphPage.Component;
@@ -27,88 +27,91 @@ const ActivityScreen = activityScreen.Component;
 const TemplatesPage = templatesPage.Component;
 const TermsPage = termsPage.Component;
 
-type GraphProps = Omit<ComponentProps<typeof GraphPage>, 'scope' | 'onShowSidebar' | 'history'>;
-type TypeProps = Omit<ComponentProps<typeof TypePage>, 'onShowSidebar' | 'history'>;
-type QueryProps = Omit<ComponentProps<typeof QueryScreen>, 'onShowSidebar' | 'history'>;
-type TagsProps = Omit<ComponentProps<typeof TagsScreen>, 'selected' | 'onShowSidebar' | 'history'>;
+type Chrome = 'onShowSidebar' | 'history';
+type GraphProps = Omit<ComponentProps<typeof GraphPage>, 'scope' | Chrome>;
+type TypeProps = Omit<ComponentProps<typeof TypePage>, Chrome>;
+type QueryProps = Omit<ComponentProps<typeof QueryScreen>, Chrome>;
+type TagsProps = Omit<ComponentProps<typeof TagsScreen>, 'selected' | Chrome>;
+type ArchiveProps = Omit<ComponentProps<typeof ArchivePage>, Chrome>;
+type InboxProps = Omit<ComponentProps<typeof InboxPage>, Chrome>;
+type ReviewProps = Omit<ComponentProps<typeof WeeklyReviewPage>, Chrome>;
+type TodayProps = Omit<ComponentProps<typeof TodayPage>, Chrome>;
+type AutomationsProps = Omit<ComponentProps<typeof AutomationsScreen>, Chrome>;
+type ActivityProps = Omit<ComponentProps<typeof ActivityScreen>, Chrome>;
+type TemplatesProps = Omit<ComponentProps<typeof TemplatesPage>, Chrome>;
+type TermsProps = Omit<ComponentProps<typeof TermsPage>, Chrome>;
 
-type ArchiveProps = Omit<ComponentProps<typeof ArchivePage>, 'onShowSidebar' | 'history'>;
-type InboxProps = Omit<ComponentProps<typeof InboxPage>, 'onShowSidebar' | 'history'>;
-type ReviewProps = Omit<ComponentProps<typeof WeeklyReviewPage>, 'onShowSidebar' | 'history'>;
-type TodayProps = Omit<ComponentProps<typeof TodayPage>, 'onShowSidebar' | 'history'>;
-type AutomationsProps = Omit<ComponentProps<typeof AutomationsScreen>, 'onShowSidebar' | 'history'>;
-type ActivityProps = Omit<ComponentProps<typeof ActivityScreen>, 'onShowSidebar' | 'history'>;
-type TemplatesProps = Omit<ComponentProps<typeof TemplatesPage>, 'onShowSidebar' | 'history'>;
-type TermsProps = Omit<ComponentProps<typeof TermsPage>, 'onShowSidebar' | 'history'>;
+/** A place that is a page rather than a note: what `pageForPlace` draws. */
+export type PagePlace = Exclude<NavigationPlace, { kind: 'note' }>;
 
 /**
- * The page open over the panes, if any: the graph, a type's page, the query
- * page, the tags, the Archive, the Inbox, the weekly review, the Today page, the Automations, the Activity, the Templates or the Terms page, in that order when more than one
- * could show. Null leaves the panes —
- * which is why this is called rather than rendered as a component: the shell
- * shows the panes only when it is handed no page at all.
+ * Every page's props, assembled by `App` once for the window (tab-model.md,
+ * PR A) and handed down to the tab that shows the page. One of each: a type
+ * page draws only when its table is the type the tab names.
  */
-export function mainRoute({
-  graph,
-  type,
-  query,
-  tags,
-  archive,
-  inbox,
-  review,
-  today,
-  automations,
-  activity,
-  templates,
-  terms,
-  onShowSidebar,
-  history,
-}: {
-  /** The graph's scope is null while the graph is not open. */
-  graph: GraphProps & { scope: GraphScope | null };
-  /** Shows only while its table has a type: a type that is gone shows nothing. */
+export interface PageProps {
+  graph: GraphProps;
+  /** The table of the one type whose page is assembled; a type that is gone shows nothing. */
   type: TypeProps;
-  query: { open: boolean; screen: QueryProps };
-  /** The chosen tag's key, null for none; undefined while the tags page is not open. */
-  tags: { selected: string | null | undefined; screen: TagsProps };
-  archive: { open: boolean; page: ArchiveProps };
-  inbox: { open: boolean; page: InboxProps };
-  review: { open: boolean; page: ReviewProps };
-  today: { open: boolean; page: TodayProps };
-  automations: { open: boolean; screen: AutomationsProps };
-  activity: { open: boolean; screen: ActivityProps };
-  templates: { open: boolean; page: TemplatesProps };
-  terms: { open: boolean; page: TermsProps };
-  onShowSidebar?: () => void;
-  /** The focused pane's Back and Forward: the page is shown in its place. */
-  history?: PageHistory;
-}): ReactNode | null {
-  const sidebar = {
-    ...(onShowSidebar !== undefined && { onShowSidebar }),
-    ...(history !== undefined && { history }),
-  };
-  // One frame for every page loaded on first use, so nothing moves when it draws.
+  query: QueryProps;
+  tags: TagsProps;
+  archive: ArchiveProps;
+  inbox: InboxProps;
+  review: ReviewProps;
+  today: TodayProps;
+  automations: AutomationsProps;
+  activity: ActivityProps;
+  templates: TemplatesProps;
+  terms: TermsProps;
+}
+
+/**
+ * The page a tab's place names, drawn with that tab's Back and Forward and,
+ * in the first pane while the sidebar is hidden, the way back to it. A page
+ * loaded on first use draws its frame first, so nothing moves when it lands.
+ */
+export function pageForPlace({
+  place,
+  pages,
+  chrome,
+}: {
+  place: PagePlace;
+  pages: PageProps;
+  chrome: PageChrome;
+}): ReactNode {
   const later = (page: ReactNode) => (
-    <Suspense fallback={<PageFrameFallback {...sidebar} />}>{page}</Suspense>
+    <Suspense fallback={<PageFrameFallback {...chrome} />}>{page}</Suspense>
   );
-  if (graph.scope !== null) {
-    return later(<GraphPage {...graph} scope={graph.scope} {...sidebar} />);
+  switch (place.kind) {
+    case 'graph':
+      return later(<GraphPage {...pages.graph} scope={place.scope} {...chrome} />);
+    case 'type': {
+      const { table } = pages.type;
+      if (table.type === null || table.type.name !== place.name) {
+        return <PageFrameFallback {...chrome} />;
+      }
+      // One editor per type: its queued changes and open question belong to that file.
+      return later(<TypePage key={place.name} {...pages.type} {...chrome} />);
+    }
+    case 'query':
+      return later(<QueryScreen {...pages.query} {...chrome} />);
+    case 'tags':
+      return later(<TagsScreen {...pages.tags} selected={place.tag} {...chrome} />);
+    case 'archive':
+      return later(<ArchivePage {...pages.archive} {...chrome} />);
+    case 'inbox':
+      return <InboxPage {...pages.inbox} {...chrome} />;
+    case 'review':
+      return later(<WeeklyReviewPage {...pages.review} {...chrome} />);
+    case 'today':
+      return <TodayPage {...pages.today} {...chrome} />;
+    case 'automations':
+      return later(<AutomationsScreen {...pages.automations} {...chrome} />);
+    case 'activity':
+      return later(<ActivityScreen {...pages.activity} {...chrome} />);
+    case 'templates':
+      return later(<TemplatesPage {...pages.templates} {...chrome} />);
+    case 'terms':
+      return later(<TermsPage {...pages.terms} {...chrome} />);
   }
-  if (type.table.type !== null) {
-    // One editor per type: its queued changes and open question belong to that file.
-    return later(<TypePage key={type.table.type.name} {...type} {...sidebar} />);
-  }
-  if (query.open) return later(<QueryScreen {...query.screen} {...sidebar} />);
-  if (tags.selected !== undefined) {
-    return later(<TagsScreen {...tags.screen} selected={tags.selected} {...sidebar} />);
-  }
-  if (archive.open) return later(<ArchivePage {...archive.page} {...sidebar} />);
-  if (inbox.open) return <InboxPage {...inbox.page} {...sidebar} />;
-  if (review.open) return later(<WeeklyReviewPage {...review.page} {...sidebar} />);
-  if (today.open) return <TodayPage {...today.page} {...sidebar} />;
-  if (automations.open) return later(<AutomationsScreen {...automations.screen} {...sidebar} />);
-  if (activity.open) return later(<ActivityScreen {...activity.screen} {...sidebar} />);
-  if (templates.open) return later(<TemplatesPage {...templates.page} {...sidebar} />);
-  if (terms.open) return later(<TermsPage {...terms.page} {...sidebar} />);
-  return null;
 }

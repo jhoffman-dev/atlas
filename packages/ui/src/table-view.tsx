@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import type { OpenHow } from './open-how.ts';
 import {
   countLabel,
   groupTotals,
@@ -65,7 +66,8 @@ export interface TableViewProps {
   readonly sorts: readonly QuerySort[];
   readonly error: string | null;
   readonly schema?: TableSchema;
-  readonly onOpenNote: (path: string) => void;
+  /** Opens a row's note; `how` is where the click asked for it, when it said. */
+  readonly onOpenNote: (path: string, how?: OpenHow) => void;
   /**
    * One write per commit: what a cell's editor typed or picked, typed by the
    * column's kind — text, a number, a tick, a day, a link or links. Left out,

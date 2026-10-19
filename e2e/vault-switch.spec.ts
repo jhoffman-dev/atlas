@@ -218,3 +218,41 @@ for (const split of [false, true]) {
     await expectBEditedAndAUntouched(a, b);
   });
 }
+
+/**
+ * With tabs (#346): nothing of vault A's tabs shows or writes in vault B, and
+ * A's tabs are back, as they were, when A is opened again.
+ */
+test('tabs open in A show nothing and write nothing in B, and come back when A is reopened', async ({
+  page,
+}) => {
+  const { a, b, host } = await twoVaults(page);
+  await b.write('only-in-b.md', '# Only in B\n\nB alone has this.\n');
+  await typeIntoNotes(page, ' Typed in A.');
+  await expectSaved(pane(page));
+  await sidebarSection(page, 'userSpace')
+    .getByRole('treeitem', { name: 'notes', exact: true })
+    .click({ modifiers: ['Meta'] });
+  const tabs = page.getByRole('tablist', { name: 'Pane 1 tabs' }).getByRole('tab');
+  await expect(tabs).toHaveText(['notes', 'notes']);
+  const writesBefore = host.callsTo('write_text_file');
+
+  await switchTo(page, host, a, b);
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  // B starts on one empty tab: no page of A's, no editor of A's left behind.
+  await expect(tabs).toHaveText(['New tab']);
+  await expect(pane(page).getByText('vault A')).toHaveCount(0);
+  await sidebarSection(page, 'userSpace')
+    .getByRole('treeitem', { name: 'only-in-b', exact: true })
+    .click();
+  await expect(editor(pane(page))).toContainText('B alone has this.');
+  expect(host.callsTo('write_text_file')).toBe(writesBefore);
+  expect(await b.read('notes.md')).toBe(B_NOTE);
+
+  await switchTo(page, host, b, a);
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await expect(tabs).toHaveText(['notes', 'notes']);
+  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(editor(pane(page))).toContainText('Written in vault A. Typed in A.');
+  expect(await b.read('notes.md')).toBe(B_NOTE);
+});

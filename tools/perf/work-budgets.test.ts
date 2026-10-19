@@ -171,6 +171,15 @@ describe('writing budgets', () => {
     expect(lowered(budget, lowerHere).commits).toBeLessThan(37);
   });
 
+  it('keeps renders set from CI’s count the same way', () => {
+    const fromCi = { ...budget, renders: 48, rendersFromCi: true as const };
+    const lowerHere = budgetFor(work({ renders: { Row: 39 } }));
+    const kept = lowered(fromCi, lowerHere, { allowDrop: true });
+    expect(kept.renders).toBe(48);
+    expect(kept.rendersFromCi).toBe(true);
+    expect(lowered(budget, lowerHere).renders).toBeLessThan(48);
+  });
+
   it('gives summed renders 2% of headroom, not 10%', () => {
     expect(budgetFor(work({ renders: { Row: 10_000 } })).renders).toBe(10_200);
     expect(withRenderHeadroom(10)).toBe(12);

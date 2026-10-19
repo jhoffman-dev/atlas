@@ -154,3 +154,9 @@ export function withArchived(input: PaletteInput, includeArchived: boolean): Pal
 export function withMoved(input: PaletteInput, delta: number, count: number): PaletteInput {
   return { ...input, selected: count === 0 ? 0 : (input.selected + delta + count) % count };
 }
+
+/** The overlay a pane draws itself — its "…" menu or one of its popups — or null while none of its own is up. */
+export function paneOverlayOf(overlay: Overlay | null, pane: number): Overlay | null {
+  if (overlay === null) return null;
+  return overlay === pageMenuOverlay(pane) || overlay.startsWith(`pane-${pane}-`) ? overlay : null;
+}

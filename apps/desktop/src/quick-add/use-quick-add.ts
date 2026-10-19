@@ -57,7 +57,8 @@ export function useQuickAdd({
   templates: readonly NoteTemplate[];
   contentsOf: (template: NoteTemplate) => Promise<string>;
   notePaths: readonly VaultPath[];
-  beside: VaultPath | null;
+  /** The note in view as the note is made, which the new one goes beside. */
+  beside: () => VaultPath | null;
   overlay: { readonly show: (overlay: Overlay) => void; readonly hide: (overlay: Overlay) => void };
   /** A note was added: the tree and the index follow it; `open` when it should be opened. */
   onCreated: (args: { path: VaultPath; open: boolean }) => void;
@@ -101,7 +102,7 @@ export function useQuickAdd({
         name,
         values,
         template: template === null ? null : await contentsOf(template),
-        beside,
+        beside: beside(),
         notePaths,
         today: localToday(),
       });

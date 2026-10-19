@@ -150,7 +150,7 @@ describe('TableView — what one commit draws', () => {
 
     expect(first.open).not.toHaveBeenCalled();
     expect(first.tick).not.toHaveBeenCalled();
-    expect(latest.open).toHaveBeenCalledWith('t1.md');
+    expect(latest.open).toHaveBeenCalledWith('t1.md', 'here');
     expect(latest.tick).toHaveBeenCalledWith({ path: 't2.md', done: true });
   });
 });

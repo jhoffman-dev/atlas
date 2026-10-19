@@ -100,7 +100,7 @@ Switching tabs redraws only the strip and one pane's content.
 
 **Containers:** `PanesContainer → PaneContainer → TabStripContainer + PaneContentContainer`.
 
-- A note place renders `NotePaneContainer`, keyed by tab id; up to 3 more stay mounted while hidden.
+- A note place renders `NotePaneContainer`, keyed by tab id; up to 4 more stay mounted while hidden.
 - Any other place renders the page component.
 
 **Leaves `app.tsx`:**
@@ -137,7 +137,7 @@ It doesn't touch `app.tsx` or the pane hooks.
 
 ## 5. Open questions (recommended defaults)
 
-1. **Tab limit (Q7):** no cap. Tabs shrink to 120px, then the strip scrolls. At most 4 mounted editors per pane; the fifth-oldest is flushed and unmounted, and its undo resets.
+1. **Tab limit (Q7):** no cap. Tabs shrink to 120px, then the strip scrolls. At most 4 hidden editors per pane stay mounted beside the shown one (5 in all); the least recently shown is flushed and unmounted, and its undo resets.
 2. **Click routing:**
    - A plain click on a place already open in a tab of the focused pane activates that tab; otherwise it replaces the active tab.
    - ⌘-click opens a new tab beside the active one and activates it.

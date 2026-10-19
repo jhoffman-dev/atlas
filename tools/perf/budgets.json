@@ -4,24 +4,35 @@
     "These numbers only go DOWN. A PR may lower them; it never raises one without James's explicit agreement.",
     "Measured on the 2,008-note fixture by `pnpm perf:budgets`; `PERF_BUDGETS=write pnpm perf:budgets` lowers them to a run's counts plus headroom (10% or 2, whichever is more).",
     "`rows` are hard rules with no headroom: the most times a list's row component may render.",
-    "`commitsFromCi: true` marks commits set by hand from CI's count plus headroom (CI counts a few more than a Mac for that action); `write` keeps them, so never lower them from a Mac run."
+    "`commitsFromCi: true` marks commits set by hand from CI's count plus headroom (CI counts a few more than a Mac for that action), and `rendersFromCi: true` the same for renders; `write` keeps them, so never lower them from a Mac run."
   ],
   "actions": {
     "Click a sidebar note": {
-      "commits": 11,
-      "renders": 335,
+      "commits": 8,
+      "renders": 158,
       "calls": {
-        "list_directory": 4,
         "read_text_file": 3
       }
     },
     "Switch notes": {
-      "commits": 11,
-      "renders": 367,
+      "commits": 9,
+      "renders": 188,
       "calls": {
-        "list_directory": 4,
         "read_text_file": 3
       }
+    },
+    "Open in a new tab": {
+      "commits": 10,
+      "renders": 226,
+      "calls": {
+        "list_directory": 3,
+        "read_text_file": 3
+      }
+    },
+    "Switch tabs": {
+      "commits": 4,
+      "renders": 122,
+      "calls": {}
     },
     "Type 10 characters in a note": {
       "commits": 12,
@@ -48,6 +59,25 @@
       "renders": 0,
       "calls": {}
     },
+    "Split the window": {
+      "commits": 8,
+      "renders": 195,
+      "calls": {
+        "list_directory": 3,
+        "read_text_file": 3
+      }
+    },
+    "Focus the other pane": {
+      "commits": 3,
+      "renders": 18,
+      "calls": {}
+    },
+    "Close a pane": {
+      "commits": 4,
+      "renders": 48,
+      "calls": {},
+      "rendersFromCi": true
+    },
     "Open Settings": {
       "commits": 13,
       "renders": 1043,
@@ -64,7 +94,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 713,
+      "renders": 644,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -97,8 +127,8 @@
       "commitsFromCi": true
     },
     "Open the Inbox": {
-      "commits": 12,
-      "renders": 931,
+      "commits": 11,
+      "renders": 865,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
@@ -108,20 +138,20 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 32,
-      "renders": 2332,
+      "commits": 27,
+      "renders": 1937,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
         "index_notes_of_type": 7,
         "index_put": 3,
-        "index_query": 46,
+        "index_query": 38,
         "index_remove": 3,
         "index_stats": 3,
-        "list_directory": 21,
-        "list_notes": 7,
+        "list_directory": 18,
+        "list_notes": 6,
         "move_entry": 3,
-        "read_notes": 11,
+        "read_notes": 10,
         "read_text_file": 8,
         "write_text_file": 3
       },
@@ -130,30 +160,30 @@
       }
     },
     "Open a person's page": {
-      "commits": 13,
-      "renders": 515,
+      "commits": 12,
+      "renders": 337,
       "calls": {
         "index_query": 6,
-        "list_directory": 5,
+        "list_directory": 3,
         "read_text_file": 3
       }
     },
     "Open the 420-row table": {
-      "commits": 9,
-      "renders": 993,
+      "commits": 8,
+      "renders": 975,
       "calls": {
         "index_query": 4
       }
     },
-    "⌘K + 5 keys over the table": {
+    "\u2318K + 5 keys over the table": {
       "commits": 19,
-      "renders": 468,
+      "renders": 465,
       "calls": {
         "index_search": 7
       }
     },
     "Drag a board card": {
-      "commits": 58,
+      "commits": 57,
       "renders": 3218,
       "calls": {
         "index_manifest": 4,
