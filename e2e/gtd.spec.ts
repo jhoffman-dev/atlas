@@ -178,6 +178,10 @@ test('a board drags a task between the new statuses, and Waiting needs nobody (#
   });
   await openBoard(page);
   await page.locator('[data-path="tasks/Call the bank.md"]').waitFor();
+  // The column is named as its heading reads, not by the raw option (#338).
+  await expect(
+    page.locator('.board').getByRole('region', { name: 'Next Action', exact: true }),
+  ).toBeVisible();
 
   await dragCardTo(page, 'tasks/Call the bank.md', 'in-progress');
   await expectFile(vault, 'tasks/Call the bank.md').toContain('status: in-progress');

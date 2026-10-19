@@ -44,6 +44,14 @@ describe('BoardView', () => {
     expect(screen.getByRole('region', { name: 'doing' })).toBeDefined();
   });
 
+  it('names a status column, and its Add button, as its heading reads (#338)', () => {
+    render(
+      <BoardView {...props} columns={[{ value: 'next-action', label: 'next-action', rows: [] }]} />,
+    );
+    expect(screen.getByRole('region', { name: 'Next Action' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Add to Next Action' })).toBeDefined();
+  });
+
   it('heads a project column with its name, and a status column with its chosen tone', () => {
     render(
       <BoardView
