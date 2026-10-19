@@ -74,9 +74,10 @@
   text-align: center;
 }
 
-/* Today: one line of ink-2 down the chart. */
+/* Today: one line of ink down the chart. Full ink rather than ink-2 because
+   the line crosses the bars, and ink-2 is 2.4:1 on the chart grey. */
 .timeline__today {
-  background: var(--ink-2);
+  background: var(--ink);
   bottom: 0;
   position: absolute;
   top: 0;
@@ -92,19 +93,22 @@
   border-bottom: 0;
 }
 
-/* A bar is grey — the pressed-toggle fill, which sits off the surface in
-   both themes — with its status's colour as a 3px edge and the title in ink.
-   Flat, like every other fill on data: a bar that fades is harder to compare
-   against the bar above it. */
+/* A bar is the dashboard's chart grey (3.25:1 light, 3.5:1 dark on the
+   surface): its length is the data, so its end has to be seen. The pressed-
+   toggle fill it used to wear sat at 1.2:1 and the end of a bar was a guess.
+   Its status's colour is a 3px edge, parted from the fill by 1px of surface,
+   since no status dot clears 3:1 on the grey itself; the title is in the ink
+   made for that grey. Flat, like every other fill on data: a bar that fades
+   is harder to compare against the bar above it. */
 .timeline__bar {
   --bar-edge: var(--chart-bar);
   align-items: center;
-  background: var(--selected);
+  background: linear-gradient(to right, var(--surface) 1px, var(--chart-bar) 1px);
   border: 0;
   border-left: 3px solid var(--bar-edge);
   border-radius: var(--radius-chip);
   box-sizing: border-box;
-  color: var(--ink);
+  color: var(--chart-bar-ink);
   cursor: grab;
   display: flex;
   font: inherit;
@@ -147,8 +151,9 @@
   --bar-edge: var(--status-done-dot);
 }
 
+/* Hover keeps the fill — the hover tint is a surface colour, and a bar that
+   went pale under the pointer lost its end — and rings the bar instead. */
 .timeline__bar:hover {
-  background: var(--hover);
   box-shadow: 0 0 0 1px var(--line-strong);
 }
 
