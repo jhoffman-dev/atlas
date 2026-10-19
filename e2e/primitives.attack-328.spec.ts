@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+import { focusedRing, RINGED_PRIMITIVES } from './focus-ring.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
+import { TABLE_GROUP_HEIGHT, TABLE_ROW_HEIGHT, TODAY_ROW_HEIGHT } from './row-heights.ts';
 
 /**
  * PR #328 (UI v2 slice 2, primitives) under attack, in WebKit, on the built
@@ -260,35 +262,31 @@ async function focusEachAndCollectClipping(
   page: Page,
 ): Promise<{ seen: number; clipped: string[] }> {
   await page.keyboard.press('Tab');
-  const count = await page.evaluate(() => {
+  const count = await page.evaluate((primitives) => {
     const scope =
       document.querySelector('[role="dialog"]') ?? document.querySelector('.shell__main');
-    const primitives = [
-      ...(scope?.querySelectorAll('.btn, .field, .chip, .segmented__option') ?? []),
-    ];
-    (globalThis as { attack328Primitives?: Element[] }).attack328Primitives = primitives;
-    return primitives.length;
-  });
+    const found = [...(scope?.querySelectorAll(primitives) ?? [])];
+    (globalThis as { attack328Primitives?: Element[] }).attack328Primitives = found;
+    return found.length;
+  }, RINGED_PRIMITIVES);
   const found: string[] = [];
   let seen = 0;
   for (let at = 0; at < count; at += 1) {
-    const focused = await page.evaluate((index) => {
+    const took = await page.evaluate((index) => {
       const one = (globalThis as { attack328Primitives?: Element[] }).attack328Primitives?.[index];
-      if (!(one instanceof HTMLElement)) return null;
+      if (!(one instanceof HTMLElement)) return false;
       one.focus();
-      if (document.activeElement !== one) return null;
-      return {
-        label: `${one.tagName.toLowerCase()}.${[...one.classList].join('.')}`,
-        visible: one.matches(':focus-visible'),
-        ring: getComputedStyle(one).boxShadow,
-      };
+      return document.activeElement === one;
     }, at);
     // A primitive that cannot take the focus — hidden, or disabled — has no ring to clip.
+    if (!took) continue;
+    const focused = await focusedRing(page);
     if (focused === null) continue;
     seen += 1;
+    const label = `${focused.tag}.${focused.classes.join('.')}`;
     // A ring that is clipped nowhere because it is drawn nowhere is no ring.
-    if (!focused.visible) found.push(`${focused.label}: not :focus-visible`);
-    if (focused.ring === 'none') found.push(`${focused.label}: no ring drawn`);
+    if (!focused.visible) found.push(`${label}: not ${focused.ringedOn}`);
+    if (focused.ring === 'none') found.push(`${label}: no ring drawn`);
     const clipped = await ringClipping(page);
     if (clipped !== null) found.push(clipped);
   }
@@ -487,11 +485,6 @@ for (const [surface, open] of Object.entries(UNDER_TOAST)) {
   });
 }
 
-/** The estimates in grouped-rows.tsx (LINE_HEIGHT, UI v2 slice 4) and today-page.tsx (ROW_HEIGHT). */
-const TABLE_ROW = 34;
-const TABLE_GROUP = 32;
-const TODAY_ROW = 44;
-
 test('a flat table row with a status pill is drawn at the height the list places it by', async ({
   page,
 }) => {
@@ -502,7 +495,7 @@ test('a flat table row with a status pill is drawn at the height the list places
     .filter({ has: page.locator('.status-pill') })
     .first();
   await expect(row).toBeVisible();
-  expect((await row.boundingBox())!.height).toBeCloseTo(TABLE_ROW, 0);
+  expect((await row.boundingBox())!.height).toBeCloseTo(TABLE_ROW_HEIGHT, 0);
 });
 
 test('a status group row of a table is drawn at the height the list places it by', async ({
@@ -515,7 +508,7 @@ test('a status group row of a table is drawn at the height the list places it by
     .filter({ has: page.locator('.status-pill') })
     .first();
   await expect(group).toBeVisible();
-  expect((await group.boundingBox())!.height).toBeCloseTo(TABLE_GROUP, 0);
+  expect((await group.boundingBox())!.height).toBeCloseTo(TABLE_GROUP_HEIGHT, 0);
 });
 
 test('a Today row that says its status is drawn at the height the list places it by', async ({
@@ -530,5 +523,5 @@ test('a Today row that says its status is drawn at the height the list places it
     const item = element.closest('[data-index]') ?? element.closest('li');
     return item?.getBoundingClientRect().height ?? -1;
   });
-  expect(height).toBeCloseTo(TODAY_ROW, 0);
+  expect(height).toBeCloseTo(TODAY_ROW_HEIGHT, 0);
 });

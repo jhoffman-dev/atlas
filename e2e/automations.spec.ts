@@ -149,6 +149,10 @@ test('a rule that runs when Atlas opens runs once, on opening, and logs it', asy
   await page.getByRole('button', { name: 'Automations', exact: true }).click();
   const list = page.getByRole('list', { name: 'All automations' });
   await expect(list.getByText(/Archived 2 notes\./)).toBeVisible();
+  // A rule is one of the table view's 34px hairline rows (UI v2 slice 13b).
+  await expect
+    .poll(async () => (await list.getByRole('listitem').first().boundingBox())?.height)
+    .toBe(34);
   const logText = await vault.read('.atlas/automations/log/Sweep.md');
   expect(logText.match(/· Ran when Atlas opened/g)).toHaveLength(1);
   // A rule written without an id is given the one its log is under (A25-01); nothing else changes.

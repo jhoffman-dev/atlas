@@ -14,6 +14,7 @@ import {
   type UnsavedTyping,
 } from '../archive/archive-notes.ts';
 import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
+import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';
 import { setNoteProperties } from '../query/set-property.ts';
 import { loadObjectTypes, noteTypeName } from '../types/load-types.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';
@@ -240,10 +241,12 @@ function assertWritable(
 ): void {
   try {
     ports.markdown.updateFrontmatter(splitFrontmatter(text).frontmatter, changes);
-  } catch {
+  } catch (cause) {
     // Everything caught, on purpose: the writer is pure — it reads no file and no
-    // clock — so whatever it throws is about this note's block, which it can only
-    // refuse for not being a map of keys. Its own words are a YAML library's.
+    // clock — so whatever it throws is about this note's block. A refusal it
+    // words for the person is passed on; anything else is a block that is not a
+    // map of keys, in a YAML library's words.
+    if (cause instanceof FrontmatterRefusedError) throw new ClarifyRefusedError(cause.message);
     throw new ClarifyRefusedError(
       'Its frontmatter is not a list of properties, so nothing was written.',
     );

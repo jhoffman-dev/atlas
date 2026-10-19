@@ -235,25 +235,10 @@
   background: color-mix(in srgb, var(--accent-text) 18%, var(--raised));
 }
 
-/* What making a line a task did, with its one Undo. */
+/* What making a line a task did, with its one Undo: the notice bar
+   (primitives.css) under the page bar, so it never shrinks the page. */
 .promotion-notice {
-  align-items: center;
-  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
-  border-radius: var(--radius-card);
-  display: flex;
   flex: none;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0 16px var(--space-2) 24px;
-  padding: 6px 12px 6px 16px;
-}
-
-.promotion-notice__text {
-  color: var(--ink);
-  flex: 1;
-  font-size: var(--text-small);
-  margin: 0;
-  min-width: 20ch;
 }
 
 /* One line of metadata: "P14 · Bug fixer · 1h", in ink-3, the · in the

@@ -12,6 +12,7 @@ const ACTIVITY = recordingActivity();
 
 /** Nothing folded, and folding remembered nowhere: these tests are about the query. */
 const NO_FOLDS = { collapsed: new Set<string>(), onToggle: () => {} };
+const NO_QUERY_FOLD = { store: { read: () => null, write: () => {} }, view: 'v\u0000Open work.md' };
 
 /**
  * Adversarial (P24-04, ADR-0019): saving a query view writes its query and
@@ -69,6 +70,7 @@ async function opened(text: string) {
       note,
       ports: { index, fs, markdown: remarkMarkdown, editors: NO_PANE, activity: ACTIVITY },
       folds: NO_FOLDS,
+      queryFold: NO_QUERY_FOLD,
       types: TYPES,
       notePaths: NONE,
       indexKey: 'ready:1',

@@ -3,7 +3,9 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- moving tasks to GTD (P30-02) ----
-   The offer is one line; its preview opens in place, every task listed. */
+   The offer is one line of the notice bar (primitives.css): its words, then
+   its two verbs at the right end. Its preview opens in place under that
+   line, every task listed. */
 
 .task-migration__offer,
 .task-migration__actions,
@@ -33,8 +35,9 @@
 
 .task-migration__lines h3,
 .vault-tidy__refused h3 {
-  font-size: var(--text-small);
-  font-weight: 700;
+  color: var(--ink-3);
+  font-size: var(--text-header);
+  font-weight: 500;
   margin: 0 0 var(--space-1);
 }
 
@@ -57,7 +60,8 @@
 .vault-tidy__moves th,
 .meeting-cleanup__tasks th {
   color: var(--ink-3);
-  font-weight: 700;
+  font-size: var(--text-header);
+  font-weight: 500;
   text-align: left;
 }
 

@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { optionLabel } from '@atlas/domain';
 import { Icon } from './icon.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
+import { noticeBarClass } from './notice-bar.ts';
 
 /** One task as the preview lists it: its status now, and what it becomes. */
 export interface TaskMigrationRow {
@@ -69,9 +70,12 @@ export function TaskMigration(props: TaskMigrationProps) {
   const { preview, open, result, problem, canUndo } = props;
   if (preview === null && !canUndo && result === null && problem === null) return null;
   return (
-    <section className="inbox__offer task-migration" aria-label="Move tasks to GTD statuses">
-      <Icon name="task" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+    <section
+      className={noticeBarClass('inbox__offer task-migration', open)}
+      aria-label="Move tasks to GTD statuses"
+    >
+      <Icon name="task" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         {preview !== null && !open && <Offer {...props} preview={preview} />}
         {preview !== null && open && <Preview {...props} preview={preview} />}
         {result !== null && <p role="status">{result}</p>}
@@ -118,7 +122,7 @@ function Offer({
           ? 'Your Task type and views can be set up for them.'
           : `${tasks(preview.tasks.length)} would move to them.`}
       </p>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpen}>
+      <button type="button" className="btn btn--secondary btn--sm" onClick={onOpen}>
         Preview the move
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>
@@ -149,7 +153,12 @@ function Preview(props: TaskMigrationProps & { preview: TaskMigrationPreviewData
       <Lines heading="Views added" lines={preview.views} />
       {preview.tasks.length > 0 && <TaskTable rows={preview.tasks} />}
       <div className="task-migration__actions">
-        <button type="button" className="btn btn--sm" onClick={onRun} disabled={busy}>
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          onClick={onRun}
+          disabled={busy}
+        >
           {preview.tasks.length === 0 ? 'Set up GTD' : `Move ${tasks(preview.tasks.length)}`}
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose} disabled={busy}>

@@ -6,6 +6,7 @@ import {
   TASK_KEYS,
   TASK_TYPE,
 } from './gtd-status.ts';
+import { DUE_KEY, RECURRENCE_KEY } from '../query/repeating-task.ts';
 
 type Properties = Readonly<Record<string, unknown>>;
 
@@ -26,6 +27,19 @@ function changed(before: Properties, changes: Properties): Properties {
 
 /** The key a note says what it is by. */
 const TASK_TYPE_KEY = 'type';
+
+/**
+ * Every key the task rules read to judge a change, a repeating task's roll
+ * included (ADR-0029). A note that lists one of them twice cannot be judged:
+ * which copy the rules should read cannot be told.
+ */
+export const TASK_RULE_KEYS: readonly string[] = [
+  TASK_TYPE_KEY,
+  TASK_KEYS.status,
+  TASK_KEYS.completed,
+  RECURRENCE_KEY,
+  DUE_KEY,
+];
 
 /** Whether a note's properties say it is a task: its `type` is Task, in any case and spacing. */
 export const isTaskNote = (properties: Properties) =>

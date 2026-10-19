@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearchPalette } from './search-palette.tsx';
@@ -160,6 +161,31 @@ describe('SearchPalette', () => {
     expect(screen.queryByRole('option', { name: /↵/ })).toBeNull();
   });
 
+  it('draws every result as a row, the chosen one wearing the selected fill', () => {
+    render(<SearchPalette {...props} selected={1} />);
+    const rows = screen.getAllByRole('option');
+    expect(rows.every((row) => row.classList.contains('palette__hit'))).toBe(true);
+    expect(rows.map((row) => row.classList.contains('palette__hit--on'))).toEqual([false, true]);
+  });
+
+  it('hides the kind icon on a hit as on a command: the place says what it is', () => {
+    render(<SearchPalette {...props} commands={[{ id: 'new-view', label: 'New view' }]} />);
+    const kinds = document.querySelectorAll('.palette__kind');
+    expect(kinds.length).toBe(3);
+    for (const kind of kinds) expect(kind.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('keeps the keys along its foot out of what a screen reader is read', () => {
+    const { baseElement } = render(<SearchPalette {...props} />);
+    const hints = baseElement.querySelector('.key-hints');
+    expect(hints?.getAttribute('aria-hidden')).toBe('true');
+    expect(hints?.textContent).toContain('to open');
+    // The field's esc and the chosen row's ↵ are hidden the same way.
+    for (const key of baseElement.querySelectorAll('.key')) {
+      expect(key.closest('[aria-hidden="true"]')).not.toBeNull();
+    }
+  });
+
   it('says so when a search matches nothing', () => {
     render(<SearchPalette {...props} query="zzz" hits={[]} />);
     expect(screen.getByText('Nothing matches.')).toBeDefined();
@@ -195,5 +221,67 @@ describe('SearchPalette and archived notes', () => {
     );
     expect(screen.getByText('Archive')).toBeTruthy();
     expect(screen.queryByText('Projects')).toBeNull();
+  });
+});
+
+describe('SearchPalette keeps the selected result in view (#372)', () => {
+  /** jsdom lays nothing out, so it has no scrollIntoView: record who is asked to scroll. */
+  function spyOnScrolls() {
+    const scrolled: { element: Element; options: unknown }[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element, options?: unknown) {
+      scrolled.push({ element: this, options });
+    };
+    return { scrolled, restore: () => (Element.prototype.scrollIntoView = original) };
+  }
+
+  it('scrolls the newly selected result into view, as little as it can', () => {
+    const spy = spyOnScrolls();
+    try {
+      const { rerender } = render(<SearchPalette {...props} selected={0} />);
+      rerender(<SearchPalette {...props} selected={1} />);
+      expect(spy.scrolled).toHaveLength(1);
+      expect(spy.scrolled[0]?.element.textContent).toContain('Recipes');
+      expect(spy.scrolled[0]?.options).toEqual({ block: 'nearest' });
+    } finally {
+      spy.restore();
+    }
+  });
+
+  it('arrows through the results where there is no scrollIntoView, as in jsdom', async () => {
+    const original = Element.prototype.scrollIntoView;
+    // As jsdom has it, and as an app test that arrows through real rows meets it.
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    function Arrowed() {
+      const [selected, setSelected] = useState(0);
+      return (
+        <SearchPalette
+          {...props}
+          selected={selected}
+          onMove={(delta) => setSelected(selected + delta)}
+        />
+      );
+    }
+    try {
+      render(<Arrowed />);
+      await userEvent.type(
+        screen.getByRole('searchbox', { name: 'Search the vault' }),
+        '{ArrowDown}',
+      );
+      expect(screen.getAllByRole('option')[1]?.getAttribute('aria-selected')).toBe('true');
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('does not scroll as it opens, nor when it is drawn again with the same selection', () => {
+    const spy = spyOnScrolls();
+    try {
+      const { rerender } = render(<SearchPalette {...props} selected={1} />);
+      rerender(<SearchPalette {...props} selected={1} query="r" />);
+      expect(spy.scrolled).toHaveLength(0);
+    } finally {
+      spy.restore();
+    }
   });
 });

@@ -17,13 +17,17 @@ export interface TemplateNotice {
  */
 export function TemplateBanner({ uses, onOpenTemplates, onMoveToNotes }: TemplateNotice) {
   return (
-    <aside className="template-banner" aria-label="Template">
-      <Icon name="template" size={16} className="template-banner__icon" />
-      <p className="template-banner__text">
-        <strong>Template</strong> · Used for: {templateUsesText(uses)}. Editing it changes what new
-        notes start as — never the notes already made.
-      </p>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onMoveToNotes}>
+    <aside className="notice-bar template-banner" aria-label="Template">
+      <Icon name="template" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
+        <p>
+          <strong>Template</strong> · Used for: {templateUsesText(uses)}.{' '}
+          <span className="notice-bar__why">
+            Editing it changes what new notes start as — never the notes already made.
+          </span>
+        </p>
+      </div>
+      <button type="button" className="btn btn--secondary btn--sm" onClick={onMoveToNotes}>
         Move to notes…
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={onOpenTemplates}>

@@ -39,10 +39,48 @@ describe('GalleryView covers', () => {
   });
 });
 
+/** Ticks for a type whose `done` status is `done`. */
+const ticksOf = (onToggle = vi.fn()) => ({
+  isDone: (values: Readonly<Record<string, unknown>>) => values['status'] === 'done',
+  onToggle,
+});
+
+describe('GalleryView cards (slice 13d)', () => {
+  it('draws a card as the board’s hairline card: no lift or shadow class of its own', () => {
+    const { container } = render(
+      <GalleryView rows={rows} fields={fields} onOpenNote={() => {}} ticks={ticksOf()} />,
+    );
+    const cards = [...container.querySelectorAll('li')];
+    expect(cards).toHaveLength(2);
+    expect(cards.map((card) => card.className)).toEqual([
+      'gallery__card',
+      'gallery__card gallery__card--done',
+    ]);
+  });
+
+  it('sets the title’s words on a span of their own, where the clamp holds', () => {
+    render(<GalleryView rows={rows} fields={fields} onOpenNote={() => {}} />);
+    const title = screen.getByRole('button', { name: 'First' });
+    expect(title.querySelector('.gallery__title-text')?.textContent).toBe('First');
+  });
+});
+
 describe.each([
   ['ListView', ListView],
   ['GalleryView', GalleryView],
 ])('%s', (_name, View) => {
+  it('ticks a note done from its box, and marks a finished one', async () => {
+    const onToggle = vi.fn();
+    const { container } = render(
+      <View rows={rows} fields={fields} onOpenNote={() => {}} ticks={ticksOf(onToggle)} />,
+    );
+    const second = screen.getByRole('checkbox', { name: 'Mark Second done' });
+    expect((second as HTMLInputElement).checked).toBe(true);
+    expect(container.querySelectorAll('[class$="--done"]')).toHaveLength(1);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mark First done' }));
+    expect(onToggle).toHaveBeenCalledWith({ path: 'a.md', done: true });
+  });
+
   it('shows a row per note', () => {
     render(<View rows={rows} fields={fields} onOpenNote={() => {}} />);
     expect(screen.getByText('First')).toBeDefined();

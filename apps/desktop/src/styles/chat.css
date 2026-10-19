@@ -543,24 +543,3 @@
 .page-bar__aside-glyph {
   transform: scaleX(-1);
 }
-
-/* A short text field in Settings → Claude and → Profile: a 28px field at
-   the width a model name or a person's name needs. */
-.settings__field {
-  appearance: none;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-control);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-column);
-  height: 28px;
-  padding: 0 8px;
-  width: 200px;
-}
-
-.settings__field:focus {
-  border-color: var(--focus);
-  box-shadow: var(--ring);
-  outline: none;
-}

@@ -8,6 +8,7 @@ import {
   type ApiSettingsPort,
 } from '@atlas/application';
 import { settingsDialog } from '../pages-on-first-use.ts';
+import { createBrowserThemeStore } from '../theme/browser-theme-store.ts';
 import { SettingsPanel } from './settings-panel.tsx';
 
 // Loaded before the tests, as the app loads it after start-up: the first import
@@ -50,6 +51,7 @@ function showSettings(host: ReturnType<typeof fakeHost>, mcpEntry: string | null
   render(
     <SettingsPanel
       ports={{ settings: host.settings, clipboard: host.clipboard, mcpEntry }}
+      themeStore={createBrowserThemeStore()}
       activity={activity}
       onClose={() => {}}
     />,

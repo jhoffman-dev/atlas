@@ -397,8 +397,13 @@ export interface FakeHost {
    * app's reads land late without racing a timer (#130). A batch that also
    * reads `except` is let through: held from before the vault opens, the
    * index's own read of every note (which reads `except` too) goes ahead.
+   * With `alone`, only a read of this file by itself is held: the index reads
+   * notes in batches, in the walk's order, so no one note is sure to share its.
    */
-  holdReads(relativePath: string, options?: { readonly except?: string }): () => void;
+  holdReads(
+    relativePath: string,
+    options?: { readonly except?: string; readonly alone?: boolean },
+  ): () => void;
   /** What the app has put in the Trash, by vault path, in order. */
   trashed(): readonly string[];
   /** Every link the app asked the host to open in the browser, in order. */
@@ -616,13 +621,18 @@ export async function installHost(
   /** Files whose writes wait, and what lets them go. */
   const held = new Map<string, Promise<void>>();
   /** Files whose reads wait, and what lets them go. */
-  const heldReads = new Map<string, { until: Promise<void>; except: string | undefined }>();
+  const heldReads = new Map<
+    string,
+    { until: Promise<void>; except: string | undefined; alone: boolean }
+  >();
   /** What a read of these files waits for: each held one's release, unless the batch is excepted. */
   const readsHeld = (paths: readonly string[]) =>
     Promise.all(
       paths.map((relative) => {
         const hold = heldReads.get(relative);
-        return hold === undefined || (hold.except !== undefined && paths.includes(hold.except))
+        return hold === undefined ||
+          (hold.except !== undefined && paths.includes(hold.except)) ||
+          (hold.alone && paths.length > 1)
           ? undefined
           : hold.until;
       }),
@@ -1932,7 +1942,11 @@ export async function installHost(
     holdReads(relativePath, options) {
       let release: () => void = () => {};
       const until = new Promise<void>((resolve) => (release = resolve));
-      heldReads.set(relativePath, { until, except: options?.except });
+      heldReads.set(relativePath, {
+        until,
+        except: options?.except,
+        alone: options?.alone === true,
+      });
       return () => {
         heldReads.delete(relativePath);
         release();

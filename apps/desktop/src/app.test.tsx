@@ -324,6 +324,18 @@ beforeEach(() => window.localStorage.clear());
 // start-up: the first import of their chunks is slow enough under load to outlast a find.
 beforeAll(() => preloadPages(), 30_000);
 
+/** The rows of the list on Settings' left, by title. */
+const listedSections = (dialog: HTMLElement) =>
+  within(within(dialog).getByRole('navigation', { name: 'Settings sections' }))
+    .getAllByRole('button')
+    .map((row) => row.textContent);
+
+/** The sections drawn in Settings, by heading, in order. */
+const drawnSections = (dialog: HTMLElement) =>
+  [...dialog.querySelectorAll('.settings__body h2.settings__heading')].map(
+    (heading) => heading.textContent,
+  );
+
 describe('App', () => {
   it('offers to open a vault on a first run', async () => {
     renderApp(fakeVault());
@@ -339,6 +351,7 @@ describe('App', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Settings' });
     expect(await within(dialog).findByText('Off')).toBeDefined();
+    expect(listedSections(dialog)).toEqual(drawnSections(dialog));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
 
     expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();

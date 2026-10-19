@@ -75,6 +75,8 @@ test('an automation run, a red notice and the filters, in the Activity log', asy
   await expect(run).toContainText('Automations');
   await expect(run).toContainText('Info');
   await expect(run.getByRole('button', { name: 'Open Tidy tasks' })).toBeVisible();
+  // A line is one of the table view's 34px hairline rows (UI v2 slice 13b).
+  await expect.poll(async () => (await run.boundingBox())?.height).toBe(34);
 
   // Nothing is badged while there are no errors.
   await expect(goTo(page).getByRole('button', { name: 'Activity', exact: true })).toBeVisible();
