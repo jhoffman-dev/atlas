@@ -50,6 +50,9 @@ import {
   createToolboxes,
   findTaskTemplate,
   getAppInfo,
+  PEOPLE_SCOPE,
+  PERSON_EMAILS_SCOPE,
+  PROJECTS_SCOPE,
   setNoteProperty,
   readsTouchedByPaths,
   reportingIndexWrites,
@@ -106,6 +109,7 @@ import { createWindowQueryClient } from './reads/query-client.ts';
 import { createReadInvalidator } from './reads/read-invalidator.ts';
 import { tellingOwnWrites } from './reads/telling-own-writes.ts';
 import { useSqlViews } from './reads/use-sql-views.ts';
+import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';
 import { useVaultReads } from './reads/use-vault-reads.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
@@ -209,6 +213,7 @@ import {
   createAsideStore,
   hideAside,
   asideShown as asideShownNow,
+  claudeShown as claudeShownNow,
   loadVaultAside,
   setAsideFolded,
   toggleAside as toggleAsideIn,
@@ -512,6 +517,25 @@ function AppWindow({
   // Everything derived from the index re-runs when this changes: backlinks,
   // saved views and dashboard widgets. It moves only with the revision (#238).
   const indexKey = useIndexKey(indexStore, vaultKey);
+  // The window's readers of one kind of note read again for news of that kind alone (#325).
+  const peopleKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['people'],
+    scope: PEOPLE_SCOPE,
+  });
+  const projectsKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['projects'],
+    scope: PROJECTS_SCOPE,
+  });
+  const personEmailsKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['person-emails'],
+    scope: PERSON_EMAILS_SCOPE,
+  });
   const {
     types,
     failure: typesFailure,
@@ -673,6 +697,11 @@ function AppWindow({
   const overlay = useWindowOverlay(overlays);
   const showOverlay = useCallback((requested: Overlay) => showIn(overlays, requested), [overlays]);
   const hideOverlay = useCallback((closing: Overlay) => hideIn(overlays, closing), [overlays]);
+  // One object, so what is handed it is not made anew each time the window draws.
+  const overlayPort = useMemo(
+    () => ({ show: showOverlay, hide: hideOverlay }),
+    [showOverlay, hideOverlay],
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // Pressed from another app with no vault open: capture has no Inbox to land in.
   const [captureWantedVault, setCaptureWantedVault] = useState(false);
@@ -821,7 +850,7 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     clock: localClock,
-    indexKey,
+    indexKey: projectsKey,
     activity: activityLog,
     onCreated: (path) => {
       hideOverlay('new-artifact');
@@ -857,7 +886,7 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     vaultKey,
-    changeKey: indexKey,
+    changeKey: personEmailsKey,
     indexReady,
     activity: activityLog,
   });
@@ -905,17 +934,21 @@ function AppWindow({
     },
     [asideStore, roomForAside],
   );
-  // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings the aside up on it.
+  // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings
+  // the aside up on it. Its toggle and close are one function each for the
+  // window's life — every page's bar is handed the toggle (#325) — reading
+  // the store at the press rather than closing over what was shown.
   const claudeShown = useClaudeShown(asideStore);
   const claudeAsked = useClaudeAsked(asideStore);
+  const toggleChatSeat = useCallback(
+    () =>
+      claudeShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleClaude),
+    [asideStore, askForAside],
+  );
+  const closeChatSeat = useCallback(() => hideAside(asideStore), [asideStore]);
   const chatSeat = useMemo(
-    () => ({
-      open: claudeShown,
-      asked: claudeAsked,
-      toggle: () => (claudeShown ? hideAside(asideStore) : askForAside(toggleClaude)),
-      close: () => hideAside(asideStore),
-    }),
-    [claudeShown, claudeAsked, asideStore, askForAside],
+    () => ({ open: claudeShown, asked: claudeAsked, toggle: toggleChatSeat, close: closeChatSeat }),
+    [claudeShown, claudeAsked, toggleChatSeat, closeChatSeat],
   );
   const chat = useChat({
     ports: chatPorts,
@@ -1090,13 +1123,15 @@ function AppWindow({
     ],
   );
   const entries = useVaultEntries(entryPorts, notePaths);
+  // Each one function for as long as the entries' ports: the panes are handed them (#325).
+  const { rename: renameEntry, askMove: askEntryMove, askDelete: askEntryDelete } = entries;
   const templatesPage = useTemplatesPage({
     ports: {
       fs: vault.fs,
       markdown: notes.markdown,
       editors: entryPorts.editors,
       closeNotes: entryPorts.closeNotes,
-      overlay: { show: showOverlay, hide: hideOverlay },
+      overlay: overlayPort,
     },
     types,
     listed: templatesListed,
@@ -1302,8 +1337,8 @@ function AppWindow({
   /** Renames a note from its page head; every pane showing it follows. */
   const renamePaneNote = useCallback(
     ({ path, name }: { path: VaultPath; name: string }) =>
-      entries.rename({ path, kind: 'file' }, name),
-    [entries],
+      renameEntry({ path, kind: 'file' }, name),
+    [renameEntry],
   );
 
   const captureTemplate = useMemo(() => findTaskTemplate(templates), [templates]);
@@ -1386,7 +1421,7 @@ function AppWindow({
   );
   const vaultPeople = usePeople({
     ports: peoplePorts,
-    indexKey,
+    indexKey: peopleKey,
     ready: indexReady,
     notePaths,
     types,
@@ -1437,7 +1472,7 @@ function AppWindow({
       thumbnails,
       types,
       notePaths,
-      indexKey,
+      indexStatus: indexStore,
       onChanged,
       changes: noteChanges,
       onTypeSaved,
@@ -1474,7 +1509,7 @@ function AppWindow({
       thumbnails,
       types,
       notePaths,
-      indexKey,
+      indexStore,
       onChanged,
       noteChanges,
       onTypeSaved,
@@ -1544,12 +1579,14 @@ function AppWindow({
   const treeRows = useMemo(() => sidebarTreeRows(rows), [rows]);
   const toggleSidebar = useCallback(() => setSidebarOpen((was) => !was), []);
   const asideShown = useAsideShown(asideStore);
+  const toggleAsideSeat = useCallback(
+    () =>
+      asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),
+    [asideStore, askForAside],
+  );
   const asideToggle = useMemo(
-    () => ({
-      shown: asideShown,
-      onToggle: () => (asideShown ? hideAside(asideStore) : askForAside(toggleAsideIn)),
-    }),
-    [asideShown, asideStore, askForAside],
+    () => ({ shown: asideShown, onToggle: toggleAsideSeat }),
+    [asideShown, toggleAsideSeat],
   );
   const rowPorts = useMemo(() => ({ pane: paneContext, openNote }), [paneContext, openNote]);
 
@@ -1641,11 +1678,94 @@ function AppWindow({
     />
   );
 
+  // The panes' wiring that changes only with what it holds, so a window
+  // redrawn for the index's news draws no pane that shows nothing new (#325).
+  const noteCommands = useMemo(
+    () => ({
+      onRename: renamePaneNote,
+      onToggleFavorite: toggleFavorite,
+      onMoveTo: (target: VaultPath) => askEntryMove({ path: target, kind: 'file' }),
+      onDelete: (target: VaultPath) => askEntryDelete({ path: target, kind: 'file' }),
+      onShowInGraph: (target: VaultPath) => openGraph({ kind: 'note', path: target, depth: 1 }),
+    }),
+    [renamePaneNote, toggleFavorite, askEntryMove, askEntryDelete, openGraph],
+  );
+  const todayWiring = useMemo(
+    () => ({
+      view:
+        todayView === null
+          ? null
+          : { title: todayView.title, onOpen: () => openNote(todayView.path) },
+      onOpenDailyNote: () => void openDailyNote(),
+    }),
+    [todayView, openNote, openDailyNote],
+  );
+  const chatToggle = useMemo(
+    () => (location === null ? null : { open: chat.open, onToggle: chat.toggle }),
+    [location, chat.open, chat.toggle],
+  );
+  const inboxWiring = useMemo(
+    () => ({
+      closing: closing.writes,
+      pendingWrites,
+      onOpenSource: followSource,
+      typesOffer:
+        typesOffer === null
+          ? null
+          : {
+              lines: typesOffer.lines,
+              onAccept: () => void typesOffer.accept(),
+              onDismiss: typesOffer.dismiss,
+            },
+      taskMigration,
+      paraMigration,
+      vaultTidy,
+      meetingCleanup,
+      settingsUnreadable:
+        settingsProblem === null
+          ? null
+          : {
+              problem: settingsProblem,
+              onOpenSettings: () => showOverlay('settings'),
+            },
+      ownerUnknown:
+        ownerKnown &&
+        automations.listing !== null &&
+        ownerNeededBy(
+          automations.listing.automations.map(({ rule }) => rule),
+          { selfName: ownerName, selfEmails: ownerEmails, people: [] },
+        )
+          ? { onOpenSettings: () => showOverlay('settings') }
+          : null,
+      meetingProjects,
+      view:
+        inboxView === null
+          ? null
+          : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
+    }),
+    [
+      closing.writes,
+      pendingWrites,
+      followSource,
+      typesOffer,
+      taskMigration,
+      paraMigration,
+      vaultTidy,
+      meetingCleanup,
+      settingsProblem,
+      ownerKnown,
+      automations.listing,
+      ownerName,
+      ownerEmails,
+      meetingProjects,
+      inboxView,
+      openNote,
+      showOverlay,
+    ],
+  );
   return (
     <NoteNamesProvider value={names}>
-      <ChatToggleProvider
-        value={location === null ? null : { open: chat.open, onToggle: chat.toggle }}
-      >
+      <ChatToggleProvider value={chatToggle}>
         <AppShell
           sidebarOpen={sidebarOpen}
           asideOpen={asideShown}
@@ -1784,14 +1904,7 @@ function AppWindow({
                     ...workspaceStores,
                     pane: paneContext,
                     onShowSidebar: sidebarOpen ? null : toggleSidebar,
-                    note: {
-                      onRename: renamePaneNote,
-                      onToggleFavorite: toggleFavorite,
-                      onMoveTo: (target) => entries.askMove({ path: target, kind: 'file' }),
-                      onDelete: (target) => entries.askDelete({ path: target, kind: 'file' }),
-                      onShowInGraph: (target) =>
-                        openGraph({ kind: 'note', path: target, depth: 1 }),
-                    },
+                    note: noteCommands,
                     pages: {
                       ports: archivePorts,
                       indexReady,
@@ -1799,51 +1912,8 @@ function AppWindow({
                       openNote,
                       openPage,
                       holds: holdsByVault.of(location.absolutePath),
-                      today: {
-                        view:
-                          todayView === null
-                            ? null
-                            : { title: todayView.title, onOpen: () => openNote(todayView.path) },
-                        onOpenDailyNote: () => void openDailyNote(),
-                      },
-                      inbox: {
-                        closing: closing.writes,
-                        pendingWrites,
-                        onOpenSource: followSource,
-                        typesOffer:
-                          typesOffer === null
-                            ? null
-                            : {
-                                lines: typesOffer.lines,
-                                onAccept: () => void typesOffer.accept(),
-                                onDismiss: typesOffer.dismiss,
-                              },
-                        taskMigration,
-                        paraMigration,
-                        vaultTidy,
-                        meetingCleanup,
-                        settingsUnreadable:
-                          settingsProblem === null
-                            ? null
-                            : {
-                                problem: settingsProblem,
-                                onOpenSettings: () => showOverlay('settings'),
-                              },
-                        ownerUnknown:
-                          ownerKnown &&
-                          automations.listing !== null &&
-                          ownerNeededBy(
-                            automations.listing.automations.map(({ rule }) => rule),
-                            { selfName: ownerName, selfEmails: ownerEmails, people: [] },
-                          )
-                            ? { onOpenSettings: () => showOverlay('settings') }
-                            : null,
-                        meetingProjects,
-                        view:
-                          inboxView === null
-                            ? null
-                            : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
-                      },
+                      today: todayWiring,
+                      inbox: inboxWiring,
                       templates: templatesPage.page,
                       terms: { templates },
                       activity: { activity },

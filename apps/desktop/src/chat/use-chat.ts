@@ -197,6 +197,7 @@ export function useChat({
     open,
     draft,
     focusOnMount: seat.asked,
+    // One function for the window's life, the seat's: every page's bar is handed it (#325).
     toggle: seat.toggle,
     close: seat.close,
     state,

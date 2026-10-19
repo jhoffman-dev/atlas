@@ -4,8 +4,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, NO_LINKS, type NoteLinks } from '@atlas/domain';
 import { fakeIndexPort, fakeVaultFs, type OpenNotes } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { vaultReadKey } from '../reads/query-client.ts';
+import { createReadInvalidator } from '../reads/read-invalidator.ts';
 import { useVaultGraph } from './use-vault-graph.ts';
 import { useUnlinkedMentions } from './use-unlinked-mentions.ts';
 
@@ -120,17 +122,29 @@ function mentionPorts(state: 'closed' | 'dirty' = 'closed') {
 
 function mentionsOf(ports: ReturnType<typeof mentionPorts>['ports'], onChanged = vi.fn()) {
   const links: NoteLinks = NO_LINKS;
-  return renderHook(
+  const status = createIndexStatusStore();
+  status.setState({ vault: '/v', phase: 'ready', revision: 1 });
+  const { client, wrapper } = queryWrapper();
+  const reads = createReadInvalidator({ client });
+  const hook = renderHook(
     ({ path }) =>
       useUnlinkedMentions({
         ports,
         note: { path, title: 'Atlas' },
         links,
-        indexKey: 'ready:1',
+        index: { status, vault: '/v' },
         onChanged,
       }),
-    { initialProps: { path: atlas } },
+    { initialProps: { path: atlas }, wrapper },
   );
+  /** The index settles having found `path` changed. */
+  const changed = (path: string) =>
+    act(() => {
+      reads.noteChanges('/v', [{ kind: 'changed', path, type: null, digest: 'b', before: 'a' }]);
+      status.setState({ revision: status.getState().revision + 1 });
+      reads.indexMoved('/v');
+    });
+  return { ...hook, changed };
 }
 
 describe('useUnlinkedMentions', () => {
@@ -147,6 +161,21 @@ describe('useUnlinkedMentions', () => {
       kind: 'ready',
       mentions: [{ path: 'journal.md', title: 'journal', excerpt: 'Worked on Atlas today.' }],
     });
+  });
+
+  it('looks again for any note changed once asked, and hears nothing of the index before', async () => {
+    const { ports } = mentionPorts();
+    const search = vi.spyOn(ports.index, 'search');
+    const { result, changed } = mentionsOf(ports);
+
+    await changed('Notes/Unrelated.md');
+    await act(() => new Promise((turn) => setTimeout(turn, 0)));
+    expect(search).not.toHaveBeenCalled();
+
+    act(() => result.current.find());
+    await waitFor(() => expect(search).toHaveBeenCalledTimes(1));
+    await changed('Notes/Unrelated.md');
+    await waitFor(() => expect(search).toHaveBeenCalledTimes(2));
   });
 
   it('forgets what it found when another note opens', async () => {

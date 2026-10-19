@@ -245,6 +245,8 @@ describe('refreshIndex says what changed (P28-03)', () => {
         type: 'meeting',
         digest: digestOf(meeting),
         before: digestOf('Agenda'),
+        // It declared no type before: a reader of meetings is told it joined them (#325).
+        beforeType: null,
       },
       { kind: 'removed', path: 'Gone.md', type: 'task', digest: 'aa' },
     ]);

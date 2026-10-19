@@ -14,9 +14,11 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import type { PropertyRow } from '@atlas/ui';
+import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';
 import { createWorkspaceStore, loadVault, workspaceNow } from '../workspace/workspace-store.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { WorkspaceStoresProvider } from '../workspace/workspace-wiring.tsx';
 import { AsideContainer } from './aside-container.tsx';
 import { createAsideStore, focusRow, showAsideTab } from './aside-store.ts';
@@ -88,7 +90,8 @@ function published(path: VaultPath, onChange = vi.fn()): ShownNote {
 const ROWS = {
   pane: {
     notes: { fs: { readTextFile: () => new Promise(() => {}) }, markdown: {} },
-    indexKey: '',
+    indexStatus: createIndexStatusStore(),
+    vault: '/v',
     types: [],
     notePaths: [],
   },
@@ -102,6 +105,7 @@ function show(stores: ReturnType<typeof openOn>, claude = <p>the chat</p>) {
         <AsideContainer rows={ROWS} />
       </ClaudeSeatProvider>
     </WorkspaceStoresProvider>,
+    { wrapper: queryWrapper().wrapper },
   );
 }
 

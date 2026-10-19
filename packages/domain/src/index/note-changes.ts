@@ -47,6 +47,12 @@ export interface NoteChange extends NoteVersion {
    * (P29-01).
    */
   readonly before?: string;
+  /**
+   * On a `changed` note only, and only when its type is not what it was: the
+   * type it declared before, null for none. A reader of one type's notes is
+   * touched by a note that left the type as much as by one that joined it.
+   */
+  readonly beforeType?: string | null;
   /** On a `changed` note only: how the import had settled it before, when it had (#92). */
   readonly beforeImportOutcome?: ImportOutcome;
   /** On a `changed` note only: whether the note it was had its arrival heard (#92). */
@@ -75,6 +81,7 @@ export function noteChangesBetween(
       changes.push({
         ...noteChange('changed', path, version),
         before: earlier.digest,
+        ...(earlier.type !== version.type && { beforeType: earlier.type }),
         ...(earlier.importOutcome !== undefined && { beforeImportOutcome: earlier.importOutcome }),
         ...(isMeetingArrival({ path, ...earlier }) &&
           arrivalHeardOf(earlier) && { beforeArrivalHeard: true as const }),

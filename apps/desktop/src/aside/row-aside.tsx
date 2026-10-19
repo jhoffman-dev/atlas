@@ -10,6 +10,7 @@ import { PropertiesPane, type OpenHow } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { PaneContext } from '../panes/note-pane-container.tsx';
 import { writeNoteProperties } from '../query/use-view-writes.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { useNoteProperties } from '../types/use-note-properties.ts';
 import { clearRow, type AsideStore } from './aside-store.ts';
 
@@ -83,9 +84,10 @@ export function RowAside({
 }
 
 /**
- * The row's note, read afresh as the index reports a change; null until
- * read. A note that cannot be read — gone from under its row — lets the row
- * go, so the aside falls back to the page rather than reading forever.
+ * The row's note, read afresh as the index's news touches that note (#325:
+ * scoped to its path, not to a note saved anywhere); null until read. A note
+ * that cannot be read — gone from under its row — lets the row go, so the
+ * aside falls back to the page rather than reading forever.
  */
 function useRowNote({
   path,
@@ -98,7 +100,13 @@ function useRowNote({
   pane: PaneContext;
   aside: AsideStore;
 }): OpenNote | null {
-  const { notes, indexKey } = pane;
+  const { notes } = pane;
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['aside-row', path],
+    scope: useMemo(() => ({ notes: [path] }), [path]),
+  });
   const [note, setNote] = useState<OpenNote | null>(null);
   useEffect(() => {
     let current = true;

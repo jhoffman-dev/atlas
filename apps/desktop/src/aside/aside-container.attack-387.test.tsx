@@ -12,6 +12,7 @@ import {
   type NavigationPlace,
   type VaultPath,
 } from '@atlas/domain';
+import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';
 import {
@@ -20,6 +21,7 @@ import {
   openPlace,
   workspaceNow,
 } from '../workspace/workspace-store.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { WorkspaceStoresProvider } from '../workspace/workspace-wiring.tsx';
 import { AsideContainer } from './aside-container.tsx';
 import { createAsideStore, focusRow, selectAsideTab, showAsideTab } from './aside-store.ts';
@@ -73,7 +75,8 @@ function rowPortsOver(fs: ReturnType<typeof diskOf>['fs']): RowPorts {
   return {
     pane: {
       notes: { fs, markdown: remarkMarkdown },
-      indexKey: '',
+      indexStatus: createIndexStatusStore(),
+      vault: '/v',
       types: [],
       notePaths: [],
       index: {},
@@ -110,6 +113,7 @@ function show(stores: ReturnType<typeof openOn>, rows: RowPorts) {
         <AsideContainer rows={rows} />
       </ClaudeSeatProvider>
     </WorkspaceStoresProvider>,
+    { wrapper: queryWrapper().wrapper },
   );
 }
 

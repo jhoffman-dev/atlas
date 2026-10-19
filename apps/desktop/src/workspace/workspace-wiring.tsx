@@ -71,3 +71,16 @@ export function useWorkspaceWiring(): WorkspaceWiring {
   if (wiring === null) throw new Error('The panes are drawn outside their wiring.');
   return wiring;
 }
+
+/**
+ * Whether two wirings hand a tab the same of what it reads: these parts of
+ * them, by identity. The window draws the wiring afresh each time it is drawn
+ * itself; a tab that is handed the same draws nothing for it (#325).
+ */
+export function sameWiringParts(
+  parts: readonly (keyof WorkspaceWiring)[],
+  before: WorkspaceWiring,
+  after: WorkspaceWiring,
+): boolean {
+  return parts.every((part) => Object.is(before[part], after[part]));
+}

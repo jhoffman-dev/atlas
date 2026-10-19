@@ -15,6 +15,7 @@ import { startCountingRenders, stopCountingRenders } from '@atlas/ui/testing';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';
 import { createWorkspaceStore, loadVault, workspaceNow } from '../workspace/workspace-store.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { WorkspaceStoresProvider } from '../workspace/workspace-wiring.tsx';
 import { AsideContainer } from './aside-container.tsx';
 import { createAsideStore, showAsideTab } from './aside-store.ts';
@@ -94,6 +95,7 @@ describe('what a keystroke draws in the aside (#387 review)', () => {
           <AsideContainer rows={{} as RowPorts} />
         </ClaudeSeatProvider>
       </WorkspaceStoresProvider>,
+      { wrapper: queryWrapper().wrapper },
     );
     expect(screen.getByRole('textbox', { name: 'owner' })).toBeDefined();
 
