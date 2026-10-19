@@ -197,3 +197,39 @@ describe('SearchPalette and archived notes', () => {
     expect(screen.queryByText('Projects')).toBeNull();
   });
 });
+
+describe('SearchPalette keeps the selected result in view (#372)', () => {
+  /** jsdom lays nothing out, so it has no scrollIntoView: record who is asked to scroll. */
+  function spyOnScrolls() {
+    const scrolled: { element: Element; options: unknown }[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element, options?: unknown) {
+      scrolled.push({ element: this, options });
+    };
+    return { scrolled, restore: () => (Element.prototype.scrollIntoView = original) };
+  }
+
+  it('scrolls the newly selected result into view, as little as it can', () => {
+    const spy = spyOnScrolls();
+    try {
+      const { rerender } = render(<SearchPalette {...props} selected={0} />);
+      rerender(<SearchPalette {...props} selected={1} />);
+      expect(spy.scrolled).toHaveLength(1);
+      expect(spy.scrolled[0]?.element.textContent).toContain('Recipes');
+      expect(spy.scrolled[0]?.options).toEqual({ block: 'nearest' });
+    } finally {
+      spy.restore();
+    }
+  });
+
+  it('does not scroll as it opens, nor when it is drawn again with the same selection', () => {
+    const spy = spyOnScrolls();
+    try {
+      const { rerender } = render(<SearchPalette {...props} selected={1} />);
+      rerender(<SearchPalette {...props} selected={1} query="r" />);
+      expect(spy.scrolled).toHaveLength(0);
+    } finally {
+      spy.restore();
+    }
+  });
+});
