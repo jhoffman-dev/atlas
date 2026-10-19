@@ -7,7 +7,7 @@ import { createVault, installHost, sidebarSection } from './host.ts';
  * are what WebKit draws under the system font (UI v2, #269), pinned here so a
  * font or padding change moves the constant with it:
  *
- *   packages/ui/src/today-page.tsx        GROUP_NAME_HEIGHT
+ *   packages/ui/src/today-page.tsx        GROUP_NAME_HEIGHT, ROW_HEIGHT
  *   packages/ui/src/inbox/inbox-rows.tsx  ROW_HEIGHT
  *   packages/ui/src/grouped-rows.tsx      LINE_HEIGHT (row, group, new)
  *
@@ -16,6 +16,8 @@ import { createVault, installHost, sidebarSection } from './host.ts';
  * must be the header's height.
  */
 const GROUP_NAME_HEIGHT = 18;
+/** The table view's row, which Today's rows are since UI v2 slice 13a. */
+const TODAY_ROW_HEIGHT = 34;
 const INBOX_ROW_HEIGHT = 59;
 const TABLE_ROW_HEIGHT = 34;
 const TABLE_GROUP_HEIGHT = 32;
@@ -87,6 +89,14 @@ test('a Today group name is drawn at the height the list places it by', async ({
   const name = page.locator('.today__group-name').first();
   await expect(name).toBeVisible();
   expect((await name.boundingBox())!.height).toBeCloseTo(GROUP_NAME_HEIGHT, 1);
+});
+
+test('a Today row is drawn at the height the list places it by', async ({ page }) => {
+  await openVault(page);
+  await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Today' }).click();
+  const row = page.locator('.today [data-today-row]').first();
+  await expect(row).toBeVisible();
+  expect((await row.boundingBox())!.height).toBeCloseTo(TODAY_ROW_HEIGHT, 1);
 });
 
 test('a standard Inbox row is drawn at the height the list places it by', async ({ page }) => {
