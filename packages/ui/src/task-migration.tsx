@@ -153,7 +153,12 @@ function Preview(props: TaskMigrationProps & { preview: TaskMigrationPreviewData
       <Lines heading="Views added" lines={preview.views} />
       {preview.tasks.length > 0 && <TaskTable rows={preview.tasks} />}
       <div className="task-migration__actions">
-        <button type="button" className="btn btn--primary btn--sm" onClick={onRun} disabled={busy}>
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          onClick={onRun}
+          disabled={busy}
+        >
           {preview.tasks.length === 0 ? 'Set up GTD' : `Move ${tasks(preview.tasks.length)}`}
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose} disabled={busy}>

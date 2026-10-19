@@ -19,8 +19,9 @@ const tokens = css('tokens.css');
 const primitives = css('primitives.css');
 /** The section files that drew the eight banners as cards before #319. */
 const SECTIONS = ['inbox.css', 'gtd.css', 'board.css', 'terms.css', 'templates.css'];
-/** The eight banners, by the class each still goes by. */
+/** The bar itself, and the eight banners by the class each still goes by. */
 const BANNERS = [
+  '.notice-bar',
   '.inbox__offer',
   '.task-migration',
   '.vault-tidy',

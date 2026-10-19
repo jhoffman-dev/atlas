@@ -108,7 +108,12 @@ function Preview(props: ParaMigrationProps & { preview: ParaMigrationPreviewData
         lines={preview.skipped.map((note) => ({ key: note.path, line: note.line }))}
       />
       <div className="task-migration__actions">
-        <button type="button" className="btn btn--primary btn--sm" onClick={onRun} disabled={busy}>
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          onClick={onRun}
+          disabled={busy}
+        >
           Move {notes(preview.notes.length)}
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose} disabled={busy}>

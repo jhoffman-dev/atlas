@@ -153,10 +153,11 @@
    40px tall — its icon in ink-3, its words in ink, its actions at the right
    end, the first a secondary button and the rest ghost. An offer the Inbox
    makes, the band over a template or a corrected meeting, what making a
-   line a task did: each is this one bar, never a card. 40px is the height
-   the Inbox's anchor (list-anchor.ts) holds the list against when a bar
-   arrives, so the closed line never measures more; a preview grows the bar
-   downwards from there. */
+   line a task did: each is this one bar, never a card. 40px is its least
+   height, the one line of the mockup: a long warning wraps and the bar
+   grows with it, and a preview grows it downwards. The Inbox's anchor
+   (list-anchor.ts) measures the bar's real rect when it arrives, so a
+   wrapped bar holds the list still as well as a one-line one. */
 .notice-bar {
   align-items: center;
   background: var(--well);

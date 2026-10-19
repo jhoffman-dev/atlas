@@ -135,7 +135,7 @@ function Preview(props: MeetingProjectsProps & { rows: readonly MeetingProjectRo
       <div className="task-migration__actions">
         <button
           type="button"
-          className="btn btn--primary btn--sm"
+          className="btn btn--secondary btn--sm"
           onClick={onRun}
           disabled={busy || chosen === 0}
         >

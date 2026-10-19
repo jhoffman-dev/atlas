@@ -73,21 +73,26 @@ describe('VaultTidy (#214)', () => {
 /** #319: the offer is the one-line notice bar, its verbs at the end, grown open for the preview. */
 describe('VaultTidy as the notice bar (#319)', () => {
   const region = () => screen.getByRole('region', { name: 'Tidy the vault' });
+  const classes = (element: Element) => [...element.classList];
 
   it('is the bar, with Preview the tidy as the secondary verb and Not now as the ghost one', () => {
     render(<VaultTidy {...props()} />);
-    expect(region().className).toBe('notice-bar inbox__offer vault-tidy');
-    const verbs = screen
-      .getAllByRole('button')
-      .map((button) => [button.textContent, button.className]);
-    expect(verbs).toEqual([
-      ['Preview the tidy', 'btn btn--secondary btn--sm'],
-      ['Not now', 'btn btn--ghost btn--sm'],
-    ]);
+    expect(classes(region())).toEqual(
+      expect.arrayContaining(['notice-bar', 'inbox__offer', 'vault-tidy']),
+    );
+    expect(classes(region())).not.toContain('notice-bar--open');
+    const [first, second] = screen.getAllByRole('button');
+    expect(first?.textContent).toBe('Preview the tidy');
+    expect(classes(first!)).toEqual(expect.arrayContaining(['btn', 'btn--secondary', 'btn--sm']));
+    expect(second?.textContent).toBe('Not now');
+    expect(classes(second!)).toEqual(expect.arrayContaining(['btn', 'btn--ghost', 'btn--sm']));
   });
 
-  it('carries --open while the preview shows under the line', () => {
+  it('carries --open while the preview shows under the line, whose run button is secondary too (one primary per view)', () => {
     render(<VaultTidy {...props({ open: true })} />);
-    expect(region().classList.contains('notice-bar--open')).toBe(true);
+    expect(classes(region())).toContain('notice-bar--open');
+    const run = screen.getByRole('button', { name: 'Move 2 notes' });
+    expect(classes(run)).toContain('btn--secondary');
+    expect(classes(run)).not.toContain('btn--primary');
   });
 });

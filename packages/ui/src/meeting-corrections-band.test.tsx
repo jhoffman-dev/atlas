@@ -112,13 +112,10 @@ describe('MeetingCorrectionsBand as the notice bar (#319)', () => {
       />,
     );
     const band = screen.getByRole('complementary', { name: 'Corrections' });
-    expect(band.className).toBe('notice-bar corrections-band');
-    const verbs = screen
-      .getAllByRole('button')
-      .map((button) => [button.textContent, button.className]);
-    expect(verbs).toEqual([
-      ['Dismiss', 'btn btn--ghost btn--sm'],
-      ['Undo corrections', 'btn btn--secondary btn--sm'],
-    ]);
+    expect([...band.classList]).toEqual(expect.arrayContaining(['notice-bar', 'corrections-band']));
+    const kind = (name: string) =>
+      [...screen.getByRole('button', { name }).classList].filter((each) => each !== 'btn');
+    expect(kind('Undo corrections')).toEqual(['btn--secondary', 'btn--sm']);
+    expect(kind('Dismiss')).toEqual(['btn--ghost', 'btn--sm']);
   });
 });

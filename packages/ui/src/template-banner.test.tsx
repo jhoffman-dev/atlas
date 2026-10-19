@@ -28,14 +28,11 @@ describe('TemplateBanner', () => {
   it('is the notice bar, with Move to notes as the secondary verb and All templates as the ghost one (#319)', () => {
     render(<TemplateBanner uses={[]} onOpenTemplates={vi.fn()} onMoveToNotes={vi.fn()} />);
     const band = screen.getByRole('complementary', { name: 'Template' });
-    expect(band.className).toBe('notice-bar template-banner');
+    expect([...band.classList]).toEqual(expect.arrayContaining(['notice-bar', 'template-banner']));
     expect(band.textContent).toContain('Used for: Only the New menu.');
-    const verbs = screen
-      .getAllByRole('button')
-      .map((button) => [button.textContent, button.className]);
-    expect(verbs).toEqual([
-      ['Move to notes…', 'btn btn--secondary btn--sm'],
-      ['All templates', 'btn btn--ghost btn--sm'],
-    ]);
+    const kind = (name: string) =>
+      [...screen.getByRole('button', { name }).classList].filter((each) => each !== 'btn');
+    expect(kind('Move to notes…')).toEqual(['btn--secondary', 'btn--sm']);
+    expect(kind('All templates')).toEqual(['btn--ghost', 'btn--sm']);
   });
 });

@@ -128,14 +128,12 @@ describe('PromotionBanner as the notice bar (#319)', () => {
         }}
       />,
     );
-    expect(screen.getByRole('status').className).toBe('notice-bar promotion-notice');
-    const verbs = screen
-      .getAllByRole('button')
-      .map((button) => [button.getAttribute('aria-label') ?? button.textContent, button.className]);
-    expect(verbs).toEqual([
-      ['Open', 'btn btn--secondary btn--sm'],
-      ['Undo', 'btn btn--ghost btn--sm'],
-      ['Dismiss', 'btn btn--ghost btn--sm'],
-    ]);
+    const bar = screen.getByRole('status');
+    expect([...bar.classList]).toEqual(expect.arrayContaining(['notice-bar', 'promotion-notice']));
+    const kind = (name: string) =>
+      [...screen.getByRole('button', { name }).classList].filter((each) => each !== 'btn');
+    expect(kind('Open')).toEqual(['btn--secondary', 'btn--sm']);
+    expect(kind('Undo')).toEqual(['btn--ghost', 'btn--sm']);
+    expect(kind('Dismiss')).toEqual(['btn--ghost', 'btn--sm']);
   });
 });

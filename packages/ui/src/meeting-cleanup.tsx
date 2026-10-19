@@ -143,7 +143,7 @@ function Preview(props: MeetingCleanupProps & { listed: readonly MeetingCleanupT
       <div className="meeting-cleanup__actions">
         <button
           type="button"
-          className="btn btn--primary btn--sm"
+          className="btn btn--secondary btn--sm"
           onClick={onApply}
           disabled={busy || going === 0}
         >

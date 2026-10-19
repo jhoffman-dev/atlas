@@ -108,7 +108,7 @@ function Preview(props: VaultTidyProps & { preview: VaultTidyPreviewData }) {
       <div className="vault-tidy__actions">
         <button
           type="button"
-          className="btn btn--primary btn--sm"
+          className="btn btn--secondary btn--sm"
           onClick={onApply}
           disabled={busy}
         >
