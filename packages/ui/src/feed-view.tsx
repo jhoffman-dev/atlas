@@ -73,7 +73,7 @@ export function FeedView({
         ))}
       </ul>
       {rows.length > shown && (
-        <button type="button" className="feed__more" onClick={onShowMore}>
+        <button type="button" className="btn btn--secondary feed__more" onClick={onShowMore}>
           Show more notes
         </button>
       )}

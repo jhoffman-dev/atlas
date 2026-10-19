@@ -134,7 +134,8 @@ function GalleryGrid({
                   className="gallery__title"
                   onClick={() => onOpenNote(row.path)}
                 >
-                  {row.title}
+                  {/* Clamped to two lines on a span of its own, as the board's title is. */}
+                  <span className="gallery__title-text">{row.title}</span>
                 </button>
               </div>
               {summary !== '' && <span className="gallery__summary">{summary}</span>}
