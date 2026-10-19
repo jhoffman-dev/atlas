@@ -303,7 +303,7 @@ test('the watcher’s echo of dragging a board card is not refreshed for again (
   await page.locator('[data-path="first.md"]').waitFor();
 
   const walks = await walksAfterTheEcho(page, host, async () => {
-    await dragCardTo(page, 'first.md', 'done');
+    await dragCardTo(page, 'first.md', 'Done');
     await expectFile(vault, 'first.md').toContain('status: done');
   });
   expect(walks).toBe(0);
@@ -325,7 +325,7 @@ test('another program’s write straight after a drag, before its echo, still re
   await page.locator('[data-path="first.md"]').waitFor();
   const echoesBefore = await host.echoesSent();
 
-  await dragCardTo(page, 'first.md', 'done');
+  await dragCardTo(page, 'first.md', 'Done');
   await expectFile(vault, 'first.md').toContain('status: done');
   // A sync client brings the other machine's version, inside the echo's 400 ms.
   await vault.write('first.md', note(['type: task', 'status: doing'], '# First, from the laptop'));
@@ -333,10 +333,10 @@ test('another program’s write straight after a drag, before its echo, still re
   await expect.poll(() => host.echoesSent()).toBeGreaterThan(echoesBefore);
 
   await expect(
-    page.getByRole('region', { name: 'doing' }).locator('[data-path="first.md"]'),
+    page.getByRole('region', { name: 'Doing' }).locator('[data-path="first.md"]'),
   ).toBeVisible();
   await expect(
-    page.getByRole('region', { name: 'done' }).locator('[data-path="first.md"]'),
+    page.getByRole('region', { name: 'Done' }).locator('[data-path="first.md"]'),
   ).toHaveCount(0);
 });
 
@@ -356,11 +356,11 @@ async function boardForCounting(page: Page) {
 
 /** Adds a card in `doing` from the board, and resolves to the path of the note it made. */
 async function addCard(page: Page, title: string): Promise<string> {
-  await page.getByRole('button', { name: 'Add to doing' }).click();
-  const input = page.getByRole('textbox', { name: 'New card in doing' });
+  await page.getByRole('button', { name: 'Add to Doing' }).click();
+  const input = page.getByRole('textbox', { name: 'New card in Doing' });
   await input.fill(title);
   await input.press('Enter');
-  const card = page.getByRole('region', { name: 'doing' }).locator(`[data-path$="${title}.md"]`);
+  const card = page.getByRole('region', { name: 'Doing' }).locator(`[data-path$="${title}.md"]`);
   await card.waitFor();
   return (await card.getAttribute('data-path')) ?? '';
 }
@@ -391,9 +391,9 @@ test('another program’s write straight after a new card, before its echo, stil
   await expect.poll(() => host.echoesSent()).toBeGreaterThan(echoesBefore);
 
   await expect(
-    page.getByRole('region', { name: 'backlog' }).locator(`[data-path="${made}"]`),
+    page.getByRole('region', { name: 'Backlog' }).locator(`[data-path="${made}"]`),
   ).toBeVisible();
   await expect(
-    page.getByRole('region', { name: 'doing' }).locator(`[data-path="${made}"]`),
+    page.getByRole('region', { name: 'Doing' }).locator(`[data-path="${made}"]`),
   ).toHaveCount(0);
 });
