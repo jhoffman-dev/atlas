@@ -105,11 +105,85 @@ async function addArtifacts(vault: FakeVault): Promise<void> {
   );
 }
 
+/** Tasks around today, so the calendar's ranges and the roadmap have something to show. */
+async function addCalendarTasks(vault: FakeVault): Promise<void> {
+  // The shots run on the machine's clock, so the dates are taken from it: a
+  // fixed month would empty the calendar the month after it was written.
+  const day = (offset: number): string => {
+    const at = new Date();
+    at.setDate(at.getDate() + offset);
+    return at.toLocaleDateString('en-CA');
+  };
+  const task = (title: string, fields: readonly string[]) =>
+    ['---', 'type: task', `title: ${title}`, ...fields, '---', '', `${title}.`, ''].join('\n');
+  const tasks: [string, readonly string[]][] = [
+    [
+      'Larkspur payroll import',
+      ['id: S-01', 'status: doing', `scheduled: ${day(-6)}`, `due: ${day(-3)}T10:00`],
+    ],
+    [
+      'Mara Quill onboarding call',
+      [
+        'id: S-02',
+        'status: next',
+        `scheduled: ${day(-3)}`,
+        `due: ${day(-2)}T14:30`,
+        `end: ${day(-2)}T15:30`,
+        'blocked_by: [S-01]',
+      ],
+    ],
+    [
+      'Tobias Fenn contract review',
+      [
+        'id: S-03',
+        'status: review',
+        `scheduled: ${day(-2)}`,
+        `due: ${day(2)}T09:00`,
+        `end: ${day(2)}T10:30`,
+        'blocked_by: [S-02]',
+      ],
+    ],
+    [
+      'Quarterly numbers',
+      ['id: S-04', 'status: waiting', `scheduled: ${day(1)}`, `due: ${day(5)}`],
+    ],
+    [
+      'Renew the office lease',
+      ['id: S-05', 'status: backlog', `scheduled: ${day(3)}`, `due: ${day(3)}`],
+    ],
+    [
+      'Ship the autumn release',
+      ['id: S-06', 'status: next', `scheduled: ${day(4)}`, `due: ${day(12)}`, 'blocked_by: [S-03]'],
+    ],
+    [
+      'Team lunch',
+      [
+        'id: S-07',
+        'status: done',
+        `scheduled: ${day(-4)}`,
+        `due: ${day(-4)}T12:00`,
+        `end: ${day(-4)}T13:00`,
+      ],
+    ],
+    [
+      'Write the weekly review',
+      ['id: S-08', 'status: inbox', `scheduled: ${day(0)}`, `due: ${day(0)}T16:00`],
+    ],
+    ['Budget sign-off', ['id: S-09', 'status: doing', `scheduled: ${day(0)}`, `due: ${day(0)}`]],
+    [
+      'Plan the next sprint',
+      ['id: S-10', 'status: next', `scheduled: ${day(8)}`, `due: ${day(10)}`],
+    ],
+  ];
+  for (const [title, fields] of tasks) await vault.write(`tasks/${title}.md`, task(title, fields));
+}
+
 async function prepareVault(): Promise<FakeVault> {
   const vault = await createVault();
   await cp(VAULT, vault.root, { recursive: true });
   await vault.write('Specimen.md', SPECIMEN);
   await addArtifacts(vault);
+  await addCalendarTasks(vault);
   return vault;
 }
 
@@ -238,7 +312,19 @@ async function shootViews(page: Page, theme: string): Promise<void> {
     await page.locator('.table__sheet').evaluate((sheet) => sheet.scrollTo(0, sheet.scrollHeight));
     await shoot(page, `all-tasks-scrolled-${theme}`);
   }
-  if (await open('calendar', view(page, 'Calendar'))) await shoot(page, `calendar-${theme}`);
+  if (await open('calendar', view(page, 'Calendar'))) {
+    await shoot(page, `calendar-${theme}`);
+    const range = page.getByRole('radiogroup', { name: 'Calendar range' });
+    for (const [name, label] of [
+      ['week', 'Week'],
+      ['agenda', 'Agenda'],
+    ] as const) {
+      if (await open(`calendar ${name}`, [range.getByRole('radio', { name: label })])) {
+        await shoot(page, `calendar-${name}-${theme}`);
+      }
+    }
+    await open('calendar month', [range.getByRole('radio', { name: 'Month' })]);
+  }
   if (await open('timeline', view(page, 'Roadmap'))) await shoot(page, `timeline-${theme}`);
   const inbox = page.getByRole('navigation', { name: 'Vault' }).getByRole('button', {
     name: /^Inbox/,

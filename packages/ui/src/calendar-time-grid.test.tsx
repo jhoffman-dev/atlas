@@ -72,6 +72,7 @@ describe('the week, three days and a day', () => {
       const button = box?.querySelector('button');
       expect(button?.firstElementChild?.className).toBe('calendar__dot');
       expect(button?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+      expect(button?.getAttribute('title')).toBe('Review');
     }
     expect(note('trip.md')?.textContent).toBe('Trip');
   });

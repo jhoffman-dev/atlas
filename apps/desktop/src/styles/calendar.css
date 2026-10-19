@@ -184,6 +184,16 @@
   --pill-dot: var(--status-done-dot);
 }
 
+/* The title beside the dot. It is the flex row's shrinking child, so a long
+   name is cut with an ellipsis here, where `text-overflow` can act, rather
+   than on the row itself, where a bare text node would just be clipped. */
+.calendar__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The dot before a title, wherever an event is drawn (CalendarStatusDot). */
 .calendar__dot {
   background: var(--pill-dot);
@@ -211,8 +221,6 @@
   overflow: hidden;
   padding: 0 6px;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   width: 100%;
 }
 
@@ -242,8 +250,6 @@
   height: 22px;
   overflow: hidden;
   padding: 0 6px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ---- calendar ranges (U-14) ----
@@ -336,8 +342,6 @@
   overflow: hidden;
   padding: 0 8px;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .calendar__more-item:hover {

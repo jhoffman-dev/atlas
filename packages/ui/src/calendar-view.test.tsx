@@ -85,6 +85,13 @@ describe('CalendarView', () => {
     // The dot leads and the title follows it, on the same line.
     expect(entry.firstElementChild).toBe(dot);
     expect(entry.textContent).toBe('Doing it');
+    // The colour is never the only cue: the control names the status too.
+    expect(entry.getAttribute('title')).toBe('Doing');
+  });
+
+  it('names no status on an entry that has none', () => {
+    render(<CalendarView {...props} />);
+    expect(screen.getByRole('button', { name: 'Due today' }).hasAttribute('title')).toBe(false);
   });
 
   it('places a note with a time on its day, whatever the time', () => {
@@ -221,6 +228,7 @@ describe('a crowded day in the month', () => {
     const more = await screen.findByRole('dialog', { name: 'More on 2026-09-22' });
     const item = within(more).getByRole('button', { name: 'Two' });
     expect(item.getAttribute('data-tone')).toBe('next');
+    expect(item.getAttribute('title')).toBe('Next');
     expect(item.firstElementChild?.className).toBe('calendar__dot');
   });
 

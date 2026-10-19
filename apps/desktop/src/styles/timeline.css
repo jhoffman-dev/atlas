@@ -166,7 +166,8 @@
 }
 
 /* The chain that decides the end date, picked out from the work beside it.
-   Doubled so it outweighs the status rules above, whatever the tone. */
+   Doubled to tie the tone rules' specificity (0,2,0); it then wins only by
+   coming after them, so it must stay below every `[data-tone]` rule. */
 .timeline__bar.timeline__bar--critical {
   --bar-edge: var(--danger);
 }

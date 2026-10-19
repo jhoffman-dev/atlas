@@ -16,6 +16,7 @@ import {
   eventsOn,
   isTimed,
   layoutDay,
+  noteStatus,
   noteTone,
   SNAP_MINUTES,
   timeLabel,
@@ -590,6 +591,7 @@ function ClockNoteBox({
         ref={buttonRef}
         {...attributes}
         {...(placing !== null && { 'aria-label': `Plan ${placing} in ${event.title}` })}
+        title={noteStatus(event.values) ?? undefined}
         onClick={() => gestures.open(event.path)}
       >
         <CalendarStatusDot />

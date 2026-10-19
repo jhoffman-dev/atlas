@@ -14,6 +14,7 @@ import {
   dayOverflow,
   eventsOn,
   monthGrid,
+  noteStatus,
   noteTone,
   WEEKDAY_LABELS,
   type CalendarDay,
@@ -144,7 +145,7 @@ export function CalendarMonthGrid({
           >
             <span className="calendar__lifted-title">
               <CalendarStatusDot />
-              {held.title}
+              <span className="calendar__title">{held.title}</span>
             </span>
           </article>
         )}
@@ -204,10 +205,11 @@ function MoreOnDay({
                 type="button"
                 className="calendar__more-item"
                 data-tone={noteTone(entry.values) ?? undefined}
+                title={noteStatus(entry.values) ?? undefined}
                 onClick={() => onOpen(entry.path)}
               >
                 <CalendarStatusDot />
-                {entry.title}
+                <span className="calendar__title">{entry.title}</span>
               </button>
             ))}
           </Popover.Popup>
@@ -295,9 +297,15 @@ function Entry({
       data-tone={noteTone(entry.values) ?? undefined}
       {...listeners}
     >
-      <button type="button" ref={buttonRef} {...attributes} onClick={() => onOpen(entry.path)}>
+      <button
+        type="button"
+        ref={buttonRef}
+        {...attributes}
+        title={noteStatus(entry.values) ?? undefined}
+        onClick={() => onOpen(entry.path)}
+      >
         <CalendarStatusDot />
-        {entry.title}
+        <span className="calendar__title">{entry.title}</span>
       </button>
     </article>
   );
