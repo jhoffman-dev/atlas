@@ -48,13 +48,14 @@ const task = (title: string, status: string, body: string) =>
     '',
   ].join('\n');
 
-async function openVault(page: Page) {
+async function openVault(page: Page, extra: readonly { name: string; content: string }[] = []) {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.mkdir('.atlas/views');
   await vault.write('.atlas/types/task.md', TASK_TYPE);
   await vault.write('.atlas/views/All tasks.md', view('All tasks', 'table'));
   await vault.write('.atlas/views/Board.md', view('Board', 'board', ['groupBy: status']));
+  for (const file of extra) await vault.write(file.name, file.content);
   await vault.write(
     'first.md',
     task('First', 'review', 'The first task’s body, pointing at [[Second]].'),
@@ -224,6 +225,59 @@ test('list rows are 34px on line-soft, gallery cards hairline and still, feed ro
   await expect(feedRow).toHaveCSS('border-bottom-color', lineSoft);
   await expect(feedRow).toHaveCSS('box-shadow', 'none');
   await expect(feedRow.getByRole('checkbox', { name: 'Mark First done' })).toBeVisible();
+});
+
+/**
+ * A title with nothing to break at (a 130-character slug) wraps inside its
+ * feed row rather than running out of it; and in a pane too narrow for a list
+ * row's fields, the fields are cut at the row's edge rather than overflowing
+ * it. The narrow view lists two fields so the row has something to cut.
+ */
+test('an unbroken title stays inside its feed row, and a narrow list row cuts its fields', async ({
+  page,
+}) => {
+  const unbroken = 'u'.repeat(130);
+  const narrowView = [
+    '---',
+    'atlas: view',
+    'type: task',
+    'layout: list',
+    'columns: [phase, status]',
+    'limit: 50',
+    '---',
+    '',
+    '# Narrow',
+    '',
+  ].join('\n');
+  await openVault(page, [
+    { name: `${unbroken}.md`, content: task(unbroken, 'backlog', 'A body.') },
+    { name: '.atlas/views/Narrow.md', content: narrowView },
+  ]);
+  await openView(page, 'All tasks');
+  await page.getByRole('button', { name: 'Layout', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: /^Feed/ }).click();
+  const article = page.getByRole('article', { name: unbroken });
+  const row = page
+    .getByRole('list', { name: 'Notes' })
+    .getByRole('listitem')
+    .filter({ has: article });
+  const title = article.getByRole('button', { name: unbroken });
+  await expect(title).toBeVisible();
+  const [rowBox, titleBox] = await Promise.all([row.boundingBox(), title.boundingBox()]);
+  expect(rowBox).not.toBeNull();
+  expect(titleBox).not.toBeNull();
+  expect((titleBox?.x ?? 0) + (titleBox?.width ?? 0)).toBeLessThanOrEqual(
+    (rowBox?.x ?? 0) + (rowBox?.width ?? 0) + 0.5,
+  );
+
+  await page.setViewportSize({ width: 420, height: 900 });
+  await openView(page, 'Narrow');
+  const list = page.getByRole('list', { name: 'Notes' });
+  await expect(list.getByRole('button', { name: 'first', exact: true })).toBeVisible();
+  // Nothing in any row runs past the list's own box.
+  await expect
+    .poll(() => list.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBe(0);
 });
 
 test('the Layout menu says why a calendar cannot be chosen for a type with no date', async ({

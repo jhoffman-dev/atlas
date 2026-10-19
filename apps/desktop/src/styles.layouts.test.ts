@@ -105,6 +105,16 @@ describe('the list layout (slice 13d)', () => {
     expect(styleOf('.list-view__row:hover').get('background')).toBe('var(--hover)');
   });
 
+  it('lets the fields give way in a narrow pane, cut at the row’s edge, before the title', () => {
+    const fields = styleOf('.list-view__fields');
+    expect(fields.get('flex')).toBe('0 1 auto');
+    expect(fields.get('min-width')).toBe('0');
+    expect(fields.get('overflow')).toBe('hidden');
+    const title = styleOf('.list-view__title');
+    expect(title.get('flex')).toBe('none');
+    expect(title.get('text-overflow')).toBe('ellipsis');
+  });
+
   it('makes the title the one emphasised thing on the row, the summary metadata', () => {
     const title = styleOf('.list-view__title');
     expect(title.get('font-size')).toBe('var(--text-emphasis)');
@@ -162,6 +172,13 @@ describe('the feed layout (slice 13d)', () => {
     expect(row.has('background')).toBe(false);
     expect(row.has('box-shadow')).toBe(false);
     expect(row.has('border-radius')).toBe(false);
+  });
+
+  it('wraps a title with nothing to break at, as the gallery does, instead of overflowing the row', () => {
+    const title = styleOf('.feed__title');
+    expect(title.get('overflow-wrap')).toBe('anywhere');
+    expect(title.get('max-width')).toBe('100%');
+    expect(styleOf('.gallery__title-text').get('overflow-wrap')).toBe('anywhere');
   });
 
   it('divides a note’s fields from its body with line-soft', () => {
