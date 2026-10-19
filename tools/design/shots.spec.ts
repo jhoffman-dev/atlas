@@ -639,19 +639,24 @@ async function shootQueries(page: Page, theme: string): Promise<void> {
   await page.getByRole('button', { name: 'Save as view' }).click();
   await page.getByRole('textbox', { name: 'View name' }).fill(`Open by phase ${theme}`);
   await page.getByRole('button', { name: 'Save view' }).click();
-  const grouped = page.locator('.qresult').first();
+  // A saved view is drawn as its table (issue #6): a header row per group, its
+  // sub-groups one step in. Waiting on a sub-group waits on both levels.
+  const grouped = page.locator('.table__group-toggle[data-depth="1"]').first();
   await grouped.waitFor({ timeout: 10_000 });
-  // The groups, not the builder above them, are what this shot is of.
-  await page
-    .getByRole('radiogroup', { name: 'Edit the query as' })
-    .getByRole('radio', { name: 'Text' })
-    .click();
+  // The groups, not the builder above them, are what this shot is of. A saved
+  // view may open with its query folded to one line (#341), with nothing to
+  // shrink; open, its text is shorter than its builder.
+  const editQuery = page.getByRole('button', { name: 'Edit query' });
+  await editQuery.or(modes).first().waitFor();
+  if (!(await editQuery.isVisible())) await modes.getByRole('radio', { name: 'Text' }).click();
   await grouped.scrollIntoViewIfNeeded();
   await shoot(page, `query-view-grouped-${theme}`);
   await page
     .getByRole('radiogroup', { name: 'Layout' })
     .getByRole('radio', { name: 'Board' })
     .click();
+  // Sub-grouped, the board is drawn as swimlanes, one region per status.
+  await page.getByRole('region', { name: /lane$/ }).first().waitFor({ timeout: 10_000 });
   await shoot(page, `query-view-board-${theme}`);
 }
 
@@ -1349,6 +1354,11 @@ async function inboxClarifyVault(): Promise<FakeVault> {
   await vault.write('Tasks/Book the hall.md', task().join('\n'));
   await vault.write('Inbox/Meetings/2026-10-09 Payroll sync.md', '---\ntype: meeting\n---\n');
   await vault.write('Inbox/An idea about seed trays.md', 'Stack them.\n');
+  // Frontmatter no YAML reader can read: made a task, it is refused on its row.
+  await vault.write(
+    'Inbox/Notes from the Larkspur call.md',
+    '---\ntitle: [unclosed\n---\nCall back.\n',
+  );
   return vault;
 }
 
@@ -1365,15 +1375,16 @@ async function shootInboxClarify(page: Page, theme: string): Promise<void> {
     .getByRole('combobox', { name: 'File Chase the Larkspur quote under' })
     .selectOption({ label: 'Ledger migration' });
   await shoot(page, `inbox-clarify-${theme}`);
-  // Waiting with nobody picked, pressed anyway: the refusal on its row.
+  // A refusal on its row. Waiting with nobody picked is no longer one (#202):
+  // a note whose frontmatter cannot be read, made a task, is.
   await inbox
-    .getByRole('combobox', { name: 'Status of Renew the passport' })
-    .selectOption({ label: 'Waiting' });
-  await inbox
-    .getByRole('form', { name: 'Clarify Renew the passport' })
-    .getByRole('button', { name: 'Done' })
-    .press('Enter');
-  await inbox.getByRole('alert').waitFor();
+    .getByRole('row')
+    .filter({
+      has: page.getByRole('button', { name: 'Notes from the Larkspur call', exact: true }),
+    })
+    .getByRole('button', { name: 'Make task' })
+    .click();
+  await inbox.getByRole('alert').filter({ hasText: 'frontmatter could not be read' }).waitFor();
   await shoot(page, `inbox-clarify-refused-${theme}`);
 }
 
