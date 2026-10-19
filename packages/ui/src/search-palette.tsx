@@ -75,8 +75,11 @@ export function SearchPalette({
   useEffect(() => {
     if (scrolledFor.current === selected) return;
     scrolledFor.current = selected;
-    // No list is drawn while nothing matches, and then there is nothing to keep in view.
-    hitsRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+    // No list is drawn while nothing matches, and then there is nothing to keep in
+    // view; jsdom has no scrollIntoView, and with nothing laid out nothing needs it.
+    hitsRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest' });
   }, [selected]);
   return (
     <Dialog.Root

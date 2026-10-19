@@ -51,4 +51,9 @@ test('arrowing through the results keeps the selected one in view (#372)', async
   for (let step = 0; step < 19; step += 1) await searchbox.press('ArrowUp');
   await expect(options.nth(0)).toHaveAttribute('aria-selected', 'true');
   await expect.poll(() => selectedIsInView(palette)).toBe(true);
+
+  // Up from the first wraps to the last, and the list follows it down.
+  await searchbox.press('ArrowUp');
+  await expect(options.nth(19)).toHaveAttribute('aria-selected', 'true');
+  await expect.poll(() => selectedIsInView(palette)).toBe(true);
 });
