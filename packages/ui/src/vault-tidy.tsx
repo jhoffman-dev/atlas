@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Icon } from './icon.tsx';
+import type { InboxOfferReading } from './inbox-offer.ts';
 
 /** One note the tidy would move, as the preview lists it. */
 export interface VaultTidyMove {
@@ -19,7 +20,7 @@ export interface VaultTidyPreviewData {
   readonly refused: readonly VaultTidyRefusal[];
 }
 
-export interface VaultTidyProps {
+export interface VaultTidyProps extends InboxOfferReading {
   /** What the tidy would do; null when there is nothing to move. */
   readonly preview: VaultTidyPreviewData | null;
   /** Whether the whole preview is shown, rather than the one-line offer. */

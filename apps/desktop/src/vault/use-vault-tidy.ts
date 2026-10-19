@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { noteTitle, type TidyPlan } from '@atlas/domain';
+import { createVaultPath, noteTitle, type TidyPlan } from '@atlas/domain';
 import {
   applyVaultTidy,
   previewVaultTidy,
@@ -8,6 +8,7 @@ import {
 } from '@atlas/application';
 import type { VaultTidyProps } from '@atlas/ui';
 import { localToday } from '../today.ts';
+import { keepIfSame } from '../same-reading.ts';
 
 const notes = (count: number) => (count === 1 ? '1 note' : `${count} notes`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -30,7 +31,7 @@ export function useVaultTidy({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the vault is only read for it. */
+  /** Whether the Inbox page is showing: read ahead from the index once it is ready, walked again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After the tidy moved notes, so the tree and the index are read again. */
@@ -42,6 +43,11 @@ export function useVaultTidy({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // The vault last previewed for the offer: until this one is, the Inbox holds its rows (#130).
+  const [previewedFor, setPreviewedFor] = useState<string | null>(null);
+  // Read in the effect, which runs the first preview as soon as the index is ready —
+  // before the Inbox opens, so opening it usually waits for nothing — and again on each open.
+  const prefetched = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would move twice.
   const running = useRef(false);
@@ -55,14 +61,33 @@ export function useVaultTidy({
   }, [vaultKey]);
 
   useEffect(() => {
-    if (!open || !indexReady || vaultKey === null || dismissed) return;
+    if (!indexReady || vaultKey === null || dismissed) return;
+    // Read ahead once per vault, not again on the index's news: by design, a note dropped in while the Inbox is shut lands as it opens, held still like any late arrival (#130).
+    if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
-    previewVaultTidy(ports, localToday())
+    // Read ahead from the index's list of notes: walking the vault then would be
+    // taken for a refresh after whatever it last reported (#254). As the Inbox
+    // opens it walks, so what it shows is the disk's; the same plan costs nothing.
+    const ahead = !open;
+    const known = ahead
+      ? ports.index.manifest().then((entries) => entries.map(({ path }) => createVaultPath(path)))
+      : Promise.resolve(undefined);
+    known
+      .then((notePaths) =>
+        // An index that lists nothing has nothing to go on: left for the open's walk.
+        ahead && notePaths?.length === 0 ? null : previewVaultTidy(ports, localToday(), notePaths),
+      )
       .then((read) => {
-        if (!cancelled) setPlan(read);
+        if (cancelled || read === null) return;
+        setPlan((was) => keepIfSame(was, read));
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setProblem(`The vault could not be read for a tidy: ${reasonOf(cause)}`);
+        if (cancelled) return;
+        setProblem(`The vault could not be read for a tidy: ${reasonOf(cause)}`);
+        setPreviewedFor(vaultKey);
+        prefetched.current = vaultKey;
       });
     return () => {
       cancelled = true;
@@ -112,8 +137,12 @@ export function useVaultTidy({
   }, []);
 
   const offered = !dismissed && plan !== null && plan.moves.length > 0 ? plan : null;
-  if (offered === null && result === null && problem === null) return null;
+  const reading = open && vaultKey !== null && !dismissed && previewedFor !== vaultKey;
+  const waitingForIndex = reading && !indexReady;
+  if (!reading && offered === null && result === null && problem === null) return null;
   return {
+    reading,
+    waitingForIndex,
     preview: offered === null ? null : { moves: offered.moves, refused: offered.refused },
     open: expanded,
     busy,

@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Icon } from './icon.tsx';
+import type { InboxOfferReading } from './inbox-offer.ts';
 
 /** What moving the vault's PARA notes onto the Project type would do, as the preview shows it. */
 export interface ParaMigrationPreviewData {
@@ -11,7 +12,7 @@ export interface ParaMigrationPreviewData {
   readonly skipped: readonly { readonly path: string; readonly line: string }[];
 }
 
-export interface ParaMigrationProps {
+export interface ParaMigrationProps extends InboxOfferReading {
   /** What the move would do; null when nothing is left to move. */
   readonly preview: ParaMigrationPreviewData | null;
   /** Whether the whole preview is shown, rather than the one-line offer. */

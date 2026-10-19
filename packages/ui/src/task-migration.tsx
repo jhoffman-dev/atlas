@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { optionLabel } from '@atlas/domain';
 import { Icon } from './icon.tsx';
+import type { InboxOfferReading } from './inbox-offer.ts';
 
 /** One task as the preview lists it: its status now, and what it becomes. */
 export interface TaskMigrationRow {
@@ -32,7 +33,7 @@ export interface TaskMigrationPreviewData {
   readonly views: readonly string[];
 }
 
-export interface TaskMigrationProps {
+export interface TaskMigrationProps extends InboxOfferReading {
   /** What the migration would do; null when the tasks already follow GTD. */
   readonly preview: TaskMigrationPreviewData | null;
   /** Whether the whole preview is shown, rather than the one-line offer. */
