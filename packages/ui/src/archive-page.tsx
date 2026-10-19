@@ -83,11 +83,11 @@ function ArchiveSearch({
   onSearch: (search: string) => void;
 }) {
   return (
-    <label className="archive__search">
-      <Icon name="search" size={15} />
+    <label className="page-search archive__search">
+      <Icon name="search" size={14} />
       <input
         type="search"
-        className="archive__search-input"
+        className="page-search__input"
         placeholder="Search the Archive…"
         aria-label="Search the Archive"
         value={search}
@@ -170,7 +170,7 @@ function ArchiveList({
                 <td className="archive__actions">
                   <button
                     type="button"
-                    className="btn btn--ghost archive__unarchive"
+                    className="btn btn--ghost btn--sm"
                     aria-label={`Unarchive ${note.title}`}
                     disabled={busy}
                     onClick={() => onUnarchive([note.path])}

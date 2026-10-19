@@ -109,54 +109,65 @@ function RuleList({ rows, error, openId, onOpen, onToggle, onRunNow, busy }: Aut
     );
   }
   return (
-    <ul className="automations__list" aria-label="All automations">
-      {rows.map((row) => (
-        <li
-          key={row.id}
-          className={
-            row.id === openId ? 'automation-card automation-card--open' : 'automation-card'
-          }
-        >
-          <Toggle
-            label={`Run ${row.name} on its schedule`}
-            checked={row.enabled}
-            disabled={busy || row.problem !== null}
-            onChange={(enabled) => onToggle(row.id, enabled)}
-          />
-          <div className="automation-card__main">
-            <button type="button" className="automation-card__name" onClick={() => onOpen(row.id)}>
-              {row.name}
-            </button>
-            <p className="automation-card__what">
-              {row.problem ?? `${row.action} · ${row.schedule}`}
-            </p>
-            {row.notice !== null && (
-              <p className="automation-card__notice" role="status">
-                {row.notice}
-              </p>
-            )}
-          </div>
-          <dl className="automation-card__times">
-            <div>
-              <dt>Last run</dt>
-              <dd>{row.lastRun ?? 'Never'}</dd>
-            </div>
-            <div>
-              <dt>Next run</dt>
-              <dd>{row.nextRun ?? '—'}</dd>
-            </div>
-          </dl>
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            aria-label={`Run ${row.name} now`}
-            disabled={busy || row.problem !== null}
-            onClick={() => onRunNow(row.id)}
+    <ul className="page-list" aria-label="All automations">
+      {rows.map((row) => {
+        // One line per row, so what it does is cut short; its title holds the whole of it.
+        const what = row.problem ?? `${row.action} · ${row.schedule}`;
+        return (
+          <li
+            key={row.id}
+            className={
+              row.id === openId
+                ? 'page-list__row automation-card automation-card--open'
+                : 'page-list__row automation-card'
+            }
           >
-            Run now
-          </button>
-        </li>
-      ))}
+            <Toggle
+              label={`Run ${row.name} on its schedule`}
+              checked={row.enabled}
+              disabled={busy || row.problem !== null}
+              onChange={(enabled) => onToggle(row.id, enabled)}
+            />
+            <div className="automation-card__main">
+              <button
+                type="button"
+                className="automation-card__name"
+                aria-current={row.id === openId ? 'true' : undefined}
+                onClick={() => onOpen(row.id)}
+              >
+                {row.name}
+              </button>
+              <p className="automation-card__what" title={what}>
+                {what}
+              </p>
+              {row.notice !== null && (
+                <p className="automation-card__notice" role="status">
+                  {row.notice}
+                </p>
+              )}
+            </div>
+            <dl className="automation-card__times">
+              <div>
+                <dt>Last run</dt>
+                <dd>{row.lastRun ?? 'Never'}</dd>
+              </div>
+              <div>
+                <dt>Next run</dt>
+                <dd>{row.nextRun ?? '—'}</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              aria-label={`Run ${row.name} now`}
+              disabled={busy || row.problem !== null}
+              onClick={() => onRunNow(row.id)}
+            >
+              Run now
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -20,7 +20,7 @@ export function DryRunResult({
   }
   return (
     <section className="automation-dry-run" aria-label="Dry run">
-      <h3 className="automation-dry-run__summary">{result.summary}</h3>
+      <h3 className="page-section__title">{result.summary}</h3>
       {result.notes.length > 0 && (
         <ul className="automation-dry-run__notes" aria-label="Notes it would take">
           {result.notes.map((note) => (
@@ -51,7 +51,7 @@ export function DryRunResult({
 export function RunLog({ entries }: { entries: readonly LogEntryView[] }) {
   return (
     <section className="automation-log" aria-label="Run log">
-      <h3 className="automation-log__title">Log</h3>
+      <h3 className="page-section__title">Log</h3>
       {entries.length === 0 ? (
         <p className="automation-log__empty">It has not run yet.</p>
       ) : (

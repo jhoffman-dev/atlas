@@ -168,4 +168,21 @@ describe('ActivityPage', () => {
     page({ rows: null });
     expect(screen.getByText('Reading the log…')).toBeTruthy();
   });
+
+  it('keeps each line to one row, so the whole message is on its title (13b)', () => {
+    page();
+    const message = screen.getByText('PUT v1/notes/{path}/body refused for Call (conflict).');
+    expect(message.getAttribute('title')).toBe(
+      'PUT v1/notes/{path}/body refused for Call (conflict).',
+    );
+  });
+
+  it('draws each kind filter as a ghost control that reads as pressed while chosen (13b)', () => {
+    page({ kinds: ['chat'] });
+    const chosen = screen.getByRole('button', { name: 'Claude' });
+    const other = screen.getByRole('button', { name: 'Index' });
+    expect(chosen.className.split(' ')).toContain('btn--ghost');
+    expect(chosen.getAttribute('aria-pressed')).toBe('true');
+    expect(other.getAttribute('aria-pressed')).toBe('false');
+  });
 });

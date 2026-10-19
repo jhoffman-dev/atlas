@@ -3,9 +3,11 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- Automations (P25) ----
-   A page like the Archive's: its head, then — while one is open — the rule's
-   editor as a card, then every rule as a card of its own: a switch, its name
-   and what it does, when it last ran and runs next, and "Run now". */
+   A page like the Archive's: its bar, then — while one is open — the rule's
+   editor between hairlines, its run log under it as rows, then every rule as
+   a 34px hairline row of its own (page.css .page-list): a switch, its name
+   at 13/500, what it does and when it last ran and runs next in ink-3 on the
+   same line, and "Run now" as a ghost button (UI v2 slice 13b). */
 
 /* In the 40px bar: one row, never wrapping; its buttons give way instead. */
 .automations__adders {
@@ -22,13 +24,19 @@
   gap: 6px;
 }
 
+/* What the last command did: on the well between hairlines, as the Today
+   page's notice is. */
 .automations__notice {
-  background: var(--chip);
-  border-radius: var(--radius-pill);
-  color: var(--ink-2);
-  font-size: var(--text-ui);
-  margin: 0 0 var(--space-3);
-  padding: 8px 16px;
+  align-items: center;
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  display: flex;
+  font-size: var(--text-body);
+  margin: 0;
+  min-height: 34px;
+  padding: 6px 12px;
 }
 
 .automations__empty {
@@ -36,31 +44,32 @@
   padding: var(--space-5) 0;
 }
 
-.automations__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .automation-card {
-  align-items: center;
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   grid-template-columns: auto minmax(0, 1fr) auto auto;
-  padding: var(--space-3) var(--space-4);
 }
 
-.automation-card--open {
-  box-shadow: var(--ring);
+/* The rule open in the editor above: the active item's fill (the nav's).
+   Ink-3 falls short of AA on that fill (4.3:1 in the light theme), so the
+   open row's metadata is lifted to ink-2. */
+.automation-card--open,
+.automation-card--open:hover {
+  background: var(--selected);
 }
 
+.automation-card--open .automation-card__what,
+.automation-card--open .automation-card__times,
+.automation-card--open .automation-card__times dt,
+.automation-card--open .automation-card__times dd {
+  color: var(--ink-2);
+}
+
+/* The name, what it does and any notice on one line, the name kept whole. */
 .automation-card__main {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -68,29 +77,32 @@
   appearance: none;
   background: none;
   border: 0;
+  border-radius: var(--radius-chip);
   color: var(--ink);
   cursor: pointer;
+  flex: none;
   font: inherit;
-  font-size: var(--text-body);
-  font-weight: 700;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
   padding: 0;
   text-align: left;
 }
 
 .automation-card__name:hover {
-  color: var(--accent-text);
+  text-decoration: underline;
 }
 
 .automation-card__name:focus-visible {
-  border-radius: var(--radius-chip);
   box-shadow: var(--ring);
   outline: none;
 }
 
 .automation-card__what {
-  color: var(--ink-2);
-  font-size: var(--text-small);
-  margin: 2px 0 0;
+  color: var(--ink-3);
+  flex: 0 1 auto;
+  font-size: var(--text-meta);
+  margin: 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -98,40 +110,56 @@
 
 .automation-card__notice {
   color: var(--warning);
-  font-size: var(--text-small);
-  margin: 2px 0 0;
+  flex: 0 1 auto;
+  font-size: var(--text-meta);
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* When it last ran and runs next: two terms on one line, a · between. */
 .automation-card__times {
+  color: var(--ink-3);
   display: flex;
-  gap: var(--space-5);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  gap: var(--space-2);
   margin: 0;
+  white-space: nowrap;
+}
+
+.automation-card__times > div {
+  display: flex;
+  gap: 4px;
+}
+
+.automation-card__times > div + div::before {
+  color: var(--sep);
+  content: '·';
+  margin-right: var(--space-1);
 }
 
 .automation-card__times dt {
   color: var(--ink-3);
-  font-size: var(--text-label);
-  font-weight: 700;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
 }
 
 .automation-card__times dd {
-  color: var(--ink-2);
-  font-size: var(--text-small);
-  margin: 2px 0 0;
+  color: var(--ink-3);
+  margin: 0;
   max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* The editor: between hairlines on the surface, no card and no shadow. */
 .automation-editor {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  margin-bottom: var(--space-5);
-  padding: var(--space-5);
+  padding: var(--space-2) 0 var(--space-4);
 }
 
 .automation-editor__form {
@@ -151,12 +179,11 @@
   grid-column: 1 / -1;
 }
 
+/* A field's label is the table's column header: 11.5/500 in ink-3. */
 .automation-editor__label {
   color: var(--ink-3);
-  font-size: var(--text-label);
-  font-weight: 700;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-size: var(--text-header);
+  font-weight: 500;
 }
 
 .automation-editor__row,
@@ -224,17 +251,11 @@
   gap: var(--space-2);
 }
 
+/* The dry run and the log: a section each, headed at 15/600 over a hairline. */
 .automation-dry-run,
 .automation-log {
-  border-top: 1px solid var(--line);
-  padding-top: var(--space-4);
-}
-
-.automation-dry-run__summary,
-.automation-log__title {
-  font-size: var(--text-body);
-  font-weight: 700;
-  margin: 0 0 var(--space-2);
+  display: flex;
+  flex-direction: column;
 }
 
 .automation-dry-run__notes,
@@ -246,63 +267,84 @@
   padding: 0;
 }
 
+/* Each note it would take: a hairline row, its path in ink-3 beside the title. */
 .automation-dry-run__notes li {
   align-items: center;
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
   gap: var(--space-3);
-  padding: 4px 0;
+  height: 34px;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.automation-dry-run__notes li:hover {
+  background: var(--hover);
 }
 
 .automation-dry-run__path {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .automation-dry-run__passed {
-  color: var(--ink-2);
-  font-size: var(--text-small);
-  margin-top: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  padding: var(--space-2) 12px 0;
+}
+
+.automation-dry-run__passed li {
+  line-height: 22px;
 }
 
 .automation-log__empty {
   color: var(--ink-2);
   font-size: var(--text-ui);
   margin: 0;
+  padding: var(--space-3) 12px;
 }
 
 .automation-log__entries {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   max-height: 420px;
   overflow-y: auto;
 }
 
+/* A run: its heading and summary on a 34px line divided by a hairline, and
+   what it did to each note on the meta lines under it. */
 .automation-log__entry {
-  border-left: 3px solid var(--track);
-  padding-left: var(--space-3);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0 12px 6px;
+}
+
+.automation-log__entry:hover {
+  background: var(--hover);
 }
 
 .automation-log__heading {
   color: var(--ink);
-  font-size: var(--text-ui);
-  font-weight: 700;
+  display: inline;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
+  line-height: 34px;
   margin: 0;
 }
 
 .automation-log__summary {
-  color: var(--ink-2);
-  font-size: var(--text-ui);
-  margin: 2px 0 4px;
+  color: var(--ink-3);
+  display: inline;
+  font-size: var(--text-meta);
+  margin: 0 0 0 var(--space-2);
 }
 
 .automation-log__line {
-  color: var(--ink-2);
-  font-size: var(--text-small);
-  padding: 1px 0;
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  line-height: 20px;
 }
 
 .automation-log__line--left {
@@ -311,10 +353,10 @@
 
 @media (max-width: 760px) {
   .automation-card {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .automation-card__times {
-    grid-column: 2;
+    display: none;
   }
 }

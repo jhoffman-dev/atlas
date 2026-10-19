@@ -129,9 +129,9 @@ function NewTermForm({
   };
 
   return (
-    <form className="terms__new" aria-label="New term" onSubmit={submit}>
+    <form className="page-form" aria-label="New term" onSubmit={submit}>
       <label className="terms__field">
-        <span className="terms__label">Right spelling</span>
+        <span className="page-form__label">Right spelling</span>
         <input
           className={tried && problem !== null ? 'field field--invalid' : 'field'}
           type="text"
@@ -142,7 +142,7 @@ function NewTermForm({
         />
       </label>
       <label className="terms__field terms__field--grow">
-        <span className="terms__label">Misheard as</span>
+        <span className="page-form__label">Misheard as</span>
         <input
           className="field"
           type="text"
@@ -156,7 +156,7 @@ function NewTermForm({
         {MATCHING_RULE}
       </p>
       <label className="terms__field terms__field--kind">
-        <span className="terms__label">Kind</span>
+        <span className="page-form__label">Kind</span>
         <span className="select">
           <select
             className="field select__control"
@@ -204,7 +204,7 @@ function Conflicts({
 }) {
   return (
     <section className="terms__conflicts" aria-label="Conflicts">
-      <h2 className="terms__conflicts-title">
+      <h2 className="page-section__title terms__conflicts-title">
         <Icon name="term" size={16} />
         {conflicts.length === 1 ? '1 conflict' : `${conflicts.length} conflicts`}
       </h2>
@@ -212,10 +212,10 @@ function Conflicts({
         Each of these spellings is claimed by two notes that spell it differently, so Atlas leaves
         it as it is until one of them lets it go.
       </p>
-      <ul className="terms__conflict-list">
+      <ul className="page-list">
         {conflicts.map((conflict) => (
-          <li key={conflict.form} className="terms__conflict">
-            <span className="terms__form">“{conflict.form}”</span>
+          <li key={conflict.form} className="page-list__row terms__conflict">
+            <span className="page-list__title terms__form">“{conflict.form}”</span>
             {conflict.claims.map((claim) => (
               <ClaimButton key={claim.path} claim={claim} onOpen={onOpen} />
             ))}
