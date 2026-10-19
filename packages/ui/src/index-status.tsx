@@ -55,7 +55,7 @@ export function IndexSettings({
             {indexStatusText(index)}
           </span>
           <button
-            className="btn btn--tinted btn--sm"
+            className="btn btn--secondary"
             type="button"
             onClick={onRebuild}
             disabled={index.kind === 'working'}

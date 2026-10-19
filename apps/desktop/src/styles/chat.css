@@ -3,7 +3,10 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* --------------------------------------------------------------------------
-   Claude (P27): the chat, a raised panel beside the work, as a pane is.
+   Claude (P27): the chat in the aside slot, drawn as the right sidebar is
+   (FlowTable.dc.html, UI v2 slice 13i): a 36px bar on `bg`, then the
+   conversation as hairline rows on the surface, then the box to ask in. The
+   slot's width is the aside's own; slice 8b makes the chat one of its tabs.
    -------------------------------------------------------------------------- */
 .shell__aside {
   display: flex;
@@ -14,9 +17,8 @@
 }
 
 .chat {
-  background: var(--panel);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-panel);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -25,32 +27,35 @@
   overflow: hidden;
 }
 
+/* The bar is the tab strip's height, so it lines up with the panes' tabs. */
 .chat__bar {
   align-items: center;
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
   display: flex;
-  gap: var(--space-2);
-  padding: 10px var(--space-3) 10px var(--space-4);
+  flex: none;
+  gap: 8px;
+  height: 36px;
+  padding: 0 6px 0 12px;
 }
 
 .chat__spark {
-  color: var(--accent-text);
+  color: var(--ink-3);
 }
 
 .chat__name {
   color: var(--ink);
-  font-size: var(--text-ui);
-  font-weight: 700;
+  font-size: var(--text-column);
+  font-weight: 500;
 }
 
+/* The model is metadata beside the name, not a chip. */
 .chat__model {
-  background: var(--chip);
-  border-radius: var(--radius-pill);
-  color: var(--chip-ink);
-  font-size: var(--text-label);
-  font-weight: 600;
+  color: var(--ink-3);
+  font-size: var(--text-header);
+  font-weight: 500;
+  min-width: 0;
   overflow: hidden;
-  padding: 3px 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -61,9 +66,10 @@
 
 .chat__history {
   border-bottom: 1px solid var(--line);
+  flex: none;
   max-height: 220px;
   overflow-y: auto;
-  padding: var(--space-2) var(--space-3);
+  padding: 4px 0;
 }
 
 .chat__history ul {
@@ -72,16 +78,21 @@
   padding: 0;
 }
 
+/* Past chats are sidebar-height rows, edge to edge. */
 .chat__history button {
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
   color: var(--ink-2);
   cursor: pointer;
+  display: block;
   font: inherit;
-  font-size: var(--text-ui);
-  padding: 6px var(--space-2);
+  font-size: var(--text-body);
+  height: 28px;
+  overflow: hidden;
+  padding: 0 12px;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   width: 100%;
 }
 
@@ -94,63 +105,67 @@
 .chat__empty,
 .chat__notice {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   margin: 0;
+}
+
+.chat__history-empty {
+  padding: 6px 12px;
 }
 
 .chat__empty {
   margin: auto 0;
-  padding: var(--space-6) var(--space-4);
+  padding: 24px 16px;
   text-align: center;
+}
+
+.chat__notice {
+  padding: 8px 12px;
+}
+
+/* A notice is a band on the well between hairlines, never a card. */
+.chat__name-hint,
+.chat__problem,
+.chat__error {
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  margin: 0;
+  padding: 10px 12px;
 }
 
 .chat__name-hint {
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  align-items: flex-start;
+  border-top: 1px solid var(--line);
   color: var(--ink-2);
   display: flex;
   flex-direction: column;
-  font-size: var(--text-small);
-  gap: var(--space-2);
-  margin: 0 var(--space-3) var(--space-3);
-  padding: var(--space-3);
-  text-align: center;
+  gap: 8px;
 }
 
-.chat__name-hint p {
-  margin: 0;
-}
-
-.chat__problem,
-.chat__error {
-  background: color-mix(in srgb, var(--warning) 12%, var(--raised));
-  border-radius: var(--radius-card);
-  color: var(--ink);
-  font-size: var(--text-small);
-  margin: var(--space-3) var(--space-3) 0;
-  padding: var(--space-3);
-}
-
-.chat__error {
-  align-items: center;
-  background: color-mix(in srgb, var(--danger) 10%, var(--raised));
-  display: flex;
-  gap: var(--space-3);
-  justify-content: space-between;
-  margin: 0;
-}
-
+.chat__name-hint p,
 .chat__problem p,
 .chat__error p {
   margin: 0;
 }
 
+.chat__error {
+  align-items: center;
+  border-bottom: 0;
+  border-top: 1px solid var(--line);
+  color: var(--btn-destructive-ink);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
 .chat__fix {
   align-items: center;
   display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .chat__fix code,
@@ -159,7 +174,7 @@
   border-radius: var(--radius-chip);
   color: var(--code-ink);
   font-family: var(--font-mono);
-  font-size: var(--text-small);
+  font-size: var(--text-mono);
   padding: 3px 6px;
 }
 
@@ -167,10 +182,8 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--space-3);
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-4);
   /* The containing block of anything positioned in the transcript (a card's
      visually hidden labels): without it they escape this scroller and every
      clip above it, and the whole window scrolls to reach them. */
@@ -185,23 +198,21 @@
   flex-shrink: 0;
 }
 
-.chat__you {
-  align-self: flex-end;
-  background: var(--you);
-  border-radius: var(--radius-card) var(--radius-card) var(--radius-chip) var(--radius-card);
+/* The conversation is rows under hairlines. What the person said sits on
+   the well, so the two voices tell apart with no bubble. */
+.chat__you,
+.chat__claude {
+  border-bottom: 1px solid var(--line-soft);
   color: var(--ink);
   font-size: var(--text-body);
   line-height: var(--leading-body);
   margin: 0;
-  max-width: 85%;
-  padding: var(--space-2) var(--space-3);
-  white-space: pre-wrap;
+  padding: 8px 12px;
 }
 
-.chat__claude {
-  color: var(--ink-body);
-  font-size: var(--text-body);
-  line-height: var(--leading-body);
+.chat__you {
+  background: var(--well);
+  white-space: pre-wrap;
 }
 
 .chat__text {
@@ -212,7 +223,7 @@
 .chat__actions {
   display: flex;
   gap: 2px;
-  margin-top: 2px;
+  margin-top: 4px;
   opacity: 0.55;
 }
 
@@ -221,65 +232,61 @@
   opacity: 1;
 }
 
-.chat__actions .icon-button {
-  height: 24px;
-  width: 24px;
-}
-
+/* A tool call is a metadata line, its state told by the icon's ink. */
 .chat__tool {
   align-items: center;
-  align-self: flex-start;
-  background: var(--chip);
-  border-radius: var(--radius-pill);
-  color: var(--chip-ink);
-  display: inline-flex;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-2);
+  display: flex;
   flex-wrap: wrap;
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
   gap: 6px;
-  padding: 4px 10px;
+  min-height: 28px;
+  padding: 4px 12px;
 }
 
 .chat__tool[data-state='done'] .icon {
-  color: var(--success);
+  color: var(--status-done-ink);
 }
 
 .chat__tool[data-state='failed'] .icon {
-  color: var(--danger);
+  color: var(--btn-destructive-ink);
 }
 
 .chat__tool-detail {
   color: var(--ink-3);
-  font-weight: 500;
 }
 
 .chat__thinking {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   margin: 0;
+  padding: 8px 12px;
 }
 
 .chat__composer {
   border-top: 1px solid var(--line);
   display: flex;
+  flex: none;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: 8px;
+  padding: 10px 12px;
 }
 
+/* What the chat knows: a chip, since it is one value that can be taken off. */
 .chat__context {
   align-items: center;
   align-self: flex-start;
-  background: var(--raised);
+  background: var(--well);
   border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--ink-2);
   display: inline-flex;
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
   gap: 6px;
+  height: 22px;
   max-width: 100%;
-  padding: 3px 4px 3px 10px;
+  padding: 0 2px 0 8px;
 }
 
 .chat__context-title {
@@ -292,13 +299,13 @@
   align-items: center;
   background: none;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--ink-3);
   cursor: pointer;
   display: inline-flex;
-  height: 20px;
+  height: 18px;
   justify-content: center;
-  width: 20px;
+  width: 18px;
 }
 
 .chat__context-remove:hover {
@@ -306,17 +313,20 @@
   color: var(--ink);
 }
 
+/* The box to ask in is a field: a hairline on the surface, the ring while
+   it is written in. */
 .chat__ask {
   align-items: flex-end;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
   display: flex;
-  gap: var(--space-2);
-  padding: var(--space-2);
+  gap: 6px;
+  padding: 4px 4px 4px 8px;
 }
 
 .chat__ask:focus-within {
+  border-color: var(--focus);
   box-shadow: var(--ring);
 }
 
@@ -330,27 +340,36 @@
   line-height: var(--leading-body);
   max-height: 160px;
   outline: none;
-  padding: 2px var(--space-1);
+  padding: 4px 0;
   resize: none;
 }
 
+.chat__ask textarea::placeholder {
+  color: var(--ink-3);
+}
+
+/* Send is the panel's one primary action, drawn as the primary button is. */
 .chat__send {
   align-items: center;
-  background: var(--accent);
-  border: 0;
+  background: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-line);
   border-radius: var(--radius-button);
-  color: var(--accent-ink);
+  color: var(--btn-primary-ink);
   cursor: pointer;
   display: inline-flex;
   flex: none;
-  height: 32px;
+  height: 28px;
   justify-content: center;
-  width: 32px;
+  width: 28px;
+}
+
+.chat__send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--btn-primary-bg) 88%, var(--btn-primary-ink));
 }
 
 .chat__send:disabled {
   cursor: default;
-  opacity: 0.4;
+  opacity: 0.5;
 }
 
 .chat__send:focus-visible,
@@ -360,11 +379,10 @@
   outline: none;
 }
 
-/* A proposed change: the note's own blocks, marked as the change moves them. */
+/* A proposed change: one row of the conversation, its parts under soft
+   hairlines, and the note's own blocks marked as the change moves them. */
 .chat-proposal {
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -372,21 +390,23 @@
 
 .chat-proposal__head {
   align-items: center;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink-2);
+  color: var(--ink-3);
   display: flex;
-  font-size: var(--text-small);
+  font-size: var(--text-header);
+  font-weight: 500;
   gap: 6px;
-  padding: var(--space-2) var(--space-3);
+  min-height: 28px;
+  padding: 4px 12px 0;
 }
 
 .chat-proposal__kind {
-  font-weight: 700;
+  flex: none;
 }
 
+/* The one thing in bold on the row is the title. */
 .chat-proposal__title {
   color: var(--ink);
-  font-weight: 600;
+  font-size: var(--text-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -394,23 +414,23 @@
 
 /* Where Accept writes, in full: two notes can share a title. */
 .chat-proposal__path {
-  border-bottom: 1px solid var(--line);
-  color: var(--ink-2);
+  color: var(--ink-3);
   font-family: var(--font-mono);
-  font-size: var(--text-small);
+  font-size: var(--text-mono);
   margin: 0;
   overflow-wrap: anywhere;
-  padding: var(--space-1) var(--space-3);
+  padding: 0 12px 6px;
 }
 
 .chat-proposal__props {
+  border-top: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
-  font-size: var(--text-small);
-  gap: 4px;
+  font-size: var(--text-meta);
+  gap: 2px;
   list-style: none;
   margin: 0;
-  padding: var(--space-2) var(--space-3);
+  padding: 6px 12px;
 }
 
 .chat-proposal__props li {
@@ -421,19 +441,20 @@
 
 .chat-proposal__key {
   color: var(--ink-3);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .chat-proposal__props del {
-  color: var(--danger);
+  color: var(--btn-destructive-ink);
 }
 
 .chat-proposal__props ins {
-  color: var(--success);
+  color: var(--status-done-ink);
   text-decoration: none;
 }
 
 .chat-proposal__blocks {
+  border-top: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
   max-height: 360px;
@@ -444,7 +465,7 @@
 
 .chat-proposal__block {
   border-left: 3px solid transparent;
-  padding: 2px var(--space-3);
+  padding: 2px 12px;
 }
 
 .chat-proposal__block .editor {
@@ -457,16 +478,18 @@
   margin: 6px 0;
 }
 
+/* The diff's two tints are the Done pill's and the Reject button's, the
+   same pastels the rest of the app says "kept" and "gone" in. */
 .chat-proposal__block--added {
-  background: color-mix(in srgb, var(--success) 10%, var(--raised));
-  border-left-color: var(--success);
+  background: var(--status-done-tint);
+  border-left-color: var(--status-done-dot);
 }
 
 .chat-proposal__block--removed {
-  background: color-mix(in srgb, var(--danger) 8%, var(--raised));
-  border-left-color: var(--danger);
+  background: var(--btn-destructive-bg);
+  border-left-color: var(--btn-destructive-ink);
   text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--btn-destructive-ink) 60%, transparent);
 }
 
 .chat-proposal__block--same {
@@ -475,49 +498,61 @@
 
 .chat-proposal__folded {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   margin: 0;
-  padding: 4px var(--space-3);
+  padding: 4px 12px;
 }
 
 .chat-proposal__problem {
-  color: var(--danger);
-  font-size: var(--text-small);
+  color: var(--btn-destructive-ink);
+  font-size: var(--text-meta);
   margin: 0;
-  padding: var(--space-2) var(--space-3) 0;
+  padding: 8px 12px 0;
 }
 
 .chat-proposal__actions {
   align-items: center;
+  border-top: 1px solid var(--line-soft);
   display: flex;
-  gap: var(--space-2);
+  gap: 6px;
   justify-content: flex-end;
-  padding: var(--space-2) var(--space-3);
+  padding: 6px 12px;
 }
 
 .chat-proposal__verdict {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 700;
+  font-size: var(--text-meta);
+  font-weight: 500;
   margin-right: auto;
 }
 
 .chat-proposal[data-state='accepted'] .chat-proposal__verdict {
-  color: var(--success);
+  color: var(--status-done-ink);
 }
 
+/* The bar's chat button while the chat is open: a pressed toggle. */
 .page-bar__chat[aria-pressed='true'] {
-  background: var(--hover);
-  color: var(--accent-text);
+  background: var(--selected);
+  color: var(--ink);
 }
 
+/* A short text field in Settings → Claude and → Profile: a 28px field at
+   the width a model name or a person's name needs. */
 .settings__field {
-  background: var(--raised);
-  border: 1px solid var(--line);
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-control);
   color: var(--ink);
   font: inherit;
-  font-size: var(--text-ui);
-  padding: 6px 10px;
+  font-size: var(--text-column);
+  height: 28px;
+  padding: 0 8px;
   width: 200px;
+}
+
+.settings__field:focus {
+  border-color: var(--focus);
+  box-shadow: var(--ring);
+  outline: none;
 }

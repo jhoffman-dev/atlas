@@ -215,6 +215,30 @@ test('screenshots: the panel with its context chip, a tool call and a proposed e
   }
 });
 
+// UI v2 slice 13i (#318): the panel's bar is the tab strip's height, and a
+// proposal's verdicts are 28px controls told apart by kind, not by weight.
+test('the panel wears a 36px bar and its proposal is decided by two 28px buttons', async ({
+  page,
+}) => {
+  const { host } = await openPlan(page);
+  host.claude.reply(PROPOSE, 'Proposed.');
+  await page.getByRole('button', { name: 'Claude' }).first().click();
+  await ask(page, 'Tidy this page');
+  const proposal = chat(page).getByRole('region', { name: 'Proposed edit: Plan' });
+  await expect(proposal.getByRole('button', { name: 'Accept' })).toBeVisible();
+
+  const bar = await chat(page).locator('.chat__bar').boundingBox();
+  expect(bar?.height).toBe(36);
+  for (const [name, kind] of [
+    ['Accept', 'btn--positive'],
+    ['Reject', 'btn--destructive'],
+  ] as const) {
+    const button = proposal.getByRole('button', { name });
+    await expect(button).toHaveClass(new RegExp(`\\b${kind}\\b`));
+    expect((await button.boundingBox())?.height, name).toBe(28);
+  }
+});
+
 /**
  * James's chat (2026-09-28): a note holding a block embed, a long answer
  * already in the pane, then a proposal adding a long section and a property.
