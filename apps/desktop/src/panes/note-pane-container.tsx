@@ -42,6 +42,7 @@ import type {
   ThumbnailQueue,
   VaultFsPort,
 } from '@atlas/application';
+import { notePaneScope } from '@atlas/application';
 import {
   ThumbnailValue,
   ChatToggleProvider,
@@ -65,6 +66,8 @@ import {
   type ViewTabEditing,
 } from '@atlas/ui';
 import { useNote, type NotePorts } from '../notes/use-note.ts';
+import type { IndexStatusStore } from '../index/index-status-store.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { hideOverlay, showOverlay } from '../overlay-store.ts';
 import { pageMenuOverlay, panePopupOverlay, paneOverlayOf } from '../overlay.ts';
 import { followLink } from '../workspace/open-place.ts';
@@ -76,7 +79,7 @@ import {
   openPlace,
   splitPane,
 } from '../workspace/workspace-store.ts';
-import type { WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
+import { sameWiringParts, type WorkspaceWiring } from '../workspace/workspace-wiring.tsx';
 import { useTabReveal } from './reveals.ts';
 import { useOutsideChangeReload } from './use-outside-change-reload.ts';
 import { artifactViewer, dashboardView, widgetEditor } from '../pages-on-first-use.ts';
@@ -149,8 +152,12 @@ export interface PaneContext {
   readonly thumbnails: ThumbnailQueue;
   readonly types: readonly DefinedType[];
   readonly notePaths: readonly VaultPath[];
-  /** Changes when the index does, so views and widgets refresh. */
-  readonly indexKey: string;
+  /**
+   * Where the index says it has news. Each reader keys itself on the part of
+   * it its own data is made from (`useScopedIndexKey`, #325), so the context
+   * does not change, and draw every pane, when the index does.
+   */
+  readonly indexStatus: IndexStatusStore;
   /** Re-reads the tree and the index, after this pane wrote something. */
   readonly onChanged: () => void;
   /** Every sync of the index's news: a hidden tab hears here that its note changed outside. */
@@ -228,8 +235,39 @@ export const NotePaneContainer = memo(
   function NotePaneContainer(props: NoteTabProps) {
     return useNoteTab(props);
   },
-  (before, after) => before.hidden && after.hidden,
+  (before, after) => (before.hidden && after.hidden) || sameNoteTab(before, after),
 );
+
+/**
+ * The parts of the wiring a note's tab reads. Any new part a note tab reads
+ * must be added here: a part left out is compared by nobody, and the tab keeps
+ * drawing what it was handed before (#325).
+ */
+const NOTE_TAB_WIRING = [
+  'pane',
+  'note',
+  'store',
+  'reveals',
+  'overlays',
+  'nameOf',
+  'onShowSidebar',
+] as const;
+
+/**
+ * Whether a shown note's tab would draw the same: its own props, and what it
+ * reads of the wiring. The window draws for the index's news; a tab whose
+ * note and readers moved for none of it draws nothing (#325).
+ */
+function sameNoteTab(before: NoteTabProps, after: NoteTabProps): boolean {
+  return (
+    before.hidden === after.hidden &&
+    before.names === after.names &&
+    before.chat === after.chat &&
+    before.pane === after.pane &&
+    before.tab === after.tab &&
+    sameWiringParts(NOTE_TAB_WIRING, before.wiring, after.wiring)
+  );
+}
 
 export interface NoteTabProps {
   wiring: WorkspaceWiring;
@@ -354,10 +392,22 @@ function useNotePane({
   /** Splitting, closing and the page menu's open state, which the app owns. */
   arrangement: PaneArrangement;
 }): ReactNode {
-  const { notes, index, sources, types, notePaths, indexKey, onChanged, editors, savedViews } =
-    context;
+  const { notes, index, sources, types, notePaths, onChanged, editors, savedViews } = context;
 
   const note = usePaneNote({ tabId, path, context, hidden });
+  // What the pane's readers re-read on: the index's news of what this note
+  // shows, not of a note saved anywhere (#325). A hidden tab reads nothing,
+  // and once shown again reads what moved while it was hidden. An empty tab's
+  // key is held too: one switched on as its first note opens draws it twice.
+  const scope = useMemo(() => notePaneScope(note.open, path ?? ''), [note.open, path]);
+  const indexKey = useScopedIndexKey({
+    status: context.indexStatus,
+    vault: context.vault,
+    reader: ['note', path],
+    scope,
+    enabled: !hidden,
+  });
+
   const links = useNoteLinks({ context, path });
   const linkCheck = useMemo(
     () => ({ fs: notes.fs, markdown: notes.markdown, notePaths }),
@@ -808,7 +858,7 @@ function pageThumbnailValue(
 
 /** What the pane's note is linked with, both ways, and the notes that name it without a link. */
 function useNoteLinks({ context, path }: { context: PaneContext; path: VaultPath | null }) {
-  const { graph, index, notes, openNotes, indexKey, onChanged } = context;
+  const { graph, index, notes, openNotes, indexStatus, vault, onChanged } = context;
   const links = useMemo(
     () => (graph === null || path === null ? NO_LINKS : noteLinks(graph, path)),
     [graph, path],
@@ -825,7 +875,7 @@ function useNoteLinks({ context, path }: { context: PaneContext; path: VaultPath
     ports,
     note: path === null ? null : { path, title },
     links,
-    indexKey,
+    index: { status: indexStatus, vault },
     onChanged,
   });
   return { links, mentions };

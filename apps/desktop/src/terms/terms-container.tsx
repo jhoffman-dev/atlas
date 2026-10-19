@@ -3,6 +3,7 @@ import { useNoticeActivity } from '../activity/use-activity-log.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { termsPage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
+import { useIndexKey } from '../index/index-status-store.ts';
 import { useTermsPage } from './use-terms-page.ts';
 
 const TermsPage = termsPage.Component;
@@ -20,6 +21,8 @@ export interface TermsWiring {
  */
 export function TermsContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
+  // Still read again on every news of the index: what it reads is not yet scoped (#325).
+  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
   const { page, notice } = useTermsPage({
     ports: {
       index: pane.index,
@@ -28,7 +31,7 @@ export function TermsContainer({ wiring, chrome }: PageContainerProps) {
       editors: pane.editors,
     },
     open: true,
-    indexKey: pane.indexKey,
+    indexKey,
     types: pane.types,
     templates: pages.terms.templates,
     notePaths: pane.notePaths,

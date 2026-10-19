@@ -3,6 +3,7 @@ import { LoadedLater } from '../page-frame-fallback.tsx';
 import { automationsScreen } from '../pages-on-first-use.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
+import { useIndexKey } from '../index/index-status-store.ts';
 
 const AutomationsScreen = automationsScreen.Component;
 
@@ -20,13 +21,15 @@ export type AutomationsWiring = Pick<
 /** The Automations page as a tab (P29, tab-model.md PR B). */
 export function AutomationsContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
+  // Still read again on every news of the index: what it reads is not yet scoped (#325).
+  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
   return (
     <LoadedLater chrome={chrome}>
       <AutomationsScreen
         automations={pages.automations.automations}
         ports={pages.automations.ports}
         clock={localClock}
-        indexKey={pane.indexKey}
+        indexKey={indexKey}
         activity={pane.activity}
         onOpenNote={pages.openNote}
         {...chrome}

@@ -389,6 +389,33 @@ describe('a link to a person', () => {
     });
   });
 
+  it('stays their chip while text is typed right after it (#325)', () => {
+    const instance = editing({
+      people: {
+        personFor: (target) => (target === 'Julie' ? { name: 'Julie', initial: 'J' } : null),
+      },
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'Call ' },
+              { type: 'wikiLink', attrs: { target: 'Julie', heading: null, alias: null } },
+            ],
+          },
+        ],
+      },
+    });
+    instance.commands.setTextSelection(instance.state.doc.content.size - 1);
+    expect(chips(instance)).toEqual([['Julie', 'J']]);
+
+    typeInto(instance, ' tomorrow');
+
+    expect(instance.getText()).toContain('tomorrow');
+    expect(chips(instance)).toEqual([['Julie', 'J']]);
+  });
+
   it('is looked up again only where the note changed, not on every keystroke', () => {
     const personFor = vi.fn((target: string) =>
       target === 'Julie' ? { name: 'Julie', initial: 'J' } : null,

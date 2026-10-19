@@ -25,6 +25,7 @@ export { WikiLinkReader } from './wikilink-reader.ts';
 export type { ReadStep } from './wikilink-reader.ts';
 export {
   createWikiLinkResolver,
+  foldedLinkName,
   linkTakeover,
   resolveWikiLinkTarget,
   wikiLinkNewNotePath,

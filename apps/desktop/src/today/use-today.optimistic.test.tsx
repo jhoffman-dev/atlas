@@ -50,8 +50,11 @@ function today() {
   ]);
   let held: Promise<void> | null = null;
   let failing: string | null = null;
+  // How many times the page asked for its tasks: once per read.
+  let queries = 0;
   const answer = (sql: string): QueryResult => {
     if (sql.startsWith(REVIEW_TASKS_QUERY_MARK)) {
+      queries += 1;
       return {
         // As the index answers the page's statement: how each task repeats, too (none here).
         columns: ['path', 'title', 'modified', 'status', 'due', 'defer', 'recurrence'],
@@ -116,8 +119,17 @@ function today() {
       );
       hook.rerender({ ...initial, indexKey });
     },
-    /** The window hands new ports, so the page reads again — of the index as it still is. */
-    readAgain: () => hook.rerender({ ...initial, ports: { ...ports } }),
+    /**
+     * The index stops being ready and is ready again under the same key, so the
+     * page reads again — of the index as it still is.
+     */
+    readAgain: () => {
+      hook.rerender({ ...initial, indexReady: false });
+      hook.rerender({ ...initial, indexReady: true });
+    },
+    /** The window hands new ports, as it does each time it lists the tree again. */
+    newPorts: () => hook.rerender({ ...initial, ports: { ...ports } }),
+    reads: () => queries,
     hold: () => {
       const writes = gate();
       held = writes.opened;
@@ -201,6 +213,20 @@ describe('useToday — an action shows at once (#260)', () => {
     page.refresh('ready:2');
     await waitFor(() => expect(page.hook.result.current.page.settling.has(SHIP)).toBe(false));
     expect(page.titlesIn('inProgress')).toEqual([]);
+  });
+
+  it('reads nothing again for new ports from the window, only for the index moving (#325)', async () => {
+    const page = today();
+    await READY(page);
+    const read = page.reads();
+
+    page.newPorts();
+    page.newPorts();
+    await act(() => new Promise((turn) => setTimeout(turn, 0)));
+    expect(page.reads()).toBe(read);
+
+    page.refresh('ready:2');
+    await waitFor(() => expect(page.reads()).toBe(read + 1));
   });
 
   it('shows what the index says once it has caught up, even when that is not what the action left', async () => {

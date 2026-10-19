@@ -50,6 +50,9 @@ import {
   createToolboxes,
   findTaskTemplate,
   getAppInfo,
+  PEOPLE_SCOPE,
+  PERSON_EMAILS_SCOPE,
+  PROJECTS_SCOPE,
   setNoteProperty,
   readsTouchedByPaths,
   reportingIndexWrites,
@@ -104,6 +107,7 @@ import { createWindowQueryClient } from './reads/query-client.ts';
 import { createReadInvalidator } from './reads/read-invalidator.ts';
 import { tellingOwnWrites } from './reads/telling-own-writes.ts';
 import { useSqlViews } from './reads/use-sql-views.ts';
+import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';
 import { useVaultReads } from './reads/use-vault-reads.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
@@ -487,6 +491,25 @@ function AppWindow({
   // Everything derived from the index re-runs when this changes: backlinks,
   // saved views and dashboard widgets. It moves only with the revision (#238).
   const indexKey = useIndexKey(indexStore, vaultKey);
+  // The window's readers of one kind of note read again for news of that kind alone (#325).
+  const peopleKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['people'],
+    scope: PEOPLE_SCOPE,
+  });
+  const projectsKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['projects'],
+    scope: PROJECTS_SCOPE,
+  });
+  const personEmailsKey = useScopedIndexKey({
+    status: indexStore,
+    vault: vaultKey,
+    reader: ['person-emails'],
+    scope: PERSON_EMAILS_SCOPE,
+  });
   const {
     types,
     failure: typesFailure,
@@ -648,6 +671,11 @@ function AppWindow({
   const overlay = useWindowOverlay(overlays);
   const showOverlay = useCallback((requested: Overlay) => showIn(overlays, requested), [overlays]);
   const hideOverlay = useCallback((closing: Overlay) => hideIn(overlays, closing), [overlays]);
+  // One object, so what is handed it is not made anew each time the window draws.
+  const overlayPort = useMemo(
+    () => ({ show: showOverlay, hide: hideOverlay }),
+    [showOverlay, hideOverlay],
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // Pressed from another app with no vault open: capture has no Inbox to land in.
   const [captureWantedVault, setCaptureWantedVault] = useState(false);
@@ -796,7 +824,7 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     clock: localClock,
-    indexKey,
+    indexKey: projectsKey,
     activity: activityLog,
     onCreated: (path) => {
       hideOverlay('new-artifact');
@@ -832,7 +860,7 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     vaultKey,
-    changeKey: indexKey,
+    changeKey: personEmailsKey,
     indexReady,
     activity: activityLog,
   });
@@ -1029,13 +1057,15 @@ function AppWindow({
     ],
   );
   const entries = useVaultEntries(entryPorts, notePaths);
+  // Each one function for as long as the entries' ports: the panes are handed them (#325).
+  const { rename: renameEntry, askMove: askEntryMove, askDelete: askEntryDelete } = entries;
   const templatesPage = useTemplatesPage({
     ports: {
       fs: vault.fs,
       markdown: notes.markdown,
       editors: entryPorts.editors,
       closeNotes: entryPorts.closeNotes,
-      overlay: { show: showOverlay, hide: hideOverlay },
+      overlay: overlayPort,
     },
     types,
     listed: templatesListed,
@@ -1241,8 +1271,8 @@ function AppWindow({
   /** Renames a note from its page head; every pane showing it follows. */
   const renamePaneNote = useCallback(
     ({ path, name }: { path: VaultPath; name: string }) =>
-      entries.rename({ path, kind: 'file' }, name),
-    [entries],
+      renameEntry({ path, kind: 'file' }, name),
+    [renameEntry],
   );
 
   const captureTemplate = useMemo(() => findTaskTemplate(templates), [templates]);
@@ -1325,7 +1355,7 @@ function AppWindow({
   );
   const vaultPeople = usePeople({
     ports: peoplePorts,
-    indexKey,
+    indexKey: peopleKey,
     ready: indexReady,
     notePaths,
     types,
@@ -1376,7 +1406,7 @@ function AppWindow({
       thumbnails,
       types,
       notePaths,
-      indexKey,
+      indexStatus: indexStore,
       onChanged,
       changes: noteChanges,
       onTypeSaved,
@@ -1413,7 +1443,7 @@ function AppWindow({
       thumbnails,
       types,
       notePaths,
-      indexKey,
+      indexStore,
       onChanged,
       noteChanges,
       onTypeSaved,
@@ -1569,11 +1599,94 @@ function AppWindow({
     />
   );
 
+  // The panes' wiring that changes only with what it holds, so a window
+  // redrawn for the index's news draws no pane that shows nothing new (#325).
+  const noteCommands = useMemo(
+    () => ({
+      onRename: renamePaneNote,
+      onToggleFavorite: toggleFavorite,
+      onMoveTo: (target: VaultPath) => askEntryMove({ path: target, kind: 'file' }),
+      onDelete: (target: VaultPath) => askEntryDelete({ path: target, kind: 'file' }),
+      onShowInGraph: (target: VaultPath) => openGraph({ kind: 'note', path: target, depth: 1 }),
+    }),
+    [renamePaneNote, toggleFavorite, askEntryMove, askEntryDelete, openGraph],
+  );
+  const todayWiring = useMemo(
+    () => ({
+      view:
+        todayView === null
+          ? null
+          : { title: todayView.title, onOpen: () => openNote(todayView.path) },
+      onOpenDailyNote: () => void openDailyNote(),
+    }),
+    [todayView, openNote, openDailyNote],
+  );
+  const chatToggle = useMemo(
+    () => (location === null ? null : { open: chat.open, onToggle: chat.toggle }),
+    [location, chat.open, chat.toggle],
+  );
+  const inboxWiring = useMemo(
+    () => ({
+      closing: closing.writes,
+      pendingWrites,
+      onOpenSource: followSource,
+      typesOffer:
+        typesOffer === null
+          ? null
+          : {
+              lines: typesOffer.lines,
+              onAccept: () => void typesOffer.accept(),
+              onDismiss: typesOffer.dismiss,
+            },
+      taskMigration,
+      paraMigration,
+      vaultTidy,
+      meetingCleanup,
+      settingsUnreadable:
+        settingsProblem === null
+          ? null
+          : {
+              problem: settingsProblem,
+              onOpenSettings: () => showOverlay('settings'),
+            },
+      ownerUnknown:
+        ownerKnown &&
+        automations.listing !== null &&
+        ownerNeededBy(
+          automations.listing.automations.map(({ rule }) => rule),
+          { selfName: ownerName, selfEmails: ownerEmails, people: [] },
+        )
+          ? { onOpenSettings: () => showOverlay('settings') }
+          : null,
+      meetingProjects,
+      view:
+        inboxView === null
+          ? null
+          : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
+    }),
+    [
+      closing.writes,
+      pendingWrites,
+      followSource,
+      typesOffer,
+      taskMigration,
+      paraMigration,
+      vaultTidy,
+      meetingCleanup,
+      settingsProblem,
+      ownerKnown,
+      automations.listing,
+      ownerName,
+      ownerEmails,
+      meetingProjects,
+      inboxView,
+      openNote,
+      showOverlay,
+    ],
+  );
   return (
     <NoteNamesProvider value={names}>
-      <ChatToggleProvider
-        value={location === null ? null : { open: chat.open, onToggle: chat.toggle }}
-      >
+      <ChatToggleProvider value={chatToggle}>
         <AppShell
           sidebarOpen={sidebarOpen}
           // Every page carries its own way back in its bar; only the empty
@@ -1711,14 +1824,7 @@ function AppWindow({
                     ...workspaceStores,
                     pane: paneContext,
                     onShowSidebar: sidebarOpen ? null : toggleSidebar,
-                    note: {
-                      onRename: renamePaneNote,
-                      onToggleFavorite: toggleFavorite,
-                      onMoveTo: (target) => entries.askMove({ path: target, kind: 'file' }),
-                      onDelete: (target) => entries.askDelete({ path: target, kind: 'file' }),
-                      onShowInGraph: (target) =>
-                        openGraph({ kind: 'note', path: target, depth: 1 }),
-                    },
+                    note: noteCommands,
                     pages: {
                       ports: archivePorts,
                       indexReady,
@@ -1726,51 +1832,8 @@ function AppWindow({
                       openNote,
                       openPage,
                       holds: holdsByVault.of(location.absolutePath),
-                      today: {
-                        view:
-                          todayView === null
-                            ? null
-                            : { title: todayView.title, onOpen: () => openNote(todayView.path) },
-                        onOpenDailyNote: () => void openDailyNote(),
-                      },
-                      inbox: {
-                        closing: closing.writes,
-                        pendingWrites,
-                        onOpenSource: followSource,
-                        typesOffer:
-                          typesOffer === null
-                            ? null
-                            : {
-                                lines: typesOffer.lines,
-                                onAccept: () => void typesOffer.accept(),
-                                onDismiss: typesOffer.dismiss,
-                              },
-                        taskMigration,
-                        paraMigration,
-                        vaultTidy,
-                        meetingCleanup,
-                        settingsUnreadable:
-                          settingsProblem === null
-                            ? null
-                            : {
-                                problem: settingsProblem,
-                                onOpenSettings: () => showOverlay('settings'),
-                              },
-                        ownerUnknown:
-                          ownerKnown &&
-                          automations.listing !== null &&
-                          ownerNeededBy(
-                            automations.listing.automations.map(({ rule }) => rule),
-                            { selfName: ownerName, selfEmails: ownerEmails, people: [] },
-                          )
-                            ? { onOpenSettings: () => showOverlay('settings') }
-                            : null,
-                        meetingProjects,
-                        view:
-                          inboxView === null
-                            ? null
-                            : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
-                      },
+                      today: todayWiring,
+                      inbox: inboxWiring,
                       templates: templatesPage.page,
                       terms: { templates },
                       activity: { activity },
