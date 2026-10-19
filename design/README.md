@@ -38,7 +38,7 @@ pnpm design:compare  # out/compare/index.html, one page per surface, mockup left
 | peek          | `FlowPeek`  | not yet    |
 | split         | `FlowSplit` | yes        |
 | type-editor   | `FlowType`  | not yet    |
-| inbox         | `FlowInbox` | not yet    |
+| inbox         | `FlowInbox` | yes        |
 
 The "not yet" rows are surfaces or states `shots` will capture once the slice
 that builds them lands; until then their compare page shows the mockup beside

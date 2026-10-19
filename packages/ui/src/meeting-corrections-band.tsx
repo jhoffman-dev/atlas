@@ -36,10 +36,10 @@ export function MeetingCorrectionsBand({
 }: CorrectionsNotice) {
   const total = spellings.reduce((sum, spelling) => sum + spelling.count, 0);
   return (
-    <aside className="corrections-band" aria-label="Corrections">
-      <Icon name="term" size={16} className="corrections-band__icon" />
-      <div className="corrections-band__text">
-        <p className="corrections-band__lead">
+    <aside className="notice-bar corrections-band" aria-label="Corrections">
+      <Icon name="term" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text corrections-band__text">
+        <p>
           <strong>Corrected</strong> · {total === 1 ? '1 spelling' : `${total} spellings`} put right
           on import
         </p>
@@ -66,7 +66,7 @@ export function MeetingCorrectionsBand({
       )}
       <button
         type="button"
-        className="btn btn--ghost btn--sm"
+        className="btn btn--secondary btn--sm"
         onClick={onUndo}
         disabled={undoing || permanent}
       >

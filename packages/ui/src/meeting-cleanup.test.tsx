@@ -134,3 +134,30 @@ describe('MeetingCleanup', () => {
     expect(container.innerHTML).toBe('');
   });
 });
+
+/** #319: the offer is the one-line notice bar, its verbs at the end, grown open for the preview. */
+describe('MeetingCleanup as the notice bar (#319)', () => {
+  const region = () => screen.getByRole('region', { name: 'Tasks meetings made' });
+  const classes = (element: Element) => [...element.classList];
+
+  it('is the bar, with Review them as the secondary verb and Not now as the ghost one', () => {
+    draw();
+    expect(classes(region())).toEqual(
+      expect.arrayContaining(['notice-bar', 'inbox__offer', 'meeting-cleanup']),
+    );
+    expect(classes(region())).not.toContain('notice-bar--open');
+    const [first, second] = screen.getAllByRole('button');
+    expect(first?.textContent).toBe('Review them');
+    expect(classes(first!)).toEqual(expect.arrayContaining(['btn', 'btn--secondary', 'btn--sm']));
+    expect(second?.textContent).toBe('Not now');
+    expect(classes(second!)).toEqual(expect.arrayContaining(['btn', 'btn--ghost', 'btn--sm']));
+  });
+
+  it('carries --open while the preview shows under the line, whose run button is secondary too (one primary per view)', () => {
+    draw({ open: true });
+    expect(classes(region())).toContain('notice-bar--open');
+    const run = screen.getByRole('button', { name: 'Archive 2 tasks' });
+    expect(classes(run)).toContain('btn--secondary');
+    expect(classes(run)).not.toContain('btn--primary');
+  });
+});

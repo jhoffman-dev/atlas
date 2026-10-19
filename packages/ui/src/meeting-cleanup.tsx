@@ -1,5 +1,6 @@
 import { Icon } from './icon.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
+import { noticeBarClass } from './notice-bar.ts';
 
 /** One task the cleanup would archive, as the preview lists it. */
 export interface MeetingCleanupTask {
@@ -43,9 +44,12 @@ export function MeetingCleanup(props: MeetingCleanupProps) {
   const { tasks: listed, open, result, notice, problem } = props;
   if (listed === null && result === null && notice === null && problem === null) return null;
   return (
-    <section className="inbox__offer meeting-cleanup" aria-label="Tasks meetings made">
-      <Icon name="archive" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+    <section
+      className={noticeBarClass('inbox__offer meeting-cleanup', open)}
+      aria-label="Tasks meetings made"
+    >
+      <Icon name="archive" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         {listed !== null && !open && <Offer {...props} listed={listed} />}
         {listed !== null && open && <Preview {...props} listed={listed} />}
         {result !== null && <p role="status">{result}</p>}
@@ -81,7 +85,7 @@ function Offer({
         {tasks(listed.length)} that meetings made aren’t yours by today’s rules. Look them over, and
         archive the ones you don’t want.
       </p>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpen}>
+      <button type="button" className="btn btn--secondary btn--sm" onClick={onOpen}>
         Review them
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={onDismiss}>
@@ -139,7 +143,7 @@ function Preview(props: MeetingCleanupProps & { listed: readonly MeetingCleanupT
       <div className="meeting-cleanup__actions">
         <button
           type="button"
-          className="btn btn--sm"
+          className="btn btn--secondary btn--sm"
           onClick={onApply}
           disabled={busy || going === 0}
         >
