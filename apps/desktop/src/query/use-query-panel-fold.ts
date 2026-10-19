@@ -19,12 +19,15 @@ export function useQueryPanelFold({
   /** The query as the view's file holds it; empty for a view with none yet. */
   savedText: string;
 }): QueryPanelFold {
-  const [fold, setFold] = useState(() => ({ view, collapsed: store.read(view) }));
+  // Settled once per view as it opens: saving a query must not fold the
+  // builder under the hands editing it, so the saved text counts only then.
+  const settle = () => ({ view, collapsed: store.read(view) ?? savedText.trim() !== '' });
+  const [fold, setFold] = useState(settle);
   // Another view opened in the pane: its own fold, read as it is drawn.
-  const current = fold.view === view ? fold : { view, collapsed: store.read(view) };
+  const current = fold.view === view ? fold : settle();
   if (current !== fold) setFold(current);
 
-  const collapsed = current.collapsed ?? savedText.trim() !== '';
+  const { collapsed } = current;
   const onToggle = useCallback(() => {
     store.write(view, !collapsed);
     setFold({ view, collapsed: !collapsed });
