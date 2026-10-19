@@ -220,7 +220,8 @@
     --status-done-dot: #7dbf93;
     --status-done-ink: #a9d9b8;
     --status-done-tint: rgba(125, 191, 147, 0.16);
-    --status-done-tick: #ffffff;
+    /* The surface, not white: white is 2.15:1 on the sage dot; the surface is 8.2:1 (#369). */
+    --status-done-tick: var(--surface);
 
     --btn-primary-bg: rgba(126, 162, 221, 0.18);
     --btn-primary-ink: #b5cbf0;
@@ -299,7 +300,8 @@
   --status-done-dot: #7dbf93;
   --status-done-ink: #a9d9b8;
   --status-done-tint: rgba(125, 191, 147, 0.16);
-  --status-done-tick: #ffffff;
+  /* The surface, not white: white is 2.15:1 on the sage dot; the surface is 8.2:1 (#369). */
+  --status-done-tick: var(--surface);
 
   --btn-primary-bg: rgba(126, 162, 221, 0.18);
   --btn-primary-ink: #b5cbf0;
