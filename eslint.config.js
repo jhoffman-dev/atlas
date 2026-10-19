@@ -84,6 +84,34 @@ export default tseslint.config(
   },
   ...architecture,
   {
+    // Test support (`@atlas/<package>/testing…`) wraps built-ins, fakes the
+    // clock and opens SQLite: it is for tests and test tooling, never for the
+    // app. Its own rule name, so the architecture rule above is not replaced.
+    files: ['**/*.{ts,tsx,mjs}'],
+    ignores: [
+      '**/*.test.{ts,tsx}',
+      '**/*.spec.ts',
+      'packages/*/src/testing/**',
+      'tools/**',
+      'e2e/**',
+      'vitest.config.ts',
+      'vitest.setup.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@atlas/*/testing', '@atlas/*/testing/*'],
+              message: 'Test support is for tests: import it only from a test or test tooling.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // The MCP server is a translator onto the local API (ADR-0016): it may know
     // the contract's types and nothing else of the app — no rules, no I/O code.
     files: ['apps/mcp/**/*.ts'],

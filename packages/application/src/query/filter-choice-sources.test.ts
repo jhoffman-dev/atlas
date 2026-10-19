@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath, noteNames, type ObjectType, type PropertyDef } from '@atlas/domain';
+import { countedWorkAsync } from '@atlas/domain/testing';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { loadFilterChoiceSources } from './filter-choice-sources.ts';
 
@@ -134,34 +135,39 @@ describe('loadFilterChoiceSources', () => {
  * linked and named without searching the whole vault (#212).
  */
 describe('loadFilterChoiceSources in a 5,000-note vault', () => {
-  const VAULT = 5000;
-  const PROJECTS = 200;
-  /** Generous: a frame is 16 ms. */
-  const BUDGET_MS = 250;
+  /** A vault of `size` notes, one in 25 of them a project. */
+  const vaultOf = (size: number) =>
+    Array.from({ length: size }, (_, at) =>
+      at % 25 === 0
+        ? { path: `projects/Project ${at}.md`, title: `Project ${at}` }
+        : { path: `notes/Note ${at}.md`, title: `Note ${at}` },
+    );
 
-  const notes = Array.from({ length: VAULT }, (_, at) =>
-    at < PROJECTS
-      ? { path: `projects/Project ${at}.md`, title: `Project ${at}` }
-      : { path: `notes/Note ${at}.md`, title: `Note ${at}` },
-  );
-
-  it(`offers ${PROJECTS} projects within ${BUDGET_MS} ms`, { timeout: 120_000 }, async () => {
-    // A fresh NoteNames, as app.tsx makes after any change to the vault graph.
+  /** Offering a vault's projects, with a fresh NoteNames, as app.tsx makes after any change to the vault graph. */
+  const offering = (notes: ReturnType<typeof vaultOf>) => {
     const fresh = noteNames(notes.map((note) => ({ ...note, path: createVaultPath(note.path) })));
+    const projects = notes.filter((note) => note.path.startsWith('projects/'));
     const index = fakeIndexPort({
-      notesOfType: async (type) => (type === 'project' ? notes.slice(0, PROJECTS) : []),
+      notesOfType: async (type) => (type === 'project' ? projects : []),
     });
+    return () =>
+      loadFilterChoiceSources({
+        index,
+        type: taskType([property('project', 'relation', 'project')]),
+        names: fresh,
+        keys: ['project'],
+      });
+  };
 
-    const started = performance.now();
-    const sources = await loadFilterChoiceSources({
-      index,
-      type: taskType([property('project', 'relation', 'project')]),
-      names: fresh,
-      keys: ['project'],
-    });
-    const took = performance.now() - started;
+  it('offers 200 projects with work that grows with the vault, not with projects times notes', async () => {
+    const sources = await offering(vaultOf(5000))();
+    expect(sources.related['project']).toHaveLength(200);
 
-    expect(sources.related['project']).toHaveLength(PROJECTS);
-    expect(Math.round(took)).toBeLessThan(BUDGET_MS);
+    // Four times the vault and four times its projects: four times the work,
+    // where searching the whole vault for each project is sixteen. Counted
+    // rather than timed (it was ~520 ms, then ~10 ms), so a loaded machine cannot fail it.
+    const small = await countedWorkAsync(offering(vaultOf(1250)));
+    const large = await countedWorkAsync(offering(vaultOf(5000)));
+    expect(large).toBeLessThan(small * 8);
   });
 });

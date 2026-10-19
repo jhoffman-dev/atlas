@@ -184,8 +184,15 @@ describe('a tag is never found inside other markup', () => {
 
 describe('reading a long line stays linear in its length', () => {
   // A pasted log or minified file reaches here as one run. Each case is
-  // quadratic (or worse) for a backtracking pattern: seconds, not milliseconds.
-  const LONG = 80_000;
+  // quadratic (or worse) for a backtracking pattern.
+  //
+  // Timed, coarsely, because nothing else can see it: the work is a regex
+  // engine backtracking inside one execution, or a scanner reading by index,
+  // and no count taken from outside sees either (see testing/counted-work.ts).
+  // So the line is long enough that linear and quadratic are far apart: at
+  // 320,000 characters linear reading takes milliseconds and quadratic about
+  // a minute, so ten seconds is a hundred times either side (#385).
+  const LONG = 320_000;
   it.each([
     ['unclosed brackets', '['.repeat(LONG)],
     ['unclosed angle brackets', '<'.repeat(LONG)],
@@ -193,15 +200,15 @@ describe('reading a long line stays linear in its length', () => {
     ['a run of backticks', '`'.repeat(LONG)],
     [
       'backtick runs of growing length',
-      Array.from({ length: 400 }, (_, at) => '`'.repeat(at + 1)).join('x'),
+      Array.from({ length: 800 }, (_, at) => '`'.repeat(at + 1)).join('x'),
     ],
     ['unclosed comments', '<!--'.repeat(LONG / 4)],
     ['unclosed wiki links', '[[a'.repeat(LONG / 3)],
     ['a URL-like run', 'www.'.repeat(LONG / 4)],
-  ])('with %s', (_label, noise) => {
+  ])('with %s', { timeout: 120_000 }, (_label, noise) => {
     const started = performance.now();
     expect(names(`#a ${noise}`)).toEqual(['a']);
-    expect(performance.now() - started).toBeLessThan(250);
+    expect(performance.now() - started).toBeLessThan(10_000);
   });
 });
 

@@ -489,7 +489,7 @@ const DAY: Duration = Duration::from_secs(86_400);
 /// clock whenever the runtime goes idle — including while real socket I/O is
 /// still on its way — which would fire the server's deadlines early. Yielding
 /// keeps the runtime busy, so the clock stands still until `work` is done.
-async fn frozen<T>(work: impl std::future::Future<Output = T>) -> T {
+pub(super) async fn frozen<T>(work: impl std::future::Future<Output = T>) -> T {
     let mut work = std::pin::pin!(work);
     loop {
         tokio::select! {
@@ -508,7 +508,7 @@ async fn until_forwarded(server: &Harness, count: usize) {
 
 /// Gives the server many turns, with the clock stopped, to do anything it
 /// would do with what is already on its sockets.
-async fn settle() {
+pub(super) async fn settle() {
     for _ in 0..10_000 {
         tokio::task::yield_now().await;
     }

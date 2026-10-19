@@ -14,14 +14,17 @@ describe('renaming a tag in a tags property', () => {
 });
 
 describe('reading tags in a long line', () => {
-  // Pasted logs and minified text reach here as one text run. Linear work is a
-  // few milliseconds; the shields' quadratic backtracking takes seconds.
+  // Pasted logs and minified text reach here as one text run. Timed, coarsely,
+  // because the shields' backtracking happens inside one regex execution, which
+  // no count taken from outside sees (testing/counted-work.ts). At 320,000
+  // characters linear reading takes milliseconds and quadratic backtracking
+  // about a minute, so ten seconds is a hundred times either side (#385).
   it.each([
-    ['unclosed brackets', '#a ' + '['.repeat(80_000)],
-    ['unclosed angle brackets', '#a ' + '<'.repeat(80_000)],
-  ])('stays fast with %s', (_label, text) => {
+    ['unclosed brackets', '#a ' + '['.repeat(320_000)],
+    ['unclosed angle brackets', '#a ' + '<'.repeat(320_000)],
+  ])('stays linear with %s', { timeout: 120_000 }, (_label, text) => {
     const started = performance.now();
     expect(findTags(text).map((tag) => tag.name)).toEqual(['a']);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(10_000);
   });
 });

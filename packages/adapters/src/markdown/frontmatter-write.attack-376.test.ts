@@ -5,6 +5,8 @@
  * FrontmatterRefusedError naming the property, and nothing is returned.
  */
 import { describe, expect, it } from 'vitest';
+import { parseDocument } from 'yaml';
+import { countedWork } from '@atlas/domain/testing';
 import { FrontmatterRefusedError } from '@atlas/application';
 import { updateFrontmatter } from './frontmatter-write.ts';
 import { frontmatterProblem, parseFrontmatterProperties } from './frontmatter.ts';
@@ -200,13 +202,18 @@ describe('#376 a change beside a duplicate writes only its own bytes', () => {
     }
   });
 
-  it('500 keys with a duplicate: a change and a refusal stay well under a second', () => {
+  it('500 keys with a duplicate: a change and a refusal each cost a few readings of the block, not one per key', () => {
     const lines = [...Array.from({ length: 500 }, (_, i) => `k${i}: v${i}`), 'k0: again'];
     const frontmatter = block(...lines);
-    const started = performance.now();
-    updateFrontmatter(frontmatter, { k250: 'x' });
-    refusalOf(frontmatter, { k0: 'x' });
-    expect(performance.now() - started).toBeLessThan(1000);
+    // Counted rather than timed, against reading the block once: the YAML
+    // library's own duplicate check grows with the square of the keys, so what
+    // is held is how many times the writer reads the block (some four for a
+    // change, one for a refusal), never how long the library takes.
+    const reading = countedWork(() => parseDocument(`${lines.join('\n')}\n`));
+    const changing = countedWork(() => updateFrontmatter(frontmatter, { k250: 'x' }));
+    const refusing = countedWork(() => refusalOf(frontmatter, { k0: 'x' }));
+    expect(changing).toBeLessThan(reading * 10);
+    expect(refusing).toBeLessThan(reading * 10);
   });
 });
 

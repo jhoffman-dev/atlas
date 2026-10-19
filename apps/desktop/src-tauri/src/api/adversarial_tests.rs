@@ -20,6 +20,7 @@ use super::connection::{self, ConnectionFile};
 use super::control::ApiControl;
 use super::request::ApiRequest;
 use super::server::{bind, start, Forward, Gate, Running};
+use super::server_tests::{frozen, settle};
 use super::vet::MAX_BODY_BYTES;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -297,30 +298,61 @@ async fn an_idle_keep_alive_connection_after_a_refusal_is_closed() {
     assert!(closed_after <= 15, "closed only after {closed_after}s");
 }
 
+/// Resolves once `real` has passed on the machine's clock, which the paused
+/// tokio clock does not move: a guard against a hang that adds no timer for
+/// the paused clock to jump to.
+fn after_real(real: Duration) -> tokio::sync::oneshot::Receiver<()> {
+    let (tell, told) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
+        std::thread::sleep(real);
+        // Refused only once the test is over and the receiver gone: nothing to tell.
+        let _ = tell.send(());
+    });
+    told
+}
+
 /// Hardening that holds: a client dribbling its headers cannot keep the
-/// connection past the header timeout by sending a byte every few seconds.
+/// connection past the header timeout by sending a byte every second.
+///
+/// On the paused clock, which tokio advances whenever the runtime is idle —
+/// including while loopback I/O is still on its way. So the client moves the
+/// clock by hand, a second per byte, after giving the server its turns; then
+/// it waits for the close with no timer of its own. The only timers left are
+/// the server's, so the clock can only jump to the server's deadline, and the
+/// moment the close is read is the moment that deadline fell, however long
+/// the close itself takes to arrive (#385).
 #[tokio::test(start_paused = true)]
 async fn dribbling_the_headers_does_not_keep_the_connection_open() {
     let (running, _) = serve_echo();
     let port = running.port;
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-    let mut closed_after = None;
-    for second in 0..120u64 {
-        if stream.write_all(b"X").await.is_err() {
-            closed_after = Some(second);
-            break;
-        }
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        let mut probe = [0u8; 1];
-        if let Ok(Ok(0) | Err(_)) =
-            tokio::time::timeout(Duration::from_millis(1), stream.read(&mut probe)).await
-        {
-            closed_after = Some(second);
-            break;
-        }
+    let opened = tokio::time::Instant::now();
+    let mut stream = frozen(TcpStream::connect(("127.0.0.1", port)))
+        .await
+        .unwrap();
+    // A byte a second for nine seconds: none of it a whole header, all of it
+    // before the 10 s header timeout.
+    for _ in 0..9 {
+        settle().await;
+        frozen(stream.write_all(b"X")).await.unwrap();
+        tokio::time::advance(Duration::from_secs(1)).await;
     }
-    let closed_after = closed_after.expect("still open after two minutes of dribbling");
-    assert!(closed_after <= 15, "closed only after {closed_after}s");
+    settle().await;
+    frozen(stream.write_all(b"X")).await.unwrap();
+
+    // A reset is as much a close as an end of stream, so how it ends is not
+    // asked. The guard against a server that never closes is on the machine's
+    // clock: a timer on the paused one would be one more for it to jump to
+    // while the close is on its way, and the close would be read late.
+    let mut rest = Vec::new();
+    tokio::select! {
+        _ = stream.read_to_end(&mut rest) => {}
+        _ = after_real(Duration::from_secs(60)) => panic!("still open after a minute"),
+    }
+    let closed_after = opened.elapsed();
+    assert!(
+        closed_after <= Duration::from_secs(15),
+        "closed only after {closed_after:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
