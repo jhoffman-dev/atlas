@@ -362,6 +362,32 @@ describe('updateFrontmatter, on a block whose keys are indented (#377)', () => {
     );
   });
 
+  // A remove-property step on a key the note lacks writes nothing, so it has
+  // nothing to refuse; a change that would write is refused on that key.
+  it('an unreadable block: removing a key it lacks is no change', () => {
+    const before = block('  a: 1', '    t: T');
+    expect(updateFrontmatter(before, { missing: null })).toBe(before);
+    expect(updateFrontmatter(before, { missing: undefined, gone: null })).toBe(before);
+  });
+
+  it('an unreadable block: a change is refused on the key it would write', () => {
+    const before = block('  a: 1', '    t: T');
+    expect(() => updateFrontmatter(before, { missing: null, n: 'N' })).toThrowError(
+      unreadable('n', 'Nested mappings are not allowed in compact mappings at line 1, column 6:'),
+    );
+  });
+
+  // A comment set apart by blank lines under a key goes with that key, the
+  // first as any other: removing the key removes it.
+  it('removing the first key drops a comment set apart under it, as for any other key', () => {
+    expect(updateFrontmatter(block('a: 1', '', '# c', '', 'b: 2'), { a: null })).toBe(
+      block('b: 2'),
+    );
+    expect(updateFrontmatter(block('x: 0', 'a: 1', '', '# c', '', 'b: 2'), { a: null })).toBe(
+      block('x: 0', 'b: 2'),
+    );
+  });
+
   it('mixed indents: comments at other columns keep their own', () => {
     const before = block('# head', '  a: 1', '      # deep', '# about t', '  t: T', '  b: 2');
     expect(updateFrontmatter(before, { t: 'U' })).toBe(
