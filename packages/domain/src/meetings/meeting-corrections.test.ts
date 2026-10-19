@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { correctionDigestOf } from './correction-digest.ts';
 import { vocabulary } from '../terms/vocabulary.ts';
+import { countedWork } from '../testing/counted-work.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
   correctionProperties,
@@ -113,19 +114,22 @@ describe('correctMeetingBody', () => {
 });
 
 describe('correctMeetingBody, at scale', () => {
-  it('finds the block of each change in a section of many blocks in time that is not quadratic', () => {
-    const paragraphs = Array.from({ length: 20000 }, (_, at) => `Lark Spur Pay item. ^p${at}`);
-    const body = ['## Summary', '', ...paragraphs.flatMap((each) => [each, ''])].join('\n');
+  it('finds the block of each change in a section of many blocks with work that is not quadratic', () => {
+    const sectionOf = (blocks: number) => {
+      const paragraphs = Array.from({ length: blocks }, (_, at) => `Lark Spur Pay item. ^p${at}`);
+      return ['## Summary', '', ...paragraphs.flatMap((each) => [each, ''])].join('\n');
+    };
+    const correcting = (body: string) => () => correctMeetingBody(body, VOCABULARY);
 
-    const started = performance.now();
-    const correction = correctMeetingBody(body, VOCABULARY);
-    const elapsed = performance.now() - started;
-
+    const correction = correcting(sectionOf(20000))();
     expect(correction.count).toBe(20000);
     expect(correction.records[0]?.blocks.slice(0, 2)).toEqual(['p0', 'p1']);
-    // Measured in tens of milliseconds; the quadratic scan took over a minute.
-    expect(elapsed).toBeLessThan(5000);
-  }, 60_000);
+    // Four times the blocks, each with a change: four times the work, where a
+    // scan of the section per change is sixteen. The quadratic one took over a minute.
+    const small = countedWork(correcting(sectionOf(5000)));
+    const large = countedWork(correcting(sectionOf(20000)));
+    expect(large).toBeLessThan(small * 8);
+  });
 });
 
 describe('a meeting read with nothing to correct', () => {

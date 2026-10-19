@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
+import { correlatedReads } from '../testing/query-plan.ts';
 import { compileInboxQuery } from './inbox.ts';
 
 /**
@@ -50,41 +51,25 @@ function fill(database: DatabaseSync, total: number): number {
   return waits;
 }
 
-/** The quickest of three runs, in milliseconds, and the rows of the last. */
-function timed(database: DatabaseSync, startInInbox: boolean) {
-  const { sql, parameters } = compileInboxQuery({ limit: 501, tasksStartInInbox: startInInbox });
-  const statement = database.prepare(sql);
-  let quickest = Infinity;
-  let rows = 0;
-  for (let run = 0; run < 3; run += 1) {
-    const started = performance.now();
-    rows = statement.all(...parameters).length;
-    quickest = Math.min(quickest, performance.now() - started);
-  }
-  return { quickest, rows };
-}
-
 describe('the Inbox’s statement on a vault of 2,400 notes', () => {
   it.each([
     ['tasks start in the Inbox', true],
     ['the vault is on statuses of its own', false],
   ])(
-    'costs what its rows cost, without statistics the index never gathers: %s',
-    { timeout: 240_000 },
+    'reads each note’s own rows by its path, without statistics the index never gathers: %s',
     (_name, startInInbox) => {
       const database = hostIndex();
       const waits = fill(database, 2400);
+      const { sql, parameters } = compileInboxQuery({
+        limit: 501,
+        tasksStartInInbox: startInInbox,
+      });
 
       // As the host leaves it: no ANALYZE, so the planner guesses.
-      const asHosted = timed(database, startInInbox);
-      // The same rows with the planner told the truth: what the statement need cost.
-      database.exec('ANALYZE');
-      const informed = timed(database, startInInbox);
-
-      expect(asHosted.rows).toBe(waits);
-      expect(informed.rows).toBe(waits);
-      // Measured in one process, one after the other, so a loaded machine slows both.
-      expect(asHosted.quickest).toBeLessThan(informed.quickest * 20 + 50);
+      expect(database.prepare(sql).all(...parameters)).toHaveLength(waits);
+      const reads = correlatedReads(database, { sql, parameters });
+      expect(reads.length).toBeGreaterThan(0);
+      for (const read of reads) expect(read).toMatch(/ \((path|src)=\?/);
     },
   );
 });

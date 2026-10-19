@@ -22,6 +22,10 @@ export default defineConfig({
       '@atlas/application/testing/sqlite': fileURLToPath(
         new URL('./packages/application/src/testing/sqlite.ts', import.meta.url),
       ),
+      // Test support (work counted rather than timed), kept out of the domain's barrel.
+      '@atlas/domain/testing': fileURLToPath(
+        new URL('./packages/domain/src/testing/index.ts', import.meta.url),
+      ),
       '@atlas/domain': pkg('domain'),
       '@atlas/application': pkg('application'),
       '@atlas/adapters': pkg('adapters'),

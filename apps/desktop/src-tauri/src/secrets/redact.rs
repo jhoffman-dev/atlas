@@ -255,17 +255,32 @@ fn strike(text: &str, mut found: Vec<(usize, usize, &str)>) -> String {
 
 /// One secret in any of its forms, each of which may itself be escaped.
 fn matcher(value: &str) -> Result<Regex, TooLongToProtect> {
+    matcher_with(value, compiled)
+}
+
+/// `matcher`, built by `build`: a value past the ceiling never reaches it.
+fn matcher_with(
+    value: &str,
+    build: impl FnOnce(&str) -> Result<Regex, regex::Error>,
+) -> Result<Regex, TooLongToProtect> {
     if value.len() > NEVER_BUILDS_PAST {
         return Err(TooLongToProtect);
     }
-    compiled(value).map_err(|_| TooLongToProtect)
+    build(value).map_err(|_| TooLongToProtect)
 }
 
 fn compiled(value: &str) -> Result<Regex, regex::Error> {
-    let alternatives: Vec<String> = forms(value).iter().map(|form| spelled(form)).collect();
-    RegexBuilder::new(&alternatives.join("|"))
+    RegexBuilder::new(&pattern(value))
         .size_limit(MATCHER_SIZE_LIMIT)
         .build()
+}
+
+/// What a value's matcher is built from: each of its forms, spelled every
+/// way its characters are sent. Building writes and parses all of it before
+/// the size limit can refuse it, so its length is what trying costs.
+fn pattern(value: &str) -> String {
+    let alternatives: Vec<String> = forms(value).iter().map(|form| spelled(form)).collect();
+    alternatives.join("|")
 }
 
 /// The text a secret is sent as: as it is, and, when it is long enough to
@@ -364,8 +379,8 @@ mod tests {
     use regex::Regex;
 
     use super::{
-        compiled, forms, matcher, Matchers, TooLongToProtect, HELD_AT_MOST, MATCHER_SIZE_LIMIT,
-        NEVER_BUILDS_PAST,
+        compiled, forms, matcher, matcher_with, pattern, Matchers, TooLongToProtect, HELD_AT_MOST,
+        MATCHER_SIZE_LIMIT, NEVER_BUILDS_PAST,
     };
 
     /// Builds with `matcher`, counting each build.
@@ -571,12 +586,20 @@ mod tests {
     /// sits close enough to what does that one much past it is not tried.
     const LONGEST_SEEN_TO_BUILD: usize = 4_293;
 
+    /// Whether `matcher_with` tried to build `value`'s matcher at all.
+    fn tried_to_build(value: &str) -> (Result<(), TooLongToProtect>, bool) {
+        let tried = Cell::new(false);
+        let refused = matcher_with(value, |value| {
+            tried.set(true);
+            compiled(value)
+        });
+        (refused.map(|_| ()), tried.get())
+    }
+
     #[test]
     fn a_value_past_what_could_ever_build_is_refused_without_building() {
         let huge = "k".repeat(256 * 1024);
-        let started = Instant::now();
-        assert_eq!(matcher(&huge).err(), Some(TooLongToProtect));
-        assert!(started.elapsed() < Duration::from_secs(1), "it was built");
+        assert_eq!(tried_to_build(&huge), (Err(TooLongToProtect), false));
 
         let at_the_ceiling = "€".repeat(NEVER_BUILDS_PAST / '€'.len_utf8());
         assert!(compiled(&at_the_ceiling).is_err(), "the ceiling builds");
@@ -584,9 +607,7 @@ mod tests {
         // Half as long again as the longest value seen to build (4,293 bytes
         // of `€`) is refused at once, not after seconds of trying.
         let half_again = "~".repeat(LONGEST_SEEN_TO_BUILD * 3 / 2);
-        let started = Instant::now();
-        assert_eq!(matcher(&half_again).err(), Some(TooLongToProtect));
-        assert!(started.elapsed() < Duration::from_secs(1), "it was tried");
+        assert_eq!(tried_to_build(&half_again), (Err(TooLongToProtect), false));
     }
 
     /// Adversarial (P28-10 round 3, after 0d51773). A value under the ceiling
@@ -597,29 +618,22 @@ mod tests {
     /// through, 6,143 bytes of `~`, measured 1.9 s alone in a debug build and
     /// 0.31 s in release, and it is checked off the async worker in any case.
     ///
-    /// Measured against building the longest value that is kept, on the same
-    /// machine at the same moment, rather than against a clock: under a
-    /// loaded gate the same refusal has taken 8.9 s. Alone it costs some 3.5
-    /// such builds in debug and 4 in release.
+    /// Measured by the pattern each writes, against the longest value that
+    /// is kept, rather than by a clock: what trying costs is writing and
+    /// parsing its pattern, and a pattern's length is the same on every
+    /// machine, where under a loaded gate the timed refusal took 8.9 s (#385).
     #[test]
     fn a_value_too_long_to_protect_is_refused_without_seconds_of_building() {
         let longest_kept = "€".repeat(LONGEST_SEEN_TO_BUILD / '€'.len_utf8());
-        let building = || {
-            let started = Instant::now();
-            matcher(&longest_kept).expect("the longest value seen to build builds");
-            started.elapsed()
-        };
+        matcher(&longest_kept).expect("the longest value seen to build builds");
         let pasted = "~".repeat(NEVER_BUILDS_PAST - 1);
-
-        let before = building();
-        let started = Instant::now();
         assert_eq!(matcher(&pasted).err(), Some(TooLongToProtect));
-        let refusing = started.elapsed();
-        let building = before.max(building());
 
+        let refusing = pattern(&pasted).len();
+        let building = pattern(&longest_kept).len();
         assert!(
             refusing < building * 6,
-            "refusing it took {refusing:?}; building the longest value kept, {building:?}"
+            "refusing it writes {refusing} bytes of pattern; building the longest value kept, {building}"
         );
     }
 
