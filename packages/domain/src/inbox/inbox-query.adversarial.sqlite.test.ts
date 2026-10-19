@@ -50,18 +50,30 @@ function fill(database: DatabaseSync, total: number): number {
   return waits;
 }
 
-/** The quickest of three runs, in milliseconds, and the rows of the last. */
-function timed(database: DatabaseSync, startInInbox: boolean) {
+/**
+ * How each correlated subquery in the statement's plan finds its rows, as the
+ * planner chose with no statistics. A subquery that seeks by the outer note's
+ * path reads that note's rows alone; one that seeks by `key` reads every note
+ * holding the key, once per note asked about — the whole vault, squared. The
+ * plan is what decides that, so it is asserted rather than the time it takes.
+ */
+function correlatedReads(database: DatabaseSync, startInInbox: boolean): string[] {
   const { sql, parameters } = compileInboxQuery({ limit: 501, tasksStartInInbox: startInInbox });
-  const statement = database.prepare(sql);
-  let quickest = Infinity;
-  let rows = 0;
-  for (let run = 0; run < 3; run += 1) {
-    const started = performance.now();
-    rows = statement.all(...parameters).length;
-    quickest = Math.min(quickest, performance.now() - started);
+  const plan = database.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as {
+    id: number;
+    parent: number;
+    detail: string;
+  }[];
+  const correlated = new Set<number>();
+  for (const step of plan) {
+    if (step.detail.startsWith('CORRELATED') || correlated.has(step.parent))
+      correlated.add(step.id);
   }
-  return { quickest, rows };
+  return plan
+    .filter(
+      (step) => correlated.has(step.parent) && /^(SEARCH|SCAN) (?!\(subquery)/.test(step.detail),
+    )
+    .map((step) => step.detail);
 }
 
 describe('the Inbox’s statement on a vault of 2,400 notes', () => {
@@ -69,22 +81,20 @@ describe('the Inbox’s statement on a vault of 2,400 notes', () => {
     ['tasks start in the Inbox', true],
     ['the vault is on statuses of its own', false],
   ])(
-    'costs what its rows cost, without statistics the index never gathers: %s',
-    { timeout: 240_000 },
+    'reads each note’s own rows by its path, without statistics the index never gathers: %s',
     (_name, startInInbox) => {
       const database = hostIndex();
       const waits = fill(database, 2400);
+      const { sql, parameters } = compileInboxQuery({
+        limit: 501,
+        tasksStartInInbox: startInInbox,
+      });
 
       // As the host leaves it: no ANALYZE, so the planner guesses.
-      const asHosted = timed(database, startInInbox);
-      // The same rows with the planner told the truth: what the statement need cost.
-      database.exec('ANALYZE');
-      const informed = timed(database, startInInbox);
-
-      expect(asHosted.rows).toBe(waits);
-      expect(informed.rows).toBe(waits);
-      // Measured in one process, one after the other, so a loaded machine slows both.
-      expect(asHosted.quickest).toBeLessThan(informed.quickest * 20 + 50);
+      expect(database.prepare(sql).all(...parameters)).toHaveLength(waits);
+      const reads = correlatedReads(database, startInInbox);
+      expect(reads.length).toBeGreaterThan(0);
+      for (const read of reads) expect(read).toMatch(/ \((path|src)=\?/);
     },
   );
 });

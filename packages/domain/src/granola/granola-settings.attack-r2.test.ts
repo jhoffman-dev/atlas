@@ -1,5 +1,5 @@
 // Adversarial probes, round 2, for PR #156 (P28-12) fix commits. Diagnose only: a red test is a defect.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { selfEmailsFromText } from '../profile/self-emails.ts';
 import { parseGranolaSettings } from './granola-settings.ts';
 
@@ -34,10 +34,30 @@ describe('Granola self emails, attacked round 2', () => {
     expect(read).toEqual({ ok: true, emails: ['mara.quill@example.com'] });
   });
 
-  it('ATTACK: a long paste is read in time that grows with the square of its words', () => {
+  it('ATTACK: a long paste is refused before any of it is read', () => {
     const text = 'word '.repeat(20_000); // 100 KB, e.g. a document pasted into the field by mistake
-    const started = performance.now();
-    selfEmailsFromText(text);
-    expect(performance.now() - started).toBeLessThan(500);
+    // What the reader hands its patterns, counted rather than timed: 100 KB
+    // read word by word was the cost, and none of it need be read to refuse it.
+    const { exec } = RegExp.prototype;
+    let scanned = 0;
+    const spy = vi.spyOn(RegExp.prototype, 'exec').mockImplementation(function (
+      this: RegExp,
+      input: string,
+    ) {
+      scanned += input.length;
+      return exec.call(this, input);
+    });
+    let read: ReturnType<typeof selfEmailsFromText>;
+    try {
+      read = selfEmailsFromText(text);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(read).toEqual({
+      ok: false,
+      problem:
+        'That is more than 10 KB of text, too much to be email addresses. Nothing was saved.',
+    });
+    expect(scanned).toBe(0);
   });
 });

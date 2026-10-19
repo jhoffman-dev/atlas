@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { vocabulary } from '../terms/vocabulary.ts';
+import { countedWork, patternsMadeIn } from '../testing/counted-work.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
   correctionProperties,
@@ -164,14 +165,18 @@ describe('correctMeetingBody, speaker labels', () => {
 });
 
 describe('correctMeetingBody, at scale', () => {
-  it('corrects a 400-turn transcript by a 1000-term vocabulary in under two seconds', () => {
-    const terms = Array.from({ length: 1000 }, (_, at) => ({
-      path: createVaultPath(`Terms/Termo${at}.md`),
-      canonical: `Termo${at} Alpha`,
-      variants: [`Termo ${at} Alfa`, `Ter Mo${at}`],
-      kind: null,
-    }));
-    const large = vocabulary({ terms, people: [], companies: [] });
+  it('corrects a 400-turn transcript with work that does not grow with its vocabulary', () => {
+    const spellings = (count: number) =>
+      vocabulary({
+        terms: Array.from({ length: count }, (_, at) => ({
+          path: createVaultPath(`Terms/Termo${at}.md`),
+          canonical: `Termo${at} Alpha`,
+          variants: [`Termo ${at} Alfa`, `Ter Mo${at}`],
+          kind: null,
+        })),
+        people: [],
+        companies: [],
+      });
     const turns = Array.from(
       { length: 400 },
       (_, at) =>
@@ -179,14 +184,29 @@ describe('correctMeetingBody, at scale', () => {
         `the plan for the quarter, long enough to be a real turn. ^t${String(at).padStart(4, '0')}`,
     );
     const body = meeting('Summary.', turns.join('\n\n'));
+    // A vocabulary's tables are built once and kept, so each is built before its
+    // correction is counted: what is compared is the reading alone. The patterns
+    // made, building and reading, are compared whole: one pattern of every spelling
+    // would be one regex execution to count, however long it ran.
+    const correcting = (large: ReturnType<typeof vocabulary>) => {
+      let count = 0;
+      let work = 0;
+      const patterns = patternsMadeIn(() => {
+        correctMeetingBody(body, large);
+        work = countedWork(() => {
+          count = correctMeetingBody(body, large).count;
+        });
+      });
+      return { work, count, patterns };
+    };
 
-    const started = performance.now();
-    const correction = correctMeetingBody(body, large);
-    const elapsed = performance.now() - started;
-
-    expect(correction.count).toBe(800);
-    // Measured at 30-160 ms on an M-series Mac. The first build took 18-23 s: one
-    // case-insensitive pattern of 3000 alternatives, each with lookarounds.
-    expect(elapsed).toBeLessThan(2000);
-  }, 120_000);
+    const few = correcting(spellings(400));
+    const many = correcting(spellings(4000));
+    expect(few.count).toBe(800);
+    expect(many.count).toBe(800);
+    // Ten times the spellings. The first build was one case-insensitive pattern
+    // of 3000 alternatives, each with lookarounds: 18-23 s, against 30-160 ms.
+    expect(many.work).toBeLessThan(few.work * 1.5);
+    expect(many.patterns).toEqual(few.patterns);
+  });
 });
