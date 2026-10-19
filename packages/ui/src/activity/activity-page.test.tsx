@@ -177,6 +177,12 @@ describe('ActivityPage', () => {
     );
   });
 
+  it('gives the whole of “Open …” on the button’s title, since a narrow row caps it (13b review)', () => {
+    page();
+    const open = screen.getByRole('button', { name: 'Open Tidy tasks' });
+    expect(open.getAttribute('title')).toBe('Open Tidy tasks');
+  });
+
   it('draws each kind filter as a ghost control that reads as pressed while chosen (13b)', () => {
     page({ kinds: ['chat'] });
     const chosen = screen.getByRole('button', { name: 'Claude' });

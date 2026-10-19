@@ -86,6 +86,12 @@ describe('AutomationsPage', () => {
     expect(what.getAttribute('title')).toBe('Its query names a field no task has: due.');
   });
 
+  it('gives a rule’s name in full on its title, since a narrow row cuts it short (13b review)', () => {
+    const name = 'Archive every task that has been done for thirty days or more now';
+    page({ rows: [{ ...ROW, name }] });
+    expect(screen.getByRole('button', { name }).getAttribute('title')).toBe(name);
+  });
+
   it('offers the preset and a blank rule', async () => {
     const handlers = page({ rows: [] });
     expect(screen.getByText(/No automations yet/)).toBeTruthy();
