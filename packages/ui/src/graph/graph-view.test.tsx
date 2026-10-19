@@ -69,6 +69,25 @@ describe('GraphView', () => {
     expect(screen.getByText('3 notes · 2 connections')).toBeDefined();
   });
 
+  it('colours a dot and its type’s swatch from tokens only, never a raw colour (UI v2 13g)', () => {
+    const { container } = render(<Harness />);
+    const fills = [...container.querySelectorAll('.graph__dot')].map((dot) =>
+      dot.getAttribute('style'),
+    );
+    expect(fills).toEqual([
+      'fill: var(--graph-untyped);',
+      'fill: var(--status-next-dot);',
+      'fill: var(--status-doing-dot);',
+    ]);
+    const swatches = [...container.querySelectorAll('.graph__swatch')];
+    expect(swatches.map((swatch) => swatch.getAttribute('data-tone'))).toEqual([
+      'next',
+      'doing',
+      'none',
+    ]);
+    expect(container.querySelector('[style*="#"], [fill^="#"], [stroke^="#"]')).toBeNull();
+  });
+
   it('lists the same notes with what each is connected to, as buttons', async () => {
     const onOpen = vi.fn();
     render(<Harness onOpen={onOpen} />);

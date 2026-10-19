@@ -110,8 +110,23 @@
   color: var(--ink-2);
 }
 
-/* The Query page: the editor and result take the width, the tables a column. */
+/* The Query page (UI v2 slice 13g): the editor and result take the width,
+   the tables a column beside them behind a hairline. The editor is a field
+   (primitives.css .field) — a radius-6 box on the surface with a hairline,
+   in 12px mono — and nothing on the page is a card: a refusal is on the
+   well between hairlines and the tables are a hairline section.
+
+   The page is the container its one-column layout measures against, since a
+   split pane at a wide window is narrow too — this element and never
+   `.page--wide`, whose containment broke the virtualised tables (13b). */
 .query {
+  container: query / inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.query__layout {
   align-items: start;
   display: grid;
   gap: var(--space-5);
@@ -126,18 +141,18 @@
 }
 
 .query__editor {
-  background: var(--code-bg);
-  /* A hairline: in dark the code ground is a step off the surface, not a field. */
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
   display: grid;
-  font: 13px / 1.6 var(--font-mono);
+  font: var(--text-mono) / 1.6 var(--font-mono);
   grid-template-columns: auto minmax(0, 1fr);
   height: 180px;
   overflow: hidden;
 }
 
 .query__editor:focus-within {
+  border-color: var(--focus);
   box-shadow: var(--ring);
 }
 
@@ -146,7 +161,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
   text-align: right;
   user-select: none;
 }
@@ -154,10 +169,10 @@
 .query__sql {
   background: transparent;
   border: 0;
-  color: var(--code-ink);
+  color: var(--ink);
   font: inherit;
   outline: none;
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
   resize: none;
   white-space: pre;
 }
@@ -181,47 +196,50 @@
 
 .query__count {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .query__spacer {
   flex: 1;
 }
 
+/* The index's refusal, in its own words: the danger ink on the well between
+   hairlines, in the editor's mono. */
 .query__error {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
   color: var(--danger);
-  font: 13px / 1.5 var(--font-mono);
+  font: var(--text-mono) / 1.5 var(--font-mono);
   margin: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) 12px;
   white-space: pre-wrap;
 }
 
 .query__hint {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   margin: 0;
 }
 
+/* The tables: a hairline section, headed as a table's column is. */
 .query__schema {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
+  border-left: 1px solid var(--line);
   max-height: 70vh;
   overflow: auto;
-  padding: var(--space-3);
+  padding: 0 0 0 var(--space-3);
 }
 
 .query__schema-title {
+  border-bottom: 1px solid var(--line);
   color: var(--ink-3);
-  font-size: var(--text-label);
-  font-weight: 800;
+  font-size: var(--text-header);
+  font-weight: 500;
   letter-spacing: var(--tracking-label);
   margin: 0 0 var(--space-2);
+  padding: 0 0 var(--space-2);
   text-transform: uppercase;
 }
 
@@ -242,8 +260,8 @@
   color: var(--ink);
   cursor: pointer;
   display: flex;
-  font: 12.5px var(--font-mono);
-  font-weight: 700;
+  font: var(--text-mono) var(--font-mono);
+  font-weight: 500;
   gap: 6px;
   padding: 4px 6px;
 }
@@ -267,14 +285,14 @@
 .query__insert {
   color: var(--accent-text);
   font: inherit;
-  font-size: var(--text-small);
-  font-weight: 700;
+  font-size: var(--text-meta);
+  font-weight: 500;
   padding: 2px 6px 2px 26px;
 }
 
 .query__column {
   color: var(--ink-2);
-  font: 12px var(--font-mono);
+  font: var(--text-mono) var(--font-mono);
   padding: 2px 6px 2px 26px;
 }
 
@@ -291,21 +309,30 @@
 }
 
 .widget-sheet__sql {
-  font: 12.5px / 1.5 var(--font-mono);
+  font: var(--text-mono) / 1.5 var(--font-mono);
   min-height: 96px;
   resize: vertical;
 }
 
-@media (max-width: 860px) {
-  .query {
+/* In a narrow pane (the page's width, not the window's) the tables go under
+   the result, the hairline between them turned over them. */
+@container query (max-width: 860px) {
+  .query__layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .query__schema {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: var(--space-3) 0 0;
   }
 }
 
-/* ---- Atlas queries: builder, text, grouped answer (P24) --------------------
-   The builder is a raised card of labelled rows, like a view's popovers laid
-   open; its controls are the app's pill fields. The text is the SQL editor's
-   monospace well. Group headers fold, and say how many notes they hold. */
+/* ---- Atlas queries: builder, text, grouped answer (P24; 13g) ---------------
+   The builder is a column of hairline groups, one labelled row each, its
+   controls the app's 28px radius-6 fields; the text is a field in the
+   editor's 12px mono. A group's header is a column label with its count in
+   ink-3, over a hairline. Nothing here is a card or a pill. */
 .query__language {
   display: flex;
   margin-bottom: var(--space-4);
@@ -345,12 +372,12 @@
 
 .aquery__fold-text {
   background: var(--code-bg);
-  border-radius: var(--radius-button);
-  color: var(--code-ink);
+  border-radius: var(--radius-control);
+  color: var(--ink);
   display: block;
-  font: 12.5px / 1.5 var(--font-mono);
+  font: var(--text-mono) / 1.5 var(--font-mono);
   overflow: hidden;
-  padding: 6px 12px;
+  padding: 6px 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -374,26 +401,28 @@
 
 .qcomposer__preview {
   background: var(--code-bg);
-  border-radius: var(--radius-button);
-  color: var(--code-ink);
+  border-radius: var(--radius-control);
+  color: var(--ink);
   flex: 1 1 320px;
-  font: 12.5px / 1.5 var(--font-mono);
+  font: var(--text-mono) / 1.5 var(--font-mono);
   min-width: 0;
   overflow-wrap: anywhere;
-  padding: 6px 12px;
+  padding: 6px 10px;
 }
 
 .qcomposer__notice,
 .qcomposer__problem {
-  border-radius: var(--radius-button);
-  font-size: var(--text-small);
+  font-size: var(--text-column);
   margin: 0;
-  padding: 8px 12px;
 }
 
+/* What keeping the query did: on the well between hairlines, as a notice bar. */
 .qcomposer__notice {
-  background: var(--you);
-  color: var(--you-ink);
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  padding: 6px 12px;
 }
 
 .qcomposer__problem {
@@ -401,12 +430,8 @@
 }
 
 .qb {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
   display: flex;
   flex-direction: column;
-  padding: var(--space-2) var(--space-4);
 }
 
 .qb__row {
@@ -415,19 +440,15 @@
   display: grid;
   gap: var(--space-3);
   grid-template-columns: 64px minmax(0, 1fr);
-  padding: 10px 0;
+  padding: var(--space-2) 0;
 }
 
-.qb__row:last-child {
-  border-bottom: 0;
-}
-
+/* A row's label is a column header, level with the first line of fields. */
 .qb__label {
   color: var(--ink-3);
-  font-size: var(--text-label);
-  font-weight: 800;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-size: var(--text-header);
+  font-weight: 500;
+  line-height: 28px;
 }
 
 .qb__body {
@@ -438,62 +459,49 @@
   min-width: 0;
 }
 
-.qb select,
-.qb__input {
-  appearance: none;
-  background: var(--track);
-  border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-ui);
+/* The builder's fields are as wide as their words, not the row; a select
+   draws its own chevron, since WebKit's native menu is kept. */
+.qb .field {
   max-width: 100%;
-  padding: 6px 14px;
+  min-width: 0;
+  width: auto;
 }
 
-.qb select {
+/* A select is as wide as its widest option, and a tag or a title can be
+   long: capped, so a narrow pane wraps the condition rather than scrolling. */
+.qb select.field {
+  max-width: min(100%, 320px);
   background-image:
     linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
     linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
   background-position:
-    calc(100% - 15px) 55%,
-    calc(100% - 10px) 55%;
+    calc(100% - 13px) 55%,
+    calc(100% - 8px) 55%;
   background-repeat: no-repeat;
   background-size: 5px 5px;
-  padding-right: 30px;
+  padding-right: 24px;
 }
 
-.qb select:focus,
-.qb__input:focus {
-  box-shadow: var(--ring);
-  outline: none;
-}
-
-.qb__input {
+.qb .qb__input {
   width: 160px;
 }
 
-.qb__limit {
-  appearance: none;
-  background: var(--track);
-  border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--ink);
-  font: inherit;
-  padding: 5px 10px;
-  width: 80px;
+.qb .qb__limit {
+  width: 64px;
 }
 
+/* A type the query reads from: a chip, with its remove at the end. */
 .qb__chip {
   align-items: center;
-  background: var(--you);
-  border-radius: var(--radius-pill);
-  color: var(--you-ink);
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--ink);
   display: inline-flex;
-  font-size: var(--text-ui);
-  font-weight: 700;
+  font-size: var(--text-meta);
+  font-weight: 500;
   gap: 4px;
-  padding: 5px 12px;
+  height: 22px;
+  padding: 0 4px 0 8px;
 }
 
 .qb__chip-remove,
@@ -502,11 +510,11 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--ink-3);
   cursor: pointer;
   display: inline-flex;
-  padding: 4px;
+  padding: 2px;
 }
 
 .qb__chip-remove:hover,
@@ -520,7 +528,7 @@
   align-items: center;
   color: var(--ink-2);
   display: inline-flex;
-  font-size: var(--text-ui);
+  font-size: var(--text-column);
   gap: var(--space-2);
 }
 
@@ -531,44 +539,49 @@
   gap: var(--space-2);
   list-style: none;
   margin: 0;
+  min-width: 0;
   padding: 0;
 }
 
+/* A condition, a sort key: a hairline group of fields, wrapping within the
+   row rather than widening it. */
 .qb__condition,
 .qb__pair {
   align-items: center;
-  background: var(--chip);
-  border-radius: var(--radius-button);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
   display: inline-flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  padding: 5px 5px 5px 6px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px;
 }
 
+/* "not" is a small toggle: quiet until pressed, then the danger ink on the
+   pressed-toggle fill. */
 .qb__not {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--ink-3);
   cursor: pointer;
   font: inherit;
-  font-size: var(--text-small);
-  font-weight: 700;
-  padding: 4px 8px;
-}
-
-.qb__not[aria-pressed='false'] {
-  opacity: 0.6;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  height: 22px;
+  padding: 0 6px;
 }
 
 .qb__not:hover {
-  opacity: 1;
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .qb__not[aria-pressed='true'] {
-  background: var(--danger);
-  color: var(--accent-ink);
+  background: var(--selected);
+  color: var(--danger);
 }
 
 .qb__date {
@@ -576,24 +589,27 @@
   gap: var(--space-2);
 }
 
+/* Add condition, Add sort: ghost buttons. */
 .qb__add {
   align-items: center;
   appearance: none;
-  background: none;
+  background: var(--btn-ghost-bg);
   border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--accent-text);
+  border-radius: var(--radius-button);
+  color: var(--btn-ghost-ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 700;
+  font-size: var(--text-column);
+  font-weight: 500;
   gap: 4px;
-  padding: 5px 10px;
+  height: 28px;
+  padding: 0 8px;
 }
 
 .qb__add:hover {
   background: var(--hover);
+  color: var(--ink);
 }
 
 .qtext {
@@ -603,55 +619,58 @@
 }
 
 .qtext__area {
-  background: var(--code-bg);
-  /* A hairline: in dark the code ground is a step off the surface, not a field. */
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  color: var(--code-ink);
-  font: 13px / 1.6 var(--font-mono);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: var(--text-mono) / 1.6 var(--font-mono);
   min-height: 120px;
   outline: none;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   resize: vertical;
 }
 
 .qtext__area:focus {
+  border-color: var(--focus);
   box-shadow: var(--ring);
 }
 
 .qtext__area--invalid,
 .qtext__area--invalid:focus {
-  box-shadow: 0 0 0 2px var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
 }
 
+/* What is wrong with the text, and where: on the well between hairlines,
+   the line it points at in the field's mono. */
 .qtext__problem {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: var(--space-3) var(--space-4);
+  gap: 4px;
+  padding: var(--space-2) 12px;
 }
 
 .qtext__message {
   color: var(--danger);
   display: flex;
   flex-wrap: wrap;
-  font-size: var(--text-ui);
-  font-weight: 600;
+  font-size: var(--text-column);
+  font-weight: 500;
   gap: var(--space-2);
   margin: 0;
 }
 
 .qtext__where {
   color: var(--ink-3);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .qtext__line {
-  color: var(--code-ink);
-  font: 12.5px / 1.6 var(--font-mono);
+  color: var(--ink);
+  font: var(--text-mono) / 1.6 var(--font-mono);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -669,31 +688,37 @@
   gap: var(--space-3);
 }
 
+/* A group is a hairline section; a sub-group one step in, over line-soft. */
 .qresult__group {
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding-top: var(--space-2);
 }
 
 .qresult__group--level-2 {
+  border-top-color: var(--line-soft);
   padding-left: var(--space-4);
 }
 
 .qresult__heading {
   align-items: center;
-  appearance: none;
   align-self: flex-start;
+  appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-button);
   color: var(--ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 800;
+  font-size: var(--text-column);
+  font-weight: 600;
   gap: var(--space-2);
-  padding: 4px 10px 4px 4px;
+  height: 28px;
+  max-width: 100%;
+  padding: 0 8px 0 4px;
 }
 
 .qresult__heading:hover {
@@ -702,11 +727,19 @@
 
 .qresult__heading--level-2 {
   color: var(--ink-2);
-  font-weight: 700;
+  font-weight: 500;
+}
+
+.qresult__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .qresult__fold {
   color: var(--ink-3);
+  flex: none;
   transition: transform 120ms ease;
 }
 
@@ -715,13 +748,11 @@
 }
 
 .qresult__count {
-  background: var(--chip);
-  border-radius: var(--radius-pill);
-  color: var(--chip-ink);
-  font-size: var(--text-small);
+  color: var(--ink-3);
+  flex: none;
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  padding: 1px 8px;
+  font-weight: 500;
 }
 
 .qresult__table {
@@ -739,7 +770,8 @@
   color: var(--ink);
   cursor: pointer;
   font: inherit;
-  font-weight: 700;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
   padding: 0 10px;
   text-align: left;
 }
@@ -757,34 +789,35 @@
   align-items: start;
 }
 
+/* A card on a board: a hairline, not a shadow. */
 .qresult__card {
   appearance: none;
-  background: var(--raised);
-  border: 0;
-  border-radius: var(--radius-button);
-  box-shadow: var(--shadow-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
   color: var(--ink);
   cursor: pointer;
   display: flex;
   flex-direction: column;
   font: inherit;
   gap: 2px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   text-align: left;
   width: 100%;
 }
 
 .qresult__card:hover {
-  box-shadow: var(--shadow-card);
+  background: var(--hover);
 }
 
 .qresult__card-title {
-  font-weight: 700;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
 }
 
 .qresult__card-meta {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
 }
 
 .qresult__board .qresult__group--level-2 {
