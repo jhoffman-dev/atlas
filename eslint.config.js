@@ -115,7 +115,7 @@ export default tseslint.config(
   },
   {
     // e2e/fixtures.ts's `test` removes the temp folders a test's host made (issue #397).
-    files: ['e2e/**/*.spec.ts'],
+    files: ['e2e/**/*.spec.ts', 'tools/perf/**/*.spec.ts', 'tools/design/**/*.spec.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -124,7 +124,7 @@ export default tseslint.config(
             {
               name: '@playwright/test',
               importNames: ['test'],
-              message: "Import `test` from './fixtures.ts', which removes the test's temp folders.",
+              message: "Import `test` from e2e/fixtures.ts, which removes the test's temp folders.",
             },
           ],
         },

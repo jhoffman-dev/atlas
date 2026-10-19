@@ -3,7 +3,7 @@
 // design/target/Tokens.dc.html. Not part of `pnpm e2e`: it asserts nothing
 // about behaviour.
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../e2e/fixtures.ts';
 import type { Page } from '@playwright/test';
 
 const OUT = join(import.meta.dirname, '..', '..', 'design', 'out', 'shots');
