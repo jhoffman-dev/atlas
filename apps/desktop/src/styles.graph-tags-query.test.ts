@@ -86,6 +86,7 @@ const edgeLabel = blockOf(graph, '.graph__edge-label {');
 const graphNotice = blockOf(graph, '.graph__notice {');
 const listItem = blockOf(graph, '.graph__list-item {');
 const listNote = blockOf(graph, '.graph__list-note {');
+const listTitle = blockOf(graph, '.graph__list-title {');
 const listType = blockOf(graph, '.graph__list-type {');
 const listLink = blockOf(graph, '\n\n.graph__list-link {');
 const listWay = blockOf(graph, '.graph__list-way {');
@@ -165,6 +166,15 @@ describe('the graph', () => {
     expect(listLink.get('height')).toBe('28px');
     expect(tokenIn(listType.get('color'))).toBe('--ink-3');
     expect(tokenIn(listType.get('font-size'))).toBe('--text-meta');
+  });
+
+  it('ellipsises a title in a note row and a link row alike, since neither row wraps', () => {
+    expect(listNote.has('white-space')).toBe(false);
+    expect(listLink.get('white-space')).toBe('nowrap');
+    expect(listTitle.get('min-width')).toBe('0');
+    expect(listTitle.get('overflow')).toBe('hidden');
+    expect(listTitle.get('text-overflow')).toBe('ellipsis');
+    expect(listTitle.get('white-space')).toBe('nowrap');
   });
 });
 

@@ -104,6 +104,20 @@ describe('GraphView', () => {
     expect(onOpen).toHaveBeenCalledWith('plan.md', { split: false });
   });
 
+  it('puts a linked note’s title in the ellipsising span, with the whole title on hover (UI v2 13g)', async () => {
+    render(<Harness />);
+    await showList();
+    const links = within(screen.getByRole('list', { name: 'Connected to A task' })).getAllByRole(
+      'button',
+    );
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      const title = link.querySelector('.graph__list-title');
+      expect(title?.textContent).toBe('The plan');
+      expect(title?.getAttribute('title')).toBe('The plan');
+    }
+  });
+
   it('opens beside the note being read on Cmd-click', async () => {
     const onOpen = vi.fn();
     render(<Harness onOpen={onOpen} />);
