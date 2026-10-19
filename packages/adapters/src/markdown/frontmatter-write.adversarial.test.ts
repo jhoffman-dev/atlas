@@ -298,3 +298,116 @@ describe('updateFrontmatter, on a block that lists a key twice', () => {
     );
   });
 });
+
+/**
+ * #377: a block whose keys are all indented is still a block map — the keys
+ * only have to line up. A rewritten or added key takes the block's own indent,
+ * and every line nothing changed keeps its bytes (ADR-0003).
+ */
+describe('updateFrontmatter, on a block whose keys are indented (#377)', () => {
+  const unreadable = (key: string, problem: string) =>
+    expect.objectContaining({
+      name: 'FrontmatterRefusedError',
+      key,
+      message: `This note's properties cannot be read (${problem}); fix them in the source before changing them.`,
+    });
+
+  it('changing a key keeps the block indent', () => {
+    const written = updateFrontmatter(block('  a: 1', '  t: T', '  b: 2'), { t: 'U' });
+    expect(written).toBe(block('  a: 1', '  t: U', '  b: 2'));
+    expect(parseFrontmatterProperties(written)).toEqual({ a: 1, t: 'U', b: 2 });
+  });
+
+  it('a changed list or map is written at the block indent, its items as deep as they were', () => {
+    const before = block('  a: 1', '  tags:', '    - x', '  m:', '    k: 1');
+    expect(updateFrontmatter(before, { tags: ['x', 'y'], m: { k: 2 } })).toBe(
+      block('  a: 1', '  tags:', '    - x', '    - y', '  m:', '    k: 2'),
+    );
+  });
+
+  it('a changed value written over several lines stays inside the block', () => {
+    const written = updateFrontmatter(block('  a: 1', '  t: T'), { t: 'one\ntwo' });
+    expect(parseFrontmatterProperties(written)).toEqual({ a: 1, t: 'one\ntwo' });
+    const lines = written.split('\n').slice(1, -2);
+    // The library folds the value over a blank line, which needs no indent.
+    expect(lines.filter((line) => line !== '' && !line.startsWith('  '))).toEqual([]);
+  });
+
+  it('adding a key uses the block indent', () => {
+    const written = updateFrontmatter(block('  a: 1', '  t: T'), { n: 'N' });
+    expect(written).toBe(block('  a: 1', '  t: T', '  n: N'));
+  });
+
+  it('removing a key leaves the other lines byte-identical', () => {
+    const before = block('  a:   1   # spaced', '  t: T', "  b: 'q'");
+    expect(updateFrontmatter(before, { t: null })).toBe(block('  a:   1   # spaced', "  b: 'q'"));
+  });
+
+  it("a key's comment, at the block indent, goes where the key goes", () => {
+    const before = block('  a: 1', '  # about t', '  t: T', '  b: 2');
+    expect(updateFrontmatter(before, { t: 'U' })).toBe(
+      block('  a: 1', '  # about t', '  t: U', '  b: 2'),
+    );
+    expect(updateFrontmatter(before, { t: null })).toBe(block('  a: 1', '  b: 2'));
+  });
+
+  // Mixed indents. Keys at different columns are not one block map, so the
+  // block cannot be read and a change to it is refused rather than guessed at.
+  // Comments may stand at any column: each keeps its own, and only a
+  // rewritten key line takes the keys' indent.
+  it('mixed indents: keys at different columns are refused, not rewritten', () => {
+    const before = block('  a: 1', '    t: T');
+    expect(() => updateFrontmatter(before, { t: 'U' })).toThrowError(
+      unreadable('t', 'Nested mappings are not allowed in compact mappings at line 1, column 6:'),
+    );
+  });
+
+  // A remove-property step on a key the note lacks writes nothing, so it has
+  // nothing to refuse; a change that would write is refused on that key.
+  it('an unreadable block: removing a key it lacks is no change', () => {
+    const before = block('  a: 1', '    t: T');
+    expect(updateFrontmatter(before, { missing: null })).toBe(before);
+    expect(updateFrontmatter(before, { missing: undefined, gone: null })).toBe(before);
+  });
+
+  it('an unreadable block: a change is refused on the key it would write', () => {
+    const before = block('  a: 1', '    t: T');
+    expect(() => updateFrontmatter(before, { missing: null, n: 'N' })).toThrowError(
+      unreadable('n', 'Nested mappings are not allowed in compact mappings at line 1, column 6:'),
+    );
+  });
+
+  // A comment set apart by blank lines under a key goes with that key, the
+  // first as any other: removing the key removes it.
+  it('removing the first key drops a comment set apart under it, as for any other key', () => {
+    expect(updateFrontmatter(block('a: 1', '', '# c', '', 'b: 2'), { a: null })).toBe(
+      block('b: 2'),
+    );
+    expect(updateFrontmatter(block('x: 0', 'a: 1', '', '# c', '', 'b: 2'), { a: null })).toBe(
+      block('x: 0', 'b: 2'),
+    );
+  });
+
+  it('mixed indents: comments at other columns keep their own', () => {
+    const before = block('# head', '  a: 1', '      # deep', '# about t', '  t: T', '  b: 2');
+    expect(updateFrontmatter(before, { t: 'U' })).toBe(
+      block('# head', '  a: 1', '      # deep', '# about t', '  t: U', '  b: 2'),
+    );
+  });
+
+  it('tab indents are refused (YAML allows no tab as indentation); a tab after the indent is kept', () => {
+    expect(() => updateFrontmatter(block('\ta: 1', '\tt: T'), { t: 'U' })).toThrowError(
+      unreadable('t', 'Tabs are not allowed as indentation at line 1, column 1:'),
+    );
+    expect(updateFrontmatter(block('  a:\t1', '  t: T'), { t: 'U' })).toBe(
+      block('  a:\t1', '  t: U'),
+    );
+  });
+
+  it('CRLF: the changed and the added key keep the indent and the line ending', () => {
+    const before = '---\r\n  a: 1\r\n  t: T\r\n---\r\n';
+    expect(updateFrontmatter(before, { t: 'U', n: 'N' })).toBe(
+      '---\r\n  a: 1\r\n  t: U\r\n  n: N\r\n---\r\n',
+    );
+  });
+});
