@@ -3,7 +3,7 @@ import { Menu } from '@base-ui/react/menu';
 import type { PageCrumb } from '@atlas/domain';
 import { Icon, sidebarGlyph, type IconName } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
-import { ChatToggleButton } from './chat/chat-toggle.tsx';
+import { PageBarToggles } from './page-bar-toggles.tsx';
 import { usePaneFocus } from './pane-focus.ts';
 
 /** One command in a page's "…" menu. */
@@ -121,7 +121,7 @@ export function PageBar({
           </span>
         )}
         {star}
-        <ChatToggleButton />
+        <PageBarToggles />
         {onSplit !== undefined && (
           <PaneButton
             label="Split right"

@@ -60,6 +60,7 @@ export function TypePage({
   onOpenView,
   onDelete,
   onEditTemplate,
+  onRowFocus,
   onShowSidebar,
   history,
 }: {
@@ -87,6 +88,8 @@ export function TypePage({
   onDelete: (path: VaultPath) => void;
   /** Opens the template the type's new notes start as, made if it has none. */
   onEditTemplate: (type: ObjectType) => void;
+  /** Told the row the table's focus landed in, for the right sidebar. */
+  onRowFocus?: (path: string) => void;
   onShowSidebar?: () => void;
   history?: PageHistory;
 }) {
@@ -176,6 +179,7 @@ export function TypePage({
               onEditCell={table.editCell}
               onToggleSort={table.toggleSort}
               onNewNote={() => onNewNote(type)}
+              {...(onRowFocus !== undefined && { onRowFocus })}
             />
           )}
         </article>

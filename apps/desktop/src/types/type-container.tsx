@@ -1,8 +1,11 @@
 import { useEffect, useState, type ComponentProps } from 'react';
+import { createVaultPath } from '@atlas/domain';
+import { clearRow, focusRow, withinOf } from '../aside/aside-store.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import { useIndexKey } from '../index/index-status-store.ts';
+import { useWorkspaceStores } from '../workspace/workspace-wiring.tsx';
 import { takeEditAsked, type TypeModeStore } from './type-mode-store.ts';
 import type { TypePageMode } from './type-page.tsx';
 import { typeTabsShown } from './type-tabs.ts';
@@ -41,6 +44,9 @@ export function TypeContainer({
   name,
 }: PageContainerProps & { name: string }) {
   const { pages, pane } = wiring;
+  const { aside } = useWorkspaceStores();
+  // The row this tab's table held goes with the tab.
+  useEffect(() => () => clearRow(aside, tabId), [aside, tabId]);
   // Still read again on every news of the index: what it reads is not yet scoped (#325).
   const indexKey = useIndexKey(pane.indexStatus, pane.vault);
   const { editAsked, onNotes, onNewNote, onDelete, onEditTemplate } = pages.type;
@@ -108,6 +114,14 @@ export function TypeContainer({
         onOpenView={pages.openNote}
         onDelete={onDelete}
         onEditTemplate={onEditTemplate}
+        // The row the table's focus is in, for the aside: held against this type's page.
+        onRowFocus={(path) =>
+          focusRow(aside, {
+            tab: tabId,
+            path: createVaultPath(path),
+            within: withinOf({ kind: 'type', name }),
+          })
+        }
         {...chrome}
       />
     </LoadedLater>
