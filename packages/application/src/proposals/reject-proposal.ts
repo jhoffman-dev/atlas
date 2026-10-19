@@ -1,4 +1,6 @@
-import { ANSWERED_VIA_KEY, type ProposalAnswerer, type VaultPath } from '@atlas/domain';
+import { ANSWERED_VIA_KEY, messageOf, type ProposalAnswerer, type VaultPath } from '@atlas/domain';
+import { ProposalRefused } from '../chat/proposals.ts';
+import { backFromArchive, reopen } from './accept-proposal.ts';
 import {
   archiveProposal,
   readOpenProposal,
@@ -24,7 +26,7 @@ export async function rejectProposalNote({
   today: string;
   /** Who answered, recorded on the proposal as `answered_via`: the app's buttons unless said otherwise. */
   via?: ProposalAnswerer;
-}): Promise<ProposalArchived> {
+}): Promise<RejectedProposal> {
   const file = await readOpenProposal(ports, path);
   refuseUnsaved(ports.editors, path);
   await stampProposal(
@@ -35,5 +37,32 @@ export async function rejectProposalNote({
       [ANSWERED_VIA_KEY]: via,
     },
   );
-  return archiveProposal({ ports, path, today });
+  const archived = await archiveProposal({ ports, path, today });
+  return { proposal: path, ...archived };
+}
+
+/** What rejecting a proposal did, kept so it can be taken back. */
+export interface RejectedProposal extends ProposalArchived {
+  /** Where the proposal was while it waited. */
+  readonly proposal: VaultPath;
+}
+
+/**
+ * Takes back a reject: the proposal leaves the Archive and is open again, as
+ * if never answered. Answers where it is now.
+ */
+export async function undoRejectedProposal({
+  ports,
+  rejected,
+}: {
+  ports: ProposalPorts;
+  rejected: RejectedProposal;
+}): Promise<VaultPath> {
+  const back = await backFromArchive(ports, rejected, 'The proposal stays in the Archive');
+  await reopen(ports, back).catch((cause: unknown) => {
+    throw new ProposalRefused(
+      `The proposal is back at ${back}, but it could not be marked open again: ${messageOf(cause)}`,
+    );
+  });
+  return back;
 }

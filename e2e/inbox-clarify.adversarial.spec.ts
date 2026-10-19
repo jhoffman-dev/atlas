@@ -70,7 +70,7 @@ test('a change of mind away from Waiting does not write the person picked while 
   await status.selectOption({ label: 'Next Action' });
   // The row no longer asks who it waits on, so nothing on it says Mara Quill.
   await expect(who).toHaveCount(0);
-  await inbox.getByRole('button', { name: 'Done' }).press('Enter');
+  await inbox.getByRole('button', { name: 'Save', exact: true }).press('Enter');
 
   await expectFile(vault, 'Inbox/Call Tobias Fenn.md').toContain('status: next-action');
   expect(await vault.read('Inbox/Call Tobias Fenn.md')).not.toContain('waiting_on');
@@ -99,7 +99,7 @@ test('a title with no place to break does not push the row’s controls off the 
   const done = inbox
     .getByRole('row')
     .filter({ has: page.getByRole('button', { name: LONG, exact: true }) })
-    .getByRole('button', { name: 'Done' });
+    .getByRole('button', { name: 'Save', exact: true });
   await expect(done).toBeVisible();
 
   const viewport = page.viewportSize();
@@ -113,3 +113,32 @@ test('a title with no place to break does not push the row’s controls off the 
   });
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+for (const width of [1024, 720]) {
+  test(`at ${width}px the Inbox does not scroll sideways, Save stays reachable and a row keeps its height when it takes the focus`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const inbox = await openInbox(page, await vaultWith([LONG, 'Call Tobias Fenn']));
+    const row = inbox
+      .getByRole('row')
+      .filter({ has: page.getByRole('button', { name: 'Call Tobias Fenn', exact: true }) });
+    const save = row.getByRole('button', { name: 'Save', exact: true });
+    await expect(save).toBeVisible();
+    await save.scrollIntoViewIfNeeded();
+    const box = await save.boundingBox();
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+    const overflow = await inbox.evaluate((article) => {
+      const sheet = article.querySelector('.table__sheet');
+      return sheet === null ? 0 : sheet.scrollWidth - sheet.clientWidth;
+    });
+    expect(overflow).toBeLessThanOrEqual(1);
+
+    // The keys arrive with the focus: the row they arrive on does not grow or shrink for them.
+    const before = (await row.boundingBox())?.height ?? 0;
+    await row.focus();
+    await expect(row.getByRole('button', { name: 'Next, key N' })).toBeVisible();
+    const after = (await row.boundingBox())?.height ?? 0;
+    expect(after).toBe(before);
+  });
+}

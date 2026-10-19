@@ -8,12 +8,14 @@ import {
   rejectProposalNote,
   TaskRuleRefusedError,
   undoAcceptedProposal,
+  undoRejectedProposal,
   type AcceptedProposal,
   type ActivityLog,
   type Clock,
   type ProposalArchived,
   type ProposalListing,
   type ProposalPorts,
+  type RejectedProposal,
   type WindowClosingPort,
 } from '@atlas/application';
 import type {
@@ -270,6 +272,60 @@ export function useProposals(options: ProposalsOptions) {
     },
     [activity, answered, afterBatch, clock, fs, ports, queue, say],
   );
+  /**
+   * Accepts the proposal picked and, only once that has been written, rejects
+   * `rest` — the other values of its question and the copies of the one
+   * picked. An accept that is refused rejects nothing: the question stands
+   * as it was. One notice says the whole choice, and its Undo takes the
+   * accept back and then opens the rejects again.
+   */
+  const onAcceptChoice = useCallback(
+    (picked: VaultPath, rest: readonly VaultPath[]) => {
+      if (!answered.take(picked)) return;
+      const others = rest.filter((path) => answered.take(path));
+      const everyone = [picked, ...others];
+      setProblems((was) => everyone.reduce(without, was));
+      const vault = fs;
+      const today = clock.today();
+      const log = logOfVaultOpenNow(activity);
+      const recorded = <Done>(path: VaultPath, write: () => Promise<Done>) =>
+        withGiveUpRecorded(
+          { activity: log, write: 'proposal', path, refusal: ANSWER_REFUSALS } as const,
+          write,
+        );
+      queue.enqueue(vault, async () => {
+        let accepted: AcceptedProposal;
+        try {
+          accepted = await recorded(picked, () =>
+            acceptProposalNote({ ports, path: picked, today }),
+          );
+        } catch (cause) {
+          if (vault !== openVault.current) return;
+          for (const path of everyone) answered.giveBack(path);
+          setProblems((was) => new Map(was).set(picked, messageOf(cause)));
+          return;
+        }
+        const rejects = await inTurn(others, (path) =>
+          recorded(path, () => rejectProposalNote({ ports, path, today })),
+        );
+        if (vault !== openVault.current) return;
+        const failed = rejects.failed.map(({ item }) => item);
+        for (const path of failed) answered.giveBack(path);
+        setProblems((was) => {
+          const next = new Map(was);
+          for (const { item, reason } of rejects.failed) next.set(item, reason);
+          return next;
+        });
+        afterBatch({ answered: [picked, ...others.filter((p) => !failed.includes(p))], failed });
+        say({
+          notice: choiceNotice(accepted, rejects),
+          undo: [accepted],
+          undoRejected: rejects.done,
+        });
+      });
+    },
+    [activity, afterBatch, answered, clock, fs, ports, queue, say],
+  );
   const onAcceptMany = useCallback(
     (paths: readonly VaultPath[]) => answerMany(paths, 'Accepted'),
     [answerMany],
@@ -288,6 +344,7 @@ export function useProposals(options: ProposalsOptions) {
   const onUndo = useCallback(() => {
     const asked = saidNow.current;
     const accepted = asked?.undo ?? [];
+    const rejected = asked?.undoRejected ?? [];
     if (asked === null || accepted.length === 0) return;
     // Still shown while it is undone, but not offered twice.
     const undoingIt: Said = { notice: asked.notice, undo: [] };
@@ -303,8 +360,14 @@ export function useProposals(options: ProposalsOptions) {
     // Last accepted, first taken back, each checked on its own: one changed since stays, and says why.
     const undoOne = (one: AcceptedProposal) =>
       withGiveUpRecorded(named, () => undoAcceptedProposal({ ports, accepted: one }));
+    const undoReject = (one: RejectedProposal) =>
+      withGiveUpRecorded(named, () => undoRejectedProposal({ ports, rejected: one }));
     queue.enqueue(vault, async () => {
-      const outcome = undoneNotice(accepted, await inTurn([...accepted].reverse(), undoOne));
+      const undone = await inTurn([...accepted].reverse(), undoOne);
+      // The other values come back only with the accept: while it stands, they would be a second answer.
+      const reopened =
+        undone.failed.length > 0 ? null : await inTurn(rejected, (one) => undoReject(one));
+      const outcome = withReopened(undoneNotice(accepted, undone), reopened);
       setUndoing(false);
       if (vault !== openVault.current) return;
       const now = saidNow.current;
@@ -336,6 +399,7 @@ export function useProposals(options: ProposalsOptions) {
       onReject,
       selection,
       onClearSelection: clearChosen,
+      onAcceptChoice,
       onAcceptMany,
       onRejectMany,
       onUndo,
@@ -352,6 +416,7 @@ export function useProposals(options: ProposalsOptions) {
       onReject,
       selection,
       clearChosen,
+      onAcceptChoice,
       onAcceptMany,
       onRejectMany,
       onUndo,
@@ -441,6 +506,7 @@ function contentsOf(read: ProposalListing): ProposalsContents {
     reasons: new Map(read.open.map((listed) => [listed.proposal.path, listed.reason])),
     stranded: read.stranded.map((listed) => listed.proposal),
     unreadable: read.unreadable,
+    manyValued: read.manyValued,
   };
 }
 
@@ -460,6 +526,47 @@ function rejectedNotice(path: VaultPath, rejected: ProposalArchived): ProposalNo
     undoable: false,
     // Left in the Inbox, it has nothing to undo and must be read: it stays until dismissed.
     failed: rejected.archiveProblem !== null,
+  };
+}
+
+/** What a choice says: the accept, and what became of the other values. */
+function choiceNotice(
+  accepted: AcceptedProposal,
+  rejects: InTurn<VaultPath, RejectedProposal>,
+): ProposalNotice {
+  const base = acceptedNotice(accepted);
+  const count = rejects.done.length;
+  const rejected =
+    count === 0 ? '' : ` Rejected ${count} other ${count === 1 ? 'proposal' : 'proposals'}.`;
+  const left = rejects.failed.length;
+  const notRejected =
+    left === 0
+      ? ''
+      : ` ${left} could not be rejected: ${left === 1 ? 'its card says' : 'their cards say'} why.`;
+  return {
+    ...base,
+    text: `${base.text}${rejected}${notRejected}`,
+    failed: left > 0 || base.failed,
+  };
+}
+
+/** The undo's notice, with the other values it opened again said beside it. */
+function withReopened(
+  undone: ProposalNotice,
+  reopened: InTurn<RejectedProposal, unknown> | null,
+): ProposalNotice {
+  if (reopened === null || (reopened.done.length === 0 && reopened.failed.length === 0))
+    return undone;
+  const back =
+    reopened.done.length === 0
+      ? ''
+      : ` ${reopened.done.length} other ${reopened.done.length === 1 ? 'proposal is' : 'proposals are'} open again.`;
+  const [refused] = reopened.failed;
+  const not = refused === undefined ? '' : ` ${refused.reason}`;
+  return {
+    ...undone,
+    text: `${undone.text}${back}${not}`,
+    failed: undone.failed || refused !== undefined,
   };
 }
 

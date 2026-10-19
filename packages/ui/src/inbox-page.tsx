@@ -496,7 +496,13 @@ function InboxList({
     );
   }
   return (
-    <div className="table">
+    <div className="table inbox__list">
+      <h2 className="inbox__section">
+        To clarify <span className="inbox__section-count">{contents.total}</span>
+        <span className="inbox__section-hint">
+          New tasks land here with status Inbox. Nothing is required.
+        </span>
+      </h2>
       <div className="table__sheet">
         <table className="table__grid inbox__grid" aria-rowcount={contents.items.length + 1}>
           <thead>
@@ -505,6 +511,9 @@ function InboxList({
               <th>Kind</th>
               <th>
                 <span className="visually-hidden">Clarify</span>
+              </th>
+              <th>
+                <span className="visually-hidden">Keys</span>
               </th>
             </tr>
           </thead>
