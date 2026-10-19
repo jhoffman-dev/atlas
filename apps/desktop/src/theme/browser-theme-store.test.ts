@@ -116,4 +116,21 @@ describe('browserThemeStore', () => {
     expect(() => store.clear()).not.toThrow();
     expect(store.read()).toBeNull();
   });
+
+  // Review of 05abaa6a: clearing sessionStorage sends a `storage` event with
+  // a null key too, and that one says nothing about the theme.
+  it('ignores a storage event from a store that is not localStorage', () => {
+    store.write('dark');
+    const heard = vi.fn();
+    store.subscribe(heard);
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: null,
+        newValue: null,
+        storageArea: window.sessionStorage,
+      }),
+    );
+    expect(heard).not.toHaveBeenCalled();
+    expect(store.read()).toBe('dark');
+  });
 });

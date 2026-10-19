@@ -74,3 +74,39 @@ test('a row brings its section into view and hands it the focus', async ({ page 
   await expect(sync).toBeInViewport();
   await expect(sync).toBeFocused();
 });
+
+// Review of 05abaa6a: a row drawn as a block put its icon on one line and its
+// title on a second, clipped line (`.icon` is `display: block`); the guard
+// that measures a title's right edge could not see it. So each row's icon
+// and title are held to one line, side by side.
+test('a row draws its icon and its title on one line, side by side', async ({ page }) => {
+  await installHost(page, await createVault());
+  await page.goto('/');
+  await openSettings(page);
+
+  const rows = await list(page)
+    .getByRole('button')
+    .evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const row = button.getBoundingClientRect();
+        const icon = button.querySelector('svg')!.getBoundingClientRect();
+        const text = [...button.childNodes].find((node) => node.nodeType === Node.TEXT_NODE)!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const title = range.getBoundingClientRect();
+        const centre = (box: DOMRect) => box.top + box.height / 2;
+        return {
+          title: text.textContent,
+          iconOffCentre: Math.abs(centre(icon) - centre(row)),
+          titleOffCentre: Math.abs(centre(title) - centre(row)),
+          titleAfterIcon: title.left > icon.right,
+        };
+      }),
+    );
+  expect(rows.length).toBeGreaterThan(3);
+  for (const row of rows) {
+    expect(row.iconOffCentre, `${row.title}: icon`).toBeLessThanOrEqual(2);
+    expect(row.titleOffCentre, `${row.title}: title`).toBeLessThanOrEqual(2);
+    expect(row.titleAfterIcon, `${row.title}: title after icon`).toBe(true);
+  }
+});
