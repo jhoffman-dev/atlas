@@ -178,20 +178,24 @@ test('a board drags a task between the new statuses, and Waiting needs nobody (#
   });
   await openBoard(page);
   await page.locator('[data-path="tasks/Call the bank.md"]').waitFor();
+  // The column is named as its heading reads, not by the raw option (#338).
+  await expect(
+    page.locator('.board').getByRole('region', { name: 'Next Action', exact: true }),
+  ).toBeVisible();
 
-  await dragCardTo(page, 'tasks/Call the bank.md', 'in-progress');
+  await dragCardTo(page, 'tasks/Call the bank.md', 'In Progress');
   await expectFile(vault, 'tasks/Call the bank.md').toContain('status: in-progress');
-  await expectCardIn(page, 'tasks/Call the bank.md', 'in-progress');
+  await expectCardIn(page, 'tasks/Call the bank.md', 'In Progress');
 
-  await dragCardTo(page, 'tasks/Hear from Mara.md', 'waiting');
+  await dragCardTo(page, 'tasks/Hear from Mara.md', 'Waiting');
   await expectFile(vault, 'tasks/Hear from Mara.md').toContain('status: waiting');
-  await expectCardIn(page, 'tasks/Hear from Mara.md', 'waiting');
+  await expectCardIn(page, 'tasks/Hear from Mara.md', 'Waiting');
 
   // Nobody in Waiting on: the drag lands, and nothing asks who.
-  await dragCardTo(page, 'tasks/Call the bank.md', 'waiting');
+  await dragCardTo(page, 'tasks/Call the bank.md', 'Waiting');
   await expectFile(vault, 'tasks/Call the bank.md').toContain('status: waiting');
   expect(await vault.read('tasks/Call the bank.md')).not.toContain('waiting_on');
-  await expectCardIn(page, 'tasks/Call the bank.md', 'waiting');
+  await expectCardIn(page, 'tasks/Call the bank.md', 'Waiting');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });

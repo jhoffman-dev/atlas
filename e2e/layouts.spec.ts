@@ -95,14 +95,14 @@ test('ticking a task in a table marks it done, the board follows, and unticking 
     .getByRole('navigation', { name: 'Views' })
     .getByRole('button', { name: 'Board' })
     .click();
-  const doneColumn = page.getByRole('region', { name: 'done' });
+  const doneColumn = page.getByRole('region', { name: 'Done' });
   await expect(doneColumn.getByRole('button', { name: 'first', exact: true })).toBeVisible();
   await expect(doneColumn.getByRole('checkbox', { name: 'Mark First done' })).toBeChecked();
 
   // Unticked on the board: back to review, where it was before — not the start.
   await doneColumn.getByRole('checkbox', { name: 'Mark First done' }).click();
   await expectFile(vault, 'first.md').toContain('status: review');
-  const reviewColumn = page.getByRole('region', { name: 'review' });
+  const reviewColumn = page.getByRole('region', { name: 'Review' });
   await expect(reviewColumn.getByRole('button', { name: 'first', exact: true })).toBeVisible();
 });
 

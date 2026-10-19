@@ -202,7 +202,7 @@ test('a card dragged on a board does not strand the note open in the other pane'
     .click();
   await expect(pane(page, 2).getByRole('article', { name: 'first' })).toBeVisible();
 
-  await dragCardTo(page, 'first.md', 'done');
+  await dragCardTo(page, 'first.md', 'Done');
 
   await expectFile(vault, 'first.md').toContain('status: done');
   // The pane holding the note is told, rather than left showing what the file

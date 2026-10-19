@@ -78,7 +78,7 @@ async function openBusyBoard(page: Page) {
 test('every column shows its Add control, however full the column is', async ({ page }) => {
   await openBusyBoard(page);
 
-  for (const column of ['backlog', 'next', 'doing', 'review', 'done']) {
+  for (const column of ['Backlog', 'Next', 'Doing', 'Review', 'Done']) {
     const add = page.getByRole('button', { name: `Add to ${column}` });
     await expect(add).toBeVisible();
     // Visible to Playwright is not the same as on screen: check it is in the box

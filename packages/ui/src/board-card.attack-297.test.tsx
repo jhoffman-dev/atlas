@@ -209,7 +209,7 @@ describe('the card face: accessibility', () => {
         onAddCard={noop}
       />,
     );
-    const region = screen.getByRole('region', { name: 'done' });
+    const region = screen.getByRole('region', { name: 'Done' });
     const header = region.querySelector('header') as HTMLElement;
     expect(within(header).queryAllByRole('img')).toHaveLength(0);
     expect(within(region).getAllByRole('img')).toHaveLength(1);
@@ -258,8 +258,8 @@ describe('a column’s heading', () => {
 
   it('tones a status column with no tone by its name, and writes its label', () => {
     board([{ value: 'done', label: 'done', rows: [] }]);
-    expect(head('done').querySelector('.status-pill--dot')?.getAttribute('data-tone')).toBe('done');
-    expect(head('done').querySelector('.board__group-label')?.textContent).toBe('Done');
+    expect(head('Done').querySelector('.status-pill--dot')?.getAttribute('data-tone')).toBe('done');
+    expect(head('Done').querySelector('.board__group-label')?.textContent).toBe('Done');
   });
 
   it('heads a tone-null column with its raw label and no dot', () => {
@@ -285,8 +285,8 @@ describe('a column’s heading', () => {
     ['mIxEd', 'MIxEd'],
   ])('writes the label %s through optionLabel as %s', (label, shown) => {
     board([{ value: label, label, rows: [] }]);
-    expect(head(label).querySelector('.board__group-label')?.textContent).toBe(shown);
-    expect(within(head(label)).queryAllByRole('img')).toHaveLength(0);
+    expect(head(shown).querySelector('.board__group-label')?.textContent).toBe(shown);
+    expect(within(head(shown)).queryAllByRole('img')).toHaveLength(0);
   });
 });
 
@@ -330,7 +330,7 @@ describe('a column’s foot', () => {
   it('says “No tasks” only in an empty column, and not while adding to it', async () => {
     board(0);
     expect(screen.getByText('No tasks')).toBeDefined();
-    await userEvent.click(screen.getByRole('button', { name: 'Add to backlog' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add to Backlog' }));
     expect(screen.queryByText('No tasks')).toBeNull();
   });
 });
