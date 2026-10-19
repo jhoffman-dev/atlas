@@ -192,6 +192,37 @@ describe('useTermsPage', () => {
     expect(result.current.page.contents?.spellings).toBe(1);
   });
 
+  it('lists a company’s variants as they are after the index next moves, its note written elsewhere (#404)', async () => {
+    const variants = { now: ['larkspar'] };
+    const index = fakeIndexPort({
+      query: async () => ({
+        columns: COLUMNS,
+        rows: variants.now.map((value) => [
+          'Companies/Larkspur Payroll.md',
+          'Larkspur Payroll',
+          'company',
+          'variants',
+          value,
+        ]),
+        truncated: false,
+      }),
+    });
+    const { result, rerender } = renderPage({ index });
+    await waitFor(() =>
+      expect(result.current.page.contents?.terms[0]?.variants).toEqual(['larkspar']),
+    );
+
+    variants.now = ['larkspar', 'Larks Burr Payroll'];
+    rerender({ open: true, indexKey: 'b' });
+    await waitFor(() =>
+      expect(result.current.page.contents?.terms[0]?.variants).toEqual([
+        'larkspar',
+        'Larks Burr Payroll',
+      ]),
+    );
+    expect(result.current.page.contents?.spellings).toBe(2);
+  });
+
   it('adds a term named like a company to that company’s variants, and says where they went (#400)', async () => {
     const company =
       '---\ntype: company\nvariants:\n  - larkspar\n---\n\nPayroll vendor, [[Mara Quill]] runs it.\n';

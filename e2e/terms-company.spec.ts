@@ -81,11 +81,29 @@ test('a term named like a company adds its misheard spellings to the company, wh
     row.getByRole('textbox', { name: 'Misheard spellings of Larkspur Payroll' }),
   ).toHaveValue('Larkspar Payroll');
 
+  // A change to the company's note made outside the Terms page reaches the page and the vocabulary.
+  await vault.write(
+    COMPANY_PATH,
+    (await vault.read(COMPANY_PATH)).replace(
+      '  - Larkspar Payroll\n',
+      '  - Larkspar Payroll\n  - Larks Burr Payroll\n',
+    ),
+  );
+  await emitVaultChanged(page, [COMPANY_PATH]);
+  await expect(
+    row.getByRole('textbox', { name: 'Misheard spellings of Larkspur Payroll' }),
+  ).toHaveValue('Larkspar Payroll, Larks Burr Payroll');
+
   await vault.write(
     MEETING,
-    VALID.replace('start with the cache?', 'start with Larkspar Payroll? Ask LP.'),
+    VALID.replace(
+      'start with the cache?',
+      'start with Larkspar Payroll? Ask LP, or Larks Burr Payroll.',
+    ),
   );
   await emitVaultChanged(page, [MEETING]);
-  // The variant corrects; the alias, LP, is left as written.
-  await expectFile(vault, MEETING).toContain('start with Larkspur Payroll? Ask LP.');
+  // Both variants correct, the one written outside the page too; the alias, LP, is left as written.
+  await expectFile(vault, MEETING).toContain(
+    'start with Larkspur Payroll? Ask LP, or Larkspur Payroll.',
+  );
 });
