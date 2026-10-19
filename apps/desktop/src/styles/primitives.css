@@ -149,6 +149,66 @@
   color: var(--ink);
 }
 
+/* A notice bar (FlowInbox.dc.html): one line on the well under a hairline,
+   40px tall — its icon in ink-3, its words in ink, its actions at the right
+   end, the first a secondary button and the rest ghost. An offer the Inbox
+   makes, the band over a template or a corrected meeting, what making a
+   line a task did: each is this one bar, never a card. 40px is its least
+   height, the one line of the mockup: a long warning wraps and the bar
+   grows with it, and a preview grows it downwards. The Inbox's anchor
+   (list-anchor.ts) measures the bar's real rect when it arrives, so a
+   wrapped bar holds the list still as well as a one-line one. */
+.notice-bar {
+  align-items: center;
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-column);
+  gap: var(--space-2) 10px;
+  line-height: var(--leading-body);
+  min-height: 40px;
+  padding: 6px 20px;
+}
+
+.notice-bar__icon {
+  color: var(--ink-3);
+  flex: none;
+}
+
+.notice-bar__text {
+  flex: 1;
+  min-width: 20ch;
+}
+
+.notice-bar__text p,
+.notice-bar__text ul {
+  margin: 0;
+}
+
+/* The explanation beside the words that matter: ink-3 clears AA on the
+   well in both themes (styles.notices.test.ts holds it there). */
+.notice-bar__text small,
+.notice-bar__why {
+  color: var(--ink-3);
+  font-size: inherit;
+}
+
+.notice-bar strong {
+  font-weight: 600;
+}
+
+/* Opened: the preview under the line, the icon at the top of it. */
+.notice-bar--open {
+  align-items: flex-start;
+  padding: 10px 20px 12px;
+}
+
+.notice-bar--open .notice-bar__icon {
+  margin-top: 3px;
+}
+
 /* Mode switches: a well as the track, the chosen option lifted onto the
    surface with a hairline. */
 .segmented {

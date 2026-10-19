@@ -105,30 +105,5 @@
   padding: var(--space-5) 0;
 }
 
-.template-banner {
-  align-items: center;
-  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
-  border-radius: var(--radius-card);
-  color: var(--ink);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-  margin: 0 var(--space-4) var(--space-2);
-  padding: var(--space-2) var(--space-4);
-}
-
-.template-banner__icon {
-  color: var(--accent-text);
-  flex: none;
-}
-
-.template-banner__text {
-  flex: 1;
-  font-size: var(--text-ui);
-  margin: 0;
-  min-width: 20ch;
-}
-
-.template-banner__text strong {
-  color: var(--accent-text);
-}
+/* The band over a template is the notice bar (primitives.css); nothing of
+   its own to draw. */

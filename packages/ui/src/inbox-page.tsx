@@ -348,12 +348,12 @@ function describe(contents: InboxContents | null, proposals: number): string | n
 function OwnerUnknown({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <aside
-      className="inbox__offer inbox__offer--warning"
+      className="notice-bar inbox__offer inbox__offer--warning"
       role="alert"
       aria-label="Atlas can’t tell which action items are yours"
     >
-      <Icon name="person" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+      <Icon name="person" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         <p>
           Atlas can’t tell which action items are yours, so meetings make no tasks for you. Add your
           name or your emails in Settings → Profile.
@@ -379,12 +379,12 @@ function SettingsUnreadable({
 }) {
   return (
     <aside
-      className="inbox__offer inbox__offer--warning"
+      className="notice-bar inbox__offer inbox__offer--warning"
       role="alert"
       aria-label="Meetings and automations are paused"
     >
-      <Icon name="person" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+      <Icon name="person" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         <p>
           Meetings and automations are paused: .atlas/settings.md can’t be read ({problem}). Nothing
           is lost — meetings wait in their folder — and both resume once it reads.
@@ -399,9 +399,9 @@ function SettingsUnreadable({
 
 function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
   return (
-    <aside className="inbox__offer" aria-label="Set your types up for the Inbox">
-      <Icon name="link" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+    <aside className="notice-bar inbox__offer" aria-label="Set your types up for the Inbox">
+      <Icon name="link" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         <p>
           Notes are filed under a project or an area, and proposals and meetings arrive here. Your
           types could hold what that needs:
@@ -412,7 +412,7 @@ function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
           ))}
         </ul>
       </div>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onAccept}>
+      <button type="button" className="btn btn--secondary btn--sm" onClick={onAccept}>
         Add to the types
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={onDismiss}>

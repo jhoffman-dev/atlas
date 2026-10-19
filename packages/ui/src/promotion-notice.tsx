@@ -1,5 +1,6 @@
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import type { PromoteLine } from './editor/promote-line.ts';
+import { Icon } from './icon.tsx';
 
 /** What the page says after a checklist line was made a task, or a try at it failed. */
 export interface PromotionNotice {
@@ -39,10 +40,13 @@ function Banner({ notice }: { notice: PromotionNotice }) {
     stays: notice.onUndo === null,
   });
   return (
-    <div className="promotion-notice" role="status" {...hold}>
-      <p className="promotion-notice__text">{notice.message}</p>
+    <div className="notice-bar promotion-notice" role="status" {...hold}>
+      <Icon name="task" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
+        <p>{notice.message}</p>
+      </div>
       {notice.onOpen !== null && (
-        <button type="button" className="btn btn--ghost btn--sm" onClick={notice.onOpen}>
+        <button type="button" className="btn btn--secondary btn--sm" onClick={notice.onOpen}>
           Open
         </button>
       )}

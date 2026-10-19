@@ -3,61 +3,32 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- Corrections (P28-06) ----
-   The band over a meeting whose misheard spellings the import put right:
-   each change, struck through to its right spelling, and one Undo. */
-
-.corrections-band {
-  align-items: flex-start;
-  background: color-mix(in srgb, var(--accent-text) 8%, var(--raised));
-  border-radius: var(--radius-card);
-  color: var(--ink);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-  margin: 0 var(--space-4) var(--space-2);
-  padding: var(--space-2) var(--space-4);
-}
-
-.corrections-band__icon {
-  color: var(--accent-text);
-  flex: none;
-  margin-top: 2px;
-}
+   The notice bar (primitives.css) over a meeting whose misheard spellings
+   the import put right: the lead, then each change on the same line, struck
+   through to its right spelling, and one Undo at the right end. */
 
 .corrections-band__text {
-  flex: 1;
-  font-size: var(--text-ui);
-  min-width: 20ch;
-}
-
-.corrections-band__lead {
-  margin: 0;
-}
-
-.corrections-band__lead strong {
-  color: var(--accent-text);
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
 }
 
 .corrections-band__list {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
+  gap: var(--space-1) var(--space-3);
   list-style: none;
-  margin: var(--space-1) 0 0;
   padding: 0;
 }
 
-.corrections-band__list s {
-  color: var(--ink-3);
-}
-
+.corrections-band__list s,
 .corrections-band__count {
   color: var(--ink-3);
 }
 
 .corrections-band__refusal {
   color: var(--warning);
-  margin: var(--space-1) 0 0;
 }
 
 /* ---- Terms (P28-05) ----
