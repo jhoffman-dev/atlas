@@ -18,10 +18,10 @@ export interface QueryWiring {
 /**
  * The query page as a tab (ADR-0019, tab-model.md PR B): it builds and runs
  * the query itself, so typing draws this and not the window. What is typed
- * is told to the window's query-text store, which the chat reads while it
- * is open; a closed tab says nothing is being written.
+ * is told to the window's query-text store under this tab, which the chat
+ * reads for the focused tab while it is open; a closed tab says nothing.
  */
-export function QueryContainer({ wiring, chrome }: PageContainerProps) {
+export function QueryContainer({ wiring, tabId, chrome }: PageContainerProps) {
   const { pages, pane, overlays } = wiring;
   const query = useQueryPage({
     ports: {
@@ -43,8 +43,8 @@ export function QueryContainer({ wiring, chrome }: PageContainerProps) {
   });
   const { text } = pages.query;
   const written = query.language === 'atlas' ? query.atlas.composer.text : '';
-  useEffect(() => setQueryText(text, written), [text, written]);
-  useEffect(() => () => setQueryText(text, null), [text]);
+  useEffect(() => setQueryText(text, tabId, written), [text, tabId, written]);
+  useEffect(() => () => setQueryText(text, tabId, null), [text, tabId]);
   const overlay = useWindowOverlay(overlays);
   return (
     <LoadedLater chrome={chrome}>

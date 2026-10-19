@@ -244,7 +244,7 @@ test.describe('the same page in two places', () => {
     await expectFile(vault, CELLO).toContain('status: someday');
   });
 
-  test('the Inbox in both panes: deciding the row in each lands once, and says nothing failed', async ({
+  test('the Inbox in both panes: a row decided in one is written once, and both panes say so with nothing failed', async ({
     page,
   }) => {
     const vault = await gtdVault();
@@ -257,21 +257,20 @@ test.describe('the same page in two places', () => {
     const release = host.holdWrites(CELLO);
     await decideCello(page, 1);
     await expect.poll(() => host.writesTo(CELLO)).toBeGreaterThan(0);
+    const asked = host.writesTo(CELLO);
 
-    // Pane 2 still offers the row, so it is decided there too, the same way.
-    await decideCello(page, 2);
+    // Pane 2 no longer offers the row (the test above), so it cannot be decided
+    // twice: the one decision is the window's, and so is what it leaves to say.
+    await expect(rowIn(page, 2, 'Learn the cello')).toHaveCount(0);
     release();
     await expectFile(vault, CELLO).toContain('status: someday');
-    const refused = inboxIn(page, 2)
-      .getByRole('alert')
-      .filter({ hasText: /changed since/ });
-    const clarified = inboxIn(page, 2)
-      .getByRole('status')
-      .filter({ hasText: 'Clarified “Learn the cello”' });
-    // Pane 2's own decision has settled one way or the other.
-    await expect(refused.or(clarified)).toBeVisible();
-    // The note says exactly what was asked; telling the user it "changed since it was read" is false alarm.
-    await expect(refused).toHaveCount(0);
+    expect(host.writesTo(CELLO)).toBe(asked);
+    const clarifiedIn = (which: 1 | 2) =>
+      inboxIn(page, which).getByRole('status').filter({ hasText: 'Clarified “Learn the cello”' });
+    await expect(clarifiedIn(2)).toBeVisible();
+    await expect(clarifiedIn(1)).toBeVisible();
+    // Nothing was written over or refused: no pane says the note "changed since it was read".
+    await expect(page.getByRole('alert').filter({ hasText: /changed since/ })).toHaveCount(0);
   });
 
   test('Today in both panes: a tick in one takes the task off the other', async ({ page }) => {

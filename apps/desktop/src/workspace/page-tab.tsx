@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { PagePlace, Tab } from '@atlas/domain';
+import type { PagePlace, Tab, TabId } from '@atlas/domain';
 import { ActivityContainer } from '../activity/activity-container.tsx';
 import { ArchiveContainer } from '../archive/archive-container.tsx';
 import { AutomationsContainer } from '../automations/automations-container.tsx';
@@ -42,43 +42,45 @@ export function PageTab({
     ...(pane === 0 && onShowSidebar !== null && { onShowSidebar }),
   };
   const pages: PageWiringContext = { pages: wiring.pages, pane: wiring.pane, overlays };
-  return <div className="pane__tab">{containerFor({ place, wiring: pages, chrome })}</div>;
+  return (
+    <div className="pane__tab">{containerFor({ place, wiring: pages, tabId: tab.id, chrome })}</div>
+  );
 }
 
 /** The page a place names, by its kind, in its container. */
 function containerFor({
   place,
-  wiring,
-  chrome,
+  ...props
 }: {
   place: PagePlace;
   wiring: PageWiringContext;
+  tabId: TabId;
   chrome: PageChrome;
 }): ReactNode {
   switch (place.kind) {
     case 'graph':
-      return <GraphContainer wiring={wiring} chrome={chrome} scope={place.scope} />;
+      return <GraphContainer {...props} scope={place.scope} />;
     case 'type':
-      return <TypeContainer wiring={wiring} chrome={chrome} name={place.name} />;
+      return <TypeContainer {...props} name={place.name} />;
     case 'query':
-      return <QueryContainer wiring={wiring} chrome={chrome} />;
+      return <QueryContainer {...props} />;
     case 'tags':
-      return <TagsContainer wiring={wiring} chrome={chrome} selected={place.tag} />;
+      return <TagsContainer {...props} selected={place.tag} />;
     case 'archive':
-      return <ArchiveContainer wiring={wiring} chrome={chrome} />;
+      return <ArchiveContainer {...props} />;
     case 'inbox':
-      return <InboxContainer wiring={wiring} chrome={chrome} />;
+      return <InboxContainer {...props} />;
     case 'review':
-      return <ReviewContainer wiring={wiring} chrome={chrome} />;
+      return <ReviewContainer {...props} />;
     case 'today':
-      return <TodayContainer wiring={wiring} chrome={chrome} />;
+      return <TodayContainer {...props} />;
     case 'automations':
-      return <AutomationsContainer wiring={wiring} chrome={chrome} />;
+      return <AutomationsContainer {...props} />;
     case 'activity':
-      return <ActivityContainer wiring={wiring} chrome={chrome} />;
+      return <ActivityContainer {...props} />;
     case 'templates':
-      return <TemplatesContainer wiring={wiring} chrome={chrome} />;
+      return <TemplatesContainer {...props} />;
     case 'terms':
-      return <TermsContainer wiring={wiring} chrome={chrome} />;
+      return <TermsContainer {...props} />;
   }
 }

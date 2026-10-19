@@ -1,7 +1,8 @@
-import type { ComponentProps } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
+import { takeEditAsked, type TypeModeStore } from './type-mode-store.ts';
 import type { TypePageMode } from './type-page.tsx';
 import { typeTabsShown } from './type-tabs.ts';
 import { useTypeTable } from './use-type-table.ts';
@@ -17,9 +18,10 @@ type TypePageProps = ComponentProps<typeof TypePage>;
  * go through, which are the window's dialogs and commands.
  */
 export interface TypeWiring {
-  readonly mode: TypePageMode;
-  /** The page asks for a mode; Notes may land on one of the type's views instead. */
-  readonly onModeChange: (args: { name: string; mode: TypePageMode }) => void;
+  /** Where the window says which tab it asked to open on a type's editor. */
+  readonly editAsked: TypeModeStore;
+  /** Notes asked for from the editor: it may land on one of the type's views instead. */
+  readonly onNotes: (name: string) => void;
   readonly onNewNote: TypePageProps['onNewNote'];
   readonly onDelete: TypePageProps['onDelete'];
   readonly onEditTemplate: TypePageProps['onEditTemplate'];
@@ -31,8 +33,26 @@ export interface TypeWiring {
  * table — not the one type the window used to assemble. One editor per
  * type: its queued changes and open question belong to that file.
  */
-export function TypeContainer({ wiring, chrome, name }: PageContainerProps & { name: string }) {
+export function TypeContainer({
+  wiring,
+  tabId,
+  chrome,
+  name,
+}: PageContainerProps & { name: string }) {
   const { pages, pane } = wiring;
+  const { editAsked, onNotes, onNewNote, onDelete, onEditTemplate } = pages.type;
+  // This tab's mode: the editor when the window asked for it here, else the notes.
+  const [mode, setMode] = useState<TypePageMode>(() =>
+    takeEditAsked(editAsked, { tabId, name }) ? 'edit' : 'notes',
+  );
+  // Asked again while shown — the sidebar's Edit type on the type already open here.
+  useEffect(
+    () =>
+      editAsked.subscribe(() => {
+        if (takeEditAsked(editAsked, { tabId, name })) setMode('edit');
+      }),
+    [editAsked, tabId, name],
+  );
   const table = useTypeTable({
     fs: pages.ports.fs,
     markdown: pane.notes.markdown,
@@ -44,7 +64,6 @@ export function TypeContainer({ wiring, chrome, name }: PageContainerProps & { n
     editors: pane.editors,
     activity: pane.activity,
   });
-  const { mode, onModeChange, onNewNote, onDelete, onEditTemplate } = pages.type;
   return (
     <LoadedLater chrome={chrome}>
       <TypePage
@@ -52,7 +71,7 @@ export function TypeContainer({ wiring, chrome, name }: PageContainerProps & { n
         table={table}
         types={pane.types}
         mode={mode}
-        onModeChange={(next) => onModeChange({ name, mode: next })}
+        onModeChange={(next) => (next === 'notes' ? onNotes(name) : setMode(next))}
         ports={{
           fs: pages.ports.fs,
           markdown: pane.notes.markdown,

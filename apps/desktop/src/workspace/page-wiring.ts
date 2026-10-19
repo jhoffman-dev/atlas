@@ -1,4 +1,4 @@
-import type { PagePlace, VaultPath } from '@atlas/domain';
+import type { PagePlace, TabId, VaultPath } from '@atlas/domain';
 import type { ArchivePorts } from '@atlas/application';
 import type { OpenHow } from '@atlas/ui';
 import type { ActivityWiring } from '../activity/activity-container.tsx';
@@ -6,6 +6,7 @@ import type { AutomationsWiring } from '../automations/automations-container.tsx
 import type { GraphWiring } from '../graph/graph-container.tsx';
 import type { InboxWiring } from '../inbox/inbox-container.tsx';
 import type { OverlayStore } from '../overlay-store.ts';
+import type { PageHolds } from './page-holds.ts';
 import type { PageChrome } from '../page-frame-fallback.tsx';
 import type { PaneContext } from '../panes/note-pane-container.tsx';
 import type { QueryWiring } from '../query/query-container.tsx';
@@ -33,6 +34,8 @@ export interface PageWiring {
   readonly openNote: (path: VaultPath, how?: OpenHow) => void;
   /** Opens a page in the focused pane's active tab. */
   readonly openPage: (place: PagePlace) => void;
+  /** What the pages hold in flight for the open vault, shared by every tab on a page. */
+  readonly holds: PageHolds;
   readonly today: TodayWiring;
   readonly inbox: InboxWiring;
   readonly templates: TemplatesWiring;
@@ -52,8 +55,9 @@ export interface PageWiringContext {
   readonly overlays: OverlayStore;
 }
 
-/** What every page container is handed: the wiring, and this tab's frame. */
+/** What every page container is handed: the wiring, the tab it draws in, and that tab's frame. */
 export interface PageContainerProps {
   readonly wiring: PageWiringContext;
+  readonly tabId: TabId;
   readonly chrome: PageChrome;
 }

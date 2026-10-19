@@ -2084,8 +2084,36 @@ interface Editor {
  */
 describe('pages as tabs', () => {
   const pane = (which: 1 | 2) => screen.getByRole('region', { name: `Pane ${which}` });
-  /** Lets whatever an open set going settle, so a count that follows is the action's alone. */
-  const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+  const aTurn = () => act(() => new Promise<void>((turn) => setTimeout(turn, 0)));
+  /**
+   * Waits until a turn of the event loop draws nothing, so the counts that
+   * follow are the action's alone: a condition on React's work, not a wait
+   * on the clock.
+   */
+  const untilQuiet = () =>
+    waitFor(async () => {
+      startCountingRenders();
+      await aTurn();
+      expect(stopCountingRenders().commits).toBe(0);
+    });
+  /**
+   * What was drawn since counting began, kept until a turn draws nothing: an
+   * action's draws and whatever they set going, late ones included.
+   */
+  async function drawnUntilQuiet(): Promise<Record<string, number>> {
+    const drawn: Record<string, number> = {};
+    await waitFor(async () => {
+      await aTurn();
+      const turn = stopCountingRenders();
+      for (const [name, count] of Object.entries(turn.renders)) {
+        drawn[name] = (drawn[name] ?? 0) + count;
+      }
+      startCountingRenders();
+      expect(turn.commits).toBe(0);
+    });
+    stopCountingRenders();
+    return drawn;
+  }
   const oneNote = () =>
     fakeVault({
       remembered: location,
@@ -2122,15 +2150,14 @@ describe('pages as tabs', () => {
   it('opening Today draws its container as the day lands, and never the window, the shell or the frames', async () => {
     renderOn(oneNote());
     await screen.findByRole('treeitem', { name: 'recipes' });
-    await settle();
+    await untilQuiet();
 
     startCountingRenders();
     await runCommand('Today');
     await screen.findByRole('article', { name: 'Today' });
     // The day read and landed: the page says what it holds.
     await screen.findByText(/nothing needs you/);
-    await settle();
-    const { renders } = stopCountingRenders();
+    const renders = await drawnUntilQuiet();
 
     // Mounted, then drawn again as its read landed: the container is where the page's data lands.
     expect(renders.TodayContainer ?? 0).toBeGreaterThanOrEqual(2);
@@ -2168,7 +2195,7 @@ describe('pages as tabs', () => {
       within(row).getByRole('combobox', { name: 'Status of Loose task' }),
       'next-action',
     );
-    await settle();
+    await untilQuiet();
 
     // The write behind the row is held, so what is counted is the row leaving, not the index moving after.
     const reads = vault.holdReads();
@@ -2177,8 +2204,7 @@ describe('pages as tabs', () => {
     await waitFor(() =>
       expect(screen.queryByRole('form', { name: 'Clarify Loose task' })).toBeNull(),
     );
-    await settle();
-    const { renders } = stopCountingRenders();
+    const renders = await drawnUntilQuiet();
     reads.release();
 
     expect(renders.InboxContainer ?? 0).toBeGreaterThanOrEqual(1);
@@ -2217,6 +2243,51 @@ describe('pages as tabs', () => {
 
     expect(await within(pane(2)).findByRole('article', { name: 'Book' })).toBeDefined();
     expect(await within(pane(1)).findByRole('article', { name: 'Person' })).toBeDefined();
+  });
+
+  // #130 (#283): another vault opening with the Inbox open starts the page
+  // afresh — its rows held back for that vault's own offers — rather than
+  // keeping what the last vault's page had. The panes are keyed by the vault.
+  it('starts the Inbox page afresh for another vault opened with the Inbox open', async () => {
+    const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
+    const task = 'Inbox/Loose task.md';
+    const files = { [task]: '---\ntype: task\n---\n# Loose task\n' };
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('Inbox', 'directory')], Inbox: [entry(task, 'file')] },
+      files,
+      elsewhere: { [other.absolutePath]: files },
+      picks: [other],
+    });
+    const index = fakeIndexPorts(vault);
+    index.index.query = async (sql: string) =>
+      sql.includes('"importStamped"')
+        ? {
+            columns: ['path', 'title', 'type', 'modified'],
+            rows: [[task, 'Loose task', 'task', 1]],
+            truncated: false,
+          }
+        : sql.includes('AS "total"')
+          ? { columns: ['total'], rows: [[1]], truncated: false }
+          : { columns: [], rows: [], truncated: false };
+    renderOn(vault, index);
+    await userEvent.click(await screen.findByRole('button', { name: /^Inbox/ }));
+    const before = await screen.findByRole('article', { name: 'Inbox' });
+    await within(before).findByRole('form', { name: 'Clarify Loose task' });
+    // The other vault remembers the same tab, with the same id, on the Inbox.
+    const remembered = window.localStorage.getItem(`atlas.workspace:${location.absolutePath}`);
+    window.localStorage.setItem(
+      `atlas.workspace:${other.absolutePath}`,
+      (remembered ?? '').replace(location.absolutePath, other.absolutePath),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
+    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
+    const after = await screen.findByRole('article', { name: 'Inbox' });
+    await within(after).findByRole('form', { name: 'Clarify Loose task' });
+    // A page made afresh is a new one on the screen, not the first vault's kept.
+    expect(after).not.toBe(before);
   });
 });
 

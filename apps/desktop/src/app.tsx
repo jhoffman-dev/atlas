@@ -11,6 +11,7 @@ import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
   activeTabOf,
+  tabPlace,
   createVaultPath,
   favoriteValue,
   rankNoteSuggestions,
@@ -193,7 +194,7 @@ import { useTemplatesPage } from './templates/use-templates-page.ts';
 import { answersWrittenOrGivenUp, useAnswersWrittenBeforeClose } from './proposals/answer-queue.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
-import { createQueryTextStore, queryTextNow } from './query/query-text-store.ts';
+import { createQueryTextStore, queryTextOf } from './query/query-text-store.ts';
 import { AppNotices } from './app-notices.tsx';
 import { browserActivitySeenStore } from './activity/browser-activity-seen-store.ts';
 import { useActivity } from './activity/use-activity.ts';
@@ -215,7 +216,9 @@ import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
 import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
 import { useInboxWaiting } from './inbox/use-inbox-waiting.ts';
-import { createPendingWrites } from './inbox/pending-writes.ts';
+import { createPendingWrites } from './workspace/pending-writes.ts';
+import { createPageHoldsByVault } from './workspace/page-holds.ts';
+import { askToEdit, createTypeModeStore } from './types/type-mode-store.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
@@ -436,6 +439,13 @@ function AppWindow({
   }, [indexPorts, vaultKey, ownWrites, reads]);
   /** The note the person is working in, read as it is needed: the window is not drawn for a switch. */
   const focusedNote = useCallback(() => focusedNotePath(workspaceNow(workspace)), [workspace]);
+  // What the query tab is writing, read by the chat for the window it opens on.
+  const [queryText] = useState(createQueryTextStore);
+  /** The focused tab's query text while that tab shows the query page, else null. */
+  const focusedQueryText = useCallback(() => {
+    const tab = activeTabOf(workspaceNow(workspace));
+    return tabPlace(tab)?.kind === 'query' ? (queryTextOf(queryText, tab.id) ?? '') : null;
+  }, [workspace, queryText]);
   const {
     status: indexStatus,
     store: indexStore,
@@ -674,15 +684,19 @@ function AppWindow({
     (place: PagePlace) => openPlace(workspace, place, 'here'),
     [workspace],
   );
-  // Which of a type page's modes the window last asked for: a type opened to be edited.
-  const [typeMode, setTypeMode] = useState<TypePageMode>('notes');
+  // A type opened to be edited: the ask names the tab it lands in, whose mode it is.
+  const [typeModes] = useState(createTypeModeStore);
   const openType = useCallback(
     (name: string, mode: TypePageMode = 'notes') => {
-      setTypeMode(mode);
       openPage({ kind: 'type', name });
+      if (mode === 'edit') {
+        askToEdit(typeModes, { tabId: activeTabOf(workspaceNow(workspace)).id, name });
+      }
     },
-    [openPage],
+    [openPage, typeModes, workspace],
   );
+  // What the pages hold in flight, per vault: shared by every tab on a page, kept across a switch and back.
+  const [holdsByVault] = useState(createPageHoldsByVault);
   const openGraph = useCallback(
     (scope: GraphScope) => openPage({ kind: 'graph', scope }),
     [openPage],
@@ -806,9 +820,6 @@ function AppWindow({
     [newView, showOverlay],
   );
 
-  // What the query tab is writing, read by the chat for the window it opens on.
-  const [queryText] = useState(createQueryTextStore);
-
   const profileSetting = useProfileSetting({
     fs: vault.fs,
     markdown: notes.markdown,
@@ -858,7 +869,8 @@ function AppWindow({
       vaultKey,
       onChanged,
     },
-    window: chatWindowOf({ query: queryTextNow(queryText), focused: focusedNote() }),
+    // The focused tab's query, while it is on the query page; else the note it shows, or nothing.
+    window: chatWindowOf({ query: focusedQueryText(), focused: focusedNote() }),
     clipboard: browserClipboard,
     settingsOpen: overlay === 'settings',
     activity: activityLog,
@@ -872,7 +884,15 @@ function AppWindow({
   useEffect(() => {
     if (!chat.open) return;
     const stopNotes = workspace.subscribe((state, before) => {
-      if (focusedNotePath(state.workspace) !== focusedNotePath(before.workspace)) windowMoved();
+      const was = activeTabOf(before.workspace);
+      const now = activeTabOf(state.workspace);
+      if (
+        was.id !== now.id ||
+        tabPlace(was)?.kind !== tabPlace(now)?.kind ||
+        focusedNotePath(state.workspace) !== focusedNotePath(before.workspace)
+      ) {
+        windowMoved();
+      }
     });
     const stopQuery = queryText.subscribe(windowMoved);
     return () => {
@@ -1704,6 +1724,7 @@ function AppWindow({
                       onSettled: settleArchive,
                       openNote,
                       openPage,
+                      holds: holdsByVault.of(location.absolutePath),
                       today: {
                         view:
                           todayView === null
@@ -1760,9 +1781,8 @@ function AppWindow({
                         renames: tagRenames.forVault(location.absolutePath),
                       },
                       type: {
-                        mode: typeMode,
-                        onModeChange: ({ name, mode }) =>
-                          mode === 'notes' ? openTypePage(name) : setTypeMode(mode),
+                        editAsked: typeModes,
+                        onNotes: openTypePage,
                         // An artifact is saved from its link or its page, not made blank.
                         onNewNote: (type) =>
                           type.name === ARTIFACT_TYPE

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useStore } from 'zustand';
 import { noteTitle, type VaultPath } from '@atlas/domain';
 import {
   acceptProposalNote,
@@ -24,7 +25,12 @@ import type {
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useRowSelection } from '../archive/use-row-selection.ts';
 import { answeredNotice, inTurn, undoneNotice, type InTurn } from './answer-many.ts';
-import { useAnswerQueue, useAnswersWrittenBeforeClose } from './answer-queue.ts';
+import { useAnswersWrittenBeforeClose } from './answer-queue.ts';
+import {
+  createProposalWrites,
+  type ProposalsSaid,
+  type ProposalWrites,
+} from './proposal-writes.ts';
 
 export interface ProposalsOptions {
   readonly ports: ProposalPorts;
@@ -37,6 +43,12 @@ export interface ProposalsOptions {
   readonly activity: Pick<ActivityLog, 'inOpenVault'>;
   /** The window's close, held until the answers still being written are written. */
   readonly closing: WindowClosingPort;
+  /**
+   * The answers in flight, held by the window for the vault so every tab on
+   * the Inbox shares them (tab-model.md, PR B); the hook holds its own when
+   * handed none.
+   */
+  readonly held?: ProposalWrites;
 }
 
 /** What an answer refuses so as not to write over or lose anything: shown on the card, no fault. */
@@ -72,10 +84,7 @@ interface Answered {
 }
 
 /** What the section says, and what its notice's Undo takes back: that answer's own, never another's. */
-interface Said {
-  readonly notice: ProposalNotice;
-  readonly undo: readonly AcceptedProposal[];
-}
+type Said = ProposalsSaid;
 
 /**
  * The Activity log of the vault open now, kept for a write that may begin
@@ -102,26 +111,23 @@ function logOfVaultOpenNow(
  * may still list one as open. Several chosen together are answered in turn,
  * each as it would be alone, and one Undo takes back every accept (#168).
  */
-export function useProposals({
-  ports,
-  clock,
-  indexKey,
-  onSettled,
-  activity,
-  closing,
-}: ProposalsOptions) {
+export function useProposals(options: ProposalsOptions) {
+  const { ports, clock, indexKey, onSettled, activity, closing } = options;
   const [listing, setListing] = useState<ProposalsContents | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [problems, setProblems] = useState<ReadonlyMap<VaultPath, string>>(new Map());
-  const [reads, setReads] = useState(0);
-  const { said, saidNow, say } = useSaid();
-  const answered = useAnsweredPaths();
+  const [own] = useState(createProposalWrites);
+  const held = options.held ?? own;
+  const { queue } = held;
+  const reads = useStore(held.store, (state) => state.drained);
+  const { said, saidNow, say } = useSaid(held);
+  const answered = useAnsweredPaths(held);
   const choosing = useRowSelection('');
-  const queue = useAnswerQueue(() => {
-    onSettled();
-    setReads((count) => count + 1);
-  });
+  // What the queue does as it drains, as the tab drawing now would: the latest `onSettled`.
+  useEffect(() => {
+    held.held.onDrained = onSettled;
+  }, [held, onSettled]);
   useAnswersWrittenBeforeClose(queue, closing);
 
   // What the page says about answers belongs to the vault they were given in:
@@ -364,13 +370,18 @@ export function useProposals({
  * What the section says, kept as well where an answer finishing later can
  * see what is shown by then, without waiting for a render.
  */
-function useSaid() {
-  const [said, setSaid] = useState<Said | null>(null);
-  const saidNow = useRef<Said | null>(null);
-  const say = useCallback((next: Said | null) => {
-    saidNow.current = next;
-    setSaid(next);
-  }, []);
+function useSaid(held: ProposalWrites) {
+  const said = useStore(held.store, (state) => state.said);
+  // Read at the moment an answer settles, not as the tab last drew: the window's copy.
+  const saidNow = useMemo(
+    () => ({
+      get current() {
+        return held.store.getState().said;
+      },
+    }),
+    [held],
+  );
+  const say = useCallback((next: Said | null) => held.store.setState({ said: next }), [held]);
   return { said, saidNow, say };
 }
 
@@ -387,27 +398,27 @@ function besideLater(failure: ProposalNotice, later: Said): Said {
  * and given back should the answer fail. `take` is false for one already
  * being answered — two presses in one tick, before either has drawn.
  */
-function useAnsweredPaths() {
-  const [paths, setPaths] = useState<ReadonlySet<VaultPath>>(new Set());
-  const now = useRef<ReadonlySet<VaultPath>>(paths);
-  const set = useCallback((next: ReadonlySet<VaultPath>) => {
-    now.current = next;
-    setPaths(next);
-  }, []);
+function useAnsweredPaths(held: ProposalWrites) {
+  const paths = useStore(held.store, (state) => state.answered);
+  const now = () => held.store.getState().answered;
+  const set = useCallback(
+    (next: ReadonlySet<VaultPath>) => held.store.setState({ answered: next }),
+    [held],
+  );
   const take = useCallback(
     (path: VaultPath) => {
-      if (now.current.has(path)) return false;
-      set(new Set(now.current).add(path));
+      if (now().has(path)) return false;
+      set(new Set(now()).add(path));
       return true;
     },
     [set],
   );
   const giveBack = useCallback(
-    (path: VaultPath) => set(new Set([...now.current].filter((held) => held !== path))),
+    (path: VaultPath) => set(new Set([...now()].filter((kept) => kept !== path))),
     [set],
   );
   const forget = useCallback(() => {
-    if (now.current.size > 0) set(new Set());
+    if (now().size > 0) set(new Set());
   }, [set]);
   return useMemo(() => ({ paths, take, giveBack, forget }), [paths, take, giveBack, forget]);
 }

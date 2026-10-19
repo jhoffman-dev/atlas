@@ -4,7 +4,7 @@ import { InboxPage } from '@atlas/ui';
 import { useProposals } from '../proposals/use-proposals.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import type { PendingWrites } from './pending-writes.ts';
+import type { PendingWrites } from '../workspace/pending-writes.ts';
 import { useInbox } from './use-inbox.ts';
 
 type InboxPageProps = ComponentProps<typeof InboxPage>;
@@ -39,9 +39,13 @@ export interface InboxWiring extends Pick<
 /**
  * The Inbox as a tab (tab-model.md, PR B): it lists what waits and answers
  * the proposals itself, so a row leaving or an answer landing draws this and
- * not the window. The sidebar's count is the window's own read. Writes made
- * in the background are held by the window through `pendingWrites`, so a
- * tab closed mid-write is still waited for.
+ * not the window. What is in flight — rows leaving, the serial queue, the
+ * last undo — is the window's per vault (`pages.holds`), so a tab switched
+ * back to, or the Inbox in both panes, sees the same. The sidebar's count is
+ * the window's own read. Writes made in the background are held by the
+ * window through `pendingWrites`, so a tab closed mid-write is still waited
+ * for. Another vault opening starts the page afresh: `PanesContainer` is
+ * keyed by the vault, which is what #130 (#283) keyed the page by.
  */
 export function InboxContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
@@ -59,6 +63,7 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
     onSettled: pages.onSettled,
     activity: pane.activity,
     closing,
+    held: pages.holds.inbox,
   });
   const proposals = useProposals({
     ports: pages.ports,
@@ -67,6 +72,7 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
     onSettled: pages.onSettled,
     activity: pane.activity,
     closing,
+    held: pages.holds.proposals,
   });
   const { written: inboxWritten } = inbox;
   const { written: answersWritten } = proposals;

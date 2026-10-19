@@ -13,7 +13,9 @@ export interface TodayWiring {
 /**
  * The Today page as a tab (#111, tab-model.md PR B): it reads the day's
  * tasks itself, so a tick or a read landing draws this and not the window.
- * Drawn only while it is the shown tab, and read afresh each time it is.
+ * Drawn only while it is the shown tab, and read afresh each time it is;
+ * what is settling, and the last change's undo, are the window's per vault
+ * (`pages.holds`), so a tab switched back to sees the tick still landing.
  */
 export function TodayContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
@@ -28,6 +30,7 @@ export function TodayContainer({ wiring, chrome }: PageContainerProps) {
     open: true,
     onSettled: pages.onSettled,
     activity: pane.activity,
+    held: pages.holds.today,
   });
   return (
     <TodayPage
