@@ -69,7 +69,7 @@ test('a term named like a company adds its misheard spellings to the company, wh
   );
   expect(await vault.exists('Terms/Larkspur Payroll.md')).toBe(false);
   await expect(page.getByRole('status').filter({ hasText: /^Added to / })).toHaveText(
-    `Added to ${COMPANY_PATH}: Larkspar Payroll.`,
+    `Added to ${COMPANY_PATH}: Larkspar Payroll, now corrected to “Larkspur Payroll”.`,
   );
   await expect(page.getByRole('alert')).toHaveCount(0);
 

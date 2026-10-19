@@ -212,7 +212,7 @@ describe('useTermsPage', () => {
     expect(notes.has('Terms/Larkspur Payroll.md')).toBe(false);
     expect(result.current.notice).toBeNull();
     expect(result.current.added).toBe(
-      'Added to Companies/Larkspur Payroll.md: Larks Burr Payroll.',
+      'Added to Companies/Larkspur Payroll.md: Larks Burr Payroll, now corrected to “Larkspur Payroll”.',
     );
     expect(activity.reports).toEqual([]);
 

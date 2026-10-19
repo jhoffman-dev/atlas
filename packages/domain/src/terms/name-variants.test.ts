@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { vocabularySourceOf, withVariantsAdded } from './name-variants.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
+import { isVocabularyNote, vocabularySourceOf, withVariantsAdded } from './name-variants.ts';
 
 describe('the vocabulary’s reading of a note’s type (#400)', () => {
   it('is the first of term, person and company the type names, as the vocabulary reads it', () => {
@@ -42,5 +43,29 @@ describe('misheard spellings added to a note’s variants (#400)', () => {
       added: ['larkspar'],
     });
     expect(withVariantsAdded(null, [])).toEqual({ variants: [], added: [] });
+  });
+});
+
+describe('a variants list that cannot take another spelling (#404)', () => {
+  it('is nothing for a mapping, a number or a yes/no, which an add would reshape', () => {
+    expect(withVariantsAdded({ heard: 'Larkspar' }, ['Larks Burr'])).toBeNull();
+    expect(withVariantsAdded(7, ['Larks Burr'])).toBeNull();
+    expect(withVariantsAdded(true, ['Larks Burr'])).toBeNull();
+  });
+
+  it('drops an empty scalar rather than keep it as an empty spelling', () => {
+    expect(withVariantsAdded('', ['Larks Burr'])).toEqual({
+      variants: ['Larks Burr'],
+      added: ['Larks Burr'],
+    });
+    expect(withVariantsAdded('  ', ['Larks Burr'])?.variants).toEqual(['Larks Burr']);
+  });
+});
+
+describe('a note the vocabulary reads (#404)', () => {
+  it('is one in the vault’s own space, outside the Archive', () => {
+    expect(isVocabularyNote(createVaultPath('Areas/Vendors/Larkspur Payroll.md'))).toBe(true);
+    expect(isVocabularyNote(createVaultPath('Archive/Areas/Larkspur Payroll.md'))).toBe(false);
+    expect(isVocabularyNote(createVaultPath('.atlas/templates/Company.md'))).toBe(false);
   });
 });

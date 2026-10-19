@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createVaultPath, VOCABULARY_PAGE_SIZE, type ObjectType } from '@atlas/domain';
 import { fakeIndexPort, fakeMarkdown, fakeOpenNotes, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
+import { VaultAccessError } from '../vault/ports.ts';
 import { addTerm, loadTerms, setTermVariants, TermRefusedError } from './terms.ts';
 
 const path = (value: string) => createVaultPath(value);
@@ -180,7 +181,7 @@ function recordingVault(
     },
     readTextFile: async (at) => {
       const text = files[at];
-      if (text === undefined) throw new Error(`no file ${at}`);
+      if (text === undefined) throw new VaultAccessError(`no file ${at}`);
       return { text, modified: 7 };
     },
     writeTextFile: async ({ path: at, contents }) => {
@@ -418,6 +419,54 @@ describe('addTerm', () => {
       ]);
       expect(added).toEqual({ path: 'Companies/Larkspur Payroll.md', into: 'company', added: [] });
       expect(vault.written).toEqual([]);
+    });
+
+    it('never adds to an archived company, which the vocabulary does not read, and refuses as before (#404)', async () => {
+      const archived = 'Archive/Areas/Larkspur Payroll.md';
+      const vault = recordingVault({ [archived]: COMPANY }, [{ name: 'Terms', kind: 'directory' }]);
+      await expect(
+        addTo(vault, { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' }, [archived]),
+      ).rejects.toThrow(
+        new TermRefusedError(
+          `[[Larkspur Payroll]] already opens ${archived}, and would open the new term instead. Rename one of them first.`,
+        ),
+      );
+      expect(vault.written).toEqual([]);
+      expect(vault.created).toEqual([]);
+    });
+
+    it('refuses a spelling that is the company’s only once case is folded, saying how the note spells it (#404)', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      await expect(
+        addTo(vault, { canonical: 'LARKSPUR  payroll', variants: 'Larks Burr Payroll' }, [
+          'Companies/Larkspur Payroll.md',
+        ]),
+      ).rejects.toThrow(
+        new TermRefusedError(
+          'Companies/Larkspur Payroll.md is spelt “Larkspur Payroll”. Add the term as “Larkspur Payroll”, or rename the note first.',
+        ),
+      );
+      expect(vault.written).toEqual([]);
+    });
+
+    it('takes the company’s right spelling from its title property when it has one (#404)', async () => {
+      const titled = COMPANY.replace('type: company', 'type: company\ntitle: Larkspur Payroll Co');
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': titled });
+      await expect(
+        addTo(vault, { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' }, [
+          'Companies/Larkspur Payroll.md',
+        ]),
+      ).rejects.toThrow(/is spelt “Larkspur Payroll Co”/);
+    });
+
+    it('refuses cleanly when the note the name opened is gone since the vault was read (#404)', async () => {
+      const vault = recordingVault({}, [{ name: 'Terms', kind: 'directory' }]);
+      await expect(
+        addTo(vault, { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' }, [
+          'Companies/Larkspur Payroll.md',
+        ]),
+      ).rejects.toBeInstanceOf(TermRefusedError);
+      expect(vault.created).toEqual([]);
     });
 
     it('refuses a company name given no misheard spellings, since the name already spells itself', async () => {
