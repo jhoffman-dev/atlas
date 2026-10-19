@@ -34,12 +34,23 @@
   min-height: 44px;
 }
 
+/* The strip reaches 1px over the bar's hairline so the open tab's underline
+   sits on it. More tabs than fit scroll sideways, with no bar: a scrollable
+   strip clips on both axes, and Macs set to always show scrollbars would
+   otherwise draw one for that 1px and a second for the width it took. */
 .view-tabs {
   align-items: stretch;
   display: flex;
   gap: 2px;
+  margin-bottom: -1px;
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.view-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .view-tabs__tab,
@@ -59,10 +70,9 @@
   white-space: nowrap;
 }
 
-/* A tab is as tall as the bar; the open one's 2px underline sits on the rule. */
+/* A tab is as tall as the strip; the open one's 2px underline sits on the rule. */
 .view-tabs__tab {
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
   min-height: 44px;
   padding: 2px 8px 0;
 }
@@ -171,10 +181,15 @@
   font-weight: 500;
 }
 
-.view-tabs__tab:focus-visible,
 .view-toolbar__button:focus-visible,
 .view-toolbar__new:focus-visible {
   box-shadow: var(--ring);
+  outline: none;
+}
+
+/* The strip clips what overflows it, so a tab's ring is drawn inside the tab. */
+.view-tabs__tab:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
   outline: none;
 }
 
