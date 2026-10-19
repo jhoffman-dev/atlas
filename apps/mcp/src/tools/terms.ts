@@ -18,7 +18,8 @@ export const terms = defineTool({
     'are spellings two notes claim for two different right spellings; they are not used until ' +
     'one note lets go, so never correct one. To add a term, call atlas_create_note with ' +
     'properties { type: "term", variants: [...], kind }; to change its variants, ' +
-    'atlas_update_properties. Read-only.',
+    "atlas_update_properties. A person's or company's misheard spellings go in that note's own " +
+    'variants, with atlas_update_properties, not in a term. Read-only.',
   inputSchema: noInput,
   annotations: { readOnlyHint: true },
   call: (client) => client.terms(),

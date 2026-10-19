@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { spellingWarnings, type ObjectType, type VaultPath } from '@atlas/domain';
+import { spellingWarnings, tidySpelling, type ObjectType, type VaultPath } from '@atlas/domain';
 import {
   addTerm,
   loadTerms,
@@ -119,7 +119,8 @@ export function useTermsPage({
       const today = localToday();
       const add = () =>
         addTerm({ fs, markdown, openNotes: editors, term, types, templates, notePaths, today });
-      void run(add, { failed: `“${term.canonical}” was not added`, path: null, said: whereAdded });
+      const said = (done: AddedTerm) => whereAdded(done, tidySpelling(term.canonical));
+      void run(add, { failed: `“${term.canonical}” was not added`, path: null, said });
     },
     [run, fs, markdown, editors, types, templates, notePaths],
   );
@@ -167,10 +168,14 @@ export function useTermsPage({
   return { page, notice, added };
 }
 
-/** Where a term's misheard spellings went, said only when that was not a new term's note (#400). */
-function whereAdded({ path, into, added }: AddedTerm): string | null {
+/**
+ * Where a term's misheard spellings went, and what they now correct to — said
+ * only when that was not a new term's note (#400). The spelling is the one
+ * typed: the add refuses one the note does not spell exactly so (#404).
+ */
+function whereAdded({ path, into, added }: AddedTerm, spelling: string): string | null {
   if (into === 'term') return null;
   return added.length === 0
     ? `${path} already lists those misheard spellings.`
-    : `Added to ${path}: ${added.join(', ')}.`;
+    : `Added to ${path}: ${added.join(', ')}, now corrected to “${spelling}”.`;
 }

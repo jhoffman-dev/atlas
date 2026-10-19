@@ -369,7 +369,7 @@ describe('addTerm', () => {
       ]);
       const added = await addTo(
         vault,
-        { canonical: 'larkspur payroll', variants: 'larkspar, Larks Burr Payroll' },
+        { canonical: 'Larkspur Payroll', variants: 'larkspar, Larks Burr Payroll' },
         ['Companies/Larkspur Payroll.md', 'A.md'],
       );
       expect(added).toEqual({

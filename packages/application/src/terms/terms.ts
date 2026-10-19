@@ -6,7 +6,9 @@ import {
   newTermProperties,
   newTermRefusal,
   nextAvailableNotePath,
+  isVocabularyNote,
   noteTitle,
+  pageTitle,
   resolveWikiLinkTarget,
   splitFrontmatter,
   TERM_TYPE,
@@ -32,10 +34,11 @@ import {
 } from '@atlas/domain';
 import type { OpenNotes } from '../api/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
+import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { setNoteProperties } from '../query/set-property.ts';
 import { findTypeTemplate, readTemplate, type NoteTemplate } from '../types/templates.ts';
-import type { VaultFsPort } from '../vault/ports.ts';
+import { VaultAccessError, type VaultFsPort } from '../vault/ports.ts';
 
 /** The vault's terms, and the vocabulary they make with its people and companies. */
 export interface TermsCatalog {
@@ -171,7 +174,14 @@ export async function addTerm({
   return { path, into: TERM_TYPE, added: variants };
 }
 
-/** The person's or company's note `[[name]]` opens, read from the file; null when it opens no such note. */
+/**
+ * The person's or company's note `[[name]]` opens, read from the file; null
+ * when it opens no such note, or one the vocabulary does not read — archived,
+ * a template, in a hidden folder — whose spellings would correct nothing.
+ *
+ * Its right spelling is its title, and corrections match case and all, so a
+ * name typed in another case is refused rather than corrected to the note's.
+ */
 async function namedNoteOpenedBy({
   fs,
   markdown,
@@ -179,17 +189,68 @@ async function namedNoteOpenedBy({
   notePaths,
 }: {
   fs: VaultFsPort;
-  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
   name: string;
   notePaths: readonly VaultPath[];
 }): Promise<{ path: VaultPath; into: 'person' | 'company' } | null> {
   const path = resolveWikiLinkTarget(name, notePaths);
-  if (path === null) return null;
-  const { text } = await fs.readTextFile(path);
-  const into = vocabularySourceOf(
-    markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)['type'],
+  if (path === null || !isVocabularyNote(path)) return null;
+  const { frontmatter } = splitFrontmatter(await readNamedNote(fs, path));
+  const properties = readTypeOf(markdown, frontmatter);
+  const into = vocabularySourceOf(properties['type']);
+  if (into !== 'person' && into !== 'company') return null;
+
+  const problem = markdown.frontmatterProblem(frontmatter);
+  if (problem !== null) {
+    throw new TermRefusedError(`${path} has properties Atlas can't change safely: ${problem}`);
+  }
+  const spelt = tidySpelling(pageTitle({ fileTitle: noteTitle(path), properties }).text);
+  if (spelt !== name) {
+    throw new TermRefusedError(
+      `${path} is spelt “${spelt}”. Add the term as “${spelt}”, or rename the note first.`,
+    );
+  }
+  if (withVariantsAdded(properties[VARIANTS_KEY], []) === null) throw variantsShapeRefusal(path);
+  return { path, into };
+}
+
+/** The note's text; a note gone since the vault was listed is a refusal, not a fault. */
+async function readNamedNote(fs: VaultFsPort, path: VaultPath): Promise<string> {
+  try {
+    return (await fs.readTextFile(path)).text;
+  } catch (cause) {
+    // The host says a missing file this way; the add is simply refused, to be tried again.
+    if (cause instanceof VaultAccessError) {
+      throw new TermRefusedError(`${path} could not be read (${cause.message}). Try again.`);
+    }
+    throw cause;
+  }
+}
+
+/**
+ * The properties, read as a write reads them: a key listed twice is its last
+ * copy, so a company is still known as one — but a repeated `type` is refused,
+ * since which of the two it is would be a guess.
+ */
+function readTypeOf(
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>,
+  frontmatter: string | null,
+): Record<string, unknown> {
+  try {
+    return markdown.frontmatterProperties(frontmatter, {
+      forWriting: true,
+      refusingDuplicated: ['type', VARIANTS_KEY],
+    });
+  } catch (cause) {
+    if (cause instanceof FrontmatterRefusedError) throw new TermRefusedError(cause.message);
+    throw cause;
+  }
+}
+
+function variantsShapeRefusal(path: VaultPath): TermRefusedError {
+  return new TermRefusedError(
+    `${path} has a variants that is not a list, so misheard spellings can't be added to it. Make it a list first.`,
   );
-  return into === 'person' || into === 'company' ? { path, into } : null;
 }
 
 /**
@@ -222,6 +283,8 @@ async function addToNamedNote({
   let added: string[] = [];
   const values = (properties: Readonly<Record<string, unknown>>) => {
     const merged = withVariantsAdded(properties[VARIANTS_KEY], variants);
+    // Reshaped since it was read: refused, and nothing written.
+    if (merged === null) throw variantsShapeRefusal(path);
     added = merged.added;
     return added.length === 0 ? {} : { [VARIANTS_KEY]: merged.variants };
   };
