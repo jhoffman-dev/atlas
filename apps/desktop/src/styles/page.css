@@ -274,7 +274,11 @@
   width: calc(720px + 64px);
 }
 
+/* A split pane at a wide window is narrow too, so a page's narrow layouts
+   (activity.css, automations.css) ask the page's width, not the window's —
+   as the bar's own layouts ask `page-bar` above. */
 .page--wide {
+  container: page / inline-size;
   display: flex;
   flex-direction: column;
   gap: 18px;

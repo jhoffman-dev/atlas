@@ -132,6 +132,7 @@ function RuleList({ rows, error, openId, onOpen, onToggle, onRunNow, busy }: Aut
               <button
                 type="button"
                 className="automation-card__name"
+                title={row.name}
                 aria-current={row.id === openId ? 'true' : undefined}
                 onClick={() => onOpen(row.id)}
               >

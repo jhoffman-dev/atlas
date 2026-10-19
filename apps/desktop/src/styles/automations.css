@@ -44,6 +44,9 @@
   padding: var(--space-5) 0;
 }
 
+/* A .page-list__row (page.css) laid out as a grid. The two selectors weigh
+   the same, so this file winning rests on index.css importing it after
+   page.css. */
 .automation-card {
   display: grid;
   gap: var(--space-3);
@@ -73,6 +76,8 @@
   min-width: 0;
 }
 
+/* Kept to its column and cut short rather than running under the times, so
+   the name is what the pointer finds; its title holds the whole of it. */
 .automation-card__name {
   appearance: none;
   background: none;
@@ -80,12 +85,16 @@
   border-radius: var(--radius-chip);
   color: var(--ink);
   cursor: pointer;
-  flex: none;
+  flex: 0 1 auto;
   font: inherit;
   font-size: var(--text-emphasis);
   font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
   padding: 0;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .automation-card__name:hover {
@@ -258,7 +267,6 @@
   flex-direction: column;
 }
 
-.automation-dry-run__notes,
 .automation-dry-run__passed,
 .automation-log__entries,
 .automation-log__lines {
@@ -267,21 +275,7 @@
   padding: 0;
 }
 
-/* Each note it would take: a hairline row, its path in ink-3 beside the title. */
-.automation-dry-run__notes li {
-  align-items: center;
-  border-bottom: 1px solid var(--line-soft);
-  display: flex;
-  gap: var(--space-3);
-  height: 34px;
-  min-width: 0;
-  padding: 0 4px;
-}
-
-.automation-dry-run__notes li:hover {
-  background: var(--hover);
-}
-
+/* Each note it would take is a .page-list__row (page.css): its path in ink-3 beside the title. */
 .automation-dry-run__path {
   color: var(--ink-3);
   font-size: var(--text-meta);
@@ -351,7 +345,9 @@
   color: var(--warning);
 }
 
-@media (max-width: 760px) {
+/* In a narrow pane (the page's width, not the window's: page.css), the
+   times go; the name, what it does and Run now stay. */
+@container page (max-width: 760px) {
   .automation-card {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }

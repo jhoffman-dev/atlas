@@ -173,9 +173,10 @@ function Lines({ rows, total, error, onOpenSubject }: ActivityPageProps) {
             <button
               type="button"
               className="btn btn--ghost btn--sm activity-line__open"
+              title={`Open ${row.subject}`}
               onClick={() => onOpenSubject(row.id)}
             >
-              Open {row.subject}
+              <span className="activity-line__open-text">Open {row.subject}</span>
             </button>
           )}
         </li>

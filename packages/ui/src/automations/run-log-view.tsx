@@ -22,9 +22,9 @@ export function DryRunResult({
     <section className="automation-dry-run" aria-label="Dry run">
       <h3 className="page-section__title">{result.summary}</h3>
       {result.notes.length > 0 && (
-        <ul className="automation-dry-run__notes" aria-label="Notes it would take">
+        <ul className="page-list" aria-label="Notes it would take">
           {result.notes.map((note) => (
-            <li key={note.path}>
+            <li key={note.path} className="page-list__row">
               <button type="button" className="table__link" onClick={() => onOpenNote(note.path)}>
                 <Icon name="doc" size={15} />
                 <span className="table__title">{note.title}</span>

@@ -45,6 +45,9 @@
   padding: var(--space-5) 0;
 }
 
+/* A .page-list__row (page.css) laid out as a grid. The two selectors weigh
+   the same, so this file winning rests on index.css importing it after
+   page.css. */
 .activity-line {
   display: grid;
   grid-template-columns: 112px 56px 88px minmax(0, 1fr) auto;
@@ -77,7 +80,17 @@
   white-space: nowrap;
 }
 
+/* "Open <subject>" is capped, so a long subject is cut short in the button
+   rather than pushing the row past the pane; its title holds the whole of it. */
 .activity-line__open {
+  max-width: 220px;
+  min-width: 0;
+}
+
+.activity-line__open-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -87,13 +100,20 @@
   color: var(--raised);
 }
 
-@media (max-width: 720px) {
+/* In a narrow pane (the page's width, not the window's: page.css), the
+   kind goes; the time, the level, the message and Open stay. */
+@container page (max-width: 720px) {
   .activity-line {
     grid-template-columns: auto auto minmax(0, 1fr) auto;
   }
 
   .activity-line__kind {
     display: none;
+  }
+
+  /* The message is what a narrow row is for; Open gives way to a few words. */
+  .activity-line__open {
+    max-width: 120px;
   }
 
   .activity__search {
