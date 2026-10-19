@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { focusedRing, RINGED_PRIMITIVES } from './focus-ring.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
+import { TABLE_GROUP_HEIGHT, TABLE_ROW_HEIGHT, TODAY_ROW_HEIGHT } from './row-heights.ts';
 
 /**
  * PR #328 (UI v2 slice 2, primitives) under attack, in WebKit, on the built
@@ -484,11 +485,6 @@ for (const [surface, open] of Object.entries(UNDER_TOAST)) {
   });
 }
 
-/** The estimates in grouped-rows.tsx (LINE_HEIGHT, UI v2 slice 4) and today-page.tsx (ROW_HEIGHT). */
-const TABLE_ROW = 34;
-const TABLE_GROUP = 32;
-const TODAY_ROW = 44;
-
 test('a flat table row with a status pill is drawn at the height the list places it by', async ({
   page,
 }) => {
@@ -499,7 +495,7 @@ test('a flat table row with a status pill is drawn at the height the list places
     .filter({ has: page.locator('.status-pill') })
     .first();
   await expect(row).toBeVisible();
-  expect((await row.boundingBox())!.height).toBeCloseTo(TABLE_ROW, 0);
+  expect((await row.boundingBox())!.height).toBeCloseTo(TABLE_ROW_HEIGHT, 0);
 });
 
 test('a status group row of a table is drawn at the height the list places it by', async ({
@@ -512,7 +508,7 @@ test('a status group row of a table is drawn at the height the list places it by
     .filter({ has: page.locator('.status-pill') })
     .first();
   await expect(group).toBeVisible();
-  expect((await group.boundingBox())!.height).toBeCloseTo(TABLE_GROUP, 0);
+  expect((await group.boundingBox())!.height).toBeCloseTo(TABLE_GROUP_HEIGHT, 0);
 });
 
 test('a Today row that says its status is drawn at the height the list places it by', async ({
@@ -527,5 +523,5 @@ test('a Today row that says its status is drawn at the height the list places it
     const item = element.closest('[data-index]') ?? element.closest('li');
     return item?.getBoundingClientRect().height ?? -1;
   });
-  expect(height).toBeCloseTo(TODAY_ROW, 0);
+  expect(height).toBeCloseTo(TODAY_ROW_HEIGHT, 0);
 });

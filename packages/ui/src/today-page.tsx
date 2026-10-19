@@ -516,15 +516,31 @@ function Section({
  * draws them: a row measured at its estimate does not place the list again.
  */
 const GROUP_NAME_HEIGHT = 18;
+/** Under the name: `.today__group-name`'s margin-bottom (today.css). */
+const GROUP_NAME_GAP = 4;
 const GROUP_GAP = 12;
-const ROW_HEIGHT = 44;
+/** The table view's row (table.css `.table__grid td`), pinned by e2e/row-estimates.spec.ts. */
+const ROW_HEIGHT = 34;
+/**
+ * The half of the last row's 1px border that a collapsed table draws outside
+ * itself: left out, every group was 0.5px short of what it measured, and the
+ * page's scroll height moved under each fast scroll.
+ */
+const TABLE_EDGE = 0.5;
 
-/** A group's height before it is measured: the gap above it, its name, and its rows. */
+/**
+ * A group's height before it is measured: the gap above it, its name and the
+ * room under it, its rows, and the table's edge. Pinned to what a placed
+ * group measures by e2e/row-estimates.spec.ts.
+ */
 function groupHeight(sectionId: TodaySectionId, group: TodayGroup | undefined, at: number): number {
   if (group === undefined) return 0;
   const named = (group.label ?? UNNAMED[sectionId] ?? null) !== null;
   return (
-    (at === 0 ? 0 : GROUP_GAP) + (named ? GROUP_NAME_HEIGHT : 0) + group.tasks.length * ROW_HEIGHT
+    (at === 0 ? 0 : GROUP_GAP) +
+    (named ? GROUP_NAME_HEIGHT + GROUP_NAME_GAP : 0) +
+    group.tasks.length * ROW_HEIGHT +
+    TABLE_EDGE
   );
 }
 
@@ -622,7 +638,7 @@ function Group({
       {name !== null && (
         <h3 className="today__group-name">
           <GroupName group={group} name={name} onOpen={actions.onOpen} />
-          <span className="review__count">{group.tasks.length}</span>
+          {group.tasks.length > 0 && <span className="review__count">{group.tasks.length}</span>}
         </h3>
       )}
       <div className="table">
@@ -703,7 +719,7 @@ const TaskRow = memo(function TaskRow({
         </button>
       </td>
       <td className="review__detail today__detail">
-        <Details task={task} sectionId={sectionId} onOpen={actions.onOpen} />
+        {rowDetails({ task, sectionId, onOpen: actions.onOpen })}
       </td>
       <td className="review__actions">
         <RowCommands task={task} actions={actions} />
@@ -761,9 +777,13 @@ const SAYS_STATUS: ReadonlySet<TodaySectionId> = new Set(['overdue', 'dueToday',
 /**
  * What a row says of its task beside the name: its status where the section
  * mixes them, its project and who it waits on where the group does not
- * already say, its contexts, its day, and how long it has waited.
+ * already say, its contexts, its day, and how long it has waited — on one
+ * line, a · between each (the brief, §3). A function the row calls, not a
+ * component: the 34px rows put more of them on the page, and each
+ * component a row holds is a render "Open Today" is counted by
+ * (tools/perf/budgets.json).
  */
-function Details({
+function rowDetails({
   task,
   sectionId,
   onOpen,
@@ -790,30 +810,41 @@ function Details({
     );
   }
   task.contexts.forEach((context, at) => {
-    pieces.push(
-      // By place: a task may name one context twice.
-      <span key={`context ${at}`} className="today__context">
-        {context}
-      </span>,
-    );
+    // By place: a task may name one context twice.
+    pieces.push(<span key={`context ${at}`}>{context}</span>);
   });
   if (sectionId !== 'waiting' && task.status === 'waiting' && task.waitingOn !== '') {
     pieces.push(<span key="on">On {task.waitingOn}</span>);
   }
-  if (task.due !== null) pieces.push(<DueDay key="due" task={task} sectionId={sectionId} />);
+  if (task.due !== null) pieces.push(dueDay(task, sectionId));
   if (sectionId === 'backToday' && task.defer !== null) {
     pieces.push(<span key="back">Deferred until {task.defer}</span>);
   }
   if (task.waitingDays !== null) {
     pieces.push(<span key="waited">{waitedWords(task.waitingDays)}</span>);
   }
-  return <span className="today__pieces">{pieces}</span>;
+  return (
+    <span className="today__pieces">
+      {pieces.flatMap((piece, at) =>
+        at === 0
+          ? [piece]
+          : [
+              <span key={`sep ${at}`} className="today__sep" aria-hidden="true">
+                ·
+              </span>,
+              piece,
+            ],
+      )}
+    </span>
+  );
 }
 
-function DueDay({ task, sectionId }: { task: TodayTask; sectionId: TodaySectionId }) {
-  if (sectionId === 'dueToday') return <span>Due today</span>;
+function dueDay(task: TodayTask, sectionId: TodaySectionId): ReactNode {
+  if (sectionId === 'dueToday') return <span key="due">Due today</span>;
   return (
-    <span className={sectionId === 'overdue' ? 'today__late' : undefined}>Due {task.due}</span>
+    <span key="due" className={sectionId === 'overdue' ? 'today__late' : undefined}>
+      Due {task.due}
+    </span>
   );
 }
 

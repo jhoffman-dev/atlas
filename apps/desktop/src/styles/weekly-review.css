@@ -6,7 +6,9 @@
    One page of sections, each a table like the Inbox's: an item's name, what
    it is about, and the quick actions that deal with it. A section is headed
    by the 15/600 section title over a hairline (Tokens.dc.html); the Today
-   page's sections are headed the same way. */
+   page's sections are headed the same way. The rows are the table view's
+   (table.css `.table__grid td`): 34px, divided by `line-soft`, the cells
+   beside the name 12.5px ink-2 (UI v2 slice 13a). */
 
 .review__section {
   margin-top: var(--space-6);
@@ -48,17 +50,10 @@
   margin: 0;
 }
 
-/* Today's and the review's rows keep 44px: today-page.tsx places them by
-   ROW_HEIGHT = 44, and the table view's 34px rows (UI v2 slice 4) are not
-   theirs until their own slice. */
-.review__grid td {
-  height: 44px;
-}
-
 /* Scoped to the grid, as the Inbox's cells are: `.table__grid td` zeroes padding. */
 .review__grid .review__detail {
   color: var(--ink-2);
-  font-size: var(--text-ui);
+  font-size: var(--text-column);
   padding: 0 24px 0 10px;
   white-space: nowrap;
 }
@@ -73,16 +68,18 @@
   margin-left: var(--space-1);
 }
 
+/* Move to…: a small secondary control, the height of the `.btn--sm` beside
+   it, so the row stays the 34px it is placed by. */
 .review__status {
-  background: var(--raised);
-  border: 0;
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-soft);
-  color: var(--ink);
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--btn-secondary-line);
+  border-radius: var(--radius-button);
+  color: var(--btn-secondary-ink);
   font: inherit;
   font-size: var(--text-small);
+  height: 22px;
   max-width: 160px;
-  padding: 7px 12px;
+  padding: 0 8px;
 }
 
 .review__status:focus-visible {
