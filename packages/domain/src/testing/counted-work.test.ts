@@ -37,6 +37,22 @@ describe('countedWork', () => {
     expect(countedWork(each(4000)) / countedWork(each(1000))).toBeGreaterThan(15);
   });
 
+  it('counts a regex split and a sticky lexer as linear, and a global replace once over the text', () => {
+    // A split runs a sticky copy of its pattern at each position; a failed try reads one character.
+    const splitting = (count: number) => () => 'ab,'.repeat(count).split(/,/);
+    const lexing = (count: number) => () => {
+      const text = 'ab 12 '.repeat(count);
+      const token = /[a-z]+|\d+|\s+/y;
+      while (token.lastIndex < text.length && token.exec(text) !== null);
+    };
+    const replacing = (count: number) => () => 'ab,'.repeat(count).replace(/,/g, ';');
+    for (const work of [splitting, lexing, replacing]) {
+      expect(countedWork(work(4000)) / countedWork(work(1000))).toBeCloseTo(4, 1);
+    }
+    expect(countedWork(() => /c/y.exec('abc'))).toBe(1);
+    expect(countedWork(() => 'a,b'.replace(/,/g, ';'))).toBe(3);
+  });
+
   it('puts every built-in back, even when the work throws', () => {
     expect(() =>
       countedWork(() => {
