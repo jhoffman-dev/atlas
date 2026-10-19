@@ -401,3 +401,132 @@
   padding: 0 6px;
   width: calc(100% + 12px);
 }
+
+/* ---- A fixed page's list (UI v2 slice 13b) --------------------------------
+   Activity, Templates, Terms, the Archive and Automations list things that
+   are not notes, and a list is a table without the columns (13d), so they
+   take the table's density: 34px rows edge to edge on the surface, divided
+   by `line-soft`, `hover` under the pointer, the title at 13/500 and the
+   metadata in ink-3 on the same line with a · between its pieces. A section
+   over such rows is headed at 15/600 over a hairline, as the review's are.
+   Nothing casts a shadow (Tokens.dc.html, rule 1): a hairline separates.
+   -------------------------------------------------------------------------- */
+
+.page-list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-list__row {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  gap: 10px;
+  height: 34px;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.page-list__row:hover {
+  background: var(--hover);
+}
+
+.page-list__title {
+  color: var(--ink);
+  font-size: var(--text-emphasis);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-list__meta {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-list__sep {
+  color: var(--sep);
+}
+
+.page-section__title {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  display: flex;
+  font-size: var(--text-section);
+  font-weight: 600;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-2);
+}
+
+/* A count or a sentence beside a section's title. */
+.page-section__count {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+
+/* A form that opens under the bar — a new template, a new term — sits on the
+   well between hairlines, as a notice does: no card, no shadow. Its labels
+   are the table's column headers. */
+.page-form {
+  align-items: flex-end;
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) 12px;
+}
+
+.page-form__label {
+  color: var(--ink-3);
+  font-size: var(--text-header);
+  font-weight: 500;
+}
+
+/* A 28px search field for a page: a hairline on the surface, the ring when
+   it is being written in — a field (primitives.css), not a pill. */
+.page-search {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink-3);
+  display: flex;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+}
+
+.page-search:focus-within {
+  box-shadow: var(--ring);
+}
+
+.page-search__input {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-body);
+  min-width: 0;
+  outline: none;
+}
+
+.page-search__input::-webkit-search-cancel-button {
+  appearance: none;
+}

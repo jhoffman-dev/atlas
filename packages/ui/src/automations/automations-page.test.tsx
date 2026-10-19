@@ -70,6 +70,28 @@ describe('AutomationsPage', () => {
     expect(handlers.onOpen).toHaveBeenCalledWith(ROW.id);
   });
 
+  it('marks the open rule’s row as the current one, and no other (13b)', () => {
+    page({
+      rows: [ROW, { ...ROW, id: 'sweep', name: 'Sweep' }],
+      openId: 'sweep',
+      editor: <p>editing</p>,
+    });
+    expect(screen.getByRole('button', { name: 'Sweep' }).getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Tidy' }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('keeps a row to one line, so what a rule does is given in full on its title (13b)', () => {
+    page({ rows: [{ ...ROW, problem: 'Its query names a field no task has: due.' }] });
+    const what = screen.getByText('Its query names a field no task has: due.');
+    expect(what.getAttribute('title')).toBe('Its query names a field no task has: due.');
+  });
+
+  it('gives a rule’s name in full on its title, since a narrow row cuts it short (13b review)', () => {
+    const name = 'Archive every task that has been done for thirty days or more now';
+    page({ rows: [{ ...ROW, name }] });
+    expect(screen.getByRole('button', { name }).getAttribute('title')).toBe(name);
+  });
+
   it('offers the preset and a blank rule', async () => {
     const handlers = page({ rows: [] });
     expect(screen.getByText(/No automations yet/)).toBeTruthy();

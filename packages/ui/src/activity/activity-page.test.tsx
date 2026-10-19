@@ -168,4 +168,27 @@ describe('ActivityPage', () => {
     page({ rows: null });
     expect(screen.getByText('Reading the log…')).toBeTruthy();
   });
+
+  it('keeps each line to one row, so the whole message is on its title (13b)', () => {
+    page();
+    const message = screen.getByText('PUT v1/notes/{path}/body refused for Call (conflict).');
+    expect(message.getAttribute('title')).toBe(
+      'PUT v1/notes/{path}/body refused for Call (conflict).',
+    );
+  });
+
+  it('gives the whole of “Open …” on the button’s title, since a narrow row caps it (13b review)', () => {
+    page();
+    const open = screen.getByRole('button', { name: 'Open Tidy tasks' });
+    expect(open.getAttribute('title')).toBe('Open Tidy tasks');
+  });
+
+  it('draws each kind filter as a ghost control that reads as pressed while chosen (13b)', () => {
+    page({ kinds: ['chat'] });
+    const chosen = screen.getByRole('button', { name: 'Claude' });
+    const other = screen.getByRole('button', { name: 'Index' });
+    expect(chosen.className.split(' ')).toContain('btn--ghost');
+    expect(chosen.getAttribute('aria-pressed')).toBe('true');
+    expect(other.getAttribute('aria-pressed')).toBe('false');
+  });
 });

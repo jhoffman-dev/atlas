@@ -117,9 +117,9 @@ function NewTemplateForm({
   };
 
   return (
-    <form className="templates__new" aria-label="New template" onSubmit={submit}>
+    <form className="page-form" aria-label="New template" onSubmit={submit}>
       <label className="templates__field">
-        <span className="templates__label">For</span>
+        <span className="page-form__label">For</span>
         <span className="select">
           <select
             className="field select__control"
@@ -136,7 +136,7 @@ function NewTemplateForm({
         </span>
       </label>
       <label className="templates__field templates__field--grow">
-        <span className="templates__label">Name</span>
+        <span className="page-form__label">Name</span>
         <input
           className={tried && problem !== null ? 'field field--invalid' : 'field'}
           type="text"
@@ -261,7 +261,11 @@ function TemplateRow({
           </button>
         )}
       </td>
-      <td className="templates__uses">{templateUsesText(template.uses)}</td>
+      <td className="templates__uses">
+        <span className="templates__uses-text" title={templateUsesText(template.uses)}>
+          {templateUsesText(template.uses)}
+        </span>
+      </td>
       <td className="templates__actions">
         <button
           type="button"
