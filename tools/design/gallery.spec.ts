@@ -18,6 +18,7 @@ const ROWS = [
   'Key hints',
   'Toast',
   'Tab strip',
+  'Right sidebar',
   'Table',
 ];
 const THEMES = ['light', 'dark'] as const;

@@ -90,6 +90,13 @@
   width: 280px;
 }
 
+/* The right sidebar is as tall as the window; its specimen stands at a
+   working height, so the foot's buttons are seen at the bottom. */
+.gallery-page__aside {
+  border: 1px solid var(--line);
+  height: 560px;
+}
+
 /* The table specimen: a sheet wide enough for every kind of cell, tall enough
    for a status picker to open under its first row. */
 .gallery-page__table {

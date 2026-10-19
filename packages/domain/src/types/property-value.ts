@@ -17,7 +17,7 @@ export function validatePropertyValue({
   def: PropertyDef;
   value: unknown;
 }): string | null {
-  if (isEmpty(value)) {
+  if (isEmptyProperty(value)) {
     // An empty thumbnail is not missing: it means `auto`, a picture of the page.
     return def.required && def.kind !== 'thumbnail' ? `${def.label} is required` : null;
   }
@@ -90,10 +90,18 @@ export function relationTypeRefusal({
   return `${def.label} links to a ${relationTypesText(def)}, not a ${linkedType}`;
 }
 
-function isEmpty(value: unknown): boolean {
+/**
+ * Whether a property holds nothing: no value, blank text, a list with nothing
+ * in it — empty, or of blanks alone — or a mapping with no keys. What the
+ * aside hides behind "N empty properties" and the strip leaves out (brief
+ * rule 5: hide empty values), and what a required property is missing.
+ * `false` and `0` are values.
+ */
+export function isEmptyProperty(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim() === '';
-  if (Array.isArray(value)) return value.length === 0;
+  if (Array.isArray(value)) return value.every(isEmptyProperty);
+  if (typeof value === 'object') return Object.keys(value).length === 0;
   return false;
 }
 

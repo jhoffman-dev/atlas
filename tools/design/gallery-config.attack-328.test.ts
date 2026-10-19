@@ -35,5 +35,7 @@ describe('the gallery shots config (#328)', () => {
     expect(match.test('/repo/tools/design/gallery-cells.attack-354.spec.ts')).toBe(true);
     expect(match.test('/repo/e2e/table-keyboard.spec.ts')).toBe(false);
     expect(match.test('/repo/tools/design/shots.spec.ts')).toBe(false);
+    expect(match.test('/repo/tools/design/gallery.right-sidebar.attack-353.spec.ts')).toBe(true);
+    expect(match.test('/repo/tools/design/right-sidebar.attack-353.spec.ts')).toBe(false);
   });
 });
