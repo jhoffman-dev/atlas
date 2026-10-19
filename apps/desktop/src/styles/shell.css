@@ -144,6 +144,39 @@
   display: none;
 }
 
+/* A narrow window folds the right sidebar (brief §4). The widths are
+   collapseFor's (packages/ui/src/aside/collapse.ts), which collapse.test.ts
+   holds these queries to: the sidebar's 224 + the aside's own width + the
+   work's least, 496, with the left sidebar open; without the 224 once it is
+   hidden by hand. One pair per aside width: 300, and 340 for the type editor
+   (`.aside--type`). Scoped to a slot holding the right sidebar, so the chat,
+   which sits in the same slot until 8b moves it in, is left alone. The left
+   sidebar never folds by width: the window is never narrower than 720px,
+   which is what it fits in. */
+@media (max-width: 1059px) {
+  .shell:not(.shell--narrow) > .shell__aside:has(> .aside--type) {
+    display: none;
+  }
+}
+
+@media (max-width: 1019px) {
+  .shell:not(.shell--narrow) > .shell__aside:has(> .aside) {
+    display: none;
+  }
+}
+
+@media (max-width: 835px) {
+  .shell--narrow > .shell__aside:has(> .aside--type) {
+    display: none;
+  }
+}
+
+@media (max-width: 795px) {
+  .shell--narrow > .shell__aside:has(> .aside) {
+    display: none;
+  }
+}
+
 /* A square, quiet control: an icon on nothing until it is pointed at. */
 .icon-button {
   align-items: center;

@@ -75,3 +75,26 @@ describe('AppShell sidebar', () => {
     expect(screen.queryByRole('button', { name: /sidebar/ })).toBeNull();
   });
 });
+
+describe('AppShell aside', () => {
+  it('draws the aside it is given beside the work, and marks the shell as holding one', () => {
+    const { container } = render(<AppShell sidebar={null} aside={<p>properties</p>} />);
+    expect(screen.getByText('properties')).toBeDefined();
+    expect(container.firstElementChild?.className).toContain('shell--aside');
+  });
+
+  it('draws no aside slot while none is given', () => {
+    const { container } = render(<AppShell sidebar={null} />);
+    expect(container.querySelector('.shell__aside')).toBeNull();
+    expect(container.firstElementChild?.className).not.toContain('shell--aside');
+  });
+
+  it('keeps a closed aside out of the page altogether, so nothing in it can take the focus', () => {
+    const { container } = render(
+      <AppShell sidebar={null} aside={<button type="button">edit</button>} asideOpen={false} />,
+    );
+    expect(screen.queryByRole('button', { name: 'edit' })).toBeNull();
+    expect(container.querySelector('.shell__aside')).toBeNull();
+    expect(container.firstElementChild?.className).not.toContain('shell--aside');
+  });
+});

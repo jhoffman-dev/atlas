@@ -82,6 +82,8 @@ export {
   withoutBlockAnchors,
 } from './block-outline.ts';
 export type { AnchoredBlock, NodePath, OutlineEntry } from './block-outline.ts';
+export { outlineOf } from './heading-outline.ts';
+export type { OutlineHeading } from './heading-outline.ts';
 export {
   bodyWithoutTitle,
   COVER_KEY,

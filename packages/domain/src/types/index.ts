@@ -7,6 +7,7 @@ export {
 } from './property-def.ts';
 export type { ObjectType, PropertyDef, PropertyKind } from './property-def.ts';
 export {
+  isEmptyProperty,
   isWikiLink,
   relationTargets,
   relationTypeRefusal,

@@ -80,7 +80,8 @@ export function NoteLinksPanel({
   );
 }
 
-function LinkGroup({
+/** One group of links, headed, or a line saying it is empty. Shared with the aside's Backlinks tab. */
+export function LinkGroup({
   title,
   empty,
   entries,
@@ -122,7 +123,8 @@ function LinkGroup({
   );
 }
 
-function UnlinkedMentions({
+/** The notes naming this one without a link, looked for only when opened. Shared with the aside. */
+export function UnlinkedMentions({
   mentions,
   onFind,
   onOpen,
