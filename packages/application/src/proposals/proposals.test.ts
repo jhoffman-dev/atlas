@@ -9,7 +9,7 @@ import {
 import { acceptProposalNote, undoAcceptedProposal } from './accept-proposal.ts';
 import type { ProposalPorts } from './proposal-file.ts';
 import { listProposals } from './list-proposals.ts';
-import { rejectProposalNote } from './reject-proposal.ts';
+import { rejectProposalNote, undoRejectedProposal } from './reject-proposal.ts';
 
 const TODAY = '2026-10-08';
 const MEETING = 'Inbox/Meetings/2026-10-01 Standup.md';
@@ -313,13 +313,24 @@ describe('rejectProposalNote', () => {
       today: TODAY,
     });
 
-    expect(rejected).toEqual({ archivedAt: `Archive/${PROPOSAL}`, archiveProblem: null });
+    expect(rejected).toEqual({
+      proposal: PROPOSAL,
+      archivedAt: `Archive/${PROPOSAL}`,
+      archiveProblem: null,
+    });
     expect(setup.propertiesOf(`Archive/${PROPOSAL}`)).toMatchObject({
       state: 'rejected',
       answered_via: 'app',
     });
     expect(setup.paths()).not.toContain(TASK);
     expect((await listProposals(setup.ports)).open).toEqual([]);
+
+    // Taking the reject back opens it again, in the Inbox, as if never answered.
+    const back = await undoRejectedProposal({ ports: setup.ports, rejected });
+    expect(back).toBe(PROPOSAL);
+    expect(setup.propertiesOf(PROPOSAL)).toMatchObject({ state: 'open' });
+    expect(setup.paths()).not.toContain(`Archive/${PROPOSAL}`);
+    expect((await listProposals(setup.ports)).open).toHaveLength(1);
   });
 
   it('refuses one already accepted', async () => {
@@ -370,7 +381,12 @@ describe('listProposals', () => {
 
   it('is empty in a vault with no proposals', async () => {
     const setup = proposalVault({ 'A.md': 'A.\n' });
-    expect(await listProposals(setup.ports)).toEqual({ open: [], stranded: [], unreadable: [] });
+    expect(await listProposals(setup.ports)).toEqual({
+      open: [],
+      stranded: [],
+      unreadable: [],
+      manyValued: [],
+    });
   });
 });
 
