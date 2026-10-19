@@ -8,8 +8,8 @@
   ],
   "actions": {
     "Open a vault": {
-      "commits": 108,
-      "renders": 2916,
+      "commits": 109,
+      "renders": 2944,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -106,7 +106,7 @@
     },
     "Open Settings": {
       "commits": 13,
-      "renders": 853,
+      "renders": 857,
       "calls": {
         "api_status": 3,
         "gh_repo_list": 3,
@@ -120,7 +120,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 564,
+      "renders": 531,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -133,7 +133,7 @@
     },
     "Tick a task on Today": {
       "commits": 11,
-      "renders": 592,
+      "renders": 609,
       "calls": {
         "index_manifest": 3,
         "index_open": 3,
