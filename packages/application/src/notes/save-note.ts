@@ -33,8 +33,8 @@ export async function saveNote({
   /**
    * Frontmatter keys to change as part of this save. Going through the same write
    * as the body means editing a property can never discard unsaved body edits.
-   * They are held to the task rules (ADR-0029) against the properties the note
-   * was read with; a refused change throws `TaskRuleRefusedError` and nothing,
+   * They are held to the task rules (ADR-0029) against the frontmatter the note
+   * was read with, as the write reads it; a refused change throws `TaskRuleRefusedError` and nothing,
    * body included, is written.
    */
   changes?: {
@@ -46,7 +46,11 @@ export async function saveNote({
   const ruled =
     changes === undefined
       ? undefined
-      : withTaskRules({ values: changes.values, today: changes.today })(note.properties);
+      : withTaskRules({ values: changes.values, today: changes.today })(
+          // Read again as the write reads it: a block listing a key twice shows
+          // no properties, and the rules must judge what the write will change.
+          markdown.frontmatterProperties(note.frontmatter, { forWriting: true }),
+        );
   const body = markdown.serializeBody({
     originalBody: note.originalBody,
     parsed: note.parsed,

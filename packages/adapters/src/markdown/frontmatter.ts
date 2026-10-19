@@ -31,14 +31,18 @@ export function frontmatterProblem(frontmatter: string | null): string | null {
  * byte; this is a read-only view of it. Malformed YAML yields no properties rather
  * than failing, because one bad note must not stop the vault being indexed.
  */
-export function parseFrontmatterProperties(frontmatter: string | null): Record<string, unknown> {
+export function parseFrontmatterProperties(
+  frontmatter: string | null,
+  read?: { readonly forWriting: true },
+): Record<string, unknown> {
   if (frontmatter === null) return {};
 
   const body = yamlOf(frontmatter);
   if (body.trim() === '') return {};
 
   try {
-    const parsed: unknown = parse(body);
+    // Read for writing, a key listed twice is its last copy, as the writer reads it.
+    const parsed: unknown = parse(body, { uniqueKeys: read?.forWriting !== true });
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
     return parsed as Record<string, unknown>;
   } catch {

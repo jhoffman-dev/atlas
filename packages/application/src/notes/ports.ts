@@ -6,8 +6,18 @@ import type { BodyRange, EditorDocument, ParsedBody, RawPart } from '@atlas/doma
  */
 export interface MarkdownPort {
   parseBody(body: string): ParsedBody;
-  /** Frontmatter read as plain values, for indexing. Never used to write it back. */
-  frontmatterProperties(frontmatter: string | null): Record<string, unknown>;
+  /**
+   * Frontmatter read as plain values, for indexing. Never used to write it back.
+   *
+   * Read `forWriting`, a key the block lists twice reads as its last copy —
+   * the one {@link MarkdownPort.updateFrontmatter} works around — where the
+   * plain read gives up on the block. That is the read a change is held to the
+   * task rules against, so the rules see what the write sees; never for showing.
+   */
+  frontmatterProperties(
+    frontmatter: string | null,
+    read?: { readonly forWriting: true },
+  ): Record<string, unknown>;
   /**
    * Why a frontmatter block cannot be read, in one line; null when it can. The
    * properties of such a block read as none, which is right for indexing but
@@ -32,7 +42,8 @@ export interface MarkdownPort {
    * formatting, comments and key order — exactly as it was. A change whose
    * value is null or undefined removes the key rather than writing it; one
    * given as `KeyAsWritten` is written as exactly that text, when it is that
-   * key alone, and otherwise removes it.
+   * key alone, and otherwise removes it. A change to a key the block lists
+   * twice throws `FrontmatterRefusedError`, and nothing is written.
    */
   updateFrontmatter(frontmatter: string | null, changes: Readonly<Record<string, unknown>>): string;
   /**

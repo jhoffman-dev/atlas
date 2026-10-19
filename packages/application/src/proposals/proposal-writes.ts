@@ -129,7 +129,9 @@ export function heldToTaskRules(
     };
   }
   if (link === null) return write;
-  const properties = ports.markdown.frontmatterProperties(link.document.frontmatter);
+  const properties = ports.markdown.frontmatterProperties(link.document.frontmatter, {
+    forWriting: true,
+  });
   return { ...write, changes: withTaskRules({ values: write.changes, today })(properties) };
 }
 

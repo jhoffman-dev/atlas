@@ -145,7 +145,7 @@ export async function writeFrontmatterChanges({
 
   const changes =
     typeof values === 'function'
-      ? values(markdown.frontmatterProperties(document.frontmatter))
+      ? values(markdown.frontmatterProperties(document.frontmatter, { forWriting: true }))
       : values;
   // Nothing to change writes nothing, rather than re-writing the note as it was.
   if (Object.keys(changes).length === 0) return;
