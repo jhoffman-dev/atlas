@@ -1,5 +1,4 @@
 import { createStore, useStore, type StoreApi } from 'zustand';
-import { useStoreWithEqualityFn } from 'zustand/traditional';
 import {
   activateNth,
   activateTab as activateTabIn,
@@ -23,12 +22,12 @@ import {
   openInSplit,
   previousTab as previousTabIn,
   reopenClosedTab as reopenClosedTabIn,
-  samePlace,
   splitWithTab,
   tabPlace,
   type EntryMove,
   type NavigationHistory,
   type NavigationPlace,
+  type PagePlace,
   type Pane,
   type Tab,
   type TabId,
@@ -142,47 +141,19 @@ export function useFocusedPlace(store: WorkspaceStore): NavigationPlace | null {
 }
 
 /**
- * The page the focused pane shows, or null while it shows a note. Compared
- * as places, so the app that assembles the pages' props is drawn again for a
- * change of page and not for a switch between notes.
+ * Whether a pane's shown tab is on a page of `kind`, in any pane. A page is
+ * a tab and draws itself (tab-model.md, PR B); the app reads this for the
+ * few things it keeps alive only while a page shows — the Activity badge,
+ * the automations' live listing, the Inbox's offers — and is drawn only as
+ * that flips, not for a switch between notes or between other pages.
  */
-export function useFocusedPage(store: WorkspaceStore): NavigationPlace | null {
-  return useStoreWithEqualityFn(
-    store,
-    (state) => pageOrNull(activePlace(state.workspace)),
-    sameOrNull,
-  );
+export function usePageShown(store: WorkspaceStore, kind: PagePlace['kind']): boolean {
+  return useStore(store, (state) => isPageShown(state.workspace, kind));
 }
 
-/**
- * The pages the panes show in their active tabs, the focused pane's first;
- * notes are left out. Compared as places, as `useFocusedPage` is, so the app
- * is drawn for a page coming or going and not for a note.
- */
-export function useShownPages(store: WorkspaceStore): readonly NavigationPlace[] {
-  return useStoreWithEqualityFn(store, (state) => shownPages(state.workspace), samePlaces);
+function isPageShown(workspace: Workspace, kind: PagePlace['kind']): boolean {
+  return workspace.panes.some((pane) => activePlaceOf(pane)?.kind === kind);
 }
-
-function shownPages(workspace: Workspace): readonly NavigationPlace[] {
-  const ordered = [
-    workspace.panes[workspace.focused] as Pane,
-    ...workspace.panes.filter((_, pane) => pane !== workspace.focused),
-  ];
-  return ordered.flatMap((pane) => {
-    const page = pageOrNull(activePlaceOf(pane));
-    return page === null ? [] : [page];
-  });
-}
-
-const pageOrNull = (place: NavigationPlace | null): NavigationPlace | null =>
-  place === null || place.kind === 'note' ? null : place;
-
-const sameOrNull = (left: NavigationPlace | null, right: NavigationPlace | null): boolean =>
-  left === null || right === null ? left === right : samePlace(left, right);
-
-const samePlaces = (left: readonly NavigationPlace[], right: readonly NavigationPlace[]) =>
-  left.length === right.length &&
-  left.every((place, at) => samePlace(place, right[at] as NavigationPlace));
 
 function paneAt(workspace: Workspace, pane: number): Pane {
   // A pane that has just closed is read once more by the render on its way

@@ -23,6 +23,9 @@ export type NavigationPlace =
   | { readonly kind: 'templates' }
   | { readonly kind: 'terms' };
 
+/** A place that is a page rather than a note: what a tab draws without an editor. */
+export type PagePlace = Exclude<NavigationPlace, { kind: 'note' }>;
+
 /**
  * One pane's Back and Forward, as a browser keeps them.
  *

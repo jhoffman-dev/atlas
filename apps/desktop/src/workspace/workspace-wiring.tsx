@@ -1,9 +1,9 @@
 import { createContext, useContext } from 'react';
 import type { NavigationPlace, VaultPath } from '@atlas/domain';
-import type { PageProps } from '../main-route.tsx';
 import type { OverlayStore } from '../overlay-store.ts';
 import type { PaneContext } from '../panes/note-pane-container.tsx';
 import type { RevealStore } from '../panes/reveals.ts';
+import type { PageWiring } from './page-wiring.ts';
 import type { WorkspaceStore } from './workspace-store.ts';
 
 /**
@@ -34,13 +34,14 @@ export interface NoteTabCommands {
 /**
  * Everything else the panes need from the app, handed down once rather than
  * through each container's props (tab-model.md, PR A): the context every
- * note pane shares, the pages' props, and what a note's bar can do. `App`
- * assembles it on each of its renders, so only what shows a page reads it;
- * the containers decide nothing with it.
+ * note pane shares, the pages' wiring (PR B: each page reads its own hooks
+ * from it), and what a note's bar can do. `App` assembles it on each of its
+ * renders, so only what shows a tab's content reads it; the containers
+ * decide nothing with it.
  */
 export interface WorkspaceWiring extends WorkspaceStores {
   readonly pane: PaneContext;
-  readonly pages: PageProps;
+  readonly pages: PageWiring;
   readonly note: NoteTabCommands;
   /** The way back to a hidden sidebar, given while it is hidden. */
   readonly onShowSidebar: (() => void) | null;

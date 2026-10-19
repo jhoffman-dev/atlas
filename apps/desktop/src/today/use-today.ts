@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useStore } from 'zustand';
 import {
   TASK_KEYS,
   taskDeferral,
@@ -23,6 +24,7 @@ import {
 import type { TodayAction } from '@atlas/ui';
 import { errorMessage } from '../query/error-message.ts';
 import { keptTodayReport } from './kept-today-report.ts';
+import { createTodayWrites, NOTHING_SETTLING, type TodayWrites } from './today-writes.ts';
 import { useReviewWrites, type ReviewWritesOptions } from '../review/use-review-writes.ts';
 
 /** How often an open page asks the clock whether the day has turned. */
@@ -48,6 +50,12 @@ export interface TodayOptions extends Omit<ReviewWritesOptions, 'ports' | 'clock
   readonly indexReady?: boolean;
   /** Whether the page is showing, which is when it is read. */
   readonly open: boolean;
+  /**
+   * The writes in flight, held by the window for the vault so every tab on
+   * Today shares them (tab-model.md, PR B); the hook holds its own when
+   * handed none.
+   */
+  readonly held?: TodayWrites;
 }
 
 /**
@@ -67,10 +75,24 @@ export function useToday(options: TodayOptions) {
   const { ports, editors, clock, types, vaultKey, indexKey, open, onSettled, activity } = options;
   const indexReady = options.indexReady ?? true;
   const [read, setRead] = useState<ReadFrom | null>(null);
-  const [last, setLast] = useState<LastChange | null>(null);
-  const [settling, setSettling] = useState<Settling>(NOTHING_SETTLING);
-  // Counts the reads begun, so a row can tell one made after its write from one already under way.
-  const readsBegun = useRef(0);
+  const [own] = useState(createTodayWrites);
+  const held = options.held ?? own;
+  const last = useStore(held.store, (state) => state.last);
+  const settling = useStore(held.store, (state) => state.settling);
+  const setLast = useCallback(
+    (next: LastChange | null | ((was: LastChange | null) => LastChange | null)) =>
+      held.store.setState((state) => ({
+        last: typeof next === 'function' ? next(state.last) : next,
+      })),
+    [held],
+  );
+  const setSettling = useCallback(
+    (next: (was: Settling) => Settling) =>
+      held.store.setState((state) => ({ settling: next(state.settling) })),
+    [held],
+  );
+  // Counts the reads begun by any tab, so a row can tell one made after its write from one already under way.
+  const readsBegun = held.reads;
   // The index's key as a change begins. A read begun after the write can still
   // be of the index from before it, now that a refresh keeps the index ready
   // (#239): the row settles only on a read of an index that has moved since.
@@ -91,8 +113,8 @@ export function useToday(options: TodayOptions) {
     if (!open || !indexReady) return;
     let cancelled = false;
     const { index, fs, markdown } = ports;
-    readsBegun.current += 1;
-    const begun = readsBegun.current;
+    readsBegun.begun += 1;
+    const begun = readsBegun.begun;
     const land = (landed: Pick<ReadFrom, 'report' | 'error'>) => {
       if (cancelled) return;
       // A task that reads the same keeps its object, so its row is not drawn again (#217).
@@ -174,7 +196,7 @@ export function useToday(options: TodayOptions) {
           ? null
           : { index, vaultKey, path, title, action, undo: takeBack, was: before },
       );
-      const since = readsBegun.current;
+      const since = readsBegun.begun;
       setSettling((was) => withLanded(was, { path, values, landed: { since, askedAt } }));
     },
     [actOn, ports, vaultKey, rows, knownHere, settlingHere],
@@ -211,7 +233,7 @@ export function useToday(options: TodayOptions) {
     setLast((was) => (was === undoable ? null : was));
     // The task is back as it was, so its row can be acted on again — as what the
     // file held before the change, which the page's own read may be behind.
-    const since = readsBegun.current;
+    const since = readsBegun.begun;
     setSettling((was) => ({
       ...was,
       rows: new Map([...was.rows].filter(([row]) => row !== path)),
@@ -302,7 +324,7 @@ interface Landed {
 }
 
 /** The rows acted on and not yet read back, and what the page knows better than its read. */
-interface Settling extends OfAVault {
+export interface Settling extends OfAVault {
   /** Each row acted on, and when its write landed: null while it is being written. */
   readonly rows: ReadonlyMap<VaultPath, Landed | null>;
   /** What is being written to each of those rows, which the page draws it as meanwhile. */
@@ -316,7 +338,7 @@ interface Settling extends OfAVault {
 }
 
 /** Something read or written in one vault, under one index. */
-interface OfAVault {
+export interface OfAVault {
   readonly index: unknown;
   readonly vaultKey: string | null;
 }
@@ -326,14 +348,6 @@ const sameVault = (left: OfAVault, right: OfAVault) =>
 
 const NONE_KNOWN: ReadonlyMap<VaultPath, TaskAsRead> = new Map();
 const NONE_PENDING: ReadonlyMap<VaultPath, PropertyChanges> = new Map();
-
-const NOTHING_SETTLING: Settling = {
-  index: null,
-  vaultKey: null,
-  rows: new Map(),
-  changes: new Map(),
-  known: new Map(),
-};
 
 /** What is settling in this vault: nothing of another vault's carries over. */
 const ofVault = (settling: Settling, vault: OfAVault): Settling =>
@@ -410,7 +424,7 @@ interface Change extends Row {
 }
 
 /** The last change the page wrote, the vault it was written in, and the change that takes it back. */
-interface LastChange extends Row, OfAVault {
+export interface LastChange extends Row, OfAVault {
   readonly action: TodayAction;
   /** The change that takes it back. */
   readonly undo: PropertyChanges;

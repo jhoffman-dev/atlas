@@ -1,26 +1,17 @@
 import { useCallback } from 'react';
 import type { VaultPath } from '@atlas/domain';
-import type {
-  ActivityLog,
-  DefinedType,
-  IndexPort,
-  MarkdownPort,
-  VaultFsPort,
-} from '@atlas/application';
-import type { OpenEditors } from '../panes/open-editors.ts';
-import { useTypeTable } from './use-type-table.ts';
+import type { DefinedType, MarkdownPort, VaultFsPort } from '@atlas/application';
 import { useNewType } from './use-new-type.ts';
 import { useNewNoteOfType } from './use-new-note-of-type.ts';
 
 /**
- * Everything a type's page needs: its table, what follows a save of the type
- * file, a new type, and a new note of a type.
+ * What the window does for types, whatever page shows: what follows a save
+ * of a type file, a new type (the window's dialog), and a new note of a
+ * type. A type's table is its own tab's (`TypeContainer`).
  */
-export function useTypeRoute({
+export function useTypeCommands({
   ports,
   types,
-  typeName,
-  indexKey,
   notePaths,
   onChanged,
   reloadTypes,
@@ -30,14 +21,8 @@ export function useTypeRoute({
   ports: {
     fs: VaultFsPort;
     markdown: MarkdownPort;
-    index: IndexPort;
-    editors: OpenEditors;
-    activity: Pick<ActivityLog, 'inOpenVault'>;
   };
   types: readonly DefinedType[];
-  /** The type whose page is open, or null. */
-  typeName: string | null;
-  indexKey: string;
   notePaths: readonly string[];
   /** Re-reads the tree and the index, after something wrote to the vault. */
   onChanged: () => void;
@@ -45,18 +30,7 @@ export function useTypeRoute({
   onTypeCreated: (type: DefinedType) => void;
   onNoteCreated: (path: VaultPath) => void;
 }) {
-  const { fs, markdown, index, editors, activity } = ports;
-  const table = useTypeTable({
-    fs,
-    markdown,
-    index,
-    types,
-    typeName,
-    indexKey,
-    onChanged,
-    editors,
-    activity,
-  });
+  const { fs, markdown } = ports;
 
   /** After the type editor writes a type file: the type, the tree and the index follow. */
   const onTypeSaved = useCallback(() => {
@@ -84,5 +58,5 @@ export function useTypeRoute({
     },
   });
 
-  return { table, onTypeSaved, newType, newNoteOfType };
+  return { onTypeSaved, newType, newNoteOfType };
 }

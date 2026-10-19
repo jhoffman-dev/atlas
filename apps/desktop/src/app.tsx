@@ -11,6 +11,7 @@ import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
   activeTabOf,
+  tabPlace,
   createVaultPath,
   favoriteValue,
   rankNoteSuggestions,
@@ -19,13 +20,13 @@ import {
   vaultInitial,
   FAVORITE_KEY,
   hasFullName,
-  inboxWaiting,
   NAME_PLACEHOLDER,
   moveRefusal,
   noteNames,
   noteTitle,
   ownerNeededBy,
   tagKey,
+  taskTypeOf,
   ARTIFACT_KINDS,
   ARTIFACT_TYPE,
   claudeArtifactUrl,
@@ -34,7 +35,9 @@ import {
   TYPE_ICONS,
   VAULT_ROOT,
   type EntryMove,
+  type GraphScope,
   type NavigationPlace,
+  type PagePlace,
   type VaultEntry,
   type VaultPath,
 } from '@atlas/domain';
@@ -107,7 +110,7 @@ import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx
 import { useOutsideChanges } from './vault/use-outside-changes.ts';
 import { useCreateNote } from './notes/use-create-note.ts';
 import { useTypes } from './types/use-types.ts';
-import { useTypeRoute } from './types/use-type-route.ts';
+import { useTypeCommands } from './types/use-type-commands.ts';
 import { useSidebarCatalog } from './sidebar/use-sidebar-catalog.ts';
 import { browserSectionStore } from './sidebar/browser-section-store.ts';
 import { createBrowserGroupFoldStore } from './query/browser-group-fold-store.ts';
@@ -118,6 +121,7 @@ import { useStrandedEdits } from './notes/stranded-edits.ts';
 import { browserStrandedStore } from './notes/browser-stranded-store.ts';
 import { placeName } from './panes/place-name.ts';
 import type { PaneContext } from './panes/note-pane-container.tsx';
+import type { TypePageMode } from './types/type-page.tsx';
 import { createRevealStore } from './panes/reveals.ts';
 import { ActiveSidebar } from './workspace/active-sidebar.tsx';
 import { browserWorkspaceStore } from './workspace/browser-workspace-store.ts';
@@ -125,6 +129,8 @@ import { followLink, openNote as openNotePlace } from './workspace/open-place.ts
 import { PanesContainer } from './workspace/panes-container.tsx';
 import {
   closeActiveTab,
+  openPlace,
+  usePageShown,
   closeNotes as closeNotesIn,
   createWorkspaceStore,
   focusedNotePath,
@@ -183,23 +189,19 @@ import { useTickMemory } from './query/tick-memory.ts';
 import { useViewDrafts } from './query/use-view-drafts.ts';
 import { useNewView } from './query/use-new-view.ts';
 import { createBrowserTypeTabStore } from './types/browser-type-tab-store.ts';
-import { typeTabsShown } from './types/type-tabs.ts';
 import { useTypeViews } from './types/use-type-views.ts';
 import { paletteEditTypeOffers, runPaletteEditTypeCommand } from './types/palette-edit-type.ts';
 import { useTemplatesPage } from './templates/use-templates-page.ts';
-import { useTermsPage } from './terms/use-terms-page.ts';
-import { useProposals } from './proposals/use-proposals.ts';
-import { answersWrittenOrGivenUp } from './proposals/answer-queue.ts';
+import { answersWrittenOrGivenUp, useAnswersWrittenBeforeClose } from './proposals/answer-queue.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
-import { useQueryPage } from './query/use-query-page.ts';
+import { createQueryTextStore, queryTextOf } from './query/query-text-store.ts';
 import { AppNotices } from './app-notices.tsx';
 import { browserActivitySeenStore } from './activity/browser-activity-seen-store.ts';
 import { useActivity } from './activity/use-activity.ts';
 import { useActivityLog, useNoticeActivity } from './activity/use-activity-log.ts';
 import { usePeople } from './people/use-people.ts';
 import { useAppShortcuts } from './app-shortcuts.ts';
-import { useMainView } from './main-view.ts';
 import { browserFabStore } from './quick-add/browser-fab-store.ts';
 import { QuickAdd } from './quick-add/quick-add.tsx';
 import type { GlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
@@ -214,9 +216,10 @@ import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
 import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
 import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
-import { useInbox } from './inbox/use-inbox.ts';
-import { useWeeklyReview } from './review/use-weekly-review.ts';
-import { useToday } from './today/use-today.ts';
+import { useInboxWaiting } from './inbox/use-inbox-waiting.ts';
+import { createPendingWrites } from './workspace/pending-writes.ts';
+import { createPageHoldsByVault } from './workspace/page-holds.ts';
+import { askToEdit, createTypeModeStore } from './types/type-mode-store.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
@@ -353,15 +356,17 @@ function AppWindow({
   // Set once the sync hook below exists: a switch waits for a sync under way,
   // whose remaining steps would otherwise be refused half-done (U-29).
   const settleSync = useRef<() => Promise<void>>(() => Promise.resolve());
-  // Set once the Inbox and Proposals hooks below exist: a switch waits for the
-  // clarifications and answers still being written behind those pages, which
-  // the host would refuse once another vault is open (#217, #166).
-  const settleWrites = useRef<() => Promise<void>>(() => Promise.resolve());
+  // The Inbox and Proposals tabs hold their background writes here: a switch
+  // waits for the clarifications and answers still being written behind those
+  // pages, which the host would refuse once another vault is open (#217, #166).
+  const [pendingWrites] = useState(createPendingWrites);
   const leaveVault = useCallback(async () => {
     await editors.flushAll();
-    await settleWrites.current();
+    await answersWrittenOrGivenUp(pendingWrites.drained());
     await settleSync.current();
-  }, [editors]);
+  }, [editors, pendingWrites]);
+  // So is the window's close, whatever tab those pages are in, or were.
+  useAnswersWrittenBeforeClose(pendingWrites, closing.writes);
   // Every pane's unsaved work is written before the host moves to another vault,
   // while its paths still mean the vault it was typed in.
   // Choosing and listing a vault come before there is one to bind writes to,
@@ -435,6 +440,13 @@ function AppWindow({
   }, [indexPorts, vaultKey, ownWrites, reads]);
   /** The note the person is working in, read as it is needed: the window is not drawn for a switch. */
   const focusedNote = useCallback(() => focusedNotePath(workspaceNow(workspace)), [workspace]);
+  // What the query tab is writing, read by the chat for the window it opens on.
+  const [queryText] = useState(createQueryTextStore);
+  /** The focused tab's query text while that tab shows the query page, else null. */
+  const focusedQueryText = useCallback(() => {
+    const tab = activeTabOf(workspaceNow(workspace));
+    return tabPlace(tab)?.kind === 'query' ? (queryTextOf(queryText, tab.id) ?? '') : null;
+  }, [workspace, queryText]);
   const {
     status: indexStatus,
     store: indexStore,
@@ -663,30 +675,44 @@ function AppWindow({
     indexReady,
   });
 
-  /** The pages the panes' shown tabs are on, and the ways to open each. */
-  const main = useMainView(workspace);
-  const {
-    openTypeName,
-    typeMode,
-    graphScope,
-    queryOpen,
-    tagsTag,
-    archiveOpen,
-    inboxOpen,
-    reviewOpen,
-    todayOpen,
-    automationsOpen,
-    activityOpen,
-    termsOpen,
-  } = main;
+  // A page is a tab that reads its own hooks (tab-model.md, PR B). The window
+  // keeps three things alive only while a page shows, and is drawn as each flips.
+  const inboxShown = usePageShown(workspace, 'inbox');
+  const activityShown = usePageShown(workspace, 'activity');
+  const automationsShown = usePageShown(workspace, 'automations');
+  /** Opens a page in the focused pane's active tab. */
+  const openPage = useCallback(
+    (place: PagePlace) => openPlace(workspace, place, 'here'),
+    [workspace],
+  );
+  // A type opened to be edited: the ask names the tab it lands in, whose mode it is.
+  const [typeModes] = useState(createTypeModeStore);
+  const openType = useCallback(
+    (name: string, mode: TypePageMode = 'notes') => {
+      openPage({ kind: 'type', name });
+      if (mode === 'edit') {
+        askToEdit(typeModes, { tabId: activeTabOf(workspaceNow(workspace)).id, name });
+      }
+    },
+    [openPage, typeModes, workspace],
+  );
+  // What the pages hold in flight, per vault: shared by every tab on a page, kept across a switch and back.
+  const [holdsByVault] = useState(createPageHoldsByVault);
+  const openGraph = useCallback(
+    (scope: GraphScope) => openPage({ kind: 'graph', scope }),
+    [openPage],
+  );
+  const openQuery = useCallback(() => openPage({ kind: 'query' }), [openPage]);
+  const openTags = useCallback((tag: string | null) => openPage({ kind: 'tags', tag }), [openPage]);
+  const openArchive = useCallback(() => openPage({ kind: 'archive' }), [openPage]);
+  const openInbox = useCallback(() => openPage({ kind: 'inbox' }), [openPage]);
   const activity = useActivity({
     log: activityLog,
     vaultKey,
-    open: activityOpen,
+    open: activityShown,
     seen: browserActivitySeenStore,
     clock: localClock,
   });
-  const { openType, openGraph, openQuery, openTags, openArchive } = main;
   const vaultGraph = useVaultGraph({ index: index.index, vaultKey, ready: indexReady });
   const vaultTags = useVaultTags({ index: index.index, vaultKey, ready: indexReady });
   const openTag = useCallback((name: string) => openTags(tagKey(name)), [openTags]);
@@ -739,17 +765,9 @@ function AppWindow({
     now: Date.now,
   });
 
-  const typeRoute = useTypeRoute({
-    ports: {
-      fs: vault.fs,
-      markdown: notes.markdown,
-      index: index.index,
-      editors,
-      activity: activityLog,
-    },
+  const { onTypeSaved, newType, newNoteOfType } = useTypeCommands({
+    ports: { fs: vault.fs, markdown: notes.markdown },
     types,
-    typeName: openTypeName,
-    indexKey,
     notePaths,
     onChanged,
     reloadTypes,
@@ -759,7 +777,6 @@ function AppWindow({
     },
     onNoteCreated: openNote,
   });
-  const { table: typeTable, onTypeSaved, newType, newNoteOfType } = typeRoute;
 
   const newView = useNewView({
     fs: vault.fs,
@@ -803,25 +820,6 @@ function AppWindow({
     },
     [newView, showOverlay],
   );
-
-  const query = useQueryPage({
-    ports: {
-      index: index.index,
-      fs: vault.fs,
-      markdown: notes.markdown,
-      editors,
-      activity: activityLog,
-    },
-    open: queryOpen,
-    indexKey,
-    viewPaths,
-    dashboards: catalog.dashboards,
-    onSavedView: openNote,
-    onChanged,
-    types,
-    notePaths,
-    onOpenNote: (path) => openNote(createVaultPath(path)),
-  });
 
   const profileSetting = useProfileSetting({
     fs: vault.fs,
@@ -872,33 +870,37 @@ function AppWindow({
       vaultKey,
       onChanged,
     },
-    window: chatWindowOf({
-      query: queryOpen ? (query.language === 'atlas' ? query.atlas.composer.text : '') : null,
-      otherPage:
-        openTypeName !== null ||
-        graphScope !== null ||
-        tagsTag !== undefined ||
-        archiveOpen ||
-        inboxOpen ||
-        reviewOpen ||
-        todayOpen,
-      focused: focusedNote(),
-    }),
+    // The focused tab's query, while it is on the query page; else the note it shows, or nothing.
+    window: chatWindowOf({ query: focusedQueryText(), focused: focusedNote() }),
     clipboard: browserClipboard,
     settingsOpen: overlay === 'settings',
     activity: activityLog,
     profile: profileSetting.profile,
   });
-  // The chat follows the note being worked in while it is open: a switch of
-  // note draws the window again then, and only then, since the chat's window
-  // is read from a render. Shut, a switch costs the window nothing.
-  const [, noteSwitched] = useReducer((drawn: number) => drawn + 1, 0);
+  // The chat follows the note being worked in, and the query being written,
+  // while it is open: a switch of note or a keystroke in the query draws the
+  // window again then, and only then, since the chat's window is read from a
+  // render. Shut, neither costs the window anything.
+  const [, windowMoved] = useReducer((drawn: number) => drawn + 1, 0);
   useEffect(() => {
     if (!chat.open) return;
-    return workspace.subscribe((state, before) => {
-      if (focusedNotePath(state.workspace) !== focusedNotePath(before.workspace)) noteSwitched();
+    const stopNotes = workspace.subscribe((state, before) => {
+      const was = activeTabOf(before.workspace);
+      const now = activeTabOf(state.workspace);
+      if (
+        was.id !== now.id ||
+        tabPlace(was)?.kind !== tabPlace(now)?.kind ||
+        focusedNotePath(state.workspace) !== focusedNotePath(before.workspace)
+      ) {
+        windowMoved();
+      }
     });
-  }, [chat.open, workspace]);
+    const stopQuery = queryText.subscribe(windowMoved);
+    return () => {
+      stopNotes();
+      stopQuery();
+    };
+  }, [chat.open, workspace, queryText]);
 
   const favoritePaths = useMemo(
     () => new Set(catalog.favorites.map((entry) => entry.path)),
@@ -1041,25 +1043,15 @@ function AppWindow({
     onOpen: openNote,
   });
   const { editTypeTemplate, askDelete: askDeleteTemplate, askMoveToNotes } = templatesPage;
-  const termsPage = useTermsPage({
-    ports: { index: index.index, fs: vault.fs, markdown: notes.markdown, editors },
-    open: termsOpen,
-    indexKey,
-    types,
-    templates,
-    notePaths,
-    onChanged,
-    activity: activityLog,
-  });
   const onRenameTemplate = templatesPage.page.onRename;
   const templateCommands = useMemo(
     () => ({
-      onOpenTemplates: main.openTemplates,
+      onOpenTemplates: () => openPage({ kind: 'templates' }),
       rename: onRenameTemplate,
       askDelete: askDeleteTemplate,
       askMoveToNotes,
     }),
-    [main.openTemplates, onRenameTemplate, askDeleteTemplate, askMoveToNotes],
+    [openPage, onRenameTemplate, askDeleteTemplate, askMoveToNotes],
   );
   const [typeTabStore] = useState(createBrowserTypeTabStore);
   const typeViews = useTypeViews({
@@ -1126,30 +1118,16 @@ function AppWindow({
     clock: localClock,
     notePaths,
     indexKey,
-    open: archiveOpen,
     onSettled: settleArchive,
     offerLinks: entries.offerLinks,
   });
   const archiveCommands = archive.commands;
-  const inbox = useInbox({
-    ports: archivePorts,
-    notePaths,
-    vaultKey,
-    types,
-    clock: localClock,
-    indexKey,
-    indexReady,
-    open: inboxOpen,
-    onSettled: settleArchive,
-    activity: activityLog,
-    closing: closing.writes,
-  });
   // Moving the tasks to GTD's statuses, previewed from the Inbox page (P30-02).
   const taskMigration = useTaskMigration({
     ports: archivePorts,
     vaultKey,
     indexReady,
-    open: inboxOpen,
+    open: inboxShown,
     activity: activityLog,
     onChanged: typesChanged,
   });
@@ -1158,7 +1136,7 @@ function AppWindow({
     ports: archivePorts,
     vaultKey,
     indexReady,
-    open: inboxOpen,
+    open: inboxShown,
     activity: activityLog,
     onChanged: typesChanged,
   });
@@ -1167,7 +1145,7 @@ function AppWindow({
     ports: archivePorts,
     vaultKey,
     indexReady,
-    open: inboxOpen,
+    open: inboxShown,
     activity: activityLog,
     onChanged: settleArchive,
   });
@@ -1185,7 +1163,7 @@ function AppWindow({
     owner: cleanupOwner,
     vaultKey,
     indexReady,
-    open: inboxOpen,
+    open: inboxShown,
     activity: activityLog,
     onChanged: settleArchive,
     onOpenTask: (path) => openNote(createVaultPath(path)),
@@ -1195,57 +1173,24 @@ function AppWindow({
     ports: archivePorts,
     vaultKey,
     indexReady,
-    open: inboxOpen,
+    open: inboxShown,
     owner: { selfName: ownerName, selfEmails: ownerEmails },
     activity: activityLog,
     onChanged: settleArchive,
   });
-  // The weekly review (P30-07): its Archive is the app's, for a project.
-  const review = useWeeklyReview({
-    ports: archivePorts,
-    editors,
-    clock: localClock,
-    types,
-    indexKey,
-    indexReady,
-    open: reviewOpen,
-    onSettled: settleArchive,
-    archiveNote: (path) => archiveCommands.archive([path]),
-    activity: activityLog,
-  });
-  // The Today page (#111): the review's daily sibling, read on the same clock.
-  const today = useToday({
-    ports: archivePorts,
-    editors,
-    clock: localClock,
-    types,
-    vaultKey,
-    indexKey,
-    indexReady,
-    open: todayOpen,
-    onSettled: settleArchive,
-    activity: activityLog,
-  });
+  // The Today page and the weekly review show in the sidebar once the vault has tasks.
+  const tasksShown = taskTypeOf(types) !== null;
   const todayView = quick.find((view) => view.id === 'today')?.entry ?? null;
-  const proposals = useProposals({
-    ports: archivePorts,
-    clock: localClock,
-    indexKey,
-    onSettled: settleArchive,
-    activity: activityLog,
-    closing: closing.writes,
-  });
-  const { written: inboxWritten } = inbox;
-  const { written: answersWritten } = proposals;
-  useEffect(() => {
-    settleWrites.current = () =>
-      answersWrittenOrGivenUp(Promise.all([inboxWritten(), answersWritten()]));
-  }, [inboxWritten, answersWritten]);
   const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
-  // One Inbox: its count is what waits to be filed and the proposals waiting for an answer.
-  const waiting = inboxWaiting({
-    toFile: inbox.contents?.total ?? null,
-    toAnswer: proposals.count,
+  // One Inbox: its count is what waits to be filed and the proposals waiting
+  // for an answer, read by the window whatever tab the page is in.
+  const waiting = useInboxWaiting({
+    index: index.index,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vaultKey,
+    indexReady,
+    types,
   });
   // As with Today, no row that opens nothing: the Inbox shows once the vault
   // has an Inbox view or something waits in it.
@@ -1262,7 +1207,7 @@ function AppWindow({
     indexReady,
     activity: activityLog,
     onSettled: settleArchive,
-    live: automationsOpen,
+    live: automationsShown,
     // A synced vault runs its automations on one Mac only (U-29), once it and the owner are known.
     scheduled: automationsScheduled({
       automationsHere: sync.automationsHere,
@@ -1558,7 +1503,6 @@ function AppWindow({
     typeViews.error,
     newNoteOfType.error,
     templatesPage.notice,
-    termsPage.notice,
     sidebarOrder.unreadable,
   ];
   const indexFailure = location !== null ? indexFailedWith : null;
@@ -1605,11 +1549,11 @@ function AppWindow({
     ) {
       return;
     }
-    if (id === OPEN_TEMPLATES) main.openTemplates();
-    else if (id === OPEN_TERMS) main.openTerms();
-    else if (id === OPEN_INBOX) main.openInbox();
-    else if (id === OPEN_REVIEW) main.openReview();
-    else if (id === OPEN_TODAY) main.openToday();
+    if (id === OPEN_TEMPLATES) openPage({ kind: 'templates' });
+    else if (id === OPEN_TERMS) openPage({ kind: 'terms' });
+    else if (id === OPEN_INBOX) openInbox();
+    else if (id === OPEN_REVIEW) openPage({ kind: 'review' });
+    else if (id === OPEN_TODAY) openPage({ kind: 'today' });
     else if (id === 'new-query') openQuery();
     else if (id === 'new-artifact') startNewArtifact();
     else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);
@@ -1702,19 +1646,17 @@ function AppWindow({
                     onSearch={() => showOverlay('search')}
                     onOpenGraph={() => openGraph({ kind: 'vault' })}
                     onOpenTags={() => openTags(null)}
-                    onOpenAutomations={main.openAutomations}
+                    onOpenAutomations={() => openPage({ kind: 'automations' })}
                     activity={{
-                      onOpen: main.openActivity,
+                      onOpen: () => openPage({ kind: 'activity' }),
                       unseenErrors: activity.unseenErrors,
                     }}
                     onOpen={openNote}
-                    onOpenTemplates={main.openTemplates}
-                    onOpenTerms={main.openTerms}
-                    {...(inboxRowShown && {
-                      inbox: { onOpen: main.openInbox, count: waiting },
-                    })}
-                    {...(review.shown && { onOpenReview: main.openReview })}
-                    {...(today.shown && { onOpenToday: main.openToday })}
+                    onOpenTemplates={() => openPage({ kind: 'templates' })}
+                    onOpenTerms={() => openPage({ kind: 'terms' })}
+                    {...(inboxRowShown && { inbox: { onOpen: openInbox, count: waiting } })}
+                    {...(tasksShown && { onOpenReview: () => openPage({ kind: 'review' }) })}
+                    {...(tasksShown && { onOpenToday: () => openPage({ kind: 'today' }) })}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
@@ -1778,96 +1720,23 @@ function AppWindow({
                         openGraph({ kind: 'note', path: target, depth: 1 }),
                     },
                     pages: {
-                      graph: {
-                        state: vaultGraph,
-                        types,
-                        onScopeChange: openGraph,
-                        onOpen: (path, { split }) => openNote(path, split ? 'split' : 'here'),
-                      },
-                      type: {
-                        table: typeTable,
-                        types,
-                        mode: typeMode,
-                        onModeChange: (mode) =>
-                          mode === 'notes' && openTypeName !== null
-                            ? openTypePage(openTypeName)
-                            : main.setTypeMode(mode),
-                        ports: {
-                          fs: vault.fs,
-                          markdown: notes.markdown,
-                          index: index.index,
-                          openNotes: editors,
-                        },
-                        onSaved: onTypeSaved,
-                        onOpenNote: openNote,
-                        // An artifact is saved from its link or its page, not made blank.
-                        onNewNote: (type) =>
-                          type.name === ARTIFACT_TYPE
-                            ? startNewArtifact()
-                            : newNoteOfType.create(type),
-                        tabs: typeTable.type === null ? [] : typeTabsShown(catalog, typeTable.type),
-                        tabEditing:
-                          openTypeName === null
-                            ? undefined
-                            : typeViews.editingFor({
-                                typeName: openTypeName,
-                                onOpenView: openNote,
-                              }),
-                        onOpenView: openNote,
-                        onDelete: (path) => entries.askDelete({ path, kind: 'file' }),
-                        onEditTemplate: (type) => editTypeTemplate(type.name),
-                      },
-                      query: {
-                        query,
-                        onOpenNote: openNote,
-                        popups: (name) => ({
-                          open: overlay === `query-${name}`,
-                          onOpenChange: (open) =>
-                            open ? showOverlay(`query-${name}`) : hideOverlay(`query-${name}`),
-                        }),
-                      },
-                      tags: {
-                        ports: {
-                          index: index.index,
-                          fs: vault.fs,
-                          markdown: notes.markdown,
-                          editors: entryPorts.editors,
-                          renames: tagRenames.forVault(location.absolutePath),
-                        },
-                        tags: vaultTags.state,
-                        indexKey,
-                        onChanged,
-                        onSelect: openTags,
-                        onOpenNote: openNote,
-                      },
-                      archive: {
-                        contents: archive.page.contents,
-                        error: archive.page.error,
-                        search: archive.page.search,
-                        onSearch: archive.page.setSearch,
-                        selection: archive.page.choosing.selection,
-                        onClearSelection: archive.page.choosing.clear,
-                        onOpen: openNote,
-                        onUnarchive: archive.page.unarchive,
-                        busy: archiveCommands.busy,
+                      ports: archivePorts,
+                      indexReady,
+                      onSettled: settleArchive,
+                      openNote,
+                      openPage,
+                      holds: holdsByVault.of(location.absolutePath),
+                      today: {
+                        view:
+                          todayView === null
+                            ? null
+                            : { title: todayView.title, onOpen: () => openNote(todayView.path) },
+                        onOpenDailyNote: () => void openDailyNote(),
                       },
                       inbox: {
-                        vaultKey,
-                        contents: inbox.contents,
-                        error: inbox.error,
-                        filing: inbox.filing,
-                        people: inbox.people,
-                        statuses: inbox.statuses,
-                        onOpen: openNote,
-                        onShowMore: inbox.showMore,
-                        onClarify: inbox.clarify,
-                        busy: inbox.busy,
-                        problem: inbox.problem,
-                        refusals: inbox.refusals,
-                        summaryPending: inbox.summaryPending,
-                        lastAction: inbox.lastAction,
-                        onUndo: () => void inbox.undo(),
-                        onDismissLastAction: inbox.dismissLastAction,
+                        closing: closing.writes,
+                        pendingWrites,
+                        onOpenSource: followSource,
                         typesOffer:
                           typesOffer === null
                             ? null
@@ -1901,44 +1770,28 @@ function AppWindow({
                           inboxView === null
                             ? null
                             : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
-                        proposals: {
-                          ...proposals.section,
-                          onOpen: openNote,
-                          onOpenSource: (link) => followSource(link),
-                        },
-                      },
-                      review: {
-                        ...review.page,
-                        onOpen: openNote,
-                        onOpenInbox: main.openInbox,
-                      },
-                      today: {
-                        ...today.page,
-                        view:
-                          todayView === null
-                            ? null
-                            : { title: todayView.title, onOpen: () => openNote(todayView.path) },
-                        onOpen: openNote,
-                        onOpenInbox: main.openInbox,
-                        onOpenReview: main.openReview,
-                        onOpenDailyNote: () => void openDailyNote(),
-                      },
-                      automations: {
-                        automations,
-                        ports: automationPorts,
-                        clock: localClock,
-                        indexKey,
-                        activity: activityLog,
-                        onOpenNote: openNote,
-                      },
-                      activity: {
-                        activity,
-                        clock: localClock,
-                        onOpenSubject: (subject) =>
-                          subject.kind === 'rule' ? main.openAutomations() : openNote(subject.path),
                       },
                       templates: templatesPage.page,
-                      terms: { ...termsPage.page, onOpen: openNote },
+                      terms: { templates },
+                      activity: { activity },
+                      automations: { automations, ports: automationPorts },
+                      graph: { state: vaultGraph },
+                      query: { text: queryText },
+                      tags: {
+                        tags: vaultTags.state,
+                        renames: tagRenames.forVault(location.absolutePath),
+                      },
+                      type: {
+                        editAsked: typeModes,
+                        onNotes: openTypePage,
+                        // An artifact is saved from its link or its page, not made blank.
+                        onNewNote: (type) =>
+                          type.name === ARTIFACT_TYPE
+                            ? startNewArtifact()
+                            : newNoteOfType.create(type),
+                        onDelete: (path) => entries.askDelete({ path, kind: 'file' }),
+                        onEditTemplate: (type) => editTypeTemplate(type.name),
+                      },
                     },
                   }}
                 >

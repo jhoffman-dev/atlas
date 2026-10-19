@@ -1,5 +1,4 @@
 import type { NavigationPlace } from '../panes/navigation-history.ts';
-import type { PaneLayout } from '../panes/pane-layout.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 
 /**
@@ -22,79 +21,12 @@ export type ActiveSidebarPage =
   | null;
 
 /**
- * Which page the sidebar marks, given what is on screen.
- *
- * Exactly one: the page in the focused pane. A type's table replaces the panes
- * while it is open, so it wins over whatever they still hold underneath —
- * marking both is the "two rows lit" bug. With a split the other pane is on
- * screen too, but it is not where the next open lands, and marking it as well
- * would leave the sidebar unable to say which one you are in.
- */
-export function activeSidebarPage({
-  layout,
-  openTypeName,
-  graphOpen = false,
-  tagsOpen = false,
-  archiveOpen = false,
-  inboxOpen = false,
-  reviewOpen = false,
-  todayOpen = false,
-  automationsOpen = false,
-  activityOpen = false,
-  templatesOpen = false,
-  termsOpen = false,
-  viewOwner = () => null,
-}: {
-  layout: PaneLayout;
-  openTypeName: string | null;
-  /** The graph replaces the panes the way a type's table does, and wins the same way. */
-  graphOpen?: boolean;
-  /** The tags page replaces the panes the same way. */
-  tagsOpen?: boolean;
-  /** So does the Archive. */
-  archiveOpen?: boolean;
-  /** And the Inbox. */
-  inboxOpen?: boolean;
-  /** And the weekly review. */
-  reviewOpen?: boolean;
-  /** And the Today page. */
-  todayOpen?: boolean;
-  /** And the Automations page. */
-  automationsOpen?: boolean;
-  /** And the Activity page. */
-  activityOpen?: boolean;
-  /** And the Templates page. */
-  templatesOpen?: boolean;
-  /** And the Terms page. */
-  termsOpen?: boolean;
-  /**
-   * The type a note is one of the views of, or null. A type owns its views
-   * (ADR-0023), so a pane on one of them is that type's page and marks the type.
-   */
-  viewOwner?: (path: VaultPath) => string | null;
-}): ActiveSidebarPage {
-  if (archiveOpen) return { kind: 'archive' };
-  if (inboxOpen) return { kind: 'inbox' };
-  if (reviewOpen) return { kind: 'review' };
-  if (todayOpen) return { kind: 'today' };
-  if (automationsOpen) return { kind: 'automations' };
-  if (activityOpen) return { kind: 'activity' };
-  if (templatesOpen) return { kind: 'templates' };
-  if (termsOpen) return { kind: 'terms' };
-  if (graphOpen) return { kind: 'graph' };
-  if (tagsOpen) return { kind: 'tags' };
-  if (openTypeName !== null) return { kind: 'type', name: openTypeName };
-  const path = layout.paths[layout.focused] ?? null;
-  if (path === null) return null;
-  const owner = viewOwner(path);
-  return owner === null ? { kind: 'note', path } : { kind: 'type', name: owner };
-}
-
-/**
  * Which page the sidebar marks, given the place the focused pane's active tab
- * shows (docs/design/tab-model.md). The tab model's successor to
- * `activeSidebarPage`: with pages as tabs there is nothing "over" the panes,
- * so the one place says it all. The query page has no sidebar row to mark.
+ * shows (docs/design/tab-model.md). Exactly one: with a split the other pane
+ * is on screen too, but it is not where the next open lands, and marking it
+ * as well would leave the sidebar unable to say which one you are in. With
+ * pages as tabs there is nothing "over" the panes, so the one place says it
+ * all. The query page has no sidebar row to mark.
  */
 export function activeSidebarPageOf(
   place: NavigationPlace | null,

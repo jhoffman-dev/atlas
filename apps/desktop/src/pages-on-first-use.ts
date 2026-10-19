@@ -49,7 +49,7 @@ const laterParts = chunk(
   (): Promise<typeof LaterParts> => import('./later-parts.ts'),
 );
 
-// The pages over the panes (`main-route.tsx`), each in its own chunk.
+// The pages the tabs show (`workspace/page-tab.tsx`), each in its own chunk.
 export const graphPage = laterPage(
   chunk('graph-page', () => import('./graph/graph-page.tsx')),
   (m) => m.default,

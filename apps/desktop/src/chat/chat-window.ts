@@ -3,21 +3,20 @@ import type { VaultPath } from '@atlas/domain';
 
 /**
  * What the chat is opened on: the query being written, the note, view or
- * dashboard in the focused pane — or nothing, on a page that is neither, such
- * as the graph, where the pane behind it is not what is being looked at.
+ * dashboard the focused tab shows — or nothing, when that tab is on a page
+ * that is neither, such as the graph (tab-model.md: a page is a tab, so the
+ * focused tab says it all).
  */
 export function chatWindowOf({
   query,
-  otherPage,
   focused,
 }: {
-  /** The query page's text while it is open, else null. */
+  /** The query page's text while a query tab is shown, else null. */
   query: string | null;
-  /** A whole-window page other than the query is open: a type, the graph, tags, the archive. */
-  otherPage: boolean;
+  /** The note the focused tab shows, or null while it shows a page or nothing. */
   focused: VaultPath | null;
 }): ChatWindow {
   if (query !== null) return { kind: 'query', text: query };
-  if (otherPage || focused === null) return { kind: 'none' };
+  if (focused === null) return { kind: 'none' };
   return { kind: 'path', path: focused };
 }
