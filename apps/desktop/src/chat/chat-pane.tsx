@@ -33,6 +33,7 @@ export function ChatPane({
         loadImage={loadImage}
         nameHint={nameHint}
         draft={chat.draft}
+        focusOnMount={chat.focusOnMount}
         actions={{
           onSend: (text) => void session.send(text),
           onStop: () => session.stop(),

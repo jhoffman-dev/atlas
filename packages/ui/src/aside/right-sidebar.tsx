@@ -25,6 +25,19 @@ const TAB_LABELS: Readonly<Record<AsideTab, string>> = {
 /** The tabs in the order the row draws them; the app reads it to know which are offered. */
 export const ASIDE_TABS: readonly AsideTab[] = ['properties', 'backlinks', 'outline', 'claude'];
 
+/**
+ * The tab shown for `tab`: itself while a panel is offered for it, else the
+ * first offered. The app uses the same rule to fall back for display only,
+ * so a page without the chosen tab's panel never writes over the choice.
+ */
+export function shownAsideTab(
+  tab: AsideTab,
+  panels: Partial<Record<AsideTab, ReactNode>>,
+): AsideTab | undefined {
+  const offered = ASIDE_TABS.filter((each) => Boolean(panels[each]));
+  return offered.includes(tab) ? tab : offered[0];
+}
+
 /** Where ← → Home and End move the focus along the tabs, as the tab strip's do. */
 const STEPS: Readonly<Record<string, (at: number, count: number) => number>> = {
   ArrowLeft: (at, count) => (at - 1 + count) % count,
@@ -75,7 +88,7 @@ export function RightSidebar({
   /** The tab whose button last took the focus, while the focus is in the row. */
   const holding = useRef<AsideTab | null>(null);
   const offered = ASIDE_TABS.filter((each) => Boolean(panels[each]));
-  const shown = offered.includes(tab) ? tab : offered[0];
+  const shown = shownAsideTab(tab, panels);
 
   const focusTab = (at: number) => {
     const tabs = list.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');

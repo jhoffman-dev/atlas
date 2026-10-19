@@ -320,7 +320,7 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
   });
   // The focus landing on the page around a table — the editor, the bar — lets
   // the row the table held go, so the aside follows the note again. A cell's
-  // picker is drawn outside the tab, so it is not a landing here.
+  // editor and its picker render inside `.table`, so they are not landings.
   const onFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('.table') === null) clearRow(wiring.aside, tab.id);
   };

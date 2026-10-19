@@ -207,11 +207,13 @@ import { AsideContainer } from './aside/aside-container.tsx';
 import {
   createAsideStore,
   hideAside,
+  asideShown as asideShownNow,
   loadVaultAside,
   setAsideFolded,
   toggleAside as toggleAsideIn,
   toggleClaude,
   useAsideShown,
+  useClaudeAsked,
   useClaudeShown,
 } from './aside/aside-store.ts';
 import { browserAsideStore } from './aside/browser-aside-store.ts';
@@ -880,16 +882,22 @@ function AppWindow({
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
   // The aside folds where the window is too narrow for it beside the left
-  // sidebar (collapse.ts). Showing it there — ⌘J, the bar's button, ⌥⌘\ —
-  // hides the left sidebar instead, so Claude is reachable in a 1000px window;
-  // ⌘\ brings the sidebar back. The store is told as the window folds it, so
-  // the toggle's pressed state and each note's body read what is on screen.
+  // sidebar (collapse.ts). Asking for it there — ⌘J, the bar's button, ⌥⌘\ —
+  // hides the left sidebar instead, where that makes room (not under 796px,
+  // where the aside folds on its own: the sidebar then stays), so Claude is
+  // reachable in a 1000px window; ⌘\ brings the sidebar back. The store is
+  // told as the window folds it, so the toggle's pressed state, each note's
+  // body and every ask read what is on screen, not what is remembered.
   const asideCollapsed = useAsideCollapsed({ sidebarOpen });
   useEffect(() => setAsideFolded(asideStore, asideCollapsed), [asideStore, asideCollapsed]);
   const roomForAside = useCallback(() => {
-    if (collapseFor({ width: window.innerWidth, sidebarOpen: true }).aside) setSidebarOpen(false);
+    const width = window.innerWidth;
+    const folds = (open: boolean) => collapseFor({ width, sidebarOpen: open }).aside;
+    if (folds(true) && !folds(false)) setSidebarOpen(false);
   }, []);
-  const showAside = useCallback(
+  // An ask opens the aside whatever the store holds: the window's answer to
+  // the room just made arrives after this event, so `folded` still says folded.
+  const askForAside = useCallback(
     (show: (store: typeof asideStore) => void) => {
       roomForAside();
       show(asideStore);
@@ -898,13 +906,15 @@ function AppWindow({
   );
   // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings the aside up on it.
   const claudeShown = useClaudeShown(asideStore);
+  const claudeAsked = useClaudeAsked(asideStore);
   const chatSeat = useMemo(
     () => ({
       open: claudeShown,
-      toggle: () => (claudeShown ? hideAside(asideStore) : showAside(toggleClaude)),
+      asked: claudeAsked,
+      toggle: () => (claudeShown ? hideAside(asideStore) : askForAside(toggleClaude)),
       close: () => hideAside(asideStore),
     }),
-    [claudeShown, asideStore, showAside],
+    [claudeShown, claudeAsked, asideStore, askForAside],
   );
   const chat = useChat({
     ports: chatPorts,
@@ -1519,7 +1529,7 @@ function AppWindow({
     show: showOverlay,
     toggleChat: chat.toggle,
     toggleAside: () =>
-      asideStore.getState().open ? hideAside(asideStore) : showAside(toggleAsideIn),
+      asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),
     tabs: {
       newTab: () => newTabIn(workspace, workspaceNow(workspace).focused),
       closeTab: () => closeActiveTab(workspace),
@@ -1536,9 +1546,9 @@ function AppWindow({
   const asideToggle = useMemo(
     () => ({
       shown: asideShown,
-      onToggle: () => (asideShown ? hideAside(asideStore) : showAside(toggleAsideIn)),
+      onToggle: () => (asideShown ? hideAside(asideStore) : askForAside(toggleAsideIn)),
     }),
-    [asideShown, asideStore, showAside],
+    [asideShown, asideStore, askForAside],
   );
   const rowPorts = useMemo(() => ({ pane: paneContext, openNote }), [paneContext, openNote]);
 

@@ -30,6 +30,7 @@ export function ChatPanel({
   loadImage,
   nameHint = null,
   draft,
+  focusOnMount = true,
 }: {
   state: ChatPanelState;
   model: string;
@@ -45,6 +46,11 @@ export function ChatPanel({
    * unmounted as the aside shows another tab, and a draft must outlive that.
    */
   draft?: ChatDraft;
+  /**
+   * Whether the box takes the keys as the panel mounts. The app says no for a
+   * mount nobody asked for — the Claude tab remembered across a launch.
+   */
+  focusOnMount?: boolean;
 }) {
   const lastAnswer = [...state.items].reverse().find((item) => item.kind === 'assistant');
   return (
@@ -84,7 +90,12 @@ export function ChatPanel({
         )}
         {state.notice !== null && <p className="chat__notice">{state.notice}</p>}
       </div>
-      <Composer state={state} actions={actions} {...(draft !== undefined && { draft })} />
+      <Composer
+        state={state}
+        actions={actions}
+        focusOnMount={focusOnMount}
+        {...(draft !== undefined && { draft })}
+      />
     </aside>
   );
 }
@@ -260,17 +271,22 @@ function Composer({
   state,
   actions,
   draft: kept,
+  focusOnMount,
 }: {
   state: ChatPanelState;
   actions: ChatActions;
   draft?: ChatDraft;
+  focusOnMount: boolean;
 }) {
   const [own, setOwn] = useState('');
   const draft = kept?.text ?? own;
   const setDraft = kept?.onChange ?? setOwn;
   const box = useRef<HTMLTextAreaElement>(null);
-  // Mounted only as Claude is asked for — ⌘J, the bar's spark, its tab — so the box takes the keys.
-  useEffect(() => box.current?.focus(), []);
+  // On mount only, by the app's say at that moment: an ask takes the keys, a remembered seat does not.
+  useEffect(() => {
+    if (focusOnMount) box.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read once, as the panel mounts
+  }, []);
 
   const send = () => {
     if (draft.trim() === '' || state.busy) return;

@@ -59,6 +59,8 @@ export interface ChatVault {
 /** Where the chat sits and whether it is showing, decided outside the chat. */
 export interface ChatSeat {
   readonly open: boolean;
+  /** Whether the seat was asked for this session, as against remembered across a launch. */
+  readonly asked: boolean;
   readonly toggle: () => void;
   readonly close: () => void;
 }
@@ -67,6 +69,8 @@ export interface ChatController {
   readonly open: boolean;
   /** The question being typed: kept here, since the panel comes and goes with the aside's tab. */
   readonly draft: ChatDraft;
+  /** Whether the panel should take the keys as it mounts: only when it was asked for. */
+  readonly focusOnMount: boolean;
   readonly toggle: () => void;
   readonly close: () => void;
   readonly state: ChatState;
@@ -192,6 +196,7 @@ export function useChat({
   return {
     open,
     draft,
+    focusOnMount: seat.asked,
     toggle: seat.toggle,
     close: seat.close,
     state,

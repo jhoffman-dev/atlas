@@ -2,11 +2,11 @@ import { memo, useMemo, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { activeTabOf, outlineOf, type TabId, type VaultPath } from '@atlas/domain';
 import {
-  ASIDE_TABS,
   BacklinksPane,
   OutlinePane,
   PropertiesPane,
   RightSidebar,
+  shownAsideTab,
   type AsideTab,
 } from '@atlas/ui';
 import { requestReveal } from '../panes/reveals.ts';
@@ -45,8 +45,7 @@ export const AsideContainer = memo(function AsideContainer({ rows }: { rows: Row
   const panels = { ...subject, claude: <ClaudeSeat /> };
   // Shown for the page at hand only: a page without an Outline does not
   // forget that the person chose Outline, so the choice is not written over.
-  const offered = ASIDE_TABS.filter((tab) => Boolean(panels[tab]));
-  const tab = offered.includes(chosen) ? chosen : (offered[0] ?? chosen);
+  const tab = shownAsideTab(chosen, panels) ?? chosen;
   return (
     <RightSidebar
       tab={tab}

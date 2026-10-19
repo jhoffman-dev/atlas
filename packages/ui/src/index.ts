@@ -12,7 +12,7 @@ export {
 } from './aside/collapse.ts';
 export { OutlinePane } from './aside/outline-pane.tsx';
 export { PropertiesPane } from './aside/properties-pane.tsx';
-export { ASIDE_TABS, RightSidebar } from './aside/right-sidebar.tsx';
+export { ASIDE_TABS, RightSidebar, shownAsideTab } from './aside/right-sidebar.tsx';
 export type { AsideTab } from './aside/right-sidebar.tsx';
 export { IndexSettings, indexStatusText } from './index-status.tsx';
 export { ImageSettings } from './image-settings.tsx';

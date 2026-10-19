@@ -36,6 +36,12 @@ export interface AsideState {
   readonly tab: AsideTab;
   /** Folded by a narrow window (collapse.ts), whatever `open` remembers. */
   readonly folded: boolean;
+  /**
+   * Whether Claude's tab was asked for in this session — ⌘J, the spark, its
+   * tab — as against remembered across a launch: only an ask hands the chat
+   * the keys.
+   */
+  readonly claudeAsked: boolean;
   readonly rows: ReadonlyMap<TabId, FocusedRow>;
   readonly remembered: RememberedAsides;
 }
@@ -71,6 +77,7 @@ export function createAsideStore({ remembered }: { remembered: RememberedAsides 
     vault: null,
     ...FRESH,
     folded: false,
+    claudeAsked: false,
     rows: new Map(),
     remembered,
   }));
@@ -102,12 +109,17 @@ export function focusedRowOf(
   return row !== undefined && row.within === within ? row.path : null;
 }
 
-/** Whether the chat is on screen: the aside open on its Claude tab. */
+/** Whether the chat is on screen: the aside shown, on its Claude tab. */
 export function useClaudeShown(store: AsideStore): boolean {
   return useStore(store, claudeShown);
 }
 
-const claudeShown = (state: AsideState): boolean => state.open && state.tab === 'claude';
+export const claudeShown = (state: AsideState): boolean =>
+  asideShown(state) && state.tab === 'claude';
+
+export function useClaudeAsked(store: AsideStore): boolean {
+  return useStore(store, (state) => state.claudeAsked);
+}
 
 /** The row focused in `tab`'s table while the tab is still on the page it was focused on. */
 export function useFocusedRow(
@@ -129,11 +141,16 @@ export function loadVaultAside(store: AsideStore, vaultKey: string | null): void
   const state = store.getState();
   if (state.vault === vaultKey) return;
   const read = vaultKey === null ? null : state.remembered.read(vaultKey);
-  store.setState({ vault: vaultKey, ...(read ?? FRESH), rows: new Map() });
+  store.setState({ vault: vaultKey, ...(read ?? FRESH), claudeAsked: false, rows: new Map() });
 }
 
+/**
+ * Shows the aside, or hides it when it is on screen. Decided on what is
+ * shown, not on what is remembered: an aside remembered open but folded by
+ * the window is asked for, not put away — the app makes room for it.
+ */
 export function toggleAside(store: AsideStore): void {
-  remember(store, { open: !store.getState().open });
+  remember(store, { open: !asideShown(store.getState()) });
 }
 
 /** Told by the app as the window folds the aside or makes room for it again. */
@@ -148,17 +165,23 @@ export function hideAside(store: AsideStore): void {
 /** Opens the aside on `tab`, or only shows the tab when it is open already. */
 export function showAsideTab(store: AsideStore, tab: AsideTab): void {
   remember(store, { open: true, tab });
+  if (tab === 'claude') asked(store);
 }
 
-/** A tab clicked in the open aside, or the one it fell back to as a panel went. */
+/** A tab clicked in the open aside. */
 export function selectAsideTab(store: AsideStore, tab: AsideTab): void {
   remember(store, { tab });
+  if (tab === 'claude') asked(store);
 }
 
-/** ⌘J: Claude comes up in the aside, or the aside goes when it is on Claude. */
+/** ⌘J: Claude comes up in the aside, or the aside goes when Claude is on screen. */
 export function toggleClaude(store: AsideStore): void {
   if (claudeShown(store.getState())) hideAside(store);
   else showAsideTab(store, 'claude');
+}
+
+function asked(store: AsideStore): void {
+  if (!store.getState().claudeAsked) store.setState({ claudeAsked: true });
 }
 
 /** Said by a table as the focus lands on one of its rows. */
