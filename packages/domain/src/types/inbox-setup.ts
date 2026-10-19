@@ -1,17 +1,41 @@
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { MEETING_EXTRACTION_PROPERTIES } from '../meetings/meeting-extraction-properties.ts';
 import { MEETING_IMPORT_PROPERTIES } from '../meetings/meeting-import-properties.ts';
+import { COMPANY_TYPE } from '../people/company.ts';
+import { PERSON_TYPE } from '../people/person.ts';
 import { PROPOSAL_TYPE_FILES } from '../proposals/proposal-types.ts';
+import { VARIANTS_KEY } from '../terms/term.ts';
 import type { BuiltInTypeFile, TypeExtension } from './para.ts';
-import type { ObjectType } from './property-def.ts';
+import type { ObjectType, PropertyDef } from './property-def.ts';
 
-/** What the Inbox needs of a vault's types beyond PARA: proposals, and meetings that arrive. */
+/**
+ * What the Inbox needs of a vault's types beyond PARA: proposals, meetings
+ * that arrive, and a person's and a company's misheard spellings (#404).
+ */
 export interface InboxTypePlan<Type extends ObjectType = ObjectType> {
   /** The Proposal and Decision types the vault has no file for. */
   readonly missing: readonly BuiltInTypeFile[];
-  /** The vault's Meeting type, gaining the import's and the extraction's keys it does not declare. */
+  /**
+   * The vault's Meeting type, gaining the import's and the extraction's keys
+   * it does not declare; its Person and Company types, gaining `variants`.
+   */
   readonly extensions: readonly TypeExtension<Type>[];
 }
+
+/**
+ * A person's or a company's misheard spellings, as the Term type declares its
+ * own (#400): corrected to the name, and listed on the Terms page. Corrections
+ * read the key without it; declared, the properties panel shows it by name.
+ */
+const NAME_VARIANTS_PROPERTY: PropertyDef = {
+  key: VARIANTS_KEY,
+  kind: 'multiSelect',
+  label: 'Misheard as',
+  required: false,
+  options: [],
+  target: null,
+  many: false,
+};
 
 /** A vault's type name as the disk compares its file's: in any case. */
 const folded = (name: string) => name.trim().toLowerCase();
@@ -38,14 +62,27 @@ export function inboxTypePlan<Type extends ObjectType>(
   const meetings = existing.filter((type) => folded(type.name) === MEETING_TYPE);
   const [meeting] = meetings;
   const extension = meeting === undefined || meetings.length > 1 ? null : withImportKeys(meeting);
-  return { missing, extensions: extension === null ? [] : [extension] };
+  const named = [PERSON_TYPE, COMPANY_TYPE].flatMap((name) => {
+    const claimed = existing.filter((type) => folded(type.name) === name);
+    const [only] = claimed;
+    const offered =
+      only === undefined || claimed.length > 1 ? null : withKeys(only, [NAME_VARIANTS_PROPERTY]);
+    return offered === null ? [] : [offered];
+  });
+  return { missing, extensions: [...(extension === null ? [] : [extension]), ...named] };
 }
 
 function withImportKeys<Type extends ObjectType>(type: Type): TypeExtension<Type> | null {
+  return withKeys(type, [...MEETING_IMPORT_PROPERTIES, ...MEETING_EXTRACTION_PROPERTIES]);
+}
+
+/** `type` gaining whichever of `wanted` it does not declare; null when it declares them all. */
+function withKeys<Type extends ObjectType>(
+  type: Type,
+  wanted: readonly PropertyDef[],
+): TypeExtension<Type> | null {
   const has = new Set(type.properties.map((property) => property.key));
-  const added = [...MEETING_IMPORT_PROPERTIES, ...MEETING_EXTRACTION_PROPERTIES].filter(
-    (property) => !has.has(property.key),
-  );
+  const added = wanted.filter((property) => !has.has(property.key));
   if (added.length === 0) return null;
   return {
     before: type,

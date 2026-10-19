@@ -63,6 +63,33 @@ describe('the vocabulary', () => {
     expect(built.entries.map((entry) => entry.claims[0]?.source)).toEqual(['company']);
   });
 
+  it('corrects a company’s misheard spellings to its name, and still never its aliases (#400)', () => {
+    const built = vocabulary({
+      ...NOBODY,
+      companies: [
+        {
+          ...named('Companies/Larkspur Payroll.md', 'Larkspur Payroll', ['LP']),
+          variants: ['Larkspar Payroll'],
+        },
+      ],
+    });
+    expect(corrections(built)).toEqual([
+      'Larkspar Payroll → Larkspur Payroll',
+      'Larkspur Payroll → Larkspur Payroll',
+    ]);
+    expect(built.entries.map((entry) => entry.claims[0]?.source)).toEqual(['company', 'company']);
+  });
+
+  it('corrects a person’s misheard spellings to their name, their aliases left to linking (#400)', () => {
+    const built = vocabulary({
+      ...NOBODY,
+      people: [
+        { ...named('People/Tobias Fenn.md', 'Tobias Fenn', ['Toby']), variants: ['Tobias Fen'] },
+      ],
+    });
+    expect(corrections(built)).toEqual(['Tobias Fenn → Tobias Fenn', 'Tobias Fen → Tobias Fenn']);
+  });
+
   it('does not let a person’s alias clash with a term’s variant', () => {
     const built = vocabulary({
       terms: [term('Terms/Quill Desk.md', 'Quill Desk', ['Quill'])],

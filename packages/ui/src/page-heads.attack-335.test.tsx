@@ -10,7 +10,7 @@ import {
   readProposal,
   scopeGraph,
   type EditorDocument,
-  type TermNote,
+  type ListedTerm,
 } from '@atlas/domain';
 import { TermsPage, type TermsContents } from './terms-page.tsx';
 import { GraphView } from './graph/graph-view.tsx';
@@ -40,11 +40,12 @@ describe('the bar count is hidden at 0', () => {
   });
 
   it('Terms says "1 term · 1 misheard spelling" in the singular', () => {
-    const one: TermNote = {
+    const one: ListedTerm = {
       path: createVaultPath('Terms/Larkspur.md'),
       canonical: 'Larkspur',
       variants: ['lark spur'],
       kind: null,
+      source: 'term',
     };
     const { container } = terms({ terms: [one], conflicts: [], warnings: [], spellings: 1 });
     expect(barCount(container)?.textContent).toBe('1 term · 1 misheard spelling');

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { spellingWarnings, type ObjectType, type VaultPath } from '@atlas/domain';
+import { spellingWarnings, tidySpelling, type ObjectType, type VaultPath } from '@atlas/domain';
 import {
   addTerm,
   loadTerms,
@@ -9,6 +9,7 @@ import {
   TermRefusedError,
   termVariantsChange,
   type ActivityLog,
+  type AddedTerm,
   type IndexPort,
   type MarkdownPort,
   type NoteTemplate,
@@ -66,6 +67,7 @@ export function useTermsPage({
   const [catalog, setCatalog] = useState<TermsCatalog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [added, setAdded] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -86,28 +88,41 @@ export function useTermsPage({
 
   /**
    * Runs a write, and says why when it fails rather than letting it vanish —
-   * recording it in the Activity log too, unless it was a refusal.
+   * recording it in the Activity log too, unless it was a refusal. What it
+   * did is said once it lands, when `said` has something to say.
    */
   const run = useCallback(
-    (work: () => Promise<unknown>, { failed, path }: { failed: string; path: VaultPath | null }) =>
+    <T>(
+      work: () => Promise<T>,
+      {
+        failed,
+        path,
+        said = () => null,
+      }: { failed: string; path: VaultPath | null; said?: (done: T) => string | null },
+    ) =>
       withGiveUpRecorded({ activity, write: 'term', path, refusal: TERM_REFUSALS }, work).then(
-        () => {
+        (done) => {
           setNotice(null);
+          setAdded(said(done));
           onChanged();
         },
-        (cause: unknown) => setNotice(`${failed}: ${messageOf(cause)}`),
+        (cause: unknown) => {
+          setAdded(null);
+          setNotice(`${failed}: ${messageOf(cause)}`);
+        },
       ),
     [onChanged, activity],
   );
 
   const onAdd = useCallback(
     (term: NewTerm) => {
-      void run(() => addTerm({ fs, markdown, term, types, templates, notePaths }), {
-        failed: `“${term.canonical}” was not added`,
-        path: null,
-      });
+      const today = localToday();
+      const add = () =>
+        addTerm({ fs, markdown, openNotes: editors, term, types, templates, notePaths, today });
+      const said = (done: AddedTerm) => whereAdded(done, tidySpelling(term.canonical));
+      void run(add, { failed: `“${term.canonical}” was not added`, path: null, said });
     },
-    [run, fs, markdown, types, templates, notePaths],
+    [run, fs, markdown, editors, types, templates, notePaths],
   );
 
   const onEditVariants = useCallback(
@@ -133,9 +148,12 @@ export function useTermsPage({
         catalog === null
           ? null
           : {
-              terms: catalog.terms,
+              terms: catalog.listed,
               conflicts: catalog.vocabulary.conflicts,
-              warnings: spellingWarnings(catalog),
+              warnings: spellingWarnings({
+                terms: catalog.listed,
+                vocabulary: catalog.vocabulary,
+              }),
               spellings: catalog.vocabulary.entries.filter(
                 (entry) => entry.form !== entry.canonical,
               ).length,
@@ -147,5 +165,17 @@ export function useTermsPage({
     [catalog, error, onAdd, onEditVariants],
   );
 
-  return { page, notice };
+  return { page, notice, added };
+}
+
+/**
+ * Where a term's misheard spellings went, and what they now correct to — said
+ * only when that was not a new term's note (#400). The spelling is the one
+ * typed: the add refuses one the note does not spell exactly so (#404).
+ */
+function whereAdded({ path, into, added }: AddedTerm, spelling: string): string | null {
+  if (into === 'term') return null;
+  return added.length === 0
+    ? `${path} already lists those misheard spellings.`
+    : `Added to ${path}: ${added.join(', ')}, now corrected to “${spelling}”.`;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '@atlas/domain';
-import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
+import { fakeMarkdown, fakeOpenNotes, fakeVaultFs } from '../testing/fake-ports.ts';
 import { addTerm } from './terms.ts';
 
 /*
@@ -29,13 +29,15 @@ describe('adding a term from a Term template that has a title of its own', () =>
     const made = await addTerm({
       fs,
       markdown: fakeMarkdown(),
+      openNotes: fakeOpenNotes(),
+      today: '2026-10-19',
       term: { canonical: 'Larkspur', variants: 'lark spur', kind: 'company' },
       types: [],
       templates: [{ path: TEMPLATE, name: 'Term' }],
       notePaths: [],
     });
 
-    expect(made).toBe('Terms/Larkspur.md');
+    expect(made.path).toBe('Terms/Larkspur.md');
     const contents = created[0]?.contents ?? '';
     expect(contents).toContain('type: term');
     expect(contents).not.toMatch(/^title: New term$/m);
