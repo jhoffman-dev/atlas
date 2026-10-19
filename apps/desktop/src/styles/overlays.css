@@ -1,14 +1,13 @@
-/* Overlays: the palettes and Settings.
+/* Overlays: the palettes.
    One of the section files styles/index.css imports in cascade order; the
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
-/* ---- Overlays: the palettes and Settings ----
-   One language for everything that floats over the app. The backdrop is the
-   ground, dimmed and slightly blurred, so what is behind stays recognisable
-   without competing; the overlay is a raised surface with the panel's radius
-   and the foremost shadow, which in dark carries the cyan edge-glow. Rows are
-   44px with an icon, the active one tinted with the accent, and the keys an
-   overlay answers to sit along its foot as small chips. */
+/* ---- Overlays: the palettes (UI v2, slice 13e) ----
+   ⌘K search and ⇧⌘N capture are popovers by the Tokens board: the surface
+   with a hairline, radius 8 and the one shadow content never gets. The
+   backdrop is the scrim, so what is behind stays recognisable. Rows are 36px
+   of body text; the chosen one takes the `selected` fill, the one under the
+   pointer the hover fill; a key is plain ink-3 text, never a box. */
 
 .palette__backdrop {
   -webkit-backdrop-filter: blur(6px) saturate(1.05);
@@ -24,9 +23,10 @@
 }
 
 .palette {
-  background: var(--raised);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius-popover);
-  box-shadow: var(--shadow-overlay);
+  box-shadow: var(--shadow-popover);
   color: var(--ink);
   display: flex;
   flex-direction: column;
@@ -35,14 +35,15 @@
   width: min(640px, 100%);
 }
 
-/* The field: an icon, the input, and the key that closes it. */
+/* The field: an icon, the input, and the key that closes it, over a hairline. */
 .palette__field {
   align-items: center;
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
   flex: none;
-  gap: var(--space-3);
-  min-height: 60px;
-  padding: 0 var(--space-5);
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-3);
 }
 
 .palette__field-icon {
@@ -57,7 +58,7 @@
   flex: 1;
   font: inherit;
   font-size: var(--text-body-lg);
-  font-weight: 600;
+  font-weight: 400;
   min-width: 0;
   outline: none;
   padding: 0;
@@ -65,7 +66,6 @@
 
 .palette__input::placeholder {
   color: var(--ink-3);
-  font-weight: 500;
 }
 
 /* WebKit draws its own clear button on a search field; the palette is cleared
@@ -76,27 +76,27 @@
 
 .palette__scope {
   align-items: center;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
   color: var(--ink-2);
   display: flex;
-  font-size: 12.5px;
-  font-weight: 700;
-  gap: 9px;
-  padding: 8px var(--space-5);
+  font-size: var(--text-column);
+  font-weight: 500;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
 }
 
 .palette__empty {
   color: var(--ink-3);
-  font-size: var(--text-ui);
+  font-size: var(--text-body);
   margin: 0;
-  padding: var(--space-4) var(--space-5) var(--space-5);
+  padding: var(--space-3);
 }
 
 .palette__hits {
   list-style: none;
   margin: 0;
   overflow-y: auto;
-  padding: 0 var(--space-2) var(--space-2);
+  padding: 4px;
 }
 
 .palette__hits:empty {
@@ -108,14 +108,14 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-row);
   color: var(--ink);
   cursor: pointer;
   display: flex;
   font: inherit;
-  gap: var(--space-3);
-  min-height: 44px;
-  padding: 6px var(--space-3);
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 4px var(--space-2);
   text-align: left;
   width: 100%;
 }
@@ -126,26 +126,23 @@
 
 .palette__hit--on,
 .palette__hit--on:hover {
-  background: var(--you);
+  background: var(--selected);
 }
 
-/* What kind of note it is, in a small tile like the sidebar's icons. */
+/* What kind of note it is: the icon alone, in the metadata ink, as a menu's. */
 .palette__kind {
   align-items: center;
-  background: var(--chip);
-  border-radius: var(--radius-control);
-  color: var(--ink-2);
+  color: var(--ink-3);
   display: flex;
   flex: none;
-  height: 30px;
+  height: 20px;
   justify-content: center;
-  width: 30px;
+  width: 20px;
 }
 
+.palette__hit:hover .palette__kind,
 .palette__hit--on .palette__kind {
-  background: var(--raised);
-  box-shadow: var(--shadow-soft);
-  color: var(--active-icon);
+  color: var(--ink-2);
 }
 
 .palette__text {
@@ -156,8 +153,8 @@
 }
 
 .palette__title {
-  font-size: var(--text-body);
-  font-weight: 700;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -166,16 +163,23 @@
 .palette__detail {
   color: var(--ink-3);
   display: flex;
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   gap: var(--space-2);
   min-width: 0;
   white-space: nowrap;
 }
 
+/* On the selected fill ink-3 falls under AA in light (4.3:1), so the chosen
+   row's metadata and its ↵ step up to ink-2 (styles.palettes.test.ts). */
+.palette__hit--on .palette__detail,
+.palette__hit--on .key {
+  color: var(--ink-2);
+}
+
 .palette__place {
   color: var(--ink-2);
   flex: none;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .palette__snippet {
@@ -192,7 +196,7 @@
 .palette__mark {
   background: none;
   color: var(--accent-text);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .palette__enter {
@@ -200,16 +204,16 @@
 }
 
 .palette__hint {
-  color: var(--ink-2);
-  font-size: var(--text-small);
+  color: var(--ink-3);
+  font-size: var(--text-meta);
   margin: 0;
-  padding: 0 var(--space-5) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3);
 }
 
 .palette__destination {
   background: var(--chip);
   border-radius: var(--radius-chip);
   color: var(--chip-ink);
-  font-weight: 700;
-  padding: 2px 7px;
+  font-weight: 500;
+  padding: 1px 6px;
 }
