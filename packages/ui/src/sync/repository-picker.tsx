@@ -58,7 +58,7 @@ export function RepositoryPicker({
       <PickerBody list={list} found={list.kind === 'ready' ? find(query) : []} query={query}>
         {(repository) => (
           <button
-            className="btn btn--tinted btn--sm"
+            className="btn btn--secondary"
             type="button"
             disabled={busy}
             aria-label={`Connect ${repository.nameWithOwner}`}

@@ -71,7 +71,7 @@ export function ChatPanel({
         {state.error !== null && (
           <div className="chat__error" role="alert">
             <p>{state.error.message}</p>
-            <button type="button" className="btn btn--sm btn--secondary" onClick={actions.onRetry}>
+            <button type="button" className="btn btn--secondary" onClick={actions.onRetry}>
               <Icon name="retry" size={14} /> Retry
             </button>
           </div>
@@ -321,7 +321,7 @@ function NameHint({ hint }: { hint: ChatNameHint }) {
         Claude doesn’t know your name, so where a note needs it, it writes “{hint.placeholder}”
         rather than guess.
       </p>
-      <button type="button" className="btn btn--sm btn--secondary" onClick={hint.onSetName}>
+      <button type="button" className="btn btn--secondary" onClick={hint.onSetName}>
         Set your name
       </button>
     </div>

@@ -219,6 +219,17 @@ describe('a proposed change', () => {
     expect(handlers['onAccept']).toHaveBeenCalledWith('p1');
   });
 
+  it('tells Accept from Reject: a positive and a destructive button (#318)', () => {
+    panel({ items: [proposal('pending')] });
+    const card = screen.getByRole('region', { name: 'Proposed edit: Plan' });
+    expect(within(card).getByRole('button', { name: 'Accept' }).classList).toContain(
+      'btn--positive',
+    );
+    expect(within(card).getByRole('button', { name: 'Reject' }).classList).toContain(
+      'btn--destructive',
+    );
+  });
+
   it('offers Undo once accepted, and says why an Accept was refused', async () => {
     const user = userEvent.setup();
     const { handlers } = panel({
