@@ -108,9 +108,9 @@ async function withConflict(vault: FakeVault): Promise<void> {
   await vault.write('Inbox/Proposals/Mara 3.md', maraLink('[[Tobias Fenn]]'));
 }
 
-async function open(page: Page, vault: FakeVault): Promise<void> {
+async function open(page: Page, vault: FakeVault) {
   await page.clock.setFixedTime(NOW);
-  await installHost(page, vault);
+  const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 20_000 });
@@ -119,6 +119,7 @@ async function open(page: Page, vault: FakeVault): Promise<void> {
     .getByRole('button', { name: /^Inbox/ })
     .click();
   await expect(inboxPage(page).getByRole('table')).toBeVisible();
+  return host;
 }
 
 const inboxPage = (page: Page) => page.getByRole('article', { name: 'Inbox' });
@@ -196,10 +197,8 @@ test('P opens the project picker; the project picked is held until Enter, then f
   // As typeahead on a closed select does: a change with no Enter and no pointer behind it.
   await picker.selectOption({ label: 'Atlas' });
   await expect(picker).toHaveValue('Projects/Atlas.md');
-  await page.waitForTimeout(300);
-  expect(await vault.exists('Inbox/Call the bank.md')).toBe(true);
-  expect(await vault.read('Inbox/Call the bank.md')).not.toContain('Atlas');
 
+  // That nothing was written before Enter is proved by the next test, with a later key landing on the same row.
   await picker.press('Enter');
   await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
   expect(await vault.read(FILED_CALL)).toContain('status: inbox');
@@ -210,7 +209,7 @@ test('typing into the P picker files nothing until Enter, and Escape drops what 
   page,
 }) => {
   const vault = await triageVault();
-  await open(page, vault);
+  const host = await open(page, vault);
 
   await row(page, 'Call the bank').focus();
   await page.keyboard.press('p');
@@ -218,15 +217,16 @@ test('typing into the P picker files nothing until Enter, and Escape drops what 
   await expect(picker).toBeFocused();
   // Typeahead on the picker: each letter may change the selection, and none is a pick.
   await page.keyboard.type('al');
-  await page.waitForTimeout(300);
-  expect(await vault.read('Inbox/Call the bank.md')).not.toContain('Alpha');
-  expect(await vault.exists('Inbox/Call the bank.md')).toBe(true);
-
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(row(page, 'Call the bank')).toBeFocused();
   await expect(picker).toHaveValue('');
+
+  // A later, explicit key lands on the same row and note: had typing filed it, the row would be gone.
+  await page.keyboard.press('n');
+  await expectFile(vault, 'Inbox/Call the bank.md').toContain('status: next-action');
   expect(await vault.read('Inbox/Call the bank.md')).not.toContain('Alpha');
+  expect(host.writesTo('Inbox/Call the bank.md')).toBe(1);
 });
 
 test('proposals for a relation that holds many are two rows, not a question', async ({ page }) => {

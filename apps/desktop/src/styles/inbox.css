@@ -86,6 +86,13 @@ form.inbox__clarify {
   white-space: normal;
 }
 
+/* The controls (520px) and the keys (220px) are fixed, so the name is what
+   gives when the sheet is narrow: its title wraps anywhere, so a short column
+   still reads, and a title with nowhere to break no longer widens the sheet. */
+.inbox__grid .table__name {
+  min-width: 120px;
+}
+
 .inbox__grid .table__title {
   overflow-wrap: anywhere;
   white-space: normal;
