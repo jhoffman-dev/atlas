@@ -56,7 +56,8 @@ export interface PageProps {
   query: QueryProps;
   tags: TagsProps;
   archive: ArchiveProps;
-  inbox: InboxProps;
+  /** `vaultKey` keys the page: another vault's Inbox starts afresh, holding its rows for its own offers (#130). */
+  inbox: InboxProps & { readonly vaultKey: string | null };
   review: ReviewProps;
   today: TodayProps;
   automations: AutomationsProps;
@@ -99,8 +100,10 @@ export function pageForPlace({
       return later(<TagsScreen {...pages.tags} selected={place.tag} {...chrome} />);
     case 'archive':
       return later(<ArchivePage {...pages.archive} {...chrome} />);
-    case 'inbox':
-      return <InboxPage {...pages.inbox} {...chrome} />;
+    case 'inbox': {
+      const { vaultKey, ...inbox } = pages.inbox;
+      return <InboxPage key={vaultKey} {...inbox} {...chrome} />;
+    }
     case 'review':
       return later(<WeeklyReviewPage {...pages.review} {...chrome} />);
     case 'today':

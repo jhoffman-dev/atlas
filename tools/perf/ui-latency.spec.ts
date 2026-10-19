@@ -88,8 +88,11 @@ test('open the Inbox', async () => {
       await measure(page, {
         act: () => inboxRow().click(),
         arg: NOTE_PICKERS,
-        ready: (selector) =>
-          document.querySelector<HTMLSelectElement>(selector)?.disabled === false,
+        // Seen as well as enabled: the rows are drawn hidden while the Inbox's offers are read (#130).
+        ready: (selector) => {
+          const picker = document.querySelector<HTMLSelectElement>(selector);
+          return picker?.disabled === false && picker.checkVisibility({ visibilityProperty: true });
+        },
       }),
     );
     await page

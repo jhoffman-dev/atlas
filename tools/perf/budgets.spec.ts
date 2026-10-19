@@ -25,8 +25,8 @@ import { installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
 import { installRenderCounter } from '../../packages/ui/src/testing/render-counter.ts';
 import { BUDGETED_ACTIONS, type BudgetedAction } from './budgeted-actions.ts';
 import type { FixtureFile } from './fixture-vault.ts';
-import { measure, waitForQuiet } from './probe.ts';
-import { EVERY_NOTE_INDEXED, openFixtureVault, writeFixtureVault } from './session.ts';
+import { installProbe, measure, waitForQuiet } from './probe.ts';
+import { EVERY_NOTE_INDEXED, writeFixtureVault } from './session.ts';
 import {
   installWorkClock,
   oneInput,
@@ -85,13 +85,16 @@ const ROW_RULES: Partial<Record<BudgetedAction, ActionBudget['rows']>> = {
 };
 
 /**
- * The one action allowed to differ between two counted runs, and by how much:
+ * The actions allowed to differ between two counted runs, and by how much:
  * the drag counted 98 commits on one CI run and 96 on the next (#240), each
  * component in the board three renders apart. Host calls matched. What in the
- * drag still runs on the wall clock is not found yet (#243); every
- * other action must match exactly.
+ * drag still runs on the wall clock is not found yet (#243). Opening the
+ * vault indexes 2,000 notes: on CI it counted 121 commits on one run and 122
+ * on the next, each component one render apart, host calls the same (#130).
+ * Every other action must match exactly.
  */
 const RUN_TOLERANCE: Partial<Record<BudgetedAction, RunTolerance>> = {
+  'Open a vault': { commits: 2, rendersEach: 2 },
   'Drag a board card': { commits: 2, rendersEach: 3 },
 };
 
@@ -247,22 +250,31 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
       await runUntil(page, { ready, arg: arg as never, settleMs: 0 });
     },
   };
-  // The whole vault, not the first count the status shows.
-  await pass.setUp(
-    phase(
-      () => page.getByRole('button', { name: 'Choose folder…' }).click(),
-      (source) => new RegExp(source, 'm').test(document.body.innerText),
-      EVERY_NOTE_INDEXED.source,
-    ),
-  );
+  // After the app has started and settled, so what its start does is not counted as the open.
+  await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)]);
   return pass;
 }
+
+/**
+ * Choosing the fixture's folder, until the whole vault is indexed — not the
+ * first count the status shows — and then the settle every action is given,
+ * in which the Inbox's offers are read ahead (#130).
+ */
+const OPEN_THE_VAULT = (page: Page): Phase =>
+  phase(
+    () => page.getByRole('button', { name: 'Choose folder…' }).click(),
+    (source) => new RegExp(source, 'm').test(document.body.innerText),
+    EVERY_NOTE_INDEXED.source,
+  );
 
 /** A fresh page on the fixture in real time, with only its date fixed, for the times. */
 async function timedPass(browser: Browser): Promise<Pass> {
   const page = await newPage(browser);
   await page.addInitScript(installWorkClock, clockAt({ virtual: false }));
-  const vault = await openFixtureVault(page, [PROJECT_BOARD], { echoWrites: true });
+  const vault = await writeFixtureVault([PROJECT_BOARD]);
+  await installHost(page, vault, { keepsManifest: true, echoWrites: true });
+  await installProbe(page);
+  await page.goto('/');
   const time = async (
     action: BudgetedAction,
     phases: readonly Phase[],
@@ -278,6 +290,8 @@ async function timedPass(browser: Browser): Promise<Pass> {
     }
     timed.set(action, { inputToReady, longestFrame });
   };
+  await time('Open a vault', [OPEN_THE_VAULT(page)]);
+  await waitForQuiet(page);
   return {
     page,
     vault,
