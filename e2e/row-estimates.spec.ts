@@ -1,32 +1,28 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createVault, installHost, sidebarSection } from './host.ts';
+import {
+  GROUP_NAME_HEIGHT,
+  INBOX_ROW_HEIGHT,
+  TABLE_GROUP_HEIGHT,
+  TABLE_HEADER_HEIGHT,
+  TABLE_NEW_HEIGHT,
+  TABLE_ROW_HEIGHT,
+  TODAY_GROUP_GAP,
+  TODAY_GROUP_NAME_GAP,
+  TODAY_ROW_HEIGHT,
+  TODAY_TABLE_EDGE,
+} from './row-heights.ts';
 
 /**
  * The virtualised lists place a row by an estimate until it is measured, and
- * a row measured at its estimate does not place the list again. The estimates
- * are what WebKit draws under the system font (UI v2, #269), pinned here so a
- * font or padding change moves the constant with it:
- *
- *   packages/ui/src/today-page.tsx        GROUP_NAME_HEIGHT, ROW_HEIGHT
- *   packages/ui/src/inbox/inbox-rows.tsx  ROW_HEIGHT
- *   packages/ui/src/grouped-rows.tsx      LINE_HEIGHT (row, group, new)
- *
- * The table's sticky header is pinned with them: a row the arrow keys focus
- * is scrolled clear of it by the sheet's `scroll-padding-top` (#244), which
- * must be the header's height.
+ * a row measured at its estimate does not place the list again. The
+ * estimates are pinned in row-heights.ts, one source for every spec that
+ * reads one; this holds each to what the page draws. The table's sticky
+ * header is held with them: a row the arrow keys focus is scrolled clear of
+ * it by the sheet's `scroll-padding-top` (#244), which must be the header's
+ * height.
  */
-const GROUP_NAME_HEIGHT = 18;
-/** The table view's row, which Today's rows are since UI v2 slice 13a. */
-const TODAY_ROW_HEIGHT = 34;
-/**
- * The rest of a named Today group placed after another: the 12px gap above
- * it, the 4px under its name, and the half of its last row's collapsed 1px
- * border that lies outside the table (today-page.tsx GROUP_GAP,
- * GROUP_NAME_GAP, TABLE_EDGE).
- */
-const TODAY_GROUP_GAP = 12;
-const TODAY_GROUP_NAME_GAP = 4;
-const TODAY_TABLE_EDGE = 0.5;
+
 /**
  * Enough groups that a piece left out of the estimate shows against what
  * the list keeps of a group it placed while the page first laid out, which
@@ -35,11 +31,6 @@ const TODAY_TABLE_EDGE = 0.5;
  */
 const TODAY_GROUPS = 100;
 const TODAY_ESTIMATE_TOLERANCE = 0.25;
-const INBOX_ROW_HEIGHT = 59;
-const TABLE_ROW_HEIGHT = 34;
-const TABLE_GROUP_HEIGHT = 32;
-const TABLE_NEW_HEIGHT = 30;
-const TABLE_HEADER_HEIGHT = 32;
 
 const NOW = new Date(2026, 9, 13, 12, 0, 0);
 
