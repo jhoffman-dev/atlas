@@ -20,5 +20,9 @@ describe('the two-Macs harness', () => {
     ({ base: failedBase } = await isolatedWorld());
     throw new Error('the test fails after making its world');
   });
-  afterAll(() => expect(existsSync(failedBase)).toBe(false));
+  afterAll(() => {
+    // Made, or the check below would pass with nothing to check.
+    expect(failedBase).not.toBe('');
+    expect(existsSync(failedBase)).toBe(false);
+  });
 });

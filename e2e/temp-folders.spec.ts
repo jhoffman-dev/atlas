@@ -39,3 +39,23 @@ test.describe.serial('the temp folders the host makes', () => {
     for (const folder of made) expect(existsSync(folder), folder).toBe(false);
   });
 });
+
+// A folder made before the tests, as the perf specs make their vault, is shared
+// by every test after it: each test's clean-up leaves it, and the worker's
+// removes it when the worker ends.
+test.describe.serial('a temp folder made before the tests', () => {
+  let shared = '';
+
+  test.beforeAll(async () => {
+    shared = (await createVault()).root;
+  });
+
+  test('is there for the first test', () => {
+    expect(shared).not.toBe('');
+    expect(existsSync(shared)).toBe(true);
+  });
+
+  test('is still there for the next', () => {
+    expect(existsSync(shared)).toBe(true);
+  });
+});
