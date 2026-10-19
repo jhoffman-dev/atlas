@@ -40,15 +40,20 @@ const warning = (page: Page) => inbox(page).locator('.inbox__offer--warning');
 const newAbove = (page: Page) => page.getByRole('button', { name: /New above/ });
 const tidy = (page: Page) => page.getByRole('region', { name: 'Tidy the vault' });
 const gtd = (page: Page) => page.getByRole('region', { name: 'Move tasks to GTD statuses' });
+const typesOffer = (page: Page) =>
+  page.getByRole('complementary', { name: 'Set your types up for the Inbox' });
 
 /** A task outside the Inbox and the tidy's folders, whose read lets the move to GTD's offer be held. */
 const LATE_TASK = 'Projects/Ship it.md';
 
 /**
  * Opens a vault with `rows` Inbox notes (past "Show more" when many), plus a
- * loose note for the tidy. With `lateTasks`, the move to GTD's read of the
- * vault's one task is held until the Inbox shows, so its offer lands after
- * the Inbox stopped waiting for it, as it does on a loaded machine (#378).
+ * loose note for the tidy, and waits for every offer this vault has before
+ * scrolling: one read after the Inbox's short hold lands above the rows, and
+ * landing once "Show more" has taken the list to its end it is rightly "New
+ * above" (#378). With `lateTasks`, the move to GTD's read of the vault's one
+ * task is held until the Inbox shows, so its offer always lands late, as it
+ * does on a loaded machine.
  */
 async function openInbox(
   page: Page,
@@ -84,10 +89,15 @@ async function openInbox(
     timeout: 30_000,
   });
   await expect(tidy(page)).toBeVisible({ timeout: 30_000 });
+  if (lateTasks) {
+    // Held, it is not there yet: the Inbox stopped waiting for it.
+    await expect(gtd(page)).toHaveCount(0);
+    releaseTasks();
+  }
+  await expect(typesOffer(page)).toBeVisible();
+  await expect(gtd(page)).toBeVisible({ timeout: 30_000 });
   if (rows > 500) await inbox(page).getByRole('button', { name: 'Show more' }).click();
   await settle(page);
-  releaseTasks();
-  await expect(gtd(page)).toBeVisible();
   return vault;
 }
 
