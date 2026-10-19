@@ -33,12 +33,16 @@
   display: none;
 }
 
-/* A tab and its ×. 176px with room, shrinking to 120px, then the list scrolls. */
+/* A tab and its ×. 176px with room, shrinking to 120px, then the list scrolls.
+   The width as well as the basis: the list is sized from what its tabs ask
+   for, and without it a tab asks for its whole title, so a long one widened
+   the list past the tabs and left the + floating out in the strip (#410). */
 .tab-strip__item {
   border-right: 1px solid var(--line);
   border-top: 2px solid transparent;
   display: flex;
   flex: 0 1 176px;
+  width: 176px;
   height: 35px;
   min-width: 120px;
   position: relative;
