@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import type { ApiConnectionStatus } from '@atlas/application';
 import { AppearanceSettings } from './appearance-settings.tsx';
@@ -74,11 +74,14 @@ export function SettingsDialog({
 }) {
   const finalFocus = useReturnFocus(fallbackFocus);
   const { status, problem, notice, pending } = connection;
+  // The same array while the app's sections are, so the list is not redrawn
+  // each time the connection's state comes in.
+  const listed = useMemo(() => [...OWN_SECTIONS, ...sections], [sections]);
 
   return settingsFrame({
     onClose,
     finalFocus,
-    sections: [...OWN_SECTIONS, ...sections],
+    sections: listed,
     body: (
       <>
         <AppearanceSettings store={themeStore} />
@@ -213,8 +216,16 @@ function reveal(section: SettingsSectionLink): void {
   heading.focus({ preventScroll: true });
 }
 
-/** The sections, as 28px rows on the left, each a way to its section. */
-function SectionList({ sections }: { sections: readonly SettingsSectionLink[] }) {
+/**
+ * The sections, as 28px rows on the left, each a way to its section. Drawn
+ * once per list: the dialog redraws as the host answers, and the rows do
+ * not change with it.
+ */
+const SectionList = memo(function SectionList({
+  sections,
+}: {
+  sections: readonly SettingsSectionLink[];
+}) {
   return (
     <nav className="settings__nav" aria-label="Settings sections">
       <ul className="settings__nav-list">
@@ -229,7 +240,7 @@ function SectionList({ sections }: { sections: readonly SettingsSectionLink[] })
       </ul>
     </nav>
   );
-}
+});
 
 /**
  * Settings' window — its title, its Close and Escape, the focus it returns,
