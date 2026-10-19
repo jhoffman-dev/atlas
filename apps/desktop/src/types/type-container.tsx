@@ -20,7 +20,7 @@ type TypePageProps = ComponentProps<typeof TypePage>;
 export interface TypeWiring {
   /** Where the window says which tab it asked to open on a type's editor. */
   readonly editAsked: TypeModeStore;
-  /** Notes asked for from the editor: it may land on one of the type's views instead. */
+  /** Notes asked for from the editor: the type's page lands on one of its views when it has one. */
   readonly onNotes: (name: string) => void;
   readonly onNewNote: TypePageProps['onNewNote'];
   readonly onDelete: TypePageProps['onDelete'];
@@ -42,9 +42,17 @@ export function TypeContainer({
   const { pages, pane } = wiring;
   const { editAsked, onNotes, onNewNote, onDelete, onEditTemplate } = pages.type;
   // This tab's mode: the editor when the window asked for it here, else the notes.
-  const [mode, setMode] = useState<TypePageMode>(() =>
-    takeEditAsked(editAsked, { tabId, name }) ? 'edit' : 'notes',
-  );
+  const modeAsked = (): TypePageMode =>
+    takeEditAsked(editAsked, { tabId, name }) ? 'edit' : 'notes';
+  const [mode, setMode] = useState<TypePageMode>(modeAsked);
+  // Another type opened in this tab starts on its notes, unless its editor was
+  // asked for: the ask lands before the tab is drawn with the new name, so it
+  // is taken as the name changes, not by the subscription made for the last one.
+  const [shown, setShown] = useState(name);
+  if (shown !== name) {
+    setShown(name);
+    setMode(modeAsked());
+  }
   // Asked again while shown — the sidebar's Edit type on the type already open here.
   useEffect(
     () =>
@@ -71,7 +79,11 @@ export function TypeContainer({
         table={table}
         types={pane.types}
         mode={mode}
-        onModeChange={(next) => (next === 'notes' ? onNotes(name) : setMode(next))}
+        onModeChange={(next) => {
+          setMode(next);
+          // Notes may be one of the type's views, which the window opens in this tab's place.
+          if (next === 'notes') onNotes(name);
+        }}
         ports={{
           fs: pages.ports.fs,
           markdown: pane.notes.markdown,
