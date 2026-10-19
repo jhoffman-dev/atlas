@@ -21,6 +21,12 @@ describe('frontmatterProblem', () => {
 });
 
 describe('parseFrontmatterProperties', () => {
+  it('gives up on a block that lists a key twice, but reads its last copy for writing', () => {
+    const twice = '---\na: 1\nt: T\na: 2\n---\n';
+    expect(parseFrontmatterProperties(twice)).toEqual({});
+    expect(parseFrontmatterProperties(twice, { forWriting: true })).toEqual({ a: 2, t: 'T' });
+  });
+
   it('reads simple keys', () => {
     expect(parseFrontmatterProperties('---\ntitle: Today\ncount: 3\n---\n')).toEqual({
       title: 'Today',

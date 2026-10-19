@@ -47,8 +47,8 @@ function fakeEditors(holdsTheNote: boolean) {
   return { registry, asked };
 }
 
-function fakeVault() {
-  const files: Record<string, string> = { [TASK_PATH]: TASK };
+function fakeVault(task = TASK) {
+  const files: Record<string, string> = { [TASK_PATH]: task };
   const written: { path: string; contents: string }[] = [];
   const fs = fakeVaultFs({
     readTextFile: async (path) => {
@@ -109,6 +109,21 @@ describe('a type table writing a note', () => {
 
     expect(asked).toHaveLength(1);
     expect(vault.written[0]?.contents).toContain('status: doing');
+  });
+
+  it('records nothing for a cell the frontmatter writer refuses, and shows why (#284)', async () => {
+    const twice = ['---', 'type: task', 'status: backlog', 'status: doing', '---', ''].join('\n');
+    const vault = fakeVault(twice);
+    const log = recordingActivity();
+    const table = showTable(vault, fakeEditors(false).registry, log);
+    act(() => table.result.current.editCell({ path: TASK_PATH, column: 'status', value: 'done' }));
+    await waitFor(() =>
+      expect(table.result.current.error).toBe(
+        `This note's properties list "status" twice; fix it in the source before changing it.`,
+      ),
+    );
+    expect(log.reports).toEqual([]);
+    expect(vault.written).toEqual([]);
   });
 
   it('records a cell edit it gives up on once, naming the note, and nothing for one that lands', async () => {

@@ -8,6 +8,7 @@ import { createVaultPath, type Clarification, type VaultPath } from '@atlas/doma
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
+import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';
 import {
@@ -31,11 +32,14 @@ function vault(
     pane = 'closed',
     failingMove,
     editedAfterRead,
+    frontmatterRefusal,
   }: {
     pane?: 'closed' | 'clean' | 'dirty';
     failingMove?: string;
     /** A note another editor saves right after it is first read: its path. */
     editedAfterRead?: string;
+    /** Why the frontmatter writer refuses every change, when it does. */
+    frontmatterRefusal?: FrontmatterRefusedError;
   } = {},
 ) {
   const memory = memoryVault(files);
@@ -68,7 +72,14 @@ function vault(
         return memory.fs.writeTextFile(write);
       },
     }),
-    markdown: fakeMarkdown(),
+    markdown: {
+      ...fakeMarkdown(),
+      ...(frontmatterRefusal !== undefined && {
+        updateFrontmatter: () => {
+          throw frontmatterRefusal;
+        },
+      }),
+    },
     index: fakeIndexPort(),
     editors: {
       state: () => typing,
@@ -223,6 +234,21 @@ describe('clarifyInboxItem', () => {
     await expect(
       v.clarify(CALL, { status: 'next-action', project: path('People/Mara Quill.md') }),
     ).rejects.toThrow(new ClarifyRefusedError('Project links to a project or area, not a person'));
+
+    expect(v.files.get(CALL)).toBe(CAPTURED);
+    expect(v.writes).toEqual([]);
+  });
+
+  it('refuses in the writer’s own words when it gives a reason for the person (#284)', async () => {
+    const reason =
+      'This note\'s properties list "status" twice; fix it in the source before changing it.';
+    const v = vault(BASE, {
+      frontmatterRefusal: new FrontmatterRefusedError({ key: 'status', message: reason }),
+    });
+
+    await expect(v.clarify(CALL, { status: 'someday' })).rejects.toThrow(
+      new ClarifyRefusedError(reason),
+    );
 
     expect(v.files.get(CALL)).toBe(CAPTURED);
     expect(v.writes).toEqual([]);
