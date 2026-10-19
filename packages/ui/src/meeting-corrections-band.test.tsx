@@ -97,3 +97,25 @@ describe('MeetingCorrectionsBand', () => {
     );
   });
 });
+
+/** #319: the band is the notice bar, Undo corrections its secondary verb, Dismiss a ghost one. */
+describe('MeetingCorrectionsBand as the notice bar (#319)', () => {
+  it('is the bar, with Undo corrections as the secondary verb and Dismiss as the ghost one', () => {
+    render(
+      <MeetingCorrectionsBand
+        spellings={SPELLINGS}
+        onUndo={vi.fn()}
+        refusal="The meeting is open elsewhere."
+        permanent
+        onDismiss={vi.fn()}
+        undoing={false}
+      />,
+    );
+    const band = screen.getByRole('complementary', { name: 'Corrections' });
+    expect([...band.classList]).toEqual(expect.arrayContaining(['notice-bar', 'corrections-band']));
+    const kind = (name: string) =>
+      [...screen.getByRole('button', { name }).classList].filter((each) => each !== 'btn');
+    expect(kind('Undo corrections')).toEqual(['btn--secondary', 'btn--sm']);
+    expect(kind('Dismiss')).toEqual(['btn--ghost', 'btn--sm']);
+  });
+});
