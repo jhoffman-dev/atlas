@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useId } from 'react';
 import type { ViewLayout } from '@atlas/domain';
 import type { Choice } from '../choice-select.tsx';
 import type { OverlaySlots } from '../overlay-slot.ts';
+import type { QueryPanelFold } from '../query-panel-fold.ts';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { GroupedResult, type GroupedResultProps } from './grouped-result.tsx';
 import {
@@ -26,8 +27,11 @@ export interface AtlasQueryPanelProps {
   /** "Save as view": offered where the query is not a view yet. */
   readonly save?: SaveQuery;
   readonly dashboards: AddQueryToDashboard;
-  /** A view's own actions — Save and Reset while it differs from its file. */
-  readonly pending?: ReactNode;
+  /**
+   * A saved view folds its query to one line and opens it to edit; the query
+   * page, where the query is the work, has no fold and draws the editor open.
+   */
+  readonly fold?: QueryPanelFold;
   readonly popups?: OverlaySlots;
 }
 
@@ -39,7 +43,11 @@ export interface AtlasQueryPanelProps {
 export function AtlasQueryPanel(props: AtlasQueryPanelProps) {
   return (
     <div className="aquery">
-      <QueryComposer {...props.composer} />
+      {props.fold === undefined ? (
+        <QueryComposer {...props.composer} />
+      ) : (
+        <FoldedComposer composer={props.composer} fold={props.fold} />
+      )}
       <div className="aquery__bar">
         <SegmentedControl
           label="Layout"
@@ -53,7 +61,6 @@ export function AtlasQueryPanel(props: AtlasQueryPanelProps) {
           </span>
         )}
         <span className="query__spacer" />
-        {props.pending}
         {props.save !== undefined && (
           <SaveQueryPopover save={props.save} slot={props.popups?.('save-query')} />
         )}
@@ -63,6 +70,43 @@ export function AtlasQueryPanel(props: AtlasQueryPanelProps) {
         />
       </div>
       <Answer {...props} />
+    </div>
+  );
+}
+
+/**
+ * The composer behind a disclosure: folded, one monospace line of the query
+ * and "Edit query"; open, the composer itself and "Hide query". The editor is
+ * not drawn while folded, so none of its fields is there to tab into.
+ */
+function FoldedComposer({
+  composer,
+  fold,
+}: {
+  composer: QueryComposerProps;
+  fold: QueryPanelFold;
+}) {
+  const id = useId();
+  return (
+    <div className={`aquery__fold${fold.collapsed ? ' aquery__fold--shut' : ''}`}>
+      <div id={id} className="aquery__fold-body">
+        {fold.collapsed ? (
+          <code className="aquery__fold-text">
+            {composer.text.trim() === '' ? 'No query yet' : composer.text}
+          </code>
+        ) : (
+          <QueryComposer {...composer} />
+        )}
+      </div>
+      <button
+        type="button"
+        className="btn btn--ghost aquery__fold-toggle"
+        aria-expanded={!fold.collapsed}
+        aria-controls={id}
+        onClick={fold.onToggle}
+      >
+        {fold.collapsed ? 'Edit query' : 'Hide query'}
+      </button>
     </div>
   );
 }

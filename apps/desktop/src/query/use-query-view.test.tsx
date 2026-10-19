@@ -10,11 +10,24 @@ import {
   recordingActivity,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import type { QueryPanelFoldStore } from '@atlas/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useQueryView } from './use-query-view.ts';
 
 /** Nothing folded, and folding remembered nowhere: these tests are about the query. */
 const NO_FOLDS = { collapsed: new Set<string>(), onToggle: () => {} };
+
+/** The query fold remembered in a map, as localStorage would hold it. */
+function queryFoldStore() {
+  const held = new Map<string, boolean>();
+  const store: QueryPanelFoldStore = {
+    read: (view) => held.get(view) ?? null,
+    write: (view, collapsed) => {
+      held.set(view, collapsed);
+    },
+  };
+  return { store, held };
+}
 
 /**
  * P24-04: a saved Atlas query, opened as a page. Its query is edited in the
@@ -89,11 +102,13 @@ function render(note: OpenNote | null, fs: ReturnType<typeof fakeVaultFs>) {
   const { index, asked } = taskIndex();
   const onChanged = vi.fn();
   const activity = recordingActivity();
+  const folds = queryFoldStore();
   const view = renderHook(() =>
     useQueryView({
       note,
       ports: { index, fs, markdown: remarkMarkdown, editors: NO_PANE, activity },
       folds: NO_FOLDS,
+      queryFold: { store: folds.store, view: 'v\u0000Open work.md' },
       types: TYPES,
       notePaths: NOTES,
       indexKey: 'ready:1',
@@ -104,7 +119,7 @@ function render(note: OpenNote | null, fs: ReturnType<typeof fakeVaultFs>) {
       onOpenNote: () => {},
     }),
   );
-  return { view, asked, onChanged, activity };
+  return { view, asked, onChanged, activity, held: folds.held };
 }
 
 describe('useQueryView', () => {
@@ -129,6 +144,16 @@ describe('useQueryView', () => {
     ]);
     expect(state?.tabs.map((tab) => [tab.title, tab.selected])).toEqual([['Open work', true]]);
     expect(state?.edited).toBe(false);
+  });
+
+  it('opens a saved query folded to its one line, and remembers it opened', async () => {
+    const { fs, note } = await opened();
+    const { view, held } = render(note, fs);
+    await waitFor(() => expect(view.result.current?.panel.result?.rows).toHaveLength(2));
+    expect(view.result.current?.panel.fold?.collapsed).toBe(true);
+    act(() => view.result.current?.panel.fold?.onToggle());
+    expect(view.result.current?.panel.fold?.collapsed).toBe(false);
+    expect(held.get('v\u0000Open work.md')).toBe(false);
   });
 
   it('saves the query and the layout, leaving every other line as it was written', async () => {
@@ -196,6 +221,7 @@ describe('useQueryView', () => {
           activity: recordingActivity(),
         },
         folds: NO_FOLDS,
+        queryFold: { store: queryFoldStore().store, view: 'v\u0000Open work.md' },
         types: TYPES,
         notePaths: NOTES,
         indexKey: 'ready:1',

@@ -3,8 +3,9 @@ import type { QueryViewState } from '../query/use-query-view.ts';
 
 /**
  * A saved Atlas query as a page (P24-04): the other saved queries as tabs,
- * then the query and its answer. Save and Reset appear while the query or its
- * layout differs from the file.
+ * then the query and its answer. While the query or its layout differs from
+ * the file, the unsaved-changes notice is a strip above the query, where
+ * `ViewToolbar` puts it — not a band inside the layout row (#341).
  */
 export function QueryViewBody({
   view,
@@ -20,22 +21,17 @@ export function QueryViewBody({
       <div className="view-toolbar">
         <ViewTabs tabs={view.tabs} onOpenView={onOpenView} />
       </div>
-      <AtlasQueryPanel
-        {...view.panel}
-        {...(popups !== undefined && { popups })}
-        pending={
-          view.edited ? (
-            <ViewSaveControls
-              suggestedName={view.suggestedName}
-              error={view.saveError}
-              onSave={view.save}
-              onSaveAs={view.saveAs}
-              onReset={view.reset}
-              slot={popups?.('save-as-view')}
-            />
-          ) : null
-        }
-      />
+      {view.edited && (
+        <ViewSaveControls
+          suggestedName={view.suggestedName}
+          error={view.saveError}
+          onSave={view.save}
+          onSaveAs={view.saveAs}
+          onReset={view.reset}
+          slot={popups?.('save-as-view')}
+        />
+      )}
+      <AtlasQueryPanel {...view.panel} {...(popups !== undefined && { popups })} />
     </div>
   );
 }

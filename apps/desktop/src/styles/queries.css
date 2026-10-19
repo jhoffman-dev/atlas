@@ -325,6 +325,40 @@
   gap: var(--space-2);
 }
 
+/* A saved view's query behind a disclosure: folded, one monospace line of
+   the query beside "Edit query"; open, the composer with "Hide query" at its
+   top right, level with Builder / Text. */
+.aquery__fold {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.aquery__fold--shut {
+  align-items: center;
+}
+
+.aquery__fold-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.aquery__fold-text {
+  background: var(--code-bg);
+  border-radius: var(--radius-button);
+  color: var(--code-ink);
+  display: block;
+  font: 12.5px / 1.5 var(--font-mono);
+  overflow: hidden;
+  padding: 6px 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aquery__fold-toggle {
+  flex: none;
+}
+
 .qcomposer {
   display: flex;
   flex-direction: column;

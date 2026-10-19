@@ -73,6 +73,7 @@ export type { TableGrouping } from './grouped-rows.tsx';
 export { BoardView } from './board-view.tsx';
 export type { CardAdd, CardMove } from './board-view.tsx';
 export type { GroupFolds, GroupFoldStore } from './group-folds.ts';
+export type { QueryPanelFold, QueryPanelFoldStore } from './query-panel-fold.ts';
 export { GalleryView, ListView } from './list-view.tsx';
 export { FeedView } from './feed-view.tsx';
 export type { FeedBodies } from './feed-view.tsx';

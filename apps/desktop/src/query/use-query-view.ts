@@ -13,18 +13,24 @@ import {
   type ViewTab,
 } from '@atlas/domain';
 import type { OpenNote } from '@atlas/application';
-import { useNoteNames, type AtlasQueryPanelProps, type GroupFolds } from '@atlas/ui';
+import {
+  useNoteNames,
+  type AtlasQueryPanelProps,
+  type GroupFolds,
+  type QueryPanelFoldStore,
+} from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import { resultFor, useAtlasQuery } from './use-atlas-query.ts';
 import { useQueryChoices } from './use-query-choices.ts';
 import { QUERY_LAYOUT_CHOICES, useQueryKeeping } from './use-query-keeping.ts';
+import { useQueryPanelFold } from './use-query-panel-fold.ts';
 import type { QueryPagePorts } from './use-query-page.ts';
 import { writeNoteProperties } from './use-view-writes.ts';
 
 export interface QueryViewState {
   readonly tabs: readonly ViewTab[];
-  readonly panel: Omit<AtlasQueryPanelProps, 'popups' | 'pending'>;
+  readonly panel: Omit<AtlasQueryPanelProps, 'popups'>;
   /** Whether the query or its layout differs from the file. */
   readonly edited: boolean;
   readonly save: () => void;
@@ -55,11 +61,14 @@ export function useQueryView({
   onChanged,
   onOpenNote,
   folds,
+  queryFold,
 }: {
   note: OpenNote | null;
   ports: QueryPagePorts;
   /** Which groups are folded shut, remembered for this view on this Mac. */
   folds: GroupFolds;
+  /** Where this view's query fold is remembered on this Mac, and the view's key there. */
+  queryFold: { store: QueryPanelFoldStore; view: string };
   types: readonly ObjectType[];
   notePaths: readonly string[];
   indexKey: string;
@@ -103,6 +112,7 @@ export function useQueryView({
     onChanged,
   });
   const names = useNoteNames();
+  const fold = useQueryPanelFold({ ...queryFold, savedText: saved?.text ?? '' });
   const path = note?.path ?? null;
   const text = editor.text;
 
@@ -162,6 +172,7 @@ export function useQueryView({
       truncated: editor.answer?.result.truncated ?? false,
       error: editor.error,
       dashboards: keeping.dashboards,
+      fold,
     },
     edited: editor.text !== saved.text || layout !== saved.layout,
     save,
