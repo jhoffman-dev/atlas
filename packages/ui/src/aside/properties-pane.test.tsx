@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PropertyDef, PropertyKind } from '@atlas/domain';
+import { createVaultPath, type PropertyDef, type PropertyKind } from '@atlas/domain';
 import type { PropertyRow } from '../properties-panel.tsx';
 import { PropertiesPane } from './properties-pane.tsx';
 
@@ -31,6 +31,7 @@ function show(overrides: Partial<Parameters<typeof PropertiesPane>[0]> = {}) {
   const props = {
     context: 'Task · selected row',
     title: 'Cmd+N still fires behind an open palette',
+    path: createVaultPath('Tasks/Cmd+N still fires.md'),
     typeName: 'task',
     rows: ROWS,
     relationChoices: {},
@@ -92,6 +93,31 @@ describe('PropertiesPane', () => {
     await userEvent.selectOptions(screen.getByLabelText('Status'), 'Done');
     expect(props.onChange).toHaveBeenCalledTimes(1);
     expect(props.onChange).toHaveBeenCalledWith('status', 'Done');
+  });
+
+  it('decides the fold afresh for the next note, from the rows that come with it', async () => {
+    const { rerender, props } = show();
+    await userEvent.click(screen.getByRole('button', { name: '2 empty properties' }));
+    expect(screen.getByLabelText('Estimate')).toBeDefined();
+    // Another note: Estimate is filled now, Due and Notes are not. Its empties
+    // fold, folded, whatever the last note's fold was.
+    rerender(
+      <PropertiesPane
+        {...props}
+        path={createVaultPath('Tasks/Another.md')}
+        rows={[
+          row('status', 'select', 'Done'),
+          row('due', 'date', null),
+          row('estimate', 'number', 3),
+          row('notes', 'text', ''),
+        ]}
+      />,
+    );
+    const rows = screen.getByRole('region', { name: 'Properties' });
+    expect(within(rows).getByLabelText('Estimate')).toBeDefined();
+    expect(within(rows).queryByLabelText('Due')).toBeNull();
+    expect(within(rows).queryByLabelText('Notes')).toBeNull();
+    expect(screen.getByRole('button', { name: '2 empty properties' })).toBeDefined();
   });
 
   it('reads the summary under the rows, and skips the block when there is none', () => {

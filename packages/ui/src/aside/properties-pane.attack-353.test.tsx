@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PropertyDef, PropertyKind } from '@atlas/domain';
+import { createVaultPath, type PropertyDef, type PropertyKind } from '@atlas/domain';
 import type { PropertyRow } from '../properties-panel.tsx';
 import { PropertiesPane } from './properties-pane.tsx';
 
@@ -26,6 +26,7 @@ function show(overrides: Partial<PaneProps> = {}) {
   const props: PaneProps = {
     context: 'Task · selected row',
     title: 'Larkspur payroll import stalls',
+    path: createVaultPath('Tasks/Larkspur payroll import stalls.md'),
     typeName: 'task',
     rows: [row('status', 'select', 'Doing'), row('estimate', 'number', null)],
     relationChoices: {},

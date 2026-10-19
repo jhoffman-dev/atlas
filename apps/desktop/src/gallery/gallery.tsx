@@ -361,6 +361,7 @@ function RightSidebarSpecimen({ tab: first }: { tab: AsideTab }) {
             <PropertiesPane
               context="Task · selected row"
               title="Cmd+N and Shift+Cmd+D still fire behind an open palette"
+              path={createVaultPath('Tasks/Shortcuts behind a palette.md')}
               typeName="task"
               rows={ASIDE_ROWS}
               relationChoices={{}}

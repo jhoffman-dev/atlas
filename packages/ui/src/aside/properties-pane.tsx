@@ -38,8 +38,12 @@ export function PropertiesPane({
   /** What the aside is showing, read above the title: "Task · selected row". */
   context: string;
   title: string;
-  /** The note the rows belong to: the fold is decided afresh when it changes. */
-  path?: VaultPath;
+  /**
+   * The note the rows belong to. The fold is decided afresh when it changes,
+   * in the same render, so the caller changes `path` and `rows` together: a
+   * new path with the old rows would fold the old note's empties.
+   */
+  path: VaultPath;
   /** The note's first words, read under the rows; null for none. */
   summary?: string | null;
   /** Opens what is shown in the pane; left out where it is already open. */
@@ -51,7 +55,8 @@ export function PropertiesPane({
   const [decided, setDecided] = useState(() => ({ path, keys: emptyKeys(rows) }));
   if (decided.path !== path) {
     // Derived from the note: decided again as it changes, during the render
-    // that first sees it, which React re-runs at once with the new state.
+    // that first sees it (with the rows that came with it), which React
+    // re-runs at once with the new state.
     setDecided({ path, keys: emptyKeys(rows) });
     setUnfolded(false);
   }

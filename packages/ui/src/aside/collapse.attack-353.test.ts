@@ -63,11 +63,22 @@ describe('shell.css keeps the work at its least width beside every aside (attack
     expect(breakpointsFor(340)).toHaveLength(2);
   });
 
+  /** The one query for this slot width with the left sidebar open (not `.shell--narrow`) or hidden. */
+  const breakpointFor = (slot: number, sidebar: 'open' | 'hidden') => {
+    const [query, ...more] = queries.filter(
+      (q) =>
+        q.type === (slot === 340) &&
+        q.selector.startsWith('.shell--narrow') === (sidebar === 'hidden'),
+    );
+    expect(more).toEqual([]);
+    return query!.breakpoint;
+  };
+
   it.each([300, 340])(
     'a %ipx aside never squeezes the work under its least, sidebar open',
     (slot) => {
       // The narrowest window that still draws this aside with the left sidebar open.
-      const narrowest = Math.max(...breakpointsFor(slot)) + 1;
+      const narrowest = breakpointFor(slot, 'open') + 1;
       expect(narrowest - SIDEBAR_WIDTH - slot).toBeGreaterThanOrEqual(LEAST_WORK_WIDTH);
     },
   );
@@ -75,7 +86,7 @@ describe('shell.css keeps the work at its least width beside every aside (attack
   it.each([300, 340])(
     'a %ipx aside never squeezes the work under its least, sidebar hidden',
     (slot) => {
-      const narrowest = Math.min(...breakpointsFor(slot)) + 1;
+      const narrowest = breakpointFor(slot, 'hidden') + 1;
       expect(narrowest - slot).toBeGreaterThanOrEqual(LEAST_WORK_WIDTH);
     },
   );
