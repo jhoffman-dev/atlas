@@ -78,7 +78,7 @@ describe('WidgetEditor', () => {
     const progress = screen.getByRole('group', { name: 'Progress' });
     expect(
       within(progress).getByText(
-        'No finished part. Add a filter for it to show a share and a status bar.',
+        'No finished part. Add a filter for it to show a share and a status bar — status is done, say.',
       ),
     ).toBeTruthy();
     expect(within(progress).queryByText(/ring/i)).toBeNull();
