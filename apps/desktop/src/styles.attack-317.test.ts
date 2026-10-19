@@ -107,6 +107,42 @@ describe.each(Object.entries(themes))(
   },
 );
 
+/* ---- the rules the state contrast above relies on ---- */
+
+/** Every rule as its selectors and declarations, so a state's ink can be read from the sheet. */
+const sheetRules = [
+  ...readStylesheet()
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .matchAll(/([^{}]+)\{([^{}]*)\}/g),
+].map((rule) => ({
+  selectors: (rule[1] ?? '').split(',').map((part) => part.trim()),
+  declarations: new Map(
+    [...(rule[2] ?? '').matchAll(/([a-z-]+)\s*:\s*([^;]+);/g)].map((d) => [
+      d[1] ?? '',
+      (d[2] ?? '').trim(),
+    ]),
+  ),
+}));
+
+const colourOf = (selector: string) =>
+  sheetRules
+    .filter((rule) => rule.selectors.includes(selector))
+    .at(-1)
+    ?.declarations.get('color');
+
+describe('the rules that step a state’s ink up to --ink-2', () => {
+  // The token pairs above pass only because these rules exist: --ink-3 on
+  // --selected is 4.32:1 in light, and --ink-3 under the 16% wash is under 4.5
+  // in both themes. Dropping either rule would leave the pair tests green.
+  it('the selected suggestion row’s path', () => {
+    expect(colourOf('.suggest-option--on .suggest-option__path')).toBe('var(--ink-2)');
+  });
+
+  it('a header cell inside a cell selection', () => {
+    expect(colourOf('.editor th.selectedCell')).toBe('var(--ink-2)');
+  });
+});
+
 /* ---- the cascade between a state and a hover ---- */
 
 const css = readStylesheet().replace(/\/\*[\s\S]*?\*\//g, '');

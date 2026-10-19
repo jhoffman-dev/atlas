@@ -129,12 +129,29 @@ describe('the note body (slice 13h)', () => {
   });
 });
 
-/** The weight a rule sets, from `font-weight` or the head of a `font:` shorthand. */
+/**
+ * The weight a rule sets: from `font-weight`, or from a `font:` shorthand,
+ * whichever is written last, since the later one wins in the cascade. A
+ * shorthand's weight is any weight token before its size — `small-caps 800`,
+ * `oblique 800` and `650` all count.
+ */
 function weightOf(declarations: Map<string, string>): string | null {
-  const own = declarations.get('font-weight');
-  if (own !== undefined) return own;
-  const shorthand = declarations.get('font');
-  if (shorthand === undefined || shorthand === 'inherit') return null;
-  const lead = shorthand.match(/^(?:(?:normal|italic)\s+)?(bold|bolder|lighter|[1-9]00)\b/);
-  return lead?.[1] ?? null;
+  let weight: string | null = null;
+  for (const [property, value] of declarations) {
+    if (property === 'font-weight') weight = value;
+    else if (property === 'font') weight = shorthandWeight(value);
+  }
+  return weight;
+}
+
+const WEIGHT_TOKEN = /^(bold|bolder|lighter|[1-9]\d{0,2}|1000)$/;
+const SIZE_TOKEN = /^[\d.]+(px|em|rem|%)|^var\(|\//;
+
+function shorthandWeight(shorthand: string): string | null {
+  if (shorthand === 'inherit') return null;
+  for (const token of shorthand.split(/\s+/)) {
+    if (SIZE_TOKEN.test(token)) return null;
+    if (WEIGHT_TOKEN.test(token)) return token;
+  }
+  return null;
 }

@@ -1081,7 +1081,8 @@
   color: var(--danger);
 }
 
-/* Broken keeps its one sign under the pointer too: the hover's line must not take it. */
+/* Broken keeps its line under the pointer too: the hover's grey must not take it,
+   so the card reads as broken before its sentence does. */
 .block-embed--broken,
 .block-embed--broken:hover {
   border-color: var(--btn-destructive-line);
