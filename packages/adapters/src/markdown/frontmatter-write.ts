@@ -134,6 +134,10 @@ function parsedForWriting(source: string, changing: readonly string[]): Document
   if (duplicates.length === 0) return document;
   for (const error of duplicates) {
     const refusal = refusalAt(document, error.pos[0]) ?? {
+      // No property holds this duplicate, so the refusal is pinned on the first
+      // change asked for: it always matches below, and every change is refused.
+      // With no changes at all there is nothing to refuse: '' matches none, and
+      // the block is handed back as it was.
       key: changing[0] ?? '',
       message:
         "This note's properties list a key twice; fix it in the source before changing them.",
