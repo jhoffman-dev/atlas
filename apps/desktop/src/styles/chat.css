@@ -492,6 +492,14 @@
   text-decoration-color: color-mix(in srgb, var(--btn-destructive-ink) 60%, transparent);
 }
 
+/* On the tints ink-3 metadata (a bookmark's site, an embed's source) falls
+   under AA in dark, so a diff block lifts it to ink-2. styles.attack-357
+   holds the contrast. */
+.chat-proposal__block--added :is(.bookmark__place, .block-embed__source, .block-embed__note),
+.chat-proposal__block--removed :is(.bookmark__place, .block-embed__source, .block-embed__note) {
+  color: var(--ink-2);
+}
+
 .chat-proposal__block--same {
   color: var(--ink-3);
 }
