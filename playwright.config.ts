@@ -38,6 +38,8 @@ const BASE_URL = `http://localhost:${PORT}`;
  */
 export default defineConfig({
   testDir: './e2e',
+  // A temp folder of the run's own, removed when it ends (issue #397).
+  globalSetup: './tools/temp-folder-per-run.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,

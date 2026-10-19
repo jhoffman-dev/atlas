@@ -5,7 +5,7 @@
  * where each line sits deep in the list, folding, and the keyboard under the
  * 32px sticky header.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const STATUSES = ['backlog', 'doing', 'done'] as const;

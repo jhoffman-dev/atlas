@@ -3,7 +3,7 @@
  * focus lands it can be seen — never behind the sticky column headings — and
  * the headings stay at the top of the sheet however far it scrolls.
  */
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const TASKS = 120;

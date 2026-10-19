@@ -3,7 +3,7 @@
  * test names the invariant it holds; the failing ones are the bugs found.
  * Fictional names only.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   emitVaultChanged,

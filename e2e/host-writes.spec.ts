@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { readdir } from 'node:fs/promises';
 import { createVault, installHost, type FakeHost, type FakeVault } from './host.ts';
 

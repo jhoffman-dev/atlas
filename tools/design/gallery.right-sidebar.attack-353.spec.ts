@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../../e2e/fixtures.ts';
 
 /**
  * Attack #353 on the gallery's right-sidebar specimens (apps/desktop/gallery.html):

@@ -6,7 +6,7 @@
  * save of the page's other words leaves byte for byte. The compiled
  * statement runs for real against SQLite in the stand-in host.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
   emitVaultChanged,

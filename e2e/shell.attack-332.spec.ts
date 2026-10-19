@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection, splitWindow, type FakeVault } from './host.ts';
 
 // Attack on #332 (UI v2 slice 3a, #294): truncation in the 224px sidebar, the

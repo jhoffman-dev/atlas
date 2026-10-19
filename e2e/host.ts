@@ -1,13 +1,13 @@
-import { mkdtemp, mkdir, rename, writeFile, realpath } from 'node:fs/promises';
+import { mkdir, rename, writeFile, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { readdir, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve as resolvePath, sep } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { createGitStub, type GitStub } from './git-host.ts';
+import { makeTempFolder } from './temp-folders.ts';
 
 /** The host commands sync runs through (`git_process.rs`), answered by the git stub. */
 /** What a stubbed command answers to reject with a value, as Tauri does for a command's `Err`. */
@@ -39,7 +39,7 @@ export interface FakeVault {
 }
 
 export async function createVault(): Promise<FakeVault> {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'atlas-e2e-')));
+  const root = await makeTempFolder('atlas-e2e-');
   return {
     root,
     async write(relativePath, contents) {

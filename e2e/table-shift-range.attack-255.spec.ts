@@ -4,7 +4,7 @@
  * in bulk and what is chosen once its rows leave, and where a run starts once
  * the choice has been cleared.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const STATUSES = ['backlog', 'doing', 'done'] as const;

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection, type FakeVault } from './host.ts';
 
 // Attack on #332 (UI v2 slice 3a, #294): the sidebar's new geometry — 28px

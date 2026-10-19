@@ -3,7 +3,7 @@
 // overlay being out of reach. jsdom can judge none of them — it has no layout,
 // its tab order ignores what a browser would skip, and it has no hit testing —
 // so they are asserted here rather than in the component tests.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost } from './host.ts';
 
 async function openVault(page: Page) {

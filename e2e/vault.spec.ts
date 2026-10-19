@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { createVault, installHost } from './host.ts';
 
 const NOTE = '---\ntitle: Today\ntags: [daily]\n---\n\n# Today\n\n- [ ] ship phase 1\n';

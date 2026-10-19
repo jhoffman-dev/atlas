@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -70,8 +70,12 @@ function inJavaScriptCore(notes: readonly unknown[], run = GRANOLA_RUN): unknown
     'print(JSON.stringify(notes.map((note) => { try { return mapInNode(note); } catch (error) { return `${error.name}: ${error.message}`; } })));',
   ].join('\n');
   const file = join(dir, 'driver.js');
-  writeFileSync(file, driver);
-  return JSON.parse(execFileSync(JSC, [file], { encoding: 'utf8' })) as unknown[];
+  try {
+    writeFileSync(file, driver);
+    return JSON.parse(execFileSync(JSC, [file], { encoding: 'utf8' })) as unknown[];
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function inApp(note: unknown): unknown {
@@ -123,5 +127,16 @@ describe.skipIf(!existsSync(JSC))('a meeting’s instant mapped in the webview�
     const meeting = { ...MEETING, date };
     const [webview] = inJavaScriptCore([meeting], MEETING_RUN);
     expect(webview).toEqual(inNode(meeting));
+  });
+});
+
+describe.skipIf(!existsSync(JSC))('running a script in the webview’s engine', () => {
+  // Issue #397: every run left its folder behind, 230 of them a night.
+  const scratch = () => readdirSync(tmpdir()).filter((name) => name.startsWith('atlas-jsc-'));
+
+  it('leaves no folder behind in the temp folder', () => {
+    const before = scratch();
+    inJavaScriptCore([scheduled('2026-10-06T17:00:00Z')]);
+    expect(scratch()).toEqual(before);
   });
 });

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { createVault, emitVaultChanged, expectFile, installHost } from './host.ts';
 
 /**

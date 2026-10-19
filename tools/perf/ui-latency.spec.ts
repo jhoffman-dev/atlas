@@ -10,7 +10,7 @@
  */
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '../../e2e/fixtures.ts';
 import { splitWindow, type FakeVault } from '../../e2e/host.ts';
 import { FIXTURE_SHAPE, noteCount } from './fixture-vault.ts';
 import { measure, percentile, waitForQuiet, type Measured } from './probe.ts';

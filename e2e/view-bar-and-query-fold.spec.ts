@@ -4,7 +4,7 @@
  * took two thirds of the page. The strip never scrolls visibly; the query
  * folds to one line, and the fold is remembered per view on this Mac (#341).
  */
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures.ts';
 import { createVault, installHost, sidebarSection } from './host.ts';
 
 const TASK_TYPE = [

@@ -8,7 +8,8 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type CDPSession, type Page } from '@playwright/test';
+import type { CDPSession } from '@playwright/test';
+import { expect, test, type Page } from '../../e2e/fixtures.ts';
 import { busiestFunctions, type CpuProfile } from './cpu-profile.ts';
 import { waitForQuiet } from './probe.ts';
 import { expandFolder, openFixtureVault, openFromSidebar } from './session.ts';

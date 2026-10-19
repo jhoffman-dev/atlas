@@ -3,7 +3,7 @@
  * page; a filter kept in a new view while the old one stays as it was; a query
  * run, saved as a view and opened again; and a query added to a dashboard.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
 
 const TASK_TYPE = [

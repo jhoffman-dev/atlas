@@ -2,7 +2,7 @@
  * Issue #212: a table's filter filters, and its value box offers the values
  * the property can take — a task's GTD statuses, a select's options.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
 
 const note = (frontmatter: string[], body: string) =>
