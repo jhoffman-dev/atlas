@@ -1,6 +1,8 @@
+import { REVIEW_SCOPE } from '@atlas/application';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { weeklyReviewPage } from '../pages-on-first-use.ts';
 import { localClock } from '../today.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import { useWeeklyReview } from './use-weekly-review.ts';
 
@@ -13,12 +15,19 @@ const WeeklyReviewPage = weeklyReviewPage.Component;
  */
 export function ReviewContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
+  // Read again for news of the tasks, the projects and the Inbox alone (#325).
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['review'],
+    scope: REVIEW_SCOPE,
+  });
   const review = useWeeklyReview({
     ports: pages.ports,
     editors: pane.editors,
     clock: localClock,
     types: pane.types,
-    indexKey: pane.indexKey,
+    indexKey,
     indexReady: pages.indexReady,
     open: true,
     onSettled: pages.onSettled,

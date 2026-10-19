@@ -2470,6 +2470,224 @@ describe('pages as tabs', () => {
   });
 });
 
+describe('each pane reads what it shows, and nothing for a note saved elsewhere (#325)', () => {
+  // jsdom lays nothing out, and ProseMirror measures the selection as panes open.
+  beforeAll(() => {
+    Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+    Range.prototype.getBoundingClientRect = () =>
+      DOMRect.fromRect({ x: 0, y: 0, width: 0, height: 0 });
+  });
+
+  const pane = (which: 1 | 2) => screen.getByRole('region', { name: `Pane ${which}` });
+  const aTurn = () => act(() => new Promise<void>((turn) => setTimeout(turn, 0)));
+  const untilQuiet = () =>
+    waitFor(async () => {
+      startCountingRenders();
+      await aTurn();
+      expect(stopCountingRenders().commits).toBe(0);
+    });
+  /** What was drawn from now until a turn draws nothing. */
+  async function drawnUntilQuiet(): Promise<Record<string, number>> {
+    const drawn: Record<string, number> = {};
+    await waitFor(async () => {
+      await aTurn();
+      const turn = stopCountingRenders();
+      for (const [name, count] of Object.entries(turn.renders)) {
+        drawn[name] = (drawn[name] ?? 0) + count;
+      }
+      startCountingRenders();
+      expect(turn.commits).toBe(0);
+    });
+    stopCountingRenders();
+    return drawn;
+  }
+
+  /**
+   * A vault another program edits, watched, on an index held in memory: each
+   * edit is a new text and a new time, told to the window as the watcher
+   * tells it. The index's calls are counted; a sync ends by counting its notes.
+   */
+  function editedVault(files: Record<string, string>) {
+    const times = new Map<string, number>();
+    const timeOf = (path: string) => times.get(path) ?? 1;
+    const base = fakeVault({
+      remembered: location,
+      directories: { '': Object.keys(files).map((path) => entry(path, 'file')) },
+      files,
+    });
+    const heard: ((paths: readonly string[]) => void)[] = [];
+    const fs: VaultFsPort = {
+      ...base.fs,
+      listNotes: async (options) =>
+        (await base.fs.listNotes(options)).map((note) => ({
+          ...note,
+          modified: timeOf(note.path),
+        })),
+      readNotes: async (paths) =>
+        (await base.fs.readNotes(paths)).map((note) => ({ ...note, modified: timeOf(note.path) })),
+      readTextFile: async (path) => ({
+        ...(await base.fs.readTextFile(path)),
+        modified: timeOf(path),
+      }),
+    };
+    const watch = {
+      start: async () => {},
+      onChange: async (handler: (paths: readonly string[]) => void) => {
+        heard.push(handler);
+        return () => {};
+      },
+    };
+    const vault = { ...base, fs, watch };
+    const memory = memoryIndexPort();
+    const calls = { manifest: 0, syncs: 0, today: 0 };
+    const index: IndexPorts = {
+      fs,
+      markdown: remarkMarkdown,
+      index: {
+        ...memory,
+        manifest: async () => {
+          calls.manifest += 1;
+          return memory.manifest();
+        },
+        query: async (sql, parameters) => {
+          if (sql.includes('/* weekly review: tasks */')) calls.today += 1;
+          // What the memory index cannot answer is answered as nothing found, as
+          // an index with none of it would: no reader here fails, to be read again.
+          return memory
+            .query(sql, parameters)
+            .catch(() => ({ columns: [], rows: [], truncated: false }));
+        },
+        stats: async () => {
+          calls.syncs += 1;
+          return memory.stats();
+        },
+      },
+    };
+    /** Another program writes `path`; the watcher says so; the sync it sets off settles. */
+    const edit = async (path: string, text: string) => {
+      const syncs = calls.syncs;
+      files[path] = text;
+      times.set(path, timeOf(path) + 1);
+      await act(() => heard.forEach((handler) => handler([path])));
+      await waitFor(() => expect(calls.syncs).toBeGreaterThan(syncs));
+    };
+    const ready = async () => {
+      await waitFor(() => expect(heard.length).toBeGreaterThan(0));
+      await waitFor(() => expect(calls.syncs).toBeGreaterThan(0));
+    };
+    return { vault, index, calls, edit, ready };
+  }
+
+  const renderOn = ({ vault, index }: ReturnType<typeof editedVault>) =>
+    render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={index}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn(memoryActivityStore())}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+
+  /** `first` in pane 1 and `second` in pane 2, each settled. */
+  async function twoPanes(edited: ReturnType<typeof editedVault>, first: string, second: string) {
+    renderOn(edited);
+    await edited.ready();
+    await userEvent.click(await screen.findByRole('treeitem', { name: first }));
+    await screen.findByRole('article', { name: first });
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await userEvent.click(screen.getByRole('treeitem', { name: second }));
+    await within(pane(2)).findByRole('article', { name: second });
+    await within(pane(1)).findByRole('article', { name: first });
+    await untilQuiet();
+  }
+
+  const NOTES = () => ({
+    'alpha.md': '# alpha\n\nAlpha.\n',
+    'beta.md': '# beta\n\n![[delta#^d1]]\n',
+    'gamma.md': '# gamma\n\nGamma.\n',
+    'delta.md': '# delta\n\nDelta. ^d1\n',
+  });
+
+  it('draws neither pane, and asks nothing for them, for an edit to a note neither shows', async () => {
+    const edited = editedVault(NOTES());
+    await twoPanes(edited, 'alpha', 'beta');
+    const before = { ...edited.calls };
+
+    startCountingRenders();
+    await edited.edit('gamma.md', '# gamma\n\nGamma, edited by another program.\n');
+    const renders = await drawnUntilQuiet();
+
+    expect(renders.NotePaneContainer ?? 0).toBe(0);
+    // The tree listed the same notes again: its rows keep their lists, and draw nothing.
+    expect(screen.getAllByRole('treeitem').length).toBeGreaterThan(0);
+    expect(renders.VaultTreeRow ?? 0).toBe(0);
+    // The sync's own look at the index, and no reader's: the embed in pane 2
+    // asks for the manifest each time it reads its block.
+    expect(edited.calls.syncs - before.syncs).toBe(1);
+    expect(edited.calls.manifest - before.manifest).toBe(edited.calls.syncs - before.syncs);
+  });
+
+  it('shows in the pane an outside edit to the note it shows, and to the note it embeds', async () => {
+    const edited = editedVault(NOTES());
+    await twoPanes(edited, 'alpha', 'beta');
+    const article = within(pane(2)).getByRole('article', { name: 'beta' });
+    const shown = () => within(article).getByLabelText('Embedded block', { exact: true });
+    await waitFor(() => expect(shown().textContent).toBe('Delta.'));
+
+    await edited.edit('delta.md', '# delta\n\nDelta, edited by another program. ^d1\n');
+    await waitFor(() => expect(shown().textContent).toBe('Delta, edited by another program.'));
+
+    await edited.edit('beta.md', '# beta\n\n![[delta#^d1]]\n\nAnd now this.\n');
+    await waitFor(() => expect(article.textContent).toContain('And now this'));
+    expect(within(pane(1)).getByRole('article', { name: 'alpha' }).textContent).toContain('Alpha.');
+  });
+
+  it('reads Today again for a task changed, and not for a note saved elsewhere', async () => {
+    const edited = editedVault({
+      ...NOTES(),
+      'Ship the page.md': '---\ntype: task\nstatus: next-action\n---\n# Ship the page\n',
+    });
+    renderOn(edited);
+    await edited.ready();
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'alpha' }));
+    await screen.findByRole('article', { name: 'alpha' });
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await screen.findByLabelText('Search the vault'), 'Today');
+    await userEvent.click(await screen.findByRole('option', { name: /^Today/ }));
+    await within(pane(2)).findByRole('article', { name: 'Today' });
+    await waitFor(() => expect(edited.calls.today).toBeGreaterThan(0));
+    await untilQuiet();
+    const read = edited.calls.today;
+
+    startCountingRenders();
+    await edited.edit('gamma.md', '# gamma\n\nGamma, edited.\n');
+    const renders = await drawnUntilQuiet();
+    expect(renders.TodayContainer ?? 0).toBe(0);
+    expect(edited.calls.today).toBe(read);
+
+    await edited.edit(
+      'Ship the page.md',
+      '---\ntype: task\nstatus: in-progress\n---\n# Ship the page\n',
+    );
+    await waitFor(() => expect(edited.calls.today).toBe(read + 1));
+    await untilQuiet();
+    expect(edited.calls.today).toBe(read + 1);
+  });
+});
+
 async function editorIn(region: HTMLElement, title: string): Promise<Editor> {
   const article = await within(region).findByRole('article', { name: title });
   const element = await waitFor(() => {

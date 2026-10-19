@@ -4,6 +4,7 @@ import { hideOverlay, showOverlay, useWindowOverlay } from '../overlay-store.ts'
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { queryScreen } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
+import { useIndexKey } from '../index/index-status-store.ts';
 import { setQueryText, type QueryTextStore } from './query-text-store.ts';
 import { useQueryPage } from './use-query-page.ts';
 
@@ -23,6 +24,8 @@ export interface QueryWiring {
  */
 export function QueryContainer({ wiring, tabId, chrome }: PageContainerProps) {
   const { pages, pane, overlays } = wiring;
+  // Still read again on every news of the index: what it reads is not yet scoped (#325).
+  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
   const query = useQueryPage({
     ports: {
       index: pane.index,
@@ -32,7 +35,7 @@ export function QueryContainer({ wiring, tabId, chrome }: PageContainerProps) {
       activity: pane.activity,
     },
     open: true,
-    indexKey: pane.indexKey,
+    indexKey,
     viewPaths: pane.viewPaths,
     dashboards: pane.dashboards,
     onSavedView: pages.openNote,

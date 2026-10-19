@@ -19,6 +19,7 @@ import {
   type VaultPickerPort,
   type VaultWatchPort,
 } from '@atlas/application';
+import { sameReading } from '../same-reading.ts';
 
 export interface VaultPorts {
   fs: VaultFsPort;
@@ -207,14 +208,22 @@ export function useVault(
 
   const isExpanded = useCallback((path: VaultPath) => expanded.has(path), [expanded]);
 
+  // Read by `reload` as it runs, so `reload` is one function while the tree
+  // changes: every pane is handed what calls it (#325).
+  const listed = useRef(children);
+  listed.current = children;
   const reload = useCallback(async () => {
     const gone = (path: VaultPath) =>
       [...forgotten.current].some((folder) => isWithin(path, folder));
-    const paths = [...children.keys()].filter((path) => !gone(path));
+    const paths = [...listed.current.keys()].filter((path) => !gone(path));
     const askedOf = adopted.current;
     listVaultNotes({ fs })
       .then((notes) => {
-        if (adopted.current === askedOf) setNotePaths(notes);
+        // The same list while it lists the same notes: every pane reads it, and
+        // a new array for an edit that added no note would draw them all (#325).
+        if (adopted.current === askedOf) {
+          setNotePaths((listed) => (sameReading(listed, notes) ? listed : notes));
+        }
       })
       .catch((cause: unknown) => setError(message(cause)));
     const listings = await Promise.allSettled(
@@ -225,15 +234,20 @@ export function useVault(
     // could not be read keeps what it showed, and says why.
     setChildren((current) => {
       const next = new Map(current);
+      let moved = false;
       listings.forEach((listing, at) => {
         const path = paths[at];
-        if (listing.status === 'fulfilled' && path !== undefined) next.set(path, listing.value);
+        if (listing.status !== 'fulfilled' || path === undefined) return;
+        // A folder that lists what it did keeps its list, and its rows are not drawn again.
+        if (sameReading(current.get(path), listing.value)) return;
+        next.set(path, listing.value);
+        moved = true;
       });
-      return next;
+      return moved ? next : current;
     });
     const failed = listings.find((listing) => listing.status === 'rejected');
     if (failed !== undefined) setError(message(failed.reason));
-  }, [children, fs]);
+  }, [fs]);
 
   const rows = useMemo(
     () => flattenVaultTree({ children, expanded, notePaths }),

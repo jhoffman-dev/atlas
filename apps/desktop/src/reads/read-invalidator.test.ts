@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { QueryObserver } from '@tanstack/react-query';
-import type { VaultRead } from '@atlas/application';
-import { createWindowQueryClient, vaultReadKey } from './query-client.ts';
+import type { NoteChange } from '@atlas/domain';
+import type { ReadScope, VaultRead } from '@atlas/application';
+import {
+  createWindowQueryClient,
+  scopedReadKey,
+  scopedReadMeta,
+  vaultReadKey,
+} from './query-client.ts';
 import { createReadInvalidator } from './read-invalidator.ts';
 
 /** A window's cache with one vault's reads shown, counting how often each is read. */
@@ -206,6 +212,125 @@ describe('a read that failed', () => {
       '/two:type-counts': 1,
       '/two:settings': 1,
     });
+    stop();
+  });
+});
+
+/** A window's cache with one pane read per scope shown, each counting its reads. */
+function shownPaneReads(scopes: Record<string, ReadScope>, failingFirst: readonly string[] = []) {
+  const vault = '/one';
+  const client = createWindowQueryClient();
+  const reads = new Map<string, number>();
+  const failing = new Set<string>(failingFirst);
+  const stops = Object.entries(scopes).map(([name, scope]) =>
+    new QueryObserver(client, {
+      queryKey: scopedReadKey(vault, name),
+      meta: scopedReadMeta(scope),
+      queryFn: async () => {
+        reads.set(name, (reads.get(name) ?? 0) + 1);
+        if (failing.has(name)) throw new Error(`${name} could not be read`);
+        return reads.get(name);
+      },
+    }).subscribe(() => {}),
+  );
+  const settledReads = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return Object.fromEntries(reads);
+  };
+  return { client, failing, settledReads, stop: () => stops.forEach((stop) => stop()) };
+}
+
+const edited = (path: string, type: string | null = null): NoteChange => ({
+  kind: 'changed',
+  path,
+  type,
+  digest: 'b',
+  before: 'a',
+});
+
+describe('the panes’ reads, judged by what they are made from (#325)', () => {
+  const scopes: Record<string, ReadScope> = {
+    recipes: { notes: ['Notes/Recipes.md'] },
+    today: { types: ['task'] },
+    graph: { facets: ['graph'] },
+  };
+
+  it('reads again, when the index has news, only the pane reads its notes touched', async () => {
+    const { client, settledReads, stop } = shownPaneReads(scopes);
+    const reads = createReadInvalidator({ client });
+    await settledReads();
+
+    reads.noteChanges('/one', [edited('Tasks/Buy flour.md', 'task')]);
+    expect(await settledReads()).toEqual({ recipes: 1, today: 1, graph: 1 });
+    reads.indexMoved('/one');
+
+    expect(await settledReads()).toEqual({ recipes: 1, today: 2, graph: 1 });
+    stop();
+  });
+
+  it('reads a pane read of a facet again when a write changed it, whatever note did', async () => {
+    const { client, settledReads, stop } = shownPaneReads(scopes);
+    const reads = createReadInvalidator({ client });
+    await settledReads();
+
+    reads.noteChanges('/one', [edited('Notes/Elsewhere.md')]);
+    reads.invalidateWithIndex('/one', ['graph']);
+    reads.indexMoved('/one');
+
+    expect(await settledReads()).toEqual({ recipes: 1, today: 1, graph: 2 });
+    stop();
+  });
+
+  it('reads every pane read again for news whose notes are not known, or with none heard', async () => {
+    const { client, settledReads, stop } = shownPaneReads(scopes);
+    const reads = createReadInvalidator({ client });
+    await settledReads();
+
+    reads.noteChanges('/one', [edited('Notes/Elsewhere.md')]);
+    reads.indexMoved('/one', false);
+    expect(await settledReads()).toEqual({ recipes: 2, today: 2, graph: 2 });
+
+    reads.indexMoved('/one');
+    expect(await settledReads()).toEqual({ recipes: 3, today: 3, graph: 3 });
+    stop();
+  });
+
+  it('judges each news by the notes heard since the last, and none of another vault’s', async () => {
+    const { client, settledReads, stop } = shownPaneReads(scopes);
+    const reads = createReadInvalidator({ client });
+    await settledReads();
+
+    reads.noteChanges('/one', [edited('Notes/Recipes.md')]);
+    reads.indexMoved('/one');
+    reads.noteChanges('/two', [edited('Tasks/Buy flour.md', 'task')]);
+    reads.noteChanges('/one', [edited('Notes/Elsewhere.md')]);
+    reads.indexMoved('/one');
+
+    expect(await settledReads()).toEqual({ recipes: 2, today: 1, graph: 1 });
+    stop();
+  });
+
+  it('reads a pane read whose last read failed again on any news, touched or not', async () => {
+    const { client, failing, settledReads, stop } = shownPaneReads(scopes, ['recipes']);
+    const reads = createReadInvalidator({ client });
+    await settledReads();
+
+    failing.delete('recipes');
+    reads.noteChanges('/one', [edited('Notes/Elsewhere.md')]);
+    reads.indexMoved('/one');
+
+    expect(await settledReads()).toEqual({ recipes: 2, today: 1, graph: 1 });
+    stop();
+  });
+
+  it('forgets what it heard of a vault as it closes', async () => {
+    const { client, settledReads, stop } = shownPaneReads(scopes);
+    const reads = createReadInvalidator({ client });
+    await settledReads();
+
+    reads.noteChanges('/one', [edited('Notes/Elsewhere.md')]);
+    reads.forget('/one');
+    expect(client.getQueryCache().findAll({ queryKey: scopedReadKey('/one') })).toEqual([]);
     stop();
   });
 });

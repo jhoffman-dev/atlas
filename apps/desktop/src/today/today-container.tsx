@@ -1,4 +1,6 @@
+import { REVIEW_SCOPE } from '@atlas/application';
 import { TodayPage } from '@atlas/ui';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import { useToday } from './use-today.ts';
@@ -19,13 +21,21 @@ export interface TodayWiring {
  */
 export function TodayContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
+  // Read again for news of the tasks, the projects and the Inbox alone: a
+  // note saved elsewhere does not draw the page (#325).
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['today'],
+    scope: REVIEW_SCOPE,
+  });
   const today = useToday({
     ports: pages.ports,
     editors: pane.editors,
     clock: localClock,
     types: pane.types,
     vaultKey: pane.vault,
-    indexKey: pane.indexKey,
+    indexKey,
     indexReady: pages.indexReady,
     open: true,
     onSettled: pages.onSettled,
