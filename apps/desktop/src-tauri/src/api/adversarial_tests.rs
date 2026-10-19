@@ -298,6 +298,19 @@ async fn an_idle_keep_alive_connection_after_a_refusal_is_closed() {
     assert!(closed_after <= 15, "closed only after {closed_after}s");
 }
 
+/// Resolves once `real` has passed on the machine's clock, which the paused
+/// tokio clock does not move: a guard against a hang that adds no timer for
+/// the paused clock to jump to.
+fn after_real(real: Duration) -> tokio::sync::oneshot::Receiver<()> {
+    let (tell, told) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
+        std::thread::sleep(real);
+        // Refused only once the test is over and the receiver gone: nothing to tell.
+        let _ = tell.send(());
+    });
+    told
+}
+
 /// Hardening that holds: a client dribbling its headers cannot keep the
 /// connection past the header timeout by sending a byte every second.
 ///
@@ -326,8 +339,15 @@ async fn dribbling_the_headers_does_not_keep_the_connection_open() {
     settle().await;
     frozen(stream.write_all(b"X")).await.unwrap();
 
-    // A reset is as much a close as an end of stream, so how it ends is not asked.
-    let _ = stream.read_to_end(&mut Vec::new()).await;
+    // A reset is as much a close as an end of stream, so how it ends is not
+    // asked. The guard against a server that never closes is on the machine's
+    // clock: a timer on the paused one would be one more for it to jump to
+    // while the close is on its way, and the close would be read late.
+    let mut rest = Vec::new();
+    tokio::select! {
+        _ = stream.read_to_end(&mut rest) => {}
+        _ = after_real(Duration::from_secs(60)) => panic!("still open after a minute"),
+    }
     let closed_after = opened.elapsed();
     assert!(
         closed_after <= Duration::from_secs(15),
