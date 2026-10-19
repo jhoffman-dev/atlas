@@ -21,6 +21,7 @@ import {
 } from '@atlas/domain';
 import type { OpenNotes } from '../api/index.ts';
 import { taskRuleProperties } from '../gtd/task-rules.ts';
+import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { noteModified } from '../notes/note-modified.ts';
 import { openNote } from '../notes/open-note.ts';
@@ -140,7 +141,9 @@ export async function proposeEdit({
   const properties =
     asked === null
       ? null
-      : ruledProperties(taskRuleProperties(markdown, note.frontmatter), asked, today);
+      : toldAsRefusal(() =>
+          ruledProperties(taskRuleProperties(markdown, note.frontmatter), asked, today),
+        );
   const edited = applyTextEdits(note.originalBody, edits);
   if (!edited.ok) throw new ProposalRefused(edited.problem);
   const afterBody = append === null ? edited.text : appendToBody(edited.text, append);
@@ -157,13 +160,26 @@ export async function proposeEdit({
     contents: joinFrontmatter(
       properties === null
         ? note.frontmatter
-        : markdown.updateFrontmatter(note.frontmatter, properties),
+        : toldAsRefusal(() => markdown.updateFrontmatter(note.frontmatter, properties)),
       afterBody,
     ),
     properties,
     blocks: shownBlocks(blockDiff(note.parsed, markdown.parseBody(afterBody))),
     propertyChanges: changesOf(note.properties, properties ?? {}),
   };
+}
+
+/**
+ * A block the edit cannot be written to, refused as a proposal is: the model
+ * is told why, in the person's words, and the chat goes on.
+ */
+function toldAsRefusal<Result>(work: () => Result): Result {
+  try {
+    return work();
+  } catch (error) {
+    if (error instanceof FrontmatterRefusedError) throw new ProposalRefused(error.message);
+    throw error;
+  }
 }
 
 /**
