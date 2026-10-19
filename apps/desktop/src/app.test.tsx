@@ -2077,6 +2077,399 @@ interface Editor {
 }
 
 /** The live editor of the shown note in a pane: TipTap hangs it on its element. */
+/*
+ * Pages as tabs (docs/design/tab-model.md, PR B): each page reads its own
+ * hooks in its container, so its data landing or changing draws the
+ * container and not the window around it.
+ */
+describe('pages as tabs', () => {
+  const pane = (which: 1 | 2) => screen.getByRole('region', { name: `Pane ${which}` });
+  const aTurn = () => act(() => new Promise<void>((turn) => setTimeout(turn, 0)));
+  /**
+   * Waits until a turn of the event loop draws nothing, so the counts that
+   * follow are the action's alone: a condition on React's work, not a wait
+   * on the clock.
+   */
+  const untilQuiet = () =>
+    waitFor(async () => {
+      startCountingRenders();
+      await aTurn();
+      expect(stopCountingRenders().commits).toBe(0);
+    });
+  /**
+   * What was drawn since counting began, kept until a turn draws nothing: an
+   * action's draws and whatever they set going, late ones included.
+   */
+  async function drawnUntilQuiet(): Promise<Record<string, number>> {
+    const drawn: Record<string, number> = {};
+    await waitFor(async () => {
+      await aTurn();
+      const turn = stopCountingRenders();
+      for (const [name, count] of Object.entries(turn.renders)) {
+        drawn[name] = (drawn[name] ?? 0) + count;
+      }
+      startCountingRenders();
+      expect(turn.commits).toBe(0);
+    });
+    stopCountingRenders();
+    return drawn;
+  }
+  const oneNote = () =>
+    fakeVault({
+      remembered: location,
+      directories: { '': [entry('recipes.md', 'file')] },
+      files: { 'recipes.md': '# Recipes\n\nSourdough.\n' },
+    });
+  /** The app on `vault`, with an index that answers as `index` says. */
+  const renderOn = (vault: ReturnType<typeof fakeVault>, index = fakeIndexPorts(vault)) =>
+    render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={index}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn(memoryActivityStore())}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+  /** Runs a palette command by its label. */
+  async function runCommand(label: string) {
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await screen.findByLabelText('Search the vault'), label);
+    await userEvent.click(await screen.findByRole('option', { name: new RegExp(`^${label}`) }));
+  }
+
+  it('opening Today draws its container as the day lands, and never the window, the shell or the frames', async () => {
+    renderOn(oneNote());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+    await untilQuiet();
+
+    startCountingRenders();
+    await runCommand('Today');
+    await screen.findByRole('article', { name: 'Today' });
+    // The day read and landed: the page says what it holds.
+    await screen.findByText(/nothing needs you/);
+    const renders = await drawnUntilQuiet();
+
+    // Mounted, then drawn again as its read landed: the container is where the page's data lands.
+    expect(renders.TodayContainer ?? 0).toBeGreaterThanOrEqual(2);
+    expect(renders.AppWindow ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+  });
+
+  it('deciding an Inbox row draws the Inbox container alone: not the window, the shell, the tree or the frames', async () => {
+    const task = 'Inbox/Loose task.md';
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('Inbox', 'directory')], Inbox: [entry(task, 'file')] },
+      files: { [task]: '---\ntype: task\n---\n# Loose task\n' },
+    });
+    const index = fakeIndexPorts(vault);
+    // The index lists one task waiting, and counts it; every other read is empty.
+    index.index.query = async (sql: string) =>
+      sql.includes('"importStamped"')
+        ? {
+            columns: ['path', 'title', 'type', 'modified'],
+            rows: [[task, 'Loose task', 'task', 1]],
+            truncated: false,
+          }
+        : sql.includes('AS "total"')
+          ? { columns: ['total'], rows: [[1]], truncated: false }
+          : { columns: [], rows: [], truncated: false };
+    renderOn(vault, index);
+    // The sidebar's row counts it from the window's own read, with no Inbox page open.
+    const inboxRow = await screen.findByRole('button', { name: /^Inbox/ });
+    await waitFor(() => expect(inboxRow.textContent).toContain('1'));
+    await userEvent.click(inboxRow);
+    const row = await screen.findByRole('form', { name: 'Clarify Loose task' });
+    await userEvent.selectOptions(
+      within(row).getByRole('combobox', { name: 'Status of Loose task' }),
+      'next-action',
+    );
+    await untilQuiet();
+
+    // The write behind the row is held, so what is counted is the row leaving, not the index moving after.
+    const reads = vault.holdReads();
+    startCountingRenders();
+    await userEvent.click(within(row).getByRole('button', { name: 'Done' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('form', { name: 'Clarify Loose task' })).toBeNull(),
+    );
+    const renders = await drawnUntilQuiet();
+    reads.release();
+
+    expect(renders.InboxContainer ?? 0).toBeGreaterThanOrEqual(1);
+    expect(renders.AppWindow ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+    expect(renders.VaultTree ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+  });
+
+  it('draws a type page in each pane on its own table, whichever type the other pane shows', async () => {
+    const PERSON = '---\nname: person\nlabel: Person\nproperties:\n  email: text\n---\n';
+    const BOOK = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';
+    renderOn(
+      fakeVault({
+        remembered: location,
+        directories: {
+          '': [entry('recipes.md', 'file')],
+          '.atlas/types': [
+            entry('.atlas/types/person.md', 'file'),
+            entry('.atlas/types/book.md', 'file'),
+          ],
+        },
+        files: {
+          'recipes.md': '# Recipes\n',
+          '.atlas/types/person.md': PERSON,
+          '.atlas/types/book.md': BOOK,
+        },
+      }),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /^Person, / }));
+    await screen.findByRole('article', { name: 'Person' });
+    // Split (⇧⌘\): the focused pane is the new one, which then opens Book.
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await userEvent.click(screen.getByRole('button', { name: /^Book, / }));
+
+    expect(await within(pane(2)).findByRole('article', { name: 'Book' })).toBeDefined();
+    expect(await within(pane(1)).findByRole('article', { name: 'Person' })).toBeDefined();
+  });
+
+  it('opens another type to be edited in the same tab, and a plain open after it on its notes', async () => {
+    const PERSON = '---\nname: person\nlabel: Person\nproperties:\n  email: text\n---\n';
+    const BOOK = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';
+    renderOn(
+      fakeVault({
+        remembered: location,
+        directories: {
+          '': [entry('recipes.md', 'file')],
+          '.atlas/types': [
+            entry('.atlas/types/person.md', 'file'),
+            entry('.atlas/types/book.md', 'file'),
+          ],
+        },
+        files: {
+          'recipes.md': '# Recipes\n',
+          '.atlas/types/person.md': PERSON,
+          '.atlas/types/book.md': BOOK,
+        },
+      }),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /^Person, / }));
+    await screen.findByRole('article', { name: 'Person' });
+    expect(screen.getByRole('radio', { name: 'Notes' }).getAttribute('aria-checked')).toBe('true');
+
+    // The palette's "Edit Book type" lands in the same tab, which keeps its container.
+    await runCommand('Edit Book type');
+    await screen.findByRole('article', { name: 'Book' });
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: 'Edit type' }).getAttribute('aria-checked')).toBe(
+        'true',
+      ),
+    );
+
+    // The editor's own Notes switch turns the page back, in this tab.
+    await userEvent.click(screen.getByRole('radio', { name: 'Notes' }));
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: 'Notes' }).getAttribute('aria-checked')).toBe(
+        'true',
+      ),
+    );
+    expect(await screen.findByRole('button', { name: 'New book' })).toBeDefined();
+
+    // Back to Person by a plain open: on its notes, not on the editor Book was asked for.
+    await userEvent.click(screen.getByRole('button', { name: /^Person, / }));
+    await screen.findByRole('article', { name: 'Person' });
+    expect(screen.getByRole('radio', { name: 'Notes' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  // #130 (#283): another vault opening with the Inbox open starts the page
+  // afresh — its rows held back for that vault's own offers — rather than
+  // keeping what the last vault's page had. The panes are keyed by the vault.
+  it('starts the Inbox page afresh for another vault opened with the Inbox open', async () => {
+    const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
+    const task = 'Inbox/Loose task.md';
+    // A note loose at the root is what the tidy offers to move: its read is the offers' read.
+    const files = { [task]: '---\ntype: task\n---\n# Loose task\n', 'loose.md': '# Loose\n' };
+    const vault = fakeVault({
+      remembered: location,
+      directories: {
+        '': [entry('Inbox', 'directory'), entry('loose.md', 'file')],
+        Inbox: [entry(task, 'file')],
+      },
+      files,
+      elsewhere: { [other.absolutePath]: files },
+      picks: [other],
+    });
+    const index = fakeIndexPorts(vault);
+    index.index.query = async (sql: string) =>
+      sql.includes('"importStamped"')
+        ? {
+            columns: ['path', 'title', 'type', 'modified'],
+            rows: [[task, 'Loose task', 'task', 1]],
+            truncated: false,
+          }
+        : sql.includes('AS "total"')
+          ? { columns: ['total'], rows: [[1]], truncated: false }
+          : { columns: [], rows: [], truncated: false };
+    renderOn(vault, index);
+    await userEvent.click(await screen.findByRole('button', { name: /^Inbox/ }));
+    const before = await screen.findByRole('article', { name: 'Inbox' });
+    await within(before).findByRole('form', { name: 'Clarify Loose task' });
+    // The other vault remembers the same tab, with the same id, on the Inbox.
+    const remembered = window.localStorage.getItem(`atlas.workspace:${location.absolutePath}`);
+    window.localStorage.setItem(
+      `atlas.workspace:${other.absolutePath}`,
+      (remembered ?? '').replace(location.absolutePath, other.absolutePath),
+    );
+
+    // The other vault's offers take their time to read: its tidy reads the loose
+    // note, on its own. The index's reads, which carry every note, go through.
+    const readNotes = vault.fs.readNotes;
+    let holdingOffers: Promise<void> | null = null;
+    let releaseOffers = () => {};
+    vault.fs.readNotes = async (paths) => {
+      const theTidys = paths.length === 1 && paths[0] === 'loose.md';
+      if (theTidys && holdingOffers !== null) await holdingOffers;
+      return readNotes(paths);
+    };
+    holdingOffers = new Promise<void>((resolve) => (releaseOffers = resolve));
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
+    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
+    const after = await screen.findByRole('article', { name: 'Inbox' });
+    // A page made afresh is a new one on the screen, not the first vault's kept,
+    // and holds its rows — inert, so out of the accessibility tree: found by
+    // their text — while this vault's offers are still being read.
+    expect(after).not.toBe(before);
+    const title = await within(after).findByText('Loose task');
+    expect(title.closest('[inert]')).not.toBeNull();
+    releaseOffers();
+    await waitFor(() => expect(title.closest('[inert]')).toBeNull());
+    expect(within(after).getByRole('form', { name: 'Clarify Loose task' })).toBeDefined();
+  });
+
+  it('a proposal answered in one vault: another vault lists its own, at the same path, with no undo', async () => {
+    const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
+    const proposal = 'Inbox/Proposals/Call Tobias.md';
+    const text = [
+      '---',
+      'type: proposal',
+      'kind: task',
+      'state: open',
+      'payload:',
+      '  title: Call Tobias',
+      '  properties:',
+      '    status: next-action',
+      '---',
+      '',
+      'He asked on the call.',
+      '',
+    ].join('\n');
+    const vault = fakeVault({
+      remembered: location,
+      directories: {
+        '': [entry('Inbox', 'directory')],
+        Inbox: [entry('Inbox/Proposals', 'directory')],
+        'Inbox/Proposals': [entry(proposal, 'file')],
+      },
+      files: { [proposal]: text },
+      elsewhere: { [other.absolutePath]: { [proposal]: text } },
+      picks: [other],
+    });
+    // The fake's `readNotes` reads the first vault's files; `readTextFile` reads the open one's.
+    vault.fs.readNotes = async (paths) => {
+      const read = await Promise.all(
+        paths.map((at) =>
+          vault.fs.readTextFile(createVaultPath(at)).then(
+            ({ text: body, modified }) => ({ path: at, text: body, modified, size: body.length }),
+            () => null,
+          ),
+        ),
+      );
+      return read.filter((note) => note !== null);
+    };
+    renderOn(vault);
+    // The sidebar counts the proposal; the Inbox lists it and accepts it.
+    const inboxRow = await screen.findByRole('button', { name: /^Inbox/ });
+    await waitFor(() => expect(inboxRow.textContent).toContain('1'));
+    await userEvent.click(inboxRow);
+    const inbox = await screen.findByRole('article', { name: 'Inbox' });
+    await within(inbox).findByText('Call Tobias');
+    await userEvent.click(within(inbox).getByRole('button', { name: 'Accept' }));
+    await within(inbox).findByRole('button', { name: 'Undo' });
+    const remembered = window.localStorage.getItem(`atlas.workspace:${location.absolutePath}`);
+    window.localStorage.setItem(
+      `atlas.workspace:${other.absolutePath}`,
+      (remembered ?? '').replace(location.absolutePath, other.absolutePath),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
+    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
+    const after = await screen.findByRole('article', { name: 'Inbox' });
+    // The other vault's proposal, at the same path, is its own: listed, and nothing to take back.
+    expect(await within(after).findByText('Call Tobias')).toBeDefined();
+    expect(within(after).getByRole('button', { name: 'Accept' })).toBeDefined();
+    expect(within(after).queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
+  it('the Inbox in both panes: a row decided in one leaves the other while its write is held', async () => {
+    const task = 'Inbox/Loose task.md';
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('Inbox', 'directory')], Inbox: [entry(task, 'file')] },
+      files: { [task]: '---\ntype: task\n---\n# Loose task\n' },
+    });
+    const index = fakeIndexPorts(vault);
+    index.index.query = async (sql: string) =>
+      sql.includes('"importStamped"')
+        ? {
+            columns: ['path', 'title', 'type', 'modified'],
+            rows: [[task, 'Loose task', 'task', 1]],
+            truncated: false,
+          }
+        : sql.includes('AS "total"')
+          ? { columns: ['total'], rows: [[1]], truncated: false }
+          : { columns: [], rows: [], truncated: false };
+    renderOn(vault, index);
+    const inboxRow = await screen.findByRole('button', { name: /^Inbox/ });
+    await waitFor(() => expect(inboxRow.textContent).toContain('1'));
+    await userEvent.click(inboxRow);
+    await within(pane(1)).findByRole('form', { name: 'Clarify Loose task' });
+    // Split (⇧⌘\\): the new pane is focused, and the Inbox opens there too.
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    const second = await within(pane(2)).findByRole('form', { name: 'Clarify Loose task' });
+    const first = within(pane(1)).getByRole('form', { name: 'Clarify Loose task' });
+
+    await userEvent.selectOptions(
+      within(first).getByRole('combobox', { name: 'Status of Loose task' }),
+      'next-action',
+    );
+    const reads = vault.holdReads();
+    await userEvent.click(within(first).getByRole('button', { name: 'Done' }));
+    // Gone from both panes while the write is held: the window's hold, not the tab's.
+    await waitFor(() =>
+      expect(within(pane(1)).queryByRole('form', { name: 'Clarify Loose task' })).toBeNull(),
+    );
+    await waitFor(() => expect(second.isConnected).toBe(false));
+    expect(within(pane(2)).queryByRole('form', { name: 'Clarify Loose task' })).toBeNull();
+    reads.release();
+  });
+});
+
 async function editorIn(region: HTMLElement, title: string): Promise<Editor> {
   const article = await within(region).findByRole('article', { name: title });
   const element = await waitFor(() => {

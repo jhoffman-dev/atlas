@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { HISTORY_LIMIT, type NavigationPlace } from './navigation-history.ts';
-import { MAX_PANES } from './pane-layout.ts';
 import { parseRememberedWorkspace, rememberWorkspace } from './remember-workspace.ts';
 import {
   CLOSED_LIMIT,
@@ -14,6 +13,7 @@ import {
   pinTab,
   splitWithTab,
   type Workspace,
+  MAX_PANES,
 } from './workspace.ts';
 
 /** Adversarial attack on PR #337: the remembered workspace, fuzzed. */

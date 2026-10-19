@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { NO_HISTORY, type NavigationPlace } from './navigation-history.ts';
-import { MAX_PANES } from './pane-layout.ts';
 import {
   activateNth,
   activateTab,
@@ -29,6 +28,7 @@ import {
   unpinTab,
   type Tab,
   type Workspace,
+  MAX_PANES,
 } from './workspace.ts';
 
 /**

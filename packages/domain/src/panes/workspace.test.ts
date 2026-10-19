@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { HISTORY_LIMIT, NO_HISTORY, type NavigationPlace } from './navigation-history.ts';
-import { MAX_PANES } from './pane-layout.ts';
 import {
   activateNth,
   activePlace,
@@ -32,6 +31,7 @@ import {
   tabPlace,
   unpinTab,
   type Workspace,
+  MAX_PANES,
 } from './workspace.ts';
 
 const note = (name: string): NavigationPlace => ({

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { HISTORY_LIMIT, type NavigationPlace } from './navigation-history.ts';
-import { MAX_PANES } from './pane-layout.ts';
 import {
   parseRememberedWorkspace,
   rememberWorkspace,
@@ -16,6 +15,7 @@ import {
   splitWithTab,
   tabPlace,
   type Workspace,
+  MAX_PANES,
 } from './workspace.ts';
 
 const VAULT = 'vault:larkspur';
@@ -420,6 +420,36 @@ describe('parseRememberedWorkspace', () => {
         parseRememberedWorkspace({ vault: 'vault:other', paths: ['Acme.md'], focused: 0 }, VAULT),
       ).toBeNull();
       expect(parseRememberedWorkspace({ vault: VAULT, paths: [], focused: 0 }, VAULT)).toBeNull();
+    });
+
+    it('reads anything that is not a split as nothing, rather than as an error', () => {
+      expect(parseRememberedWorkspace('{}', VAULT)).toBeNull();
+      expect(parseRememberedWorkspace({ vault: VAULT }, VAULT)).toBeNull();
+    });
+
+    it('drops a path that could escape the vault, leaving that pane an empty tab', () => {
+      const read = parseRememberedWorkspace(
+        { vault: VAULT, paths: ['../secrets.md', 'Acme.md'], focused: 0 },
+        VAULT,
+      )!;
+      expect(read.panes.map((pane) => tabPlace(pane.tabs[0]!))).toEqual([null, acme]);
+    });
+
+    it(`keeps no more than ${MAX_PANES} panes, and the focus falls back when its pane was dropped`, () => {
+      const read = parseRememberedWorkspace(
+        { vault: VAULT, paths: ['Acme.md', 'Beta.md', 'Gamma.md'], focused: 2 },
+        VAULT,
+      )!;
+      expect(read.panes).toHaveLength(MAX_PANES);
+      expect(read.focused).toBe(0);
+    });
+
+    it('falls back to the first pane when the remembered focus is nonsense', () => {
+      const read = parseRememberedWorkspace(
+        { vault: VAULT, paths: ['Acme.md'], focused: 'second' },
+        VAULT,
+      )!;
+      expect(read.focused).toBe(0);
     });
   });
 });

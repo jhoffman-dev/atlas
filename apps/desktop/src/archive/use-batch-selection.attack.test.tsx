@@ -20,7 +20,12 @@ import {
   type ArchivePorts,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
-import { useArchive, type ArchiveCommands, type ArchiveOptions } from './use-archive.ts';
+import {
+  useArchive,
+  useArchivePage,
+  type ArchiveCommands,
+  type ArchiveOptions,
+} from './use-archive.ts';
 import { useRowSelection } from './use-row-selection.ts';
 import { useViewChoosing } from './use-view-choosing.ts';
 
@@ -100,7 +105,19 @@ function archiveSetUp(notes: Record<string, string>, overrides: Partial<ArchiveO
     offerLinks: vi.fn(async () => {}),
     ...overrides,
   };
-  const hook = renderHook((props: ArchiveOptions) => useArchive(props), { initialProps: options });
+  const hook = renderHook(
+    (props: ArchiveOptions) => {
+      const { commands, notice } = useArchive(props);
+      const page = useArchivePage({
+        ports: props.ports,
+        indexKey: props.indexKey,
+        open: props.open,
+        commands,
+      });
+      return { commands, notice, page };
+    },
+    { initialProps: options },
+  );
   return { fs, files, hook, options };
 }
 

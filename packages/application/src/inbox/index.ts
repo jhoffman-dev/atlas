@@ -1,3 +1,4 @@
+export { countInboxWaiting } from './count-inbox-waiting.ts';
 export { listInbox, listInboxThrough, listVaultInbox } from './list-inbox.ts';
 export type { InboxListing } from './list-inbox.ts';
 export { FilingRefusedError, processInboxItems } from './process-inbox.ts';

@@ -31,7 +31,7 @@ export interface ArchiveOptions {
   readonly notePaths: readonly VaultPath[];
   /** Changes when the index does, so the Archive lists what it now holds. */
   readonly indexKey: string;
-  /** Whether the Archive page is showing, which is when it is read. */
+  /** Whether the Archive page is showing, which is when its list is read. */
   readonly open: boolean;
   /** Re-reads the tree and the index once notes have moved. */
   readonly onSettled: () => void;
@@ -56,13 +56,15 @@ function outcomeNotice(outcome: ArchiveOutcome): string | null {
 }
 
 /**
- * The Archive and everything that puts notes in it or takes them out.
+ * Everything that puts notes in the Archive or takes them out: the window's
+ * one batch, which every page, menu and the palette archive through.
  *
  * One note is archived the way it is moved — its links offered afterwards —
  * and a batch rewrites them as it goes, since an offer per note would be no
  * offer at all. The rules are the use-cases'; this holds what is on screen.
+ * The Archive page's own list is `useArchivePage`'s.
  */
-export function useArchive(options: ArchiveOptions) {
+export function useArchive(options: Omit<ArchiveOptions, 'open'>) {
   const { ports, clock, notePaths, onSettled, offerLinks } = options;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -117,22 +119,43 @@ export function useArchive(options: ArchiveOptions) {
     [run, busy],
   );
 
-  const page = useArchivePage(options);
+  return { commands, notice };
+}
+
+/**
+ * The Archive page's list, its search and its chosen rows: the page's own,
+ * read in its tab (tab-model.md, PR B) through the window's commands.
+ */
+export function useArchivePage({
+  ports,
+  indexKey,
+  open,
+  commands,
+}: Pick<ArchiveOptions, 'ports' | 'indexKey' | 'open'> & {
+  /** What takes notes out of the Archive: the window's one batch. */
+  commands: Pick<ArchiveCommands, 'unarchive'>;
+}) {
+  const page = useArchiveListing({ ports, indexKey, open });
   const { beginBatch } = page.choosing;
+  const { unarchive } = commands;
   // The Archive's chosen rows stay chosen until the batch settles, then lose
   // the ones that went back; rows chosen meanwhile stay, and failed ones return.
   const unarchiveChosen = useCallback(
     (paths: readonly VaultPath[]) => {
       const settle = beginBatch();
-      void run(paths, 'unarchive').then((outcome) => settle(batchSettled(outcome, paths)));
+      void unarchive(paths).then((outcome) => settle(batchSettled(outcome, paths)));
     },
-    [run, beginBatch],
+    [unarchive, beginBatch],
   );
-  return { commands, page: { ...page, unarchive: unarchiveChosen }, notice };
+  return { ...page, unarchive: unarchiveChosen };
 }
 
-/** The Archive page's list, its search and its chosen rows. */
-function useArchivePage({ ports, indexKey, open }: ArchiveOptions) {
+/** The Archive's list as the index answers it, for the search typed. */
+function useArchiveListing({
+  ports,
+  indexKey,
+  open,
+}: Pick<ArchiveOptions, 'ports' | 'indexKey' | 'open'>) {
   const [search, setSearch] = useState('');
   const [contents, setContents] = useState<ArchiveContents | null>(null);
   const [error, setError] = useState<string | null>(null);

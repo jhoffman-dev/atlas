@@ -8,8 +8,8 @@
   ],
   "actions": {
     "Open a vault": {
-      "commits": 123,
-      "renders": 4659,
+      "commits": 110,
+      "renders": 3423,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -22,10 +22,10 @@
         "index_notes_of_type": 6,
         "index_open": 3,
         "index_put": 47,
-        "index_query": 138,
+        "index_query": 129,
         "index_rebuild_views": 3,
         "index_stats": 4,
-        "list_directory": 79,
+        "list_directory": 63,
         "list_notes": 8,
         "open_vault": 3,
         "pick_vault": 3,
@@ -68,15 +68,15 @@
       "calls": {}
     },
     "One autosave and its watcher echo": {
-      "commits": 20,
-      "renders": 1522,
+      "commits": 14,
+      "renders": 819,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 15,
+        "index_query": 11,
         "index_stats": 3,
-        "list_directory": 10,
+        "list_directory": 6,
         "list_notes": 4,
         "read_notes": 4,
         "write_text_file": 3
@@ -121,7 +121,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 644,
+      "renders": 564,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -133,16 +133,16 @@
       "calls": {}
     },
     "Tick a task on Today": {
-      "commits": 37,
-      "renders": 2419,
+      "commits": 17,
+      "renders": 1315,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_open": 3,
         "index_put": 3,
-        "index_query": 28,
+        "index_query": 24,
         "index_stats": 3,
-        "list_directory": 16,
+        "list_directory": 12,
         "list_notes": 4,
         "read_notes": 5,
         "read_text_file": 5,
@@ -155,7 +155,7 @@
     },
     "Open the Inbox": {
       "commits": 6,
-      "renders": 463,
+      "renders": 456,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
@@ -165,14 +165,14 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 25,
-      "renders": 1680,
+      "commits": 20,
+      "renders": 984,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
         "index_notes_of_type": 7,
         "index_put": 3,
-        "index_query": 38,
+        "index_query": 36,
         "index_remove": 3,
         "index_stats": 3,
         "list_directory": 18,
@@ -197,12 +197,12 @@
     },
     "Open the 420-row table": {
       "commits": 8,
-      "renders": 975,
+      "renders": 834,
       "calls": {
         "index_query": 4
       }
     },
-    "\u2318K + 5 keys over the table": {
+    "⌘K + 5 keys over the table": {
       "commits": 19,
       "renders": 465,
       "calls": {
@@ -210,15 +210,15 @@
       }
     },
     "Drag a board card": {
-      "commits": 57,
-      "renders": 3218,
+      "commits": 50,
+      "renders": 2095,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 16,
+        "index_query": 12,
         "index_stats": 3,
-        "list_directory": 11,
+        "list_directory": 7,
         "list_notes": 4,
         "read_notes": 5,
         "read_text_file": 3,

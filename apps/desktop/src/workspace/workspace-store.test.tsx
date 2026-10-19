@@ -32,12 +32,11 @@ import {
   toggleSplit,
   useActivePlace,
   useActiveTabId,
-  useFocusedPage,
   useFocusedPane,
   useFocusedPlace,
   usePaneKeys,
   usePaneTabs,
-  useShownPages,
+  usePageShown,
   useTabHistory,
   workspaceNow,
   type RememberedWorkspaces,
@@ -402,36 +401,35 @@ describe('the workspace store', () => {
       expect(history.result.current.forward).toEqual([note('b')]);
     });
 
-    it('tells the app which pages are shown, drawing it only when that changes', () => {
+    it('tells the app whether a page of a kind is shown in any pane, drawing it only as that flips', () => {
       const { store } = openOn();
       openPlace(store, note('a'), 'here');
       let drawn = 0;
-      const pages = renderHook(() => {
+      const todayShown = renderHook(() => {
         drawn += 1;
-        return useShownPages(store);
+        return usePageShown(store, 'today');
       });
-      const focusedPage = renderHook(() => useFocusedPage(store));
-      expect(pages.result.current).toEqual([]);
-      expect(focusedPage.result.current).toBeNull();
+      expect(todayShown.result.current).toBe(false);
       const before = drawn;
 
       act(() => openPlace(store, note('b'), 'here'));
       act(() => openPlace(store, note('c'), 'new-tab'));
+      act(() => openPlace(store, INBOX, 'here'));
+      expect(todayShown.result.current).toBe(false);
       expect(drawn - before).toBe(0);
 
       act(() => openPlace(store, TODAY, 'here'));
-      expect(pages.result.current).toEqual([TODAY]);
-      expect(focusedPage.result.current).toEqual(TODAY);
+      expect(todayShown.result.current).toBe(true);
       expect(drawn - before).toBe(1);
 
-      // The focused pane's page first, so the one page the app can show is that one.
+      // Shown in the other pane counts too, whichever pane is focused.
       act(() => openPlace(store, INBOX, 'split'));
-      expect(pages.result.current).toEqual([INBOX, TODAY]);
-      expect(focusedPage.result.current).toEqual(INBOX);
+      expect(todayShown.result.current).toBe(true);
       act(() => focusPane(store, 0));
-      expect(pages.result.current).toEqual([TODAY, INBOX]);
-      expect(focusedPage.result.current).toEqual(TODAY);
-      expect(drawn - before).toBe(3);
+      expect(drawn - before).toBe(1);
+      act(() => openPlace(store, note('a'), 'here'));
+      expect(todayShown.result.current).toBe(false);
+      expect(drawn - before).toBe(2);
     });
   });
 });

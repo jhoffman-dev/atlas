@@ -137,7 +137,8 @@ async function readPage({
   };
 }
 
-async function countInbox(
+/** How many notes wait in the Inbox, counted as {@link listInbox} lists them. */
+export async function countInbox(
   index: Pick<IndexPort, 'query'>,
   tasksStartInInbox: boolean,
 ): Promise<number> {

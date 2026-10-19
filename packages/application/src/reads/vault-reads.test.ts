@@ -32,6 +32,12 @@ describe('which file reads a change at a path makes stale', () => {
     expect(touched('.atlas/dashboards/Week.md')).toEqual(IN_ATLAS);
   });
 
+  it('is the Inbox’s count for a proposal, which the page answers, at any depth', () => {
+    expect(touched('Inbox/Proposals/Call Tobias.md')).toEqual(['inbox-waiting']);
+    expect(touched('Inbox/Proposals/2026/Call Tobias.md')).toEqual(['inbox-waiting']);
+    expect(touched('Inbox/Call the bank.md')).toEqual([]);
+  });
+
   it('is nothing for an ordinary note, or a name that only starts the same', () => {
     expect(touched('Projects/Atlas.md')).toEqual([]);
     expect(touched('.atlasy/types/book.md', 'atlas/settings.md')).toEqual([]);
@@ -41,10 +47,10 @@ describe('which file reads a change at a path makes stale', () => {
   it('is the read when its file or folder itself, or one holding it, is moved', () => {
     expect(touched('.atlas/types')).toEqual([...IN_ATLAS, 'types'].sort());
     expect(touched('.atlas/templates/')).toEqual([...IN_ATLAS, 'templates'].sort());
-    const everyFileRead = [...IN_ATLAS, 'settings', 'templates', 'types'].sort();
-    expect(touched('.atlas')).toEqual(everyFileRead);
-    // The vault's root holds everything.
-    expect(touched('')).toEqual(everyFileRead);
+    const everyAtlasRead = [...IN_ATLAS, 'settings', 'templates', 'types'].sort();
+    expect(touched('.atlas')).toEqual(everyAtlasRead);
+    // The vault's root holds everything, the proposals folder too.
+    expect(touched('')).toEqual([...everyAtlasRead, 'inbox-waiting'].sort());
   });
 
   it('reads a name case aside, as the Mac’s disk does', () => {
@@ -86,6 +92,7 @@ describe('which file reads a sync’s note changes make stale', () => {
 describe('the reads the index’s every news makes stale', () => {
   it('is the sidebar’s marks and its counts, which no facet holds', () => {
     expect([...READS_ON_INDEX_NEWS].sort()).toEqual([
+      'inbox-waiting',
       'quick-counts',
       'sidebar-marks',
       'type-counts',
