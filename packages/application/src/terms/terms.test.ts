@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createVaultPath, VOCABULARY_PAGE_SIZE, type ObjectType } from '@atlas/domain';
 import { fakeIndexPort, fakeMarkdown, fakeOpenNotes, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -457,6 +457,51 @@ describe('addTerm', () => {
           'Companies/Larkspur Payroll.md',
         ]),
       ).rejects.toThrow(/is spelt “Larkspur Payroll Co”/);
+    });
+
+    it('refuses a variants that is not a list before writing anything, the panes not asked (#404)', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      const mapped: MarkdownPort = {
+        ...vault.markdown,
+        frontmatterProperties: () => ({ type: 'company', variants: { heard: 'larkspar' } }),
+      };
+      const setPropertiesIfOpen = vi.fn(async () => true);
+      await expect(
+        addTerm({
+          fs: vault.fs,
+          markdown: mapped,
+          openNotes: fakeOpenNotes({ setPropertiesIfOpen }),
+          today: TODAY,
+          term: { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll', kind: null },
+          types: [TERM_TYPE],
+          templates: [],
+          notePaths: [path('Companies/Larkspur Payroll.md')],
+        }),
+      ).rejects.toThrow(/has a variants that is not a list/);
+      expect(setPropertiesIfOpen).not.toHaveBeenCalled();
+      expect(vault.written).toEqual([]);
+    });
+
+    it('refuses at the write a variants that became something else since it was read (#404)', async () => {
+      const vault = recordingVault({ 'Companies/Larkspur Payroll.md': COMPANY });
+      const panes = fakeOpenNotes({
+        setPropertiesIfOpen: async ({ values }) => {
+          if (typeof values === 'function') values({ variants: 7 });
+          return true;
+        },
+      });
+      await expect(
+        addTo(
+          vault,
+          { canonical: 'Larkspur Payroll', variants: 'Larks Burr Payroll' },
+          ['Companies/Larkspur Payroll.md'],
+          panes,
+        ),
+      ).rejects.toThrow(
+        new TermRefusedError(
+          "Companies/Larkspur Payroll.md has a variants that is not a list, so misheard spellings can't be added to it. Make it a list first.",
+        ),
+      );
     });
 
     it('refuses cleanly when the note the name opened is gone since the vault was read (#404)', async () => {
