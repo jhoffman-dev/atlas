@@ -58,7 +58,14 @@ const names = noteNames([
 function table() {
   return render(
     <NoteNamesProvider value={names}>
-      <TableView result={result} sorts={[]} error={null} schema={schema} onOpenNote={vi.fn()} />
+      <TableView
+        result={result}
+        sorts={[]}
+        error={null}
+        schema={schema}
+        onOpenNote={vi.fn()}
+        onToggleSort={vi.fn()}
+      />
     </NoteNamesProvider>,
   );
 }
@@ -122,7 +129,14 @@ describe('a table’s pills', () => {
     const missing = noteNames([]);
     const { container } = render(
       <NoteNamesProvider value={missing}>
-        <TableView result={result} sorts={[]} error={null} schema={schema} onOpenNote={vi.fn()} />
+        <TableView
+          result={result}
+          sorts={[]}
+          error={null}
+          schema={schema}
+          onOpenNote={vi.fn()}
+          onToggleSort={vi.fn()}
+        />
       </NoteNamesProvider>,
     );
     const chips = [...container.querySelectorAll('.table__note')];

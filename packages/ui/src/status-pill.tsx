@@ -37,7 +37,9 @@ export function StatusPill({
       </span>
     );
   }
-  return <TintedPill text={label} color={color} />;
+  // Drawn here, not as a <TintedPill>: a table draws a pill per cell, and a
+  // component inside a component is a render the work budgets count (#413).
+  return pill(label, color);
 }
 
 /**
@@ -45,6 +47,10 @@ export function StatusPill({
  * on the pill their colour gives them: a tone's dot and tint, or a hue's.
  */
 export function TintedPill({ text, color }: { text: string; color: OptionColor }) {
+  return pill(text, color);
+}
+
+function pill(text: string, color: OptionColor) {
   return (
     <span className="status-pill" {...pillPaint(color)}>
       {!isPillHue(color) && <span className="status-pill__dot" aria-hidden="true" />}
