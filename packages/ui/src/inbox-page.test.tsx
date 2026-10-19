@@ -976,6 +976,19 @@ describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
     expect(onClarify).not.toHaveBeenCalled();
   });
 
+  it('Escape gives back the pick the row held before the key armed the picker', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
+    // Held with the mouse, before any key.
+    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    fireEvent.keyDown(rowOf('Call the bank'), { key: 'p' });
+    fireEvent.change(picker, { target: { value: '' } });
+    await userEvent.keyboard('{Escape}');
+    expect((picker as HTMLSelectElement).value).toBe('Projects/Atlas.md');
+    expect(onClarify).not.toHaveBeenCalled();
+  });
+
   it('writes the picks a row holds together with a status key', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');

@@ -52,6 +52,8 @@ function typesInto(target: Element): boolean {
 interface ArmedPicker {
   readonly path: VaultPath;
   readonly field: 'project' | 'defer';
+  /** What the row held for that field when the key armed it: Escape gives it back. */
+  readonly before: string | undefined;
 }
 
 type PickerElement = HTMLSelectElement | HTMLInputElement;
@@ -163,7 +165,7 @@ export function useInboxTriage({
         `[data-field="${action.field}"]`,
       );
       if (picker === null || picker === undefined || picker.disabled) return;
-      armed.current = { path, field: action.field };
+      armed.current = { path, field: action.field, before: held.current[path]?.[action.field] };
       pointed.current = false;
       picker.focus();
       openPicker(picker);
@@ -171,17 +173,17 @@ export function useInboxTriage({
     [act, elementOf],
   );
 
-  /** Drops the armed picker, with the pick it was holding when it is `forget`. */
+  /** Drops the armed picker; with `forget`, also what it picked, giving back what the row held before. */
   const disarm = useCallback((forget: boolean) => {
     const arm = armed.current;
     armed.current = null;
     pointed.current = false;
     if (!forget || arm === null) return;
     setDrafts((was) => {
-      const row = was[arm.path];
-      if (row === undefined) return was;
+      const row = was[arm.path] ?? {};
       const rest: { -readonly [K in keyof InboxDraft]: InboxDraft[K] } = { ...row };
-      delete rest[arm.field];
+      if (arm.before === undefined) delete rest[arm.field];
+      else Object.assign(rest, { [arm.field]: arm.before });
       return { ...was, [arm.path]: rest };
     });
   }, []);
