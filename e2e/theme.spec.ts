@@ -58,6 +58,47 @@ test('the choice survives a reload', async ({ page }) => {
   expect(await theme(page)).toBe('dark');
 });
 
+/** Settings → Appearance → Match system, with Settings open. */
+const matchSystem = (page: Page) =>
+  page.getByRole('dialog', { name: 'Settings' }).getByRole('switch', { name: 'Match system' });
+
+// UI v2 slice 13f (#315): nothing chosen means the app is light or dark as
+// macOS is, and follows it; the sidebar's button makes a choice that holds
+// whatever macOS does; Settings → Appearance → Match system clears it again.
+test('Match system follows the system', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await openVault(page);
+  expect(await theme(page)).toBe('light');
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect.poll(() => theme(page)).toBe('dark');
+  await expect(switchTo(page, 'light')).toBeVisible();
+
+  // A choice holds, whatever the system does.
+  await switchTo(page, 'light').click();
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(switchTo(page, 'dark')).toBeVisible();
+  expect(await theme(page)).toBe('light');
+
+  await page.keyboard.press('Meta+Comma');
+  await expect(matchSystem(page)).toHaveAttribute('aria-checked', 'false');
+  await matchSystem(page).click();
+  await expect(matchSystem(page)).toHaveAttribute('aria-checked', 'true');
+  await expect.poll(() => theme(page)).toBe('dark');
+  // The sidebar's button agrees, once Settings is out of the way.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
+  await expect(switchTo(page, 'light')).toBeVisible();
+
+  // Nothing is stored any more, so a second visit follows the system too.
+  await page.reload();
+  await expect(switchTo(page, 'light')).toBeVisible();
+  expect(await theme(page)).toBe('dark');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(() => theme(page)).toBe('light');
+});
+
 /** The design's statuses and button kinds, each with tokens the palette must carry. */
 const STATUS_TONES = ['inbox', 'backlog', 'next', 'doing', 'waiting', 'review', 'done'] as const;
 const BUTTON_KINDS = ['primary', 'positive', 'destructive', 'secondary', 'ghost'] as const;

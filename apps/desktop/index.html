@@ -57,6 +57,25 @@
         });
       })();
     </script>
+    <script>
+      // The theme chosen last time, on the root before the first paint: the
+      // app's own hook sets it again once it runs, but until then the
+      // stylesheet would follow the system and a dark choice would flash
+      // light. Classic and inline, like the reporter above, which is armed
+      // first so that a failure here is reported; the policy in the meta
+      // above names only frames, so nothing has to allow it.
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('atlas.theme');
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.dataset.theme = stored;
+          }
+        } catch (_) {
+          /* Safe to ignore: storage may be blocked, as in a private window;
+             the app sets the theme itself once it runs. */
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
