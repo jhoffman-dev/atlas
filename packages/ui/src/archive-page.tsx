@@ -170,7 +170,7 @@ function ArchiveList({
                 <td className="archive__actions">
                   <button
                     type="button"
-                    className="btn btn--ghost btn--sm"
+                    className="btn btn--ghost"
                     aria-label={`Unarchive ${note.title}`}
                     disabled={busy}
                     onClick={() => onUnarchive([note.path])}

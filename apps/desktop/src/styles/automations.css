@@ -44,6 +44,14 @@
   padding: var(--space-5) 0;
 }
 
+/* The list is the container its narrow layout measures against, since a
+   split pane at a wide window is narrow too — the list and not the page,
+   because inline-size containment on the page broke the virtualised tables
+   and the Inbox's anchor (as the bar's layouts ask `page-bar`, page.css). */
+.automations__list {
+  container: automations-list / inline-size;
+}
+
 /* A .page-list__row (page.css) laid out as a grid. The two selectors weigh
    the same, so this file winning rests on index.css importing it after
    page.css. */
@@ -345,9 +353,9 @@
   color: var(--warning);
 }
 
-/* In a narrow pane (the page's width, not the window's: page.css), the
-   times go; the name, what it does and Run now stay. */
-@container page (max-width: 760px) {
+/* In a narrow pane (the list's width, not the window's), the times go;
+   the name, what it does and Run now stay. */
+@container automations-list (max-width: 760px) {
   .automation-card {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }

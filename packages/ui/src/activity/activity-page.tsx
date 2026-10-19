@@ -151,7 +151,7 @@ function Lines({ rows, total, error, onOpenSubject }: ActivityPageProps) {
   }
   if (rows.length === 0) return <p className="activity__empty">No lines match.</p>;
   return (
-    <ol className="page-list" aria-label="Activity lines">
+    <ol className="page-list activity__list" aria-label="Activity lines">
       {rows.map((row) => (
         <li key={row.id} className={`page-list__row activity-line activity-line--${row.level}`}>
           <time className="page-list__meta activity-line__time" dateTime={row.dateTime}>

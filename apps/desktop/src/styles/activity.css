@@ -45,6 +45,14 @@
   padding: var(--space-5) 0;
 }
 
+/* The list is the container its narrow layout measures against, since a
+   split pane at a wide window is narrow too — the list and not the page,
+   because inline-size containment on the page broke the virtualised tables
+   and the Inbox's anchor (as the bar's layouts ask `page-bar`, page.css). */
+.activity__list {
+  container: activity-list / inline-size;
+}
+
 /* A .page-list__row (page.css) laid out as a grid. The two selectors weigh
    the same, so this file winning rests on index.css importing it after
    page.css. */
@@ -100,9 +108,9 @@
   color: var(--raised);
 }
 
-/* In a narrow pane (the page's width, not the window's: page.css), the
-   kind goes; the time, the level, the message and Open stay. */
-@container page (max-width: 720px) {
+/* In a narrow pane (the list's width, not the window's), the kind goes;
+   the time, the level, the message and Open stay. */
+@container activity-list (max-width: 720px) {
   .activity-line {
     grid-template-columns: auto auto minmax(0, 1fr) auto;
   }
@@ -114,9 +122,5 @@
   /* The message is what a narrow row is for; Open gives way to a few words. */
   .activity-line__open {
     max-width: 120px;
-  }
-
-  .activity__search {
-    margin-left: 0;
   }
 }

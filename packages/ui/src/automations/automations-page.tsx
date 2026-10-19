@@ -109,7 +109,7 @@ function RuleList({ rows, error, openId, onOpen, onToggle, onRunNow, busy }: Aut
     );
   }
   return (
-    <ul className="page-list" aria-label="All automations">
+    <ul className="page-list automations__list" aria-label="All automations">
       {rows.map((row) => {
         // One line per row, so what it does is cut short; its title holds the whole of it.
         const what = row.problem ?? `${row.action} · ${row.schedule}`;
