@@ -277,6 +277,16 @@ describe('updateFrontmatter, on a block that lists a key twice', () => {
     expect(() => updateFrontmatter(before, { b: null })).toThrowError(refusedFor('b', twice('b')));
   });
 
+  it('a key listed twice inside a key written as a map refuses every change', () => {
+    const before = block('? {x: 1, x: 2}', ': v', 't: T');
+    expect(() => updateFrontmatter(before, { t: 'U' })).toThrowError(
+      refusedFor(
+        't',
+        "This note's properties list a key twice; fix it in the source before changing them.",
+      ),
+    );
+  });
+
   it('a key listed twice inside a map refuses only that property', () => {
     const before = block('m:', '  x: 1', '  x: 2', 't: T');
     expect(updateFrontmatter(before, { t: 'U' })).toBe(block('m:', '  x: 1', '  x: 2', 't: U'));
