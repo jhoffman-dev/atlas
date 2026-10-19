@@ -1,6 +1,6 @@
 import { parse, parseDocument } from 'yaml';
 import { FrontmatterRefusedError, type WritingRead } from '@atlas/application';
-import { duplicatedProperties } from './frontmatter-write.ts';
+import { duplicatedProperties, problemLine } from './frontmatter-write.ts';
 
 /** The YAML between the delimiters. */
 const yamlOf = (frontmatter: string) =>
@@ -14,8 +14,7 @@ export function frontmatterProblem(frontmatter: string | null): string | null {
   if (frontmatter === null) return null;
   const document = parseDocument(yamlOf(frontmatter));
   const [error] = document.errors;
-  // YAML's message goes on to draw the line with a caret under the column.
-  if (error !== undefined) return error.message.split('\n')[0] ?? error.message;
+  if (error !== undefined) return problemLine(error);
   try {
     // Parsing succeeds where turning the result into values does not: an
     // alias bomb parses, and only expanding it throws. `parse` does both.
