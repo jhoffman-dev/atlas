@@ -131,7 +131,7 @@ describe('GroupedResult', () => {
       (head) => head.textContent,
     );
     expect(heads).toEqual(['Backlog1', 'Doing2', 'Done1']);
-    const cell = screen.getByRole('region', { name: 'doing, in Atlas' });
+    const cell = screen.getByRole('region', { name: 'Doing, in Atlas' });
     expect(
       within(cell)
         .getAllByRole('listitem')
@@ -139,8 +139,8 @@ describe('GroupedResult', () => {
     ).toEqual(['Writetask · doing', 'Plantask · doing']);
     const atlas = screen.getByRole('region', { name: 'Atlas lane' });
     await userEvent.click(within(atlas).getByRole('button', { name: /^Atlas/ }));
-    expect(screen.queryByRole('region', { name: 'doing, in Atlas' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'backlog, in Garden' })).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Doing, in Atlas' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Backlog, in Garden' })).toBeDefined();
   });
 
   it('draws a board with no grouping as one column of every note', () => {

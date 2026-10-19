@@ -8,9 +8,10 @@ import { StatusPill } from './status-pill.tsx';
 export const keyOf = (column: Pick<BoardColumn, 'value'>) => column.value ?? '\u0000none';
 
 /**
- * What a column is called wherever it is named — its heading, its region, its
- * "Add to …" button: a status reads as its option label ("Next Action"), any
- * other column by its plain label.
+ * What a column or lane is called wherever it is named — its heading, its
+ * region, its "Add to …" button: an option grouping reads as its option label
+ * (`next-action` is "Next Action"); a grouping with no tone, a relation or
+ * "No value", keeps its plain label.
  */
 export const columnName = (column: Pick<BoardColumn, 'label' | 'tone'>) =>
   column.tone === null ? column.label : optionLabel(column.label);
@@ -24,9 +25,9 @@ export interface LaneCell {
   readonly label: string;
 }
 
-/** What a cell is called: its column, in its lane. */
+/** What a cell is called: its column, in its lane, each as its heading reads. */
 export function laneCellLabel(column: BoardColumn, lane: BoardColumn): string {
-  return `${column.label}, in ${lane.label}`;
+  return `${columnName(column)}, in ${columnName(lane)}`;
 }
 
 /**

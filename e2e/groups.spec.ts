@@ -179,7 +179,7 @@ test('a board lays swimlanes across its columns', async ({ page }) => {
   await expect(home.getByLabel('2 cards')).toBeVisible();
   await expect(
     page
-      .getByRole('region', { name: 'doing, in home' })
+      .getByRole('region', { name: 'Doing, in Home' })
       .getByRole('button', { name: 'alpha', exact: true }),
   ).toBeVisible();
 
@@ -198,8 +198,8 @@ test('dragging a card to another column and lane writes both properties', async 
 
   await dragWithPointer(page, {
     from: page.locator('.board__card[data-path="alpha.md"]'),
-    to: page.getByRole('region', { name: 'done, in work', exact: true }),
-    overText: 'is over done, in work.',
+    to: page.getByRole('region', { name: 'Done, in Work', exact: true }),
+    overText: 'is over Done, in Work.',
   });
 
   await expectFile(vault, 'alpha.md').toContain('status: done');
@@ -228,10 +228,10 @@ test('"+ New" in a board cell makes a note in its column and lane', async ({ pag
   const vault = await openVault(page);
   await openView(page, 'Lanes');
 
-  const cell = page.getByRole('region', { name: 'done, in home', exact: true });
+  const cell = page.getByRole('region', { name: 'Done, in Home', exact: true });
   await cell.hover();
-  await cell.getByRole('button', { name: 'Add to done, in home' }).click();
-  const input = page.getByRole('textbox', { name: 'New card in done, in home' });
+  await cell.getByRole('button', { name: 'Add to Done, in Home' }).click();
+  const input = page.getByRole('textbox', { name: 'New card in Done, in Home' });
   await input.fill('Paint');
   await input.press('Enter');
 

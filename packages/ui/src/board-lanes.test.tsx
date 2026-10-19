@@ -93,7 +93,7 @@ describe('a board with swimlanes', () => {
         onAddCard={() => {}}
       />,
     );
-    const full = cell('doing', 'home');
+    const full = cell('Doing', 'Home');
     expect(within(full).getAllByRole('article')).toHaveLength(4);
     await userEvent.click(within(full).getByRole('button', { name: '5 more' }));
     expect(within(full).getAllByRole('article')).toHaveLength(9);
@@ -113,9 +113,9 @@ describe('a board with swimlanes', () => {
 
   it('puts each card in its column’s cell of its lane', () => {
     render(<Board />);
-    expect(within(cell('backlog', 'home')).getByRole('button', { name: 'First' })).toBeDefined();
-    expect(within(cell('doing', 'work')).getByRole('button', { name: 'Second' })).toBeDefined();
-    expect(within(cell('doing', 'home')).queryByRole('article')).toBeNull();
+    expect(within(cell('Backlog', 'Home')).getByRole('button', { name: 'First' })).toBeDefined();
+    expect(within(cell('Doing', 'Work')).getByRole('button', { name: 'Second' })).toBeDefined();
+    expect(within(cell('Doing', 'Home')).queryByRole('article')).toBeNull();
   });
 
   it('counts each lane’s cards in its heading', () => {
@@ -145,9 +145,9 @@ describe('a board with swimlanes', () => {
   it('adds a card in a cell with both its column’s and its lane’s value', async () => {
     const onAddCard = vi.fn();
     render(<Board onAddCard={onAddCard} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Add to doing, in home' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add to Doing, in Home' }));
     await userEvent.type(
-      screen.getByRole('textbox', { name: 'New card in doing, in home' }),
+      screen.getByRole('textbox', { name: 'New card in Doing, in Home' }),
       'Ship it{Enter}',
     );
     expect(onAddCard).toHaveBeenCalledWith({ value: 'doing', lane: 'home', name: 'Ship it' });
@@ -185,7 +185,7 @@ describe('a board with swimlanes, from the keyboard', () => {
       value: 'doing',
       lane: 'work',
     });
-    expect(announced()).toBe('First moved to doing, in work.');
+    expect(announced()).toBe('First moved to Doing, in Work.');
   });
 
   it('writes only the lane when the card stays in its column', async () => {
