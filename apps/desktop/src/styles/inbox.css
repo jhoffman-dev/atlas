@@ -265,3 +265,46 @@ form.inbox__clarify {
   color: var(--btn-ink);
   opacity: 0.7;
 }
+
+/* ---- a narrow list ----
+   The controls (520px) and the keys (220px) are fixed beside the name and the
+   kind, which needs about 1100px. Asked of the list's own width, not the
+   window's, so a split pane folds too: the kind (and what the import made of a
+   file) wraps, the controls wrap rather than hold 520px, and the keys are the
+   compact letters in a strip that wraps — their names stay on the buttons for
+   a screen reader. `data-narrow` is set by InboxRows as the list is resized: a
+   container query would make the list a layout container, the offset parent
+   the virtualiser measures its rows from, and the scroll jumps to the top. */
+.inbox__list[data-narrow] .inbox__grid td.inbox__kind {
+  min-width: 0;
+  padding: 0 8px;
+  white-space: normal;
+  width: auto;
+}
+
+.inbox__list[data-narrow] .inbox__grid .inbox__actions {
+  min-width: 0;
+  white-space: normal;
+  width: auto;
+}
+
+.inbox__list[data-narrow] form.inbox__clarify {
+  min-width: 0;
+}
+
+.inbox__list[data-narrow] .inbox__keys-strip {
+  max-width: 84px;
+  min-width: 84px;
+}
+
+.inbox__list[data-narrow] .inbox__grid .table__name {
+  min-width: 80px;
+}
+
+.inbox__list[data-narrow] .inbox__keys .inbox__key {
+  font-size: 0;
+}
+
+.inbox__list[data-narrow] .inbox__keys .inbox__key kbd {
+  font-size: var(--text-small);
+}

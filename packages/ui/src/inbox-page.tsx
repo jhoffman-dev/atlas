@@ -496,7 +496,7 @@ function InboxList({
     );
   }
   return (
-    <div className="table">
+    <div className="table inbox__list">
       <h2 className="inbox__section">
         To clarify <span className="inbox__section-count">{contents.total}</span>
         <span className="inbox__section-hint">

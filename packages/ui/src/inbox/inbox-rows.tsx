@@ -1,4 +1,4 @@
-import { Fragment, memo, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   createVaultPath,
   GTD_STATUSES,
@@ -48,6 +48,30 @@ export interface InboxRowsProps {
 /** A row's height until it is measured, as WebKit draws a note's. */
 const ROW_HEIGHT = 59;
 
+/** Below this width of the list (inbox.css, `data-narrow`) the kind goes and the controls and keys fold. */
+const NARROW_BELOW = 1100;
+
+/**
+ * Marks the Inbox list narrow, as it is resized, on the element itself: no
+ * render, and no container query, which would make the list the offset parent
+ * the virtualiser measures from (inbox.css).
+ */
+function useNarrowMark(body: RefObject<HTMLElement | null>): void {
+  useLayoutEffect(() => {
+    const list = body.current?.closest<HTMLElement>('.inbox__list');
+    if (list === null || list === undefined) return;
+    const mark = (width: number) => list.toggleAttribute('data-narrow', width <= NARROW_BELOW);
+    mark(list.clientWidth);
+    // Without one (jsdom) the width read now stands.
+    if (typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) mark(entry.contentRect.width);
+    });
+    watch.observe(list);
+    return () => watch.disconnect();
+  }, [body]);
+}
+
 /** A row's cells: its name, its kind, its triage keys, and how it is clarified. */
 const ROW_CELLS = 4;
 
@@ -74,6 +98,7 @@ export function InboxRows({
   const keys = useMemo(() => items.map((item) => item.path), [items]);
   const triageKeys = useMemo(() => triageKeysShown(statuses), [statuses]);
   const body = useRef<HTMLTableSectionElement>(null);
+  useNarrowMark(body);
   const list = useVirtualRows({
     content: body,
     keys,
