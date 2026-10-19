@@ -261,31 +261,52 @@
   background: color-mix(in srgb, var(--accent-text) 20%, transparent);
 }
 
-/* The tags page: the tree beside the chosen tag's notes, each a raised card. */
+/* The tags page (UI v2 slice 13g): the tree beside the chosen tag's notes,
+   the two divided by a hairline, each a fixed page's list (page.css
+   .page-list) — 34px rows at 13/500, the count in ink-3 at the row's end and
+   not shown at 0, the chosen tag on the active fill. No card, no shadow.
+
+   The page is the container its one-column layout measures against, since a
+   split pane at a wide window is narrow too — this element and never
+   `.page--wide`, whose containment broke the virtualised tables (13b). */
 .tags {
+  container: tags / inline-size;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.tags__columns {
   display: grid;
   flex: 1;
-  gap: 18px;
   grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
   min-height: 0;
+  min-width: 0;
 }
 
 .tags__index,
 .tags__detail {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
-  padding: var(--space-4);
 }
 
+.tags__index {
+  border-right: 1px solid var(--line);
+}
+
+.tags__detail {
+  gap: var(--space-3);
+}
+
+/* The sort, in a hairline section head over the tree. */
 .tags__toolbar {
+  border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: flex-end;
+  padding: var(--space-2) 12px;
 }
 
 .tags__tree,
@@ -293,14 +314,9 @@
 .tags__notes {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   list-style: none;
   margin: 0;
   padding: 0;
-}
-
-.tags__children {
-  margin-top: 2px;
 }
 
 .tags__row,
@@ -309,16 +325,17 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-bottom: 1px solid var(--line-soft);
   color: var(--ink);
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 600;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
   gap: 10px;
-  min-height: 34px;
-  padding: 0 10px;
+  height: 34px;
+  min-width: 0;
+  padding: 0 12px;
   text-align: left;
   width: 100%;
 }
@@ -336,9 +353,8 @@
 
 .tags__item--on > .tags__row,
 .tags__item--on > .tags__row:hover {
-  background: var(--you);
-  color: var(--you-ink);
-  font-weight: 700;
+  background: var(--selected);
+  color: var(--ink);
 }
 
 .tags__icon {
@@ -360,88 +376,104 @@
 }
 
 .tags__count {
-  background: var(--chip);
-  border-radius: var(--radius-chip);
   color: var(--ink-3);
-  font-size: var(--text-label);
+  flex: none;
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  padding: 2px 6px;
+}
+
+/* On the active fill ink-3 falls short of AA (4.3:1 in light), so the chosen
+   tag's count is lifted to ink-2, as the open automation's metadata is. */
+.tags__item--on > .tags__row .tags__count {
+  color: var(--ink-2);
 }
 
 .tags__hint {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   margin: 0;
-  padding: 4px 10px;
+  padding: var(--space-2) 12px;
 }
 
+/* What the last rename did: on the well under a hairline, as a notice bar. */
 .tags__notice {
-  background: var(--you);
-  border-radius: var(--radius-control);
-  color: var(--you-ink);
-  font-size: var(--text-small);
-  font-weight: 600;
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: var(--text-column);
   margin: 0;
-  padding: 8px 12px;
+  padding: 6px 12px;
 }
 
+/* The chosen tag heads its notes at 15/600 over a hairline (page.css
+   .page-section__title), its uses beside it in ink-3. */
 .tags__detail-head {
-  align-items: baseline;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
-  gap: var(--space-3);
-  padding: 0 10px;
+  gap: var(--space-2);
+  /* As tall as the sort beside it, so the two hairlines meet. */
+  min-height: 44px;
+  padding: var(--space-2) 12px;
 }
 
 .tags__title {
-  color: var(--accent-text);
-  font-size: var(--text-subtitle);
-  font-weight: 800;
+  color: var(--ink);
+  font-size: var(--text-section);
+  font-weight: 600;
   margin: 0;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tags__uses {
   color: var(--ink-3);
   flex: 1;
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
+/* Renaming: a form on the well between hairlines (page.css .page-form), its
+   label a column header, its field a 28px field. */
 .tag-rename {
-  background: var(--panel);
-  border-radius: var(--radius-card);
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
+  padding: var(--space-3) 12px;
 }
 
 .tag-rename__label {
   color: var(--ink-3);
-  font-size: var(--text-label);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: var(--text-header);
+  font-weight: 500;
 }
 
 .tag-rename__row {
   align-items: center;
-  background: var(--raised);
-  border: 1px solid var(--line);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-control);
   display: flex;
   gap: 2px;
-  padding: 0 10px;
+  height: 28px;
+  max-width: 360px;
+  padding: 0 8px;
 }
 
 .tag-rename__row:focus-within {
+  border-color: var(--focus);
   box-shadow: var(--ring);
 }
 
 .tag-rename__hash {
-  color: var(--accent-text);
-  font-weight: 700;
+  color: var(--ink-3);
+  font-weight: 500;
 }
 
 .tag-rename__input {
@@ -450,8 +482,8 @@
   color: var(--ink);
   flex: 1;
   font: inherit;
-  font-size: var(--text-body);
-  min-height: 34px;
+  font-size: var(--text-column);
+  min-width: 0;
   outline: none;
 }
 
@@ -502,9 +534,24 @@
   justify-content: flex-end;
 }
 
-@media (max-width: 720px) {
-  .tags {
-    grid-template-columns: minmax(0, 1fr);
+/* In a narrow pane (the page's width, not the window's) the tree sits over
+   the notes, the hairline between them turned under it. */
+@container tags (max-width: 720px) {
+  .tags__columns {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The tree takes its own height, up to half the pane; the notes the rest. */
+  .tags__index {
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
+    flex: 0 1 auto;
+    max-height: 50%;
+  }
+
+  .tags__detail {
+    flex: 1 1 0;
   }
 }
 

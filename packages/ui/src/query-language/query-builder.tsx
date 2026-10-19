@@ -75,6 +75,7 @@ function TypesRow({ builder, onChange, types }: QueryBuilderProps) {
       ))}
       {addable.length > 0 && (
         <ChoiceSelect
+          className="field"
           label="Add type"
           value=""
           choices={[{ value: '', label: '+ Type' }, ...addable]}
@@ -102,6 +103,7 @@ function ConditionsRow(props: QueryBuilderProps) {
         <span className="qb__match">
           Match
           <ChoiceSelect
+            className="field"
             label="Match"
             value={builder.match}
             choices={[
@@ -169,6 +171,7 @@ function ConditionRow({
         not
       </button>
       <ChoiceSelect
+        className="field"
         label={`Field ${number}`}
         value={condition.field}
         choices={fieldChoices(shared.fields, condition.field)}
@@ -178,6 +181,7 @@ function ConditionRow({
         }}
       />
       <ChoiceSelect
+        className="field"
         label={`Condition ${number}`}
         value={condition.op}
         choices={operators.map((op) => ({
@@ -236,6 +240,7 @@ function SortRow({ builder, onChange, fields }: QueryBuilderProps) {
       {builder.sort.map((key, at) => (
         <span className="qb__pair" key={at}>
           <ChoiceSelect
+            className="field"
             label={`Sort by ${at + 1}`}
             value={key.field}
             choices={fieldChoices(fields, key.field, isSortable)}
@@ -244,6 +249,7 @@ function SortRow({ builder, onChange, fields }: QueryBuilderProps) {
             }
           />
           <ChoiceSelect
+            className="field"
             label={`Direction ${at + 1}`}
             value={key.direction}
             choices={[
@@ -294,6 +300,7 @@ function GroupRow({ builder, onChange, fields }: QueryBuilderProps) {
   return (
     <Row label="Group">
       <ChoiceSelect
+        className="field"
         label="Group by"
         value={group}
         choices={[none, ...fieldChoices(fields, group, isGroupable)]}
@@ -303,6 +310,7 @@ function GroupRow({ builder, onChange, fields }: QueryBuilderProps) {
         <span className="qb__match">
           then
           <ChoiceSelect
+            className="field"
             label="Then group by"
             value={then}
             choices={[
@@ -331,7 +339,7 @@ function OptionsRow({ builder, onChange }: QueryBuilderProps) {
       <label className="qb__check">
         At most
         <input
-          className="qb__limit"
+          className="field qb__limit"
           type="number"
           min={1}
           aria-label="Row limit"

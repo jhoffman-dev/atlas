@@ -56,17 +56,19 @@ export function QueryPage(props: QueryPageProps) {
     insertAtCursor({ editor, sql: props.sql, text, onChange: props.onSqlChange });
   return (
     <div className="query">
-      <section className="query__main" aria-label="Query">
-        <SqlEditor
-          editor={editor}
-          sql={props.sql}
-          onChange={props.onSqlChange}
-          onRun={props.onRun}
-        />
-        <QueryActions {...props} />
-        <QueryResult {...props} />
-      </section>
-      <SchemaList schema={props.schema} onInsert={insert} />
+      <div className="query__layout">
+        <section className="query__main" aria-label="Query">
+          <SqlEditor
+            editor={editor}
+            sql={props.sql}
+            onChange={props.onSqlChange}
+            onRun={props.onRun}
+          />
+          <QueryActions {...props} />
+          <QueryResult {...props} />
+        </section>
+        <SchemaList schema={props.schema} onInsert={insert} />
+      </div>
     </div>
   );
 }
