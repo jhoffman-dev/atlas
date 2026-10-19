@@ -1,4 +1,5 @@
 import {
+  indexedTexts,
   proposalSlotOf,
   splitFrontmatter,
   type ProposalNote,
@@ -32,11 +33,9 @@ export async function manyValuedSlots({
     const text = await textOf(fs, slot.note);
     if (text === null) continue;
     const properties = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
-    const typeName = properties['type'];
-    if (typeof typeName !== 'string') continue;
-    const folded = typeName.trim().toLowerCase();
+    const typeNames = indexedTexts(properties['type']).map((name) => name.trim().toLowerCase());
     const relation = types
-      .find((type) => type.name.trim().toLowerCase() === folded)
+      .find((type) => typeNames.includes(type.name.trim().toLowerCase()))
       ?.properties.find((each) => each.key === slot.property && each.kind === 'relation');
     if (relation !== undefined && relation.many) many.push(slot);
   }

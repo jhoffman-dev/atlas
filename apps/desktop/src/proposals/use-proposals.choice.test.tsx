@@ -99,6 +99,18 @@ describe('the listing', () => {
     ]);
   });
 
+  it('reads a note whose type is a list, as the rest of the app does', async () => {
+    const listed = {
+      ...notes(true),
+      [MEETING]: '---\ntype: [meeting]\npeople: []\n---\n',
+    };
+    const hook = drive(vault(listed).ports);
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+    expect(hook.result.current.section.contents?.manyValued).toEqual([
+      { note: MEETING, property: 'people' },
+    ]);
+  });
+
   it('names none for a relation that holds one', async () => {
     const hook = drive(vault(notes(false)).ports);
     await waitFor(() => expect(hook.result.current.count).toBe(2));
