@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type NavigationPlace } from '@atlas/domain';
+import { createAsideStore } from '../aside/aside-store.ts';
+import { createShownNotes } from '../aside/shown-notes.ts';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';
 import { TabStripContainer } from './tab-strip-container.tsx';
@@ -21,15 +23,21 @@ const note = (name: string): NavigationPlace => ({
   path: createVaultPath(`${name}.md`),
 });
 
+/** The window's other stores, none of which the strip reads. */
+const windowStores = () => ({
+  reveals: createRevealStore(),
+  overlays: createOverlayStore(),
+  aside: createAsideStore({ remembered: { read: () => null, write: () => {} } }),
+  shown: createShownNotes(),
+});
+
 /** What a place is called here: a note by its file's name, a page by its kind. */
 const nameOf = (place: NavigationPlace) =>
   place.kind === 'note' ? place.path.replace(/\.md$/, '') : place.kind;
 
 function show(store: WorkspaceStore, { pane = 0, focused = true } = {}) {
   return render(
-    <WorkspaceStoresProvider
-      value={{ store, reveals: createRevealStore(), overlays: createOverlayStore(), nameOf }}
-    >
+    <WorkspaceStoresProvider value={{ store, ...windowStores(), nameOf }}>
       <TabStripContainer pane={pane} focused={focused} />
     </WorkspaceStoresProvider>,
   );
@@ -118,9 +126,7 @@ describe('TabStripContainer', () => {
     const { container, rerender } = show(store, { focused: true });
     expect(container.querySelector('.tab-strip--focused')).not.toBeNull();
     rerender(
-      <WorkspaceStoresProvider
-        value={{ store, reveals: createRevealStore(), overlays: createOverlayStore(), nameOf }}
-      >
+      <WorkspaceStoresProvider value={{ store, ...windowStores(), nameOf }}>
         <TabStripContainer pane={0} focused={false} />
       </WorkspaceStoresProvider>,
     );

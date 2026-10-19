@@ -34,6 +34,8 @@ export interface AppShortcuts {
   readonly show: (overlay: Overlay) => void;
   /** Opens or closes Claude, beside the work. */
   readonly toggleChat: () => void;
+  /** Shows or hides the right sidebar: Alt+Cmd+\ (UI v2 plan, question 2). */
+  readonly toggleAside: () => void;
 }
 
 export interface TabShortcuts {
@@ -143,10 +145,27 @@ export function useAppShortcuts(
         if (!held) latest.current.quickAdd();
       }
       // Shift excluded: Shift+Cmd+\ splits, and Cmd+\ has shut the sidebar
-      // since long before there was a split to bind it to.
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key === '\\') {
+      // since long before there was a split to bind it to. Alt excluded: that
+      // is the right sidebar's.
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key === '\\'
+      ) {
         event.preventDefault();
         if (!held) toggleSidebar();
+      }
+      // Alt+Cmd+\ shows and hides the right sidebar. Matched by the key's
+      // place as Alt+Cmd+N is: Alt turns the backslash into « on a Mac layout.
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.altKey &&
+        !event.shiftKey &&
+        (event.code === 'Backslash' || event.key === '\\')
+      ) {
+        event.preventDefault();
+        if (!held) latest.current.toggleAside();
       }
       // Shift+Cmd+\ splits the window, and closes the pane you are in once it
       // is split — one key going both ways, as Cmd+\ does for the sidebar. The

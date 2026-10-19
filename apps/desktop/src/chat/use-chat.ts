@@ -23,7 +23,7 @@ import {
   type ProfileState,
   type VaultPath,
 } from '@atlas/domain';
-import type { ChatProblemView } from '@atlas/ui';
+import type { ChatDraft, ChatProblemView } from '@atlas/ui';
 import { localClock } from '../today.ts';
 import type { ClipboardWriter } from '../settings/clipboard.ts';
 import type { ChatSettings, ChatSettingsStore } from './chat-settings-store.ts';
@@ -56,8 +56,21 @@ export interface ChatVault {
   readonly onChanged: () => void;
 }
 
+/** Where the chat sits and whether it is showing, decided outside the chat. */
+export interface ChatSeat {
+  readonly open: boolean;
+  /** Whether the seat was asked for this session, as against remembered across a launch. */
+  readonly asked: boolean;
+  readonly toggle: () => void;
+  readonly close: () => void;
+}
+
 export interface ChatController {
   readonly open: boolean;
+  /** The question being typed: kept here, since the panel comes and goes with the aside's tab. */
+  readonly draft: ChatDraft;
+  /** Whether the panel should take the keys as it mounts: only when it was asked for. */
+  readonly focusOnMount: boolean;
   readonly toggle: () => void;
   readonly close: () => void;
   readonly state: ChatState;
@@ -87,6 +100,7 @@ export function useChat({
   window: shown,
   clipboard,
   settingsOpen,
+  seat,
   activity,
   profile,
 }: {
@@ -101,8 +115,18 @@ export function useChat({
   activity: ActivityLog;
   /** Who the person is, from Settings → Profile; told to the model with each question. */
   profile: ProfileState;
+  /**
+   * The chat's seat: the right sidebar's Claude tab (UI v2 plan, question 4).
+   * Whether it is on screen, and the way to bring it up or put it away.
+   */
+  seat: ChatSeat;
 }): ChatController {
-  const [open, setOpen] = useState(false);
+  const { open } = seat;
+  const [draftText, setDraftText] = useState('');
+  const draft = useMemo<ChatDraft>(
+    () => ({ text: draftText, onChange: setDraftText }),
+    [draftText],
+  );
   const [settings, setStoredSettings] = useState(() => store.read());
   const latest = useRef({ vault, settings, ports });
   latest.current = { vault, settings, ports };
@@ -169,13 +193,13 @@ export function useChat({
     [store],
   );
 
-  // One function for the window's life: every page's bar is handed it (#325).
-  const toggle = useCallback(() => setOpen((was) => !was), []);
-
   return {
     open,
-    toggle,
-    close: () => setOpen(false),
+    draft,
+    focusOnMount: seat.asked,
+    // One function for the window's life, the seat's: every page's bar is handed it (#325).
+    toggle: seat.toggle,
+    close: seat.close,
     state,
     session,
     model: chatModelOrDefault(settings.model),

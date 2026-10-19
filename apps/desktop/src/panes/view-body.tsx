@@ -299,6 +299,7 @@ export function ViewBody({
   fs,
   choosing,
   folds,
+  onRowFocus,
 }: {
   view: SavedView;
   /** The tray of tasks to plan, for a calendar of blocks. */
@@ -319,6 +320,8 @@ export function ViewBody({
   fs: VaultFsPort;
   /** Select mode: while it is on, a table's rows lead with a box to choose them by. */
   choosing: ViewChoosing;
+  /** Told the row a table's focus landed in, for the right sidebar; left out, nothing follows it. */
+  onRowFocus?: (path: string) => void;
 }) {
   const schema = schemaOf(view.type, view.query?.type ?? '');
   // Spread rather than passed, so a type with no done option draws no boxes.
@@ -347,6 +350,7 @@ export function ViewBody({
           onNewNote={() => addAndOpen(view, onOpenNote)}
           hiddenColumns={view.hidden}
           {...ticks}
+          {...(onRowFocus !== undefined && { onRowFocus })}
           {...(choose && { selection: choosing.selection })}
           {...(view.display.groupBy !== null && {
             grouping: {

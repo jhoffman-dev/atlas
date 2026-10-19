@@ -96,6 +96,12 @@ describe('ChatPanel, with no name in the profile', () => {
 });
 
 describe('ChatPanel', () => {
+  it('takes the keys on mount only when the mount was asked for', () => {
+    panel({}, { focusOnMount: false });
+    const box = screen.getByRole('textbox', { name: 'Ask Claude' });
+    expect(document.activeElement).not.toBe(box);
+  });
+
   it('opens with the window as a removable chip, and sends what is typed on Enter', async () => {
     const user = userEvent.setup();
     const { handlers } = panel({ context: { kind: 'note', title: 'Q3 plan' } });
