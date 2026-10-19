@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { createVaultPath, placeCrumb, type PaletteCommand } from '@atlas/domain';
 import type { SearchHit } from '@atlas/application';
@@ -67,6 +68,19 @@ export function SearchPalette({
   archived?: ArchivedToggle;
 }) {
   const finalFocus = useReturnFocus(fallbackFocus);
+  const hitsRef = useRef<HTMLUListElement>(null);
+  // The selection the list was last scrolled for. It starts at the one the
+  // palette opens on, which is already drawn in view: opening does no scroll work.
+  const scrolledFor = useRef(selected);
+  useEffect(() => {
+    if (scrolledFor.current === selected) return;
+    scrolledFor.current = selected;
+    // No list is drawn while nothing matches, and then there is nothing to keep in
+    // view; jsdom has no scrollIntoView, and with nothing laid out nothing needs it.
+    hitsRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest' });
+  }, [selected]);
   return (
     <Dialog.Root
       open
@@ -120,7 +134,7 @@ export function SearchPalette({
             {query.trim() !== '' && hits.length === 0 && commands.length === 0 ? (
               <p className="palette__empty">Nothing matches.</p>
             ) : (
-              <ul className="palette__hits" role="listbox" aria-label="Results">
+              <ul ref={hitsRef} className="palette__hits" role="listbox" aria-label="Results">
                 {commands.map((command, index) => (
                   <li key={command.id}>
                     <CommandRow
@@ -210,7 +224,7 @@ function Hit({
         onPick(hit.path);
       }}
     >
-      <span className="palette__kind">
+      <span className="palette__kind" aria-hidden="true">
         <Icon name={sidebarGlyph(place.icon)} size={16} />
       </span>
       <span className="palette__text">

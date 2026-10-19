@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from 'react';
 import type { ActivityLog, ApiSettingsPort } from '@atlas/application';
+import type { SettingsSectionLink, ThemeStore } from '@atlas/ui';
 import { settingsDialog } from '../pages-on-first-use.ts';
 import type { ClipboardWriter } from './clipboard.ts';
 import { mcpAddCommand } from './mcp-command.ts';
@@ -19,14 +20,20 @@ export interface SettingsPorts {
 /** Settings, wired to the host. */
 export function SettingsPanel({
   ports,
+  themeStore,
   activity,
+  sections,
   onClose,
   fallbackFocus,
   children,
 }: {
   ports: SettingsPorts;
+  /** Where the theme choice is kept, for Settings → Appearance. */
+  themeStore: ThemeStore;
   /** Where a change to the connection that fails is recorded. */
   activity: Pick<ActivityLog, 'inOpenVault'>;
+  /** The sections `children` draws, in order, for the dialog's list of them. */
+  sections?: readonly SettingsSectionLink[];
   onClose: () => void;
   fallbackFocus?: () => HTMLElement | null;
   /** Sections after Connections, which the app supplies. */
@@ -41,6 +48,7 @@ export function SettingsPanel({
       <SettingsDialog
         connection={connection}
         mcp={mcp}
+        themeStore={themeStore}
         onEnable={connection.setEnabled}
         onCopyToken={connection.copyToken}
         onRotateToken={connection.rotateToken}
@@ -48,6 +56,7 @@ export function SettingsPanel({
           connection.copyText({ text: mcp.command, notice: 'MCP command copied' })
         }
         onClose={onClose}
+        {...(sections ? { sections } : {})}
         {...(fallbackFocus ? { fallbackFocus } : {})}
       >
         {children}

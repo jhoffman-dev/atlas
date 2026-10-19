@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ChoiceSelect } from '../choice-select.tsx';
-import { SettingsCard } from '../settings-card.tsx';
+import { SettingsSection } from '../settings-section.tsx';
+import { SETTINGS_SECTIONS } from '../settings-section-links.ts';
 import { Toggle } from '../toggle.tsx';
 import {
   RepositoryPicker,
@@ -69,7 +70,7 @@ export function SyncSettings({
   ...actions
 }: { view: SyncSettingsView } & SyncSettingsActions) {
   return (
-    <SettingsCard id="settings-sync" icon="cloud" title="Sync">
+    <SettingsSection section={SETTINGS_SECTIONS.sync}>
       <p className="settings__lede">
         Keep this vault the same on each of your Macs through a private GitHub repository. Atlas
         uses the GitHub login already on this Mac and never stores it. Secrets stay in each Mac’s
@@ -87,7 +88,7 @@ export function SyncSettings({
         </span>
         {view.stage === 'set-up' && (
           <button
-            className="btn btn--tinted btn--sm"
+            className="btn btn--secondary"
             type="button"
             disabled={view.busy}
             onClick={actions.onSyncNow}
@@ -105,7 +106,7 @@ export function SyncSettings({
       <NotSynced paths={view.notSynced} ignored={view.ignored} />
       {view.stage === 'not-set-up' && <SetUpForms view={view} {...actions} />}
       {view.stage === 'set-up' && <SyncedControls view={view} {...actions} />}
-    </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -194,7 +195,7 @@ function SetUpForms({
           onChange={(event) => setName(event.target.value)}
         />
         <button
-          className="btn btn--primary btn--sm"
+          className="btn btn--primary"
           type="submit"
           disabled={view.busy || name.trim() === ''}
         >
@@ -219,7 +220,7 @@ function SetUpForms({
           onChange={(event) => setUrl(event.target.value)}
         />
         <button
-          className="btn btn--tinted btn--sm"
+          className="btn btn--secondary"
           type="submit"
           disabled={view.busy || url.trim() === ''}
         >

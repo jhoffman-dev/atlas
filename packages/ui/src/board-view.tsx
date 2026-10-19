@@ -17,7 +17,7 @@ import {
   type PropertyKind,
 } from '@atlas/domain';
 import { AddCard, Card, LiftedCard, type CardLook } from './board-card.tsx';
-import { BoardLanes, ColumnHeading, keyOf, laneCellLabel } from './board-lanes.tsx';
+import { BoardLanes, ColumnHeading, columnName, keyOf, laneCellLabel } from './board-lanes.tsx';
 import type { DoneTicks } from './done-checkbox.tsx';
 import type { GroupFolds } from './group-folds.ts';
 import { boardWords } from './drag/announcements.ts';
@@ -263,26 +263,25 @@ function ColumnView({
 }) {
   const [adding, setAdding] = useState(false);
   const count = column.rows.length;
+  const name = columnName(column);
 
   return (
-    <Droppable id={keyOf(column)} label={column.label} className="board__column">
+    <Droppable id={keyOf(column)} label={name} className="board__column">
       <header className="board__heading">
         <ColumnHeading column={column} />
         {/* In the header, where a full column cannot push it out of sight. */}
         <button
           type="button"
           className="icon-button board__add-top"
-          aria-label={`Add to ${column.label}`}
-          title={`Add to ${column.label}`}
+          aria-label={`Add to ${name}`}
+          title={`Add to ${name}`}
           onClick={() => setAdding(true)}
         >
           <Icon name="plus" size={15} />
         </button>
       </header>
 
-      {adding && (
-        <AddCard label={column.label} onAdd={onAddCard} onClose={() => setAdding(false)} />
-      )}
+      {adding && <AddCard label={name} onAdd={onAddCard} onClose={() => setAdding(false)} />}
 
       {count === 0 && !adding ? (
         <p className="board__empty">No tasks</p>
@@ -434,7 +433,7 @@ function columnLookup(columns: readonly BoardColumn[]): BoardLookup {
   return lookupOf([
     columns.map((column) => ({
       id: keyOf(column),
-      label: column.label,
+      label: columnName(column),
       column,
       lane: null,
       rows: column.rows,

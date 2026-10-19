@@ -132,6 +132,48 @@ describe('TodayPage', () => {
     expect(underWay.getByText('@deep')).toBeDefined();
   });
 
+  it('joins a row’s metadata on one line, a · between each piece and none before the first', () => {
+    page();
+    const pieces = section('Overdue').querySelector('.today__pieces') as HTMLElement;
+    // Its status, its project and its day: two dots between three pieces.
+    expect(pieces.textContent).toBe('Backlog·Atlas·Due 2026-10-10');
+    const dots = [...pieces.querySelectorAll('.today__sep')];
+    expect(dots).toHaveLength(2);
+    expect(dots.every((dot) => dot.getAttribute('aria-hidden') === 'true')).toBe(true);
+    expect(pieces.firstElementChild?.classList.contains('today__sep')).toBe(false);
+    expect(pieces.lastElementChild?.classList.contains('today__sep')).toBe(false);
+  });
+
+  it('leaves the metadata line empty, with no dot, for a row that has nothing to say', () => {
+    page();
+    // Under Next actions the project is the group's name, so an undated,
+    // uncontexted task says nothing beside its title.
+    const row = within(section('Next actions')).getByText('Call the bank').closest('tr')!;
+    const pieces = row.querySelector('.today__pieces') as HTMLElement;
+    expect(pieces.textContent).toBe('');
+    expect(pieces.querySelector('.today__sep')).toBeNull();
+  });
+
+  it('draws no count on a group that holds no tasks', () => {
+    const made = report();
+    const sections = made.sections.map((item) =>
+      item.id === 'nextActions'
+        ? {
+            ...item,
+            groups: [
+              ...item.groups,
+              { key: 'Projects/Shed.md', label: 'Shed', project: null, tasks: [] },
+            ],
+          }
+        : item,
+    );
+    page({ today: { ...made, sections } });
+    const named = within(section('Next actions')).getByRole('group', { name: 'Atlas' });
+    expect(named.querySelector('.review__count')?.textContent).toBe('2');
+    const empty = within(section('Next actions')).getByRole('group', { name: 'Shed' });
+    expect(empty.querySelector('.review__count')).toBeNull();
+  });
+
   it('groups next actions under their project, with those under none named last', () => {
     page();
     const groups = within(section('Next actions')).getAllByRole('group');

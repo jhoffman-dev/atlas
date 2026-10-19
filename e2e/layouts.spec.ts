@@ -48,13 +48,14 @@ const task = (title: string, status: string, body: string) =>
     '',
   ].join('\n');
 
-async function openVault(page: Page) {
+async function openVault(page: Page, extra: readonly { name: string; content: string }[] = []) {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.mkdir('.atlas/views');
   await vault.write('.atlas/types/task.md', TASK_TYPE);
   await vault.write('.atlas/views/All tasks.md', view('All tasks', 'table'));
   await vault.write('.atlas/views/Board.md', view('Board', 'board', ['groupBy: status']));
+  for (const file of extra) await vault.write(file.name, file.content);
   await vault.write(
     'first.md',
     task('First', 'review', 'The first task’s body, pointing at [[Second]].'),
@@ -94,14 +95,14 @@ test('ticking a task in a table marks it done, the board follows, and unticking 
     .getByRole('navigation', { name: 'Views' })
     .getByRole('button', { name: 'Board' })
     .click();
-  const doneColumn = page.getByRole('region', { name: 'done' });
+  const doneColumn = page.getByRole('region', { name: 'Done' });
   await expect(doneColumn.getByRole('button', { name: 'first', exact: true })).toBeVisible();
   await expect(doneColumn.getByRole('checkbox', { name: 'Mark First done' })).toBeChecked();
 
   // Unticked on the board: back to review, where it was before — not the start.
   await doneColumn.getByRole('checkbox', { name: 'Mark First done' }).click();
   await expectFile(vault, 'first.md').toContain('status: review');
-  const reviewColumn = page.getByRole('region', { name: 'review' });
+  const reviewColumn = page.getByRole('region', { name: 'Review' });
   await expect(reviewColumn.getByRole('button', { name: 'first', exact: true })).toBeVisible();
 });
 
@@ -168,6 +169,115 @@ test('a new view can be made as a feed', async ({ page }) => {
   await expect(
     page.getByRole('article', { name: 'First' }).getByLabel('Body of First'),
   ).toContainText('pointing at');
+});
+
+/**
+ * UI v2 slice 13d: what each layout *renders* — a list row is the table's
+ * 34px row on `line-soft`; a gallery card is the board's card, one hairline
+ * with no shadow and no lift under the pointer; a feed row sits on
+ * `line-soft`. Measured against the token as painted, not the sheet's words.
+ */
+test('list rows are 34px on line-soft, gallery cards hairline and still, feed rows on line-soft', async ({
+  page,
+}) => {
+  await openVault(page);
+  await openView(page, 'All tasks');
+  const choose = async (layout: string) => {
+    await page.getByRole('button', { name: 'Layout', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: new RegExp(`^${layout}`) }).click();
+  };
+  // A token as the browser paints it, so the comparison is colour to colour.
+  const painted = (token: string) =>
+    page.evaluate((name) => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = `var(${name})`;
+      document.body.append(probe);
+      const colour = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return colour;
+    }, token);
+  const lineSoft = await painted('--line-soft');
+  const line = await painted('--line');
+  // The row holding First, wherever the query's order puts it.
+  const rowOf = (inner: ReturnType<Page['getByRole']>) =>
+    page.getByRole('list', { name: 'Notes' }).getByRole('listitem').filter({ has: inner });
+
+  await choose('List');
+  const row = rowOf(page.getByRole('button', { name: 'first', exact: true }));
+  await expect(row).toHaveCSS('height', '34px');
+  await expect(row).toHaveCSS('border-bottom-color', lineSoft);
+  await expect(row).toHaveCSS('border-bottom-width', '1px');
+
+  await choose('Gallery');
+  const card = rowOf(page.getByRole('button', { name: 'first', exact: true }));
+  await expect(card).toHaveCSS('border-top-width', '1px');
+  await expect(card).toHaveCSS('border-top-color', line);
+  await expect(card).toHaveCSS('border-top-left-radius', '0px');
+  await expect(card).toHaveCSS('box-shadow', 'none');
+  const resting = await card.boundingBox();
+  await card.hover();
+  await expect(card).toHaveCSS('box-shadow', 'none');
+  await expect(card).toHaveCSS('transform', 'none');
+  expect(await card.boundingBox()).toEqual(resting);
+
+  await choose('Feed');
+  const feedRow = rowOf(page.getByRole('article', { name: 'First' }));
+  await expect(feedRow).toHaveCSS('border-bottom-color', lineSoft);
+  await expect(feedRow).toHaveCSS('box-shadow', 'none');
+  await expect(feedRow.getByRole('checkbox', { name: 'Mark First done' })).toBeVisible();
+});
+
+/**
+ * A title with nothing to break at (a 130-character slug) wraps inside its
+ * feed row rather than running out of it; and in a pane too narrow for a list
+ * row's fields, the fields are cut at the row's edge rather than overflowing
+ * it. The narrow view lists two fields so the row has something to cut.
+ */
+test('an unbroken title stays inside its feed row, and a narrow list row cuts its fields', async ({
+  page,
+}) => {
+  const unbroken = 'u'.repeat(130);
+  const narrowView = [
+    '---',
+    'atlas: view',
+    'type: task',
+    'layout: list',
+    'columns: [phase, status]',
+    'limit: 50',
+    '---',
+    '',
+    '# Narrow',
+    '',
+  ].join('\n');
+  await openVault(page, [
+    { name: `${unbroken}.md`, content: task(unbroken, 'backlog', 'A body.') },
+    { name: '.atlas/views/Narrow.md', content: narrowView },
+  ]);
+  await openView(page, 'All tasks');
+  await page.getByRole('button', { name: 'Layout', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: /^Feed/ }).click();
+  const article = page.getByRole('article', { name: unbroken });
+  const row = page
+    .getByRole('list', { name: 'Notes' })
+    .getByRole('listitem')
+    .filter({ has: article });
+  const title = article.getByRole('button', { name: unbroken });
+  await expect(title).toBeVisible();
+  const [rowBox, titleBox] = await Promise.all([row.boundingBox(), title.boundingBox()]);
+  expect(rowBox).not.toBeNull();
+  expect(titleBox).not.toBeNull();
+  expect((titleBox?.x ?? 0) + (titleBox?.width ?? 0)).toBeLessThanOrEqual(
+    (rowBox?.x ?? 0) + (rowBox?.width ?? 0) + 0.5,
+  );
+
+  await page.setViewportSize({ width: 420, height: 900 });
+  await openView(page, 'Narrow');
+  const list = page.getByRole('list', { name: 'Notes' });
+  await expect(list.getByRole('button', { name: 'first', exact: true })).toBeVisible();
+  // Nothing in any row runs past the list's own box.
+  await expect
+    .poll(() => list.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBe(0);
 });
 
 test('the Layout menu says why a calendar cannot be chosen for a type with no date', async ({

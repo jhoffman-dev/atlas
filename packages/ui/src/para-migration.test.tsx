@@ -130,3 +130,30 @@ describe('ParaMigration', () => {
     expect(container.innerHTML).toBe('');
   });
 });
+
+/** #319: the offer is the one-line notice bar, its verbs at the end, grown open for the preview. */
+describe('ParaMigration as the notice bar (#319)', () => {
+  const region = () => screen.getByRole('region', { name: 'Move notes onto the Project type' });
+  const classes = (element: Element) => [...element.classList];
+
+  it('is the bar, with Preview the move as the secondary verb and Not now as the ghost one', () => {
+    panel();
+    expect(classes(region())).toEqual(
+      expect.arrayContaining(['notice-bar', 'inbox__offer', 'task-migration']),
+    );
+    expect(classes(region())).not.toContain('notice-bar--open');
+    const [first, second] = screen.getAllByRole('button');
+    expect(first?.textContent).toBe('Preview the move');
+    expect(classes(first!)).toEqual(expect.arrayContaining(['btn', 'btn--secondary', 'btn--sm']));
+    expect(second?.textContent).toBe('Not now');
+    expect(classes(second!)).toEqual(expect.arrayContaining(['btn', 'btn--ghost', 'btn--sm']));
+  });
+
+  it('carries --open while the preview shows under the line, whose run button is secondary too (one primary per view)', () => {
+    panel({ open: true });
+    expect(classes(region())).toContain('notice-bar--open');
+    const run = screen.getByRole('button', { name: 'Move 3 notes' });
+    expect(classes(run)).toContain('btn--secondary');
+    expect(classes(run)).not.toContain('btn--primary');
+  });
+});

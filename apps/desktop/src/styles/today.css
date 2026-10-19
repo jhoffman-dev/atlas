@@ -3,8 +3,11 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- the Today page (#111) ----
-   The weekly review's daily sibling, drawn with its sections: a strip of what
-   waits elsewhere, then tables of tasks, some under a project or a person. */
+   The weekly review's daily sibling, drawn with its sections (UI v2 slice
+   13a): a strip of what waits elsewhere, then the 15/600 section titles of
+   weekly-review.css over the table view's 34px rows (table.css), each row's
+   metadata on one line with a · between the pieces, and the last action on
+   a well notice bar. */
 
 .today__elsewhere {
   display: flex;
@@ -13,21 +16,28 @@
   margin-top: var(--space-4);
 }
 
+/* A secondary button (primitives.css .btn--secondary), not a pill: the
+   count and the words beside it are what the button says. */
 .today__link {
   align-items: center;
   appearance: none;
-  background: var(--raised);
-  border: 0;
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-soft);
-  color: var(--ink);
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--btn-secondary-line);
+  border-radius: var(--radius-button);
+  color: var(--btn-secondary-ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 600;
+  /* 12.5px/500: what `.btn` reads (primitives.css), this being a button. */
+  font-size: var(--text-column);
+  font-weight: 500;
   gap: var(--space-2);
-  padding: 8px 14px;
+  height: 28px;
+  padding: 0 10px;
+}
+
+.today__link:hover {
+  background: var(--hover);
 }
 
 .today__link:focus-visible,
@@ -49,21 +59,28 @@
   margin-left: var(--space-2);
 }
 
+/* The last action, on the well between two hairlines, as a notice bar is
+   drawn: the tokens the shared `.notice-bar` of slice 13j (#367) reads, so
+   this becomes that class once it has merged. */
 .today__notice {
   align-items: center;
-  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
-  border-radius: var(--radius-card);
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  color: var(--ink);
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  /* 12.5px, the size the shared `.notice-bar` says its words at, so the two
+     bars read alike once this becomes it. */
+  font-size: var(--text-column);
+  gap: var(--space-2) 10px;
   margin-top: var(--space-3);
-  padding: 6px 12px 6px 16px;
+  min-height: 40px;
+  padding: 6px 12px;
 }
 
 .today__notice-text {
-  color: var(--ink);
   flex: 1;
-  font-size: var(--text-small);
   margin: 0;
   min-width: 20ch;
 }
@@ -119,18 +136,16 @@
   text-decoration: underline;
 }
 
+/* One line of metadata: no chip per value, a · in the separator grey
+   between each (the brief, §3 rule 4). */
 .today__pieces {
   align-items: center;
   display: inline-flex;
-  gap: var(--space-3);
+  gap: 6px;
 }
 
-.today__context {
-  background: var(--chip);
-  border-radius: var(--radius-chip);
-  color: var(--ink-2);
-  font-size: var(--text-small);
-  padding: 2px 8px;
+.today__sep {
+  color: var(--sep);
 }
 
 .today__late {

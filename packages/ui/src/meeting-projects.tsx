@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Icon } from './icon.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
+import { noticeBarClass } from './notice-bar.ts';
 
 /** A meeting with no project, as the preview lists it. */
 export interface MeetingProjectRow {
@@ -52,9 +53,12 @@ export function MeetingProjects(props: MeetingProjectsProps) {
   const { rows, open, result, problem, canUndo } = props;
   if (rows === null && result === null && problem === null && !canUndo) return null;
   return (
-    <section className="inbox__offer task-migration" aria-label="File meetings under projects">
-      <Icon name="event" size={16} className="inbox__offer-icon" />
-      <div className="inbox__offer-text">
+    <section
+      className={noticeBarClass('inbox__offer task-migration', open)}
+      aria-label="File meetings under projects"
+    >
+      <Icon name="event" size={14} className="notice-bar__icon" />
+      <div className="notice-bar__text">
         {rows !== null && !open && <Offer {...props} rows={rows} />}
         {rows !== null && open && <Preview {...props} rows={rows} />}
         {result !== null && <p role="status">{result}</p>}
@@ -102,7 +106,7 @@ function Offer({
           ? 'Nothing in their series says which.'
           : `${suggested} can be filed as their series, or their other copy, is.`}
       </p>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpen}>
+      <button type="button" className="btn btn--secondary btn--sm" onClick={onOpen}>
         Preview
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>
@@ -131,7 +135,7 @@ function Preview(props: MeetingProjectsProps & { rows: readonly MeetingProjectRo
       <div className="task-migration__actions">
         <button
           type="button"
-          className="btn btn--sm"
+          className="btn btn--secondary btn--sm"
           onClick={onRun}
           disabled={busy || chosen === 0}
         >

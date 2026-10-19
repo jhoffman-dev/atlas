@@ -144,7 +144,7 @@ test('a relation set through the note reads as the note it names, everywhere it 
   await sidebarSection(page, 'views')
     .getByRole('button', { name: 'Task board', exact: true })
     .click();
-  const next = page.getByRole('region', { name: 'next', exact: true });
+  const next = page.getByRole('region', { name: 'Next', exact: true });
   await expect(next.getByText('Atlas', { exact: true })).toBeVisible();
   await expect(next.getByText('Ada Lovelace, Grace Hopper', { exact: true })).toBeVisible();
   await expect(next).not.toContainText('[[');

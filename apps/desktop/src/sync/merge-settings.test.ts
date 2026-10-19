@@ -126,6 +126,30 @@ describe('mergeSettings (#233)', () => {
     ).toBeNull();
   });
 
+  // #394: key texts keep the block's indent, so they still join back into the
+  // block exactly and an indented file merges by its keys like any other.
+  describe('a file whose keys are indented', () => {
+    const indented = (by: number, text: string) =>
+      text.replace(/^(?!---)(?=.)/gm, (_, at: number) =>
+        at < text.indexOf('\n---\n', 4) ? ' '.repeat(by) : '',
+      );
+
+    it('merges by its keys: a key the other side added comes in at the block’s indent', () => {
+      const base = indented(2, typeFile(ATTENDEES));
+      const theirs = indented(2, typeFile(ATTENDEES, { extra: 'icon: calendar' }));
+      const merged = merge({ base, ours: base, theirs });
+      expect(merged).toBe(base.replace('\n---\n', '\n  icon: calendar\n---\n'));
+      expect(keysOf(merged!)).toEqual(['attendees']);
+    });
+
+    it('is null when the two sides indent their keys differently: lines cannot be mixed', () => {
+      const base = indented(2, typeFile(ATTENDEES));
+      const ours = indented(2, typeFile([...ATTENDEES, ...TASKS]));
+      const theirs = indented(4, typeFile(ATTENDEES, { extra: 'icon: calendar' }));
+      expect(merge({ base, ours, theirs })).toBeNull();
+    });
+  });
+
   it('is null for a file whose frontmatter cannot be read, or that has none', () => {
     const base = typeFile(ATTENDEES);
     expect(merge({ base, ours: '---\nname: [\n---\n', theirs: base })).toBeNull();

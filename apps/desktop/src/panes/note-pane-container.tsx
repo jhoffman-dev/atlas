@@ -122,6 +122,7 @@ import { pageArchiveItems } from '../archive/archive-menu.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
 import type { TickMemory } from '../query/tick-memory.ts';
+import { createBrowserQueryFoldStore } from '../query/browser-query-fold-store.ts';
 import { useGroupFolds } from '../query/use-group-folds.ts';
 
 // Loaded on first use: most notes are neither a dashboard nor an artifact.
@@ -482,12 +483,14 @@ function useNotePane({
     activity: context.activity,
   });
   const sqlView = useSqlView({ note: note.open, index, indexKey });
-  const folds = useGroupFolds({
-    store: context.groupFolds,
-    view: `${context.vault ?? ''}\u0000${path ?? ''}`,
-  });
+  const viewKey = `${context.vault ?? ''}\u0000${path ?? ''}`;
+  const folds = useGroupFolds({ store: context.groupFolds, view: viewKey });
+  // Each pane's own: the store reads this Mac's storage through, so a fold
+  // made in one pane is what the other sees when it opens the view.
+  const [queryFolds] = useState(createBrowserQueryFoldStore);
   const queryView = useQueryView({
     folds,
+    queryFold: { store: queryFolds, view: viewKey },
     note: note.open,
     ports: { index, fs: notes.fs, markdown: notes.markdown, editors, activity: context.activity },
     types,

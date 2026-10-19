@@ -107,7 +107,7 @@ async function pointerSensorReleased(page: Page) {
     .toBe(true);
 }
 
-/** A board card, found by its note's path, dragged by the pointer onto a column. */
+/** A board card, found by its note's path, dragged by the pointer onto a column, named as its heading reads. */
 export async function dragCardTo(page: Page, path: string, column: string) {
   await dragWithPointer(page, {
     from: page.locator(`.board__card[data-path="${path}"]`),

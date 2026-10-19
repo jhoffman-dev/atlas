@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { browserThemeStore } from './browser-theme-store.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ThemeStore } from '@atlas/ui';
+import { browserThemeStore, createBrowserThemeStore } from './browser-theme-store.ts';
 
 const KEY = 'atlas.theme';
 
@@ -22,24 +23,36 @@ afterEach(() => {
 });
 
 describe('browserThemeStore', () => {
+  // A fresh store for each test: a store remembers this session's choice
+  // itself, so one shared between tests would answer with the last test's.
+  let store: ThemeStore;
+  beforeEach(() => {
+    store = createBrowserThemeStore();
+  });
+
   it('round-trips a choice', () => {
-    browserThemeStore.write('dark');
-    expect(browserThemeStore.read()).toBe('dark');
+    store.write('dark');
+    expect(store.read()).toBe('dark');
     expect(window.localStorage.getItem(KEY)).toBe('dark');
   });
 
+  it('is what the app is handed', () => {
+    window.localStorage.setItem(KEY, 'light');
+    expect(browserThemeStore.read()).toBe('light');
+  });
+
   it('reads nothing when no choice has been made', () => {
-    expect(browserThemeStore.read()).toBeNull();
+    expect(store.read()).toBeNull();
   });
 
   it('reads nothing rather than trusting a value it does not recognise', () => {
     window.localStorage.setItem(KEY, 'solarized');
-    expect(browserThemeStore.read()).toBeNull();
+    expect(store.read()).toBeNull();
   });
 
   it('reads nothing when the accessor throws, as in a private window', () => {
     withDeniedStorage();
-    expect(browserThemeStore.read()).toBeNull();
+    expect(store.read()).toBeNull();
   });
 
   it('reads nothing when the read itself throws', () => {
@@ -48,12 +61,12 @@ describe('browserThemeStore', () => {
         throw new Error('denied');
       },
     });
-    expect(browserThemeStore.read()).toBeNull();
+    expect(store.read()).toBeNull();
   });
 
   it('swallows a write the browser refuses, so the app carries on', () => {
     withDeniedStorage();
-    expect(() => browserThemeStore.write('dark')).not.toThrow();
+    expect(() => store.write('dark')).not.toThrow();
   });
 
   it('swallows a write that fails on quota', () => {
@@ -62,6 +75,62 @@ describe('browserThemeStore', () => {
         throw new Error('QuotaExceededError');
       },
     });
-    expect(() => browserThemeStore.write('light')).not.toThrow();
+    expect(() => store.write('light')).not.toThrow();
+  });
+
+  it('forgets a choice on clear, so nothing is stored and the read is null', () => {
+    store.write('dark');
+    store.clear();
+    expect(store.read()).toBeNull();
+    expect(window.localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('tells its listeners of each write and clear, until they stop listening', () => {
+    const heard = vi.fn();
+    const stop = store.subscribe(heard);
+    store.write('dark');
+    store.clear();
+    expect(heard).toHaveBeenCalledTimes(2);
+    stop();
+    store.write('light');
+    expect(heard).toHaveBeenCalledTimes(2);
+  });
+
+  // The choice lives in the store (theme.ts): both the sidebar's button and
+  // Settings read it back, so a write the browser refuses must still be read
+  // back for this session, as the image placement store does.
+  it('still answers with this session’s choice when the browser refused to keep it', () => {
+    withDeniedStorage();
+    store.write('dark');
+    expect(store.read()).toBe('dark');
+  });
+
+  it('still reads as cleared this session when the browser refused to forget', () => {
+    window.localStorage.setItem(KEY, 'dark');
+    expect(store.read()).toBe('dark');
+    withStorage({
+      removeItem: () => {
+        throw new Error('denied');
+      },
+    });
+    expect(() => store.clear()).not.toThrow();
+    expect(store.read()).toBeNull();
+  });
+
+  // Review of 05abaa6a: clearing sessionStorage sends a `storage` event with
+  // a null key too, and that one says nothing about the theme.
+  it('ignores a storage event from a store that is not localStorage', () => {
+    store.write('dark');
+    const heard = vi.fn();
+    store.subscribe(heard);
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: null,
+        newValue: null,
+        storageArea: window.sessionStorage,
+      }),
+    );
+    expect(heard).not.toHaveBeenCalled();
+    expect(store.read()).toBe('dark');
   });
 });

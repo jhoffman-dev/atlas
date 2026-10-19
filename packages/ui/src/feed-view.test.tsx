@@ -146,4 +146,27 @@ describe('FeedView', () => {
     render(<FeedView {...props} rows={[]} bodies={bodiesOf({})} />);
     expect(screen.getByText('Nothing matches this view yet.')).toBeDefined();
   });
+
+  it('keeps the done box a real checkbox: Space ticks it, a finished row says so (slice 13d)', async () => {
+    const onToggle = vi.fn();
+    const ticks = {
+      isDone: (values: Readonly<Record<string, unknown>>) => values['status'] === 'done',
+      onToggle,
+    };
+    const { container } = render(<FeedView {...props} bodies={bodiesOf({})} ticks={ticks} />);
+    const oldest = screen.getByRole('checkbox', { name: 'Mark Oldest done' });
+    expect((oldest as HTMLInputElement).checked).toBe(true);
+    expect(container.querySelectorAll('.feed__card--done')).toHaveLength(1);
+
+    const newest = screen.getByRole('checkbox', { name: 'Mark Newest done' });
+    newest.focus();
+    await userEvent.keyboard(' ');
+    expect(onToggle).toHaveBeenCalledWith({ path: 'new.md', done: true });
+  });
+
+  it('draws "Show more notes" as the secondary button, not a lifted card', () => {
+    render(<FeedView {...props} shown={1} bodies={bodiesOf({})} />);
+    const more = screen.getByRole('button', { name: 'Show more notes' });
+    expect(more.classList.contains('btn--secondary')).toBe(true);
+  });
 });

@@ -2,7 +2,7 @@ import { createVaultPath, repeatingTaskUpdate, splitFrontmatter } from '@atlas/d
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
-import { withTaskRules } from '../gtd/task-rules.ts';
+import { taskRuleProperties, withTaskRules } from '../gtd/task-rules.ts';
 
 /** What counts as finishing a task, for the views that can tick one off. */
 export interface CompletionRule {
@@ -110,7 +110,11 @@ export async function setNoteProperties({
   /** `YYYY-MM-DD`: the day a task this finishes is dated. */
   today: string;
 }): Promise<void> {
-  await writeFrontmatterChanges({ ...write, values: withTaskRules({ values, today }) });
+  await writeChanges({
+    ...write,
+    values: withTaskRules({ values, today }),
+    read: (frontmatter) => taskRuleProperties(write.markdown, frontmatter),
+  });
 }
 
 interface FrontmatterWrite {
@@ -131,22 +135,30 @@ interface FrontmatterWrite {
  * definition, the vault's settings — which are not notes. A note is written
  * with {@link setNoteProperties}.
  */
-export async function writeFrontmatterChanges({
+export async function writeFrontmatterChanges(write: FrontmatterWrite): Promise<void> {
+  await writeChanges({
+    ...write,
+    read: (frontmatter) => write.markdown.frontmatterProperties(frontmatter, { forWriting: true }),
+  });
+}
+
+/** The read-change-write itself, `values` given as a rule worked out against what `read` gives. */
+async function writeChanges({
   fs,
   markdown,
   path,
   values,
   ifModified,
-}: FrontmatterWrite): Promise<void> {
+  read,
+}: FrontmatterWrite & {
+  read: (frontmatter: string | null) => Readonly<Record<string, unknown>>;
+}): Promise<void> {
   const target = createVaultPath(path);
   const { text, modified } = await fs.readTextFile(target);
   if (ifModified !== undefined && ifModified !== modified) throw new NoteChangedError(target);
   const document = splitFrontmatter(text);
 
-  const changes =
-    typeof values === 'function'
-      ? values(markdown.frontmatterProperties(document.frontmatter))
-      : values;
+  const changes = typeof values === 'function' ? values(read(document.frontmatter)) : values;
   // Nothing to change writes nothing, rather than re-writing the note as it was.
   if (Object.keys(changes).length === 0) return;
 

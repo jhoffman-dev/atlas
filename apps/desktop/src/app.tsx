@@ -186,6 +186,7 @@ import {
   QuickAddSettingsCard,
   SecretsSettingsCard,
   SyncSettingsCard,
+  settingsSectionLinks,
 } from './settings/settings-sections.ts';
 import { browserImagePlacementStore } from './notes/browser-image-placement-store.ts';
 import { useTickMemory } from './query/tick-memory.ts';
@@ -1896,7 +1897,9 @@ function AppWindow({
             overlay === 'settings' ? (
               <SettingsPanel
                 ports={api}
+                themeStore={browserThemeStore}
                 activity={activityLog}
+                sections={settingsSectionLinks({ vaultOpen: location !== null })}
                 onClose={() => hideOverlay('settings')}
                 fallbackFocus={focusFallback}
               >

@@ -65,14 +65,14 @@ test('a card dragged to done, then to backlog before the first write lands, ends
   page,
 }) => {
   const { vault, host } = await openBoard(page);
-  await expect(cardIn(page, 'doing', 'one off.md')).toBeVisible();
+  await expect(cardIn(page, 'Doing', 'one off.md')).toBeVisible();
   const release = host.holdWrites('one off.md');
 
-  await dragCardTo(page, 'one off.md', 'done');
-  await expect(cardIn(page, 'done', 'one off.md')).toBeVisible();
+  await dragCardTo(page, 'one off.md', 'Done');
+  await expect(cardIn(page, 'Done', 'one off.md')).toBeVisible();
   await expect.poll(() => host.writesTo('one off.md')).toBe(1);
-  await dragCardTo(page, 'one off.md', 'backlog');
-  await expect(cardIn(page, 'backlog', 'one off.md')).toBeVisible();
+  await dragCardTo(page, 'one off.md', 'Backlog');
+  await expect(cardIn(page, 'Backlog', 'one off.md')).toBeVisible();
   // Coordinator decision (PR #274): a card's writes are serialised, so the second
   // waits for the first and reads what it left. A refused first write can then
   // never be overwritten by the second. While the first is held, only it has
@@ -87,7 +87,7 @@ test('a card dragged to done, then to backlog before the first write lands, ends
   // second write was refused with "the note changed on disk since it was opened"
   // — an alert the next run of the view clears, so the lost move goes unsaid.
   await expectFile(vault, 'one off.md').toContain('status: backlog');
-  await expect(cardIn(page, 'backlog', 'one off.md')).toBeVisible();
+  await expect(cardIn(page, 'Backlog', 'one off.md')).toBeVisible();
   await expect(page.getByText(/changed on disk/)).toHaveCount(0);
 });
 
@@ -95,10 +95,10 @@ test('a move whose write fails leaves the board drawn, with the card back where 
   page,
 }) => {
   const { vault, host } = await openBoard(page);
-  await expect(cardIn(page, 'doing', 'one off.md')).toBeVisible();
+  await expect(cardIn(page, 'Doing', 'one off.md')).toBeVisible();
   const refuse = host.holdWrites('one off.md');
-  await dragCardTo(page, 'one off.md', 'done');
-  await expect(cardIn(page, 'done', 'one off.md')).toBeVisible();
+  await dragCardTo(page, 'one off.md', 'Done');
+  await expect(cardIn(page, 'Done', 'one off.md')).toBeVisible();
   await expect.poll(() => host.writesTo('one off.md')).toBeGreaterThan(0);
 
   refuse({ fail: 'The disk is full.' });
@@ -107,26 +107,26 @@ test('a move whose write fails leaves the board drawn, with the card back where 
   // Received on fb990142: the view's error replaces the whole board (ViewBody
   // draws TableView's error), so no column is drawn and the card is nowhere.
   await expect(
-    page.locator('.board').getByRole('region', { name: 'doing', exact: true }),
+    page.locator('.board').getByRole('region', { name: 'Doing', exact: true }),
   ).toBeVisible();
-  await expect(cardIn(page, 'doing', 'one off.md')).toBeVisible();
+  await expect(cardIn(page, 'Doing', 'one off.md')).toBeVisible();
   expect(await vault.read('one off.md')).toContain('status: doing');
 });
 
 test('a move that fails does not hide another card moved meanwhile', async ({ page }) => {
   const { host } = await openBoard(page);
-  await expect(cardIn(page, 'doing', 'second card.md')).toBeVisible();
+  await expect(cardIn(page, 'Doing', 'second card.md')).toBeVisible();
   const refuse = host.holdWrites('one off.md');
   const land = host.holdWrites('second card.md');
-  await dragCardTo(page, 'one off.md', 'done');
+  await dragCardTo(page, 'one off.md', 'Done');
   await expect.poll(() => host.writesTo('one off.md')).toBeGreaterThan(0);
-  await dragCardTo(page, 'second card.md', 'backlog');
+  await dragCardTo(page, 'second card.md', 'Backlog');
   await expect.poll(() => host.writesTo('second card.md')).toBeGreaterThan(0);
 
   refuse({ fail: 'The disk is full.' });
   await expect(page.getByText(/The disk is full/)).toBeVisible();
 
   // Its own write is still on its way: it is drawn where it was dropped.
-  await expect(cardIn(page, 'backlog', 'second card.md')).toBeVisible();
+  await expect(cardIn(page, 'Backlog', 'second card.md')).toBeVisible();
   land();
 });
