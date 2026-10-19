@@ -160,6 +160,24 @@ describe('SearchPalette', () => {
     expect(screen.queryByRole('option', { name: /↵/ })).toBeNull();
   });
 
+  it('draws every result as a row, the chosen one wearing the selected fill', () => {
+    render(<SearchPalette {...props} selected={1} />);
+    const rows = screen.getAllByRole('option');
+    expect(rows.every((row) => row.classList.contains('palette__hit'))).toBe(true);
+    expect(rows.map((row) => row.classList.contains('palette__hit--on'))).toEqual([false, true]);
+  });
+
+  it('keeps the keys along its foot out of what a screen reader is read', () => {
+    const { baseElement } = render(<SearchPalette {...props} />);
+    const hints = baseElement.querySelector('.key-hints');
+    expect(hints?.getAttribute('aria-hidden')).toBe('true');
+    expect(hints?.textContent).toContain('to open');
+    // The field's esc and the chosen row's ↵ are hidden the same way.
+    for (const key of baseElement.querySelectorAll('.key')) {
+      expect(key.closest('[aria-hidden="true"]')).not.toBeNull();
+    }
+  });
+
   it('says so when a search matches nothing', () => {
     render(<SearchPalette {...props} query="zzz" hits={[]} />);
     expect(screen.getByText('Nothing matches.')).toBeDefined();

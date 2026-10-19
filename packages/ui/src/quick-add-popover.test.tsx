@@ -77,6 +77,27 @@ describe('QuickAddPopover', () => {
     expect(screen.queryByLabelText('Email')).toBeNull();
   });
 
+  it('asks in the field primitive, with a chooser drawn as a select and a date as its own box', () => {
+    renderFor(TASK);
+    for (const control of [screen.getByLabelText('Status'), screen.getByLabelText('Project')]) {
+      expect(control.classList.contains('field')).toBe(true);
+      expect(control.closest('.select')).not.toBeNull();
+    }
+    const due = screen.getByLabelText('Due');
+    expect(due.classList.contains('quick-add__control--date')).toBe(true);
+    expect(due.classList.contains('field')).toBe(false);
+    expect(due.closest('.select')).toBeNull();
+  });
+
+  it('offers its buttons at full height, not the row-sized small ones', () => {
+    renderFor(TASK);
+    for (const name of ['Add', 'Add and open']) {
+      const button = screen.getByRole('button', { name });
+      expect(button.classList.contains('btn')).toBe(true);
+      expect(button.classList.contains('btn--sm')).toBe(false);
+    }
+  });
+
   it('starts the status at its first option', () => {
     renderFor(TASK);
     expect((screen.getByLabelText('Status') as HTMLSelectElement).value).toBe('backlog');

@@ -121,7 +121,7 @@ export function QuickAddPopover({
       <div className="quick-add__actions">
         <button
           type="button"
-          className="btn btn--secondary btn--sm"
+          className="btn btn--secondary"
           disabled={adding || name.trim() === ''}
           onClick={() => add(true)}
         >
@@ -129,7 +129,7 @@ export function QuickAddPopover({
         </button>
         <button
           type="button"
-          className="btn btn--primary btn--sm"
+          className="btn btn--primary"
           disabled={adding || name.trim() === ''}
           onClick={() => add(false)}
         >
@@ -178,31 +178,39 @@ function FieldControl({
   const names = useNoteNames();
   const common = {
     id,
-    className: 'quick-add__control',
+    className: 'field quick-add__control',
     value,
     onChange: (event: { target: { value: string } }) => onChange(event.target.value),
   };
+  const choose = { ...common, className: `${common.className} select__control` };
   switch (field.kind) {
     case 'select':
       return (
-        <select {...common}>
-          {!field.required && <option value="">—</option>}
-          {field.options.map((option) => (
-            <option key={option} value={option}>
-              {optionLabel(option)}
-            </option>
-          ))}
-        </select>
+        <span className="select">
+          <select {...choose}>
+            {!field.required && <option value="">—</option>}
+            {field.options.map((option) => (
+              <option key={option} value={option}>
+                {optionLabel(option)}
+              </option>
+            ))}
+          </select>
+        </span>
       );
     case 'relation':
       return (
-        <select {...common}>
-          <option value="">— none —</option>
-          <RelationOptions choices={choices} names={names} />
-        </select>
+        <span className="select">
+          <select {...choose}>
+            <option value="">— none —</option>
+            <RelationOptions choices={choices} names={names} />
+          </select>
+        </span>
       );
     case 'date':
-      return <input {...common} type="date" />;
+      // Its own variant, not `.field`: see quick-add.css for the WebKit reason.
+      return (
+        <input {...common} className="quick-add__control quick-add__control--date" type="date" />
+      );
     case 'number':
       return <input {...common} type="number" />;
     case 'checkbox':
