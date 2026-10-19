@@ -3,55 +3,50 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- list and gallery layouts ----
-   A list is a grid without the columns, so it takes the grid's answer to
-   density: one card around the whole list, 44px rows inside it — the title,
-   what the note is about in quiet ink, and its fields as the board's chips —
-   with a hairline between rows, because a gap cannot separate two lines of
-   the same text. */
+   UI v2 slice 13d (#313). A list is a table without the columns, so it takes
+   the table's density: 34px rows edge to edge on the surface, divided by
+   `line-soft`, a `hover` fill under the pointer — the title at 13/500, what
+   the note is about in ink-3, and its fields as chips on the right. Nothing
+   casts a shadow (Tokens.dc.html, rule 1): a hairline separates. */
 
 .list-view {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
   list-style: none;
   margin: 0;
-  padding: var(--space-2) var(--space-3);
+  padding: 0;
 }
 
 .list-view__row {
   align-items: center;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
   gap: var(--space-3);
-  min-height: 44px;
+  height: 34px;
   min-width: 0;
+  padding: 0 12px;
 }
 
-.list-view__row:last-child {
-  border-bottom: 0;
+.list-view__row:hover {
+  background: var(--hover);
 }
 
 .list-view__title {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-chip);
   color: var(--ink);
   cursor: pointer;
-  flex: 0 1 auto;
+  flex: none;
   font: inherit;
-  font-size: var(--text-body);
-  font-weight: 700;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
   max-width: 46%;
+  min-height: 28px;
   overflow: hidden;
-  padding: 6px 8px;
+  padding: 0 8px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.list-view__title:hover {
-  background: var(--hover);
 }
 
 .list-view__title:focus-visible {
@@ -62,7 +57,7 @@
 .list-view__summary {
   color: var(--ink-3);
   flex: 1;
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -77,45 +72,43 @@
   gap: 6px;
 }
 
+/* In a narrow pane the fields are what gives way, cut at the row's edge:
+   the title keeps its measure and its ellipsis, and nothing runs past the row. */
 .list-view__fields {
-  flex: none;
+  flex: 0 1 auto;
   flex-wrap: nowrap;
   margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Cards you recognise by name, so this is the one list surface that can afford
-   to be calm: fewer, larger cards rather than more, smaller ones. */
+   to be calm: fewer, larger cards rather than more, smaller ones, with the
+   board's gap between them. */
 .gallery {
   display: grid;
-  gap: var(--space-4);
+  gap: 8px;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   /* A card clips its cover, which would let a scrolling grid squeeze its rows. */
   grid-auto-rows: max-content;
   list-style: none;
   margin: 0;
-  padding: 1px;
+  padding: 0;
 }
 
-/* The title's button is stretched over the whole card (below), so the card is
-   one click target while its done box stays a control of its own. */
+/* The board's card (board.css, Main.dc.html): square, a hairline, padding
+   8/10, no shadow and no lift on hover. The title's button is stretched over
+   the whole card (below), so the card is one click target while its done box
+   stays a control of its own. */
 .gallery__card {
-  background: var(--raised);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
   color: var(--ink);
   display: flex;
   flex-direction: column;
-  min-height: 110px;
   overflow: hidden;
   position: relative;
-  transition:
-    box-shadow 120ms ease,
-    transform 120ms ease;
-}
-
-.gallery__card:hover {
-  box-shadow: var(--shadow-tile);
-  transform: translateY(-1px);
 }
 
 .gallery__card:has(.gallery__title:focus-visible) {
@@ -126,14 +119,14 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
+  gap: 3px;
+  padding: 8px 10px 9px;
 }
 
 .gallery__head {
   align-items: flex-start;
   display: flex;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
 .gallery__title {
@@ -142,10 +135,12 @@
   border: 0;
   color: var(--ink);
   cursor: pointer;
+  display: block;
   font: inherit;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
+  line-height: 1.38;
+  min-width: 0;
   padding: 0;
   text-align: left;
 }
@@ -160,18 +155,28 @@
   outline: none;
 }
 
-.gallery__summary {
+/* Clamped on a span of its own, as the board's is: WebKit lays a button's
+   content out its own way, which the clamp's box display does not survive. */
+.gallery__title-text {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  color: var(--ink-2);
   display: -webkit-box;
-  font-size: var(--text-small);
-  line-height: 1.45;
   overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.gallery__summary {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gallery__fields {
   margin-top: auto;
+  padding-top: 2px;
 }
 
 /* A cover fronts the card edge to edge, cropped to one height so a row of
@@ -185,37 +190,30 @@
 }
 
 /* ---- feed layout, done boxes, the Layout menu (P17-05) ----
-   A feed is a reading stream: one wide card per note, as wide as a page reads
-   comfortably, the note's own body inside it in the editor's type. */
+   A feed is a reading stream: one note after another, as wide as a page
+   reads comfortably, each a row divided from the next by `line-soft` with
+   the note's own body inside it in the editor's type — no card, no shadow. */
 
 .feed {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: 1px;
-}
-
-.feed__list {
-  margin-inline: auto;
-  max-width: 760px;
-  width: 100%;
 }
 
 .feed__list {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
   list-style: none;
-  margin: 0;
+  margin: 0 auto;
+  max-width: 760px;
   padding: 0;
+  width: 100%;
 }
 
 .feed__card {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--line-soft);
+  padding: var(--space-4) var(--space-3);
 }
 
 .feed__card > article {
@@ -231,22 +229,26 @@
 }
 
 .feed__heading {
-  font-size: var(--text-card);
+  font-size: var(--text-section);
   margin: 0;
   min-width: 0;
 }
 
+/* A title with no space to break at wraps anyway, as the gallery's does,
+   rather than running out of its row. */
 .feed__title {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-chip);
   color: var(--ink);
   cursor: pointer;
   font: inherit;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: var(--tracking-title);
   margin: -2px -6px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 2px 6px;
   text-align: left;
 }
@@ -274,7 +276,7 @@
 }
 
 .feed__body {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-soft);
   padding-top: var(--space-3);
 }
 
@@ -284,8 +286,9 @@
   line-height: 1.6;
 }
 
-.feed__toggle,
-.feed__more {
+/* "Show more" under a long body: a ghost control in the primary's ink. */
+.feed__toggle {
+  align-self: flex-start;
   appearance: none;
   background: none;
   border: 0;
@@ -293,38 +296,35 @@
   color: var(--accent-text);
   cursor: pointer;
   font: inherit;
-  font-size: var(--text-small);
-  font-weight: 700;
+  font-size: var(--text-meta);
+  font-weight: 500;
   margin-top: var(--space-2);
   padding: 4px 6px;
 }
 
-.feed__more {
-  align-self: center;
-  background: var(--raised);
-  box-shadow: var(--shadow-soft);
-  padding: 8px 16px;
-}
-
-.feed__toggle:hover,
-.feed__more:hover {
+.feed__toggle:hover {
   background: var(--hover);
 }
 
-.feed__toggle:focus-visible,
-.feed__more:focus-visible {
+.feed__toggle:focus-visible {
   box-shadow: var(--ring);
   outline: none;
 }
 
-/* A done box: the board's navy tick, drawn as a real checkbox so Space ticks
-   it and a screen reader says what it does. Raised above a gallery card's
-   stretched title so it stays its own target. */
+/* "Show more notes" is a secondary button (primitives.css), centred under the stream. */
+.feed__more {
+  align-self: center;
+}
+
+/* A done box: the sage tick, drawn as a real checkbox so Space ticks it and
+   a screen reader says what it does — the same box on a table row, a board
+   card, a list row, a gallery card and a feed row, at an input's radius.
+   Raised above a gallery card's stretched title so it stays its own target. */
 .done-check {
   appearance: none;
-  background: var(--raised);
+  background: var(--surface);
   border: 1.5px solid var(--ink-3);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   flex: none;
   height: 18px;
@@ -342,8 +342,8 @@
 }
 
 .done-check:checked {
-  background: var(--navy-data);
-  border-color: var(--navy-data);
+  background: var(--status-done-dot);
+  border-color: var(--status-done-dot);
 }
 
 .done-check:checked::after {
@@ -392,16 +392,19 @@
   margin: 0;
 }
 
+/* The Layout menu's rows: the menu's 28px row, two lines tall only when a
+   layout the type cannot draw says what it would need. */
 .layout-menu__item {
   align-items: center;
-  border-radius: var(--radius-control);
-  color: var(--ink-2);
+  border-radius: 5px;
+  color: var(--ink);
   cursor: pointer;
   display: flex;
-  gap: 10px;
-  min-width: 250px;
+  gap: 8px;
+  min-height: 28px;
+  min-width: 220px;
   outline: none;
-  padding: 8px 10px;
+  padding: 4px 8px;
 }
 
 .layout-menu__item[data-highlighted] {
@@ -409,24 +412,25 @@
   color: var(--ink);
 }
 
+/* Quietened by its ink, not by opacity: ink-3 still reads. */
 .layout-menu__item[data-disabled] {
+  color: var(--ink-3);
   cursor: default;
-  opacity: 0.55;
 }
 
 .layout-menu__words {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .layout-menu__reason {
   color: var(--ink-3);
-  font-size: var(--text-label);
+  font-size: var(--text-meta);
 }
 
 .layout-menu__current {
-  color: var(--accent-text);
+  color: var(--ink-2);
   display: flex;
 }
