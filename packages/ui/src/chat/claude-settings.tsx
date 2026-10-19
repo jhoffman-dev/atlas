@@ -1,6 +1,7 @@
 import { CommitField } from '../commit-field.tsx';
 import { SegmentedControl, type SegmentedOption } from '../segmented-control.tsx';
-import { SettingsCard } from '../settings-card.tsx';
+import { SettingsSection } from '../settings-section.tsx';
+import { SETTINGS_SECTIONS } from '../settings-section-links.ts';
 import type { ChatProblemView } from './chat-view.ts';
 
 export type ClaudeProviderChoice = 'claude-code' | 'anthropic-api';
@@ -31,7 +32,7 @@ export function ClaudeSettings({
   onModel: (model: string) => void;
 }) {
   return (
-    <SettingsCard id="settings-claude" icon="spark" title="Claude">
+    <SettingsSection section={SETTINGS_SECTIONS.claude}>
       <p className="settings__lede">
         The chat (⌘J) talks to Claude through the Claude Code you installed and logged into, so
         Atlas never holds your login. Or use an API key kept in the Keychain as the secret
@@ -70,6 +71,6 @@ export function ClaudeSettings({
           onCommit={onModel}
         />
       </div>
-    </SettingsCard>
+    </SettingsSection>
   );
 }
