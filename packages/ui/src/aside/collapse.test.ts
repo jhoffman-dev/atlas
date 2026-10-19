@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   ASIDE_COLLAPSES_BELOW,
   ASIDE_COLLAPSES_BELOW_ALONE,
+  ASIDE_WIDTH_TYPE,
   SIDEBAR_WIDTH,
   WINDOW_MIN_WIDTH,
+  asideCollapsesBelow,
   collapseFor,
 } from './collapse.ts';
 
@@ -35,6 +37,20 @@ describe('collapseFor', () => {
     });
   });
 
+  it('folds the 340px type editor 40px sooner, in either state of the left', () => {
+    const type = { asideWidth: ASIDE_WIDTH_TYPE };
+    expect(asideCollapsesBelow({ sidebarOpen: true, ...type })).toBe(ASIDE_COLLAPSES_BELOW + 40);
+    expect(asideCollapsesBelow({ sidebarOpen: false, ...type })).toBe(
+      ASIDE_COLLAPSES_BELOW_ALONE + 40,
+    );
+    expect(collapseFor({ width: ASIDE_COLLAPSES_BELOW, sidebarOpen: true, ...type })).toEqual({
+      aside: true,
+    });
+    expect(collapseFor({ width: ASIDE_COLLAPSES_BELOW + 40, sidebarOpen: true, ...type })).toEqual({
+      aside: false,
+    });
+  });
+
   it('never folds the left sidebar: the window’s minimum is what the sidebar fits in', () => {
     // #332 holds every bar tidy at 720 with the sidebar open; the aside is
     // long gone by then, in either state of the left.
@@ -45,7 +61,8 @@ describe('collapseFor', () => {
 
 /**
  * The rule is drawn by shell.css, so the media queries there must break at
- * the same widths, or the function would say one thing and the window another.
+ * the same widths and hide the same slot, or the function would say one thing
+ * and the window another.
  */
 describe('shell.css collapse order', () => {
   const css = readFileSync(
@@ -63,21 +80,37 @@ describe('shell.css collapse order', () => {
     ),
     'utf8',
   );
-  const breakpoints = [...css.matchAll(/@media \(max-width: (\d+)px\)/g)].map((m) => Number(m[1]));
+  /** Each query: the width it starts at, and the one selector it hides. */
+  const queries = [...css.matchAll(/@media \(max-width: (\d+)px\)\s*\{\s*([^{]+?)\s*\{/g)].map(
+    (m) => ({ below: Number(m[1]) + 1, hides: m[2]! }),
+  );
 
-  it('breaks at the widths collapseFor names, and no others', () => {
-    expect(breakpoints.sort((a, b) => b - a)).toEqual([
-      ASIDE_COLLAPSES_BELOW - 1,
-      ASIDE_COLLAPSES_BELOW_ALONE - 1,
+  it('draws one query per aside width and state of the left, and no others', () => {
+    const type = { asideWidth: ASIDE_WIDTH_TYPE };
+    expect(queries).toEqual([
+      {
+        below: asideCollapsesBelow({ sidebarOpen: true, ...type }),
+        hides: '.shell:not(.shell--narrow) > .shell__aside:has(> .aside--type)',
+      },
+      {
+        below: ASIDE_COLLAPSES_BELOW,
+        hides: '.shell:not(.shell--narrow) > .shell__aside:has(> .aside)',
+      },
+      {
+        below: asideCollapsesBelow({ sidebarOpen: false, ...type }),
+        hides: '.shell--narrow > .shell__aside:has(> .aside--type)',
+      },
+      {
+        below: ASIDE_COLLAPSES_BELOW_ALONE,
+        hides: '.shell--narrow > .shell__aside:has(> .aside)',
+      },
     ]);
   });
 
-  it('hides the aside alone, never the left sidebar, at any width', () => {
-    const hidden = [...css.matchAll(/@media[^{]*\{([^}]*\{[^}]*\})+?\s*\}/g)].map((m) => m[0]);
-    expect(hidden).toHaveLength(2);
-    for (const block of hidden) {
-      expect(block).toContain('.shell__aside');
-      expect(block).not.toContain('.shell__sidebar');
+  it('hides only a slot holding the right sidebar, never the chat’s slot or the left sidebar', () => {
+    for (const { hides } of queries) {
+      expect(hides).toMatch(/\.shell__aside:has\(> \.aside(--type)?\)$/);
+      expect(hides).not.toContain('.shell__sidebar');
     }
   });
 });

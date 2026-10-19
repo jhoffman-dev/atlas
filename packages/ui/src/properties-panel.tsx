@@ -61,6 +61,7 @@ export function PropertiesPanel({
   onCreateRelated,
   fileKeys = [],
   customValues = {},
+  folded = [],
 }: {
   /** A typed note has a panel even with nothing filled in yet. */
   typeName: string | null;
@@ -100,6 +101,12 @@ export function PropertiesPanel({
    * the row's label points at — an artifact's thumbnail, shown as a picture.
    */
   customValues?: Readonly<Record<string, (id: string) => ReactNode>>;
+  /**
+   * Keys whose rows the caller folds away for now — the aside's empty ones.
+   * They are still the note's rows: a panel with every row folded is a panel,
+   * with its add, not nothing.
+   */
+  folded?: readonly string[];
 }) {
   // Two panes can show the same note, so a key alone does not name one field.
   const idPrefix = useId();
@@ -121,31 +128,33 @@ export function PropertiesPanel({
   return (
     <section className="props" aria-label="Properties">
       <dl className="props__list">
-        {rows.map((row) => (
-          <div className="props__row" key={row.def.key}>
-            <dt className="props__label">
-              <Icon name={propertyGlyph(propertyIcon(row.def.kind))} size={16} />
-              <label htmlFor={`${idPrefix}-${row.def.key}`}>{row.def.label}</label>
-            </dt>
-            <dd className="props__value">
-              {customValues[row.def.key]?.(`${idPrefix}-${row.def.key}`) ?? (
-                <PropertyEditor
-                  id={`${idPrefix}-${row.def.key}`}
-                  row={row}
-                  choices={relationChoices[row.def.key] ?? []}
-                  onChange={(value) => onChange(row.def.key, value)}
-                  {...(onOpenNote !== undefined && { onOpenNote })}
-                  {...(onCreateRelated !== undefined && { onCreateRelated })}
-                />
-              )}
-              {row.error !== null && (
-                <span className="props__error" role="alert">
-                  {row.error}
-                </span>
-              )}
-            </dd>
-          </div>
-        ))}
+        {rows.map((row) =>
+          folded.includes(row.def.key) ? null : (
+            <div className="props__row" key={row.def.key}>
+              <dt className="props__label">
+                <Icon name={propertyGlyph(propertyIcon(row.def.kind))} size={16} />
+                <label htmlFor={`${idPrefix}-${row.def.key}`}>{row.def.label}</label>
+              </dt>
+              <dd className="props__value">
+                {customValues[row.def.key]?.(`${idPrefix}-${row.def.key}`) ?? (
+                  <PropertyEditor
+                    id={`${idPrefix}-${row.def.key}`}
+                    row={row}
+                    choices={relationChoices[row.def.key] ?? []}
+                    onChange={(value) => onChange(row.def.key, value)}
+                    {...(onOpenNote !== undefined && { onOpenNote })}
+                    {...(onCreateRelated !== undefined && { onCreateRelated })}
+                  />
+                )}
+                {row.error !== null && (
+                  <span className="props__error" role="alert">
+                    {row.error}
+                  </span>
+                )}
+              </dd>
+            </div>
+          ),
+        )}
       </dl>
       {onAdd !== undefined && (
         <div className="props__add-anchor">

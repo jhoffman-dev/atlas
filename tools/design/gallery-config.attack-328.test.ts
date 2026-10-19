@@ -28,6 +28,14 @@ describe('the gallery shots config (#328)', () => {
     expect(e2e.testDir).toBe('./e2e');
     expect(shots.testMatch).toBe('shots.spec.ts');
     expect(gallery.testDir).toBe('./tools/design');
-    expect(gallery.testMatch).toBe('gallery.spec.ts');
+    // Its own spec and the attacks on its specimens, never the app's shots
+    // spec beside them, which runs against `dist` under its own config.
+    const match = gallery.testMatch;
+    expect(match).toBeInstanceOf(RegExp);
+    const matches = (file: string) => (match as RegExp).test(`/tools/design/${file}`);
+    expect(matches('gallery.spec.ts')).toBe(true);
+    expect(matches('gallery.right-sidebar.attack-353.spec.ts')).toBe(true);
+    expect(matches('shots.spec.ts')).toBe(false);
+    expect(matches('right-sidebar.attack-353.spec.ts')).toBe(false);
   });
 });

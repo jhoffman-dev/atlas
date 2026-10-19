@@ -43,26 +43,31 @@ describe('collapseFor at every boundary (attack #353)', () => {
 /**
  * Every width the slot can take (aside.css: 300px, and 340px for the type
  * editor's `.aside--type`), held against the narrowest window shell.css still
- * shows the aside in: the work beside it must keep its least width.
+ * shows that aside in: the work beside it must keep its least width. Each
+ * width has its own pair of queries (sidebar open, sidebar hidden), told apart
+ * by the selector each hides — a `.aside--type` query is the 340px one.
  */
 describe('shell.css keeps the work at its least width beside every aside (attack #353)', () => {
   const shell = read('shell.css');
   const aside = read('aside.css');
   const slotWidths = [...aside.matchAll(/--aside-width:\s*(\d+)px/g)].map((m) => Number(m[1]));
-  const breakpoints = [...shell.matchAll(/@media \(max-width: (\d+)px\)/g)].map((m) =>
-    Number(m[1]),
+  const queries = [...shell.matchAll(/@media \(max-width: (\d+)px\)\s*\{\s*([^{]+?)\s*\{/g)].map(
+    (m) => ({ breakpoint: Number(m[1]), selector: m[2]!, type: m[2]!.includes('.aside--type') }),
   );
+  const breakpointsFor = (slot: number) =>
+    queries.filter((q) => q.type === (slot === 340)).map((q) => q.breakpoint);
 
-  it('reads both slot widths and both breakpoints', () => {
+  it('reads both slot widths and a pair of breakpoints for each', () => {
     expect(slotWidths).toEqual([300, 340]);
-    expect(breakpoints).toHaveLength(2);
+    expect(breakpointsFor(300)).toHaveLength(2);
+    expect(breakpointsFor(340)).toHaveLength(2);
   });
 
   it.each([300, 340])(
     'a %ipx aside never squeezes the work under its least, sidebar open',
     (slot) => {
-      // The narrowest window that still draws the aside with the left sidebar open.
-      const narrowest = Math.max(...breakpoints) + 1;
+      // The narrowest window that still draws this aside with the left sidebar open.
+      const narrowest = Math.max(...breakpointsFor(slot)) + 1;
       expect(narrowest - SIDEBAR_WIDTH - slot).toBeGreaterThanOrEqual(LEAST_WORK_WIDTH);
     },
   );
@@ -70,7 +75,7 @@ describe('shell.css keeps the work at its least width beside every aside (attack
   it.each([300, 340])(
     'a %ipx aside never squeezes the work under its least, sidebar hidden',
     (slot) => {
-      const narrowest = Math.min(...breakpoints) + 1;
+      const narrowest = Math.min(...breakpointsFor(slot)) + 1;
       expect(narrowest - slot).toBeGreaterThanOrEqual(LEAST_WORK_WIDTH);
     },
   );
@@ -78,12 +83,12 @@ describe('shell.css keeps the work at its least width beside every aside (attack
 
 // Known from review: the collapse queries hide today's chat slot too. Pinned here.
 describe('shell.css collapse spares the chat until 8b moves it (attack #353)', () => {
-  it('scopes the collapse to a slot holding the right sidebar', () => {
+  it('scopes every collapse query to a slot holding the right sidebar', () => {
     const shell = read('shell.css');
-    const queries = [...shell.matchAll(/@media \(max-width: \d+px\)\s*\{([^}]*)\{/g)].map((m) =>
+    const selectors = [...shell.matchAll(/@media \(max-width: \d+px\)\s*\{([^}]*)\{/g)].map((m) =>
       m[1]!.trim(),
     );
-    expect(queries).toHaveLength(2);
-    for (const selector of queries) expect(selector).toMatch(/:has\(> \.aside\)/);
+    expect(selectors).toHaveLength(4);
+    for (const selector of selectors) expect(selector).toMatch(/:has\(> \.aside(--type)?\)$/);
   });
 });

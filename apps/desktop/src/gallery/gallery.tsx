@@ -193,7 +193,7 @@ function TabStripSpecimen({ focused }: { focused: boolean }) {
   );
 }
 
-const property = (
+const asideProperty = (
   def: Partial<PropertyDef> & Pick<PropertyDef, 'key' | 'kind' | 'label'>,
   value: unknown,
 ): PropertyRow => ({
@@ -204,20 +204,23 @@ const property = (
 
 /** A task's row as the aside shows it: four filled, four folded away. */
 const ASIDE_ROWS: readonly PropertyRow[] = [
-  property(
+  asideProperty(
     { key: 'status', kind: 'select', label: 'Status', options: ['Next', 'Doing', 'Done'] },
     'Doing',
   ),
-  property(
+  asideProperty(
     { key: 'project', kind: 'relation', label: 'Project', target: 'project' },
     '[[Larkspur Payroll]]',
   ),
-  property({ key: 'owner', kind: 'relation', label: 'Owner', target: 'person' }, '[[Mara Quill]]'),
-  property({ key: 'due', kind: 'date', label: 'Due' }, '2026-10-21'),
-  property({ key: 'start', kind: 'date', label: 'Start' }, null),
-  property({ key: 'estimate', kind: 'number', label: 'Estimate' }, null),
-  property({ key: 'tags', kind: 'multiSelect', label: 'Tags', options: ['bug', 'ui'] }, []),
-  property({ key: 'notes', kind: 'text', label: 'Notes' }, ''),
+  asideProperty(
+    { key: 'owner', kind: 'relation', label: 'Owner', target: 'person' },
+    '[[Mara Quill]]',
+  ),
+  asideProperty({ key: 'due', kind: 'date', label: 'Due' }, '2026-10-21'),
+  asideProperty({ key: 'start', kind: 'date', label: 'Start' }, null),
+  asideProperty({ key: 'estimate', kind: 'number', label: 'Estimate' }, null),
+  asideProperty({ key: 'tags', kind: 'multiSelect', label: 'Tags', options: ['bug', 'ui'] }, []),
+  asideProperty({ key: 'notes', kind: 'text', label: 'Notes' }, ''),
 ];
 
 const ASIDE_LINKS: NoteLinks = {

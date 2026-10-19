@@ -5,7 +5,8 @@ import e2e from './playwright.config.ts';
 /**
  * `pnpm shots:gallery`: the primitives gallery (apps/desktop/gallery.html)
  * screenshotted in both themes, for judging a slice of the UI v2 plan against
- * the components strip of design/target/Tokens.dc.html. The gallery is not one
+ * the components strip of design/target/Tokens.dc.html, plus the attack specs
+ * on its specimens. The gallery is not one
  * of the build's inputs, so it is served by Vite's dev server rather than from
  * `dist` — on a port of its own, a fixed distance above this checkout's e2e
  * port, so two worktrees never share one.
@@ -17,7 +18,10 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
   ...e2e,
   testDir: './tools/design',
-  testMatch: 'gallery.spec.ts',
+  // The gallery's own specs: the shots, and the attacks on its specimens
+  // (`gallery.<what>.attack-<n>.spec.ts`). The app's shots specs beside them
+  // run against `dist` under playwright.shots.config.ts, not here.
+  testMatch: /\/gallery[^/]*\.spec\.ts$/,
   fullyParallel: false,
   workers: 1,
   use: { ...e2e.use, baseURL: BASE_URL },

@@ -34,6 +34,8 @@ export function OutlinePane({
             <button
               type="button"
               className="aside-outline__heading"
+              // The row ellipsises a long heading; the title holds the rest.
+              title={heading.text}
               onClick={() => onJump(heading.at)}
             >
               {heading.text}

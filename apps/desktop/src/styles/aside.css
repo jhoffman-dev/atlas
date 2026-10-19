@@ -120,6 +120,8 @@
   font-weight: 600;
   line-height: 1.35;
   margin: 0;
+  /* A pasted path or an unbroken name wraps rather than scrolling the pane sideways. */
+  overflow-wrap: anywhere;
 }
 
 .aside__block {
@@ -136,6 +138,7 @@
   font-size: var(--text-column);
   line-height: var(--leading-body);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .aside__empty {
@@ -226,13 +229,26 @@
 }
 
 /* ---- Backlinks -----------------------------------------------------------
-   The page's link groups, open, with the aside's edge padding. */
+   The page's link groups, open, with the aside's edge padding. A long name or
+   path wraps in the 300px, and a row takes the keyboard's ring like every
+   other control here. */
 
 .aside-links {
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 12px 16px;
+}
+
+.aside-links .mentions__name,
+.aside-links .mentions__path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.aside-links .mentions__link:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
 }
 
 /* ---- Outline -------------------------------------------------------------

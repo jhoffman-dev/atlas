@@ -10,11 +10,16 @@ export interface OutlineHeading {
   readonly at: NodePath;
 }
 
+/** A heading is one of six levels; attrs saying otherwise are read as the nearest. */
+const LEVELS = { top: 1, deepest: 6 };
+
 /**
- * The note's headings in order, for the aside's Outline (UI v2 slice 8a).
- * Only the headings: `blockOutline` lists every block a link can name, which
- * is a picker's list, not a table of contents. A heading with no words is
- * nothing to jump to and is passed over.
+ * The note's top-level headings in order, for the aside's Outline (UI v2
+ * slice 8a). Only the headings, and only the document's own: one inside a
+ * quote or a callout is that block's, as `blockOutline` reads it. The block
+ * outline lists every block a link can name, which is a picker's list, not a
+ * table of contents. A heading with no words is nothing to jump to and is
+ * passed over.
  */
 export function outlineOf(doc: EditorDocument): OutlineHeading[] {
   const headings: OutlineHeading[] = [];
@@ -22,8 +27,12 @@ export function outlineOf(doc: EditorDocument): OutlineHeading[] {
     if (block.type !== 'heading') return;
     const text = nodeText(block).replace(/\s+/g, ' ').trim();
     if (text === '') return;
-    const level = block.attrs?.['level'];
-    headings.push({ text, level: typeof level === 'number' ? level : 1, at: [index] });
+    headings.push({ text, level: levelOf(block.attrs?.['level']), at: [index] });
   });
   return headings;
+}
+
+function levelOf(attr: unknown): number {
+  if (typeof attr !== 'number' || !Number.isFinite(attr)) return LEVELS.top;
+  return Math.min(LEVELS.deepest, Math.max(LEVELS.top, Math.round(attr)));
 }

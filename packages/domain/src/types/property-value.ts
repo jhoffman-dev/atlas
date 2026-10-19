@@ -91,14 +91,17 @@ export function relationTypeRefusal({
 }
 
 /**
- * Whether a property holds nothing: no value, blank text, or an empty list.
- * What the aside hides behind "N empty properties" and the strip leaves out
- * (brief rule 5: hide empty values). `false` and `0` are values.
+ * Whether a property holds nothing: no value, blank text, a list with nothing
+ * in it — empty, or of blanks alone — or a mapping with no keys. What the
+ * aside hides behind "N empty properties" and the strip leaves out (brief
+ * rule 5: hide empty values), and what a required property is missing.
+ * `false` and `0` are values.
  */
 export function isEmptyProperty(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim() === '';
-  if (Array.isArray(value)) return value.length === 0;
+  if (Array.isArray(value)) return value.every(isEmptyProperty);
+  if (typeof value === 'object') return Object.keys(value).length === 0;
   return false;
 }
 

@@ -4,6 +4,8 @@ export {
   ASIDE_COLLAPSES_BELOW,
   ASIDE_COLLAPSES_BELOW_ALONE,
   ASIDE_WIDTH,
+  ASIDE_WIDTH_TYPE,
+  asideCollapsesBelow,
   collapseFor,
 } from './aside/collapse.ts';
 export { OutlinePane } from './aside/outline-pane.tsx';
