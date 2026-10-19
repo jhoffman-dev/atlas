@@ -63,9 +63,16 @@ function chipsAfter(
   let chips = previous.map(transaction.mapping, doc);
   for (const range of changedRanges(transaction)) {
     // A step beside a link (deleting the space after it) touches it too.
-    const from = Math.max(0, range.from - 1);
-    const to = Math.min(doc.content.size, range.to + 1);
-    chips = chips.remove(chips.find(from, to)).add(doc, chipsBetween(doc, { from, to, personFor }));
+    const near = {
+      from: Math.max(0, range.from - 1),
+      to: Math.min(doc.content.size, range.to + 1),
+    };
+    const stale = chips.find(near.from, near.to);
+    // Looked up again over every chip taken away, whole: one that only touches
+    // the edit (text typed right after it) is not inside it (#325).
+    const from = Math.min(near.from, ...stale.map((chip) => chip.from));
+    const to = Math.max(near.to, ...stale.map((chip) => chip.to));
+    chips = chips.remove(stale).add(doc, chipsBetween(doc, { from, to, personFor }));
   }
   return chips;
 }

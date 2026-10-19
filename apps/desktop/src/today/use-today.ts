@@ -109,10 +109,12 @@ export function useToday(options: TodayOptions) {
     activity,
   });
 
+  // The parts of the ports the read is made through: the window hands new
+  // ports each time it lists the tree again, which is no reason to read (#325).
+  const { index, fs, markdown } = ports;
   useEffect(() => {
     if (!open || !indexReady) return;
     let cancelled = false;
-    const { index, fs, markdown } = ports;
     readsBegun.begun += 1;
     const begun = readsBegun.begun;
     const land = (landed: Pick<ReadFrom, 'report' | 'error'>) => {
@@ -133,7 +135,7 @@ export function useToday(options: TodayOptions) {
       cancelled = true;
     };
     // `day` is here to read again when it turns; the read takes the day from the clock itself.
-  }, [ports, clock, vaultKey, indexKey, indexReady, open, day, startInInbox]);
+  }, [index, fs, markdown, clock, vaultKey, indexKey, indexReady, open, day, startInInbox]);
 
   // Only what was read of the vault now open: another vault's paths are not this one's.
   const ofThisVault = (from: OfAVault) => sameVault(from, { index: ports.index, vaultKey });

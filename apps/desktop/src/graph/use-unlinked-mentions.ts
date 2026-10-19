@@ -3,31 +3,37 @@ import type { NoteLinks, VaultPath } from '@atlas/domain';
 import {
   findUnlinkedMentions,
   linkUnlinkedMention,
+  MENTIONS_SCOPE,
   type IndexPort,
   type MarkdownPort,
   type OpenNotes,
   type VaultFsPort,
 } from '@atlas/application';
 import type { MentionsState } from '@atlas/ui';
+import type { IndexStatusStore } from '../index/index-status-store.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
  * The open note's unlinked mentions: looked for only when asked — it reads
  * notes, which the foot of every note has no business doing on open — and
- * looked for again after one is linked or the index moves on.
+ * looked for again after one is linked or the index moves on. Only while
+ * asked for does it hear the index's news at all: any note's words can name
+ * this one, so it is read again for any note changed (#325).
  */
 export function useUnlinkedMentions({
   ports,
   note,
   links,
-  indexKey,
+  index,
   onChanged,
 }: {
   ports: { index: IndexPort; fs: VaultFsPort; markdown: MarkdownPort; openNotes: OpenNotes };
   note: { path: VaultPath; title: string } | null;
   links: NoteLinks;
-  indexKey: string;
+  /** Where the index says it has news, for the vault open. */
+  index: { status: IndexStatusStore; vault: string | null };
   onChanged: () => void;
 }) {
   const [found, setState] = useState<{ for: VaultPath | null; state: MentionsState }>({
@@ -40,6 +46,13 @@ export function useUnlinkedMentions({
   const title = note?.title ?? '';
   const wanted = path !== null && wantedFor === path;
   const state: MentionsState = found.for === path ? found.state : { kind: 'idle' };
+  const indexKey = useScopedIndexKey({
+    status: index.status,
+    vault: index.vault,
+    reader: ['mentions', path],
+    scope: MENTIONS_SCOPE,
+    enabled: wanted,
+  });
 
   useEffect(() => {
     if (!wanted || path === null) return;

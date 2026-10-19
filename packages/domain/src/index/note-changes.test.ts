@@ -31,8 +31,28 @@ describe('noteChangesBetween', () => {
         versions({ 'Kickoff.md': meeting('bb') }),
       ),
     ).toEqual([
-      { kind: 'changed', path: 'Kickoff.md', type: 'meeting', digest: 'bb', before: 'aa' },
+      {
+        kind: 'changed',
+        path: 'Kickoff.md',
+        type: 'meeting',
+        digest: 'bb',
+        before: 'aa',
+        beforeType: null,
+      },
     ]);
+  });
+
+  it('says the type a changed note had only when its type moved', () => {
+    const [same] = noteChangesBetween(
+      versions({ 'Kickoff.md': meeting('aa') }),
+      versions({ 'Kickoff.md': meeting('bb') }),
+    );
+    const [left] = noteChangesBetween(
+      versions({ 'Kickoff.md': meeting('aa') }),
+      versions({ 'Kickoff.md': { type: null, digest: 'bb' } }),
+    );
+    expect(same).not.toHaveProperty('beforeType');
+    expect(left).toMatchObject({ kind: 'changed', type: null, beforeType: 'meeting' });
   });
 
   it('says a note that has gone was removed, as it last was', () => {

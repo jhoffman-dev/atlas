@@ -169,9 +169,12 @@ export function useChat({
     [store],
   );
 
+  // One function for the window's life: every page's bar is handed it (#325).
+  const toggle = useCallback(() => setOpen((was) => !was), []);
+
   return {
     open,
-    toggle: () => setOpen((was) => !was),
+    toggle,
     close: () => setOpen(false),
     state,
     session,

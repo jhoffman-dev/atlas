@@ -8,8 +8,8 @@
   ],
   "actions": {
     "Open a vault": {
-      "commits": 110,
-      "renders": 3423,
+      "commits": 109,
+      "renders": 2944,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -68,13 +68,12 @@
       "calls": {}
     },
     "One autosave and its watcher echo": {
-      "commits": 14,
-      "renders": 819,
+      "commits": 10,
+      "renders": 346,
       "calls": {
-        "index_manifest": 4,
-        "index_notes_of_type": 4,
+        "index_manifest": 3,
         "index_put": 3,
-        "index_query": 11,
+        "index_query": 9,
         "index_stats": 3,
         "list_directory": 6,
         "list_notes": 4,
@@ -107,7 +106,7 @@
     },
     "Open Settings": {
       "commits": 13,
-      "renders": 1043,
+      "renders": 857,
       "calls": {
         "api_status": 3,
         "gh_repo_list": 3,
@@ -121,7 +120,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 564,
+      "renders": 531,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -133,16 +132,15 @@
       "calls": {}
     },
     "Tick a task on Today": {
-      "commits": 17,
-      "renders": 1315,
+      "commits": 11,
+      "renders": 609,
       "calls": {
-        "index_manifest": 4,
-        "index_notes_of_type": 4,
+        "index_manifest": 3,
         "index_open": 3,
         "index_put": 3,
-        "index_query": 24,
+        "index_query": 13,
         "index_stats": 3,
-        "list_directory": 12,
+        "list_directory": 8,
         "list_notes": 4,
         "read_notes": 5,
         "read_text_file": 5,
@@ -165,14 +163,13 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 20,
-      "renders": 984,
+      "commits": 17,
+      "renders": 724,
       "calls": {
         "create_folder": 3,
-        "index_manifest": 4,
-        "index_notes_of_type": 7,
+        "index_manifest": 3,
         "index_put": 3,
-        "index_query": 36,
+        "index_query": 32,
         "index_remove": 3,
         "index_stats": 3,
         "list_directory": 18,
@@ -210,13 +207,13 @@
       }
     },
     "Drag a board card": {
-      "commits": 50,
-      "renders": 2095,
+      "commits": 46,
+      "renders": 1147,
       "calls": {
-        "index_manifest": 4,
-        "index_notes_of_type": 4,
+        "index_manifest": 3,
+        "index_notes_of_type": 3,
         "index_put": 3,
-        "index_query": 12,
+        "index_query": 11,
         "index_stats": 3,
         "list_directory": 7,
         "list_notes": 4,
