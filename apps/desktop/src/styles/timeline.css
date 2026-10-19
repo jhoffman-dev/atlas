@@ -2,7 +2,11 @@
    One of the section files styles/index.css imports in cascade order; the
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
-/* ---- Timeline (Gantt) --------------------------------------------------- */
+/* ---- Timeline (Gantt) ---------------------------------------------------
+   UI v2 (slice 13c): the chart runs edge to edge on the surface under a
+   hairline ruler of 11.5/500 ink-3 days; each bar is grey with its status
+   dot's colour as a 3px left edge and a 12/400 label; rows are divided by
+   the soft line. The critical path's edge is red, which still wins. */
 
 .timeline {
   display: flex;
@@ -11,41 +15,38 @@
   min-height: 0;
 }
 
+/* The range, then anything worth knowing about the plan, as one line of
+   metadata. */
 .timeline__meta {
   align-items: center;
   color: var(--ink-3);
   display: flex;
   flex-wrap: wrap;
-  font-size: var(--text-small);
-  font-weight: 600;
-  gap: 8px 14px;
+  font-size: var(--text-meta);
+  gap: 4px 14px;
 }
 
 .timeline__range {
   color: var(--ink);
-  font-weight: 800;
+  font-size: var(--text-body);
+  font-weight: 500;
 }
 
-/* Something about the plan worth knowing, not an error: a tinted chip. */
+/* Something about the plan worth knowing, not an error: plain words in the
+   warning's ink, with no chip round them. */
 .timeline__warning {
-  background: color-mix(in srgb, var(--warning) 14%, var(--raised));
-  border-radius: var(--radius-pill);
   color: var(--warning);
-  font-weight: 700;
-  padding: 3px 10px;
+  font-weight: 500;
 }
 
 /* The density trade, settled for a Gantt: the plan is read by comparing rows
-   against each other, so the rows stay close together and the card around them
-   carries the calm. */
+   against each other, so the rows stay close together, divided by hairlines. */
 .timeline__scroll {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  border-top: 1px solid var(--line);
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--space-4) var(--space-2);
+  padding: 0 0 var(--space-2);
 }
 
 /* The chart is as wide as the plan is long; the scroller above holds it. */
@@ -53,103 +54,102 @@
   position: relative;
 }
 
-/* One of the few rules that survives: the ruler genuinely separates the scale
-   from the work measured against it. */
+/* The ruler genuinely separates the scale from the work measured against it. */
 .timeline__ruler {
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
   display: flex;
   position: sticky;
   top: 0;
-  background: var(--raised);
   z-index: 1;
 }
 
 .timeline__day {
-  color: var(--ink-2);
+  color: var(--ink-3);
   flex: none;
-  font-size: var(--text-label);
+  font-size: var(--text-header);
   font-variant-numeric: tabular-nums;
-  padding: var(--space-2) 0 6px;
+  font-weight: 500;
+  padding: 7px 0 5px;
   text-align: center;
 }
 
+/* Today: one line of ink-2 down the chart. */
 .timeline__today {
-  background: color-mix(in srgb, var(--accent-text) 55%, transparent);
+  background: var(--ink-2);
   bottom: 0;
   position: absolute;
   top: 0;
-  width: 2px;
+  width: 1px;
 }
 
 .timeline__row {
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
-  padding: 5px 0;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 4px 0;
 }
 
 .timeline__row:last-child {
   border-bottom: 0;
 }
 
-/* Flat, like every other fill on data: a bar that fades is harder to compare
+/* A bar is grey — the pressed-toggle fill, which sits off the surface in
+   both themes — with its status's colour as a 3px edge and the title in ink.
+   Flat, like every other fill on data: a bar that fades is harder to compare
    against the bar above it. */
 .timeline__bar {
-  --bar: color-mix(in srgb, var(--cyan) 34%, var(--raised));
-  --bar-ink: var(--ink);
-  background: var(--bar);
+  --bar-edge: var(--chart-bar);
+  align-items: center;
+  background: var(--selected);
   border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--bar-ink);
+  border-left: 3px solid var(--bar-edge);
+  border-radius: var(--radius-chip);
+  box-sizing: border-box;
+  color: var(--ink);
   cursor: grab;
-  display: block;
+  display: flex;
   font: inherit;
-  font-size: var(--text-small);
-  font-weight: 700;
-  min-height: 26px;
+  font-size: var(--text-meta);
+  font-weight: 400;
+  min-height: 24px;
   overflow: hidden;
-  padding: 5px 12px;
+  padding: 0 8px 0 6px;
   text-align: left;
   white-space: nowrap;
 }
 
-/* A bar takes its status's colours from the ramp, as a pill does (P16-04);
-   the critical path's red, below, still wins. */
+/* The edge takes its status's dot colour, as a pill's dot does; the critical
+   path's red, below, still wins. */
 .timeline__bar[data-tone='backlog'] {
-  --bar: var(--status-backlog);
-  --bar-ink: var(--status-backlog-ink);
+  --bar-edge: var(--status-backlog-dot);
 }
 
 .timeline__bar[data-tone='inbox'] {
-  --bar: var(--status-inbox);
-  --bar-ink: var(--status-inbox-ink);
+  --bar-edge: var(--status-inbox-dot);
 }
 
 .timeline__bar[data-tone='next'] {
-  --bar: var(--status-next);
-  --bar-ink: var(--status-next-ink);
+  --bar-edge: var(--status-next-dot);
 }
 
 .timeline__bar[data-tone='doing'] {
-  --bar: var(--status-doing);
-  --bar-ink: var(--status-doing-ink);
+  --bar-edge: var(--status-doing-dot);
 }
 
 .timeline__bar[data-tone='waiting'] {
-  --bar: var(--status-waiting);
-  --bar-ink: var(--status-waiting-ink);
+  --bar-edge: var(--status-waiting-dot);
 }
 
 .timeline__bar[data-tone='review'] {
-  --bar: var(--status-review);
-  --bar-ink: var(--status-review-ink);
+  --bar-edge: var(--status-review-dot);
 }
 
 .timeline__bar[data-tone='done'] {
-  --bar: var(--status-done);
-  --bar-ink: var(--status-done-ink);
+  --bar-edge: var(--status-done-dot);
 }
 
 .timeline__bar:hover {
-  box-shadow: var(--shadow-tile);
+  background: var(--hover);
+  box-shadow: 0 0 0 1px var(--line-strong);
 }
 
 .timeline__bar:focus-visible {
@@ -159,15 +159,17 @@
 
 /* Held: it moves with the pointer or the arrow keys, above the bars it passes. */
 .timeline__bar--held {
-  box-shadow: var(--shadow-tile);
+  box-shadow: var(--shadow-popover);
   cursor: grabbing;
   position: relative;
   z-index: 1;
 }
 
-/* The chain that decides the end date, picked out from the work beside it. */
-.timeline__bar--critical {
-  background: color-mix(in srgb, var(--danger) 30%, var(--raised));
+/* The chain that decides the end date, picked out from the work beside it.
+   Doubled to tie the tone rules' specificity (0,2,0); it then wins only by
+   coming after them, so it must stay below every `[data-tone]` rule. */
+.timeline__bar.timeline__bar--critical {
+  --bar-edge: var(--danger);
 }
 
 /* A moment rather than a stretch.
@@ -186,22 +188,23 @@
 }
 
 .timeline__bar--milestone::before {
-  background: color-mix(in srgb, var(--accent-text) 45%, var(--raised));
-  border: 1px solid var(--accent-text);
+  background: var(--selected);
+  border: 1px solid var(--bar-edge);
   content: '';
   flex: none;
-  height: 13px;
+  height: 11px;
+  margin-left: 6px;
   transform: rotate(45deg);
-  width: 13px;
+  width: 11px;
 }
 
-.timeline__bar--critical.timeline__bar--milestone::before {
-  background: color-mix(in srgb, var(--danger) 38%, var(--raised));
-  border-color: var(--danger);
+.timeline__bar--milestone:hover {
+  background: none;
+  box-shadow: none;
 }
 
 .timeline__bar--milestone:hover::before {
-  background: var(--accent-text);
+  background: var(--bar-edge);
 }
 
 /* The name overflows the one day the milestone occupies, which is the point. */
@@ -216,51 +219,45 @@
 
 /* A source note: what it reads, and what the last refresh did with it. The
    notes it produced are ordinary notes elsewhere, so there is nothing to list
-   here — this is the control room rather than the data: one raised card of
-   facts, each a quiet label over its value, then the refresh and its outcome. */
+   here — this is the control room rather than the data: the facts, each a
+   quiet label over its value, then the refresh and its outcome, divided by
+   hairlines rather than on cards. */
 .source {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   max-width: 760px;
-  padding: var(--space-5);
 }
 
 .source__facts {
+  border-bottom: 1px solid var(--line);
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-3) var(--space-4);
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   margin: 0;
-}
-
-.source__fact {
-  background: var(--panel);
-  border-radius: var(--radius-button);
-  padding: var(--space-3) var(--space-4);
+  padding-bottom: var(--space-4);
 }
 
 .source__fact dt {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 700;
+  font-size: var(--text-header);
+  font-weight: 500;
 }
 
 .source__fact dd {
   font-size: var(--text-body);
-  font-weight: 700;
+  font-weight: 500;
   margin: 4px 0 0;
   overflow-wrap: anywhere;
 }
 
 .source__fact code {
-  background: var(--chip);
+  background: var(--hover);
   border-radius: var(--radius-chip);
-  color: var(--chip-ink);
-  font-family: inherit;
-  padding: 1px 7px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  padding: 1px 6px;
 }
 
 .source__fact dd code + code {
@@ -277,9 +274,9 @@
   background: none;
   color: var(--ink);
   display: block;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: var(--text-mono);
+  font-weight: 400;
   padding: 0;
   white-space: pre-wrap;
 }
@@ -290,23 +287,23 @@
   gap: var(--space-3);
 }
 
+/* Refresh is the page's one primary action. */
 .source__refresh {
   appearance: none;
-  background: var(--accent);
-  border: 0;
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-accent);
-  color: var(--accent-ink);
+  background: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-line);
+  border-radius: var(--radius-button);
+  color: var(--btn-primary-ink);
   cursor: pointer;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 800;
-  height: 36px;
-  padding: 0 20px;
+  font-size: var(--text-column);
+  font-weight: 500;
+  height: 28px;
+  padding: 0 12px;
 }
 
 .source__refresh:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 86%, var(--ink));
+  background: color-mix(in srgb, var(--btn-primary-bg) 88%, var(--btn-primary-ink));
 }
 
 .source__refresh:focus-visible {
@@ -320,20 +317,18 @@
 }
 
 .source__report {
-  background: var(--panel);
-  border-radius: var(--radius-button);
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding-top: var(--space-3);
 }
 
 .source__ran,
 .source__empty,
 .source__note {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
   margin: 0;
 }
 
@@ -348,26 +343,27 @@
 
 .source__count {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
 }
 
 .source__count-value {
   color: var(--ink);
-  font-size: var(--text-card);
+  font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .source__error {
   color: var(--danger);
-  font-weight: 600;
+  font-size: var(--text-meta);
+  font-weight: 500;
   margin: 0;
 }
 
 .source__warning {
   color: var(--warning);
-  font-weight: 600;
+  font-size: var(--text-meta);
+  font-weight: 500;
   margin: 0;
 }
 
@@ -385,5 +381,5 @@
 
 .props__structured-note {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
 }

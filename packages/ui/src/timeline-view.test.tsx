@@ -65,6 +65,21 @@ describe('TimelineView', () => {
     );
   });
 
+  it('names a bar’s dates and its status in its title, and only the dates without one', () => {
+    const { container } = render(
+      <TimelineView
+        {...props}
+        rows={[{ ...rows[0]!, values: { ...rows[0]!.values, status: 'doing' } }, rows[1]!]}
+      />,
+    );
+    expect(container.querySelector('[data-path="a.md"]')?.getAttribute('title')).toBe(
+      '2026-09-01 → 2026-09-03 · Doing',
+    );
+    expect(container.querySelector('[data-path="b.md"]')?.getAttribute('title')).toBe(
+      '2026-09-04 → 2026-09-08',
+    );
+  });
+
   it('draws a note with one date as a milestone', () => {
     const { container } = render(<TimelineView {...props} />);
     expect(container.querySelector('[data-path="c.md"]')?.className).toContain(

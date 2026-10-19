@@ -8,6 +8,7 @@ import {
   addDays,
   daysBetween,
   formatPropertyDate,
+  noteStatus,
   noteTone,
   type BoardRow,
   type TimelineEntry,
@@ -191,7 +192,9 @@ function Bar({
           width: `${entry.span * DAY_WIDTH}px`,
           transform: transform === null ? undefined : `translate3d(${transform.x}px, 0, 0)`,
         }}
-        title={`${entry.start} → ${entry.end}`}
+        title={[`${entry.start} → ${entry.end}`, noteStatus(entry.values)]
+          .filter(Boolean)
+          .join(' · ')}
         onClick={() => onOpenNote(entry.path)}
       >
         <span className="timeline__label">{entry.title}</span>
