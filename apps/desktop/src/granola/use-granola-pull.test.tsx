@@ -519,6 +519,24 @@ describe('useGranolaPull', () => {
     expect(hook.result.current.toast).toBe(words);
   });
 
+  it('the first showing’s time running out after a second showing leaves the second up', async () => {
+    const { hook, granola, lists } = setUp();
+    await settles(() => expect(lists()).toBe(1));
+    granola.fail('list', UNREACHABLE);
+    act(() => hook.result.current.syncNow());
+    await settles(() => expect(hook.result.current.toastShown).toBe(1));
+    granola.fail('list', UNREACHABLE);
+    act(() => hook.result.current.syncNow());
+    await settles(() => expect(hook.result.current.toastShown).toBe(2));
+
+    // The first Toast's timer can fire before the window draws the second in its place.
+    act(() => hook.result.current.dismissToast(1));
+    expect(hook.result.current.toast).toContain('Granola could not be reached');
+
+    act(() => hook.result.current.dismissToast(2));
+    expect(hook.result.current.toast).toBeNull();
+  });
+
   it('a key Granola refuses is said as a toast once, and then nothing is pulled by itself', async () => {
     const { hook, granola, lists } = setUp();
     granola.fail('list', KEY_REFUSED);
