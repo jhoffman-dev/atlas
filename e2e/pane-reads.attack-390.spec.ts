@@ -319,4 +319,20 @@ test.describe('#392: Today hears the untyped note a task is filed under', () => 
     await moveOutside(page, vault, 'Notes/Garden plan.md', 'Notes/Vegetable plan.md');
     await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(0);
   });
+
+  test('groups the task when another program makes the note its link names, none until then', async ({
+    page,
+  }) => {
+    const vault = await gtdVault({ path: 'Notes/Garden plan.md', type: null });
+    await unlink(join(vault.root, 'Notes/Garden plan.md'));
+    await open(page, vault);
+    await goTo(page).getByRole('button', { name: 'Today' }).click();
+    const nextActions = nextActionsOf(page);
+    await expect(nextActions.getByText('Weed the beds')).toBeVisible();
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(0);
+
+    // The link resolves only once the note is there: no task's bytes changed.
+    await writeOutside(page, vault, 'Notes/Garden plan.md', 'Where it goes.\n');
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(1);
+  });
 });

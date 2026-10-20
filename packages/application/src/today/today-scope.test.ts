@@ -50,12 +50,26 @@ describe('todayScope (#392)', () => {
     expect(heard(REVIEW_SCOPE, removed('Notes/Garden plan.md'))).toBe(false);
   });
 
+  it('reads Today again for a note made with the name a task’s project links by, none yet', async () => {
+    const scope = todayScope(
+      await readTodayOf({
+        'Tasks/Sow the beans.md': task('status: next-action', 'project: "[[Garden plan]]"'),
+      }),
+    );
+
+    expect(heard(scope, { ...edited('Notes/Garden plan.md'), kind: 'added' } as NoteChange)).toBe(
+      true,
+    );
+    expect(heard(scope, { ...edited('Notes/Garden.md'), kind: 'added' } as NoteChange)).toBe(false);
+  });
+
   it('names each such note once, the review’s scope kept whole', async () => {
     const scope = todayScope(await readTodayOf(FILES));
 
     expect(scope).toEqual({
       ...REVIEW_SCOPE,
       notes: ['Notes/Garden plan.md', 'Projects/Atlas.md'],
+      linkedNames: ['garden plan', 'atlas'],
     });
   });
 

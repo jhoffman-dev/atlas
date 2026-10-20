@@ -142,6 +142,22 @@ describe('compileReviewTasksQuery', () => {
     expect(task).toMatchObject({ status: null, due: '2026-10-03', project: 'Projects/Atlas.md' });
   });
 
+  it('reads the names a task’s project links by, each folded, resolved or not (#392)', () => {
+    const [task, bare] = tasksOf({
+      'Tasks/Mixed.md': {
+        frontmatter: { type: 'task', status: 'next-action' },
+        relations: [
+          { key: 'project', name: 'Garden Plan', dst: null },
+          { key: 'waiting_on', name: 'Mara Quill', dst: null },
+          { key: 'project', name: 'Atlas', dst: 'Projects/Atlas.md' },
+        ],
+      },
+      'Tasks/Unfiled.md': { frontmatter: { type: 'task', status: 'next-action' } },
+    });
+    expect(task?.projectLinks).toEqual(['garden plan', 'atlas']);
+    expect(bare?.projectLinks).toEqual([]);
+  });
+
   it('names a task’s project by its note’s title, and one context written alone as one', () => {
     const [task] = tasksOf({
       'Tasks/Call.md': {
