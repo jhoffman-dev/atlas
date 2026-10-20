@@ -96,7 +96,7 @@
 }
 
 /* How far a build of the index has got: a line at the foot of the panels,
-   out of the way of the note and of the add button opposite. It takes no
+   out of the way of the note and of the toasts opposite. It takes no
    clicks — whatever is under it stays reachable. */
 .index-progress {
   background: var(--raised);

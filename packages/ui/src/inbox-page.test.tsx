@@ -61,7 +61,6 @@ const PROPOSALS: NonNullable<InboxPageProps['proposals']> = {
   onClearSelection: vi.fn(),
   onAcceptMany: vi.fn(),
   onRejectMany: vi.fn(),
-  onUndo: vi.fn(),
   onDismissNotice: vi.fn(),
   onOpen: vi.fn(),
   onOpenSource: vi.fn(),

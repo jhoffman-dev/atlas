@@ -150,3 +150,35 @@ test('an Undo after the note moved on is refused, said as a warning, and found l
     lines.filter({ hasText: '“Send the Larkspur invoice” has changed since' }),
   ).toHaveCount(1);
 });
+
+// Moved from the retired quick-add button's toast (UI v2, Q5): the window's
+// toasts keep its corner, bottom right, where they sit on no control.
+test('a toast sits bottom right, inside the window, over no control of the table under it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const vault = await openVault(page);
+  await setWaiting(page, vault);
+  const said = toastSaying(page, 'Changed “Send the Larkspur invoice”.');
+  await expect(said).toBeVisible();
+
+  const box = (await said.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(1280);
+  expect(box.x + box.width).toBeGreaterThan(1280 - 60);
+  expect(box.y + box.height).toBeLessThanOrEqual(800);
+  expect(box.y, 'in the bottom quarter').toBeGreaterThan(800 - 200);
+  const covered = await said.evaluate((toast) => {
+    const over = toast.getBoundingClientRect();
+    return [...document.querySelectorAll<HTMLElement>('button, input, select, [role="tab"]')]
+      .filter((control) => !toast.contains(control))
+      .filter((control) => {
+        const at = control.getBoundingClientRect();
+        if (at.width === 0 || at.height === 0) return false;
+        const cx = at.left + at.width / 2;
+        const cy = at.top + at.height / 2;
+        return cx >= over.left && cx <= over.right && cy >= over.top && cy <= over.bottom;
+      })
+      .map((control) => control.getAttribute('aria-label') ?? control.textContent?.trim() ?? '');
+  });
+  expect(covered).toEqual([]);
+});

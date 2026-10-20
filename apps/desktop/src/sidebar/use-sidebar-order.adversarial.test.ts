@@ -42,7 +42,7 @@ function hostLikeVault(initial: string | null) {
   return { fs, file };
 }
 
-/** Both settings the sidebar and the add button keep, as the app mounts them side by side. */
+/** Both settings the sidebar and quick add keep, as the app mounts them side by side. */
 const renderBoth = (fs: VaultFsPort) =>
   renderHook(
     () => ({

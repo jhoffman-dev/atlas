@@ -26,8 +26,6 @@ export interface AppShortcuts {
   readonly toggleSidebar: () => void;
   readonly toggleSplit: () => void;
   readonly dailyNote: () => void;
-  /** The floating add button's own press: Alt+Cmd+N. */
-  readonly quickAdd: () => void;
   /** Back and Forward in the pane being worked in. */
   readonly back: () => void;
   readonly forward: () => void;
@@ -35,6 +33,8 @@ export interface AppShortcuts {
   readonly tabs: TabShortcuts;
   /** Puts up one of the window's overlays. */
   readonly show: (overlay: Overlay) => void;
+  /** Asks for capture: put up when a vault is open, said to need one when none is. */
+  readonly capture: () => void;
   /** Opens or closes Claude, beside the work. */
   readonly toggleChat: () => void;
   /** Shows or hides the right sidebar: Alt+Cmd+\ (UI v2 plan, question 2). */
@@ -125,7 +125,7 @@ export function useAppShortcuts(
       }
       // Shift excluded, or Shift+Cmd+N would make a blank note as well as
       // opening capture — and the two creations would race each other.
-      // Alt excluded, or Alt+Cmd+N would make a blank note as well as adding one.
+      // Alt excluded, or Alt+Cmd+N would make a blank note as well as opening capture.
       if (
         (event.metaKey || event.ctrlKey) &&
         !event.shiftKey &&
@@ -135,9 +135,10 @@ export function useAppShortcuts(
         event.preventDefault();
         if (!held) newNote();
       }
-      // Alt+Cmd+N: what the floating add button does. Matched by the key's
-      // place, since Alt turns N into a dead key on a Mac layout, or by the
-      // letter, for a layout (Dvorak) that puts N somewhere else.
+      // Alt+Cmd+N opens capture: the shortcut of the retired add button, kept
+      // for the hands that know it (UI v2, Q5). Matched by the key's place,
+      // since Alt turns N into a dead key on a Mac layout, or by the letter,
+      // for a layout (Dvorak) that puts N somewhere else.
       if (
         (event.metaKey || event.ctrlKey) &&
         event.altKey &&
@@ -145,7 +146,7 @@ export function useAppShortcuts(
         (event.code === 'KeyN' || event.key.toLowerCase() === 'n')
       ) {
         event.preventDefault();
-        if (!held) latest.current.quickAdd();
+        if (!held) latest.current.capture();
       }
       // Shift excluded: Shift+Cmd+\ splits, and Cmd+\ has shut the sidebar
       // since long before there was a split to bind it to. Alt excluded: that
@@ -181,7 +182,7 @@ export function useAppShortcuts(
       // were doing. Cmd+N still makes a blank note in the folder in view.
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'n') {
         event.preventDefault();
-        show('capture');
+        latest.current.capture();
       }
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'd') {
         event.preventDefault();

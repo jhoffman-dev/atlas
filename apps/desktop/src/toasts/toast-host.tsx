@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from 'zustand';
 import { noticeReport } from '@atlas/domain';
 import type { ActivityLog } from '@atlas/application';
@@ -31,13 +32,16 @@ export const ToastHost = memo(function ToastHost({
   children?: ReactNode;
 }) {
   const queue = useStore(toasts.store, (state) => state.toasts);
+  const place = useStore(toasts.store, (state) => state.place);
   useWarningsRecorded(toasts, activity);
   useEffect(() => toasts.openVault(vault ?? null), [toasts, vault]);
-  return (
+  const stack = (
     <ToastStack toasts={queue} onDismiss={toasts.dismiss}>
       {children}
     </ToastStack>
   );
+  // In the peek's place while it is up: inside its focus trap, so Tab reaches an Undo (#468).
+  return place === null ? stack : createPortal(stack, place);
 });
 
 /** Records each warning and error toast in Activity once, as the store first holds it. */

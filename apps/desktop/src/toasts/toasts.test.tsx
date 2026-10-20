@@ -132,3 +132,48 @@ describe('the toasts and another vault (#455)', () => {
     expect(toasts.vaultNow()).toBe('/vaults/a');
   });
 });
+
+describe('the toasts, placed in the topmost modal layer (#468)', () => {
+  const activity = { record: vi.fn() };
+
+  it('draws them in the place a modal layer hands over, and back in the window once it goes', () => {
+    const toasts = createToasts();
+    toasts.show({ message: 'Changed “Order chairs”.', tone: 'change', onUndo: () => {} });
+    const place = document.createElement('div');
+    document.body.append(place);
+    render(<ToastHost toasts={toasts} activity={activity} />);
+    expect(place.querySelector('.toast')).toBeNull();
+
+    act(() => toasts.placeIn(place));
+    expect(place.querySelector('.toast')?.textContent).toContain('Changed “Order chairs”.');
+    expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1);
+
+    act(() => toasts.placeIn(null));
+    expect(place.querySelector('.toast')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1);
+    place.remove();
+  });
+
+  it('records a warning in Activity once, however often it is placed again', () => {
+    const toasts = createToasts();
+    const record = vi.fn();
+    const place = document.createElement('div');
+    document.body.append(place);
+    render(<ToastHost toasts={toasts} activity={{ record }} />);
+    act(() => void toasts.show({ message: 'It changed since.', tone: 'warning' }));
+    act(() => toasts.placeIn(place));
+    act(() => toasts.placeIn(null));
+    expect(record).toHaveBeenCalledTimes(1);
+    place.remove();
+  });
+
+  it('keeps the latest place it is given, and null puts them back in the window', () => {
+    const toasts = createToasts();
+    const first = document.createElement('div');
+    const second = document.createElement('div');
+    toasts.placeIn(first);
+    toasts.placeIn(second);
+    toasts.placeIn(null);
+    expect(toasts.store.getState().place).toBeNull();
+  });
+});

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /**
  * #168: several proposals chosen — a box each, Shift-click for a run — are
@@ -89,8 +90,10 @@ test('a run chosen with Shift-click is accepted together, and one Undo takes it 
   await page.getByRole('button', { name: 'Accept 3 proposals' }).click();
 
   await expect(cards(page)).toHaveCount(1);
-  const notice = page.getByRole('status').filter({ hasText: 'Accepted 3 proposals.' });
+  // Said in the window's toast (UI v2, slice 15), held under the pointer while the files are read.
+  const notice = toastSaying(page, 'Accepted 3 proposals.');
   await expect(notice).toBeVisible();
+  await notice.hover();
   for (const title of run) {
     await expectFile(vault, `${TASKS}/${title}.md`).toContain('type: task');
     await expectFile(vault, `Archive/Inbox/Proposals/${title}.md`).toContain('state: accepted');
@@ -98,9 +101,7 @@ test('a run chosen with Shift-click is accepted together, and one Undo takes it 
 
   await notice.getByRole('button', { name: 'Undo' }).click();
 
-  await expect(
-    page.getByRole('status').filter({ hasText: 'Undone: 3 proposals are back in the Inbox.' }),
-  ).toBeVisible();
+  await expect(toastSaying(page, 'Undone: 3 proposals are back in the Inbox.')).toBeVisible();
   await expect(cards(page)).toHaveCount(4);
   for (const title of run) {
     await expect.poll(() => vault.exists(`${TASKS}/${title}.md`)).toBe(false);
@@ -119,7 +120,7 @@ test('Select all, then Reject, files every one in the Archive as rejected (#168)
   await page.getByRole('button', { name: 'Reject 4 proposals' }).click();
 
   await expect(page.getByText('Nothing to answer.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('status').filter({ hasText: 'Rejected 4 proposals.' })).toBeVisible();
+  await expect(toastSaying(page, 'Rejected 4 proposals.')).toBeVisible();
   for (const title of TITLES) {
     await expectFile(vault, `Archive/Inbox/Proposals/${title}.md`).toContain('state: rejected');
     expect(await vault.exists(`${title}.md`)).toBe(false);

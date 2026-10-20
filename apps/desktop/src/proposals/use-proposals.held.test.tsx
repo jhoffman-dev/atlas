@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath } from '@atlas/domain';
 import { recordingActivity, type ProposalPorts } from '@atlas/application';
 import { createProposalWrites } from './proposal-writes.ts';
-import { inMemoryProposalVault } from './proposals.test-support.ts';
+import { inMemoryProposalVault, windowToasts } from './proposals.test-support.ts';
 import { useProposals } from './use-proposals.ts';
 
 /*
@@ -48,6 +48,8 @@ function twoSections() {
     },
   };
   const held = createProposalWrites();
+  // One window, so one set of toasts, whichever section answers.
+  const shown = windowToasts();
   const mount = (own?: ReturnType<typeof createProposalWrites>) =>
     renderHook(() =>
       useProposals({
@@ -57,18 +59,20 @@ function twoSections() {
         onSettled: vi.fn(),
         activity: recordingActivity(),
         closing: noClosing,
+        toasts: shown.toasts,
+        onOpen: vi.fn(),
         ...(own !== undefined && { held: own }),
       }),
     );
-  return { files: setup.files, release, began, held, mount };
+  return { files: setup.files, release, began, held, mount, said: shown.said };
 }
 
 const openPaths = (hook: { result: { current: ReturnType<typeof useProposals> } }) =>
   hook.result.current.section.contents?.open.map((each) => each.path) ?? null;
 
 describe('useProposals on a window-held set of answers', () => {
-  it('a second section on the same hold sees the proposal answered in the first as gone, and keeps its undo', async () => {
-    const { release, held, mount } = twoSections();
+  it('a second section on the same hold sees the proposal answered in the first as gone, and its Undo stays in the window', async () => {
+    const { release, held, mount, said } = twoSections();
     const first = mount(held);
     await waitFor(() => expect(openPaths(first)).toHaveLength(2));
     act(() => first.result.current.section.onAccept(createVaultPath(FIRST)));
@@ -85,9 +89,8 @@ describe('useProposals on a window-held set of answers', () => {
 
     release();
     await waitFor(() => expect(openPaths(second)).toEqual([SECOND]));
-    await waitFor(() => expect(first.result.current.section.notice?.text).toMatch(/Accepted/));
-    expect(second.result.current.section.notice?.text).toMatch(/Accepted/);
-    expect(second.result.current.section.notice?.undoable).toBe(true);
+    await waitFor(() => expect(said()?.message).toMatch(/Accepted/));
+    expect(said()?.onUndo).toBeTypeOf('function');
   });
 
   it('answers given from two sections go one after another through the one queue', async () => {

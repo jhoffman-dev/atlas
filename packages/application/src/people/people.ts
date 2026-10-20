@@ -51,7 +51,7 @@ export class PersonRefusedError extends Error {
 }
 
 /**
- * Makes a person from what was typed after `@`, as the add button makes one:
+ * Makes a person from what was typed after `@`, as quick add makes one:
  * from the vault's Person template when it has one, filed in `People/`, a
  * name taken there numbered.
  *

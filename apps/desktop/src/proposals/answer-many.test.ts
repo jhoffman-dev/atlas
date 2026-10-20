@@ -7,16 +7,25 @@ const archived = (archiveProblem: string | null) => ({ archiveProblem }) as Prop
 const accepted = (headline: string) => ({ headline }) as AcceptedProposal;
 
 describe('answeredNotice — whether it stays until read', () => {
-  it('goes by itself when every one was answered, or when the cards say why the rest were not', () => {
+  it('goes by itself when every one was answered, or some were and the cards say why the rest were not', () => {
     expect(answeredNotice('Rejected', { done: [archived(null)], failed: [] }).failed).toBe(false);
-    const someNot = { done: [], failed: [{ item: 'a', reason: 'refused' }] };
-    expect(answeredNotice('Rejected', someNot).failed).toBe(false);
+    const someNot = {
+      done: [archived(null)],
+      failed: [{ item: 'a', reason: 'refused' }],
+    };
+    expect(answeredNotice('Accepted', someNot).failed).toBe(false);
   });
 
-  it('stays when a rejected one was left in the Inbox, with nothing to undo', () => {
+  // None answered is no change made: never a green toast (attack-468).
+  it('fails, with nothing to undo, when none was answered', () => {
+    const noneDone = { done: [], failed: [{ item: 'a', reason: 'refused' }] };
+    expect(answeredNotice('Accepted', noneDone)).toMatchObject({ undoable: false, failed: true });
+  });
+
+  it('fails when one was left in the Inbox: to read on the page, or with the accepts’ Undo', () => {
     const left = { done: [archived('The Archive is locked.')], failed: [] };
-    expect(answeredNotice('Rejected', left).failed).toBe(true);
-    expect(answeredNotice('Accepted', left)).toMatchObject({ undoable: true, failed: false });
+    expect(answeredNotice('Rejected', left)).toMatchObject({ undoable: false, failed: true });
+    expect(answeredNotice('Accepted', left)).toMatchObject({ undoable: true, failed: true });
   });
 });
 

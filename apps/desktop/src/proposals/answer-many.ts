@@ -1,6 +1,6 @@
 import { messageOf } from '@atlas/domain';
 import type { AcceptedProposal, ProposalArchived } from '@atlas/application';
-import type { ProposalNotice } from '@atlas/ui';
+import type { ProposalNotice } from './proposal-notice.ts';
 
 /** What answering several in turn did: each one done, and each one that was not, with why. */
 export interface InTurn<Item, Done> {
@@ -45,8 +45,9 @@ export function answeredNotice(
     text: [said, notAnswered(failed.length, done.length), stranded].join(''),
     opens: null,
     undoable,
-    // Those not answered say why on their cards; one left in the Inbox, with nothing to undo, stays until read.
-    failed: !undoable && stranded !== '',
+    // Those not answered say why on their cards. None answered, or one left in the
+    // Inbox, is a failure: with nothing to undo it stays on the page until read.
+    failed: stranded !== '' || (done.length === 0 && failed.length > 0),
   };
 }
 
