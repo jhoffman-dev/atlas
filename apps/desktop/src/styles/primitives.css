@@ -24,11 +24,6 @@
   text-align: left;
 }
 
-/* The thing to act on, or to read first. */
-.card--raised {
-  box-shadow: var(--shadow-tile);
-}
-
 /* A card that is itself a control. */
 .card--interactive {
   cursor: pointer;
@@ -128,10 +123,7 @@
   --btn-line: var(--btn-destructive-line);
 }
 
-/* `--tinted` was the second action on a raised card; v2 has no tint, so it
-   is drawn as secondary until the clean-up slice renames its callers. */
-.btn--secondary,
-.btn--tinted {
+.btn--secondary {
   --btn-bg: var(--btn-secondary-bg);
   --btn-ink: var(--btn-secondary-ink);
   --btn-line: var(--btn-secondary-line);
@@ -564,7 +556,7 @@
   gap: 4px;
 }
 
-/* A toast is the one word that something happened, top right, on a dark
+/* A toast is the one word that something happened, bottom right, on a dark
    surface in both themes, with Undo and a dismiss ×. It floats over the
    content and never takes the focus. */
 .toast {
@@ -580,16 +572,20 @@
      its remedy, and the remedy is the point. */
   max-width: min(340px, 100% - 24px);
   padding: 10px 10px 10px 14px;
-  /* Bottom right, above the quick-add button's resting place (24px in from
-     the edge, 56px tall), with 12px of air. The top right, where slice 2
-     first put it, is the pane's bars — the nav bar's star and menu, and
-     since slice 4 the view bar's "New" — and under them the table's sort
-     headers and a board's "+": a toast there sat on a control for 5 s. The
-     bottom right holds only the button that made it. */
+  /* Bottom right, where the retired add button rested (24px in from the
+     edge, 56px tall) with 12px of air, kept as it was (UI v2, Q5). The top
+     right, where slice 2 first put it, is the pane's bars — the nav bar's
+     star and menu, and since slice 4 the view bar's "New" — and under them
+     the table's sort headers and a board's "+": a toast there sat on a
+     control for 5 s. The bottom right holds none. */
   bottom: calc(24px + 56px + 12px);
   position: absolute;
   right: 12px;
   width: max-content;
+  /* Under every layer a person works in — menus (30), palettes, dialogs and
+     the peek (40) — so a toast hides none of their controls. While the peek
+     is up the toasts are drawn inside it instead (peek.css), in its focus
+     trap, where Tab and the pointer both reach their Undo (#468). */
   z-index: 21;
 }
 

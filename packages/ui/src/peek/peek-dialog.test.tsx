@@ -198,3 +198,17 @@ describe('PeekDialog: closing', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Row 3' }));
   });
 });
+
+describe('PeekDialog: a place for the window’s toasts (#468)', () => {
+  it('hands over a place inside the dialog, after its header and before the note', () => {
+    let slot: HTMLElement | null = null;
+    show({ toastSlot: (element) => (slot = element) });
+    expect(slot).not.toBeNull();
+    const placed = slot as unknown as HTMLElement;
+    expect(dialog().contains(placed)).toBe(true);
+    const header = dialog().querySelector('header');
+    const body = dialog().querySelector('.peek__body');
+    expect(header?.compareDocumentPosition(placed)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(placed.compareDocumentPosition(body!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+});

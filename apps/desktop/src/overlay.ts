@@ -21,7 +21,6 @@ export type Overlay =
   | 'template-delete'
   | 'template-to-note'
   | PeopleOverlay
-  | QuickAddOverlay
   | QueryPopupOverlay
   | PagesOverlay
   | PageMenuOverlay
@@ -35,12 +34,6 @@ export type PagesOverlay = 'tree-menu' | 'pages-menu' | 'move-picker' | 'delete-
 
 /** Merging people (#464): the question before a merge, and the list of people who may be one. */
 export type PeopleOverlay = 'merge-people' | 'people-duplicates';
-
-/**
- * The floating add button's speed dial, and its quick-add popover. Neither is
- * modal: each gives way to anything asked for over it, as a menu does.
- */
-export type QuickAddOverlay = 'quick-add-menu' | 'quick-add';
 
 /** A popup on the query page — Save as view, Add to dashboard — by its name. */
 export type QueryPopupOverlay = `query-${string}`;

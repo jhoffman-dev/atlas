@@ -171,6 +171,14 @@ describe('Settings (slice 13f)', () => {
   });
 });
 
+describe('a field, as Settings asks in them', () => {
+  // Held here since the quick-add popover, which held it before, was retired (UI v2, Q5).
+  it('is the 28px field primitive, ringed when focused', () => {
+    expect(styleOf('.field').get('height')).toBe('28px');
+    expect(styleOf('.field:focus').get('box-shadow')).toBe('var(--ring)');
+  });
+});
+
 describe('Welcome (slice 13f)', () => {
   it('is a 24/600 title, one paragraph in ink-2, and no tile or card', () => {
     expect(styleOf('.empty__title').get('font-size')).toBe('var(--text-note-title)');

@@ -63,11 +63,11 @@
   box-shadow: var(--shadow-overlay);
 }
 
-/* The toast places itself top right of the nearest positioned box, so its
-   specimen gets one, as wide as the row and tall enough for its longest
-   words wrapped. */
+/* The toasts' column places itself at the foot of the nearest positioned box,
+   so their specimen gets one, as wide as the row and tall enough for three,
+   the longest words wrapped. */
 .gallery-page__stage {
-  height: 200px;
+  height: 360px;
   position: relative;
   width: 100%;
 }

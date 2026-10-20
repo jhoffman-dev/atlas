@@ -345,18 +345,6 @@
   outline: none;
 }
 
-.props__add-input {
-  background: transparent;
-  border: 0;
-  color: var(--ink);
-  font: inherit;
-  outline: none;
-}
-
-.props__add-input[aria-invalid='true'] {
-  color: var(--danger);
-}
-
 /* "Add a property": a small card under its button, like Notion's. */
 .props__add-anchor {
   position: relative;

@@ -58,7 +58,7 @@ export function FileDrop({
       <div className="file-drop__actions">
         <button
           type="button"
-          className="btn btn--tinted"
+          className="btn btn--secondary"
           disabled={disabled}
           onClick={() => files.current?.click()}
         >

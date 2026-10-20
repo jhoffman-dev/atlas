@@ -19,6 +19,14 @@
   z-index: 40;
 }
 
+/* The window's toasts while the peek is up (#468): drawn in the dialog, after
+   its header, so they are in its focus trap — Tab from the header's × reaches
+   their Undo — yet still at the window's corner, over the note. */
+.peek__toasts .toast-stack {
+  position: fixed;
+  z-index: 1;
+}
+
 .peek {
   background: var(--surface);
   border-radius: var(--radius-popover);

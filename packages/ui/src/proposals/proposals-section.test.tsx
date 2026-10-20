@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type ProposalNote, type VaultPath } from '@atlas/domain';
 import type { RowSelection } from '../row-selection.tsx';
@@ -51,7 +51,6 @@ function page(props: Partial<ProposalsSectionProps> = {}) {
     onClearSelection: vi.fn(),
     onAcceptMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
     onRejectMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
-    onUndo: vi.fn(),
     onDismissNotice: vi.fn(),
     onOpen: vi.fn<(path: VaultPath) => void>(),
     onOpenSource: vi.fn<(link: string) => void>(),
@@ -199,27 +198,6 @@ describe('ProposalsSection', () => {
     }
   });
 
-  it('offers to open what an accept made, and to undo it', async () => {
-    const handlers = page({
-      notice: {
-        text: 'Accepted: Send Mara the payroll file.',
-        opens: {
-          path: createVaultPath('Send Mara the payroll file.md'),
-          title: 'Send Mara the payroll file',
-        },
-        undoable: true,
-        failed: false,
-      },
-    });
-    const notice = screen.getByRole('status');
-    await userEvent.click(
-      within(notice).getByRole('button', { name: 'Open Send Mara the payroll file' }),
-    );
-    await userEvent.click(within(notice).getByRole('button', { name: 'Undo' }));
-    expect(handlers.onOpen).toHaveBeenCalledWith('Send Mara the payroll file.md');
-    expect(handlers.onUndo).toHaveBeenCalledOnce();
-  });
-
   it('says when there is nothing to answer, and lists what cannot be read', () => {
     page({
       contents: {
@@ -306,58 +284,6 @@ describe('ProposalsSection', () => {
   });
 });
 
-describe('ProposalsSection — the notice goes by itself (#165)', () => {
-  afterEach(() => vi.useRealTimers());
-
-  const ACCEPTED = {
-    text: 'Accepted: Send Mara the payroll file.',
-    opens: null,
-    undoable: true,
-    failed: false,
-  };
-
-  it('dismisses the notice, and with it the undo, after 20 seconds', () => {
-    vi.useFakeTimers();
-    const handlers = page({ notice: ACCEPTED });
-    expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
-
-    act(() => vi.advanceTimersByTime(19_900));
-    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(200));
-    expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
-  });
-
-  it('waits while the pointer is on it, then gives the full time again', () => {
-    vi.useFakeTimers();
-    const handlers = page({ notice: ACCEPTED });
-    const notice = screen.getByRole('status');
-
-    act(() => vi.advanceTimersByTime(15_000));
-    fireEvent.pointerEnter(notice);
-    act(() => vi.advanceTimersByTime(120_000));
-    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
-
-    fireEvent.pointerLeave(notice);
-    act(() => vi.advanceTimersByTime(19_900));
-    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(200));
-    expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
-  });
-
-  it('waits while the focus is on its Undo, as a keyboard reaches it', () => {
-    vi.useFakeTimers();
-    const handlers = page({ notice: ACCEPTED });
-    act(() => screen.getByRole('button', { name: 'Undo' }).focus());
-
-    act(() => vi.advanceTimersByTime(120_000));
-    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
-
-    act(() => screen.getByRole('button', { name: 'Undo' }).blur());
-    act(() => vi.advanceTimersByTime(20_100));
-    expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('ProposalsSection — answering several at once (#168)', () => {
   const chosen = (paths: readonly string[]): RowSelection => ({
     selected: new Set(paths),
@@ -416,14 +342,11 @@ describe('ProposalsSection — answering several at once (#168)', () => {
 describe('ProposalsSection — a failure stays until read (review)', () => {
   afterEach(() => vi.useRealTimers());
 
-  const FAILED = {
-    text: 'Mara Quill’s task was changed since it was made, so it was left as it is.',
-    opens: null,
-    undoable: false,
-    failed: true,
-  };
+  // What went well is said in the window's toast, with its Undo (UI v2, slice 15); a
+  // failure with nothing to take back is said here, and never goes by itself.
+  const FAILED = 'Mara Quill’s task was changed since it was made, so it was left as it is.';
 
-  it('keeps a failure up past 20 seconds, until it is dismissed', async () => {
+  it('keeps a failure up, however long, until it is dismissed', async () => {
     vi.useFakeTimers();
     const handlers = page({ notice: FAILED });
     act(() => vi.advanceTimersByTime(120_000));
@@ -435,21 +358,14 @@ describe('ProposalsSection — a failure stays until read (review)', () => {
     expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
   });
 
-  it('gives a notice said again in the same words its full time again', () => {
-    vi.useFakeTimers();
-    const accepted = {
-      text: 'Accepted: Send Mara the payroll file.',
-      opens: null,
-      undoable: true,
-      failed: false,
-    };
-    const handlers = page({ notice: accepted });
-    act(() => vi.advanceTimersByTime(15_000));
-    handlers.rerender({ notice: { ...accepted } });
-    act(() => vi.advanceTimersByTime(15_000));
-    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(5_100));
-    expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
+  it('offers nothing beside it but Dismiss: there is nothing to take back', () => {
+    page({ notice: FAILED });
+    const notice = screen.getByRole('status');
+    expect(
+      within(notice)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['×']);
   });
 });
 
@@ -510,13 +426,22 @@ describe('proposalsToShow — while the last answers are written (review)', () =
       onClearSelection: vi.fn(),
       onAcceptMany: vi.fn(),
       onRejectMany: vi.fn(),
-      onUndo: vi.fn(),
       onDismissNotice: vi.fn(),
       onOpen: vi.fn(),
       onOpenSource: vi.fn(),
     };
     expect(proposalsToShow(none)).toBe(false);
     expect(proposalsToShow({ ...none, answering: true })).toBe(true);
+  });
+
+  it('keeps the section, to say nothing is left, once the last one was answered here', () => {
+    const none = {
+      contents: { open: [], stranded: [], unreadable: [] },
+      error: null,
+      notice: null,
+    } as unknown as ProposalsSectionProps;
+    expect(proposalsToShow(none)).toBe(false);
+    expect(proposalsToShow({ ...none, answered: true })).toBe(true);
   });
 });
 

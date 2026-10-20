@@ -4,17 +4,17 @@ import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
 /** The note a vault keeps its own settings in, as frontmatter. */
 export const VAULT_SETTINGS_PATH = `${ATLAS_DIRECTORY}/settings.md`;
 
-/** The settings key that lists the types the add button offers, in order. */
+/** The settings key that lists the types quick add offers, in order. */
 export const QUICK_ADD_KEY = 'quickAdd';
 
-/** How many types the add button offers at most: more is a menu, not a shortcut. */
+/** How many types quick add offers at most. */
 export const QUICK_ADD_LIMIT = 5;
 
 /** The type offered when a vault has said nothing: the thing most often added. */
 export const QUICK_ADD_DEFAULT = 'task';
 
 /**
- * The types a vault's settings list for the add button, or null when the key
+ * The types a vault's settings list for quick add, or null when the key
  * is not there at all — which is different from an empty list, the person
  * having taken every type away.
  *
@@ -31,7 +31,7 @@ export function parseQuickAdd(value: unknown): readonly string[] | null {
   return [...new Set(names)].slice(0, QUICK_ADD_LIMIT);
 }
 
-/** What the add button offers, and what the settings name that the vault no longer has. */
+/** What quick add offers, and what the settings name that the vault no longer has. */
 export interface QuickAddChoice {
   /** The types to offer, in the settings' order. */
   readonly types: readonly ObjectType[];
@@ -40,7 +40,7 @@ export interface QuickAddChoice {
 }
 
 /**
- * The types the add button offers, given what the settings say and the types
+ * The types quick add offers, given what the settings say and the types
  * the vault defines.
  *
  * Unset means Task, when the vault has a task type, and nothing otherwise. A

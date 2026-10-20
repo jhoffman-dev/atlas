@@ -572,7 +572,7 @@ function TableGrid({
         />
       )}
       <tfoot>
-        {/* Room under the last row, so it scrolls clear of the floating "+". */}
+        {/* Room under the last row, so it scrolls clear of the window's foot. */}
         <tr className="table__room" aria-hidden="true">
           <td colSpan={lead + look.shown.length} />
         </tr>

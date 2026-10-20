@@ -19,7 +19,7 @@
   overflow: auto;
   /* A row the arrow keys focus is scrolled clear of the sticky headings
      (.table__grid th: 32px and its 1px rule), not under them (#244), and
-     clear of the floating "+" at the window's foot. */
+     clear of the toasts at the window's foot. */
   scroll-padding-bottom: 70px;
   scroll-padding-top: 33px;
 }
@@ -29,7 +29,8 @@
   width: 100%;
 }
 
-/* Room under the last row, so it scrolls clear of the floating "+" (56px, 44px up from the window's foot). */
+/* Room under the last row, so it scrolls clear of the window's foot: 56px,
+   the retired add button's height (UI v2, Q5), kept as it was. */
 .table__grid tr.table__room td {
   border: 0;
   height: 56px;
@@ -224,7 +225,6 @@ button.props__link-title:focus-visible {
 /* A link to a note that is not there: its name, muted and struck through. */
 .table__note[data-missing='true'],
 .props__link-title[data-missing='true'],
-.board__field[data-missing='true'],
 .note-chip[data-missing='true'] {
   color: var(--ink-3);
   text-decoration: line-through;
@@ -469,7 +469,7 @@ button.props__link-title:focus-visible {
   padding: 6px 8px;
 }
 
-/* The right padding keeps the footer's words clear of the floating "+". */
+/* The right padding keeps the footer's words clear of the toasts' corner. */
 .table__footer {
   align-items: center;
   border-top: 1px solid var(--line);
