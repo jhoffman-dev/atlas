@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { IndexFacet } from '@atlas/domain';
+import { foldedLinkName, type IndexFacet } from '@atlas/domain';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { readVaultGraph } from '../graph/load-graph.ts';
@@ -24,7 +24,12 @@ const note = (path: string, extra: Partial<IndexedNote> = {}): IndexedNote => ({
   ...extra,
 });
 
-const linkTo = (path: string) => ({ target: path, path, kind: 'wikilink' as const });
+const linkTo = (path: string) => ({
+  target: path,
+  name: foldedLinkName(path),
+  path,
+  kind: 'wikilink' as const,
+});
 
 /** A promise and the hand that settles it, so a test sets the order of every step. */
 function gate() {

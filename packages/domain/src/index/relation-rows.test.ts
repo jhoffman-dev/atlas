@@ -1,33 +1,50 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { foldedLinkName } from '../markdown/resolve-wikilink.ts';
-import { compileRelationHoldersQuery, linkedName, relationsOf } from './relation-rows.ts';
+import { compileLinkHoldersQuery, linkedName, relationsOf } from './relation-rows.ts';
 
-describe('compileRelationHoldersQuery, run against SQLite', () => {
+describe('compileLinkHoldersQuery, run against SQLite', () => {
   const database = new DatabaseSync(':memory:');
   database.exec(`CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
-                                         target TEXT NOT NULL, name TEXT NOT NULL, dst TEXT)`);
-  const rows: [string, string][] = [
+                                         target TEXT NOT NULL, name TEXT NOT NULL, dst TEXT);
+                 CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL,
+                                     kind TEXT NOT NULL, name TEXT NOT NULL)`);
+  const relations: [string, string][] = [
     ['a.md', 'Later'],
     ['b.md', 'projects/Later'],
     ['c.md', 'Latest'],
     ['d.md', 'Mylater'],
     ['e.md', 'LATER'],
   ];
-  for (const [src, target] of rows) {
+  for (const [src, target] of relations) {
     database
       .prepare('INSERT INTO relations VALUES (?, ?, 0, ?, ?, NULL)')
       .run(src, 'project', target, foldedLinkName(target));
   }
+  // Body links (#431): held as relations are, by the name folded in TypeScript.
+  const links: [string, string][] = [
+    ['f.md', 'Later'],
+    ['g.md', 'clients/\u00c9cole'],
+    ['a.md', 'Later'],
+  ];
+  for (const [src, target] of links) {
+    database
+      .prepare("INSERT INTO links VALUES (?, NULL, ?, 'wikilink', ?)")
+      .run(src, target, foldedLinkName(target));
+  }
   const holders = (paths: string[]) => {
-    const { sql, parameters } = compileRelationHoldersQuery(paths.map(linkedName));
+    const { sql, parameters } = compileLinkHoldersQuery(paths.map(linkedName));
     return (database.prepare(sql).all(...parameters) as { path: string }[])
       .map((row) => row.path)
       .sort();
   };
 
   it('finds every note linking to the name, by name or by path, in any case', () => {
-    expect(holders(['p/Later.md'])).toEqual(['a.md', 'b.md', 'e.md']);
+    expect(holders(['p/Later.md'])).toEqual(['a.md', 'b.md', 'e.md', 'f.md']);
+  });
+
+  it('finds a body link by path to a name outside ASCII', () => {
+    expect(holders(['people/\u00e9cole.md'])).toEqual(['g.md']);
   });
 
   it('leaves out names that only start or end the same way', () => {

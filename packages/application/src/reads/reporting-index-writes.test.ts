@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type IndexFacet } from '@atlas/domain';
+import { createVaultPath, foldedLinkName, type IndexFacet } from '@atlas/domain';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { reportingIndexWrites } from './reporting-index-writes.ts';
@@ -40,7 +40,12 @@ function reporting(index: IndexPort = sqliteIndexPort()) {
   return { index: wrapped, reports, queries };
 }
 
-const linkTo = (path: string) => ({ target: path, path, kind: 'wikilink' as const });
+const linkTo = (path: string) => ({
+  target: path,
+  name: foldedLinkName(path),
+  path,
+  kind: 'wikilink' as const,
+});
 
 describe('an index that says which facets each write changed', () => {
   it('says nothing for a note rewritten with only its words changed', async () => {

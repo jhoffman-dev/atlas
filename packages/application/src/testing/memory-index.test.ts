@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   compileGraphQuery,
   compileNoteFacetsQuery,
-  compileRelationHoldersQuery,
+  compileLinkHoldersQuery,
   compileTagCountsQuery,
   type GraphQueryPart,
 } from '@atlas/domain';
@@ -42,9 +42,9 @@ const NOTES = [
   note('b.md', {
     properties: [prop('type', 1, 'second'), prop('type', 0, 'task'), prop('status', 0, 'done')],
     links: [
-      { target: 'a', path: 'a.md', kind: 'wikilink' },
-      { target: 'nowhere', path: null, kind: 'wikilink' },
-      { target: 'a.md', path: 'a.md', kind: 'markdown' },
+      { target: 'a', name: 'a', path: 'a.md', kind: 'wikilink' },
+      { target: 'nowhere', name: 'nowhere', path: null, kind: 'wikilink' },
+      { target: 'a.md', name: 'a', path: 'a.md', kind: 'markdown' },
     ],
     tags: [
       { key: 'x', name: 'X' },
@@ -95,7 +95,7 @@ describe('the in-memory index, beside the one in SQLite', () => {
   it('answers the tag counts and the relation holders with the same rows', async () => {
     for (const { sql, parameters } of [
       compileTagCountsQuery(0),
-      compileRelationHoldersQuery(['b', 'nobody']),
+      compileLinkHoldersQuery(['b', 'nobody']),
     ]) {
       const [memory, sqlite] = await Promise.all(
         [memoryIndexPort(), sqliteIndexPort()].map(async (index) =>

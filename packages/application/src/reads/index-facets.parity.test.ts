@@ -45,16 +45,22 @@ const VARIANTS: Readonly<Record<string, IndexedNote>> = {
   'typed twice': { ...base, properties: [prop('type', 0, 'task'), prop('type', 1, 'idea')] },
   'a status': { ...base, properties: [prop('status', 0, 'done')] },
   related: { ...base, properties: [prop('project', 0, '[[b]]')] },
-  linked: { ...base, links: [{ target: 'b', path: 'b.md', kind: 'wikilink' }] },
+  linked: { ...base, links: [{ target: 'b', name: 'b', path: 'b.md', kind: 'wikilink' }] },
   'linked twice': {
     ...base,
     links: [
-      { target: 'b', path: 'b.md', kind: 'wikilink' },
-      { target: 'b', path: 'b.md', kind: 'wikilink' },
+      { target: 'b', name: 'b', path: 'b.md', kind: 'wikilink' },
+      { target: 'b', name: 'b', path: 'b.md', kind: 'wikilink' },
     ],
   },
-  'a link to nowhere': { ...base, links: [{ target: 'z', path: null, kind: 'wikilink' }] },
-  'a markdown link': { ...base, links: [{ target: 'b.md', path: 'b.md', kind: 'markdown' }] },
+  'a link to nowhere': {
+    ...base,
+    links: [{ target: 'z', name: 'z', path: null, kind: 'wikilink' }],
+  },
+  'a markdown link': {
+    ...base,
+    links: [{ target: 'b.md', name: 'b', path: 'b.md', kind: 'markdown' }],
+  },
   tagged: { ...base, tags: [{ key: 'x', name: 'x' }] },
   'tagged, spelt otherwise': { ...base, tags: [{ key: 'x', name: 'X' }] },
   'tagged twice': {

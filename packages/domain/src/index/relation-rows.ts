@@ -47,26 +47,29 @@ export function relationsOf(
   });
 }
 
-/** How many names one question about stale relations carries, well inside SQLite's limit. */
-export const RELATION_NAMES_PER_QUERY = 200;
+/** How many names one question about stale links carries, well inside SQLite's limit. */
+export const LINK_NAMES_PER_QUERY = 200;
 
 /**
- * The notes holding a relation whose target could now mean another note: one
- * written as any of these names — each the name, folded as links fold it, of a
- * note that has just been made or has gone. `[[Later]]` and `[[p/Later]]` both qualify
- * for `later`. The index resolved them when they were written; these must be
- * read again for the answer to be true now. Columns: path. Every name is bound.
+ * The notes holding a link whose target could now mean another note — in a
+ * property (`relations`) or in the body (`links`, #431) — written as any of
+ * these names, each the name, folded as links fold it, of a note that has just
+ * been made or has gone. `[[Later]]` and `[[p/Later]]` both qualify for
+ * `later`. The index resolved them when they were written; these must be read
+ * again for the answer to be true now. Columns: path. Every name is bound.
  */
-export function compileRelationHoldersQuery(names: readonly string[]): CompiledQuery {
+export function compileLinkHoldersQuery(names: readonly string[]): CompiledQuery {
   // The stored name is folded in TypeScript: SQLite's lower() knows only ASCII.
   const test = '(name = ? OR substr(name, -length(?) - 1) = ?)';
+  const where = names.map(() => test).join(' OR ');
+  const bound = names.flatMap((name) => [name, name, `/${name}`]);
   return {
-    sql: `SELECT DISTINCT src AS "path" FROM relations WHERE ${names.map(() => test).join(' OR ')}`,
-    parameters: names.flatMap((name) => [name, name, `/${name}`]),
+    sql: `SELECT DISTINCT src AS "path" FROM relations WHERE ${where} UNION SELECT src FROM links WHERE ${where}`,
+    parameters: [...bound, ...bound],
   };
 }
 
-/** A note's name as a link names it, for {@link compileRelationHoldersQuery}. */
+/** A note's name as a link names it, for {@link compileLinkHoldersQuery}. */
 export function linkedName(path: string): string {
   return foldedLinkName(path.split('/').at(-1) ?? path);
 }

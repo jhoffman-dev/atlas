@@ -112,7 +112,7 @@ describe('workerNoteDeriver', () => {
     const second = await deriving.derive([idea]);
 
     expect(second.notes[0]?.links).toEqual([
-      { target: 'Camping', path: 'Plans/Camping.md', kind: 'wikilink' },
+      { target: 'Camping', name: 'camping', path: 'Plans/Camping.md', kind: 'wikilink' },
     ]);
   });
 

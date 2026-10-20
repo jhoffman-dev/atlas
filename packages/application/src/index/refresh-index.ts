@@ -1,14 +1,14 @@
 import {
   compileImportDeclarationsQuery,
   compileImportOutcomesQuery,
-  compileRelationHoldersQuery,
+  compileLinkHoldersQuery,
   createVaultPath,
   IMPORT_OUTCOMES_PAGE,
   importOutcomesOf,
   isMeetingInboxPath,
+  LINK_NAMES_PER_QUERY,
   linkedName,
   noteChangesBetween,
-  RELATION_NAMES_PER_QUERY,
   type CompiledQuery,
   type ImportOutcome,
   type NoteChange,
@@ -146,11 +146,12 @@ export async function refreshIndex({
   const removed = [...known.keys()].filter((path) => !current.has(path));
   if (removed.length > 0) await index.remove(removed.map(createVaultPath), scope);
 
-  // A note made or gone can change which note an unchanged note's relation means.
+  // A note made or gone can change which note an unchanged note's link means,
+  // in a property or in the body (#431).
   const added = [...current.keys()].filter((path) => !known.has(path));
-  const staleByRelation = await relationHolders(index, [...added, ...removed]);
+  const staleByLink = await linkHolders(index, [...added, ...removed]);
   const stalePaths = new Set(stale.map((note) => note.path as string));
-  for (const path of staleByRelation) {
+  for (const path of staleByLink) {
     const note = current.get(path);
     if (note !== undefined && !stalePaths.has(path)) {
       stale.push(note);
@@ -347,27 +348,27 @@ function versionsNow({
 
 /**
  * Takes notes the app has just moved or deleted out of the index at once, and
- * with them every note whose relation named them. The refresh that follows
- * cannot see a removal it did not make, so it would never re-resolve those
- * relations; taken out too, the holders are read again as new notes.
+ * with them every note whose link — a relation or in the body — named them.
+ * The refresh that follows cannot see a removal it did not make, so it would
+ * never re-resolve those links; taken out too, the holders are read again as new notes.
  */
 export async function forgetNotes(index: IndexPort, paths: readonly VaultPath[]): Promise<void> {
   if (paths.length === 0) return;
-  const holders = await relationHolders(index, paths);
+  const holders = await linkHolders(index, paths);
   await index.remove([...new Set<string>([...paths, ...holders])].map(createVaultPath));
 }
 
 /**
- * The indexed notes holding a relation written as the name of one of these
+ * The indexed notes holding a link, a relation or in the body, written as the name of one of these
  * notes — asked before those notes' own rows change, so a note that has gone
  * is still there to be pointed at.
  */
-async function relationHolders(index: IndexPort, changed: readonly string[]): Promise<string[]> {
+async function linkHolders(index: IndexPort, changed: readonly string[]): Promise<string[]> {
   const names = [...new Set(changed.map(linkedName))];
   const holders: string[] = [];
-  for (let offset = 0; offset < names.length; offset += RELATION_NAMES_PER_QUERY) {
-    const { sql, parameters } = compileRelationHoldersQuery(
-      names.slice(offset, offset + RELATION_NAMES_PER_QUERY),
+  for (let offset = 0; offset < names.length; offset += LINK_NAMES_PER_QUERY) {
+    const { sql, parameters } = compileLinkHoldersQuery(
+      names.slice(offset, offset + LINK_NAMES_PER_QUERY),
     );
     const result = await index.query(sql, parameters);
     holders.push(...result.rows.map((row) => String(row[0])));

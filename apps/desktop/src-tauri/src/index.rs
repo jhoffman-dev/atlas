@@ -57,8 +57,10 @@ use crate::vault::VaultState;
 /// for the day found none of that day's meetings. 17: only the file name stem
 /// is searched, not the folders or `.md` — a folder named for a project put
 /// every note in it ahead of the notes that mention the project, and "md"
-/// matched every note.
-const SCHEMA_VERSION: i64 = 17;
+/// matched every note. 18: a body link keeps its target folded as links fold
+/// it (`links.name`), so a refresh can find the links a note just made or gone
+/// could mean (#431), as it finds relations.
+const SCHEMA_VERSION: i64 = 18;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -80,6 +82,9 @@ pub struct IndexedProperty {
 pub struct IndexedLink {
     /// The link exactly as written.
     pub target: String,
+    /// The target as TypeScript folds link names; stored, never computed here.
+    #[serde(default)]
+    pub name: String,
     /// The note it resolves to, or None when it points nowhere yet.
     pub path: Option<String>,
     pub kind: String,
@@ -438,7 +443,8 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 src    TEXT NOT NULL,
                 dst    TEXT,
                 target TEXT NOT NULL,
-                kind   TEXT NOT NULL
+                kind   TEXT NOT NULL,
+                name   TEXT NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS links_src ON links(src);
             CREATE INDEX IF NOT EXISTS links_dst ON links(dst, src);
@@ -690,8 +696,8 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
     for link in &note.links {
         transaction
             .execute(
-                "INSERT INTO links (src, dst, target, kind) VALUES (?1, ?2, ?3, ?4)",
-                params![note.path, link.path, link.target, link.kind],
+                "INSERT INTO links (src, dst, target, kind, name) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![note.path, link.path, link.target, link.kind, link.name],
             )
             .map_err(stringly)?;
     }
@@ -1296,6 +1302,21 @@ mod tests {
         );
     }
 
+    #[test]
+    fn stores_the_name_typescript_folded_a_body_link_to_as_given() {
+        let mut index = empty_index();
+        let mut first = note("a.md", "A", "alpha");
+        let mut folded = link("\u{c9}cole.md", None);
+        folded.name = "\u{e9}cole".to_string();
+        first.links = vec![folded];
+        put_notes(&mut index, &[first]).unwrap();
+        let result = run_query(&index, "SELECT target, name FROM links", &[]).unwrap();
+        assert_eq!(
+            serde_json::to_value(&result.rows).unwrap(),
+            serde_json::json!([["\u{c9}cole.md", "\u{e9}cole"]])
+        );
+    }
+
     type RelationRow = (String, String, i64, String, Option<String>);
 
     fn relation_rows(connection: &Connection) -> Vec<RelationRow> {
@@ -1742,6 +1763,7 @@ mod tests {
     fn link(target: &str, path: Option<&str>) -> IndexedLink {
         IndexedLink {
             target: target.to_string(),
+            name: String::new(),
             path: path.map(str::to_string),
             kind: "wikilink".to_string(),
         }

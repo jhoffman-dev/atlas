@@ -88,7 +88,7 @@ function answer(
   }
   if (sql.startsWith('/* tags:counts */')) return rows(['key', 'name', 'count'], tagCounts(all));
   if (sql.startsWith('SELECT DISTINCT src AS "path" FROM relations WHERE')) {
-    return rows(['path'], relationHolders(all, parameters));
+    return rows(['path'], linkHolders(all, parameters));
   }
   if (ANSWERED_EMPTY.some((marker) => sql.startsWith(marker))) return rows([], []);
   throw new Error(`memoryIndexPort does not answer this statement: ${sql.slice(0, 60)}`);
@@ -120,13 +120,23 @@ function tagCounts(all: readonly IndexedNote[]): unknown[][] {
     .map(([key, { name, count }]) => [key, name, count]);
 }
 
-/** The notes holding a relation by one of these names, bound three to a name (`compileRelationHoldersQuery`). */
-function relationHolders(all: readonly IndexedNote[], parameters: readonly unknown[]): unknown[][] {
-  const names = parameters.filter((_, at) => at % 3 === 0).map(String);
+/**
+ * The notes holding a relation or a body link by one of these names, bound
+ * three to a name for each of the two tables (`compileLinkHoldersQuery`).
+ */
+function linkHolders(all: readonly IndexedNote[], parameters: readonly unknown[]): unknown[][] {
+  const names = parameters
+    .slice(0, parameters.length / 2)
+    .filter((_, at) => at % 3 === 0)
+    .map(String);
   const holds = (name: string) =>
     names.some((wanted) => name === wanted || name.endsWith(`/${wanted}`));
   return all
-    .filter((note) => note.relations.some((relation) => holds(relation.name)))
+    .filter(
+      (note) =>
+        note.relations.some((relation) => holds(relation.name)) ||
+        note.links.some((link) => holds(link.name)),
+    )
     .map((note) => [note.path]);
 }
 
