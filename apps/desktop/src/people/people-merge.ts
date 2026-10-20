@@ -14,6 +14,7 @@ import {
   type SettingsWriter,
 } from '@atlas/application';
 import type { MergePersonChoice } from '@atlas/ui';
+import type { BatchAnswer } from '../archive/use-row-selection.ts';
 import type { Overlay } from '../overlay.ts';
 import type { Toasts } from '../toasts/toasts.ts';
 import { personChoice } from './people-merge-views.ts';
@@ -31,6 +32,12 @@ export type MergeFlow =
   | { readonly kind: 'merging'; readonly preview: PeopleMergePreview }
   | { readonly kind: 'refused'; readonly message: string };
 
+/** People a table has chosen, and how to tell it what a merge of them answered. */
+export interface ChosenPeople {
+  readonly paths: readonly VaultPath[];
+  readonly settled: (answer: BatchAnswer) => void;
+}
+
 /** The list of people who may be one: being read, read, or not readable. */
 export type DuplicatesFlow =
   | { readonly kind: 'loading' }
@@ -42,8 +49,8 @@ export interface PeopleMergeState {
   /** Whether the merge was asked for from the list, which offers to keep the other one and comes back to the list. */
   readonly fromList: boolean;
   readonly duplicates: DuplicatesFlow;
-  /** The people chosen in a People table now, for ⌘K's "Merge selected people…". */
-  readonly chosen: readonly VaultPath[];
+  /** The people each tab's People table has chosen now, by tab: ⌘K merges the focused tab's. */
+  readonly chosen: Readonly<Record<string, ChosenPeople>>;
 }
 
 export type PeopleMergeStore = StoreApi<PeopleMergeState>;
@@ -53,7 +60,7 @@ export function createPeopleMergeStore(): PeopleMergeStore {
     merge: null,
     fromList: false,
     duplicates: { kind: 'loading' },
-    chosen: [],
+    chosen: {},
   }));
 }
 
@@ -82,12 +89,15 @@ const message = (cause: unknown) => (cause instanceof Error ? cause.message : St
 export interface PeopleMergeCommands {
   /** "Merge into…" on a person's page: asks who to keep. */
   mergeInto(subject: VaultPath): void;
-  /** "Merge…" on rows chosen in a People table: asks who to merge them all into. */
-  mergeMany(subjects: readonly VaultPath[]): void;
-  /** Says which people a People table has chosen now; none when it lets go. */
-  noteChosen(paths: readonly VaultPath[]): void;
-  /** ⌘K's "Merge selected people…": the people chosen now, or why there are none. */
-  mergeChosen(): void;
+  /**
+   * "Merge…" on rows chosen in a People table: asks who to merge them all
+   * into. `settled` is told, once the merge is made, which rows it answered.
+   */
+  mergeMany(subjects: readonly VaultPath[], settled?: (answer: BatchAnswer) => void): void;
+  /** Says which people the table in tab `tab` has chosen now; none when it lets go. */
+  noteChosen(tab: string, chosen: ChosenPeople | null): void;
+  /** ⌘K's "Merge selected people…": the people the tab `tab` has chosen, or why there are none. */
+  mergeChosen(tab: string): void;
   pick(keep: string): void;
   /** From the list: merges a pair, keeping its first person until swapped. */
   mergePair(key: string): void;
@@ -134,8 +144,15 @@ export function peopleMergeCommands(
     loadList();
   };
   /** Opens the merge on `subjects`, asking which other person to merge them all into. */
-  const askWhoToKeep = (subjects: readonly VaultPath[]) => {
+  // Who to tell what the merge in hand answered: the table its people were chosen in.
+  let settle: { subjects: readonly VaultPath[]; settled: (answer: BatchAnswer) => void } | null =
+    null;
+  const askWhoToKeep = (
+    subjects: readonly VaultPath[],
+    settled?: (answer: BatchAnswer) => void,
+  ) => {
     const merging = [...new Set(subjects)];
+    settle = settled === undefined ? null : { subjects: merging, settled };
     store.setState({ fromList: false });
     set({ kind: 'checking', request: { keep: merging[0]!, merge: [] } });
     deps().overlay.show('merge-people');
@@ -154,16 +171,22 @@ export function peopleMergeCommands(
     mergeInto(subject) {
       askWhoToKeep([subject]);
     },
-    mergeMany(subjects) {
-      askWhoToKeep(subjects);
+    mergeMany(subjects, settled) {
+      askWhoToKeep(subjects, settled);
     },
-    noteChosen(paths) {
-      store.setState({ chosen: [...paths] });
+    noteChosen(tab, chosen) {
+      const others = Object.fromEntries(
+        Object.entries(store.getState().chosen).filter(([each]) => each !== tab),
+      );
+      store.setState({
+        chosen:
+          chosen === null || chosen.paths.length === 0 ? others : { ...others, [tab]: chosen },
+      });
     },
-    mergeChosen() {
-      const { chosen } = store.getState();
-      if (chosen.length > 0) {
-        askWhoToKeep(chosen);
+    mergeChosen(tab) {
+      const chosen = store.getState().chosen[tab];
+      if (chosen !== undefined) {
+        askWhoToKeep(chosen.paths, chosen.settled);
         return;
       }
       store.setState({ fromList: false });
@@ -232,11 +255,27 @@ export function peopleMergeCommands(
     },
   };
 
+  /**
+   * Tells the table the people were chosen in what the merge answered, as an
+   * archive batch does: every one of them let go of, but those still in the
+   * vault, chosen again to try once more.
+   */
+  function tellTable(stillThere: readonly VaultPath[]) {
+    if (settle === null) return;
+    const { subjects, settled } = settle;
+    settle = null;
+    settled({
+      answered: subjects.filter((path) => !stillThere.includes(path)),
+      failed: subjects.filter((path) => stillThere.includes(path)),
+    });
+  }
+
   async function merge(shown: PeopleMergePreview) {
     const { ports, toasts, activity, onChanged, closeNotes, openActivity, overlay } = deps();
     try {
       const report = await applyPeopleMerge({ ports, preview: shown });
       closeNotes(report.trashed);
+      tellTable(report.notTrashed);
       const words = peopleMergeSummary(report);
       const ok = report.failures.length === 0;
       // A warning toast is kept in Activity by the toasts' host; a merge that went through is kept here.

@@ -46,6 +46,16 @@ describe('MergePeopleDialog', () => {
     expect(calls.onPick).toHaveBeenCalledWith('Tobias Fenn.md');
   });
 
+  it('puts the focus in the search field as the picker comes up', () => {
+    draw({
+      kind: 'picking',
+      choices: [{ path: 'Tobias Fenn.md', name: 'Tobias Fenn', place: '' }],
+    });
+    expect(document.activeElement).toBe(
+      screen.getByRole('searchbox', { name: 'Find the person to keep' }),
+    );
+  });
+
   it('says there is no one to keep when the vault has only this person', () => {
     draw({ kind: 'picking', choices: [] });
     expect(screen.getByText('There is no one else to merge into.')).toBeTruthy();

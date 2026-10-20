@@ -270,19 +270,45 @@ describe('merging people chosen in a table (#467)', () => {
     expect(flow?.kind === 'previewed' && flow.preview.merge).toEqual(['Mara.md', 'Tobias Fenn.md']);
   });
 
-  it('merges the people a table has chosen from ⌘K, or says none are', async () => {
+  it('merges the people the focused tab’s table has chosen from ⌘K, or says none are', async () => {
     const { store, commands, shown } = setUp();
-    commands.mergeChosen();
+    commands.mergeChosen('tab-1');
     expect(store.getState().merge).toEqual({
       kind: 'refused',
       message:
         'No people are selected. Tick the people to merge in the Person table, or a People view with Select on, then try again.',
     });
-    commands.noteChosen([p('Mara.md')]);
-    commands.mergeChosen();
+    commands.noteChosen('tab-1', { paths: [p('Mara.md')], settled: () => {} });
+    // Another tab's table letting go leaves this tab's choice as it is.
+    commands.noteChosen('tab-2', null);
+    commands.mergeChosen('tab-2');
+    expect(store.getState().merge?.kind).toBe('refused');
+    commands.mergeChosen('tab-1');
     await vi.waitFor(() => expect(store.getState().merge?.kind).toBe('picking'));
     const picking = store.getState().merge;
     expect(picking?.kind === 'picking' && picking.subjects).toEqual(['Mara.md']);
-    expect(shown).toEqual(['merge-people', 'merge-people']);
+    expect(shown).toEqual(['merge-people', 'merge-people', 'merge-people']);
+  });
+
+  it('tells the table its rows were answered once the merge is made, choosing again any still in the vault', async () => {
+    const { vault, store, commands, settle } = setUp();
+    const answers: unknown[] = [];
+    commands.mergeMany([p('Mara.md'), p('Tobias Fenn.md')], (answer) => answers.push(answer));
+    await vi.waitFor(() => expect(store.getState().merge?.kind).toBe('picking'));
+    commands.pick('People/Mara Quill.md');
+    await settle();
+    commands.confirm();
+    await vi.waitFor(() => expect(store.getState().merge).toBeNull());
+    expect(vault.trashed).toEqual(['Mara.md', 'Tobias Fenn.md']);
+    expect(answers).toEqual([{ answered: ['Mara.md', 'Tobias Fenn.md'], failed: [] }]);
+  });
+
+  it('tells the table nothing when the merge is closed unmade', async () => {
+    const { store, commands } = setUp();
+    const answers: unknown[] = [];
+    commands.mergeMany([p('Mara.md')], (answer) => answers.push(answer));
+    await vi.waitFor(() => expect(store.getState().merge?.kind).toBe('picking'));
+    commands.closeMerge();
+    expect(answers).toEqual([]);
   });
 });

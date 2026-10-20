@@ -3,6 +3,7 @@ import { archiveRefusal, isArchivedPath, type VaultPath } from '@atlas/domain';
 import type { ArchiveOutcome } from '@atlas/application';
 import type { BulkAction, RowSelection } from '@atlas/ui';
 import type { ArchiveCommands } from './use-archive.ts';
+import { usePeopleChoice, type ChosenPeopleMerge } from '../people/use-chosen-people.ts';
 import { batchSettled, useRowSelection } from './use-row-selection.ts';
 
 /** A view's select mode: whether rows can be chosen, which are, and what can be done to them. */
@@ -16,15 +17,6 @@ export interface ViewChoosing {
 }
 
 const notes = (n: number) => (n === 1 ? 'note' : `${n} notes`);
-const mergeLabel = (n: number) => (n === 1 ? 'Merge into…' : `Merge ${n} people into…`);
-
-/** Merging the people a People view's rows chose (#464). */
-export interface ChosenPeopleMerge {
-  /** Asks who to merge these people into, then shows what the merge does. */
-  readonly mergeMany: (paths: readonly VaultPath[]) => void;
-  /** Says which people are chosen now, for ⌘K's "Merge selected people…". */
-  readonly noteChosen: (paths: readonly VaultPath[]) => void;
-}
 
 /**
  * Choosing a view's rows to archive or unarchive them together (P23-03).
@@ -33,23 +25,26 @@ export interface ChosenPeopleMerge {
 export function useViewChoosing({
   viewKey,
   commands,
-  people: merging,
+  tab = '',
+  people = null,
+  present = null,
 }: {
   viewKey: string;
   commands: ArchiveCommands;
+  /** The tab the view is in: its choice is the one ⌘K merges while it is focused. */
+  tab?: string;
   /** Given for a view of people: its chosen rows can be merged into another person. */
-  people?: ChosenPeopleMerge;
+  people?: ChosenPeopleMerge | null;
+  /** The rows the view shows now: a chosen row no longer among them is let go of. */
+  present?: readonly string[] | null;
 }): ViewChoosing {
   const [on, setOn] = useState(false);
-  const { selection, chosen, clear, beginBatch } = useRowSelection(`${viewKey}:${String(on)}`);
+  const { selection, chosen, clear, afterBatch, beginBatch } = useRowSelection(
+    `${viewKey}:${String(on)}`,
+  );
 
   useEffect(() => setOn(false), [viewKey]);
-  // ⌘K reads the choice of the People view shown last; letting go says none.
-  useEffect(() => {
-    if (merging === undefined) return;
-    merging.noteChosen(chosen as VaultPath[]);
-    return () => merging.noteChosen([]);
-  }, [merging, chosen]);
+  const merging = usePeopleChoice({ tab, merge: people, chosen, present, afterBatch, beginBatch });
 
   const actions = useMemo(() => {
     const paths = chosen as VaultPath[];
@@ -73,13 +68,7 @@ export function useViewChoosing({
           })
           .then((outcome) => settle(batchSettled(outcome, given)));
       };
-    const offered: BulkAction[] = [];
-    if (merging !== undefined && paths.length > 0) {
-      offered.push({
-        label: mergeLabel(paths.length),
-        onRun: () => merging.mergeMany(paths),
-      });
-    }
+    const offered: BulkAction[] = [...merging];
     if (archivable.length > 0) {
       offered.push({
         label: `Archive ${notes(archivable.length)}`,

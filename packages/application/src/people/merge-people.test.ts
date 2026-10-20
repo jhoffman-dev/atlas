@@ -482,3 +482,24 @@ describe('a dashboard naming a merged person with no link at all (#467)', () => 
     expect((await preview([SHORT])).refusal).toContain(BOARD);
   });
 });
+
+describe('a view naming a person by file, as a whole path only (#467)', () => {
+  it('does not read Diana.md as naming Ana.md, and still reads "Ana.md" quoted as naming it', async () => {
+    const BOARD = '.atlas/dashboards/Team.md';
+    const run = async (sql: string) => {
+      const { vault, preview } = await setUp({
+        ...VAULT,
+        'Ana.md': note({ type: 'person' }, ''),
+        'Diana.md': note({ type: 'person' }, ''),
+        [BOARD]: `---\nsql: ${sql}\n---\n`,
+      });
+      vault.fs.listDirectory = async (folder) =>
+        folder === '.atlas/dashboards' ? [{ kind: 'file', name: 'Team.md', path: p(BOARD) }] : [];
+      return (await preview(['Ana.md'])).refusal;
+    };
+    expect(await run("SELECT * FROM notes WHERE owner = 'Diana.md'")).toBeNull();
+    expect(await run("SELECT * FROM notes WHERE owner = 'Folder/Ana.md'")).toBeNull();
+    expect(await run("SELECT * FROM notes WHERE owner = 'ana.md'")).toContain(BOARD);
+    expect(await run('owner IN ("x.md", "Ana.md")')).toContain(BOARD);
+  });
+});

@@ -13,8 +13,7 @@ import { activePlace } from '../workspace/workspace-store.ts';
 import { useWorkspaceStores } from '../workspace/workspace-wiring.tsx';
 import { typeTabsShown } from './type-tabs.ts';
 import { useTypeTable } from './use-type-table.ts';
-import { useChosenPeople } from '../people/use-chosen-people.ts';
-import type { ChosenPeopleMerge } from '../archive/use-view-choosing.ts';
+import { rowPaths, useChosenPeople, type ChosenPeopleMerge } from '../people/use-chosen-people.ts';
 
 const TypePage = typePage.Component;
 
@@ -65,10 +64,6 @@ export function TypeContainer({
     failed,
   });
   const { onEditType, onNewNote, onEditTemplate, onFindDuplicates, peopleMerge } = pages.type;
-  const people = useChosenPeople({
-    resetKey: name,
-    merge: isPersonType(name) ? peopleMerge : null,
-  });
   // Pressed while the aside shows this type's editor: on its Type tab, with
   // the focused tab on this type, here or in the other pane.
   const typeTabShown = useStore(aside, typeEditorShown);
@@ -93,6 +88,13 @@ export function TypeContainer({
     activity: pane.activity,
   });
   tellFailed(table.error);
+  const tableRows = useMemo(() => rowPaths(table.result), [table.result]);
+  const people = useChosenPeople({
+    tab: tabId,
+    resetKey: name,
+    merge: isPersonType(name) ? peopleMerge : null,
+    present: tableRows,
+  });
   return (
     <LoadedLater chrome={chrome}>
       <TypePage

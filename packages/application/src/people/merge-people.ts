@@ -225,11 +225,18 @@ const isRewrittenAtlasNote = (path: VaultPath) =>
 
 /**
  * Whether text still names a merged person by their file once its links are
- * re-pointed — a view's SQL comparing a path, say — which no link rewrite reaches.
+ * re-pointed — a view's SQL comparing a path, say — which no link rewrite
+ * reaches. Only a whole path counts, case aside: `People/Tobias Fenn.md`
+ * does not name `Tobias Fenn.md`, nor `Diana.md` `Ana.md`.
  */
 function stillNames(text: string, merge: readonly VaultPath[]): boolean {
-  const folded = text.toLowerCase();
-  return merge.some((path) => folded.includes(path.toLowerCase()));
+  return merge.some((path) => wholePath(path).test(text));
+}
+
+/** A path, matched only where no other path character runs on before or after it. */
+function wholePath(path: string): RegExp {
+  const escaped = path.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}\\p{M}_./-])${escaped}(?![\\p{L}\\p{N}\\p{M}_/-])`, 'iu');
 }
 
 /** Why a merge is refused while a view or dashboard names a merged person in a way it cannot rewrite. */

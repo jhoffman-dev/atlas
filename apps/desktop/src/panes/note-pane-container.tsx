@@ -146,11 +146,8 @@ import type { OpenEditors, PaneEditors } from './open-editors.ts';
 import type { StrandedEdits } from '../notes/stranded-edits.ts';
 import { pageArchiveItems } from '../archive/archive-menu.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
-import {
-  useViewChoosing,
-  type ChosenPeopleMerge,
-  type ViewChoosing,
-} from '../archive/use-view-choosing.ts';
+import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
+import { rowPaths, type ChosenPeopleMerge } from '../people/use-chosen-people.ts';
 import type { TickMemory } from '../query/tick-memory.ts';
 import type { Toasts } from '../toasts/toasts.ts';
 import { createBrowserQueryFoldStore } from '../query/browser-query-fold-store.ts';
@@ -599,9 +596,12 @@ export function useNotePane({
     onChanged,
     onOpenNote: (target) => onOpenNote(createVaultPath(target)),
   });
+  const viewRows = useMemo(() => rowPaths(savedView.result), [savedView.result]);
   const choosing = useViewChoosing({
     viewKey: path ?? '',
     commands: context.archive,
+    tab: tabId,
+    present: viewRows,
     ...(isPersonType(savedView.type?.name ?? savedView.query?.type ?? null) && {
       people: context.peopleMerge,
     }),

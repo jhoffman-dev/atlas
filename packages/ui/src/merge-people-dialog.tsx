@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { delayedSpinner } from './delayed-spinner.tsx';
 import { Icon } from './icon.tsx';
@@ -217,6 +217,10 @@ function PersonPicker({
 }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
+  const field = useRef<HTMLInputElement>(null);
+  // The picker comes up after the people are read, inside a dialog already
+  // open: the field takes the focus then, so typing a name goes straight in.
+  useEffect(() => field.current?.focus(), []);
   const wanted = query.trim().toLowerCase();
   const shown = choices.filter((each) =>
     `${each.place} ${each.name}`.toLowerCase().includes(wanted),
@@ -230,6 +234,7 @@ function PersonPicker({
       <div className="palette__field">
         <Icon name="person" size={19} className="palette__field-icon" />
         <input
+          ref={field}
           className="palette__input"
           type="search"
           placeholder={`Merge ${subject} into…`}

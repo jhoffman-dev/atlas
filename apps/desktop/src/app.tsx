@@ -1692,7 +1692,8 @@ function AppWindow({
     if (id === OPEN_TEMPLATES) openPage({ kind: 'templates' });
     else if (id === OPEN_TERMS) openPage({ kind: 'terms' });
     else if (id === FIND_DUPLICATE_PEOPLE) peopleMerge.commands.findDuplicates();
-    else if (id === MERGE_SELECTED_PEOPLE) peopleMerge.commands.mergeChosen();
+    else if (id === MERGE_SELECTED_PEOPLE)
+      peopleMerge.commands.mergeChosen(activeTabOf(workspaceNow(workspace))?.id ?? '');
     else if (id === OPEN_INBOX) openInbox();
     else if (id === OPEN_REVIEW) openPage({ kind: 'review' });
     else if (id === OPEN_TODAY) openPage({ kind: 'today' });
