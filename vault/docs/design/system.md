@@ -1,197 +1,324 @@
 ---
 type: doc
 status: current
-date: 2026-09-22
+date: 2026-10-20
 ---
 
 # The design system
 
-What Phase 16 built, written down so later work stays in it. The target is the
-approved mockups in `design/target/*.dc.html` (see `design/README.md`); the
-reasoning is in [[reassessment-2026-09-22]]. This page is the vocabulary: the
-tokens, the type scale, the pieces, and the rules. If a surface needs something
+UI v2, "Dense & Calm", written down so later work stays in it. The target is
+the mockups in `design/target/*.dc.html` (see `design/README.md`); the brief
+is `docs/design/ui-v2-brief.md`, and the decision is
+[[0041-dense-and-calm-hairlines-not-cards]]. This page is the vocabulary: the
+tokens, the type scale, the pieces and the rules. If a surface needs something
 that is not here, add it here first.
 
-**Notion's structure, the references' finish.** Sidebar on the ground; content
-in one large rounded panel; a breadcrumb bar, a page tile and a big title; view
-tabs as pills; properties as quiet rows. Near-white raised cards with soft
-shadows and 16–24px radii, no 1px borders; one navy hero; a cyan-to-navy data
-ramp; big 800-weight numerals over small labels; dark as deep navy with a cyan
-edge-glow, not an inversion.
+**As much on screen as possible, easy to scan.** Near-black text on white.
+Colour is minimal and muted, in pastels. Corners are small. A 1px hairline
+separates things, not a card or a shadow. Content runs edge to edge; the page
+chrome is a few compact bars. Dark is the same on a warm near-black, not an
+inversion and not a navy.
+
+## The rules
+
+The eight rules of the brief (§3), which the `Tokens` board also lists:
+
+1. **No shadows on content.** A 1px hairline separates things.
+2. **Colour is a pastel tint** on buttons, status pills, charts and the focus
+   ring, never a filled area bigger than a button. No navy tiles, no
+   gradients.
+3. **One bold thing per row:** the title. Everything else is 400 weight in
+   `--ink-2` or `--ink-3`.
+4. **Metadata sits on one line**, separated by `·` (`P14 · Bug fixer · 1h`).
+   No chip, icon or border per value.
+5. **Hide empty values and zero counts.** Never print "Empty".
+6. **Page chrome is compact.** No hero icon tile, no subtitle block, no
+   floating rounded panel: content runs edge to edge on the surface.
+7. **Board columns split the width equally**, empty or not. Columns and cards
+   are square.
+8. **Status is a tinted pill** in tables, peeks and filters. A board column's
+   head uses the bare dot.
+
+And the rules of the house, which v2 keeps:
+
+- **Roles, never colours.** A component reads a token. A new colour is a new
+  token, declared in light and in both dark blocks.
+- **Internals stay off screen.** No `.atlas/`, no `.md`, no SQL, no raw
+  markdown in a summary (`plainText`), no unlabelled value (`cardChips`).
+- **One overlay at a time.** Only one is ever up
+  (`apps/desktop/src/overlay.ts`).
+- **Judge it side by side.** `pnpm shots && pnpm design:compare`, both
+  themes, before calling a surface done.
+
+### The guards
+
+`apps/desktop/src/styles.test.ts` holds these rules over the whole
+stylesheet, for good.
+
+- **"the stylesheet"**: every token read is declared; a declared token is
+  never papered over with a fallback; a raw colour (hex, `rgb()`, `hsl()`…)
+  appears only in a block that declares tokens; light, dark and the system
+  dark declare the same palette names.
+- **"the v2 rules"**:
+  - A shadow with a blur (or `--shadow-popover` / `--shadow-overlay`) only
+    on what floats over the page — menus, popovers, palettes, the peek, link
+    previews, toasts — or on what is in the hand while dragged (`--lifted`,
+    `--held`, `.widget-ghost`). There are no exceptions today.
+  - No `border-radius` above 8px, and no `--radius-pill`, except `50%` on
+    a round mark: a dot, an avatar, a swatch, a spinner.
+  - No `text-transform: uppercase`.
+  - No `font-weight` above 600.
+
+The last three each carry a named list of today's exceptions (17 radii, 5
+capitals, 16 weights). A new offender fails, and so does one that was fixed
+but is still listed, so the lists can only shrink. Fixing one changes what is
+drawn, so each is a follow-up, not a cleanup.
+
+Other `styles.*.test.ts` files hold one area each: the pill hues' contrast
+(`styles.pill-hues.test.ts`), the toasts, the notices, the palettes, and so
+on.
 
 ## Tokens
 
-All in `apps/desktop/src/styles/tokens.css`, as **roles**. Light is `:root`, dark is
-`[data-theme='dark']` and the `prefers-color-scheme` block; the three must
-declare the same names. `styles.test.ts` fails if a token is read but never
-declared, if a declared token is papered over with a fallback, or if a raw
-colour (hex, `rgb()`, `hsl()`…) appears anywhere outside a token block.
+All in `apps/desktop/src/styles/tokens.css`. Light is `:root` and
+`[data-theme='light']`; dark is `[data-theme='dark']` and the
+`prefers-color-scheme: dark` block. The explicit selectors are not anchored to
+`:root`, so a subtree can carry a theme of its own (the primitives gallery
+shows both).
 
-| Role                                        | For                                                                        |
-| ------------------------------------------- | -------------------------------------------------------------------------- |
-| `--ground`                                  | The window behind everything; the sidebar sits straight on it              |
-| `--panel`                                   | The big rounded work panel; also the tint inside an overlay                |
-| `--raised`                                  | Cards, overlays, pills lifted off the panel                                |
-| `--page`                                    | A note's reading sheet — paler than a view's panel                         |
-| `--track`                                   | Segmented tracks, switches, fields                                         |
-| `--chip` / `--chip-ink`                     | Small tinted chips: counts, key hints, a card's fields                     |
-| `--hover`                                   | Any row or button under the pointer                                        |
-| `--line`                                    | The hairline between rows of a table or list — nothing else                |
-| `--ink`, `--ink-2`, `--ink-3`               | Text: primary, secondary, quiet (labels, counts, paths)                    |
-| `--ink-body`                                | Running prose in a note, a step softer than `--ink`                        |
-| `--accent` / `--accent-ink`                 | The one thing to act on: primary button, selected tab, a switch that is on |
-| `--accent-text`                             | Accent as text: a link, a matched word, a highlighted row's label          |
-| `--you` / `--you-ink`                       | Accent as a tint: the highlighted row in a menu or palette, "You" chips    |
-| `--active`, `--active-ink`, `--active-icon` | The sidebar's current row                                                  |
-| `--navy`, `--tile-ink`                      | Icon tiles (page, settings, app)                                           |
-| `--hero`, `--hero-ink`, `--hero-muted`      | The navy hero card — the screen's one gradient                             |
-| `--status-*` (fill, ink, dot)               | Status pills, by tone: backlog, next, doing, review, done                  |
-| `--danger`, `--warning`, `--success`        | What happened — never decoration                                           |
-| `--code-*`                                  | Code blocks and syntax highlighting                                        |
-| `--scrim`                                   | The dimmed, ground-tinted backdrop behind an overlay                       |
-| `--artifact-canvas`                         | Behind a saved artifact's frame: white in both themes, as the page assumes |
+The v2 names below are the primitives. The older role names (`--ground`,
+`--panel`, `--raised`, `--accent`, `--chip`…) are declared once more at the
+end of the file as aliases of them, for the components that still read them.
+New code reads the v2 names.
+
+### Palette
+
+| Token           | Light     | Dark      | For                                          |
+| --------------- | --------- | --------- | -------------------------------------------- |
+| `--bg`          | `#f6f6f7` | `#111113` | The left sidebar, the tab strip, board wells |
+| `--surface`     | `#ffffff` | `#18181b` | Content, cards, the right sidebar            |
+| `--well`        | `#f8f8f9` | `#1d1d21` | A table's group row, a notice bar            |
+| `--ink`         | `#18181b` | `#ededef` | Primary text                                 |
+| `--ink-2`       | `#52525b` | `#b4b4bc` | Secondary text, controls                     |
+| `--ink-3`       | `#6b6b73` | `#8e8e98` | Metadata and labels (≥ 4.5:1)                |
+| `--line`        | `#e6e6e9` | `#2a2a2f` | Hairlines, a card's border                   |
+| `--line-soft`   | `#ececef` | `#2a2a2f` | A table's row dividers                       |
+| `--line-strong` | `#d9d9de` | `#3a3a40` | A control's border                           |
+| `--hover`       | `#f4f4f6` | `#222227` | A row or button under the pointer            |
+| `--selected`    | `#e8e8eb` | `#26262b` | The active nav item, a pressed toggle        |
+| `--focus`       | `#6b7bc4` | `#8f9be0` | The focus ring and the editing cell's ring   |
+| `--sep`         | `#c4c4ca` | `#4a4a52` | The `·` between metadata                     |
+
+Charts read `--chart-grid`, `--chart-bar` and `--chart-bar-ink`; code reads
+`--code-bg` and the `--code-*` syntax hues, the one place more than one hue
+earns its keep. `--artifact-canvas` is white in both themes, because a saved
+page made elsewhere assumes it. `--star` is the favourite star.
+
+### Status
+
+Eight statuses, each with a dot, a pill ink and a pill tint:
+`--status-<tone>-dot`, `-ink`, `-tint` for `inbox`, `backlog`, `next`,
+`doing`, `waiting`, `review` and `done`. Someday and Longterm are drawn in
+Backlog's grey and Archive in Done's green; every status keeps its own label.
+
+- The dots alone do not separate for everyone, so a status always shows its
+  label. Never colour alone.
+- A dot is drawn bare on a board column's head, so each light dot holds 3:1
+  against the surface and the bg. That made them a little deeper than the
+  brief's pastels.
+- In dark the dots are the brief's pastels, the inks lighten, and a tint is
+  the dot at 14–16% alpha.
+
+### Hues: pills that help the eye find a value
+
+A select option that is not a status, a linked note and a tag are pills in
+one of nine muted hues (`--hue-<name>-bg`, `--hue-<name>-ink`): gray, brown,
+orange, yellow, green, blue, purple, pink and red. The fills are solid, not
+tints, so they read the same on every surface. Each ink holds 4.5:1 on its
+fill (`styles.pill-hues.test.ts`). In dark the fill is deep and the pastel is
+the ink.
+
+A pill takes its paint from `data-hue` (a hue) or `data-tone` (a status),
+chosen by `pillPaint` in `packages/ui`. **Chrome never carries a hue**: bars,
+tabs, menus and buttons stay neutral, and colour belongs to the values.
+
+### Buttons
+
+Five kinds, each a fill, an ink and a line (`--btn-<kind>-bg`, `-ink`,
+`-line`):
+
+| Kind        | Light                          | For                                 |
+| ----------- | ------------------------------ | ----------------------------------- |
+| Primary     | pastel blue, no border         | The one thing to do, a view's "New" |
+| Positive    | pastel green, a green hairline | Accept, confirm, Done               |
+| Destructive | pastel rose, a rose hairline   | Reject, delete                      |
+| Secondary   | white with a hairline          | Neutral actions                     |
+| Ghost       | bare, `--ink-2`                | Everything else                     |
+
+In dark each tint is its hue at 16–18% alpha with a lightened ink. Accept and
+Reject must look different: that is why positive and destructive exist.
+
+`--danger`, `--warning` and `--success` say what happened, in the same inks
+the buttons and pills use. Never decoration.
 
 ### Depth
 
-Shadows carry a hierarchy. If everything is raised, nothing is.
+Only what floats casts a shadow.
 
-| Shadow             | Means                                                                                |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| none               | The ground: the page, the sidebar, a row in a list                                   |
-| `--shadow-soft`    | A small lifted control: the knob of a switch, Today in the month nav                 |
-| `--shadow-card`    | A resting card                                                                       |
-| `--shadow-tile`    | Raised — interactive under the pointer, or the thing to read first                   |
-| `--shadow-accent`  | The glow under a filled accent control                                               |
-| `--shadow-hero`    | The hero card                                                                        |
-| `--shadow-overlay` | Foremost: palettes, Settings, menus, popovers. In dark it carries the cyan edge-glow |
+| Token              | For                                                        |
+| ------------------ | ---------------------------------------------------------- |
+| `--shadow-popover` | Menus, popovers, palettes, link previews, toasts           |
+| `--shadow-peek`    | The center peek                                            |
+| `--scrim`          | The backdrop behind a palette or a dialog                  |
+| `--scrim-peek`     | The heavier backdrop behind the peek (ink at 30% in light) |
 
-In dark every shadow includes a faint 1px ring, because a shadow alone does not
-read on navy.
+In dark each shadow carries a faint 1px ring, because a shadow alone does not
+read on a dark surface. The older `--shadow-card`, `--shadow-tile` and
+`--shadow-soft` are a 1px hairline ring, not a shadow; `--shadow-panel` and
+`--shadow-accent` are `none`. `--ring` is the focus ring: a 2px gap in the
+surface colour, then 2px of `--focus`.
 
 ### Radius
 
-`--radius-chip` 6 · `--radius-control` 9 · `--radius-button` 10 ·
-`--radius-card` 16 · `--radius-panel` 22 (the panel, and every overlay) ·
-`--radius-hero` 24 · `--radius-pill` for tracks, tabs, buttons and chips that
-are pills. Menus and editor popups use 14.
+`--radius-chip` 4 (chips and pills) · `--radius-control` and
+`--radius-button` 6 (buttons, fields) · `--radius-popover` 8 (popovers, menus,
+the peek, toasts) · `--radius-row` 5 (a sidebar row) · `--radius-card` and
+`--radius-panel` 0: the panel, cards and board columns are square. Only dots
+and avatars are fully round, at `50%`. `--radius-pill` (999px) is still read
+by a few pill shapes; they are on the guard's list of exceptions.
 
-## Type
+### Space
 
-Manrope, bundled (never fetched), 400–800, tabular numerals for counts.
+`--space-1` to `--space-7`: 4, 8, 12, 16, 20, 24 and 32px.
 
-| Token             | Size | For                                         |
-| ----------------- | ---- | ------------------------------------------- |
-| `--text-label`    | 11   | Section labels in capitals; key chips       |
-| `--text-small`    | 12.5 | Counts, captions, paths, secondary UI       |
-| `--text-ui`       | 13.5 | Sidebar rows, controls, menus, breadcrumbs  |
-| `--text-body`     | 14   | Dense running text, titles in lists         |
-| `--text-body-lg`  | 16   | Prose meant to be read; the palette's field |
-| `--text-card`     | 17   | Card and section titles                     |
-| `--text-subtitle` | 21   | An overlay's title                          |
-| `--text-title`    | 30   | Page titles                                 |
-| `--text-hero`     | 38   | The big numbers                             |
+### Type
 
-Titles are 800 with `--tracking-title`. Capitals are for the sidebar's section
-labels only — a card or a section inside an overlay is titled in sentence case,
-bold, with an icon. Monospace is for code and for things that are literally
-code (a command, a file path in Settings), never for a title or a label.
+The system stack (`--font-ui`: `-apple-system`, `SF Pro Text`, `Segoe UI`,
+`system-ui`); nothing is bundled or fetched. `--font-mono` is `ui-monospace`.
+Weights 400, 500 and 600 only. Numbers in tabular figures.
 
-## Pieces
+| Token               | Size | For                                              |
+| ------------------- | ---- | ------------------------------------------------ |
+| `--text-note-title` | 24   | A note's title: 600, `--tracking-title`          |
+| `--text-section`    | 15   | A section title: 600                             |
+| `--text-body-lg`    | 14   | Running text meant to be read                    |
+| `--text-emphasis`   | 13   | A card's title, the active tab: 500              |
+| `--text-body`       | 13   | Body, table rows, nav: 400                       |
+| `--text-column`     | 12.5 | Column and group labels: 600                     |
+| `--text-code`       | 12.5 | Inline code                                      |
+| `--text-meta`       | 12   | Metadata, in `--ink-3`                           |
+| `--text-mono`       | 12   | Ids and code blocks                              |
+| `--text-header`     | 11.5 | Section and column headers: 500, `--ink-3`; keys |
 
-In `packages/ui`, styled from the primitives in `apps/desktop/src/styles/primitives.css`.
+The older names (`--text-label`, `--text-small`, `--text-ui`, `--text-card`,
+`--text-subtitle`) are aliases of these. Capitals are never set by CSS; a
+label is written in sentence case. Monospace is for ids, code and things that
+are literally code, never for a title or a label.
 
-- **PageBar** — the breadcrumb bar: crumb icon, parent (never `.atlas/…`),
-  page name, "Saved", the star and the page menu.
-- **PageHead** — the icon tile, the title (editable on a note), an optional
-  line under it, and a slot on the right.
-- **ViewToolbar** — sibling views as pill tabs on the left; the layout's own
-  controls (a calendar's `CalendarMonthNav`), Filter, Sort and the primary
-  "New …" on the right. When both cannot fit, the right group wraps under the
-  tabs instead of squeezing them.
-- **StatusPill** — a status in its tone: fill, dot, label. Any `select`
-  property in a table, list or gallery is drawn as one.
-- **Chips** — `.board__field` / `.note-chip`: a small tinted chip with an icon
-  that says what the value is (`# Phase 14`, a person, a duration).
-  `cardChips` in the domain decides the icon and wording.
-- **Cards** — `.card`, `.card--raised`, `.card--interactive`. Board cards,
-  gallery cards, dashboard widgets, Settings sections (`SettingsCard`) and the
-  source panel are all this.
-- **Hero** — the navy gradient card: the dashboard's hero widget, and the
-  choose-folder screen. One per screen.
-- **Buttons** — `.btn` pills: `--primary` (accent, one per surface),
-  `--secondary` (raised), `--tinted` (a secondary action on a raised card),
-  `--ghost`. Icon buttons are `.icon-button`.
-- **Segmented control and switch** — `.segmented` (a pill track, the chosen
-  option filled; `--quiet` lifts it as a raised pill instead), and `.toggle`
-  in the same language: a lifted knob on a pill track, accent when on.
-- **Keys** — `Key` and `KeyHints`: a shortcut as a small chip (`⌘K`, `↵`,
-  `esc`); an overlay lists the keys it answers to along its foot. Always
-  `aria-hidden` — the control carries its own name.
-- **Overlays** — the search and capture palettes and Settings share
-  `.palette__backdrop` (the scrim with a slight blur) and `.palette` (raised,
-  panel radius, `--shadow-overlay`). Rows are 44px with a kind tile, the title,
-  and a quiet second line; the active row is tinted `--you` with its icon in
-  `--active-icon`; matched words are `--accent-text`, not a highlighter.
-- **Menus and popups** — Base UI menus (`.menu`), the editor's slash menu and
-  `[[` suggestions (`.suggestions`): a raised card, 36px rows with an icon,
-  shortcuts as key chips, groups split by a hairline divider.
-- **Pages editing** (P17-01) — a row's menu opens from its "Options" button
-  (after the star), a right-click or Shift+F10, and is the same `.menu` as
-  the page's "…", built from `MenuItems`; a destructive command sits last,
-  below a divider, in `--danger`. Names are edited in place (`.tree__rename`).
-  "Move to…" is a palette (`MovePicker`); a delete asks first in an alert
-  dialog (`.confirm`, `.btn--danger`, Cancel focused). Both are overlays under
-  the one-overlay rule. Styles live in `styles/pages-tree.css`.
-- **Artifacts** (P17-07) — `ArtifactViewer`: the saved copy as a raised
-  card under a note's properties, a quiet bar (label, Open link, Full screen,
-  Reload as ghost pills) over a sandboxed frame on `--artifact-canvas`; Full
-  screen fills the pane. `FileDrop`: a `--track` well with a glyph, words and
-  Pick files / Pick a folder, tinted `--you` with the ring while a file is over
-  it — the drop zone in New artifact (a palette like New type) and on a note
-  with no copy. `ArtifactCardFace`: a gallery card's front when the copy has no
-  picture — the kind's glyph over the title on `--you`, never a screenshot. A
-  gallery with `groupBy` draws a heading and count per group.
-- **Images in a note** (U-12) — an image sits in the text at its own size,
-  capped at the column, with `--radius-card` corners; selected, it takes a
-  3px `--accent` ring and its alt text opens under it as a small popover (a
-  `--raised` card, radius 14, `--shadow-overlay`, a `--track` field). An image
-  on its way in is a `--chip` pill with a spinner and "Adding name…"; one that
-  was refused is the same pill tinted toward `--danger`, with a Dismiss ×.
-  Both are editor decorations and never reach the file. `attachments/` at the
-  vault root sorts after the root's notes in Pages, just before `.atlas`.
-- **Floating add button** (U-13) — `FloatingAddButton`: a 56px `--accent`
-  circle with `--shadow-tile` and `--shadow-accent` (the cyan glow in dark),
-  resting at one of eight anchors over the content panel (`fabAnchorPoint`),
-  clear of the page bar and the sidebar. Several types open a speed dial of
-  raised pills sliding toward the panel's middle; one type opens
-  `QuickAddPopover`, the menus' raised card. After an add, a `Toast` on
-  `--hero` at the panels' foot. Styles in `styles/quick-add.css`.
-- **Bookmarks** (U-21) — a link shown as a card in a note: a resting
-  `--raised` card, `--radius-card`, `--shadow-card`, lifting to `--shadow-tile`
-  under the pointer. Title (`--text-body-lg`, 800), a two-line summary in
-  `--ink-2`, and the note's place in `--ink-3` with a doc icon; the page's
-  picture on the right at 16:10, or the page icon on `--you`. Selected, a 3px
-  `--accent` ring, as an image. Missing is tinted toward `--danger` and says
-  so; archived wears an "Archived" chip. Its "…" (and a link's, floating over
-  it under the pointer) opens the link's `.menu`: Open note, Show as
-  bookmark / Show as link. The `[[` list's foot lists ↵ Link, ⇧↵ Bookmark.
-- **Notices** — a problem above the panels (`.notice`) or under the page bar
-  (`.page-conflict`): a card tinted toward `--danger`, its ways out as small
-  raised pills (`.viewer__resolve`).
+### Sizes
 
-## Rules
+| Element                    | Size                                                   |
+| -------------------------- | ------------------------------------------------------ |
+| Left sidebar               | 224px (`--sidebar-width`), rows 28px (`--sidebar-row`) |
+| Right sidebar              | 300px; 340px for the type editor (`--aside-width`)     |
+| Tab strip                  | 36px                                                   |
+| Nav bar                    | 40px                                                   |
+| View bar                   | 44px, on a typed view only                             |
+| Table header and group row | 32px                                                   |
+| Table row                  | 34px                                                   |
+| Control, field             | 28px                                                   |
+| Chip, pill                 | 20px                                                   |
+| A note's reading width     | 720px, centred                                         |
 
-1. **Roles, never colours.** A component reads a token. A new colour is a new
-   token, declared in light and both dark blocks.
-2. **Separation is a surface and a shadow**, not a border. The only 1px lines
-   are the hairlines between rows of a table or list, and the view toolbar's
-   underline.
-3. **One accent per surface.** The primary button, the selected tab. Everything
-   else is a neutral or a status tone.
-4. **Internals stay off screen.** No `.atlas/`, no `.md`, no SQL, no raw
-   markdown in a summary (`plainText`), no unlabelled value (`cardChips`).
-5. **Every overlay is the same overlay.** Backdrop, radius, shadow, 44px rows,
-   key hints — and only one is ever up (`apps/desktop/src/overlay.ts`).
-6. **Judge it side by side.** `pnpm shots && pnpm design:compare`, both themes,
-   before calling a surface done. `pnpm shots` covers every surface, overlays
-   and editor popups included.
+## Primitives
+
+The shared pieces are in `apps/desktop/src/styles/primitives.css`; the
+components that draw them are in `packages/ui/src`. One kind of thing is
+drawn one way.
+
+- **Buttons** — `.btn` with `--primary`, `--positive`, `--destructive`,
+  `--secondary` or `--ghost`. 28px, radius 6. Every kind carries a border,
+  transparent where it has none, so they all measure the same. Hover mixes a
+  little ink into the fill. `.btn--sm` is 22px, for inside a row or a band.
+  One primary per view.
+- **Fields** — `.field`: a 28px box on the surface, a `--line-strong`
+  hairline, radius 6, the focus ring while written in. `.field--block` grows
+  with its lines; `.field--invalid` says it is wrong. `.select` wraps a
+  `select` and draws its chevron.
+- **Segmented control and switch** — `.segmented`: a well as the track, the
+  chosen option lifted onto it (`--quiet` for a preference, with square
+  options). `.toggle`: a knob on a track, whose position as well as colour
+  says it is on.
+- **Chips** — `.chip`: 20px, radius 4, 12px text, no icon; a value's kind is
+  said by its words. `--accent` and `--danger` tint it.
+- **Status pill and dot** — `StatusPill` and `.status-pill`: a 20px pill on
+  its tint with a 6px dot and the label, in a table's cell, a filter and the
+  peek's strip. `.status-pill--dot` is the bare 8px dot, for a board column's
+  head. `TintedPill` draws a hue's pill the same way.
+- **Notice bar** — `.notice-bar`: one line on the well under a hairline, at
+  least 40px, its icon in `--ink-3`, its words in `--ink`, its actions at the
+  right end (the first secondary, the rest ghost). An offer the Inbox makes,
+  the band over a template, the saved-view controls: each is this bar, never a
+  card. A long warning wraps and the bar grows.
+- **Menus** — `.menu` (Base UI): a popover on the surface with a hairline,
+  radius 8 and `--shadow-popover`. Rows are 28px of body text; the highlighted
+  one takes `--hover`; a shortcut is plain metadata at the right. The
+  editor's slash menu and `[[` suggestions are the same.
+- **Palettes** — the search (⌘K) and capture (⇧⌘N) palettes and Settings:
+  the same popover over `--scrim`, with 36px rows and the `--selected`
+  highlight.
+- **Keys** — `Key` and `KeyHints`: a key or chord (`⌘K`, `↵`, `esc`) is
+  plain 11.5px `--ink-3` text, with no box. An overlay lists the keys it
+  answers to along its foot, one 34px line above a hairline.
+- **Toast** — `Toast`: one line that something happened, on a dark surface
+  in both themes (`--toast-*`), with a dot in a muted hue (a change, a
+  warning, an error), the words, Undo for a change, an action of the caller's
+  ("Open"), and a ×. It goes after 5 s (`TOAST_MS`) and waits while the
+  pointer or the focus is on it; an error stays until it is sent away. It
+  never takes the focus.
+- **ToastStack** — the window's toasts in one column, oldest on top, at most
+  three (`MAX_TOASTS`), each with its own time. It sits at the bottom right,
+  12px in and 92px up, where the retired add button rested; the top right is
+  the pane's bars and their controls. A failure with nothing to take back
+  stays on its own section or under the page bar instead.
+- **Spinner** — `.spinner`: shown only once loading has taken 150 ms
+  (`SPINNER_DELAY_MS`), held invisible until then by the stylesheet. No
+  words, no skeleton, and its block holds its place from the start.
+
+## The shell
+
+Left sidebar | panes | right sidebar. When the window runs out of room the
+right sidebar collapses first (`packages/ui/src/aside/collapse.ts`); the left
+sidebar never folds by width, because the window is never narrower than
+720px.
+
+- **Left sidebar** (`Sidebar.dc.html`) — on `--bg`, 224px, rows 28px. The
+  vault, then the fixed places, then Dashboards, Favorites, Views and Types,
+  and the Pages tree last. Settings, sync and the theme toggle at the foot.
+  The active row takes `--selected`. Counts are `--ink-3` and hidden at 0.
+  ⌘\\ hides it.
+- **Tab strip** — `TabStrip`, `styles/tabs.css`: 36px on `--bg` over a
+  hairline. Square tabs, 176px shrinking to 120px, then the list scrolls; a ×
+  on the tab and a + after the tabs. The shown tab sits on the surface and
+  breaks the hairline; its 2px top border is ink in the focused pane and grey
+  in the other. Each pane has its own tabs; each tab its own back/forward and
+  undo history. The model is `docs/design/tab-model.md`.
+- **Nav bar** — 40px: ← → for the tab's history, the breadcrumb, then the
+  view's buttons, Saved, ☆, ⋯ and the right-sidebar toggle.
+- **View bar** — 44px, only on a typed view (`ViewToolbar`): its sibling
+  views as tabs, Filter and Sort, and the one primary "New …".
+- **Right sidebar** — `RightSidebar`, `styles/aside.css`: on the surface,
+  behind a hairline. Its tabs are Type, Properties, Backlinks, Outline and
+  Claude (the chat); only the ones that have something to show are offered.
+  300px, 340px for the type editor. ⌥⌘\\ and the nav bar's toggle show and
+  hide it, and its state is remembered. Hidden, a note's properties collapse
+  to one metadata line under its title.
+- **Center peek** — `PeekDialog`, `styles/peek.css`: an 840px dialog, radius
+  8, `--shadow-peek`, over `--scrim-peek`. A 44px header (↑ ↓ and "3 of 186
+  in Task table", Saved, Open as full page, Open in new tab, Open in split,
+  ×), the title, a one-line
+  `PropertiesStrip` with "+ N empty", the editable body, and a 34px foot of
+  key hints. The chrome stays neutral; colour is in the strip's values.
+- **Link preview** — `LinkPreviewCard`: a popover after the pointer rests
+  400 ms on a wikilink or a relation value (`LINK_PREVIEW_DELAY_MS`): the
+  title, type and phase, and up to four lines of the note.

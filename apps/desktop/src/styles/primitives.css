@@ -556,7 +556,7 @@
   gap: 4px;
 }
 
-/* A toast is the one word that something happened, top right, on a dark
+/* A toast is the one word that something happened, bottom right, on a dark
    surface in both themes, with Undo and a dismiss ×. It floats over the
    content and never takes the focus. */
 .toast {

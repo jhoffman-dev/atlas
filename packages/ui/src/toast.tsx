@@ -10,7 +10,7 @@ import { Icon } from './icon.tsx';
 export type ToastTone = 'change' | 'warning' | 'error';
 
 /**
- * A small word that something happened — "Task added" — top right, on a dark
+ * A small word that something happened — "Task added" — bottom right, on a dark
  * surface, with what can be done about it: Undo for a change, an action of
  * the caller's ("Open"), either or both, and a × to send it away. Only the
  * words are the live region, so a screen reader hears what happened and not
