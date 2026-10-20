@@ -433,6 +433,16 @@ describe('proposalsToShow — while the last answers are written (review)', () =
     expect(proposalsToShow(none)).toBe(false);
     expect(proposalsToShow({ ...none, answering: true })).toBe(true);
   });
+
+  it('keeps the section, to say nothing is left, once the last one was answered here', () => {
+    const none = {
+      contents: { open: [], stranded: [], unreadable: [] },
+      error: null,
+      notice: null,
+    } as unknown as ProposalsSectionProps;
+    expect(proposalsToShow(none)).toBe(false);
+    expect(proposalsToShow({ ...none, answered: true })).toBe(true);
+  });
 });
 
 describe('ProposalsSection — the same proposal made twice', () => {

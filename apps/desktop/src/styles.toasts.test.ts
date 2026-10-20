@@ -121,3 +121,19 @@ describe('the delayed spinner', () => {
     );
   });
 });
+
+describe('the toasts over the peek', () => {
+  const peek = sheet('peek.css');
+  const layer = (source: string, opening: string) =>
+    Number(blockOf(source, opening).get('z-index') ?? Number.NaN);
+
+  // A change made in the peek — Make task, a property set — is said in a
+  // toast; under the peek's viewport its Undo could not be pressed (slice 15).
+  it('draws them above the peek, and under a link preview', () => {
+    const toasts = layer(primitives, '.toast-stack {');
+    expect(toasts).toBeGreaterThan(layer(peek, '.peek__viewport {'));
+    expect(toasts).toBeGreaterThan(layer(peek, '.peek__scrim {'));
+    expect(layer(primitives, '.toast {')).toBe(toasts);
+    expect(toasts).toBeLessThan(layer(peek, '.link-preview {'));
+  });
+});

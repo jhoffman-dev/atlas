@@ -428,6 +428,7 @@ const FOCUS_TARGETS: Record<string, { open: (page: Page) => Promise<void>; selec
         .getByRole('list', { name: 'Go to' })
         .getByRole('button', { name: 'Terms' })
         .click();
+      await page.getByRole('button', { name: 'New term' }).click();
       await expect(page.locator('.terms__field input.field').first()).toBeVisible();
     },
     selector: '.terms__field input.field',

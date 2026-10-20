@@ -19,10 +19,15 @@ const TASK_TYPE = [
   '',
 ].join('\n');
 
+/** Capture makes its task from the vault's Task template (P30-01). */
+const TASK_TEMPLATE = ['---', 'type: task', 'status: backlog', '---', '', ''].join('\n');
+
 async function openVault(page: Page) {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
+  await vault.mkdir('.atlas/templates');
   await vault.write('.atlas/types/task.md', TASK_TYPE);
+  await vault.write('.atlas/templates/Task.md', TASK_TEMPLATE);
   await vault.write('Garden.md', ['---', 'type: project', '---', '', 'Beds.', ''].join('\n'));
 
   await installHost(page, vault);

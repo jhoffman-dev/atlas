@@ -99,7 +99,7 @@ describe('useProposals', () => {
     expect(said()).toMatchObject({
       message: 'Accepted: Send Mara the payroll file.',
       tone: 'change',
-      action: { label: 'Open Send Mara the payroll file' },
+      action: { label: 'Open' },
     });
     expect(said()?.onUndo).toBeTypeOf('function');
     expect(hook.result.current.section.notice).toBeNull();
@@ -199,6 +199,18 @@ describe('useProposals', () => {
       }),
     ]);
     expect(failed.activity.reports[0]?.message).toMatch(/^Could not answer the proposal/);
+  });
+
+  it('says it has answered here, so the emptied section stays to say so', async () => {
+    const { hook, said } = render();
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    expect(hook.result.current.section.answered).toBe(false);
+
+    act(() => hook.result.current.section.onReject(path(PROPOSAL)));
+    await waitFor(() => expect(said()).toBeDefined());
+
+    expect(hook.result.current.count).toBe(0);
+    expect(hook.result.current.section.answered).toBe(true);
   });
 
   it('rejects one, archiving it, with nothing to undo', async () => {

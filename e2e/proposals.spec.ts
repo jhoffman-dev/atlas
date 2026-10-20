@@ -127,7 +127,7 @@ test('a task proposal accepted on the Inbox page makes the task, and the task op
     'state: accepted',
   );
 
-  await notice.getByRole('button', { name: 'Open Send Mara the payroll file' }).click();
+  await notice.getByRole('button', { name: 'Open', exact: true }).click();
   const opened = page.getByRole('main');
   await expect(
     opened.getByRole('heading', { level: 1, name: 'Send Mara the payroll file' }),
