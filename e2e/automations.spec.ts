@@ -201,6 +201,12 @@ test('a rule a note sets off archives a new standup once the meeting import lets
   // Let in by the import before: it arrived then, not now.
   const LAST_WEEK = 'Inbox/Meetings/Last week standup.md';
   await vault.write(LAST_WEEK, imported(meeting('Standup', 'aaaa0001')));
+  // A week before the rule was saved, so opening does not catch it up as an
+  // arrival the rule missed (ADR-0028): the index lists it, as the real one does.
+  const ruleSaved = Date.UTC(2026, 9, 12) / 1000;
+  await utimes(join(vault.root, '.atlas/automations/File standups.md'), ruleSaved, ruleSaved);
+  const letInBefore = ruleSaved - 7 * 24 * 60 * 60;
+  await utimes(join(vault.root, LAST_WEEK), letInBefore, letInBefore);
   await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
