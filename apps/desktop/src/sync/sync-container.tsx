@@ -14,8 +14,9 @@ export const SyncRunner = memo(function SyncRunner({
 }: SyncOptions & { store: SyncStore }) {
   const sync = useSync(options);
   // Before paint, so nothing shows a sync a step behind the runner's.
-  useLayoutEffect(() => publishSync(store, sync), [store, sync]);
-  useLayoutEffect(() => () => publishSync(store, null), [store]);
+  const vault = options.vaultKey;
+  useLayoutEffect(() => publishSync(store, vault, sync), [store, vault, sync]);
+  useLayoutEffect(() => () => publishSync(store, null, null), [store]);
   return null;
 });
 

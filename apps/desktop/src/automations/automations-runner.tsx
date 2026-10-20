@@ -43,7 +43,7 @@ export const AutomationsRunner = memo(function AutomationsRunner({
   ownerKnown,
   ...options
 }: AutomationsRunnerProps) {
-  const { automationsHere, macKnown, pulledFiles } = useSyncForRunners(sync);
+  const { automationsHere, macKnown, pulledFiles } = useSyncForRunners(sync, options.vaultKey);
   const rulesKey = useScopedIndexKey({
     status,
     vault: options.vaultKey,

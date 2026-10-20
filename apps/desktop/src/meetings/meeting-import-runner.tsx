@@ -20,7 +20,7 @@ export const MeetingImportRunner = memo(function MeetingImportRunner({
   sync,
   ...options
 }: MeetingImportRunnerProps) {
-  const { automationsHere, pulledFiles } = useSyncForRunners(sync);
+  const { automationsHere, pulledFiles } = useSyncForRunners(sync, options.vaultKey);
   useMeetingImport({ ...options, active: automationsHere, pulledFiles });
   return null;
 });

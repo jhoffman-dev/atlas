@@ -31,7 +31,7 @@ import type { SyncController } from '../sync/use-sync.ts';
 /** Sync as the Mac that runs the vault's automations sees it, with nothing held for a pull. */
 function syncHere() {
   const sync = createSyncStore();
-  publishSync(sync, {
+  publishSync(sync, VAULT, {
     phase: { kind: 'unknown' },
     thisMac: 'Studio',
     settings: {},

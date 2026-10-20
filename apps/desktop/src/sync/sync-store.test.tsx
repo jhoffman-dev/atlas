@@ -36,7 +36,7 @@ function runnerOver() {
   let draws = 0;
   const hook = renderHook(() => {
     draws += 1;
-    return useSyncForRunners(store);
+    return useSyncForRunners(store, '/v');
   });
   return { store, hook, draws: () => draws };
 }
@@ -53,14 +53,20 @@ describe('sync as the window reads it (#326)', () => {
     const first = vi.fn(async () => false);
     const second = vi.fn(async () => true);
     act(() =>
-      store.setState({ controller: controller({ pulledFiles: { standing: null, acts: first } }) }),
+      store.setState({
+        vault: '/v',
+        controller: controller({ pulledFiles: { standing: null, acts: first } }),
+      }),
     );
     const gate = hook.result.current.pulledFiles;
     const drawn = draws();
 
     // Another vault's gate, standing as the last did: the window is not drawn for it.
     act(() =>
-      store.setState({ controller: controller({ pulledFiles: { standing: null, acts: second } }) }),
+      store.setState({
+        vault: '/v',
+        controller: controller({ pulledFiles: { standing: null, acts: second } }),
+      }),
     );
     expect(draws()).toBe(drawn);
     expect(hook.result.current.pulledFiles).toBe(gate);
@@ -71,7 +77,7 @@ describe('sync as the window reads it (#326)', () => {
 
   it('draws the window when a pull moves the gate’s standing', () => {
     const { store, hook } = runnerOver();
-    act(() => store.setState({ controller: controller() }));
+    act(() => store.setState({ vault: '/v', controller: controller() }));
     const standing = { pulledAt: 1 } as unknown as PulledFilesGate['standing'];
     act(() =>
       store.setState({
@@ -83,7 +89,7 @@ describe('sync as the window reads it (#326)', () => {
 
   it('knows the Mac once its id and the settings are both read', () => {
     const { store, hook } = runnerOver();
-    act(() => store.setState({ controller: controller({ thisMac: 'Studio' }) }));
+    act(() => store.setState({ vault: '/v', controller: controller({ thisMac: 'Studio' }) }));
     expect(hook.result.current.macKnown).toBe(false);
     act(() =>
       store.setState({
@@ -101,9 +107,33 @@ describe('sync as the window reads it (#326)', () => {
     const store = createSyncStore();
     await expect(settleSync(store)).resolves.toBeUndefined();
     const settle = vi.fn(async () => {});
-    store.setState({ controller: controller({ settle }) });
+    store.setState({ vault: '/v', controller: controller({ settle }) });
     await settleSync(store);
     expect(settle).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives a runner of another vault the closed defaults until its own sync is said (#419)', async () => {
+    const store = createSyncStore();
+    const acts = vi.fn(async () => true);
+    publishSync(
+      store,
+      '/a',
+      controller({
+        thisMac: 'Studio',
+        settings: {} as SyncController['settings'],
+        automationsHere: true,
+        pulledFiles: { standing: null, acts },
+      }),
+    );
+    const hook = renderHook(({ vault }: { vault: string }) => useSyncForRunners(store, vault), {
+      initialProps: { vault: '/a' },
+    });
+    expect(hook.result.current).toMatchObject({ automationsHere: true, macKnown: true });
+
+    hook.rerender({ vault: '/b' });
+    expect(hook.result.current).toMatchObject({ automationsHere: false, macKnown: false });
+    expect(await hook.result.current.pulledFiles.acts('/b')).toBe(false);
+    expect(acts).not.toHaveBeenCalled();
   });
 
   it('draws the window for the conflict warning and the pulls, not for who runs the automations', () => {
@@ -113,9 +143,9 @@ describe('sync as the window reads it (#326)', () => {
       draws += 1;
       return useSyncForWindow(store);
     });
-    act(() => publishSync(store, controller()));
+    act(() => publishSync(store, '/v', controller()));
     const drawn = draws;
-    act(() => publishSync(store, controller({ thisMac: 'Studio', automationsHere: true })));
+    act(() => publishSync(store, '/v', controller({ thisMac: 'Studio', automationsHere: true })));
     expect(draws).toBe(drawn);
     expect(hook.result.current.conflict).toBeNull();
   });
@@ -123,11 +153,11 @@ describe('sync as the window reads it (#326)', () => {
   it('says nothing new when the runner draws again with every part as it was', () => {
     const store = createSyncStore();
     const first = controller();
-    publishSync(store, first);
+    publishSync(store, '/v', first);
     const said = store.getState();
-    publishSync(store, { ...first });
+    publishSync(store, '/v', { ...first });
     expect(store.getState()).toBe(said);
-    publishSync(store, { ...first, behind: 2 });
+    publishSync(store, '/v', { ...first, behind: 2 });
     expect(store.getState().controller?.behind).toBe(2);
   });
 
@@ -140,9 +170,9 @@ describe('sync as the window reads it (#326)', () => {
       return useSyncBadge(store);
     });
     expect(hook.result.current).toBeNull();
-    act(() => publishSync(store, controller({ phase: notSetUp })));
+    act(() => publishSync(store, '/v', controller({ phase: notSetUp })));
     const drawn = draws;
-    act(() => publishSync(store, controller({ phase: notSetUp, thisMac: 'Studio' })));
+    act(() => publishSync(store, '/v', controller({ phase: notSetUp, thisMac: 'Studio' })));
     expect(draws).toBe(drawn);
   });
 });

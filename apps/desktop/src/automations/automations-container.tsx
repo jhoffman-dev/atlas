@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { LoadedLater } from '../page-frame-fallback.tsx';
+import { LoadedLater, PageFrameFallback } from '../page-frame-fallback.tsx';
 import { automationsScreen } from '../pages-on-first-use.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
@@ -26,7 +26,8 @@ export function AutomationsContainer({ wiring, chrome }: PageContainerProps) {
   const automations = useAutomationsController(pages.automations.store);
   // The rule editor's query builder still reads again on every news of the index (#325).
   const indexKey = useIndexKey(pane.indexStatus, pane.vault);
-  if (automations === null) return null;
+  // The page's frame, as while its chunk loads, until the runner has said where the rules stand.
+  if (automations === null) return <PageFrameFallback {...chrome} />;
   return (
     <LoadedLater chrome={chrome}>
       <AutomationsScreen

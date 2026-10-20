@@ -15,12 +15,18 @@ import { syncConflictNotice, syncIndicatorBadge } from './sync-view.ts';
 export interface SyncState {
   /** Null until the runner has drawn once: nothing about sync is known yet. */
   readonly controller: SyncController | null;
+  /**
+   * The vault `controller` was drawn for. The runner says it in a layout
+   * effect, a draw after the vault opens; until then it is the last vault's,
+   * which no runner of the new one may act on (#419).
+   */
+  readonly vault: string | null;
 }
 
 export type SyncStore = StoreApi<SyncState>;
 
 export function createSyncStore(): SyncStore {
-  return createStore<SyncState>()(() => ({ controller: null }));
+  return createStore<SyncState>()(() => ({ controller: null, vault: null }));
 }
 
 /**
@@ -65,28 +71,43 @@ export interface SyncForRunners {
   readonly pulledFiles: PulledFilesGate;
 }
 
+/** The sync said for `vault`, or null while what the store holds is another vault's, or nothing. */
+function controllerFor(state: SyncState, vault: string | null): SyncController | null {
+  return state.vault === vault ? state.controller : null;
+}
+
 /**
- * The parts of sync a runner acts on. The pull gate is the reader's own, made
+ * The parts of sync a runner of the vault at `vaultKey` acts on: until the
+ * runner has said where that vault's sync stands, the closed defaults — it
+ * does not run the automations, the Mac is not known, the gate is shut —
+ * never the last vault's (#419). The pull gate is the reader's own, made
  * again only when a pull moves its standing: its `acts` asks the runner's
  * gate as it stands at the time, so a new vault's gate, standing as the last
  * did, draws nothing.
  */
-export function useSyncForRunners(store: SyncStore): SyncForRunners {
+export function useSyncForRunners(store: SyncStore, vaultKey: string | null): SyncForRunners {
   const { standing, ...facts } = useStore(
     store,
-    useShallow(({ controller }) => ({
-      automationsHere: controller?.automationsHere ?? false,
-      macKnown: controller !== null && controller.thisMac !== null && controller.settings !== null,
-      standing: controller?.pulledFiles.standing ?? null,
-    })),
+    useShallow((state) => {
+      const controller = controllerFor(state, vaultKey);
+      return {
+        automationsHere: controller?.automationsHere ?? false,
+        macKnown:
+          controller !== null && controller.thisMac !== null && controller.settings !== null,
+        standing: controller?.pulledFiles.standing ?? null,
+      };
+    }),
   );
   const pulledFiles = useMemo<PulledFilesGate>(
     () => ({
       standing,
       acts: (vault, arrival) =>
-        (store.getState().controller?.pulledFiles ?? NO_PULL_YET).acts(vault, arrival),
+        (controllerFor(store.getState(), vaultKey)?.pulledFiles ?? NO_PULL_YET).acts(
+          vault,
+          arrival,
+        ),
     }),
-    [store, standing],
+    [store, standing, vaultKey],
   );
   return { ...facts, pulledFiles };
 }
@@ -96,8 +117,14 @@ export function useSyncForRunners(store: SyncStore): SyncForRunners {
  * object each draw; one whose every part is as it was says nothing, so what
  * reads the store is not drawn for a runner drawn with the window.
  */
-export function publishSync(store: SyncStore, controller: SyncController | null): void {
-  store.setState((was) => (shallow(was.controller, controller) ? was : { controller }));
+export function publishSync(
+  store: SyncStore,
+  vault: string | null,
+  controller: SyncController | null,
+): void {
+  store.setState((was) =>
+    was.vault === vault && shallow(was.controller, controller) ? was : { controller, vault },
+  );
 }
 
 /** The sidebar's sync light, or null for a vault that does not sync: drawn only when it changes. */

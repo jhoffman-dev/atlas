@@ -31,7 +31,7 @@ const { SyncRunner } = await import('./sync-container.tsx');
 
 /** What a runner (automations, meeting import) acted with, as its effects saw it. */
 function Runner({ store, vaultKey, seen }: { store: SyncStore; vaultKey: string; seen: string[] }) {
-  const { automationsHere, macKnown } = useSyncForRunners(store);
+  const { automationsHere, macKnown } = useSyncForRunners(store, vaultKey);
   useEffect(() => {
     seen.push(`${vaultKey}:${automationsHere}:${macKnown}`);
   });

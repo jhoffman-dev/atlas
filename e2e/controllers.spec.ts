@@ -36,7 +36,9 @@ const rule = ({ name, when }: { name: string; when: string }) =>
     '',
   ].join('\n');
 
-const task = (status: string) => `---\ntype: task\nstatus: ${status}\n---\n\n# Call the bank\n`;
+const task = (status: string, title = 'Call the bank') =>
+  `---\ntype: task\nstatus: ${status}\n---\n\n# ${title}\n`;
+const PLANTS = 'Tasks/Water the plants.md';
 
 async function openVault(page: Page, when: string): Promise<FakeVault> {
   const vault = await createVault();
@@ -46,7 +48,7 @@ async function openVault(page: Page, when: string): Promise<FakeVault> {
   await vault.write('.atlas/types/task.md', TASK_TYPE);
   await vault.write(RULE, rule({ name: 'Sweep', when }));
   await vault.write('Tasks/Call the bank.md', task('doing'));
-  await vault.write('Notes.md', '# Notes\n');
+  await vault.write(PLANTS, task('doing', 'Water the plants'));
   await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
@@ -68,20 +70,22 @@ test('the Automations page, while shown, follows a rule another program edits (#
   await expect(list.getByText('Sweep', { exact: true })).toHaveCount(0);
 });
 
-test('a rule a task sets off runs on that task’s change, and not on a note saved elsewhere (#326)', async ({
+test('a rule a task sets off acts on a changed task its query takes, and on no other changed task (#326)', async ({
   page,
 }) => {
   const vault = await openVault(page, 'a task is changed');
 
-  // Another note changes: the index has news, and no task changed, so the rule waits.
-  await vault.write('Notes.md', '# Notes\n\nA line.\n');
-  await emitVaultChanged(page, ['Notes.md']);
-  await expect(page.getByRole('treeitem', { name: 'Notes' })).toBeVisible();
+  // A task changes without becoming done: it sets the rule off, and its query does not take it.
+  await vault.write(PLANTS, task('backlog', 'Water the plants'));
+  await emitVaultChanged(page, [PLANTS]);
 
-  // The task is done: its change sets the rule off, which archives it.
+  // A task is done: its change sets the rule off, which archives it. Runs go one at a
+  // time in the order their news came, so the one before has run by now.
   await vault.write('Tasks/Call the bank.md', task('done'));
   await emitVaultChanged(page, ['Tasks/Call the bank.md']);
   await expect.poll(() => vault.exists('Archive/Tasks/Call the bank.md')).toBe(true);
   await expectFile(vault, LOG).toContain('triggered by `"Tasks/Call the bank.md"`');
-  expect(await vault.read(LOG)).not.toContain('Notes.md');
+  expect(await vault.exists(PLANTS)).toBe(true);
+  expect(await vault.exists('Archive/Tasks/Water the plants.md')).toBe(false);
+  expect(await vault.read(LOG)).not.toContain('Water the plants');
 });
