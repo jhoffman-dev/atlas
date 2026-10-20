@@ -38,6 +38,18 @@ interface Section {
 }
 
 describe('GET /v1/today', () => {
+  it('answers each task as the contract has it: not the names its project links by (#392)', async () => {
+    const query = atlasQueryIndex({ markdown: fakeMarkdown(), files: FILES, modified: MODIFIED });
+    const api = apiFixture({ files: FILES, index: { query } });
+
+    const today = bodyOf(await api.send(ROUTE))['today'] as Record<string, unknown>;
+    const tasks = (today['sections'] as Section[]).flatMap((section) =>
+      section.groups.flatMap((group) => group.tasks),
+    );
+    expect(tasks.map((task) => task['path'])).toContain('Tasks/Ship.md');
+    expect(tasks.filter((task) => Object.hasOwn(task, 'projectLinks'))).toEqual([]);
+  });
+
   it('answers the page’s sections with exactly their tasks, on the app’s clock, writing nothing', async () => {
     const query = atlasQueryIndex({ markdown: fakeMarkdown(), files: FILES, modified: MODIFIED });
     const api = apiFixture({ files: FILES, index: { query } });

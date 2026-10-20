@@ -1,3 +1,4 @@
+import type { ReviewTask } from '@atlas/domain';
 import { readWeeklyReview } from '../review/read-weekly-review.ts';
 import { readToday } from '../today/read-today.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
@@ -17,7 +18,17 @@ export async function weeklyReviewRoute(request: VaultRequest): Promise<RouteRes
       `The index could not take the weekly review: ${messageWithoutPaths(error)}`,
     );
   });
-  return { status: 200, body: { review } };
+  return {
+    status: 200,
+    body: {
+      review: {
+        ...review,
+        staleWaiting: review.staleWaiting.map(answered),
+        overdue: review.overdue.map(answered),
+        untouchedSomeday: review.untouchedSomeday.map(answered),
+      },
+    },
+  };
 }
 
 /**
@@ -33,5 +44,18 @@ export async function todayRoute(request: VaultRequest): Promise<RouteResult> {
       `The index could not take the Today page: ${messageWithoutPaths(error)}`,
     );
   });
-  return { status: 200, body: { today } };
+  const sections = today.sections.map((section) => ({
+    ...section,
+    groups: section.groups.map((group) => ({ ...group, tasks: group.tasks.map(answered) })),
+  }));
+  return { status: 200, body: { today: { ...today, sections } } };
+}
+
+/**
+ * A task as the contract answers it (`ApiReviewTask`): without the names its
+ * project links by, which are the app's own, to read Today again by (#392).
+ */
+function answered<Task extends ReviewTask>(task: Task): Omit<Task, 'projectLinks'> {
+  const entries = Object.entries(task).filter(([key]) => key !== 'projectLinks');
+  return Object.fromEntries(entries) as Omit<Task, 'projectLinks'>;
 }
