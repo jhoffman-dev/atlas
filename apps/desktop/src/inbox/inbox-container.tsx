@@ -90,6 +90,8 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
     activity: pane.activity,
     closing,
     held: pages.holds.proposals,
+    toasts: pane.toasts,
+    onOpen: pages.openNote,
   });
   const { written: inboxWritten } = inbox;
   const { written: answersWritten } = proposals;

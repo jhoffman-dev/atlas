@@ -1,6 +1,6 @@
 import { messageOf } from '@atlas/domain';
 import type { AcceptedProposal, ProposalArchived } from '@atlas/application';
-import type { ProposalNotice } from '@atlas/ui';
+import type { ProposalNotice } from './proposal-notice.ts';
 
 /** What answering several in turn did: each one done, and each one that was not, with why. */
 export interface InTurn<Item, Done> {

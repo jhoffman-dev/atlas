@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { noteTitle, taskTypeOf, type ObjectType, type VaultPath } from '@atlas/domain';
 import {
   promoteChecklistLine,
@@ -12,8 +12,9 @@ import {
   type Promotion,
   type VaultFsPort,
 } from '@atlas/application';
-import type { LinePromotion, PromotedLine, PromotionNotice } from '@atlas/ui';
+import type { LinePromotion, PromotedLine } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
+import type { Toasts } from '../toasts/toasts.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { cryptoRng } from '../random.ts';
 import { localToday } from '../today.ts';
@@ -27,9 +28,11 @@ const PROMOTION_REFUSALS = [PromotionRefused, TaskRuleRefusedError, UnsavedTypin
 /**
  * Making a checklist line of the note in a pane a task (P30-03). The pane's
  * typing is written first, so the line is promoted as it is on screen; then
- * the task is made and the line rewritten in one use-case, and the page says
- * what was made, with one Undo that takes back both. A refusal says why;
- * a promotion or an Undo it gives up on is also recorded in the Activity log.
+ * the task is made and the line rewritten in one use-case, and the window's
+ * toast says what was made (UI v2, slice 15), with Open and one Undo that
+ * takes back both — a byte-preserving write, refused once either moved on,
+ * and nothing once another vault has opened. A failure is said on the page
+ * until dismissed; one it gives up on is also recorded in the Activity log.
  */
 export function useLinePromotion({
   fs,
@@ -42,6 +45,7 @@ export function useLinePromotion({
   onChanged,
   onOpenNote,
   activity,
+  toasts,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
@@ -55,9 +59,10 @@ export function useLinePromotion({
   onChanged: () => void;
   onOpenNote: (path: VaultPath) => void;
   activity: Pick<ActivityLog, 'inOpenVault'>;
+  toasts: Pick<Toasts, 'show' | 'vaultNow'>;
 }): LinePromotion | undefined {
   // Kept with the note it is about, so what was said of one is not shown over another.
-  const [said, setSaid] = useState<{ path: VaultPath; notice: Said } | null>(null);
+  const [said, setSaid] = useState<{ path: VaultPath; message: string } | null>(null);
   const dismiss = useCallback(() => setSaid(null), []);
   const taskType = useMemo(() => taskTypeOf(types), [types]);
 
@@ -72,9 +77,8 @@ export function useLinePromotion({
       try {
         await withGiveUpRecorded(named, () => undoPromotion({ fs, openNotes, promotion }));
         onChanged();
-        setSaid(null);
       } catch (error) {
-        setSaid({ path: promotion.source, notice: { message: errorMessage(error) } });
+        setSaid({ path: promotion.source, message: errorMessage(error) });
       }
     },
     [fs, openNotes, onChanged, activity],
@@ -98,59 +102,43 @@ export function useLinePromotion({
           }),
         );
         onChanged();
-        setSaid({
-          path: source,
-          notice: { message: `“${noteTitle(promotion.task)}” is a task now.`, promotion },
+        setSaid(null);
+        const madeIn = toasts.vaultNow();
+        toasts.show({
+          message: `“${noteTitle(promotion.task)}” is a task now.`,
+          tone: 'change',
+          onUndo: () => {
+            // Pressed once another vault has opened, its paths are not that vault's: it writes nothing.
+            if (toasts.vaultNow() === madeIn) void undo(promotion);
+          },
+          action: { label: 'Open', onClick: () => onOpenNote(promotion.task) },
         });
       } catch (error) {
-        setSaid({ path: source, notice: { message: errorMessage(error) } });
+        setSaid({ path: source, message: errorMessage(error) });
       }
     },
-    [fs, markdown, openNotes, flush, notePaths, taskType, onChanged, activity],
+    [
+      fs,
+      markdown,
+      openNotes,
+      flush,
+      notePaths,
+      taskType,
+      onChanged,
+      activity,
+      toasts,
+      undo,
+      onOpenNote,
+    ],
   );
 
-  const shown = path !== null && said?.path === path ? said.notice : null;
-  const notice = useNoticeOf({ said: shown, undo, onOpenNote, dismiss });
+  const message = path !== null && said?.path === path ? said.message : null;
+  const notice = useMemo(
+    () => (message === null ? null : { message, onDismiss: dismiss }),
+    [message, dismiss],
+  );
   return useMemo(() => {
     if (path === null) return undefined;
     return { promote: (line: PromotedLine) => void promote(path, line), notice };
   }, [path, promote, notice]);
-}
-
-/** What the page says: a message, and the promotion it is about when one was made. */
-interface Said {
-  readonly message: string;
-  readonly promotion?: Promotion;
-}
-
-/**
- * The notice for what was said: one object for each thing said, kept across
- * renders, so its bar's time runs from when it was shown (#165) — however
- * often the note's paths, and with them the callbacks, change meanwhile.
- */
-function useNoticeOf({
-  said,
-  undo,
-  onOpenNote,
-  dismiss,
-}: {
-  said: Said | null;
-  undo: (promotion: Promotion) => Promise<void>;
-  onOpenNote: (path: VaultPath) => void;
-  dismiss: () => void;
-}): PromotionNotice | null {
-  const latest = useRef({ undo, onOpenNote });
-  useEffect(() => {
-    latest.current = { undo, onOpenNote };
-  });
-  return useMemo(() => {
-    if (said === null) return null;
-    const { promotion } = said;
-    return {
-      message: said.message,
-      onOpen: promotion === undefined ? null : () => latest.current.onOpenNote(promotion.task),
-      onUndo: promotion === undefined ? null : () => void latest.current.undo(promotion),
-      onDismiss: dismiss,
-    };
-  }, [said, dismiss]);
 }

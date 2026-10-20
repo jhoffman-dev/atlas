@@ -691,6 +691,7 @@ export function useNotePane({
     onChanged,
     onOpenNote,
     activity: context.activity,
+    toasts: context.toasts,
   });
   const corrections = useMeetingCorrections({
     fs: notes.fs,
