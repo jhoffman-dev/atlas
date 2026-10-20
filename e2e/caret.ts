@@ -12,8 +12,8 @@
  * then; under load the caret the key moved is put back at the note's start,
  * and the typing after it lands there. So the editor's own selection is what
  * is waited on, and the key pressed again if it was undone (where it already
- * is, it changes nothing). Pressing it again also collapses the word or line
- * a quick second or third click on the same spot selects.
+ * is, ⌘→ changes nothing). Pressing it also collapses the word or line a quick second or third click
+ * on the same spot selects.
  */
 import { expect, type Locator } from '@playwright/test';
 
@@ -29,9 +29,14 @@ export async function caretAtLineStart(line: Locator): Promise<void> {
 
 async function caretAt(line: Locator, where: 'start' | 'end'): Promise<void> {
   await line.click({ position: { x: 1, y: 5 } });
-  const key = where === 'end' ? 'Meta+ArrowRight' : 'Meta+ArrowLeft';
+  // Always pressed, never skipped when the editor already says the caret is
+  // there: until ProseMirror reads the click, its selection is the one from
+  // before, and the typing goes where the click put the page's caret. ⌘← is
+  // pressed from the line's end: at a line's start under a bookmark card, it
+  // takes the caret up to the line above.
+  const keys = where === 'end' ? ['Meta+ArrowRight'] : ['Meta+ArrowRight', 'Meta+ArrowLeft'];
   await expect(async () => {
-    await line.page().keyboard.press(key);
+    for (const key of keys) await line.page().keyboard.press(key);
     expect(await editorCaret(line)).toEqual({ inLine: true, at: where });
   }).toPass({ timeout: 5_000 });
 }
