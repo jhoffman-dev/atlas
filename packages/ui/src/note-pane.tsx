@@ -31,6 +31,7 @@ import { PageBar, type PageHistory, type PageMenuItem } from './page-bar.tsx';
 import { TemplateBanner, type TemplateNotice } from './template-banner.tsx';
 import { MeetingCorrectionsBand, type CorrectionsNotice } from './meeting-corrections-band.tsx';
 import { PromotionBanner, type LinePromotion } from './promotion-notice.tsx';
+import { PropertiesStrip } from './peek/properties-strip.tsx';
 import {
   PropertiesPanel,
   type NewProperty,
@@ -96,6 +97,13 @@ export interface PaneArrangement {
 }
 
 export interface NotePaneProps {
+  /**
+   * What the page is drawn in. `page` (the default) heads it with its bar
+   * and its properties block. `peek` leaves the bar to the peek's own
+   * header and folds the properties into one strip under the title — the
+   * same page, title and body, inside `PeekDialog`.
+   */
+  chrome?: 'page' | 'peek';
   state: NotePaneState;
   /** How the page is headed; null until the note has been read. */
   heading: PageHeading | null;
@@ -246,6 +254,7 @@ const NOTHING_REVEALED: Revealed = {
 
 function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHeading }) {
   const { state, heading, arrangement } = props;
+  const peek = props.chrome === 'peek';
   const [revealed, setRevealed] = useState(NOTHING_REVEALED);
   const [openedWithTitle] = useState(heading.title.source === 'property');
   const flip = (key: keyof Revealed) => setRevealed((was) => ({ ...was, [key]: !was[key] }));
@@ -262,38 +271,40 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
 
   return (
     <>
-      <PageBar
-        crumb={heading.crumb}
-        name={heading.title.text}
-        {...(!isNote && described !== null && { count: described })}
-        {...(props.actions !== undefined && { actions: props.actions })}
-        status={<SaveStatus state={state} />}
-        // A template is never a favourite: the mark would be copied into every new note.
-        star={
-          props.template === undefined && (
-            <FavoriteStar
-              name={heading.title.text}
-              favorite={props.favorite}
-              onToggle={props.onToggleFavorite}
-            />
-          )
-        }
-        menu={[
-          ...pageItems({ props, revealed, flip }),
-          ...linkItems({ isNote, onLink: () => picker.setOpen(true), props }),
-          // `pickImage` reads the ref only when the menu item is chosen, never while rendering.
-          // eslint-disable-next-line react-hooks/refs
-          ...imageItems({ isNote, props, onPick: pickImage }),
-          ...arrangeItems(arrangement),
-          ...fileItems(props),
-        ]}
-        {...barOverlay(arrangement)}
-      />
+      {!peek && (
+        <PageBar
+          crumb={heading.crumb}
+          name={heading.title.text}
+          {...(!isNote && described !== null && { count: described })}
+          {...(props.actions !== undefined && { actions: props.actions })}
+          status={<SaveStatus state={state} />}
+          // A template is never a favourite: the mark would be copied into every new note.
+          star={
+            props.template === undefined && (
+              <FavoriteStar
+                name={heading.title.text}
+                favorite={props.favorite}
+                onToggle={props.onToggleFavorite}
+              />
+            )
+          }
+          menu={[
+            ...pageItems({ props, revealed, flip }),
+            ...linkItems({ isNote, onLink: () => picker.setOpen(true), props }),
+            // `pickImage` reads the ref only when the menu item is chosen, never while rendering.
+            // eslint-disable-next-line react-hooks/refs
+            ...imageItems({ isNote, props, onPick: pickImage }),
+            ...arrangeItems(arrangement),
+            ...fileItems(props),
+          ]}
+          {...barOverlay(arrangement)}
+        />
+      )}
       <SaveConflict state={state} onOverwrite={props.onOverwrite} onDiscard={props.onDiscard} />
       {props.template !== undefined && <TemplateBanner {...props.template} />}
       {props.corrections !== undefined && <MeetingCorrectionsBand {...props.corrections} />}
       <PromotionBanner notice={props.promotion?.notice ?? null} />
-      <div className="panel__body">
+      <div className={peek ? 'peek__page' : 'panel__body'}>
         {/* A view is a table or a board, not prose, so it is not held to a
             reading width — it uses the window it has been given. */}
         <article
@@ -318,7 +329,12 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
           {revealed.path && <p className="page__path">{heading.path}</p>}
           {revealed.sql && heading.sql !== null && <pre className="page__sql">{heading.sql}</pre>}
           {(isNote && props.propertiesInAside !== true) || revealed.properties ? (
-            <PageProperties {...props} heading={heading} openedWithTitle={openedWithTitle} />
+            <PageProperties
+              {...props}
+              heading={heading}
+              openedWithTitle={openedWithTitle}
+              strip={peek && isNote}
+            />
           ) : null}
           {props.aside}
           {props.body ?? (
@@ -435,7 +451,9 @@ function PageTitleEditor({
  * keystroke made it the heading, and take the focus — and the rest of the
  * typing — with it.
  */
-function PageProperties(props: NotePaneProps & { heading: PageHeading; openedWithTitle: boolean }) {
+function PageProperties(
+  props: NotePaneProps & { heading: PageHeading; openedWithTitle: boolean; strip: boolean },
+) {
   const title = props.heading.title;
   const rows =
     props.openedWithTitle && title.source === 'property'
@@ -444,6 +462,22 @@ function PageProperties(props: NotePaneProps & { heading: PageHeading; openedWit
         )
       : props.properties;
 
+  if (props.strip) {
+    return (
+      <PropertiesStrip
+        path={props.heading.path}
+        typeName={props.typeName}
+        rows={rows}
+        relationChoices={props.relationChoices}
+        {...(props.customPropertyValues !== undefined && {
+          customValues: props.customPropertyValues,
+        })}
+        onChange={props.onChangeProperty}
+        onOpenNote={props.onOpenNote}
+        {...(props.onCreateRelated !== undefined && { onCreateRelated: props.onCreateRelated })}
+      />
+    );
+  }
   return (
     <PropertiesPanel
       typeName={props.typeName}

@@ -73,6 +73,32 @@ async function shootTableEditing(page: Page, theme: string): Promise<void> {
   await expect(row.locator('.table__input')).toHaveCount(0);
 }
 
+/**
+ * The peek (#301) open on a row, then again with the preview card on its
+ * wikilink, beside FlowPeek.dc.html. The peek covers the window, so these
+ * shots are the window.
+ */
+async function shootPeek(page: Page, theme: string): Promise<void> {
+  const row = rowOf(page, theme, 'Peek');
+  const opener = row.getByRole('button', { name: 'Leftovers from A15-02: templates in views' });
+  await opener.focus();
+  await page.keyboard.press('Enter');
+  const peek = page.getByRole('dialog', { name: 'Leftovers from A15-02: templates in views' });
+  await expect(peek.locator('.ProseMirror')).toBeVisible();
+  await page.waitForTimeout(SETTLE_MS);
+  const open = join(OUT, `gallery-peek-${theme}.png`);
+  await page.screenshot({ path: open, animations: 'disabled' });
+  console.log(open);
+
+  await peek.locator('a.wikilink').hover();
+  await expect(page.getByRole('tooltip')).toBeVisible();
+  const previewing = join(OUT, `gallery-peek-preview-${theme}.png`);
+  await page.screenshot({ path: previewing, animations: 'disabled' });
+  console.log(previewing);
+  await page.keyboard.press('Escape');
+  await expect(peek).toHaveCount(0);
+}
+
 test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 
 test('gallery shots', async ({ page }) => {
@@ -88,5 +114,6 @@ test('gallery shots', async ({ page }) => {
   for (const theme of THEMES) {
     for (const title of ROWS) await shootRow(page, theme, title);
     await shootTableEditing(page, theme);
+    await shootPeek(page, theme);
   }
 });
