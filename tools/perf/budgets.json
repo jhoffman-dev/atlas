@@ -9,7 +9,7 @@
   "actions": {
     "Open a vault": {
       "commits": 109,
-      "renders": 2944,
+      "renders": 2937,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -106,7 +106,7 @@
     },
     "Open Settings": {
       "commits": 13,
-      "renders": 857,
+      "renders": 620,
       "calls": {
         "api_status": 3,
         "gh_repo_list": 3,
@@ -153,7 +153,7 @@
     },
     "Open the Inbox": {
       "commits": 6,
-      "renders": 456,
+      "renders": 452,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
@@ -201,7 +201,7 @@
     },
     "⌘K + 5 keys over the table": {
       "commits": 19,
-      "renders": 465,
+      "renders": 463,
       "calls": {
         "index_search": 7
       }
