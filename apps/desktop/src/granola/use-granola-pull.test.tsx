@@ -481,7 +481,7 @@ describe('useGranolaPull', () => {
     expect(hook.result.current.toast).toContain('Granola could not be reached');
     expect(hook.result.current.toast).toContain(explainGranolaFailure(UNREACHABLE).problem);
 
-    act(() => hook.result.current.dismissToast());
+    act(() => hook.result.current.dismissToast(hook.result.current.toastShown));
     expect(hook.result.current.toast).toBeNull();
   });
 
@@ -494,7 +494,7 @@ describe('useGranolaPull', () => {
     const first = { words: hook.result.current.toast, shown: hook.result.current.toastShown };
     expect(first.shown).toBe(1);
 
-    act(() => hook.result.current.dismissToast());
+    act(() => hook.result.current.dismissToast(hook.result.current.toastShown));
     // A scripted failure answers one call: the next Sync now fails the same way again.
     granola.fail('list', UNREACHABLE);
     act(() => hook.result.current.syncNow());
@@ -542,7 +542,7 @@ describe('useGranolaPull', () => {
     granola.fail('list', KEY_REFUSED);
     await settles(() => expect(hook.result.current.report?.keyRefused).toBe(true));
     await settles(() => expect(hook.result.current.toast).toContain('Granola refused the API key'));
-    act(() => hook.result.current.dismissToast());
+    act(() => hook.result.current.dismissToast(hook.result.current.toastShown));
     await settles(() => expect(hook.result.current.key).toEqual(REFUSED));
 
     await fifteenMinutes();

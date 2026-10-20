@@ -1699,11 +1699,12 @@ function AppWindow({
       : replacePeek(overlays, createVaultPath(path)),
   );
 
+  const granolaShown = granolaPull.toastShown;
   const granolaToast = granolaPull.toast !== null && (
     <Toast
-      key={granolaPull.toastShown}
+      key={granolaShown}
       message={granolaPull.toast}
-      onDismiss={granolaPull.dismissToast}
+      onDismiss={() => granolaPull.dismissToast(granolaShown)}
     />
   );
 
