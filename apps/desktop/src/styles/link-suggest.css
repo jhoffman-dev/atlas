@@ -170,34 +170,3 @@
   font-size: 11.5px;
   padding: 5px 8px;
 }
-
-/* Quick add's link field, with its clear button beside it. */
-.quick-add__link {
-  align-items: center;
-  display: flex;
-  gap: 4px;
-  min-width: 0;
-}
-
-.quick-add__link .link-combo {
-  flex: 1;
-}
-
-.quick-add__clear {
-  align-items: center;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-  color: var(--ink-3);
-  cursor: pointer;
-  display: inline-flex;
-  height: 22px;
-  justify-content: center;
-  padding: 0;
-  width: 22px;
-}
-
-.quick-add__clear:hover {
-  background: var(--hover);
-}

@@ -49,7 +49,11 @@ import { PromoteLineButton, type PromoteLine } from './promote-line.ts';
 import { PersonChips, type PersonFor } from './person-chips.ts';
 import { RawBlock } from './raw-block.ts';
 import { WikiLink } from './wiki-link.ts';
-import { WikiLinkSuggestion, type WikiSuggestionView } from './wiki-link-suggestion.ts';
+import {
+  WikiLinkSuggestion,
+  type LinkedNoteMaker,
+  type WikiSuggestionView,
+} from './wiki-link-suggestion.ts';
 import { SlashCommands, type SlashCommandView } from './slash-commands.ts';
 import { TagHighlight } from './tag-highlight.ts';
 import { TagSuggestionExtension, type TagSuggestionView } from './tag-suggestion.ts';
@@ -102,7 +106,7 @@ export function createEditorExtensions({
   /** Makes a checklist line a task; left out, no line offers it. */
   promoteLine?: PromoteLine | null;
   /** Makes a note of a name typed after `[[` that no note has; left out, none is offered. */
-  createNote?: ((name: string) => Promise<void>) | null;
+  createNote?: LinkedNoteMaker | null;
 }) {
   return [
     ...baseExtensions,

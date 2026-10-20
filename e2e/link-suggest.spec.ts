@@ -171,3 +171,33 @@ test('[[ in a note offers to make a note no note is called yet, writes the link 
   await expectSaved(page);
   await expectFile(vault, 'Plans.md').toContain('[[Mara Quill]]');
 });
+
+test('a name a file cannot hold is made cleaned, and linked as made', async ({ page }) => {
+  const vault = await createVault();
+  await vault.write('Plans.md', '# Plans\n\nPacking list.\n');
+  await vault.mkdir('Archive');
+  await vault.write('Archive/Offsite.md', '# Offsite\n\nLast year.\n');
+  await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('treeitem', { name: 'Plans', exact: true }).click();
+  await page.getByText('Packing list.').click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  const list = page.getByRole('listbox', { name: 'Link to note' });
+
+  // An archived note already answers to "Offsite": nothing to make.
+  await page.keyboard.type('[[Offsite');
+  await expect(list.getByRole('option', { name: /^Create/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Enter');
+
+  await page.keyboard.type('[[Q3: plan');
+  await list.getByRole('option', { name: /Create ‘Q3: plan’/ }).click();
+  await expect.poll(() => vault.exists('Q3 plan.md')).toBe(true);
+  await saveNow(page);
+  await expectSaved(page);
+  await expectFile(vault, 'Plans.md').toContain('[[Q3 plan]]');
+  expect(await vault.exists('Archive/Offsite.md')).toBe(true);
+});

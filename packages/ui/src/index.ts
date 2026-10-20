@@ -48,6 +48,7 @@ export type { OpenHow } from './open-how.ts';
 export { TabStrip } from './tab-strip.tsx';
 export type { TabStripTab } from './tab-strip.tsx';
 export type { NotePaneState, PageHeading, PaneArrangement } from './note-pane.tsx';
+export type { LinkedNoteMaker } from './editor/wiki-link-suggestion.ts';
 export type { OverlaySlot, OverlaySlots } from './overlay-slot.ts';
 export { NoteEditor } from './note-editor.tsx';
 export type {

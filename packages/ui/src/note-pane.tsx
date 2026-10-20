@@ -24,6 +24,7 @@ import {
 } from './note-editor.tsx';
 import type { EmbedImage } from './editor/image-uploads.ts';
 import type { BlockPicking } from './editor/block-picking.ts';
+import type { LinkedNoteMaker } from './editor/wiki-link-suggestion.ts';
 import { NoteLinksPanel, type MentionsState } from './note-links.tsx';
 import { LinkPicker } from './link-picker.tsx';
 import { EditableTitle, HiddenTitle, PageHead } from './page-head.tsx';
@@ -115,7 +116,7 @@ export interface NotePaneProps {
   onFollowLink: (target: string, heading?: string | null, how?: OpenHow) => void;
   suggestNotes: (query: string) => NoteSuggestion[];
   /** Makes a note of a name typed after `[[` that no note has (#465). */
-  onCreateNote?: (name: string) => Promise<void>;
+  onCreateNote?: LinkedNoteMaker;
   /** Tags offered after `#`; left out, none are. */
   suggestTags?: (query: string) => readonly TagSuggestion[];
   /** Opens the notes with a tag, when one in the note is clicked. */
