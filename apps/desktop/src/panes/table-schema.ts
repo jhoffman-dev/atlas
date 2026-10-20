@@ -15,3 +15,17 @@ export function schemaOf(type: ObjectType | null, fallbackNoun: string): TableSc
     noun: type?.label ?? fallbackNoun,
   };
 }
+
+/**
+ * `schemaOf`, with each property declared, so a saved view's cells open the
+ * editor their kind calls for — a status's picker, a relation's notes, a
+ * day, a number, a box (#300). A type's own table edits as text until it
+ * keeps a picker's overlay slot too.
+ */
+export function editableSchemaOf(type: ObjectType | null, fallbackNoun: string): TableSchema {
+  const properties = type?.properties ?? [];
+  return {
+    ...schemaOf(type, fallbackNoun),
+    properties: Object.fromEntries(properties.map((def) => [def.key, def])),
+  };
+}
