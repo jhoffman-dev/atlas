@@ -162,4 +162,24 @@ describe('GroupedResult', () => {
     expect(screen.queryAllByRole('group')).toEqual([]);
     expect(screen.getAllByRole('row')).toHaveLength(5);
   });
+
+  it('draws only a window of a long ungrouped table, as a view’s table does (#427)', () => {
+    const many = Array.from({ length: 2000 }, (_, index) => row(`Row ${index + 1}`, null, 'doing'));
+    render(
+      <GroupedResult
+        layout="table"
+        fields={[{ key: 'status', label: 'Status' }]}
+        rows={many}
+        groups={[]}
+        collapsed={new Set()}
+        onToggleGroup={() => {}}
+        onOpenNote={() => {}}
+      />,
+    );
+    const drawn = titles();
+    expect(drawn.length).toBeGreaterThan(0);
+    expect(drawn.length).toBeLessThan(100);
+    expect(drawn[0]).toBe('Row 1');
+    expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('2001');
+  });
 });
