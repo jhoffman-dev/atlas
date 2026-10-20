@@ -1081,8 +1081,12 @@ async function shootTypeViews(page: Page, theme: string): Promise<void> {
   await page.getByRole('menu', { name: 'View options' }).waitFor({ timeout: 5_000 });
   await shoot(page, `type-views-options-${theme}`);
   await page.keyboard.press('Escape');
-  // The type editor in the right sidebar (slice 12), beside FlowType.
-  if (await open('type-editor', [page.getByRole('button', { name: 'Edit type' })])) {
+  // The type editor in the right sidebar (slice 12), beside FlowType: from a
+  // type with no views of its own, whose page bar carries Edit type.
+  if (!(await open('type-editor', [types.getByRole('button', { name: /^Person, / })]))) return;
+  const edit = page.getByRole('button', { name: 'Edit type', exact: true });
+  await edit.waitFor({ timeout: 5_000 }).catch(() => undefined);
+  if (await open('type-editor', [edit])) {
     await page
       .locator('.type-editor')
       .first()
