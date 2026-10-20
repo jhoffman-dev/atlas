@@ -582,7 +582,9 @@
   position: absolute;
   right: 12px;
   width: max-content;
-  z-index: 21;
+  /* Above the peek (40) and the dialogs, so the Undo of a change made in the
+     peek can be pressed; under a link preview (60). */
+  z-index: 50;
 }
 
 /* The window's toasts, one column at the toast's own corner (#320): each
@@ -597,7 +599,7 @@
   pointer-events: none;
   position: absolute;
   right: 12px;
-  z-index: 21;
+  z-index: 50;
 }
 
 .toast-stack > .toast {

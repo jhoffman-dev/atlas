@@ -49,6 +49,11 @@ export interface ProposalsSectionProps {
   readonly problems: ReadonlyMap<VaultPath, string>;
   /** Whether answers are still being written: the section stays while they are, though none is left to answer. */
   readonly answering?: boolean;
+  /**
+   * Whether a proposal was answered here since the Inbox opened: the section
+   * stays, once the last has gone, to say there is nothing left to answer.
+   */
+  readonly answered?: boolean;
   /** Accepts a proposal — with its payload as edited, when it was. */
   readonly onAccept: (path: VaultPath, payload?: unknown) => void;
   readonly onReject: (path: VaultPath) => void;
@@ -184,8 +189,9 @@ export function proposalsToShow({
   error,
   notice,
   answering = false,
+  answered = false,
 }: ProposalsSectionProps): boolean {
-  if (error !== null || notice !== null || answering) return true;
+  if (error !== null || notice !== null || answering || answered) return true;
   if (contents === null) return false;
   return contents.open.length + contents.stranded.length + contents.unreadable.length > 0;
 }

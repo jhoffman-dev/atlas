@@ -74,7 +74,7 @@ function acceptedNotice(accepted: AcceptedProposal): ProposalNotice {
   const [made] = accepted.wrote;
   return {
     text: `Accepted: ${accepted.headline}.${archivedNote(accepted)}`,
-    opens: made === undefined ? null : { path: made.path, title: noteTitle(made.path) },
+    opens: made?.path ?? null,
     undoable: true,
     failed: false,
   };
@@ -119,6 +119,8 @@ export function useProposals(options: ProposalsOptions) {
   const [listing, setListing] = useState<ProposalsContents | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
+  // Answered here: the emptied section stays, to say there is nothing left (it was the bar's to hold up).
+  const [answeredHere, setAnsweredHere] = useState(false);
   const [problems, setProblems] = useState<ReadonlyMap<VaultPath, string>>(new Map());
   const [own] = useState(createProposalWrites);
   const held = options.held ?? own;
@@ -145,6 +147,7 @@ export function useProposals(options: ProposalsOptions) {
     openVault.current = fs;
     return () => {
       say(null);
+      setAnsweredHere(false);
       setProblems(new Map());
       setListing(null);
       setError(null);
@@ -234,6 +237,7 @@ export function useProposals(options: ProposalsOptions) {
   const answer = useCallback(
     (path: VaultPath, run: () => Promise<Answered>) => {
       if (!answered.take(path)) return;
+      setAnsweredHere(true);
       setProblems((was) => without(was, path));
       const vault = fs;
       const named = {
@@ -292,6 +296,7 @@ export function useProposals(options: ProposalsOptions) {
     (paths: readonly VaultPath[], verb: 'Accepted' | 'Rejected') => {
       const taken = paths.filter((path) => answered.take(path));
       if (taken.length === 0) return;
+      setAnsweredHere(true);
       setProblems((was) => taken.reduce(without, was));
       const vault = fs;
       const today = clock.today();
@@ -342,6 +347,7 @@ export function useProposals(options: ProposalsOptions) {
   const onAcceptChoice = useCallback(
     (picked: VaultPath, rest: readonly VaultPath[]) => {
       if (!answered.take(picked)) return;
+      setAnsweredHere(true);
       const others = rest.filter((path) => answered.take(path));
       const everyone = [picked, ...others];
       setProblems((was) => everyone.reduce(without, was));
@@ -412,6 +418,7 @@ export function useProposals(options: ProposalsOptions) {
       busy,
       problems,
       answering,
+      answered: answeredHere,
       onAccept,
       onReject,
       selection,
@@ -428,6 +435,7 @@ export function useProposals(options: ProposalsOptions) {
       busy,
       problems,
       answering,
+      answeredHere,
       onAccept,
       onReject,
       selection,

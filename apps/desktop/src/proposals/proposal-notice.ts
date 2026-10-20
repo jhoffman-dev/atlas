@@ -5,7 +5,7 @@ import type { Toasts } from '../toasts/toasts.ts';
 export interface ProposalNotice {
   readonly text: string;
   /** The note an accept made or changed, to open from the toast. */
-  readonly opens: { readonly path: VaultPath; readonly title: string } | null;
+  readonly opens: VaultPath | null;
   /** Whether the answer can be taken back from the toast. */
   readonly undoable: boolean;
   /** Whether it says something failed. */
@@ -42,12 +42,14 @@ export function toastProposal({
   slot?: string;
 }): void {
   const { opens } = notice;
+  // "Open", not "Open <title>": the words already name the note, and a long
+  // title beside them would squeeze them to nothing in a 340px toast.
   toasts.show({
     message: notice.text,
     tone: notice.failed ? 'warning' : 'change',
     ...(notice.undoable && onUndo !== undefined && { onUndo }),
     ...(opens !== null && {
-      action: { label: `Open ${opens.title}`, onClick: () => onOpen(opens.path) },
+      action: { label: 'Open', onClick: () => onOpen(opens) },
     }),
     ...(slot !== undefined && { slot }),
   });
