@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createVaultPath } from '@atlas/domain';
 import { createRevealStore } from '../panes/reveals.ts';
-import { followLink, openNote } from './open-place.ts';
+import { createOverlayStore, openPeek, peekNow, showOverlay } from '../overlay-store.ts';
+import { clickLink, followLink, openNote } from './open-place.ts';
 import { createWorkspaceStore, loadVault, splitPane, workspaceNow } from './workspace-store.ts';
 
 const PLAN = createVaultPath('Plan.md');
@@ -90,5 +91,62 @@ describe('followLink', () => {
     expect(wiring.onProblem).toHaveBeenCalledWith('No note called "Missing"');
     expect(placesOf(wiring.store)).toEqual([{ kind: 'note', path: PLAN }]);
     expect(wiring.reveals.getState().byTab.size).toBe(0);
+  });
+});
+
+describe('clickLink (slice 6b)', () => {
+  const peeking = () => ({ ...following(), overlays: createOverlayStore() });
+
+  it('peeks the note a link names on a plain click, leaving the pane where it was', () => {
+    const wiring = peeking();
+    openNote(wiring.store, PLAN);
+    clickLink(wiring, { pane: 0, target: 'Other', how: 'here', inPeek: false });
+    expect(peekNow(wiring.overlays)).toEqual({ path: OTHER, from: null });
+    expect(placesOf(wiring.store)).toEqual([{ kind: 'note', path: PLAN }]);
+    expect(wiring.onProblem).toHaveBeenCalledWith(null);
+  });
+
+  it('shows the linked note in place in the peek, when clicked inside it', () => {
+    const wiring = peeking();
+    openPeek(wiring.overlays, { path: PLAN, from: { within: 'Tasks', order: [PLAN], index: 0 } });
+    clickLink(wiring, { pane: 0, target: 'Other', how: 'here', inPeek: true });
+    expect(peekNow(wiring.overlays)).toEqual({ path: OTHER, from: null });
+  });
+
+  it('says a link leads nowhere, and peeks nothing', () => {
+    const wiring = peeking();
+    clickLink(wiring, { pane: 0, target: 'Missing', how: 'here', inPeek: false });
+    expect(peekNow(wiring.overlays)).toBeNull();
+    expect(wiring.onProblem).toHaveBeenCalledWith('No note called "Missing"');
+  });
+
+  it('opens the page for a ⌘-click, a heading, or the link menu, closing the peek', () => {
+    const wiring = peeking();
+    openNote(wiring.store, PLAN);
+    openPeek(wiring.overlays, { path: PLAN, from: null });
+    clickLink(wiring, { pane: 0, target: 'Other', how: 'new-tab', inPeek: true });
+    expect(peekNow(wiring.overlays)).toBeNull();
+    expect(placesOf(wiring.store)).toEqual([
+      { kind: 'note', path: PLAN },
+      { kind: 'note', path: OTHER },
+    ]);
+
+    const heading = peeking();
+    openNote(heading.store, PLAN);
+    clickLink(heading, { pane: 0, target: 'Other', heading: '#Goals', how: 'here', inPeek: false });
+    expect(peekNow(heading.overlays)).toBeNull();
+    expect(placesOf(heading.store)).toEqual([{ kind: 'note', path: OTHER }]);
+
+    const menu = peeking();
+    openNote(menu.store, PLAN);
+    clickLink(menu, { pane: 0, target: 'Other', inPeek: false });
+    expect(placesOf(menu.store)).toEqual([{ kind: 'note', path: OTHER }]);
+  });
+
+  it('peeks nothing while a menu is up, by the layer rule', () => {
+    const wiring = peeking();
+    showOverlay(wiring.overlays, 'new-note-menu');
+    clickLink(wiring, { pane: 0, target: 'Other', how: 'here', inPeek: false });
+    expect(peekNow(wiring.overlays)).toBeNull();
   });
 });

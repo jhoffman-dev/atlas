@@ -37,6 +37,12 @@
   position: relative;
 }
 
+/* The panes' wrapper, which their links preview from by delegation (slice
+   6b). It takes no part in the layout: the split is the main column's child. */
+.shell__links {
+  display: contents;
+}
+
 /* The split: equal columns of the width the window has, each its own panel.
    Each pane scrolls on its own, so a long note on one side does not move the
    note on the other. */

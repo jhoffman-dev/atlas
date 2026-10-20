@@ -36,6 +36,7 @@ import {
   type ViewField,
   type ViewTabEditing,
   type OpenHow,
+  type PeekRequest,
 } from '@atlas/ui';
 import type { TabLanding } from '../types/use-type-views.ts';
 import { calendarView, feedView, timelineView } from '../pages-on-first-use.ts';
@@ -304,6 +305,7 @@ export function ViewBody({
   onRowFocus,
   onCreateRelated,
   popups,
+  onPeek,
 }: {
   view: SavedView;
   /** The tray of tasks to plan, for a calendar of blocks. */
@@ -330,6 +332,8 @@ export function ViewBody({
   onCreateRelated?: CreateRelated;
   /** The pane's popups' open state, held by the app's one-overlay rule: a table cell's picker is one. */
   popups?: OverlaySlots;
+  /** Given, a table's row or a board's card clicked plainly peeks its note (slice 6b). */
+  onPeek?: (request: PeekRequest) => void;
 }) {
   const schema = schemaOf(view.type, view.query?.type ?? '');
   // Spread rather than passed, so a type with no done option draws no boxes.
@@ -343,6 +347,7 @@ export function ViewBody({
         choosing={choosing}
         folds={folds}
         onOpenNote={onOpenNote}
+        {...(onPeek !== undefined && { onPeek })}
         onNewNote={() => addAndOpen(view, onOpenNote)}
         {...(onRowFocus !== undefined && { onRowFocus })}
         {...(onCreateRelated !== undefined && { onCreateRelated })}
@@ -371,6 +376,7 @@ export function ViewBody({
           kinds={schema.kinds}
           {...(schema.colors !== undefined && { colors: schema.colors })}
           onOpenNote={onOpenNote}
+          {...(onPeek !== undefined && { onPeek })}
           onMoveCard={view.moveCard}
           onAddCard={view.addCard}
           {...ticks}

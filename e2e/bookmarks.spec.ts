@@ -118,8 +118,11 @@ test('a card opens its note by a click or Mod+Enter; Enter starts a line after i
   const vault = await openVault(page, `# Plans\n\n[[Rome]] ${MARKER}\n\nPacking list.\n`);
   await openPlans(page);
 
+  // A click peeks the card's note (slice 6b), as a click on a link does.
   await page.getByRole('group', { name: 'Bookmark: Rome' }).click();
-  await expect(page.getByRole('article', { name: 'Rome' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Rome' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.peek')).toHaveCount(0);
 
   await openPlans(page);
   // From the keyboard: up from the paragraph below selects the card.

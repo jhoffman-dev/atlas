@@ -5,7 +5,7 @@ import { SearchPalette } from '@atlas/ui';
 import { useSearch } from './index/use-search.ts';
 import { useIndexPhase, type IndexStatusStore } from './index/index-status-store.ts';
 import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';
-import { hideOverlay, useOverlayUp, type OverlayStore } from './overlay-store.ts';
+import { hideOverlay, useOverlayUp, usePeek, type OverlayStore } from './overlay-store.ts';
 import { useFocusedPlace, type WorkspaceStore } from './workspace/workspace-store.ts';
 
 /**
@@ -58,7 +58,13 @@ function OpenSearchPalette({
   onPick,
   fallbackFocus,
 }: SearchPaletteSlotProps) {
-  const focused = useFocusedPlace(workspace);
+  const shown = useFocusedPlace(workspace);
+  const peek = usePeek(store);
+  // The note on screen is the peeked one while the peek is up: its "this note" commands are offered.
+  const focused = useMemo<NavigationPlace | null>(
+    () => (peek === null ? shown : { kind: 'note', path: peek.path }),
+    [peek, shown],
+  );
   const commands = useMemo(() => commandsFor(focused), [commandsFor, focused]);
   const changeKey = usePaletteKey(indexStatus, vault);
   const search = useSearch({ index, commands, offerFor, changeKey, store });

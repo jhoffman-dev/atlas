@@ -109,7 +109,9 @@ test('a link followed in one pane does not move the other', async ({ page }) => 
   await openFromSidebar(page, 'Another Note');
   await expect(pane(page, 2).getByRole('article', { name: 'Another Note' })).toBeVisible();
 
+  // A plain click peeks the note (slice 6b); expanding it follows the link in this pane.
   await pane(page, 1).getByRole('link', { name: 'Another Note' }).click();
+  await page.locator('.peek').getByRole('button', { name: 'Open as full page' }).click();
 
   await expect(pane(page, 1).getByRole('article', { name: 'Another Note' })).toBeVisible();
   await expect(pane(page, 2).getByRole('article', { name: 'Another Note' })).toBeVisible();

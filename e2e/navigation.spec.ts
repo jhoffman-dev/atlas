@@ -86,6 +86,8 @@ test("Back leaves a type's page for the note it replaced, and Forward returns to
     .getByRole('article', { name: 'Task', exact: true })
     .getByRole('button', { name: 'gamma', exact: true })
     .click();
+  // The row peeks its note (slice 6b); expanding it opens the note as the tab's next place.
+  await page.locator('.peek').getByRole('button', { name: 'Open as full page' }).click();
   await showing(page, 'gamma');
   await back(page).click();
   await showing(page, 'Task');

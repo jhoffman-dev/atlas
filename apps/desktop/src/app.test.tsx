@@ -615,7 +615,10 @@ describe('two panes', () => {
   it('follows a link in the pane it was clicked in, leaving the other one alone', async () => {
     await splitOnToday(linked());
 
+    // A plain click peeks the note (slice 6b); expanding it follows the link in this pane.
     await userEvent.click(within(pane(1)).getByRole('link', { name: 'Another Note' }));
+    const peek = await screen.findByRole('dialog', { name: 'Another Note' });
+    await userEvent.click(within(peek).getByRole('button', { name: 'Open as full page' }));
 
     expect(await within(pane(1)).findByRole('article', { name: 'Another Note' })).toBeDefined();
     expect(within(pane(2)).getByRole('article', { name: 'today' })).toBeDefined();

@@ -5,6 +5,7 @@ import {
   type GroupFolds,
   type OpenHow,
   type OverlaySlot,
+  type PeekRequest,
 } from '@atlas/ui';
 import type { ViewChoosing } from '../archive/use-view-choosing.ts';
 import { useTableAsPending } from '../query/use-pending-cards.ts';
@@ -26,6 +27,7 @@ export function ViewTable({
   choosing,
   folds,
   onOpenNote,
+  onPeek,
   onNewNote,
   onRowFocus,
   onCreateRelated,
@@ -35,6 +37,8 @@ export function ViewTable({
   choosing: ViewChoosing;
   folds: GroupFolds;
   onOpenNote: (path: string, how?: OpenHow) => void;
+  /** Given, a row's name clicked plainly peeks its note (slice 6b). */
+  onPeek?: (request: PeekRequest) => void;
   onNewNote: () => void;
   onRowFocus?: (path: string) => void;
   /** "New <type>…" in a relation cell's picker. */
@@ -62,6 +66,7 @@ export function ViewTable({
         error={view.error}
         schema={editableSchemaOf(view.type, view.query?.type ?? '')}
         onOpenNote={onOpenNote}
+        {...(onPeek !== undefined && { onPeek })}
         onEditCell={view.editCell}
         relationChoices={view.relationChoices}
         onWantRelationChoices={view.wantRelationChoices}

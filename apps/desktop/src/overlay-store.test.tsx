@@ -1,13 +1,22 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
+import { createVaultPath } from '@atlas/domain';
 import { withQuery } from './overlay.ts';
 import {
   changePalette,
+  closePeek,
   createOverlayStore,
+  followPeekMove,
+  forgetPeeked,
   hideOverlay,
+  openPeek,
   overlayNow,
+  peekNow,
+  replacePeek,
   showOverlay,
+  stepPeek,
+  usePeek,
   useOverlayUp,
   usePaletteInput,
   useWindowOverlay,
@@ -69,5 +78,40 @@ describe('the overlay store', () => {
     const shown = renderHook(() => useWindowOverlay(store));
     act(() => showOverlay(store, 'settings'));
     expect(shown.result.current).toBe('settings');
+  });
+
+  it('steps, replaces and closes the peek, and follows its note', () => {
+    const store = createOverlayStore();
+    const order = ['a.md', 'b.md'].map(createVaultPath);
+    openPeek(store, { path: order[0]!, from: { within: 'Tasks', order, index: 0 } });
+    stepPeek(store, 1);
+    expect(peekNow(store)?.path).toBe('b.md');
+    followPeekMove(store, { from: createVaultPath('b.md'), to: createVaultPath('c.md') });
+    expect(peekNow(store)?.path).toBe('c.md');
+    replacePeek(store, createVaultPath('d.md'));
+    expect(peekNow(store)).toEqual({ path: 'd.md', from: null });
+    forgetPeeked(store, [createVaultPath('d.md')]);
+    expect(peekNow(store)).toBeNull();
+    openPeek(store, { path: order[0]!, from: null });
+    showOverlay(store, 'new-note-menu');
+    closePeek(store);
+    expect(store.getState()).toEqual(createOverlayStore().getState());
+  });
+
+  it("draws only the peek's reader as the peek opens and steps, not what the window draws", () => {
+    const store = createOverlayStore();
+    let windowDrawn = 0;
+    const shown = renderHook(() => {
+      windowDrawn += 1;
+      return useWindowOverlay(store);
+    });
+    const peek = renderHook(() => usePeek(store));
+    const before = windowDrawn;
+    const order = ['a.md', 'b.md'].map(createVaultPath);
+    act(() => openPeek(store, { path: order[0]!, from: { within: 'Tasks', order, index: 0 } }));
+    act(() => stepPeek(store, 1));
+    expect(peek.result.current?.path).toBe('b.md');
+    expect(shown.result.current).toBeNull();
+    expect(windowDrawn - before).toBe(0);
   });
 });
