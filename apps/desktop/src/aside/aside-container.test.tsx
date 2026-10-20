@@ -93,6 +93,7 @@ const ROWS = {
     indexStatus: createIndexStatusStore(),
     vault: '/v',
     types: [],
+    savedViews: [],
     notePaths: [],
   },
   openNote: vi.fn(),
@@ -102,7 +103,10 @@ function show(stores: ReturnType<typeof openOn>, claude = <p>the chat</p>) {
   return render(
     <WorkspaceStoresProvider value={stores}>
       <ClaudeSeatProvider value={claude}>
-        <AsideContainer rows={ROWS} />
+        <AsideContainer
+          rows={ROWS}
+          types={{ onDelete: () => {}, onEditTemplate: () => {}, onOpenType: () => {} }}
+        />
       </ClaudeSeatProvider>
     </WorkspaceStoresProvider>,
     { wrapper: queryWrapper().wrapper },

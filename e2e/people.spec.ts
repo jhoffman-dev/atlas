@@ -152,7 +152,7 @@ test('the Person and Company types cannot be deleted, while a type of your own c
   await sidebarSection(page, 'types')
     .getByRole('button', { name: /^Person, \d+ notes?$/ })
     .click();
-  await page.getByRole('radio', { name: 'Edit type' }).click();
+  await page.getByRole('button', { name: 'Edit type' }).click();
   const deletePerson = page.getByRole('button', { name: 'Delete Person…' });
   await expect(deletePerson).toBeDisabled();
   await expect(page.getByText(/Person is built in — @ mentions find people by it/)).toBeVisible();
@@ -163,14 +163,13 @@ test('the Person and Company types cannot be deleted, while a type of your own c
   await sidebarSection(page, 'types')
     .getByRole('button', { name: /^Company, \d+ notes?$/ })
     .click();
-  await page.getByRole('radio', { name: 'Edit type' }).click();
+  // The right sidebar stays on Type, and edits the type the page now shows.
   await expect(page.getByRole('button', { name: 'Delete Company…' })).toBeDisabled();
   await expect(page.getByText(/Company is built in — meetings and terms point at/)).toBeVisible();
 
   await sidebarSection(page, 'types')
     .getByRole('button', { name: /^Event, \d+ notes?$/ })
     .click();
-  await page.getByRole('radio', { name: 'Edit type' }).click();
   await expect(page.getByText(/is built in/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Delete Event…' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Move to Trash' }).click();

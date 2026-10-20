@@ -141,6 +141,7 @@ export { NewTypeDialog } from './new-type-dialog.tsx';
 export { TypeEditor } from './type-editor.tsx';
 export type {
   RelationTarget,
+  TypeDefaultView,
   TypeDeletion,
   TypeEditorNotice,
   TypeEditorPrompt,

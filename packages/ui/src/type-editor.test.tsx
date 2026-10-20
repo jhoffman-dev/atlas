@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { parseObjectType, TYPE_ICONS, type TypeEdit } from '@atlas/domain';
+import { addProperty, parseObjectType, TYPE_ICONS, type TypeEdit } from '@atlas/domain';
 import { TypeEditor } from './type-editor.tsx';
 
 const TASK = parseObjectType({
@@ -56,7 +56,7 @@ describe('TypeEditor', () => {
       'Due',
       'Project',
     ]);
-    expect(screen.getByText('Relation')).toBeDefined();
+    expect(screen.getByText('Date')).toBeDefined();
   });
 
   it('adds a property', async () => {
@@ -141,7 +141,7 @@ describe('TypeEditor', () => {
       key: 'due',
       propertyKind: 'number',
     });
-    await userEvent.click(screen.getByRole('switch', { name: 'Due is required' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Required on new notes' }));
     expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setRequired', key: 'due', required: true });
     await userEvent.click(screen.getByRole('button', { name: 'Remove Due' }));
     expect(onEdit).toHaveBeenLastCalledWith({ kind: 'removeProperty', key: 'due' });
@@ -163,13 +163,8 @@ describe('TypeEditor', () => {
       target: 'task',
       many: false,
     });
-    await userEvent.click(screen.getByRole('switch', { name: 'Project holds several notes' }));
-    expect(onEdit).toHaveBeenLastCalledWith({
-      kind: 'setRelation',
-      key: 'project',
-      target: 'project',
-      many: true,
-    });
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Allow many' }));
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setMany', key: 'project', many: true });
   });
 
   it('shows the other types a relation points at, which the file lists', async () => {
@@ -308,6 +303,11 @@ describe('TypeEditor', () => {
 
   it('chooses an icon, and pressing the chosen one again clears it', async () => {
     const onEdit = editor({ type: { ...TASK, icon: 'board' } });
+    const tile = screen.getByRole('button', { name: 'Change icon' });
+    expect(tile.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'board icon' })).toBeNull();
+    await userEvent.click(tile);
+    expect(tile.getAttribute('aria-expanded')).toBe('true');
     const board = screen.getByRole('button', { name: 'board icon' });
     expect(board.getAttribute('aria-pressed')).toBe('true');
     await userEvent.click(board);
@@ -382,5 +382,159 @@ describe('TypeEditor', () => {
     editor();
     expect(screen.getByRole('button', { name: 'Add property' })).toBeDefined();
     expect(screen.queryByRole('button', { name: /^Delete/ })).toBeNull();
+  });
+});
+
+/** The aside's shape (slice 12, FlowType.dc.html): head, rows that open in place, links, foot. */
+describe('TypeEditor in the right sidebar', () => {
+  it('names the type in its head, and renames it on Enter', async () => {
+    const onEdit = editor();
+    const name = screen.getByRole('textbox', { name: 'Name of this type' });
+    expect((name as HTMLInputElement).value).toBe('Task');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Chore{Enter}');
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setLabel', label: 'Chore' });
+  });
+
+  it('counts the properties beside their heading', () => {
+    editor();
+    const heading = screen.getByRole('heading', { name: /Properties/ });
+    expect(heading.textContent).toBe('Properties3');
+  });
+
+  it('sums up each row by its kind: a relation by the type it points at, and whether many', () => {
+    editor({
+      type: {
+        ...TASK,
+        properties: TASK.properties.map((property) =>
+          property.key === 'project' ? { ...property, many: true } : property,
+        ),
+      },
+    });
+    const kinds = [...document.querySelectorAll('.type-editor__kind')].map((at) => at.textContent);
+    expect(kinds).toEqual(['Select', 'Date', 'Project, many']);
+  });
+
+  it('offers Allow many and Required on new notes on an open select, and nothing it does not have', async () => {
+    const onEdit = editor();
+    await open('Status');
+    const many = screen.getByRole('checkbox', { name: 'Allow many' });
+    expect((many as HTMLInputElement).checked).toBe(false);
+    await userEvent.click(many);
+    // What that means — a multi-select — is the domain's to say (setMany).
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setMany', key: 'status', many: true });
+    expect(screen.getByRole('checkbox', { name: 'Required on new notes' })).toBeDefined();
+  });
+
+  it('asks for one value again when Allow many is cleared on a multi-select', async () => {
+    const onEdit = editor({
+      type: parseObjectType({
+        name: 'book',
+        label: 'Book',
+        properties: { genres: { kind: 'multiSelect', options: ['fiction'] } },
+      }),
+    });
+    await open('Genres');
+    const many = screen.getByRole('checkbox', { name: 'Allow many' });
+    expect((many as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(many);
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setMany', key: 'genres', many: false });
+  });
+
+  it('offers no Allow many where a kind holds one value only', async () => {
+    editor();
+    await open('Due');
+    expect(screen.getByRole('checkbox', { name: 'Required on new notes' })).toBeDefined();
+    expect(screen.queryByRole('checkbox', { name: 'Allow many' })).toBeNull();
+  });
+
+  it('shows a required property ticked, and clears it', async () => {
+    const onEdit = editor({
+      type: {
+        ...TASK,
+        properties: TASK.properties.map((property) =>
+          property.key === 'due' ? { ...property, required: true } : property,
+        ),
+      },
+    });
+    await open('Due');
+    const required = screen.getByRole('checkbox', { name: 'Required on new notes' });
+    expect((required as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(required);
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setRequired', key: 'due', required: false });
+  });
+
+  it('opens the template and the default view from their rows', async () => {
+    const onOpenTemplate = vi.fn();
+    const onOpenView = vi.fn();
+    editor({ onOpenTemplate, defaultView: { title: 'Task board', onOpen: onOpenView } });
+    await userEvent.click(screen.getByRole('button', { name: 'Template: Task' }));
+    expect(onOpenTemplate).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: 'Default view: Task board' }));
+    expect(onOpenView).toHaveBeenCalledOnce();
+  });
+
+  it('leaves out the template and default view rows where nothing opens them', () => {
+    editor();
+    expect(screen.getByRole('button', { name: 'Add property' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /^Template/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Default view/ })).toBeNull();
+  });
+
+  it('says in its foot that the edits are saved and reach every note of the type', () => {
+    editor();
+    expect(document.querySelector('.type-editor__foot')?.textContent).toBe(
+      'Saved · edits apply to every Task note',
+    );
+  });
+
+  it('does not say saved while a change has a problem', () => {
+    editor({ notice: { tone: 'problem', text: 'The type file could not be written.' } });
+    expect(document.querySelector('.type-editor__foot')?.textContent).toBe(
+      'Edits apply to every Task note',
+    );
+  });
+
+  it('puts the focus in a new property’s Name, ready to be named', () => {
+    const { rerender } = render(
+      <TypeEditor
+        type={TASK}
+        icons={TYPE_ICONS}
+        targets={TARGETS}
+        prompt={null}
+        notice={null}
+        onEdit={vi.fn()}
+      />,
+    );
+    const added = addProperty(TASK, { label: 'Property', kind: 'text' });
+    rerender(
+      <TypeEditor
+        type={added}
+        icons={TYPE_ICONS}
+        targets={TARGETS}
+        prompt={null}
+        notice={null}
+        onEdit={vi.fn()}
+      />,
+    );
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Name of Property' }));
+  });
+
+  it('puts the focus on Add property once the open property is removed', async () => {
+    editor();
+    await open('Due');
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Due' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add property' }));
+  });
+
+  it('ties each open row to its details by an id a key with spaces cannot break', async () => {
+    editor({
+      type: parseObjectType({ name: 'x', label: 'X', properties: { 'due date': 'date' } }),
+    });
+    const toggle = screen.getByRole('button', { name: 'Edit Due date' });
+    await userEvent.click(toggle);
+    const id = toggle.getAttribute('aria-controls') ?? '';
+    expect(id).not.toMatch(/\s/);
+    expect(document.getElementById(id)).not.toBeNull();
   });
 });

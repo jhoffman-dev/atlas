@@ -83,7 +83,7 @@ async function addThumbnailToBook(page: Page, vault: FakeVault) {
   await sidebarSection(page, 'types')
     .getByRole('button', { name: /^Book, / })
     .click();
-  // Book has a view, so the type opens on it; the type itself is a press away.
+  // Book has a view, so the type opens on it; its editor, in the right sidebar, is a press away.
   await page.getByRole('button', { name: 'Edit Book type' }).click();
   await page.getByRole('button', { name: 'Add property' }).click();
   const name = page.getByRole('textbox', { name: 'Name of Property' });
@@ -94,6 +94,8 @@ async function addThumbnailToBook(page: Page, vault: FakeVault) {
   await key.press('Enter');
   await page.getByRole('combobox', { name: 'Kind of Thumbnail' }).selectOption('thumbnail');
   await expectFile(vault, '.atlas/types/book.md').toMatch(/ {2}thumbnail: thumbnail\n---/);
+  // Put away, so a note's properties are its page's alone again.
+  await page.getByRole('button', { name: 'Hide right sidebar' }).click();
 }
 
 /** The cached pictures, by name: kept under `.atlas-cache`, never beside the notes. */

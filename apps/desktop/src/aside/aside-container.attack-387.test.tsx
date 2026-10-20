@@ -78,6 +78,7 @@ function rowPortsOver(fs: ReturnType<typeof diskOf>['fs']): RowPorts {
       indexStatus: createIndexStatusStore(),
       vault: '/v',
       types: [],
+      savedViews: [],
       notePaths: [],
       index: {},
       editors: { setPropertiesIfOpen: async () => false },
@@ -110,7 +111,10 @@ function show(stores: ReturnType<typeof openOn>, rows: RowPorts) {
   return render(
     <WorkspaceStoresProvider value={stores}>
       <ClaudeSeatProvider value={<p>the chat</p>}>
-        <AsideContainer rows={rows} />
+        <AsideContainer
+          rows={rows}
+          types={{ onDelete: () => {}, onEditTemplate: () => {}, onOpenType: () => {} }}
+        />
       </ClaudeSeatProvider>
     </WorkspaceStoresProvider>,
     { wrapper: queryWrapper().wrapper },

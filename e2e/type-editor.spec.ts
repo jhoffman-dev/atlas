@@ -110,8 +110,11 @@ test('a new type with a relation to Person, and a note of it pointing at someone
 
   await expect(dialog).toBeHidden();
   await expectFile(vault, '.atlas/types/book.md').toMatch(/name: book\nlabel: Book\nicon: grid/);
-  // It opens on its editor, and the sidebar lists it.
-  await expect(page.getByRole('radio', { name: 'Edit type' })).toBeChecked();
+  // It opens with its editor in the right sidebar, and the sidebar lists it.
+  await expect(page.getByRole('button', { name: 'Edit type' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await expect(
     sidebarSection(page, 'types').getByRole('button', { name: /^Book, 0 notes$/ }),
   ).toBeVisible();
@@ -129,7 +132,7 @@ test('a new type with a relation to Person, and a note of it pointing at someone
     / {2}author:\n {4}kind: relation\n {4}target: person\n---/,
   );
 
-  await page.getByRole('radio', { name: 'Notes' }).click();
+  // The type's notes are on its page beside the editor all along.
   await page.getByRole('button', { name: 'New book' }).click();
   const author = page.getByRole('region', { name: 'Properties' }).getByLabel('Author');
   await expect.poll(() => author.locator('option').allTextContents()).toContain('Ada Lovelace');
@@ -251,7 +254,7 @@ test('switching type while notes are being migrated edits the type now open (R17
 
   const types = sidebarSection(page, 'types');
   await types.getByRole('button', { name: /^Task, / }).click();
-  await page.getByRole('radio', { name: 'Edit type' }).click();
+  await page.getByRole('button', { name: 'Edit type' }).click();
   await page.getByRole('button', { name: 'Edit Status' }).click();
   const rename = page.getByRole('textbox', { name: 'Rename review' });
   await rename.fill('checking');
@@ -274,4 +277,66 @@ test('switching type while notes are being migrated edits the type now open (R17
   );
   await expectFile(vault, 'first.md').toContain('status: checking');
   await expectFile(vault, '.atlas/types/task.md').toContain('label: Task');
+});
+
+test('the type editor in the right sidebar writes a change to the type file, every other byte kept', async ({
+  page,
+}) => {
+  // Hand-written, as a person would: a comment, odd spacing, a body. None of it
+  // is the editor's to touch; only the property changed is written again.
+  const session = [
+    '---',
+    'name: session',
+    'label:   Session',
+    '# Kept for the weekly sync with Larkspur Payroll.',
+    'properties:',
+    '  date: date',
+    '  people:',
+    '    kind: relation',
+    '    target: person',
+    '---',
+    '',
+    '# Session',
+    '',
+    'What a session note holds.',
+    '',
+  ].join('\n');
+  const vault = await open(page, {
+    '.atlas/types/person.md': PERSON_TYPE,
+    '.atlas/types/session.md': session,
+    'Standup.md': '---\ntype: session\ndate: 2026-10-16\n---\n\n# Standup\n',
+  });
+
+  await sidebarSection(page, 'types')
+    .getByRole('button', { name: /^Session, / })
+    .click();
+  const editType = page.getByRole('button', { name: 'Edit type' });
+  await expect(editType).toHaveAttribute('aria-pressed', 'false');
+  await editType.click();
+  await expect(editType).toHaveAttribute('aria-pressed', 'true');
+
+  // The editor is the right sidebar's Type tab, 340px wide, beside the type's notes.
+  const aside = page.getByRole('complementary', { name: 'Right sidebar' });
+  await expect(aside.getByRole('tab', { name: 'Type' })).toHaveAttribute('aria-selected', 'true');
+  expect(await aside.evaluate((element) => element.getBoundingClientRect().width)).toBe(340);
+  await expect(page.getByRole('article', { name: 'Session' }).getByRole('table')).toBeVisible();
+  await expect(aside.getByText('Saved · edits apply to every Session note')).toBeVisible();
+
+  await aside.getByRole('button', { name: 'Edit People' }).click();
+  await aside.getByRole('checkbox', { name: 'Allow many' }).check();
+  await expectFile(vault, '.atlas/types/session.md').toBe(
+    session.replace('    target: person\n', '    target: person\n    many: true\n'),
+  );
+  await aside.getByRole('checkbox', { name: 'Required on new notes' }).check();
+  await expectFile(vault, '.atlas/types/session.md').toBe(
+    session.replace(
+      '    target: person\n',
+      '    target: person\n    many: true\n    required: true\n',
+    ),
+  );
+
+  // Pressed again, the editor goes, and the aside with it.
+  await editType.click();
+  await expect(aside).toBeHidden();
+  await expect(editType).toHaveAttribute('aria-pressed', 'false');
 });

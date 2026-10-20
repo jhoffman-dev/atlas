@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import { asideCollapsesBelow } from '@atlas/ui';
+import { ASIDE_WIDTH, asideCollapsesBelow } from '@atlas/ui';
 
 /**
  * Whether the window is too narrow for the aside, by the one rule
@@ -7,10 +7,17 @@ import { asideCollapsesBelow } from '@atlas/ui';
  * media queries: the aside is folded by CSS, and this is how the app knows
  * it — the toggle's pressed state — without measuring anything. Asked of the
  * same `matchMedia` the stylesheet uses, so the two cannot disagree by a
- * pixel.
+ * pixel. `asideWidth` is the aside's width at hand: 340 while it shows the
+ * type editor (`useAsideWidth`), which shell.css folds by its own pair.
  */
-export function useAsideCollapsed({ sidebarOpen }: { sidebarOpen: boolean }): boolean {
-  const query = `(max-width: ${asideCollapsesBelow({ sidebarOpen }) - 1}px)`;
+export function useAsideCollapsed({
+  sidebarOpen,
+  asideWidth = ASIDE_WIDTH,
+}: {
+  sidebarOpen: boolean;
+  asideWidth?: number;
+}): boolean {
+  const query = `(max-width: ${asideCollapsesBelow({ sidebarOpen, asideWidth }) - 1}px)`;
   const subscribe = useCallback(
     (onChange: () => void) => {
       const media = mediaOf(query);

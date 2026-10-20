@@ -309,11 +309,20 @@ test.describe('the same page in two places', () => {
     const book = pane(page, 2).getByRole('article', { name: 'Book' });
     await expect(book.getByRole('table')).toBeVisible();
 
-    await pane(page, 1).getByRole('radio', { name: 'Edit type' }).click();
-    await expect(pane(page, 1).getByRole('radio', { name: 'Edit type' })).toBeChecked();
+    await pane(page, 1).getByRole('button', { name: 'Edit type' }).click();
+    await expect(pane(page, 1).getByRole('button', { name: 'Edit type' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // The aside edits Person, the type of the pane being worked in.
+    const aside = page.getByRole('complementary', { name: 'Right sidebar' });
+    await expect(aside.getByRole('textbox', { name: 'Name of this type' })).toHaveValue('Person');
 
-    // Book was not asked to be edited: its pane still shows its notes.
-    await expect(pane(page, 2).getByRole('radio', { name: 'Notes' })).toBeChecked();
+    // Book was not asked to be edited: its button is not pressed, and its pane still shows its notes.
+    await expect(pane(page, 2).getByRole('button', { name: 'Edit type' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     await expect(book.getByRole('table')).toBeVisible();
   });
 });

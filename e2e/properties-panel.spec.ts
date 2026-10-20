@@ -138,10 +138,11 @@ test('a relation to several tasks, set up in the type editor, links two and keep
   await typeFile().toMatch(/ {2}tasks:\n {4}kind: relation\n/);
   await page.getByRole('combobox', { name: 'Type Tasks points at' }).selectOption('task');
   await typeFile().toMatch(/ {4}target: task\n/);
-  await page.getByRole('switch', { name: 'Tasks holds several notes' }).click();
+  await page.getByRole('checkbox', { name: 'Allow many' }).click();
   await typeFile().toMatch(/ {2}tasks:\n {4}kind: relation\n {4}target: task\n {4}many: true\n/);
 
-  await page.getByRole('radio', { name: 'Notes' }).click();
+  // The type editor was the right sidebar's; put away, the note's properties are its page's alone.
+  await page.getByRole('button', { name: 'Hide right sidebar' }).click();
   await page.getByRole('button', { name: 'New meeting' }).click();
   const tasks = properties(page).getByRole('combobox', { name: 'Tasks' });
   await expect.poll(() => tasks.locator('option').allTextContents()).toContain('Book flights');

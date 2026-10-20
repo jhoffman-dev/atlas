@@ -134,6 +134,11 @@
   white-space: nowrap;
 }
 
+/* A button that shows something beside the page — the type editor — reads as on while it does. */
+.page-bar__action[aria-pressed='true'] {
+  --btn-bg: var(--selected);
+}
+
 .page-bar__action > svg {
   flex: none;
 }
