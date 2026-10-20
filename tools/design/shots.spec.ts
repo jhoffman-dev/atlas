@@ -1081,6 +1081,15 @@ async function shootTypeViews(page: Page, theme: string): Promise<void> {
   await page.getByRole('menu', { name: 'View options' }).waitFor({ timeout: 5_000 });
   await shoot(page, `type-views-options-${theme}`);
   await page.keyboard.press('Escape');
+  // The type editor in the right sidebar (slice 12), beside FlowType.
+  if (await open('type-editor', [page.getByRole('button', { name: 'Edit type' })])) {
+    await page
+      .locator('.type-editor')
+      .first()
+      .waitFor({ timeout: 5_000 })
+      .catch(() => console.warn('type-editor: it never opened'));
+    await shoot(page, `type-editor-${theme}`);
+  }
 }
 
 for (const theme of ['light', 'dark'] as const) {

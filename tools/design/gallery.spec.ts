@@ -112,6 +112,12 @@ test('gallery shots', async ({ page }) => {
   console.log(whole);
 
   for (const theme of THEMES) {
+    // Each theme's panel whole, beside the Tokens board in `design:compare`.
+    const tokens = join(OUT, `tokens-${theme}.png`);
+    await page
+      .locator(`.gallery-page__panel[data-theme="${theme}"]`)
+      .screenshot({ path: tokens, animations: 'disabled' });
+    console.log(tokens);
     for (const title of ROWS) await shootRow(page, theme, title);
     await shootTableEditing(page, theme);
     await shootPeek(page, theme);

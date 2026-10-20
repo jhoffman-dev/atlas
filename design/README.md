@@ -33,16 +33,17 @@ pnpm design:compare  # out/compare/index.html, one page per surface, mockup left
 | board         | `Main`      | yes        |
 | all-tasks     | `Table`     | yes        |
 | sidebar       | `Sidebar`   | yes        |
-| tokens        | `Tokens`    | not yet    |
-| table-editing | `FlowTable` | not yet    |
-| peek          | `FlowPeek`  | not yet    |
+| tokens        | `Tokens`    | yes        |
+| table-editing | `FlowTable` | yes        |
+| peek          | `FlowPeek`  | yes        |
 | split         | `FlowSplit` | yes        |
-| type-editor   | `FlowType`  | not yet    |
+| type-editor   | `FlowType`  | yes        |
 | inbox         | `FlowInbox` | yes        |
 
-The "not yet" rows are surfaces or states `shots` will capture once the slice
-that builds them lands; until then their compare page shows the mockup beside
-a missing app shot. Everything else is shot with no mockup: `note`, `welcome`
+Every surface with a mockup is shot: `tokens` is the primitives gallery's
+panel in each theme, which `shots:gallery` writes; the rest are `shots`'s. A
+surface `shots` cannot reach is skipped with a warning, and its compare page
+shows the mockup beside a missing app shot. Everything else is shot with no mockup: `note`, `welcome`
 (the choose-folder screen), `empty`, `calendar`, `timeline`, `list`, `type`,
 `filter`, `specimen` (a note holding a callout, a table, code and a checklist),
 `slash`, `wikilink`, `source`, `search`, `capture`, `new-note` and `settings`.
