@@ -74,6 +74,7 @@ export function createEditorExtensions({
   queries = null,
   picking = null,
   promoteLine = null,
+  createNote = null,
 }: {
   suggest: (query: string) => NoteSuggestion[];
   onView: (view: WikiSuggestionView | null) => void;
@@ -100,6 +101,8 @@ export function createEditorExtensions({
   picking?: BlockPicking | null;
   /** Makes a checklist line a task; left out, no line offers it. */
   promoteLine?: PromoteLine | null;
+  /** Makes a note of a name typed after `[[` that no note has; left out, none is offered. */
+  createNote?: ((name: string) => Promise<void>) | null;
 }) {
   return [
     ...baseExtensions,
@@ -122,7 +125,7 @@ export function createEditorExtensions({
     LinkKeys,
     RevealedBlock,
     ImageUploads.configure({ embed: embedImage }),
-    WikiLinkSuggestion.configure({ suggest, onView, blocks: picking }),
+    WikiLinkSuggestion.configure({ suggest, onView, blocks: picking, createNote }),
     TagSuggestionExtension.configure({ suggest: suggestTags, onView: onTagView }),
     SlashCommands.configure({
       onView: onSlashView,

@@ -1,6 +1,13 @@
 import { expect, test, type Page } from './fixtures.ts';
-import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
-import { suggestion } from './link-suggest.ts';
+import {
+  createVault,
+  expectFile,
+  expectSaved,
+  installHost,
+  saveNow,
+  type FakeVault,
+} from './host.ts';
+import { createFromSuggestion, suggestion } from './link-suggest.ts';
 
 /**
  * #465: a link field suggests notes as you type — here the Inbox's project
@@ -29,6 +36,10 @@ const TASK_TYPE = [
   '# Task',
   '',
 ].join('\n');
+
+const PROJECT_TYPE = ['---', 'name: project', 'label: Project', '---', '', '# Project', ''].join(
+  '\n',
+);
 
 const note = (frontmatter: string[], body: string) =>
   ['---', ...frontmatter, '---', '', body, ''].join('\n');
@@ -115,4 +126,48 @@ test('the P key opens the project field: three letters and Enter file the task',
   await page.keyboard.press('Enter');
   await expectFile(vault, FILED).toContain('project: "[[Atlas]]"');
   expect(await vault.read(FILED)).toContain('status: inbox');
+});
+
+test('in the Inbox, a project no note has yet is made from what was typed and the task filed under it', async ({
+  page,
+}) => {
+  const vault = await vaultWithProjects();
+  await vault.write('.atlas/types/project.md', PROJECT_TYPE);
+  const inbox = await openInbox(page, vault);
+  const project = inbox.getByRole('combobox', { name: 'File Call the bank under' });
+  await createFromSuggestion(project, 'project', 'Kitchen refit');
+  // Where a new project goes: beside the vault's other projects.
+  await expectFile(vault, 'Projects/Kitchen refit.md').toContain('type: project');
+  await inbox
+    .getByRole('row')
+    .filter({ has: page.getByRole('button', { name: 'Call the bank', exact: true }) })
+    .getByRole('button', { name: 'Save', exact: true })
+    .click();
+  await expectFile(vault, FILED).toContain('project: "[[Kitchen refit]]"');
+});
+
+test('[[ in a note offers to make a note no note is called yet, writes the link and makes the note', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await vault.write('Plans.md', '# Plans\n\nPacking list.\n');
+  await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('treeitem', { name: 'Plans', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Plans' })).toBeVisible();
+
+  await page.getByText('Packing list.').click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('[[Mara Quill');
+  const list = page.getByRole('listbox', { name: 'Link to note' });
+  await list.getByRole('option', { name: /Create ‘Mara Quill’/ }).click();
+
+  // A blank note, beside the one in view, as a new note is made.
+  await expect.poll(() => vault.exists('Mara Quill.md')).toBe(true);
+  await saveNow(page);
+  await expectSaved(page);
+  await expectFile(vault, 'Plans.md').toContain('[[Mara Quill]]');
 });

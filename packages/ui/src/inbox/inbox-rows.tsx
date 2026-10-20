@@ -1,6 +1,7 @@
 import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   createVaultPath,
+  FILED_UNDER_TYPES,
   GTD_STATUSES,
   GTD_STATUS_LABELS,
   humanizeKey,
@@ -13,6 +14,7 @@ import {
 import { Icon } from '../icon.tsx';
 import type { RelationChoice } from '../properties-panel.tsx';
 import { LinkCombobox } from '../link-suggest/link-combobox.tsx';
+import type { CreateLink } from '../link-suggest/link-suggestions.tsx';
 import { useSteadyCallback } from '../steady-callback.ts';
 import { Spacer } from '../grouped-rows.tsx';
 import { useVirtualRows } from '../virtual-rows.ts';
@@ -31,10 +33,15 @@ export interface InboxRefusal {
   readonly reason: string;
 }
 
+/** Makes a project or an area of a name no note has, resolving to where it was made (#465). */
+export type CreateFiling = (request: CreateLink) => Promise<VaultPath>;
+
 export interface InboxRowsProps {
   items: readonly InboxItem[];
   /** The projects and areas a note can be filed under. */
   filing: readonly RelationChoice[];
+  /** Left out, the project picker offers no "Create". */
+  onCreateFiling?: CreateFiling;
   /** The people a task can wait on. */
   people: readonly RelationChoice[];
   /** The statuses a task may be given; GTD's eight unless said. */
@@ -95,6 +102,7 @@ const HEADER_ROWS = 1;
 export function InboxRows({
   items,
   filing,
+  onCreateFiling,
   people,
   statuses = GTD_STATUSES,
   onOpen,
@@ -138,7 +146,13 @@ export function InboxRows({
     () => ({ pick, commit, fileUnder, makeTask }),
     [pick, commit, fileUnder, makeTask],
   );
-  const choices = useMemo(() => ({ filing, people, statuses }), [filing, people, statuses]);
+  // The app makes its callback anew on many of its renders; the rows' choices stay the same.
+  const steadyCreate = useSteadyCallback(onCreateFiling ?? NO_CREATE);
+  const createFiling = onCreateFiling === undefined ? null : steadyCreate;
+  const choices = useMemo(
+    () => ({ filing, people, statuses, createFiling }),
+    [filing, people, statuses, createFiling],
+  );
   return (
     <tbody
       ref={body}
@@ -242,6 +256,7 @@ type RowActions = Pick<InboxTriage, 'pick' | 'commit' | 'fileUnder' | 'makeTask'
 
 interface RowChoices {
   readonly filing: readonly RelationChoice[];
+  readonly createFiling: CreateFiling | null;
   readonly people: readonly RelationChoice[];
   readonly statuses: readonly GtdStatus[];
 }
@@ -296,6 +311,7 @@ const InboxRow = memo(function InboxRow({
             item={item}
             draft={draft}
             filing={choices.filing}
+            createFiling={choices.createFiling}
             busy={busy}
             actions={actions}
           />
@@ -343,6 +359,7 @@ function NoteActions({
   item,
   draft,
   filing,
+  createFiling,
   busy,
   actions,
 }: {
@@ -350,6 +367,7 @@ function NoteActions({
   /** Holds a project only from a picker a key armed, until Enter. */
   draft: InboxDraft;
   filing: readonly RelationChoice[];
+  createFiling: CreateFiling | null;
   busy: boolean;
   actions: RowActions;
 }) {
@@ -370,8 +388,9 @@ function NoteActions({
         value={draft.project ?? ''}
         placeholder={filing.length === 0 ? 'No project or area yet' : 'File under…'}
         choices={filing}
-        disabled={busy || filing.length === 0}
+        disabled={busy || (filing.length === 0 && createFiling === null)}
         onPick={(project) => actions.fileUnder(item.path, project)}
+        createFiling={createFiling}
         field="project"
       />
     </div>
@@ -440,8 +459,9 @@ function ClarifyTask({
         value={draft.project ?? task.project ?? ''}
         placeholder={choices.filing.length === 0 ? 'No project or area yet' : 'Project or area…'}
         choices={choices.filing}
-        disabled={busy || choices.filing.length === 0}
+        disabled={busy || (choices.filing.length === 0 && choices.createFiling === null)}
         onPick={(project) => pick({ project })}
+        createFiling={choices.createFiling}
         field="project"
       />
       <DayField
@@ -483,6 +503,7 @@ function NotePicker({
   choices,
   disabled,
   onPick,
+  createFiling = null,
   field,
 }: {
   label: string;
@@ -491,6 +512,8 @@ function NotePicker({
   choices: readonly RelationChoice[];
   disabled: boolean;
   onPick: (path: VaultPath) => void;
+  /** Makes a project or an area of what was typed, then picks it (#465). */
+  createFiling?: CreateFiling | null;
   /** Which picker a triage key opens (P): named so the key finds it. */
   field?: 'project';
 }) {
@@ -504,6 +527,10 @@ function NotePicker({
       choices={choices}
       disabled={disabled}
       onPick={(choice) => onPick(createVaultPath(choice.path))}
+      {...(createFiling !== null && {
+        creates: FILED_UNDER_TYPES,
+        onCreate: (request: CreateLink) => createFiling(request).then(onPick),
+      })}
       {...(field !== undefined && { field })}
     />
   );
@@ -541,3 +568,5 @@ function DayField({
     </label>
   );
 }
+
+const NO_CREATE: CreateFiling = () => Promise.reject(new Error('Nothing can be made from here.'));

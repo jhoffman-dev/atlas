@@ -3,7 +3,9 @@ import { PluginKey } from '@tiptap/pm/state';
 import {
   anchorsIn,
   blockOutline,
+  linkMatchOf,
   matchingOutline,
+  noteTitle,
   offeredByOwnId,
   type EditorDocument,
   type NoteSuggestion,
@@ -26,6 +28,11 @@ export interface WikiLinkSuggestionOptions {
   onView: (view: WikiSuggestionView | null) => void;
   /** A note's headings and blocks after `#`; left out, `#` offers nothing. */
   blocks: BlockPicking | null;
+  /**
+   * Makes a note of a name no note has (#465), its link already written;
+   * null where notes cannot be made from here, and no "Create" is offered.
+   */
+  createNote: ((name: string) => Promise<void>) | null;
 }
 
 /**
@@ -42,6 +49,7 @@ export const WikiLinkSuggestion = Extension.create<WikiLinkSuggestionOptions>({
       suggest: () => [],
       onView: () => {},
       blocks: null,
+      createNote: null,
     };
   },
 
@@ -69,7 +77,7 @@ function linkPicker({
     char: embed ? '![[' : '[[',
     startOfLine: false,
     allowSpaces: true,
-    find: (query, current) => choicesFor({ query, editor: current, options }),
+    find: (query, current) => choicesFor({ query, editor: current, options, embed }),
     onView: (view) => options.onView(view === null ? null : { ...view, embed }),
     // Shift+Enter: the link goes in as a card, where a card can go.
     alternate: embed
@@ -86,8 +94,13 @@ function linkPicker({
             .run();
           showAsBookmark(current, range.from);
         },
-    command: ({ editor: current, range, props: item }) =>
-      pick({ editor: current, range, item, embed, blocks: options.blocks }),
+    command: ({ editor: current, range, props: item }) => {
+      if (item.kind === 'create') {
+        linkNewNote({ editor: current, range, name: item.name, create: options.createNote });
+        return;
+      }
+      pick({ editor: current, range, item, embed, blocks: options.blocks });
+    },
   });
 }
 
@@ -99,16 +112,55 @@ function choicesFor({
   query,
   editor,
   options,
+  embed,
 }: {
   query: string;
   editor: Editor;
   options: WikiLinkSuggestionOptions;
+  embed: boolean;
 }): LinkChoice[] | Promise<LinkChoice[]> {
   const hash = query.indexOf('#');
   if (hash < 0 || options.blocks === null) {
-    return options.suggest(query).map((note) => ({ kind: 'note', note }));
+    const notes = options.suggest(query);
+    const offersCreate = !embed && options.createNote !== null && hash < 0;
+    return withCreate(notes, offersCreate ? query : '');
   }
   return fragmentsFor({ query, hash, editor, blocks: options.blocks });
+}
+
+/**
+ * The notes offered for what was typed, then "Create '<typed>'" when none of
+ * them is called that — as a link field offers it (#465). Nothing typed,
+ * nothing to make.
+ */
+export function withCreate(notes: readonly NoteSuggestion[], query: string): LinkChoice[] {
+  const choices: LinkChoice[] = notes.map((note) => ({ kind: 'note', note }));
+  const name = query.trim();
+  if (name === '' || notes.some((note) => linkMatchOf(noteTitle(note.path), name) === 'exact')) {
+    return choices;
+  }
+  return [...choices, { kind: 'create', name }];
+}
+
+/**
+ * "Create" picked: the link is written at once, as Obsidian writes a link to
+ * a note not made yet, and the note is made behind it. Made or not, the
+ * link stands; a note that could not be made is said by the app.
+ */
+function linkNewNote({
+  editor,
+  range,
+  name,
+  create,
+}: {
+  editor: Editor;
+  range: Range;
+  name: string;
+  create: ((name: string) => Promise<void>) | null;
+}): void {
+  pickNote({ editor, range, target: name, embed: false });
+  // The app reports a refusal where it made the attempt; the link stays either way.
+  if (create !== null) void create(name).catch(() => {});
 }
 
 async function fragmentsFor({
@@ -152,6 +204,7 @@ function pick({
   embed: boolean;
   blocks: BlockPicking | null;
 }): void {
+  if (item.kind === 'create') return;
   if (item.kind === 'note') {
     pickNote({ editor, range, target: item.note.target, embed: embed && blocks !== null });
     return;

@@ -375,6 +375,13 @@ describe('a relation cell', () => {
   const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement;
   const popover = (label: string) => screen.getByRole('dialog', { name: `Set ${label}` });
 
+  it('opens its picker with the search field focused, so a note is typed straight away (#465)', async () => {
+    table();
+    await userEvent.click(stop('Larkspur launch'));
+    const field = within(popover('Project')).getByRole('combobox');
+    await vi.waitFor(() => expect(document.activeElement).toBe(field));
+  });
+
   it('opens a picker of the notes not linked yet, and links the one picked', async () => {
     const onEditCell = table();
     await userEvent.click(stop('Larkspur launch'));

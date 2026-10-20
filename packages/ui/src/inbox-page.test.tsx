@@ -137,6 +137,24 @@ describe('InboxPage', () => {
         .map((option) => option.querySelector('.link-suggest__type')?.textContent),
     ).toEqual(['Projects', 'Areas']);
   });
+  it('makes a project of a name no note has, and files the note under it (#465)', async () => {
+    const onCreateFiling = vi.fn(async () => createVaultPath('Projects/Kitchen.md'));
+    const props = page({ onCreateFiling });
+    await userEvent.type(screen.getByRole('combobox', { name: 'File Standup under' }), 'Kitchen');
+    await userEvent.click(screen.getByRole('option', { name: 'Create project ‘Kitchen’' }));
+    expect(onCreateFiling).toHaveBeenCalledWith({ target: 'project', name: 'Kitchen' });
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: 'Inbox/Meetings/Standup.md',
+      clarification: { project: 'Projects/Kitchen.md' },
+    });
+  });
+
+  it('offers no Create where the page cannot make a project', async () => {
+    page();
+    await userEvent.type(screen.getByRole('combobox', { name: 'File Standup under' }), 'Kitchen');
+    expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
+  });
+
   it('files a note that is not a task into the project picked, at once', async () => {
     const props = page();
     await pickSuggestion(screen.getByRole('combobox', { name: 'File Standup under' }), 'Garden');

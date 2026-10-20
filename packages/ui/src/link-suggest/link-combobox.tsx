@@ -90,7 +90,8 @@ export function LinkCombobox({
         size={Math.max(MIN_SIZE, placeholder.length, (current ?? '').length) + 1}
         onFocus={(event) => {
           // What it holds is selected, so typing replaces it.
-          event.currentTarget.select();
+          if (current !== undefined) event.currentTarget.select();
+          keepInView(event.currentTarget);
           show();
         }}
         onClick={show}
@@ -142,3 +143,12 @@ export function LinkCombobox({
 
 /** The fewest characters a link field is wide enough for. */
 const MIN_SIZE = 8;
+
+/**
+ * Brings a field the keyboard focused into view. WebKit leaves a text field
+ * that Shift+Tab reaches in a row the Inbox's list has only just placed out
+ * of sight, as it does not a button (#247); jsdom has no scrollIntoView.
+ */
+function keepInView(field: HTMLInputElement) {
+  if (typeof field.scrollIntoView === 'function') field.scrollIntoView({ block: 'nearest' });
+}

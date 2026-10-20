@@ -103,6 +103,7 @@ export function NoteEditor({
   picking,
   reveal = null,
   onPromoteLine,
+  onCreateNote,
   ref,
 }: {
   doc: EditorDocument;
@@ -137,6 +138,8 @@ export function NoteEditor({
   reveal?: NoteReveal | null;
   /** Makes the checklist line the caret is in a task (P30-03); left out, none is offered. */
   onPromoteLine?: PromoteLine;
+  /** Makes a note of a name typed after `[[` that no note has (#465); left out, `[[` offers none. */
+  onCreateNote?: (name: string) => Promise<void>;
   ref?: Ref<NoteEditorHandle>;
 }) {
   const [links, setLinks] = useState<WikiSuggestionView | null>(null);
@@ -190,6 +193,12 @@ export function NoteEditor({
   const promoter = useLatest(onPromoteLine);
   const promotes = onPromoteLine !== undefined;
   const stablePromote = useCallback<PromoteLine>((line) => promoter.current?.(line), [promoter]);
+  const creator = useLatest(onCreateNote);
+  const creates = onCreateNote !== undefined;
+  const stableCreate = useCallback(
+    (name: string) => creator.current?.(name) ?? Promise.resolve(),
+    [creator],
+  );
 
   const bookmarkSource = useBookmarkSource(bookmarks);
   const transclusionSource = useTransclusionSource(transclusions);
@@ -214,10 +223,13 @@ export function NoteEditor({
         queries: queryBlockSource,
         picking: blockPicking,
         promoteLine: promotes ? stablePromote : null,
+        createNote: creates ? stableCreate : null,
       }),
     [
       promotes,
       stablePromote,
+      creates,
+      stableCreate,
       editorPeople,
       bookmarkSource,
       transclusionSource,
