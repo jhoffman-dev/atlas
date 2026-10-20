@@ -191,7 +191,7 @@ const GLYPHS = {
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" {...round} strokeWidth={1.9} />,
   // A toast's Undo, from design/target/FlowTable.dc.html.
   undo: <path d="M9 7L5 11l4 4M5 11h9a5 5 0 0 1 0 10h-2" {...joined} strokeLinecap="round" />,
-  // The page's own glyphs, from design/target/Note.dc.html.
+  // The page's own glyphs: the nav bar's star and its menu.
   star: (
     <path
       d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"

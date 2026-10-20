@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 
-/* U-13 through the local API: the add button's types, and adding a note as it does. */
+/* U-13 through the local API: quick add's types, and adding a note as it does. */
 
 const TASK = jsonNote({
   name: 'task',

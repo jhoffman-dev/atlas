@@ -225,9 +225,8 @@ test('a filter added from the toolbar applies at once, and is written when saved
 test('"New task" makes a task and opens it', async ({ page }) => {
   const vault = await openViewVault(page);
 
-  // The view's own button, not the floating one that is also named "New task"
-  // and opens quick-add instead: until the view has drawn, `.first()` on the
-  // whole page found only that one.
+  // The view's own button, found in the view: until the view has drawn,
+  // `.first()` on the whole page could find another.
   await page
     .getByRole('article', { name: 'Tasks' })
     .getByRole('button', { name: 'New task', exact: true })

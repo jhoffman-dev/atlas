@@ -51,8 +51,8 @@ describe('tokens after the v2 turnover', () => {
   /**
    * styles.test.ts holds the app's sheet (styles/) to the tokens it declares. The gallery's
    * sheet and the components' inline styles read the same names and nothing
-   * holds them: `gallery.css` still reads `--text-hero`, which #273 deleted,
-   * so the gallery's hero numeral falls back to the inherited size.
+   * held them until #273: `gallery.css` read `--text-hero` after it was
+   * deleted, and the gallery's hero numeral fell back to the inherited size.
    */
   it('gallery.css reads only tokens that are declared', () => {
     expect(reads(galleryCss).filter((name) => !declared.has(name))).toEqual([]);

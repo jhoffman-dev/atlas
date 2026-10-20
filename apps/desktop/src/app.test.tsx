@@ -2419,7 +2419,8 @@ describe('pages as tabs', () => {
     const inbox = await screen.findByRole('article', { name: 'Inbox' });
     await within(inbox).findByText('Call Tobias');
     await userEvent.click(within(inbox).getByRole('button', { name: 'Accept' }));
-    await within(inbox).findByRole('button', { name: 'Undo' });
+    // The accept's Undo is the window's toast's (slice 15), not the page's.
+    await screen.findByRole('button', { name: 'Undo' });
     const remembered = window.localStorage.getItem(`atlas.workspace:${location.absolutePath}`);
     window.localStorage.setItem(
       `atlas.workspace:${other.absolutePath}`,
@@ -2433,7 +2434,8 @@ describe('pages as tabs', () => {
     // The other vault's proposal, at the same path, is its own: listed, and nothing to take back.
     expect(await within(after).findByText('Call Tobias')).toBeDefined();
     expect(within(after).getByRole('button', { name: 'Accept' })).toBeDefined();
-    expect(within(after).queryByRole('button', { name: 'Undo' })).toBeNull();
+    // Nor in the window: the toast offering the first vault's Undo went as the other opened.
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 
   it('the Inbox in both panes: a row decided in one leaves the other while its write is held', async () => {

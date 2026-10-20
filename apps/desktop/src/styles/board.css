@@ -263,7 +263,7 @@
   text-decoration: line-through;
 }
 
-/* A list row's chips, which keep the older chip shape until slice 13d. */
+/* A list row's chips, in their own older shape: radius 7, not --radius-chip. */
 .note-chip {
   align-items: center;
   background: var(--chip);

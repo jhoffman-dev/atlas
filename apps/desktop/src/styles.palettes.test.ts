@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readStylesheet } from './styles.test-support.ts';
 
 /**
- * The palettes and the quick-add popover (UI v2, slice 13e): ⌘K search, ⇧⌘N
- * capture, and the popover the add button opens. Each is a popover by
+ * The palettes (UI v2, slice 13e): ⌘K search and ⇧⌘N capture. Each is a popover by
  * `Tokens.dc.html`'s rules — radius 8, the popover shadow, a hairline — with
  * 36px rows, the `selected` fill on the chosen row and keys as plain ink-3
  * text. These hold what that has to carry: the chosen row's words, including
@@ -75,10 +74,8 @@ function contrast(a: string, b: string): number {
 const tokenIn = (declaration: string | undefined) =>
   /var\((--[\w-]+)\)/.exec(declaration ?? '')?.[1] ?? '';
 
-const POPOVERS = ['.palette', '.quick-add'] as const;
-
-describe.each(POPOVERS)('%s is a popover by the Tokens board', (selector) => {
-  const popover = styleOf(selector);
+describe('.palette is a popover by the Tokens board', () => {
+  const popover = styleOf('.palette');
 
   it('has the popover radius, the popover shadow and a hairline', () => {
     expect(popover.get('border-radius')).toBe('var(--radius-popover)');
@@ -120,18 +117,6 @@ describe('a key hint', () => {
     expect(key.has('border')).toBe(false);
     expect(key.has('background')).toBe(false);
     expect(key.has('box-shadow')).toBe(false);
-  });
-});
-
-describe('the quick-add popover', () => {
-  it('asks in 28px fields: the field primitive, with nothing of its own drawn over it', () => {
-    expect(styleOf('.field').get('height')).toBe('28px');
-    expect(styleOf('.field:focus').get('box-shadow')).toBe('var(--ring)');
-    const control = styleOf('.quick-add__control');
-    for (const own of ['height', 'border', 'background', 'border-radius', 'font-size']) {
-      expect(control.has(own), `.quick-add__control sets its own ${own}`).toBe(false);
-    }
-    expect(styleOf('.quick-add__name').get('height')).toBe('28px');
   });
 });
 

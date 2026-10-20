@@ -236,8 +236,6 @@ import { ClaudeSeatProvider } from './aside/claude-seat.tsx';
 import { createShownNotes } from './aside/shown-notes.ts';
 import { useAsideCollapsed } from './aside/use-aside-collapsed.ts';
 import { useAsideWidth } from './aside/use-aside-width.ts';
-import { browserFabStore } from './quick-add/browser-fab-store.ts';
-import { QuickAdd } from './quick-add/quick-add.tsx';
 import type { GlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
 import { useGlobalCapture } from './global-capture/use-global-capture.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
@@ -245,7 +243,6 @@ import { useGoogleCalendar } from './settings/use-google-calendar.ts';
 import { useGranola } from './settings/use-granola.ts';
 import { useGranolaPull } from './granola/use-granola-pull.ts';
 import { useSecrets } from './settings/use-secrets.ts';
-import { useQuickAdd } from './quick-add/use-quick-add.ts';
 import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
 import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
 import { useVaultTags } from './tags/use-vault-tags.ts';
@@ -567,7 +564,7 @@ function AppWindow({
   }, [reload, refresh]);
   const typesChanged = useCallback(() => {
     onChanged();
-    reloadTypes();
+    void reloadTypes();
   }, [onChanged, reloadTypes]);
   // PARA's types are written into a vault that lacks them as it opens (P30-01).
   const typesOffer = useBuiltInTypes({
@@ -709,15 +706,15 @@ function AppWindow({
     [showOverlay, hideOverlay],
   );
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // Pressed from another app with no vault open: capture has no Inbox to land in.
+  // Capture asked for with no vault open: it has no Inbox to land in.
   const [captureWantedVault, setCaptureWantedVault] = useState(false);
-  const globalCapture = useGlobalCapture({
-    ...globalCapturePorts,
-    pressed: () => {
-      setCaptureWantedVault(location === null);
-      if (location !== null) showOverlay('capture');
-    },
-  });
+  // Capture asked for — by ⇧⌘N, ⌥⌘N or the global shortcut: put up with a
+  // vault open, and with none, said to need one rather than opened.
+  const askForCapture = useCallback(() => {
+    setCaptureWantedVault(location === null);
+    if (location !== null) showOverlay('capture');
+  }, [location, showOverlay]);
+  const globalCapture = useGlobalCapture({ ...globalCapturePorts, pressed: askForCapture });
   const captureNeedsVault =
     captureWantedVault && location === null
       ? 'Quick capture needs a vault: open one, and what you capture lands in its Inbox.'
@@ -1376,25 +1373,6 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
   });
-  const quickAddPorts = useMemo(
-    () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),
-    [vault.fs, notes.markdown, index.index],
-  );
-  const quickAdd = useQuickAdd({
-    ports: quickAddPorts,
-    setting: quickAddSetting,
-    types,
-    templates,
-    contentsOf,
-    notePaths,
-    beside: focusedNote,
-    overlay: { show: showOverlay, hide: hideOverlay },
-    onCreated: ({ path, open }) => {
-      onChanged();
-      if (open) openNote(path);
-    },
-  });
-
   const captureTask = useCallback(
     async (name: string) => {
       const path = await captureNote(name, captureTemplate);
@@ -1561,10 +1539,10 @@ function AppWindow({
     toggleSidebar: () => setSidebarOpen((was) => !was),
     toggleSplit: () => toggleSplitIn(workspace),
     dailyNote: () => void openDailyNote(),
-    quickAdd: quickAdd.start,
     back: () => goBack(workspace),
     forward: () => goForward(workspace),
     show: showOverlay,
+    capture: askForCapture,
     toggleChat: chat.toggle,
     toggleAside: () =>
       asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),
@@ -2043,14 +2021,7 @@ function AppWindow({
           status={location === null ? null : indexStatusText(indexStatus)}
           floating={
             location === null ? null : (
-              <>
-                <IndexProgressPill status={indexStatus} progress={indexProgress} />
-                <QuickAdd
-                  quickAdd={quickAdd}
-                  overlay={{ current: overlay, show: showOverlay, hide: hideOverlay }}
-                  onOpen={openNote}
-                />
-              </>
+              <IndexProgressPill status={indexStatus} progress={indexProgress} />
             )
           }
           overlay={

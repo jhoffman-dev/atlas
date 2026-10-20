@@ -24,7 +24,7 @@ import {
   StatusPill,
   TableView,
   TabStrip,
-  Toast,
+  ToastStack,
   Toggle,
   type AsideTab,
   type PropertyRow,
@@ -33,6 +33,7 @@ import {
   type TableResult,
   type TableSchema,
   type TabStripTab,
+  type ToastShown,
 } from '@atlas/ui';
 import { PeekSpecimen } from './peek-specimen.tsx';
 
@@ -143,20 +144,33 @@ function MenuSpecimen() {
   );
 }
 
+/** The window's toasts as the app shows them, one of each tone, oldest on top. */
+const SPECIMEN_TOASTS: readonly ToastShown[] = [
+  { id: 1, message: 'Changed “Send the Larkspur invoice”.', tone: 'change', onUndo: () => {} },
+  {
+    id: 2,
+    message: '“Send the Larkspur invoice” has changed since. Nothing was undone.',
+    tone: 'warning',
+  },
+  {
+    id: 3,
+    message:
+      'Granola refused the API key. Create one in Granola → Settings → Connectors → API keys, and paste it in Settings → Granola.',
+    tone: 'error',
+    action: { label: 'Open', onClick: () => {} },
+  },
+];
+
 /**
- * The toast stands on a stage of its own, since it places itself top right of
- * whatever holds it. Its words are the longest the app says — a refused
- * Granola key and its remedy — so the stage shows them wrapping, whole.
+ * The toasts stand on a stage of their own, since their column places itself
+ * at the foot of whatever holds it, as the window's ToastStack does (#320).
+ * The last one's words are the longest the app says — a refused Granola key
+ * and its remedy — so the stage shows them wrapping, whole.
  */
 function ToastSpecimen() {
   return (
     <div className="gallery-page__stage">
-      <Toast
-        message="Granola refused the API key. Create one in Granola → Settings → Connectors → API keys, and paste it in Settings → Granola."
-        onUndo={() => {}}
-        action={{ label: 'Open', onClick: () => {} }}
-        onDismiss={() => {}}
-      />
+      <ToastStack toasts={SPECIMEN_TOASTS} onDismiss={() => {}} />
     </div>
   );
 }
@@ -400,10 +414,6 @@ function Specimens() {
         <div className="card">
           <p className="card__label">Resting</p>
           <p className="gallery-page__value">18</p>
-        </div>
-        <div className="card card--raised">
-          <p className="card__label">Raised</p>
-          <p className="gallery-page__value">4</p>
         </div>
         <button type="button" className="card card--interactive">
           <p className="card__label">Interactive</p>

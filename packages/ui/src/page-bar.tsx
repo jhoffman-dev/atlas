@@ -30,8 +30,7 @@ export interface PageHistory {
  * everything that used to be a button on the page: saving now, splitting,
  * the page's properties. The arranging controls live here too, rather than
  * floating: splitting as a button before the menu, and closing a split pane
- * as the very last control, where a close sits on any panel (until slice 7
- * moves them to the tab strip).
+ * as the very last control, where a close sits on any panel.
  */
 export function PageBar({
   crumb,

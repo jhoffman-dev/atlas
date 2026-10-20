@@ -18,7 +18,7 @@ export interface QuickAddSetting {
   readonly problem: string | null;
 }
 
-/** Which types the add button offers, as the vault's settings note lists them. */
+/** Which types quick add offers (Settings → Quick add, the API and MCP), as the vault's settings note lists them. */
 export function useQuickAddSetting({
   fs,
   markdown,

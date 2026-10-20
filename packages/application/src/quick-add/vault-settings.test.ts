@@ -19,7 +19,7 @@ describe('loadQuickAddSetting', () => {
     expect(await loadQuickAddSetting({ fs, markdown: jsonMarkdown() })).toBeNull();
   });
 
-  it('reads unset when the file does not mention the add button', async () => {
+  it('reads unset when the file does not mention quick add', async () => {
     const { fs } = vaultWith({ [PATH]: '---\n{"theme":"dark"}\n---\n' });
     expect(await loadQuickAddSetting({ fs, markdown: jsonMarkdown() })).toBeNull();
   });

@@ -9,6 +9,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath } from '@atlas/domain';
 import { fakeVaultFs, recordingActivity, type OpenNotes } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { createToasts } from '../toasts/toasts.ts';
 import { useLinePromotion } from './use-line-promotion.ts';
 
 const PLAN = createVaultPath('Tasks/Plan the launch.md');
@@ -38,6 +39,7 @@ function promoting({
       onChanged: () => {},
       onOpenNote: () => {},
       activity,
+      toasts: createToasts(),
     }),
   );
   const promote = () => act(() => hook.result.current?.promote({ index: 0, text: 'Order chairs' }));
@@ -47,15 +49,6 @@ function promoting({
 const TEXT = async () => ({ text: '- [ ] Order chairs\n', modified: 1 });
 
 describe('Make task, and the Activity log', () => {
-  it('keeps one notice object across renders, so its bar keeps its time (review)', async () => {
-    const { hook, promote } = promoting({ dirty: true, read: TEXT });
-    await promote();
-    await waitFor(() => expect(hook.result.current?.notice).not.toBeNull());
-    const shown = hook.result.current?.notice;
-    hook.rerender();
-    expect(hook.result.current?.notice).toBe(shown);
-  });
-
   it('says a refusal on the page and records nothing', async () => {
     const { activity, hook, promote } = promoting({ dirty: true, read: TEXT });
     await promote();

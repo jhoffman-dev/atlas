@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { VaultPath } from '@atlas/domain';
 import type { DefinedType, MarkdownPort, VaultFsPort } from '@atlas/application';
 import { useNewType } from './use-new-type.ts';
+import type { ReadTypesAgain } from './use-types.ts';
 import { useNewNoteOfType } from './use-new-note-of-type.ts';
 
 /**
@@ -26,16 +27,19 @@ export function useTypeCommands({
   notePaths: readonly string[];
   /** Re-reads the tree and the index, after something wrote to the vault. */
   onChanged: () => void;
-  reloadTypes: () => void;
+  reloadTypes: ReadTypesAgain;
   onTypeCreated: (type: DefinedType) => void;
   onNoteCreated: (path: VaultPath) => void;
 }) {
   const { fs, markdown } = ports;
 
-  /** After the type editor writes a type file: the type, the tree and the index follow. */
+  /**
+   * After the type editor writes a type file: the type, the tree and the index
+   * follow. Settles with the types once they have been read again.
+   */
   const onTypeSaved = useCallback(() => {
-    reloadTypes();
     onChanged();
+    return reloadTypes();
   }, [reloadTypes, onChanged]);
 
   const newType = useNewType({
@@ -43,7 +47,7 @@ export function useTypeCommands({
     markdown,
     types,
     onCreated: (created) => {
-      onTypeSaved();
+      void onTypeSaved();
       onTypeCreated(created);
     },
   });

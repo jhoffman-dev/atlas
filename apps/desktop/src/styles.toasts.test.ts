@@ -121,3 +121,36 @@ describe('the delayed spinner', () => {
     );
   });
 });
+
+describe('the toasts among the layers (#468)', () => {
+  const peek = sheet('peek.css');
+  const menus = sheet('menus.css');
+  const overlays = sheet('overlays.css');
+  const dashboards = sheet('dashboard-editing.css');
+  const layer = (source: string, opening: string) =>
+    Number(blockOf(source, opening).get('z-index') ?? Number.NaN);
+  const toasts = layer(primitives, '.toast-stack {');
+
+  // In the window they sit under every layer a person works in, so none of
+  // that layer's controls is hidden by one (review, attack-468).
+  it('draws them under menus, palettes, dialogs and the peek', () => {
+    expect(layer(primitives, '.toast {')).toBe(toasts);
+    for (const over of [
+      layer(menus, '.menu-positioner {'),
+      layer(overlays, '.palette__backdrop {'),
+      layer(dashboards, '.widget-sheet__backdrop {'),
+      layer(peek, '.peek__viewport {'),
+      layer(peek, '.peek__scrim {'),
+    ]) {
+      expect(toasts).toBeLessThan(over);
+    }
+  });
+
+  // While the peek is up they are drawn in it — in its focus trap, so Tab
+  // reaches their Undo — at the window's corner, over its own content.
+  it('places them, inside the peek, at the window’s corner over the note', () => {
+    const inPeek = blockOf(peek, '.peek__toasts .toast-stack {');
+    expect(inPeek.get('position')).toBe('fixed');
+    expect(Number(inPeek.get('z-index'))).toBeGreaterThan(0);
+  });
+});

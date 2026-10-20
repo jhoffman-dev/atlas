@@ -101,11 +101,7 @@ async function open(page: Page, vault: FakeVault): Promise<FakeHost> {
   return host;
 }
 
-/*
- * Done is pressed with Return throughout, as a row is meant to be worked. A
- * click would do, but the quick-add button floats over the page's bottom-right
- * corner, where a right-aligned control of a low row can sit under it.
- */
+/* Done is pressed with Return throughout, as a row is meant to be worked. */
 const sidebarInbox = (page: Page) =>
   page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: /^Inbox/ });
 const inboxPage = (page: Page) => page.getByRole('article', { name: 'Inbox' });

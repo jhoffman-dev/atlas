@@ -288,3 +288,201 @@ describe('the styles folder', () => {
     expect(importedSections()[0]).toBe('tokens.css');
   });
 });
+
+/**
+ * The v2 rules, pinned for good (UI v2 slice 15, `Tokens.dc.html`'s rules
+ * list): content never floats — a shadow with a blur is for what floats over
+ * the page or is in the hand while dragged; nothing is rounder than 8px but
+ * a round mark (50%: a dot, an avatar, a swatch, a spinner); no capitals by
+ * CSS; no weight above 600.
+ *
+ * What breaks a rule today is named below, so the lists can only shrink:
+ * each is a follow-up of slice 15, left as it is because fixing it changes
+ * what is drawn. A new offender fails, and so does one fixed but still listed.
+ */
+/** Rounder than 8px today: pill shapes, the switch, the selection bar, a 14px popover. */
+const ROUND_EXCEPTIONS: readonly string[] = [
+  '.callout__title::before',
+  '.checklist-progress__track',
+  '.inbox__file',
+  '.index-progress',
+  '.new-view__layout',
+  '.pane--focused::before',
+  '.proposals__notice',
+  '.selection-bar',
+  '.selection-bar__action',
+  '.selection-bar__clear',
+  '.star',
+  '.toggle',
+  '.toggle__knob',
+  '.tree__more',
+  '.view-popover',
+  '.widget-sheet__icon',
+  '.widget-sheet__kind',
+  '.widget__grip',
+  '.widget__resize::after',
+];
+/** Capitals set by CSS today. */
+const CAPITALS_EXCEPTIONS: readonly string[] = [
+  '.artifact-face__status',
+  '.card__label',
+  '.new-type__legend',
+  '.proposal-row__kind',
+  '.query__schema-title',
+];
+/** Heavier than 600 today. */
+const HEAVY_EXCEPTIONS: readonly string[] = [
+  '.confirm__title',
+  '.granola__details summary',
+  '.graph__edge-label',
+  '.inbox__grid th',
+  '.links__heading',
+  '.new-type__legend',
+  '.new-type__title',
+  '.new-view__layout',
+  '.note-chip',
+  '.proposals__heading',
+  '.props__chip-select',
+  '.props__link',
+  '.props__pill-select',
+  '.selection-bar',
+  '.view-popover__direction',
+  '.view-popover__submit',
+  '.view-popover__title',
+];
+
+describe('the v2 rules', () => {
+  /**
+   * A selector's block, judged with its BEM elements and modifiers and its
+   * states: `.menu`, `.menu__item`, `.menu--wide`, `.menu:hover`,
+   * `.menu .x` — never `.menu-positioner`, a block of its own.
+   */
+  const block = (names: string) => new RegExp(`^\\.(${names})(?=$|__|--|[\\s.:,[>+~])`);
+  /** Surfaces that float over the page: menus, popovers, palettes, the peek's previews, toasts. */
+  const FLOATS = block(
+    'menu|palette|toast|peek|link-preview|link-hover|suggestions|link-suggest|cell-picker|view-popover|filter-value__list|image__alt|widget-sheet|[a-z-]*popover',
+  );
+  /** Something in the hand while it is dragged, lifted off the page. */
+  const IN_HAND = /--(lifted|held)\b|^\.widget-ghost(?=$|__|--|[\s.:,[>+~])/;
+
+  /** Every token the sheet declares, by name, as first declared (a radius has one value). */
+  const tokenValues = new Map<string, string>();
+  for (const match of withoutComments.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    if (!tokenValues.has(match[1] ?? '')) tokenValues.set(match[1] ?? '', (match[2] ?? '').trim());
+  }
+  /** A value with its `var()`s read as the tokens' own values, as deep as they go. */
+  function resolved(value: string, depth = 0): string {
+    if (depth > 5) return value;
+    const next = value.replace(/var\(\s*(--[a-z0-9-]+)\s*\)/g, (_, name: string) => {
+      return tokenValues.get(name) ?? name;
+    });
+    return next === value ? value : resolved(next, depth + 1);
+  }
+
+  /** A value's comma-separated parts, not counting the commas inside a function's brackets. */
+  function topLevelParts(value: string): string[] {
+    const parts = [''];
+    let depth = 0;
+    for (const character of value) {
+      if (character === '(') depth += 1;
+      if (character === ')') depth -= 1;
+      if (character === ',' && depth === 0) parts.push('');
+      else parts[parts.length - 1] += character;
+    }
+    return parts;
+  }
+
+  /** A shadow with a blur, or one of the floating shadow tokens. */
+  const floats = (value: string) =>
+    /--shadow-(popover|overlay)\b/.test(value) ||
+    topLevelParts(resolved(value)).some((part) => {
+      // Its lengths, colours (and their numbers) left out: x, y, blur, spread.
+      const bare = part.replace(/[a-z-]+\([^()]*(\([^()]*\)[^()]*)*\)/g, ' ');
+      const lengths = [...bare.matchAll(/(-?\d*\.?\d+)(px)?/g)].map((match) => Number(match[1]));
+      return !part.includes('inset') && lengths.length >= 3 && (lengths[2] ?? 0) > 0;
+    });
+
+  /** Rounder than 8px — the shorthand or any corner, tokens read as their values — and not a round mark's 50%. */
+  const tooRound = (value: string) =>
+    [...resolved(value).matchAll(/(\d+(?:\.\d+)?)px/g)].some((match) => Number(match[1]) > 8);
+
+  const declarationsOf = (body: string) =>
+    [...body.matchAll(/(?<![\w-])([a-z-]+)\s*:\s*([^;]+);/g)].map((match) => ({
+      property: match[1] ?? '',
+      value: (match[2] ?? '').replace(/\s+/g, ' ').trim(),
+    }));
+
+  /** The selectors of `source` that break each rule, each selector of a list judged on its own. */
+  function offenders(source: string) {
+    const found = {
+      shadows: [] as string[],
+      radii: [] as string[],
+      capitals: [] as string[],
+      heavy: [] as string[],
+    };
+    for (const { selector, body } of rulesOf(source)) {
+      const names = selector
+        .split(',')
+        .map((name) => name.replace(/\s+/g, ' ').trim())
+        .filter((name) => name !== '' && !name.startsWith(':root') && !name.startsWith('@'));
+      for (const { property, value } of declarationsOf(body)) {
+        for (const name of names) {
+          const allowedToFloat = FLOATS.test(name) || IN_HAND.test(name);
+          if (property === 'box-shadow' && floats(value) && !allowedToFloat)
+            found.shadows.push(name);
+          if (/^border(-[a-z]+)*-radius$/.test(property) && tooRound(value)) found.radii.push(name);
+          if (property === 'text-transform' && value.includes('uppercase'))
+            found.capitals.push(name);
+          if (property === 'font-weight' && Number.parseInt(resolved(value), 10) > 600)
+            found.heavy.push(name);
+        }
+      }
+    }
+    return found;
+  }
+
+  const today = offenders(css);
+  const sorted = (list: readonly string[]) => [...new Set(list)].sort();
+
+  it('reads a BEM element of a floating block as floating, and a block of its own as not', () => {
+    expect(FLOATS.test('.menu__item')).toBe(true);
+    expect(FLOATS.test('.menu--wide')).toBe(true);
+    expect(FLOATS.test('.menu:hover')).toBe(true);
+    expect(FLOATS.test('.menu-positioner')).toBe(false);
+    expect(FLOATS.test('.menubar')).toBe(false);
+  });
+
+  it('lets only what floats over the page, or is being dragged, cast a shadow', () => {
+    expect(sorted(today.shadows)).toEqual([]);
+  });
+
+  it('would catch a shadow on the panel, a 12px radius on a card, and either in a list (mutation guard)', () => {
+    const mutated = offenders(
+      `${css}\n.panel { box-shadow: var(--shadow-popover); }\n.card { border-radius: 12px; }`,
+    );
+    expect(mutated.shadows).toEqual(['.panel']);
+    expect(mutated.radii).toContain('.card');
+    const listed = offenders(`${css}\n.menu, .panel { box-shadow: 0 8px 24px var(--line); }`);
+    expect(listed.shadows).toEqual(['.panel']);
+    const corner = offenders(`${css}\n.card { border-top-left-radius: var(--radius-pill); }`);
+    expect(corner.radii).toContain('.card');
+    expect(
+      offenders(`${css}\n.card { text-transform: uppercase; font-weight: 700; }`),
+    ).toMatchObject({
+      capitals: expect.arrayContaining(['.card']),
+      heavy: expect.arrayContaining(['.card']),
+    });
+  });
+
+  it('rounds nothing past 8px but its round marks — save the pill shapes still listed', () => {
+    expect(sorted(today.radii)).toEqual(sorted(ROUND_EXCEPTIONS));
+  });
+
+  it('sets no capitals by CSS — save the labels still listed', () => {
+    expect(sorted(today.capitals)).toEqual(sorted(CAPITALS_EXCEPTIONS));
+  });
+
+  it('weighs nothing above 600 — save the headings and chips still listed', () => {
+    expect(sorted(today.heavy)).toEqual(sorted(HEAVY_EXCEPTIONS));
+  });
+});

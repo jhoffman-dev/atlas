@@ -27,6 +27,12 @@ interface QueuedToast extends ToastShown {
 export interface ToastsState {
   /** Oldest first. */
   readonly toasts: readonly QueuedToast[];
+  /**
+   * Where they are drawn while a modal layer is up — the peek's place for
+   * them, inside its focus trap, so Tab reaches their Undo (#468); null: in
+   * the window, under every layer.
+   */
+  readonly place: HTMLElement | null;
 }
 
 /**
@@ -47,10 +53,12 @@ export interface Toasts {
   openVault(vault: string | null): void;
   /** The vault open now, as last said: an Undo made in another writes nothing. */
   vaultNow(): string | null;
+  /** Draws the toasts in `place` from now on, or back in the window for null. */
+  placeIn(place: HTMLElement | null): void;
 }
 
 export function createToasts(): Toasts {
-  const store = createStore<ToastsState>()(() => ({ toasts: [] }));
+  const store = createStore<ToastsState>()(() => ({ toasts: [], place: null }));
   let shown = 0;
   let open: string | null = null;
   /** Takes the toasts `going` picks out of the queue, and tells each it has gone. */
@@ -83,5 +91,8 @@ export function createToasts(): Toasts {
       if (store.getState().toasts.length > 0) letGo(() => true);
     },
     vaultNow: () => open,
+    placeIn: (place) => {
+      if (store.getState().place !== place) store.setState({ place });
+    },
   };
 }

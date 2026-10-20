@@ -18,10 +18,10 @@ function listenTo(layers: AppShortcuts['layers'], onMac = true): AppShortcuts {
     toggleSidebar: vi.fn(),
     toggleSplit: vi.fn(),
     dailyNote: vi.fn(),
-    quickAdd: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
     show: vi.fn(),
+    capture: vi.fn(),
     toggleChat: vi.fn(),
     toggleAside: vi.fn(),
     tabs: {
@@ -40,26 +40,43 @@ function listenTo(layers: AppShortcuts['layers'], onMac = true): AppShortcuts {
 const press = (init: KeyboardEventInit) =>
   window.dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, altKey: true, ...init }));
 
-describe('Alt+Cmd+N, the add button from the keyboard', () => {
+describe('Alt+Cmd+N, kept from the retired add button: it opens capture (Q5)', () => {
   it('is found by the key in N’s place, where Alt turns it into a dead key', () => {
     const shortcuts = listen();
     press({ key: 'Dead', code: 'KeyN' });
-    expect(shortcuts.quickAdd).toHaveBeenCalledTimes(1);
+    expect(shortcuts.capture).toHaveBeenCalledTimes(1);
     expect(shortcuts.newNote).not.toHaveBeenCalled();
   });
 
   it('is found by the letter N on a layout that puts it elsewhere, as Dvorak does', () => {
     const shortcuts = listen();
     press({ key: 'n', code: 'KeyL' });
-    expect(shortcuts.quickAdd).toHaveBeenCalledTimes(1);
+    expect(shortcuts.capture).toHaveBeenCalledTimes(1);
     expect(shortcuts.newNote).not.toHaveBeenCalled();
   });
 
-  it('is not Shift+Alt+Cmd+N, nor Alt+Cmd with another letter', () => {
+  it('opens capture once for Shift+Alt+Cmd+N, which is Shift+Cmd+N as well', () => {
     const shortcuts = listen();
     press({ key: 'N', code: 'KeyN', shiftKey: true });
+    expect(shortcuts.capture).toHaveBeenCalledTimes(1);
+    expect(shortcuts.show).not.toHaveBeenCalled();
+  });
+
+  it('is not Alt+Cmd with another letter', () => {
+    const shortcuts = listen();
     press({ key: 'b', code: 'KeyB' });
-    expect(shortcuts.quickAdd).not.toHaveBeenCalled();
+    expect(shortcuts.capture).not.toHaveBeenCalled();
+  });
+});
+
+describe('Shift+Cmd+N, capture', () => {
+  it('asks for capture rather than showing it, so the app can say a vault is needed', () => {
+    const shortcuts = listen();
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { metaKey: true, shiftKey: true, key: 'N', code: 'KeyN' }),
+    );
+    expect(shortcuts.capture).toHaveBeenCalledTimes(1);
+    expect(shortcuts.show).not.toHaveBeenCalled();
   });
 });
 
@@ -74,7 +91,7 @@ describe('a shortcut that makes a note, pressed behind an open palette (A14-08)'
     chord({ key: 'Dead', code: 'KeyN', altKey: true });
     expect(shortcuts.newNote).not.toHaveBeenCalled();
     expect(shortcuts.dailyNote).not.toHaveBeenCalled();
-    expect(shortcuts.quickAdd).not.toHaveBeenCalled();
+    expect(shortcuts.capture).not.toHaveBeenCalled();
   });
 
   it('does nothing behind a palette opened since the window last drew (#261)', () => {
@@ -93,7 +110,7 @@ describe('a shortcut that makes a note, pressed behind an open palette (A14-08)'
     chord({ key: 'Dead', code: 'KeyN', altKey: true });
     expect(shortcuts.newNote).toHaveBeenCalledTimes(1);
     expect(shortcuts.dailyNote).toHaveBeenCalledTimes(1);
-    expect(shortcuts.quickAdd).toHaveBeenCalledTimes(1);
+    expect(shortcuts.capture).toHaveBeenCalledTimes(1);
   });
 });
 

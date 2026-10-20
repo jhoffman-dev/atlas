@@ -3,7 +3,7 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- Tokens -------------------------------------------------------------
-   UI v2 "Dense & Calm" (docs/design/ui-v2-brief.md §3, design/v2/Tokens.dc.html).
+   UI v2 "Dense & Calm" (docs/design/ui-v2-brief.md §3, design/target/Tokens.dc.html).
    Two near-neutral palettes: light is white content beside a pale grey
    sidebar; dark is the same on a warm near-black, not a navy. Colour appears
    only as pastel tints — status pills, buttons, the focus ring — never as a
@@ -45,8 +45,6 @@
   --text-ui: var(--text-body);
   --text-card: var(--text-emphasis);
   --text-subtitle: var(--text-section);
-  --text-heading: var(--text-note-title);
-  --text-title: var(--text-note-title);
 
   /* Space */
   --space-1: 4px;
@@ -59,15 +57,14 @@
 
   /* Radius. Chips and pills 4, buttons and inputs 6, popovers and menus 8;
      the panel, cards and board columns are square. Only dots and avatars are
-     fully round — `--radius-pill` stays for them until slice 2 moves the
-     chips and pills onto `--radius-chip`. */
+     meant to be fully round, by `--radius-pill`; some chips and pills
+     still read it rather than `--radius-chip`. */
   --radius-chip: 4px;
   --radius-control: 6px;
   --radius-button: 6px;
   --radius-popover: 8px;
   --radius-card: 0;
   --radius-panel: 0;
-  --radius-hero: 0;
   --radius-pill: 999px;
 
   /* The sidebar's measurements (Sidebar.dc.html): its width, its padding, a
@@ -428,7 +425,6 @@
   --chip: var(--hover);
   --chip-ink: var(--ink-2);
   --grid: var(--chart-grid);
-  --disabled: var(--sep);
 
   /* The one thing to act on is the primary button's pastel, not a filled blue. */
   --accent: var(--btn-primary-bg);
@@ -442,21 +438,10 @@
   /* Charts: muted bars with one called out in the Next blue; the done check
      and the first donut slice in the Done sage. */
   --accent-data: var(--status-next-dot);
-  --cyan: var(--status-next-dot);
-  --cyan-ink: var(--btn-primary-ink);
-  --navy: var(--ink);
   --navy-data: var(--status-done-dot);
-  --bar-muted: var(--chart-bar);
   /* The rest of a chart's bar, what the done part is read against. Not
      `--track`, which is the well tint a switch or a code block sits on. */
   --chart-track: var(--chart-bar);
-  --tile-ink: var(--ink-2);
-  /* The hero is a well fill now, not a gradient, and since slice 13f nothing
-     is drawn on it: these stay until the clean-up slice drops them. */
-  --hero: var(--well);
-  --hero-ink: var(--ink);
-  --hero-muted: var(--ink-3);
-  --hero-tile: var(--selected);
   --you: var(--btn-primary-bg);
   --you-ink: var(--btn-primary-ink);
 
@@ -487,12 +472,9 @@
   --shadow-panel: none;
   --shadow-card: 0 0 0 1px var(--line);
   --shadow-tile: 0 0 0 1px var(--line);
-  --shadow-hero: none;
-  --shadow-badge: none;
   --shadow-soft: 0 0 0 1px var(--line-strong);
   --shadow-accent: none;
   --shadow-overlay: var(--shadow-popover);
-  --glow: none;
 
   /* The ring is two rings: a gap in the surface colour, then the focus
      colour, so it reads against a filled control as well as a bare one. */

@@ -7,6 +7,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import type { NewProperty } from '@atlas/ui';
+import type { ReadTypesAgain } from './use-types.ts';
 
 /**
  * "Add a property" on a note: onto its type, so every note of the type has it,
@@ -33,7 +34,7 @@ export function useAddProperty({
   setProperty: (key: string, value: unknown) => void;
   rememberKind: (key: string, kind: PropertyKind) => void;
   /** Reads the types, the tree and the index again after a type file is written. */
-  onTypeSaved: () => void;
+  onTypeSaved: ReadTypesAgain;
 }): (property: NewProperty) => Promise<string> {
   return useCallback(
     async (property: NewProperty) => {
@@ -51,7 +52,7 @@ export function useAddProperty({
         types: types.map((candidate) => candidate.name),
         property,
       });
-      onTypeSaved();
+      void onTypeSaved();
       return added.key;
     },
     [fs, markdown, typeName, types, setProperty, rememberKind, onTypeSaved],

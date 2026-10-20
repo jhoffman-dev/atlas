@@ -106,8 +106,9 @@ form.inbox__clarify {
   opacity: 0;
 }
 
-/* Room to scroll the last row clear of the quick-add button, which floats
-   over the page's bottom-right corner — where Done is. */
+/* Room to scroll the last row clear of the window's bottom-right corner,
+   where the toasts stand — and where Done is. The room was the retired add
+   button's (UI v2, Q5) and is kept as it was. */
 .inbox {
   padding-bottom: 96px;
 }

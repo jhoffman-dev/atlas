@@ -126,7 +126,6 @@ td:first-child { white-space: nowrap; }
     <a href="#screen">Finding your way</a>
     <a href="#notes">Notes</a>
     <a href="#images">Pictures in notes</a>
-    <a href="#add">The add button</a>
     <a href="#pages">Folders, move, delete</a>
     <a href="#archive">Archive</a>
     <a href="#para">PARA and the Inbox</a>
@@ -191,7 +190,7 @@ pnpm tauri:dev</pre>
       </div>
       <h3>Arrange the sidebar</h3>
       <ul>
-        <li><b>One scroll for the sections.</b> The vault's name, the links at the top (Search, Today, Inbox and the rest) and the footer (Settings, the light/dark switch, sync) stay put. Everything from the first section to the last — Favorites, Types, Views, Dashboards and Pages, in your order — scrolls together in the one area between them, and each open section shows all its rows; no section has a scrollbar of its own.</li>
+        <li><b>One scroll for the sections.</b> The vault's name, the links at the top (Search, Today, Inbox and the rest) and the footer (Settings, the sun-or-moon theme button, sync) stay put. Everything from the first section to the last — Favorites, Types, Views, Dashboards and Pages, in your order — scrolls together in the one area between them, and each open section shows all its rows; no section has a scrollbar of its own.</li>
         <li><b>Headings stay in sight.</b> As you scroll through a section, its heading (with its grip and <b>+</b>) stays pinned at the top until the next section's heading takes its place.</li>
         <li><b>Open or close a section</b> by clicking its heading (Favorites, Types, Views, Dashboards or Pages). A shut section stays exactly where it is in your order; only its rows fold away, so nothing below it jumps past it.</li>
         <li><b>Put the sections in any order.</b> Hover over a heading, or tab to it, and a grip appears just to its left (<b>Move Favorites</b>, <b>Move Pages</b> and so on). Drag the grip, or focus it and press <kbd>⌥↑</kbd> / <kbd>⌥↓</kbd> to move the section one place. Open or shut, every section moves in the same one order.</li>
@@ -255,13 +254,13 @@ pnpm tauri:dev</pre>
         <li><b>A table's row.</b> Click into a row of a type's table or a view's table — any cell — and the sidebar shows that note's properties under <b>Task · selected row</b>, without opening it. Editing them writes the row's file and the table follows; <b>Open</b> and <b>New tab</b> at the foot open the row's note. Click back into the page around the table and the sidebar follows the page again.</li>
         <li><b>A narrow window</b> folds the right sidebar first — under about 1020px with the left sidebar open — and the left sidebar never folds on its own. Asking for the right sidebar there (the button, <kbd>⌥⌘\</kbd> or <kbd>⌘J</kbd>) hides the left one to make room; <kbd>⌘\</kbd> brings it back. <kbd>Esc</kbd> inside the sidebar puts the focus back on the page.</li>
       </ul>
-      <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings and the light/dark switch sit at the bottom of the sidebar (<kbd>⌘,</kbd>), beside the <a href="#sync">sync</a> light once sync is set up. <kbd>⌘J</kbd> opens <a href="#claude">Claude</a> in the right sidebar's <b>Claude</b> tab.</p>
+      <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings (<kbd>⌘,</kbd>) and the theme button sit at the bottom of the sidebar, beside the <a href="#sync">sync</a> light once sync is set up. The theme button shows a moon in light and a sun in dark: press it to switch (<i>Switch to dark theme</i>). Until you press it, Atlas is light or dark as macOS is; Settings → <b>Appearance</b> → <b>Match system</b> turns that back on, and turning it off keeps the theme showing. The choice is this Mac's own. <kbd>⌘J</kbd> opens <a href="#claude">Claude</a> in the right sidebar's <b>Claude</b> tab.</p>
       <h3 id="undo">Undo, and what Atlas tells you</h3>
       <p>A change you make from a list is said in a small dark box at the bottom right — <i>Finished “Send the Larkspur invoice”.</i>, <i>Clarified “Call the bank”.</i>, <i>Moved “Call Mara Quill” to waiting.</i> on a board, <i>Changed “Call Mara Quill”.</i> for a cell — with <b>Undo</b> and a <b>×</b>.</p>
       <ul>
-        <li><b>Where it happens.</b> Ticking, moving or deferring a task on <a href="#today">Today</a>, clarifying a row in the <a href="#para">Inbox</a>, and, in a view's table, board, calendar or timeline, editing a cell, ticking a box or dragging a card or a bar.</li>
+        <li><b>Where it happens.</b> Ticking, moving or deferring a task on <a href="#today">Today</a>, clarifying a row in the <a href="#para">Inbox</a>, accepting or rejecting a <a href="#proposals">proposal</a>, <a href="#tasks">Make task</a> on a checklist line, and, in a view's table, board, calendar or timeline, editing a cell, ticking a box or dragging a card or a bar. An accepted proposal and a new task also offer <b>Open</b>; a rejected proposal has no Undo.</li>
         <li><b>Undo puts the note back byte for byte</b> — your comments, quoting and spacing as you wrote them — not the old values written afresh. It is refused if the note has changed since, by you, another pane, another app or sync, and the box says so in amber: <i>“Send the Larkspur invoice” has changed since — its properties changed — so the change was not undone.</i> It is refused too while the note has unsaved typing in a pane. A change to a note open in a pane is that pane's to undo (<kbd>⌘Z</kbd>), so a view offers no Undo for it.</li>
-        <li><b>It goes by itself after 5 seconds</b>, and its Undo with it. It waits while the pointer is on it or <kbd>Tab</kbd> has reached its Undo; it never takes the focus. Up to three show at once, oldest on top. Today and the Inbox each keep one: their next change takes the last one's place, and only the last can be undone. An error stays until you press <b>×</b>.</li>
+        <li><b>It goes by itself after 5 seconds</b>, and its Undo with it. It waits while the pointer is on it or <kbd>Tab</kbd> has reached its Undo; it never takes the focus. Up to three show at once, oldest on top. Today, the Inbox and the proposals each keep one: their next change takes the last one's place, and only the last can be undone. An error stays until you press <b>×</b>. A failure with nothing to undo — a Make task that failed, or the Undo of a proposal or a Make task that was refused — is said on its page instead, and stays there until you dismiss it.</li>
         <li><b>Missed one?</b> Warnings (amber) and errors (red) are also lines in <a href="#activity">Activity</a>, so one that went while you were looking elsewhere can be found later. A change that worked isn't: the file is its record.</li>
         <li><b>Loading.</b> A page or note that takes more than about 150 ms to read shows a small turning ring where it will be; anything quicker shows nothing at all, so nothing flashes.</li>
       </ul>
@@ -275,7 +274,7 @@ pnpm tauri:dev</pre>
         <li><kbd>⌘N</kbd> makes a note in the folder you're looking at, or at the top level. Made while you're looking at an archived note, it goes at the top level, not in the Archive.</li>
         <li>Right-click a folder in Pages → <b>New note here</b>.</li>
         <li>On a type's page, <b>New &lt;type&gt;</b> (<b>New person</b>, <b>New book</b>) — on the toolbar or at the foot of the table — makes a note of that type from its <a href="#templates">template</a>, in the type's <a href="#home-folders">home folder</a>.</li>
-        <li>The round <b>+</b> button in the corner, or <kbd>⌥⌘N</kbd>, adds a note of one of your chosen types without leaving the page — see <a href="#add">The add button</a>.</li>
+        <li><kbd>⇧⌘N</kbd> (or <kbd>⌥⌘N</kbd>) opens quick capture: type a line and it becomes a task in the Inbox, without leaving the page — see <a href="#capture-anywhere">Quick capture</a>.</li>
       </ul>
       <h3>Write</h3>
       <p>Type markdown as you go (<code>#</code> for headings, <code>-</code> for lists, <code>[]</code> for a checkbox) or type <kbd>/</kbd> for the block menu: headings, lists, task list, quote, code block, callout, table, divider, <b>Link to note</b>, <b>Image</b> and <b>Query</b> (a <a href="#query-blocks">live query</a>).</p>
@@ -314,22 +313,6 @@ pnpm tauri:dev</pre>
       </ul>
       <p><b>Where they go:</b> Settings (<kbd>⌘,</kbd>) → <b>Images</b> → <b>Images go in</b>: the <b>Attachments folder</b> (<code>attachments/</code>, the default) or <b>Beside the note</b>, in the note's own folder.</p>
       <p class="muted">Not yet: resizing a picture, and showing Obsidian's <code>![[picture.png]]</code> embeds as pictures. Those are kept exactly as written, so Obsidian still shows them.</p>
-    </section>
-
-    <section id="add">
-      <h2>The add button</h2>
-      <p class="sub">A round <b>+</b> floats over your work. It adds a note of a type you use often — a task by default — and leaves you where you were.</p>
-      <ul>
-        <li><b>One type</b> chosen: press it (or <kbd>⌥⌘N</kbd>) and a small box asks straight away, e.g. <i>New task…</i></li>
-        <li><b>Two to five types</b>: press it and a short list slides out; pick one.</li>
-        <li>The box asks for a title and up to three things worth filling in on the way — whatever the type requires, then its status, what it links to (a task's project — type a few letters and pick from the suggestions; <b>×</b> clears it) and its first date. <kbd>Return</kbd> adds it and keeps you on your page; <kbd>⌘</kbd> <kbd>Return</kbd> adds it and opens it. <kbd>Esc</kbd> closes it.</li>
-        <li>After adding, a message offers <b>Open</b>.</li>
-        <li>Each goes in its type's <a href="#home-folders">home folder</a> — a task in <code>Tasks/2026/10/</code> — whatever note you're on. A type whose home is blank goes where it always did: a task in the folder you're looking at, anything else at the top level.</li>
-      </ul>
-      <h3>Choose its types</h3>
-      <p>Settings (<kbd>⌘,</kbd>) → <b>Quick add</b>. Use <b>Add a type…</b> to add one (five at most), drag to reorder, and the <b>×</b> beside one to remove it. With none chosen, the button hides.</p>
-      <h3>Move it</h3>
-      <p>Drag it anywhere; when you let go it snaps to the nearest of eight places — the four corners, the middle of the top and bottom edges, and the middle of the left and right sides. From the keyboard, focus it and press <kbd>⌥</kbd> + an arrow. Atlas remembers where you left it.</p>
     </section>
 
     <section id="pages">
@@ -401,7 +384,7 @@ pnpm tauri:dev</pre>
       </div>
       <h3>Set where a project stands</h3>
       <ul>
-        <li><b>A new project shows PARA = Project.</b> Make it from the type's <b>New</b>, the add button or a picker's <b>New project…</b>. A project note with no PARA at all, or one Atlas can't read, counts as a project.</li>
+        <li><b>A new project shows PARA = Project.</b> Make it from the type's <b>New</b> or a picker's <b>New project…</b>. A project note with no PARA at all, or one Atlas can't read, counts as a project.</li>
         <li><b>Change PARA</b> in the note's properties to <b>Area</b> or <b>Resource</b>, and it moves to the Areas or Resources group in every picker. Its type stays Project, its file stays where it is, and links to it keep working.</li>
         <li><b>PARA = Archive</b> puts it away — out of the type's views, pickers and the sidebar's Project count, and out of the weekly review. Set it back to <b>Project</b> (or <b>Area</b>, or <b>Resource</b>) and it's back. <b>Archive</b> does the same from anywhere, keeping what PARA was; <b>Unarchive</b> gives that back. See <a href="#archive">Archive</a>.</li>
         <li><b>Area</b> on a project links the area it's part of; its picker lists only areas. It's optional — a project saves without one.</li>
@@ -457,7 +440,7 @@ pnpm tauri:dev</pre>
         <li>Only a project or an area still in use can be chosen — not one waiting in the Inbox itself, and not an archived one.</li>
         <li><b>A refusal shows on the row</b> it was for, in red, and what you picked stays picked. Nothing was written — except when the status was saved and the filing then failed: the row says so, and the task stays where it was with its new status.</li>
         <li><b>Only statuses your Task type has.</b> A vault whose tasks are still on statuses of their own is offered only the GTD statuses its Task type declares, and is never given one it doesn't; <a href="#tasks">move the tasks to GTD</a> to get all eight. A person picked while the row said Waiting isn't written if you change the status again before Save.</li>
-        <li><b>Undo.</b> Once each one is saved, the <a href="#undo">box at the bottom right</a> says <i>Clarified “Call the bank”.</i> with <b>Undo</b>: the note goes back where it was and says exactly what it said. Only the last one can be undone, and not once the note has been changed since. The box goes by itself after 5 seconds, and the undo with it; it waits while the pointer is on it or <kbd>Tab</kbd> has reached its Undo. A checklist line's <i>… is a task now.</i> stays on the note's page, for 20 seconds; its refusal, with nothing to undo, stays until you dismiss it.</li>
+        <li><b>Undo.</b> Once each one is saved, the <a href="#undo">box at the bottom right</a> says <i>Clarified “Call the bank”.</i> with <b>Undo</b>: the note goes back where it was and says exactly what it said. Only the last one can be undone, and not once the note has been changed since. The box goes by itself after 5 seconds, and the undo with it; it waits while the pointer is on it or <kbd>Tab</kbd> has reached its Undo. A checklist line's <i>… is a task now.</i> is said in the same box, with <b>Open</b> and <b>Undo</b>; only its refusal, with nothing to undo, stays on the note's page until you dismiss it.</li>
         <li><b>Work down the list.</b> Once a row is done — by a key or by <b>Save</b> — the next row has the focus, so the list is worked top to bottom from the keyboard; <kbd>Tab</kbd> walks its name, status, project and dates. A vault whose Task type lacks a status is not offered its key.</li>
         <li><b>Make task</b>, on a plain note with no type, makes it a task waiting in the Inbox, to clarify like any other.</li>
         <li>Proposals aren't filed: they're answered, in the page's <a href="#proposals">Proposals</a> section, and are never in this list.</li>
@@ -487,7 +470,7 @@ pnpm tauri:dev</pre>
       <ul>
         <li><b>Change a home</b> with <code>folder:</code> in the type's file in <code>.atlas/types</code> — <code>folder: Work/Tasks/{YYYY}</code>. <code>{YYYY}</code> and <code>{MM}</code> come from the note's own <code>date</code>, else a date its file name starts with, else today. A blank <code>folder:</code> means no home: its notes go where they always did.</li>
         <li>A folder Atlas can't use — an unknown token, outside the vault, in <code>.atlas</code>, hidden, the Archive, too deep — is ignored, not refused.</li>
-        <li><b>Every way of making a typed note uses it:</b> a template, a view's <b>+ New</b> or a board card, the <a href="#add">add button</a>, <b>New &lt;type&gt;…</b> in a relation, a type's table, <a href="#tasks">Make task</a> on a checklist line, a task from a meeting's action item or an accepted proposal, and <code>POST /v1/notes</code> with no folder. A decision has no home and goes at the top.</li>
+        <li><b>Every way of making a typed note uses it:</b> a template, a view's <b>+ New</b> or a board card, <b>New &lt;type&gt;…</b> in a relation, a type's table, <a href="#tasks">Make task</a> on a checklist line, a task from a meeting's action item or an accepted proposal, <a href="#connect">quick add</a> through the API and MCP, and <code>POST /v1/notes</code> with no folder. A decision has no home and goes at the top.</li>
         <li><b>A folder you choose wins.</b> <b>New note here</b> on a folder puts it there; quick capture (<kbd>⇧⌘N</kbd>) puts it in the <code>Inbox</code>. A plain note with no type still goes beside the note you're on, or at the top.</li>
       </ul>
       <h3>Tidy the vault, once</h3>
@@ -546,7 +529,7 @@ pnpm tauri:dev</pre>
       <h3>What uses a template</h3>
       <p>A template's name is what ties it to what it makes:</p>
       <ul>
-        <li><b>A type's template</b> is called what the type is called — <b>Person</b> for Person, in any capitals. Every new note of the type starts from it: <b>New person</b> on the type's page and at the foot of its table, the <a href="#add">add button</a>, <a href="#people">Create person “…”</a>.</li>
+        <li><b>A type's template</b> is called what the type is called — <b>Person</b> for Person, in any capitals. Every new note of the type starts from it: <b>New person</b> on the type's page and at the foot of its table, <a href="#people">Create person “…”</a>, and <a href="#connect">quick add</a> through the API and MCP.</li>
         <li><b>Daily</b> is what <b>Today's note</b> starts as — without one, it starts as a note of the Daily type with <i>What happened</i> and <i>What is next</i> headings — <b>Task</b> what a <a href="#tasks">captured task</a> starts as, and <b>Artifact</b> what a <a href="#artifacts">saved artifact</a> starts as.</li>
         <li><b>Any other template</b> is only offered in the New menu — the <b>+</b> beside the vault's name, under <b>Blank note</b>, <b>Today's note</b> and <b>Claude artifact…</b>.</li>
       </ul>
@@ -991,7 +974,7 @@ ORDER BY phase</pre>
         <li>Nothing the line said is lost. A line of plain words becomes a link to the task that reads the same — <i>Order chairs</i> stays <i>Order chairs</i>, even when the file had to be named differently. A line with a link, a tag, code or bold in it keeps all of that after the new link, and the new task starts with the line in its text too, so the person it mentions and its tags are linked from the task as well.</li>
         <li>The line keeps its box, and the lines under it stay. The list it is in is written again, so a list written with <code>*</code> or numbers comes back with <code>-</code> — the same as typing in it would. The rest of the note is untouched.</li>
         <li>A line that is a task already — it starts with a link to one — isn't made a task again: <i>That line is the task “Order chairs” already.</i> A very long line's task gets a name cut short to fit a file name.</li>
-        <li>The page says <i>“Order chairs” is a task now.</i> with <b>Open</b> and <b>Undo</b>. <b>Undo</b> puts the line back exactly as it was and sends the task to the Trash, in one step — unless either changed since, which it says. <kbd>⌘Z</kbd> in the note doesn't take a promotion back: a note read again from its file is never a step to undo.</li>
+        <li>The <a href="#undo">box at the bottom right</a> says <i>“Order chairs” is a task now.</i> with <b>Open</b> and <b>Undo</b>; it goes by itself after 5 seconds, and waits while the pointer or the focus is on it. <b>Undo</b> puts the line back exactly as it was and sends the task to the Trash, in one step — unless either changed since, which a line under the page's bar says until you dismiss it. So does a line that could not be made a task. <kbd>⌘Z</kbd> in the note doesn't take a promotion back: a note read again from its file is never a step to undo.</li>
         <li>Typing in the note is saved first. A line that is empty can't be made a task, and a template's lines aren't offered.</li>
       </ul>
       <h3>The GTD views</h3>
@@ -1064,7 +1047,7 @@ ORDER BY phase</pre>
         <li><b>Change it</b> in Settings (<kbd>⌘,</kbd>) → <b>Quick capture from anywhere</b>: <b>Change…</b>, then press the new keys — hold two of <kbd>⌘</kbd>, <kbd>⌥</kbd> and <kbd>⌃</kbd> with a letter, digit, function key (F1–F20) or Space. One alone is refused: a shortcut from any app reaches Atlas first, so <kbd>⌘C</kbd> would stop copying everywhere and <kbd>⌥E</kbd> typing é. So are macOS's own, such as <kbd>⌃⌘Q</kbd> (Lock Screen) and <kbd>⌥⌘Esc</kbd> (Force Quit). <b>Turn off</b> stops it; <b>Use ⌃⌥N</b> puts the default back. It's set for each Mac on its own.</li>
         <li>If macOS won't give Atlas the keys, Settings says <i>“— not working”</i> beside them, with why, and the shortcut you had before keeps working: choose others. macOS may also let two apps share a shortcut, and Atlas can't always tell — if a press opens another app, or nothing, choose other keys.</li>
         <li>It works while Atlas is running. Closing Atlas's window quits it, and then nothing is listening.</li>
-        <li>While it's set to <kbd>⌃⌥N</kbd>, those keys open capture inside Atlas too, in place of the add button (which <kbd>⌥⌘N</kbd> still opens).</li>
+        <li>Inside Atlas, <kbd>⌥⌘N</kbd>, and your capture-from-anywhere keys (<kbd>⌃⌥N</kbd> to start with), open capture too. One difference from <kbd>⇧⌘N</kbd>: <kbd>⌥⌘N</kbd> does nothing while a palette, a dialog or the peek is up, where <kbd>⇧⌘N</kbd> still opens capture. With no vault open, none of them opens it: Atlas says it needs a vault first.</li>
         <li><b>Today</b> in the sidebar is a view, and <b>Inbox</b> the <a href="#para">Inbox page</a>, which lists everything in the <code>Inbox</code> folder, every <a href="#meetings">meeting</a> not yet filed, and every task still at Inbox; their counts update as you work.</li>
       </ul>
     </section>
@@ -1074,7 +1057,7 @@ ORDER BY phase</pre>
       <p class="sub">Set time aside on the calendar for your tasks: one block for a big task, or one block that several small tasks are pushed into. Each task shows how much of its estimate is scheduled.</p>
       <h3>Blocks</h3>
       <ul>
-        <li>A block is a note of the <b>Block</b> type: <b>Start</b> and <b>End</b>, each a day and a time (<code>2026-10-12T09:00</code>), and <b>Tasks</b>, the tasks it holds. Make one like any note, from <a href="#add">the add button</a>.</li>
+        <li>A block is a note of the <b>Block</b> type: <b>Start</b> and <b>End</b>, each a day and a time (<code>2026-10-12T09:00</code>), and <b>Tasks</b>, the tasks it holds. Make one like any note of a type, with <b>New block</b> on the Block type's page.</li>
         <li>Atlas adds the Block type once your tasks follow <a href="#tasks">GTD</a> — when the vault opens, or as soon as you move your tasks — and says so in <a href="#activity">Activity</a>. A Block type you already have is left as it is, and it can't be deleted — its properties are yours to change.</li>
         <li>A block also keeps the Google Calendar event it will sync with (<b>Google event</b>, <b>Google version</b>); leave them alone.</li>
       </ul>
@@ -1490,11 +1473,11 @@ ORDER BY phase</pre>
       </ul>
       <h3>What each answer does</h3>
       <ul>
-        <li><b>Accept</b> writes what the card shows and files the proposal in the <a href="#archive">Archive</a> with <code>state: accepted</code> and <code>answered_via: app</code> — <code>api</code> when Claude answered it for you through the <a href="#connect">Local API</a>, so the Archive keeps who said yes. The card leaves at once and the next one can be answered straight away; what it makes is written behind it. Answered from the keyboard, the focus moves to the next card, so <kbd>Enter</kbd> on the next Accept is all it takes. Closing the window waits for answers still being written. The notice at the top says <i>“Accepted: Send Mara the payroll file.”</i> with <b>Open Send Mara the payroll file</b> to go to it, and <b>Undo</b>. If the write fails, the card comes back with why on it, still waiting for an answer.</li>
+        <li><b>Accept</b> writes what the card shows and files the proposal in the <a href="#archive">Archive</a> with <code>state: accepted</code> and <code>answered_via: app</code> — <code>api</code> when Claude answered it for you through the <a href="#connect">Local API</a>, so the Archive keeps who said yes. The card leaves at once and the next one can be answered straight away; what it makes is written behind it. Answered from the keyboard, the focus moves to the next card, so <kbd>Enter</kbd> on the next Accept is all it takes. Closing the window waits for answers still being written. The <a href="#undo">box at the bottom right</a> says <i>“Accepted: Send Mara the payroll file.”</i> with <b>Open Send Mara the payroll file</b> to go to it, and <b>Undo</b>. If the write fails, the card comes back with why on it, still waiting for an answer.</li>
         <li><b>Edit</b> opens what it would write — the title, each property, the body (for a link, just the link) — so you can change it, then <b>Accept as edited</b>. A list shows as items with commas between; an item holding a comma of its own is in double quotes (<code>"[[Larkspur Payroll, Inc.]]", [[Fenn &amp; Co]]</code>). A property you don't touch is written exactly as proposed. <b>Cancel</b> leaves it as it was. The proposal is archived with your edit, so the Archive shows what was actually accepted.</li>
         <li><b>Reject</b> writes nothing it proposed and files it in the Archive with <code>state: rejected</code> — kept, never deleted.</li>
-        <li><b>Several at once.</b> With two or more waiting, each card has a box: tick the ones you want — <kbd>Shift</kbd>-click a second box to take every card between — or <b>Select all</b>. The bar says <i>3 selected</i> with <b>Accept 3 proposals</b>, <b>Reject 3 proposals</b> and <b>Clear</b>. Each is answered in turn exactly as its own Accept or Reject would; one that can't be stays on the list, still ticked, with why on its card — and any card you tick while they are written stays ticked too — and the notice says so — <i>“Accepted 2 proposals. 1 was not: its card says why.”</i> One <b>Undo</b> takes back every accept in the batch.</li>
-        <li><b>Undo</b> after an accept takes away what it made — if nothing has changed it since — and puts the proposal back, open again. The notice goes by itself after 20 seconds (it waits while the pointer is on it or the focus is in it), and once it has gone so has the undo. Each notice's Undo takes back the accept it names: an undo still being written never takes away a later accept's Undo. A notice that says something failed — an undo that could not be done — stays until you press <b>×</b>.</li>
+        <li><b>Several at once.</b> With two or more waiting, each card has a box: tick the ones you want — <kbd>Shift</kbd>-click a second box to take every card between — or <b>Select all</b>. The bar says <i>3 selected</i> with <b>Accept 3 proposals</b>, <b>Reject 3 proposals</b> and <b>Clear</b>. Each is answered in turn exactly as its own Accept or Reject would; one that can't be stays on the list, still ticked, with why on its card — and any card you tick while they are written stays ticked too — and the box says so — <i>“Accepted 2 proposals. 1 was not: its card says why.”</i> One <b>Undo</b> takes back every accept in the batch.</li>
+        <li><b>Undo</b> after an accept takes away what it made — if nothing has changed it since — and puts the proposal back, open again. The box goes by itself after 5 seconds (it waits while the pointer is on it or the focus is in it), and once it has gone so has the undo; a newer answer's box takes its place. Each box's Undo takes back the accept it names: an undo still being written never takes away a later accept's Undo. A reject is said too, with no Undo. Something that failed with nothing to undo — an undo that could not be done — is said at the top of the proposals instead, and stays until you press <b>×</b>.</li>
       </ul>
       <h3>What a proposal can make</h3>
       <div class="table-wrap">
@@ -1921,7 +1904,7 @@ do: archive</pre>
       <ul>
         <li><b>Add a picture to a note</b> (<code>atlas_add_image</code>). From a file, it reads only PNG, JPEG, GIF, WebP, SVG or HEIC images up to 20 MB in your Desktop, Downloads or Pictures folder, or the temporary folder — never anything else on the disk. To use other folders, set <code>ATLAS_MCP_IMAGE_DIRS</code> to them, separated by <code>:</code>; it replaces the list. The picture lands where <a href="#images">pictures you add</a> do, and a link to it goes at the end of the note.</li>
         <li><b>Open today's note</b> (<code>atlas_daily_note</code>, <code>POST /v1/daily</code>): found, or made exactly as <a href="#daily">⇧⌘D</a> makes it. <b>Capture a task</b> (<code>atlas_capture_task</code>, <code>POST /v1/capture</code>) into the Inbox, as quick capture does. The global shortcut itself is a key on one Mac, set in Settings; it isn't reachable through the API.</li>
-        <li><b>Quick add a note of a type</b> (<code>atlas_quick_add</code>), the way <a href="#add">the add button</a> does, from the same list of types (<code>atlas_quick_add_types</code>).</li>
+        <li><b>Quick add a note of a type</b> (<code>atlas_quick_add</code>, <code>POST /v1/quick-add</code>): a name and a few fields, from the type's <a href="#templates">template</a>, in its <a href="#home-folders">home folder</a>. <code>atlas_quick_add_types</code> (<code>GET /v1/quick-add</code>) lists the types it offers and what each asks for. Choose them in Settings (<kbd>⌘,</kbd>) → <b>Quick add</b> — <i>The types Claude and your other tools can quick-add through Atlas’s local API and MCP</i>: <b>Add a type…</b> adds one (five at most), drag to reorder, and the <b>×</b> beside one removes it.</li>
         <li><b>Read each task's schedule</b> (<code>atlas_query</code> with <code>schedule</code>): its estimate, the time its <a href="#timeblocking">blocks</a> set aside, what is done and how far it is over — the same numbers as the task's page. Blocks are notes, made and changed like any other.</li>
         <li><b>Schedule a task</b> (<code>atlas_schedule_task</code>): a new block for it from a start, for some minutes, linking it — or, with no minutes, as long as it still needs — the same as dragging it onto the calendar's empty time. Ask again to split it across another block.</li>
         <li><b>See whether Google Calendar is connected</b> (<code>atlas_status</code>, <code>GET /v1/status</code>): <code>googleCalendar: { connected }</code>, and nothing more. Claude can't read or change your Google calendar or see the sign-in; <a href="#google-calendar">connecting</a> stays in Settings.</li>
@@ -2073,7 +2056,7 @@ pnpm tauri:dev</pre>
             <tr><td><a href="#connect">Local API and MCP</a></td><td>Settings → <b>Connections</b>: turn it on if you want it here, then <code>claude mcp add</code> on this Mac. Each Mac has its own token.</td></tr>
             <tr><td><a href="#capture-anywhere">Quick capture from anywhere</a></td><td><kbd>⌃⌥N</kbd> from the start. If a press doesn't bring Atlas forward — another app on this Mac may use the same keys, which Atlas can't always tell — choose other keys.</td></tr>
             <tr><td>Sync</td><td><b>Pause sync on this Mac</b> stops this Mac only.</td></tr>
-            <tr><td>Look and place</td><td>The theme, where pictures go, and where the add button rests are each Mac's own.</td></tr>
+            <tr><td>Look</td><td>The theme (and <b>Match system</b>) and where pictures go are each Mac's own.</td></tr>
           </tbody>
         </table>
       </div>
@@ -2105,14 +2088,16 @@ pnpm tauri:dev</pre>
             <tr><td><kbd>⌘N</kbd></td><td>New note</td></tr>
             <tr><td><kbd>⇧⌘N</kbd></td><td>Quick capture a task</td></tr>
             <tr><td><kbd>⌃⌥N</kbd></td><td>Quick capture from any app — Atlas comes forward with capture open (<a href="#capture-anywhere">change it in Settings</a>)</td></tr>
-            <tr><td><kbd>⌥⌘N</kbd></td><td>The add button: add a note of your quick-add type, or open its list</td></tr>
-            <tr><td><kbd>⌥</kbd> + arrow</td><td>Move the add button to the next place, while it's focused</td></tr>
+            <tr><td><kbd>⌥⌘N</kbd></td><td>Open capture (as <kbd>⇧⌘N</kbd>, but not over a palette, a dialog or the peek)</td></tr>
             <tr><td><kbd>⌥↑</kbd> <kbd>⌥↓</kbd></td><td>Move a sidebar section up or down, while its grip is focused</td></tr>
             <tr><td><kbd>⇧⌘D</kbd></td><td>Today's note</td></tr>
             <tr><td><kbd>⌘J</kbd></td><td>Open or close <a href="#claude">Claude</a> in the right sidebar</td></tr>
             <tr><td><kbd>⌥⌘\</kbd></td><td>Show or hide <a href="#right-sidebar">the right sidebar</a></td></tr>
             <tr><td><kbd>⌘S</kbd></td><td>Save now</td></tr>
-            <tr><td><kbd>⌘[</kbd> <kbd>⌘]</kbd></td><td>Back, Forward</td></tr>
+            <tr><td><kbd>⌘[</kbd> <kbd>⌘]</kbd></td><td>Back, Forward, in the tab you're in</td></tr>
+            <tr><td><kbd>⌘T</kbd> · <kbd>⌘W</kbd> · <kbd>⌘⇧T</kbd></td><td>New tab · close the tab (never the window) · bring back the tab closed last — see <a href="#tabs">Tabs</a></td></tr>
+            <tr><td><kbd>⌃Tab</kbd> <kbd>⌃⇧Tab</kbd> · <kbd>⌘1</kbd>…<kbd>⌘9</kbd></td><td>Next, previous tab · a tab by its place (<kbd>⌘9</kbd> the last)</td></tr>
+            <tr><td><kbd>N</kbd> <kbd>W</kbd> <kbd>S</kbd> <kbd>D</kbd> · <kbd>T</kbd> <kbd>P</kbd></td><td>Inbox, on a focused task row: Next, Waiting, Someday, Done · Defer date, project — see <a href="#para">PARA and the Inbox</a></td></tr>
             <tr><td><kbd>⌘\</kbd></td><td>Show or hide the sidebar</td></tr>
             <tr><td><kbd>⇧⌘\</kbd></td><td>Split the window, or close the pane you're in (also the split button and each pane's ×)</td></tr>
             <tr><td><kbd>⌘,</kbd></td><td>Settings</td></tr>
@@ -2125,7 +2110,7 @@ pnpm tauri:dev</pre>
             <tr><td><kbd>Return</kbd> · <kbd>⌘</kbd> <kbd>Return</kbd></td><td>On a selected bookmark: start a new line after it · open its note</td></tr>
             <tr><td><kbd>@</kbd> and a letter</td><td>Mention a person, while writing; <kbd>Return</kbd> picks a person, never <b>Create person</b> — <kbd>↓</kbd> to it first</td></tr>
             <tr><td><kbd>#</kbd> and a letter</td><td>Tag suggestions, while writing; <kbd>↓</kbd> <kbd>↑</kbd> to choose, <kbd>Return</kbd> or <kbd>Tab</kbd> to write it</td></tr>
-            <tr><td><kbd>⌘</kbd> <kbd>Return</kbd></td><td>Run a query now — SQL, or an Atlas query as text (in an automation's <b>Which notes</b>, check it now); in quick add, add the note and open it</td></tr>
+            <tr><td><kbd>⌘</kbd> <kbd>Return</kbd></td><td>Run a query now — SQL, or an Atlas query as text (in an automation's <b>Which notes</b>, check it now)</td></tr>
             <tr><td><kbd>M</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>D</kbd> <kbd>A</kbd></td><td>Calendar: month, week, 3 days, day, agenda (with the calendar focused)</td></tr>
             <tr><td><kbd>T</kbd> · <kbd>←</kbd> <kbd>→</kbd></td><td>Calendar: today · previous, next</td></tr>
             <tr><td><kbd>⌘Z</kbd></td><td>Undo a dashboard change, while customizing</td></tr>
