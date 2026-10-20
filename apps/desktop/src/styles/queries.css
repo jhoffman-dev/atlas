@@ -162,7 +162,8 @@
   );
 }
 
-.page--wide .query .table {
+/* Over the wide page's min-height: 0 for a table: this file comes later. */
+.query__main > .table {
   min-height: var(--query-result-floor);
 }
 
