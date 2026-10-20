@@ -4,7 +4,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfileSettings } from './profile-settings.tsx';
 import { SAVE_EMAILS_AFTER_MS, type SelfEmailsView } from './self-emails-form.tsx';
-import { settles } from './settles.test-support.ts';
+import { settles } from './testing/settles.ts';
 
 /** Where the fake clock stands until a test moves it. */
 const FIXED_NOW = new Date('2026-03-02T09:00:00.000Z');
