@@ -104,3 +104,54 @@ test('an offer read while the rows are held lands above them before they show (#
   expect(offer.y + offer.height).toBeLessThanOrEqual((await row.boundingBox())!.y);
   expect(await largestMove(page, 'Item 1', 30)).toBe(0);
 });
+
+/** What Atlas records of the properties it added to built-in types: read only as the types are set up. */
+const SHIPPED_RECORD = '.atlas/migrations/type-properties.md';
+const NOTHING_RECORDED = [
+  '---',
+  'atlas: migration',
+  '---',
+  '',
+  '# Properties added to built-in types',
+  '',
+  '```json',
+  '{"settled":{},"added":{}}',
+  '```',
+  '',
+].join('\n');
+
+const typesOffer = (page: Page) =>
+  inbox(page).getByRole('complementary', { name: 'Set your types up for the Inbox' });
+
+test('the Inbox waits for the types offer’s read too: held, the rows wait; let go, it lands above them, and nothing is new above (#381)', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  for (const folder of ['Inbox', '.atlas/migrations']) await vault.mkdir(folder);
+  for (let n = 1; n <= ROWS; n++) await vault.write(`Inbox/Item ${n}.md`, `Body of item ${n}.\n`);
+  await vault.write(SHIPPED_RECORD, NOTHING_RECORDED);
+  await page.clock.install();
+  const host = await installHost(page, vault);
+  // Alone: the index reads it in a batch with every other note, and that read goes ahead.
+  const release = host.holdReads(SHIPPED_RECORD, { alone: true });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 60_000 });
+
+  // The page's time stands still, so the Inbox's short wait for its offers cannot run out on its own.
+  await page.clock.pauseAt(Date.now() + 1_000);
+  await page.getByRole('button', { name: /^Inbox/ }).click();
+  await expect(inbox(page)).toBeVisible();
+  await expect(inbox(page).locator('.inbox__held')).toHaveCount(1);
+  await expect(inbox(page).getByRole('button', { name: 'Item 1', exact: true })).toHaveCount(0);
+
+  release();
+  const row = inbox(page).getByRole('button', { name: 'Item 1', exact: true });
+  await expect(row).toBeVisible();
+  await expect(typesOffer(page)).toBeVisible();
+  const offer = (await typesOffer(page).boundingBox())!;
+  expect(offer.y + offer.height).toBeLessThanOrEqual((await row.boundingBox())!.y);
+  await page.clock.resume();
+  expect(await largestMove(page, 'Item 1', 30)).toBe(0);
+  await expect(page.getByRole('button', { name: /New above/ })).toHaveCount(0);
+});

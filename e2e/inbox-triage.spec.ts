@@ -288,3 +288,110 @@ test('Reject all files every proposal of the question as rejected, writing nothi
   expect(await vault.read(STANDUP)).not.toContain('owner');
   await expect(question).toHaveCount(0);
 });
+
+/** The triage vault with five tasks to clarify, two more than `triageVault`'s three. */
+async function fiveTaskVault(): Promise<FakeVault> {
+  const vault = await triageVault();
+  await vault.write('Inbox/Renew the passport.md', note(['type: task', 'status: inbox'], 'June.'));
+  await vault.write('Inbox/Fix the gate.md', note(['type: task', 'status: inbox'], 'It sticks.'));
+  return vault;
+}
+
+/** The titles of the task rows, top to bottom, once all `count` are listed. */
+async function taskRows(page: Page, count: number): Promise<string[]> {
+  const tasks = inboxPage(page)
+    .getByRole('row')
+    .filter({ has: page.getByRole('button', { name: 'Save', exact: true }) });
+  await expect(tasks).toHaveCount(count);
+  return tasks.locator('.table__title').allTextContents();
+}
+
+test('five rows by key alone: each row leaves and the next has the focus before its write is done, every file says its key, and Undo takes the last back (#308)', async ({
+  page,
+}) => {
+  const vault = await fiveTaskVault();
+  const host = await open(page, vault);
+  const titles = await taskRows(page, 5);
+  const keys = ['n', 'w', 's', 'd', 'n'];
+  const written = ['next-action', 'waiting', 'someday', 'archive', 'next-action'];
+  // The first write is held on the disk: the rows after it must not wait for it.
+  const release = host.holdWrites(`Inbox/${titles[0]}.md`);
+
+  await row(page, titles[0] ?? '').focus();
+  for (const [at, key] of keys.entries()) {
+    await page.keyboard.press(key);
+    await expect(row(page, titles[at] ?? '')).toHaveCount(0);
+    const next = titles[at + 1];
+    if (next !== undefined) await expect(row(page, next)).toBeFocused();
+  }
+  // Nothing has reached the disk behind the held write: the rows left on the keys alone.
+  expect(await vault.read(`Inbox/${titles[1]}.md`)).toContain('status: inbox');
+
+  release();
+  for (const [at, title] of titles.entries()) {
+    await expectFile(vault, `Inbox/${title}.md`).toContain(`status: ${written[at]}`);
+  }
+  // A key writes its status and nothing else: no project it was not given.
+  for (const title of titles) {
+    expect(await vault.read(`Inbox/${title}.md`)).not.toContain('project:');
+  }
+
+  const last = titles[4] ?? '';
+  const said = inboxPage(page)
+    .getByRole('status')
+    .filter({ hasText: `Clarified “${last}”.` });
+  await said.getByRole('button', { name: 'Undo' }).click();
+  await expectFile(vault, `Inbox/${last}.md`).toContain('status: inbox');
+  await expect(row(page, last)).toBeVisible();
+});
+
+test('a key refused on the disk brings its row back saying why, and the rows after it are still written (#308)', async ({
+  page,
+}) => {
+  const vault = await fiveTaskVault();
+  const host = await open(page, vault);
+  const [first = '', second = ''] = await taskRows(page, 5);
+  const refuse = host.holdWrites(`Inbox/${first}.md`);
+
+  await row(page, first).focus();
+  await page.keyboard.press('n');
+  await expect(row(page, second)).toBeFocused();
+  await page.keyboard.press('s');
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo(`Inbox/${first}.md`)).toBeGreaterThan(0);
+  refuse({ fail: 'The disk is full.' });
+
+  await expect(row(page, first)).toBeVisible();
+  await expect(row(page, first)).toContainText(/The disk is full/);
+  expect(await vault.read(`Inbox/${first}.md`)).toContain('status: inbox');
+  await expectFile(vault, `Inbox/${second}.md`).toContain('status: someday');
+});
+
+test('“Not now” puts the types offer away for the session: back on the Inbox from another page, it stays away (#308)', async ({
+  page,
+}) => {
+  const vault = await triageVault();
+  await open(page, vault);
+  const offer = inboxPage(page).getByRole('complementary', {
+    name: 'Set your types up for the Inbox',
+  });
+  await expect(offer).toBeVisible();
+  await offer.getByRole('button', { name: 'Not now' }).click();
+  await expect(offer).toHaveCount(0);
+
+  await page
+    .getByRole('list', { name: 'Go to' })
+    .getByRole('button', { name: /^Today/ })
+    .click();
+  await expect(inboxPage(page)).toHaveCount(0);
+  await page
+    .getByRole('list', { name: 'Go to' })
+    .getByRole('button', { name: /^Inbox/ })
+    .click();
+  await expect(
+    inboxPage(page).getByRole('button', { name: 'Call the bank', exact: true }),
+  ).toBeVisible();
+  await expect(offer).toHaveCount(0);
+  // Put away, not answered: no type was written for it.
+  expect(await vault.exists('.atlas/types/project.md')).toBe(false);
+});
