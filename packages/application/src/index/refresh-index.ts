@@ -1,16 +1,16 @@
 import {
   compileImportDeclarationsQuery,
   compileImportOutcomesQuery,
-  compileRelationHoldersQuery,
+  compileLinkHoldersQuery,
   createVaultPath,
   IMPORT_OUTCOMES_PAGE,
   importOutcomesOf,
   isMeetingInboxPath,
-  linkedName,
+  LINK_NAMES_PER_QUERY,
   noteChangesBetween,
-  RELATION_NAMES_PER_QUERY,
   type CompiledQuery,
   type ImportOutcome,
+  type LinkChanges,
   type NoteChange,
   type NoteVersion,
   type VaultPath,
@@ -146,11 +146,12 @@ export async function refreshIndex({
   const removed = [...known.keys()].filter((path) => !current.has(path));
   if (removed.length > 0) await index.remove(removed.map(createVaultPath), scope);
 
-  // A note made or gone can change which note an unchanged note's relation means.
+  // A note made or gone can change which note an unchanged note's link means,
+  // in a property or in the body (#431).
   const added = [...current.keys()].filter((path) => !known.has(path));
-  const staleByRelation = await relationHolders(index, [...added, ...removed]);
+  const staleByLink = await linkHolders(index, { made: added, gone: removed });
   const stalePaths = new Set(stale.map((note) => note.path as string));
-  for (const path of staleByRelation) {
+  for (const path of staleByLink) {
     const note = current.get(path);
     if (note !== undefined && !stalePaths.has(path)) {
       stale.push(note);
@@ -347,30 +348,44 @@ function versionsNow({
 
 /**
  * Takes notes the app has just moved or deleted out of the index at once, and
- * with them every note whose relation named them. The refresh that follows
- * cannot see a removal it did not make, so it would never re-resolve those
- * relations; taken out too, the holders are read again as new notes.
+ * with them every note whose link — a relation or in the body — pointed at
+ * them. The refresh that follows cannot see a removal it did not make, so it
+ * would never re-resolve those links; taken out too, the holders are read
+ * again as new notes. The notes linking to a holder are not: their links
+ * already point at it (#440).
  */
 export async function forgetNotes(index: IndexPort, paths: readonly VaultPath[]): Promise<void> {
   if (paths.length === 0) return;
-  const holders = await relationHolders(index, paths);
+  const holders = await linkHolders(index, { made: [], gone: paths });
   await index.remove([...new Set<string>([...paths, ...holders])].map(createVaultPath));
 }
 
 /**
- * The indexed notes holding a relation written as the name of one of these
- * notes — asked before those notes' own rows change, so a note that has gone
- * is still there to be pointed at.
+ * The indexed notes holding a link, a relation or in the body, that these
+ * notes made or gone could move — asked before those notes' own rows change,
+ * so a note that has gone is still there to be pointed at. Every page of each
+ * answer is read: the host cuts a long one short, and a holder left out would
+ * never be read again.
  */
-async function relationHolders(index: IndexPort, changed: readonly string[]): Promise<string[]> {
-  const names = [...new Set(changed.map(linkedName))];
+async function linkHolders(index: IndexPort, changes: LinkChanges): Promise<string[]> {
+  const changed = [
+    ...changes.made.map((path) => ({ path, made: true })),
+    ...changes.gone.map((path) => ({ path, made: false })),
+  ];
   const holders: string[] = [];
-  for (let offset = 0; offset < names.length; offset += RELATION_NAMES_PER_QUERY) {
-    const { sql, parameters } = compileRelationHoldersQuery(
-      names.slice(offset, offset + RELATION_NAMES_PER_QUERY),
-    );
-    const result = await index.query(sql, parameters);
-    holders.push(...result.rows.map((row) => String(row[0])));
+  for (let at = 0; at < changed.length; at += LINK_NAMES_PER_QUERY) {
+    const batch = changed.slice(at, at + LINK_NAMES_PER_QUERY);
+    const asked: LinkChanges = {
+      made: batch.filter((note) => note.made).map((note) => note.path),
+      gone: batch.filter((note) => !note.made).map((note) => note.path),
+    };
+    for (let offset = 0; ;) {
+      const { sql, parameters } = compileLinkHoldersQuery(asked, offset);
+      const result = await index.query(sql, parameters);
+      holders.push(...result.rows.map((row) => String(row[0])));
+      if (!result.truncated || result.rows.length === 0) break;
+      offset += result.rows.length;
+    }
   }
   return holders;
 }

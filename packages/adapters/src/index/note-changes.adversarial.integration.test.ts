@@ -45,7 +45,9 @@ const FILES_TABLE = `
     summary TEXT NOT NULL DEFAULT '', modified INTEGER NOT NULL, size INTEGER NOT NULL,
     digest TEXT NOT NULL DEFAULT '', note_type TEXT);
   CREATE TABLE IF NOT EXISTS relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
-    target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);`;
+    target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
+  CREATE TABLE IF NOT EXISTS links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL,
+    kind TEXT NOT NULL, leaf TEXT NOT NULL DEFAULT '');`;
 
 interface SentNote {
   path: string;
