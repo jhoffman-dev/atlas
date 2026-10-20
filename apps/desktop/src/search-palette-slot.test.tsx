@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath } from '@atlas/domain';
 import { fakeIndexPort } from '@atlas/application';
 import { createOverlayStore, overlayNow, showOverlay } from './overlay-store.ts';
 import { createWorkspaceStore } from './workspace/workspace-store.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
+import { createIndexStatusStore } from './index/index-status-store.ts';
 
 const RECIPES = { path: createVaultPath('recipes.md'), title: 'Recipes', snippet: 'Sourdough' };
 const NEW_VIEW = { id: 'new-view', label: 'New view' };
@@ -15,20 +16,24 @@ function slot() {
   const store = createOverlayStore();
   const onCommand = vi.fn();
   const onPick = vi.fn();
+  const status = createIndexStatusStore();
+  status.setState({ vault: '/vault', phase: 'ready', revision: 1 });
+  const search = vi.fn(async () => [RECIPES]);
   render(
     <SearchPaletteSlot
       store={store}
       workspace={createWorkspaceStore({ remembered: { read: () => null, write: () => {} } })}
-      index={fakeIndexPort({ search: async () => [RECIPES] })}
+      index={fakeIndexPort({ search })}
       commandsFor={() => [NEW_VIEW]}
       offerFor={() => []}
-      changeKey="ready:1"
+      indexStatus={status}
+      vault="/vault"
       onCommand={onCommand}
       onPick={onPick}
       fallbackFocus={() => null}
     />,
   );
-  return { store, onCommand, onPick };
+  return { store, onCommand, onPick, status, search };
 }
 
 const palette = () => screen.queryByRole('dialog', { name: 'Search notes' });
@@ -73,5 +78,18 @@ describe('the search palette slot', () => {
     expect(store.getState().palette.query).toBe('');
     expect(onCommand).not.toHaveBeenCalled();
     expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
+describe('the search palette slot and the index (#326)', () => {
+  it('searches again when the index has news while it is up, reading the news itself', async () => {
+    const { store, status, search } = slot();
+    act(() => showOverlay(store, 'search'));
+    await userEvent.type(await screen.findByLabelText('Search the vault'), 'sour');
+    await waitFor(() => expect(search).toHaveBeenCalled());
+    const asked = search.mock.calls.length;
+
+    act(() => status.setState({ revision: 2 }));
+    await waitFor(() => expect(search.mock.calls.length).toBe(asked + 1));
   });
 });

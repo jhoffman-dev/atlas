@@ -9,7 +9,7 @@
   "actions": {
     "Open a vault": {
       "commits": 109,
-      "renders": 2944,
+      "renders": 2925,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -106,7 +106,7 @@
     },
     "Open Settings": {
       "commits": 13,
-      "renders": 857,
+      "renders": 622,
       "calls": {
         "api_status": 3,
         "gh_repo_list": 3,
@@ -207,7 +207,7 @@
       }
     },
     "Drag a board card": {
-      "commits": 46,
+      "commits": 44,
       "renders": 1147,
       "calls": {
         "index_manifest": 3,

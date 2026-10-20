@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { toldNews } from '../reads/told-news.test-support.ts';
 import {
   fakeIndexPort,
   fakeVaultFs,
@@ -46,10 +47,15 @@ const markdown = { frontmatterProperties: () => ({}) } as unknown as MarkdownPor
 const fs = fakeVaultFs();
 const index = fakeIndexPort();
 
-const renderSecrets = (store: SecretStorePort, vault: string | null = '/v', active = true) =>
+const renderSecrets = (
+  store: SecretStorePort,
+  vault: string | null = '/v',
+  active = true,
+  news = toldNews(),
+) =>
   renderHook(
     ({ open }: { open: boolean }) =>
-      useSecrets({ store, fs, markdown, index, vault, changeKey: 'k', active: open }),
+      useSecrets({ store, fs, markdown, index, vault, edits: news.feed, active: open }),
     { initialProps: { open: active } },
   );
 
@@ -144,6 +150,24 @@ describe('useSecrets', () => {
 
     await waitFor(() => expect(result.current.rows).toHaveLength(1));
     expect(state.lists).toBe(1);
+  });
+
+  it('lists again for the index’s news only while Settings is open (#326)', async () => {
+    const { store, held, state } = memoryStore();
+    held.set('github', TOKEN);
+    const news = toldNews();
+    const { result, rerender } = renderSecrets(store, '/v', false, news);
+    act(() => news.tell());
+    await act(async () => undefined);
+    expect(state.lists).toBe(0);
+
+    // Opened once: listed once, whatever news came while it was shut.
+    rerender({ open: true });
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    expect(state.lists).toBe(1);
+
+    act(() => news.tell());
+    await waitFor(() => expect(state.lists).toBe(2));
   });
 
   it('is drawn by the Settings card, names only', async () => {

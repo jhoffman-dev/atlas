@@ -7,7 +7,6 @@ import {
   useIndexKey,
   useIndexPhase,
   useIndexReady,
-  useIndexRevision,
   useIndexStatus,
 } from './index-status-store.ts';
 
@@ -24,7 +23,6 @@ function selectorsOver(open: string | null) {
       return {
         ready: useIndexReady(store, vault),
         phase: useIndexPhase(store, vault),
-        revision: useIndexRevision(store),
         failure: useIndexFailure(store, vault),
         key: useIndexKey(store, vault),
         status: useIndexStatus(store, vault),
@@ -76,6 +74,6 @@ describe('the index status store (#238)', () => {
 
     act(() => store.setState({ revision: 2 }));
     expect(result.current.key).toBe('ready:2');
-    expect(result.current.revision).toBe(2);
+    expect(result.current.status).toEqual({ kind: 'ready', notes: 3, revision: 2 });
   });
 });

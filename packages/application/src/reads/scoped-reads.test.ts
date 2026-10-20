@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QUERY_BLOCK_NODE, queryBlockNode, type NoteChange } from '@atlas/domain';
 import {
+  AUTOMATIONS_SCOPE,
   INBOX_CHOICES_SCOPE,
   INBOX_SCOPE,
   MENTIONS_SCOPE,
@@ -10,6 +11,8 @@ import {
   PROJECTS_SCOPE,
   scopeTouched,
   REVIEW_SCOPE,
+  SECRETS_SCOPE,
+  SYNC_SCOPE,
   UNKNOWN_NEWS,
   type IndexNews,
   type PaneNote,
@@ -213,5 +216,32 @@ describe('what the pages and the window’s readers of one kind of note are made
     ).toEqual([true, true, true]);
     expect(reaches(PERSON_EMAILS_SCOPE, company)).toBe(true);
     expect(reaches(PEOPLE_SCOPE, company)).toBe(false);
+  });
+});
+
+describe('which of the index’s news reaches the window’s controllers (#326)', () => {
+  const rule = changed('.atlas/automations/Weekly review.md');
+  const log = { ...changed('.atlas/automations/log/r-1.md'), kind: 'added' } as NoteChange;
+  const plain = changed('Notes/Sourdough.md');
+
+  it('tells sync of every note changed, and of news whose notes are not known', () => {
+    expect([reaches(SYNC_SCOPE, plain), reaches(SYNC_SCOPE, rule)]).toEqual([true, true]);
+    expect(scopeTouched(SYNC_SCOPE, UNKNOWN_NEWS)).toBe(true);
+  });
+
+  it('reads the automations again for a rule or its log, and not for a note saved elsewhere', () => {
+    expect([reaches(AUTOMATIONS_SCOPE, rule), reaches(AUTOMATIONS_SCOPE, log)]).toEqual([
+      true,
+      true,
+    ]);
+    expect(reaches(AUTOMATIONS_SCOPE, plain)).toBe(false);
+    expect(reaches(AUTOMATIONS_SCOPE, changed('.atlas/automations-old/Weekly review.md'))).toBe(
+      false,
+    );
+    expect(scopeTouched(AUTOMATIONS_SCOPE, UNKNOWN_NEWS)).toBe(true);
+  });
+
+  it('reads the secrets again for any note: any note can be a source that names one', () => {
+    expect(reaches(SECRETS_SCOPE, plain)).toBe(true);
   });
 });

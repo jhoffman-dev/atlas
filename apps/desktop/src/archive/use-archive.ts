@@ -64,7 +64,7 @@ function outcomeNotice(outcome: ArchiveOutcome): string | null {
  * offer at all. The rules are the use-cases'; this holds what is on screen.
  * The Archive page's own list is `useArchivePage`'s.
  */
-export function useArchive(options: Omit<ArchiveOptions, 'open'>) {
+export function useArchive(options: Omit<ArchiveOptions, 'open' | 'indexKey'>) {
   const { ports, clock, notePaths, onSettled, offerLinks } = options;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);

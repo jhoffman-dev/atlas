@@ -28,16 +28,37 @@ export function useScopedIndexKey({
   scope: ReadScope;
   enabled?: boolean;
 }): string {
-  const now = () => indexKeyOf(status.getState(), vault);
   const query = useQuery({
+    ...scopedIndexKeyQuery({ status, vault, reader, scope }),
+    enabled: enabled && vault !== null,
+  });
+  return query.data;
+}
+
+/**
+ * The query of the index's key as a reader made from `scope` sees it: one
+ * definition, for a reader that draws on it ({@link useScopedIndexKey}) and
+ * one that only listens (`useScopedIndexNews`).
+ */
+export function scopedIndexKeyQuery({
+  status,
+  vault,
+  reader,
+  scope,
+}: {
+  status: IndexStatusStore;
+  vault: string | null;
+  reader: readonly unknown[];
+  scope: ReadScope;
+}) {
+  const now = () => indexKeyOf(status.getState(), vault);
+  return {
     queryKey: scopedReadKey(vault ?? '', 'index-key', ...reader),
     queryFn: now,
     initialData: now,
     meta: scopedReadMeta(scope),
-    enabled: enabled && vault !== null,
     // Dropped as soon as no reader holds it: a key is read afresh as one starts
     // to, and keeping one per note a tab ever showed would hold a timer each.
     gcTime: 0,
-  });
-  return query.data;
+  };
 }
