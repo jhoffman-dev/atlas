@@ -24,11 +24,6 @@
   text-align: left;
 }
 
-/* The thing to act on, or to read first. */
-.card--raised {
-  box-shadow: var(--shadow-tile);
-}
-
 /* A card that is itself a control. */
 .card--interactive {
   cursor: pointer;
@@ -128,10 +123,7 @@
   --btn-line: var(--btn-destructive-line);
 }
 
-/* `--tinted` was the second action on a raised card; v2 has no tint, so it
-   is drawn as secondary until the clean-up slice renames its callers. */
-.btn--secondary,
-.btn--tinted {
+.btn--secondary {
   --btn-bg: var(--btn-secondary-bg);
   --btn-ink: var(--btn-secondary-ink);
   --btn-line: var(--btn-secondary-line);

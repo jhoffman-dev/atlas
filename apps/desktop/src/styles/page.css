@@ -470,10 +470,6 @@
   white-space: nowrap;
 }
 
-.page-list__sep {
-  color: var(--sep);
-}
-
 .page-section__title {
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -484,13 +480,6 @@
   gap: var(--space-2);
   margin: 0;
   padding: 0 0 var(--space-2);
-}
-
-/* A count or a sentence beside a section's title. */
-.page-section__count {
-  color: var(--ink-3);
-  font-size: var(--text-meta);
-  font-weight: 500;
 }
 
 /* A form that opens under the bar — a new template, a new term — sits on the

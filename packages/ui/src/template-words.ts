@@ -1,9 +1,5 @@
 import type { TemplateUse } from '@atlas/domain';
 
-/** What a template is, in one line: said on the Templates page and over a template being edited. */
-export const TEMPLATE_EXPLANATION =
-  'A template is what a new note starts as — its properties and its text. Editing one changes the notes made from it next, never the ones already made.';
-
 /** What each use of a template is called, for a person. Not a hook: a use of a template. */
 function nameOfUse(use: TemplateUse): string {
   switch (use.kind) {

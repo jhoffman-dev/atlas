@@ -188,7 +188,7 @@ function MentionList({
           </button>
           <button
             type="button"
-            className="btn btn--tinted links__link-button"
+            className="btn btn--secondary links__link-button"
             aria-label={`Link the mention in ${mention.title}`}
             onClick={() => onLink(mention.path)}
           >

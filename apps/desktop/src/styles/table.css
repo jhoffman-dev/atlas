@@ -225,7 +225,6 @@ button.props__link-title:focus-visible {
 /* A link to a note that is not there: its name, muted and struck through. */
 .table__note[data-missing='true'],
 .props__link-title[data-missing='true'],
-.board__field[data-missing='true'],
 .note-chip[data-missing='true'] {
   color: var(--ink-3);
   text-decoration: line-through;
