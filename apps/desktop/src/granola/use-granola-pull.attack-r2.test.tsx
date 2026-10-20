@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // Adversarial probes, round 2, for PR #156 (P28-12) fix commits. Diagnose only: a red test is a defect.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { settles } from './settles.test-support.ts';
 import {
   fakeGranola,
   fakeIndexPort,
@@ -18,6 +19,9 @@ import {
   type GranolaPullOptions,
 } from './use-granola-pull.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
+
+/** Where the fake clock stands until a test moves it: the hook's clock reads it through `Date.now`. */
+const FIXED_NOW = new Date('2026-03-02T09:00:00.000Z');
 
 const VAULT = '/Users/mara/Vault';
 const OTHER = '/Users/mara/Other';
@@ -72,15 +76,15 @@ function setUp(overrides: Partial<GranolaPullOptions> = {}) {
 
 const fifteenMinutes = () => act(async () => vi.advanceTimersByTime(GRANOLA_PULL_INTERVAL_MS));
 
-beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+beforeEach(() => vi.useFakeTimers({ now: FIXED_NOW }));
 afterEach(() => vi.useRealTimers());
 
 describe('useGranolaPull, attacked round 2 (PR #156 fixes)', () => {
   it('ATTACK: one catch-up that never answers leaves the card "Pulling…" (Sync now disabled) after a later catch-up succeeds', async () => {
     const hung = new Promise<boolean>(() => {});
     const { hook, options, lists } = setUp();
-    await waitFor(() => expect(hook.result.current.report?.ended).toBe('pulled'));
-    await waitFor(() => expect(hook.result.current.pulling).toBe(false));
+    await settles(() => expect(hook.result.current.report?.ended).toBe('pulled'));
+    await settles(() => expect(hook.result.current.pulling).toBe(false));
 
     // A sync brings files in; the index's catch-up for it never answers.
     hook.rerender({ ...options, syncPulls: new Map([[VAULT, 1]]), catchUpIndex: () => hung });
@@ -91,11 +95,11 @@ describe('useGranolaPull, attacked round 2 (PR #156 fixes)', () => {
 
     // The next sync brings files in and its catch-up succeeds: the vault is ready again.
     hook.rerender({ ...options, syncPulls: new Map([[VAULT, 2]]), catchUpIndex: async () => true });
-    await waitFor(() => expect(hook.result.current.ready).toBe(true));
+    await settles(() => expect(hook.result.current.ready).toBe(true));
     // Sync now pulls fine now...
     act(() => hook.result.current.syncNow());
-    await waitFor(() => expect(lists()).toBe(2));
-    await waitFor(() => expect(hook.result.current.report?.mode).toBe('sync-now'));
+    await settles(() => expect(lists()).toBe(2));
+    await settles(() => expect(hook.result.current.report?.mode).toBe('sync-now'));
     // ...but the waiting 15-minute pull is never let go: the card says "Pulling" and Sync now stays disabled.
     await act(async () => undefined);
     expect(hook.result.current.pulling).toBe(false);
