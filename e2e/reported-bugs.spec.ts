@@ -106,11 +106,21 @@ test('the same holds for a wiki link being typed', async ({ page }) => {
   expect(box?.width ?? 0).toBeLessThan((box?.paragraphWidth ?? 0) / 2);
 });
 
+/**
+ * Puts the caret at the end of the line with this text. The click lands at the
+ * line's start on purpose: where a click lands is not to be relied on, so the
+ * key that follows must take the caret to the end from anywhere on the line
+ * (#445).
+ */
+async function caretAtLineEnd(page: Page, text: string) {
+  await page.getByText(text).click({ position: { x: 1, y: 5 } });
+  await page.keyboard.press('End');
+}
+
 test('typing after a slash command puts the text where the cursor is', async ({ page }) => {
   const vault = await openNote(page, 'start\n');
 
-  await page.getByText('start').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page, 'start');
   await page.keyboard.press('Enter');
   await page.keyboard.type('/quote');
   await page.getByRole('listbox', { name: 'Insert block' }).waitFor();
@@ -127,8 +137,7 @@ test('typing after a slash command puts the text where the cursor is', async ({ 
 test('a slash-inserted heading takes the text that follows it', async ({ page }) => {
   const vault = await openNote(page, 'start\n');
 
-  await page.getByText('start').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page, 'start');
   await page.keyboard.press('Enter');
   await page.keyboard.type('/head');
   await page.getByRole('listbox', { name: 'Insert block' }).waitFor();
