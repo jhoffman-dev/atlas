@@ -26,7 +26,7 @@ export function TagsContainer({
   selected,
 }: PageContainerProps & { selected: string | null }) {
   const { pages, pane } = wiring;
-  // Any note can take the chosen tag, and a write can change the tags alone (#327).
+  // Any note can take the chosen tag, so any note's news reads it again (#327).
   const indexKey = useScopedIndexKey({
     status: pane.indexStatus,
     vault: pane.vault,

@@ -293,10 +293,8 @@ describe('which of the index’s news reaches the pages that still read on every
     expect(scopeTouched(tasks, UNKNOWN_NEWS)).toBe(true);
   });
 
-  it('reads the tags page again for any note, and for a write that changed only the tags', () => {
+  it('reads the tags page again for any note: any note can take the tag', () => {
     expect(reaches(TAGS_SCOPE, plain)).toBe(true);
-    expect(scopeTouched(TAGS_SCOPE, news([], new Set(['tags'])))).toBe(true);
-    expect(scopeTouched(TAGS_SCOPE, news([], new Set(['graph'])))).toBe(false);
     expect(scopeTouched(TAGS_SCOPE, UNKNOWN_NEWS)).toBe(true);
   });
 

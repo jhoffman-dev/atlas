@@ -132,13 +132,13 @@ export function typeTableScope(typeName: string): ReadScope {
   return { types: [typeName], folders: [TYPES_DIRECTORY] };
 }
 
-/**
- * What the tags page lists for the chosen tag (`loadTaggedNotes`): any note
- * can take a tag, and a write can change the tags alone.
- */
-export const TAGS_SCOPE: ReadScope = { anyNote: true, facets: ['tags'] };
+/** What the tags page lists for the chosen tag (`loadTaggedNotes`): any note can take a tag. */
+export const TAGS_SCOPE: ReadScope = { anyNote: true };
 
-/** The query page (`useQueryPage`): a query of the whole vault, and the index's schema. */
+/**
+ * The query page (`useQueryPage`): a query of the whole vault. Its schema is
+ * read with it; a views rebuild alone tells no news, so it does not move it.
+ */
 export const QUERY_SCOPE: ReadScope = { anyNote: true };
 
 /** The rule editor's "which notes" builder: a query of the whole vault, as the query page's. */

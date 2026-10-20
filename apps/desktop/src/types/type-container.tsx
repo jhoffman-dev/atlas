@@ -6,7 +6,7 @@ import { clearRow, focusRow, hideAside, typeEditorShown, withinOf } from '../asi
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
+import { useLastReadFailed, useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { activePlace } from '../workspace/workspace-store.ts';
 import { useWorkspaceStores } from '../workspace/workspace-wiring.tsx';
 import { typeTabsShown } from './type-tabs.ts';
@@ -45,13 +45,16 @@ export function TypeContainer({
   const { aside, store } = useWorkspaceStores();
   // The row this tab's table held goes with the tab.
   useEffect(() => () => clearRow(aside, tabId), [aside, tabId]);
-  // Read again for news of this type's notes and the type files alone (#327).
+  // Read again for news of this type's notes and the type files alone (#327), or
+  // any news after a failed read (#424): a view not yet rebuilt is rebuilt on news.
   const scope = useMemo(() => typeTableScope(name), [name]);
+  const [failed, tellFailed] = useLastReadFailed();
   const indexKey = useScopedIndexKey({
     status: pane.indexStatus,
     vault: pane.vault,
     reader: ['type', name],
     scope,
+    failed,
   });
   const { onEditType, onNewNote, onEditTemplate } = pages.type;
   // Pressed while the aside shows this type's editor: on its Type tab, with
@@ -77,6 +80,7 @@ export function TypeContainer({
     editors: pane.editors,
     activity: pane.activity,
   });
+  tellFailed(table.error);
   return (
     <LoadedLater chrome={chrome}>
       <TypePage

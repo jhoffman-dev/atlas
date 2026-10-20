@@ -2,7 +2,7 @@ import { ARCHIVE_SCOPE } from '@atlas/application';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { archivePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
+import { useLastReadFailed, useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { useArchivePage } from './use-archive.ts';
 
 const ArchivePage = archivePage.Component;
@@ -15,12 +15,15 @@ const ArchivePage = archivePage.Component;
  */
 export function ArchiveContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
-  // Read again for news of the Archive and the projects alone (#327).
+  // Read again for news of the Archive and the projects alone (#327),
+  // or any news after a failed read (#424).
+  const [failed, tellFailed] = useLastReadFailed();
   const indexKey = useScopedIndexKey({
     status: pane.indexStatus,
     vault: pane.vault,
     reader: ['archive'],
     scope: ARCHIVE_SCOPE,
+    failed,
   });
   const page = useArchivePage({
     ports: pages.ports,
@@ -28,6 +31,7 @@ export function ArchiveContainer({ wiring, chrome }: PageContainerProps) {
     open: true,
     commands: pane.archive,
   });
+  tellFailed(page.error);
   return (
     <LoadedLater chrome={chrome}>
       <ArchivePage
