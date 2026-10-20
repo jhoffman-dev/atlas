@@ -51,3 +51,20 @@ test('Alt+Cmd+N opens capture, and what it captures is a task in the Inbox', asy
   // Alt+Cmd+N is not also Cmd+N: no blank note was made beside it.
   await expect(page.getByRole('treeitem', { name: 'Untitled', exact: true })).toHaveCount(0);
 });
+
+// Capture lands in a vault's Inbox: with none open, both its keys say so, as
+// the global shortcut does, and open nothing (attack-468).
+for (const keys of ['Shift+Meta+n', 'Alt+Meta+n']) {
+  test(`${keys} with no vault open opens no capture and says a vault is needed`, async ({
+    page,
+  }) => {
+    await installHost(page, await createVault());
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Open a vault' })).toBeVisible();
+
+    await page.keyboard.press(keys);
+
+    await expect(page.getByText(/^Quick capture needs a vault/)).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Capture a task' })).toHaveCount(0);
+  });
+}

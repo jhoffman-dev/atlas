@@ -33,6 +33,8 @@ export interface AppShortcuts {
   readonly tabs: TabShortcuts;
   /** Puts up one of the window's overlays. */
   readonly show: (overlay: Overlay) => void;
+  /** Asks for capture: put up when a vault is open, said to need one when none is. */
+  readonly capture: () => void;
   /** Opens or closes Claude, beside the work. */
   readonly toggleChat: () => void;
   /** Shows or hides the right sidebar: Alt+Cmd+\ (UI v2 plan, question 2). */
@@ -144,7 +146,7 @@ export function useAppShortcuts(
         (event.code === 'KeyN' || event.key.toLowerCase() === 'n')
       ) {
         event.preventDefault();
-        if (!held) show('capture');
+        if (!held) latest.current.capture();
       }
       // Shift excluded: Shift+Cmd+\ splits, and Cmd+\ has shut the sidebar
       // since long before there was a split to bind it to. Alt excluded: that
@@ -180,7 +182,7 @@ export function useAppShortcuts(
       // were doing. Cmd+N still makes a blank note in the folder in view.
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'n') {
         event.preventDefault();
-        show('capture');
+        latest.current.capture();
       }
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'd') {
         event.preventDefault();

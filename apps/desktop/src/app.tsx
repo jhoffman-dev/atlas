@@ -705,15 +705,15 @@ function AppWindow({
     [showOverlay, hideOverlay],
   );
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // Pressed from another app with no vault open: capture has no Inbox to land in.
+  // Capture asked for with no vault open: it has no Inbox to land in.
   const [captureWantedVault, setCaptureWantedVault] = useState(false);
-  const globalCapture = useGlobalCapture({
-    ...globalCapturePorts,
-    pressed: () => {
-      setCaptureWantedVault(location === null);
-      if (location !== null) showOverlay('capture');
-    },
-  });
+  // Capture asked for — by ⇧⌘N, ⌥⌘N or the global shortcut: put up with a
+  // vault open, and with none, said to need one rather than opened.
+  const askForCapture = useCallback(() => {
+    setCaptureWantedVault(location === null);
+    if (location !== null) showOverlay('capture');
+  }, [location, showOverlay]);
+  const globalCapture = useGlobalCapture({ ...globalCapturePorts, pressed: askForCapture });
   const captureNeedsVault =
     captureWantedVault && location === null
       ? 'Quick capture needs a vault: open one, and what you capture lands in its Inbox.'
@@ -1541,6 +1541,7 @@ function AppWindow({
     back: () => goBack(workspace),
     forward: () => goForward(workspace),
     show: showOverlay,
+    capture: askForCapture,
     toggleChat: chat.toggle,
     toggleAside: () =>
       asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),

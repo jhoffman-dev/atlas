@@ -19,6 +19,7 @@ function listen(overlay: Overlay | null = null): AppShortcuts {
     back: vi.fn(),
     forward: vi.fn(),
     show: vi.fn(),
+    capture: vi.fn(),
     toggleChat: vi.fn(),
     toggleAside: vi.fn(),
     tabs: {
