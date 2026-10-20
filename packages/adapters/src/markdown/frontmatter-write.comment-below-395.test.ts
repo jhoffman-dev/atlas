@@ -104,11 +104,23 @@ const FORMS = {
   twoLineQuoted: (v: string, deeper: string) => [`"${v} one`, `${deeper}${v} two"`],
   flowList: (v: string) => [`[${v}, x]`],
   block: (v: string, deeper: string) => ['|', `${deeper}${v} one`, `${deeper}${v} two`],
+  blockList: (v: string, deeper: string) => ['', `${deeper}- ${v}a`, `${deeper}- ${v}b`],
+  blockMap: (v: string, deeper: string) => ['', `${deeper}m: ${v}`, `${deeper}n: [${v}]`],
 } satisfies Record<string, (v: string, deeper: string) => string[]>;
 type Form = keyof typeof FORMS;
 
-/** The values a key is changed to: one-line, holding `#`, a list, and two lines. */
-const NEW_VALUES: readonly unknown[] = ['w', 'w # hash', ['w', 'x'], 'w one\nw two'];
+/** The values a key is changed to: one-line, holding `#`, a list, two lines, and a map. */
+const NEW_VALUES: readonly unknown[] = [
+  'w',
+  'w # hash',
+  ['w', 'x'],
+  'w one\nw two',
+  { m: 'w', n: ['x'] },
+];
+
+/** A key's first line: `key: value`, or `key:` alone when the value starts below it. */
+const keyLine = (pad: string, key: string, first: string) =>
+  `${pad}${key}:${first === '' ? '' : ` ${first}`}`;
 
 interface Case {
   readonly original: string;
@@ -119,11 +131,10 @@ interface Case {
   readonly change: string;
 }
 
-/** Whether a value of `form`, or `value` written in its place, is a block scalar, list or map. */
+/** Whether `value`, written in the place of a value of `form`, is a block scalar, list or map. */
 function writtenInBlocks(form: Form, value: unknown): boolean {
-  if (form === 'block') return true;
-  if (form === 'flowList') return typeof value === 'string' && value.includes('\n');
-  return Array.isArray(value);
+  if (typeof value === 'string') return value.includes('\n');
+  return form !== 'flowList' || !Array.isArray(value);
 }
 
 /**
@@ -131,7 +142,7 @@ function writtenInBlocks(form: Form, value: unknown): boolean {
  * comments or other keys about: what its lines must read in any block.
  */
 function writtenAlone(pad: string, lines: readonly string[], target: string, value: unknown) {
-  const block = `---\n${pad}${target}: ${lines.join('\n')}\n---\n`;
+  const block = `---\n${[keyLine(pad, target, lines[0] ?? ''), ...lines.slice(1)].join('\n')}\n---\n`;
   return updateFrontmatter(block, { [target]: value })
     .slice(4, -5)
     .split('\n');
@@ -164,12 +175,12 @@ function generated(random: () => number): Case {
     for (let n = pick(3); n > 0; n--) lines.push(`${' '.repeat(pick(indent + 1))}# above k${at}`);
     const form = forms[pick(forms.length)]!;
     const block = form === 'block';
-    // Comments under a block value, or under a value changed to one, are still
-    // moved by a change (#430): the target has none there.
-    const below = at === target && writtenInBlocks(form, value) ? 0 : pick(3);
-    // An inline comment and comments below it is out of #395's scope (#430);
-    // a block scalar's header comment is no value's.
-    const inline = below === 0 && !block && random() < 0.4 ? ' # inline' : '';
+    const ownLine = !block && form !== 'blockList' && form !== 'blockMap';
+    // An inline comment on a value given in blocks has no line left to stand
+    // on: the library places it, and the lines below it go with it.
+    const inline = !block && random() < 0.4 ? ' # inline' : '';
+    const placed = at === target && ownLine && inline !== '' && writtenInBlocks(form, value);
+    const below = placed ? 0 : pick(3);
     const valueLines = FORMS[form](`v${at}`, deeper);
     valueLines[valueLines.length - 1] += inline;
     if (at === target) {
@@ -178,17 +189,23 @@ function generated(random: () => number): Case {
       targetForm = form;
       targetBelow = below;
     }
-    lines.push(`${pad}k${at}: ${valueLines[0]}`, ...valueLines.slice(1));
+    lines.push(keyLine(pad, `k${at}`, valueLines[0] ?? ''), ...valueLines.slice(1));
     for (let n = below; n > 0; n--) {
       // A blank line, or a line as deep as its text, is a block scalar's own.
       if (!block && random() < 0.2) lines.push('');
-      lines.push(`${' '.repeat(indent + 1 + (block ? 0 : pick(5)))}# below k${at}`);
+      // A comment as deep as a block of text would be read as its text: under
+      // a value changed to one, it stays shallower.
+      const shallow = block || (at === target && typeof value === 'string' && value.includes('\n'));
+      lines.push(`${' '.repeat(indent + 1 + (shallow ? 0 : pick(5)))}# below k${at}`);
     }
     if (!block && random() < 0.3) lines.push('');
   }
-  if (random() < 0.3) lines.push('# trailing');
-  // Blank lines ending the block are dropped by any change, a separate bug (#430).
-  else while (lines.at(-1) === '') lines.pop();
+  const trailing = random() < 0.3;
+  if (trailing) lines.push('# trailing');
+  // Blank lines ending the block are its own (#430) — but a block scalar's
+  // own when nothing stands between them and it.
+  const lastIsBlock = !trailing && lines.at(-1)?.startsWith(' '.repeat(indent + 2) + 'v');
+  if (lines.at(-1) !== '' && !lastIsBlock && random() < 0.2) lines.push('');
   const closing = random() < 0.3 ? '---' : `---${eol}`;
   const write = (body: string[]) => `---${eol}${body.join(eol)}${eol}${closing}`;
   const changed = [...lines];
@@ -203,7 +220,7 @@ function generated(random: () => number): Case {
 
 describe('#395 property: a changed value changes that value bytes only', () => {
   const random = seeded(395);
-  const cases = Array.from({ length: 600 }, () => generated(random));
+  const cases = Array.from({ length: 1000 }, () => generated(random));
   it.each(cases.map((one, at) => [at, one.change, one] as const))(
     'case %i: %s',
     (_, __, { original, expected, target, value }) => {
