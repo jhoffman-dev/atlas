@@ -20,6 +20,7 @@ describe('the merge’s words', () => {
       keep: p('People/Mara Quill.md'),
       merge: [p('Mara.md')],
       refusal: null,
+      blockedByTyping: false,
       plan: {
         changes: {},
         conflicts: [{ key: 'teams', kept: ['Payroll', 'Audit'], other: 3, from: p('Mara.md') }],

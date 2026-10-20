@@ -335,14 +335,16 @@ describe('finding every link before a merge (#467)', () => {
     await refreshIndex({ fs: vault.fs, index, markdown });
     vault.files.set('Outside.md', { text: 'From the CRM: [[Marra Quill]].\n', modified: 1 });
     const refreshedFor: string[][] = [];
+    let typing = [p('Notes.md')];
     const typed: MergePorts = {
       ...ports,
       editors: {
         ...pane.editors,
-        dirtyPaths: () => ['Notes.md' as never],
+        dirtyPaths: () => typing,
         flush: async (paths) => {
           pane.flushed.push([...paths]);
           if (paths.includes(p('Notes.md'))) vault.edit('Notes.md', 'Call [[Mara]].\n');
+          typing = [];
         },
       },
       refreshIndex: async (saved) => {
@@ -434,5 +436,49 @@ describe('finding every link before a merge (#467)', () => {
     expect(report.notTrashed).toEqual([SHORT]);
     expect(report.failures[0]).toMatchObject({ path: SHORT, step: 'trash' });
     expect(vault.text(SHORT)).toBe('Changed meanwhile.\n');
+  });
+});
+
+describe('saved views and dashboards linking to a merged person (#467)', () => {
+  const VIEW = '.atlas/views/Mara’s meetings.md';
+  const atlasFolders = (vault: ReturnType<typeof memoryVault>) => {
+    vault.fs.listDirectory = async (folder) =>
+      [...vault.files.keys()]
+        .filter((path) => path.startsWith(`${folder}/`))
+        .map((path) => ({ kind: 'file', name: path.split('/').at(-1)!, path: p(path) }));
+  };
+
+  it('re-points a view’s filter byte for byte, and counts the view in the preview', async () => {
+    const view = '---\nfilters:\n  - owner is [[Mara]]   # hers\n---\n# Mara’s meetings\n';
+    const { vault, preview, ports } = await setUp({ ...VAULT, [VIEW]: view });
+    atlasFolders(vault);
+    const shown = await preview([SHORT]);
+    expect(shown.writes.find((write) => write.path === VIEW)?.links).toBe(1);
+    await applyPeopleMerge({ ports, preview: shown });
+    expect(vault.text(VIEW)).toBe(view.replace('[[Mara]]', '[[Mara Quill]]'));
+  });
+
+  it('refuses, naming the view, when it names a merged person by file where no link reaches', async () => {
+    const view = '---\nsql: SELECT * FROM notes WHERE owner = \'Mara.md\' OR x = "[[Mara]]"\n---\n';
+    const { vault, preview } = await setUp({ ...VAULT, [VIEW]: view });
+    atlasFolders(vault);
+    const shown = await preview([SHORT]);
+    expect(shown.refusal).toBe(
+      `${VIEW} names Mara by file, not by a link, so the merge cannot change it safely. Change it by hand, then merge.`,
+    );
+    expect(vault.writes).toEqual([]);
+  });
+});
+
+describe('a dashboard naming a merged person with no link at all (#467)', () => {
+  it('refuses, naming the dashboard', async () => {
+    const BOARD = '.atlas/dashboards/Team.md';
+    const { vault, preview } = await setUp({
+      ...VAULT,
+      [BOARD]: "---\nsql: SELECT * FROM notes WHERE owner = 'Mara.md'\n---\n",
+    });
+    vault.fs.listDirectory = async (folder) =>
+      folder === '.atlas/dashboards' ? [{ kind: 'file', name: 'Team.md', path: p(BOARD) }] : [];
+    expect((await preview([SHORT])).refusal).toContain(BOARD);
   });
 });

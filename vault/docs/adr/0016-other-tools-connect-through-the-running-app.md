@@ -819,13 +819,18 @@ the preview read. On the same terms as a tag rename:
   shown; the merge is worked out afresh and made only while it gives that
   version again — otherwise `conflict`, nothing written (amended in #467: a
   confirm with no version, or another, is not the merge the caller saw).
-- **A note being typed in refuses the merge**, never flushed: a merge that
-  wrote around one note would leave its links pointing at a person about to
-  go to the Trash.
+- **Typing in the app's panes is saved first, and the index brought up to
+  the files** — the app's own refresh, handed to the router — before the
+  links are looked for (amended in #467: a link typed a moment ago, or written
+  by another program and not yet indexed, would otherwise point at a person in
+  the Trash). Typing whose save is refused, or an index that cannot catch up,
+  is `conflict`, with nothing written. This is the one route that saves
+  typing for the person, as the app's own merge does.
 - **A note changed since the preview is `conflict`**, with nothing written.
-- **A template linking to a merged person is rewritten**, as the app rewrites
-  it: a template is the person's own words, and the link would otherwise open
-  a note in the Trash (#467). **Any other note of Atlas's own** (a type, say)
+- **A template, saved view or dashboard linking to a merged person is
+  rewritten**, as the app rewrites it: it is the person's own work, and the
+  link would otherwise open a note in the Trash (#467). One that names a
+  merged person by file, where no link reaches, refuses the merge. **Any other note of Atlas's own** (a type, say)
   linking to them refuses the merge, with nothing written; hidden folders are
   never written.
 - **Saying two people are not one is the app's alone for now.** It writes the

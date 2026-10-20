@@ -640,6 +640,10 @@ function AppWindow({
   const apiMoves = useMemo(() => createMoveRelay(), []);
   // What the automation runner, made further down, holds: read by the API's automations routes.
   const apiAutomations = useMemo(() => createAutomationRelay(), []);
+  // Steady: the API's deps last the app's life, and read the index open now.
+  const apiIndexRefresh = useSteadyCallback((recheck: readonly VaultPath[]) =>
+    refresh({ recheck }),
+  );
   const apiDeps = useMemo<ApiRouterDeps>(
     () => ({
       host: apiHost,
@@ -651,6 +655,7 @@ function AppWindow({
       index: indexPorts.index,
       openNotes: openNotesIn(editors),
       movingNotes: movingEditorsIn(editors, apiMoves.follow),
+      indexRefresh: apiIndexRefresh,
       // The queue of the vault open as each request arrives.
       thumbnails: thumbnailsNow,
       // Feeds and SQLite files only: the API never reaches the secret store.
@@ -674,6 +679,7 @@ function AppWindow({
       indexPorts.index,
       editors,
       apiMoves.follow,
+      apiIndexRefresh,
       thumbnailsNow,
       sources.http,
       sources.sqlite,

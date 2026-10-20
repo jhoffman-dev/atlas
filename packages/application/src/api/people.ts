@@ -5,7 +5,6 @@ import {
   PeopleMergeChangedError,
   PeopleMergeRefusedError,
   previewPeopleMerge,
-  type MergePanes,
   type PeopleMergePreview,
   type PeopleMergeReport,
 } from '../people/index.ts';
@@ -21,7 +20,6 @@ import {
   requiredString,
 } from './fields.ts';
 import { isApiNotePath, notePathFrom } from './paths.ts';
-import type { MovingNotes } from './ports.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /*
@@ -53,8 +51,8 @@ export async function duplicatesRoute(request: VaultRequest): Promise<RouteResul
 /**
  * `POST /v1/people/merge`: what merging `merge` into `keep` would do, and —
  * with `confirm` — the merge itself, worked out afresh and written file by
- * file. A note being typed in refuses it: the API never saves someone's
- * typing for them (ADR-0016). A note changed between the preview and the
+ * file. Typing in the app's panes is saved first, as the app's own merge
+ * saves it; typing that cannot be saved refuses it with `conflict` (#467). A note changed between the preview and the
  * writes refuses it too, with nothing written.
  */
 export async function mergePeopleRoute(request: VaultRequest): Promise<RouteResult> {
@@ -70,7 +68,9 @@ export async function mergePeopleRoute(request: VaultRequest): Promise<RouteResu
   request.assertStillOpen();
   const shown = toApiPreview(preview);
   if (!confirm) return { status: 200, body: { merge: shown } };
-  if (preview.refusal !== null) throw new ApiError('invalid', preview.refusal);
+  if (preview.refusal !== null) {
+    throw new ApiError(preview.blockedByTyping ? 'conflict' : 'invalid', preview.refusal);
+  }
   if (version !== preview.version) throw new ApiError('conflict', NOT_AS_SHOWN);
 
   const report = await applyPeopleMerge({ ports, preview }).catch((error: unknown) => {
@@ -103,24 +103,14 @@ function noteNamed(raw: string, field: string, notePaths: readonly VaultPath[]):
   return found;
 }
 
-/** What a merge reaches, bound to this request's vault as an archive batch's ports are. */
-function mergePorts(request: VaultRequest) {
-  const { fs, index, markdown, editors } = archivePorts(request);
-  return { fs, index, markdown, editors: typingLeftAlone(editors) };
-}
-
 /**
- * The panes, as a merge from outside the app may use them: nothing is
- * flushed, so a note being typed in refuses the merge rather than having its
- * typing saved for it.
+ * What a merge reaches, bound to this request's vault as an archive batch's
+ * ports are: the app's panes — typing in any of them is saved first, since it
+ * may hold a link to a merged person — and its index, brought up to the files
+ * before it is asked who links to them.
  */
-function typingLeftAlone(panes: MovingNotes): MergePanes {
-  return {
-    state: (path) => panes.state(path),
-    flush: () => Promise.resolve(),
-    abandon: (paths) => panes.abandon(paths),
-    reload: (path) => panes.reload(path),
-  };
+function mergePorts(request: VaultRequest) {
+  return { ...archivePorts(request), refreshIndex: request.refreshIndex };
 }
 
 function toApiPair(pair: DuplicatePair): ApiDuplicatePair {

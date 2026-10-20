@@ -1,7 +1,10 @@
 import {
+  createVaultPath,
   createWikiLinkResolver,
+  DASHBOARDS_DIRECTORY,
+  TEMPLATES_DIRECTORY,
+  VIEWS_DIRECTORY,
   imagePathsToRebase,
-  isTemplateNote,
   isUserSpaceNote,
   mergeVersion,
   joinFrontmatter,
@@ -22,7 +25,7 @@ import type { IndexPort } from '../index/ports.ts';
 import { forgetNotes, notesLinkingTo } from '../index/refresh-index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { NoteFile, OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';
-import { loadTemplates } from '../types/templates.ts';
+import { markdownPathsIn } from '../types/templates.ts';
 import { filesAmong, type LinkUpdatePanes } from '../vault/update-links.ts';
 
 /** Which person to keep, and who to merge into them. */
@@ -44,6 +47,8 @@ export interface PlannedWrite {
 export interface PeopleMergePreview extends PeopleMergeRequest {
   /** Why it cannot be done, or null. A refused preview has no writes. */
   readonly refusal: string | null;
+  /** Whether it is refused only for typing that is not saved: once it is, it may go ahead. */
+  readonly blockedByTyping: boolean;
   readonly plan: PersonMergePlan | null;
   /** Every file written, each once: the notes linking to a merged person, then the kept one. */
   readonly writes: readonly PlannedWrite[];
@@ -79,9 +84,14 @@ export interface MergePorts {
   readonly refreshIndex?: (saved: readonly VaultPath[]) => Promise<void>;
 }
 
-const refused = (request: PeopleMergeRequest, refusal: string): PeopleMergePreview => ({
+const refused = (
+  request: PeopleMergeRequest,
+  refusal: string,
+  blockedByTyping = false,
+): PeopleMergePreview => ({
   ...request,
   refusal,
+  blockedByTyping,
   plan: null,
   writes: [],
   links: 0,
@@ -106,15 +116,18 @@ export async function previewPeopleMerge({
   /** Every note in the vault, as links resolve among them. */
   notePaths: readonly VaultPath[];
 }): Promise<PeopleMergePreview> {
-  await indexEveryLink(ports, request);
-  // Templates are the person's own words too, and few: each is read whether
-  // or not the index says it links to them (#467).
-  const templates = (await loadTemplates({ fs: ports.fs })).map((template) => template.path);
-  const linking = [...(await notesLinkingTo(ports.index, request.merge)), ...templates];
+  const stuck = await indexEveryLink(ports, request);
+  if (stuck !== null) return refused(request, stuck, true);
+  // Templates, saved views and dashboards are the person's own work too, and
+  // few, and the index leaves them out: each is read whatever it says (#467).
+  const own = (
+    await Promise.all(REWRITTEN_ATLAS_FOLDERS.map((folder) => markdownPathsIn(ports.fs, folder)))
+  ).flat();
+  const linking = [...(await notesLinkingTo(ports.index, request.merge)), ...own];
   const holders = [...new Set(linking)].filter(
     (path) => path !== request.keep && !request.merge.includes(path),
   );
-  const theirs = holders.filter((path) => !isUserSpaceNote(path) && !isTemplateNote(path));
+  const theirs = holders.filter((path) => !isUserSpaceNote(path) && !isRewrittenAtlasNote(path));
   if (theirs.length > 0) return refused(request, atlasOwnRefusal(theirs, request.merge));
   const involved = [request.keep, ...request.merge, ...holders];
   await saveTyping(ports.editors, involved);
@@ -123,6 +136,7 @@ export async function previewPeopleMerge({
     return refused(
       request,
       `${unsaved.join(', ')} ${unsaved.length === 1 ? 'has' : 'have'} unsaved changes. Save them first.`,
+      true,
     );
   }
   const files = new Map((await ports.fs.readNotes(involved)).map((file) => [file.path, file]));
@@ -138,11 +152,20 @@ export async function previewPeopleMerge({
   const plan = planPersonMerge({ ...read, resolve: createWikiLinkResolver(notePaths) });
   const kept = await keptWrite({ ports, files, request, plan, across });
   const rewritten = holders.flatMap((path) => holderWrite(files.get(path), across));
+  // A view or dashboard may name them where no link is: a query comparing a path.
+  const after = new Map(rewritten.map((write) => [write.path, write.after]));
+  const unsafe = holders.filter(
+    (path) =>
+      !isUserSpaceNote(path) &&
+      stillNames(after.get(path) ?? files.get(path)?.text ?? '', request.merge),
+  );
+  if (unsafe.length > 0) return refused(request, unsafeViewRefusal(unsafe, request.merge));
   const writes = [...rewritten, ...(kept === null ? [] : [kept])];
   const merged = request.merge.map((path) => ({ path, text: files.get(path)?.text ?? '' }));
   return {
     ...request,
     refusal: null,
+    blockedByTyping: false,
     plan,
     writes,
     links: writes.reduce((sum, write) => sum + write.links, 0),
@@ -159,13 +182,63 @@ export async function previewPeopleMerge({
  * them: typing in any pane — on any note, since one may have just typed
  * `[[Mara]]` anywhere — is saved, and the index brought up to the files.
  */
-async function indexEveryLink(ports: MergePorts, request: PeopleMergeRequest): Promise<void> {
-  const dirty = new Set<VaultPath>(ports.editors.dirtyPaths?.() ?? []);
+async function indexEveryLink(
+  ports: MergePorts,
+  request: PeopleMergeRequest,
+): Promise<string | null> {
+  const dirty = dirtyNow(ports.editors, request);
+  if (dirty.length > 0) await ports.editors.flush(dirty);
+  // A refused save leaves its pane dirty, and `flush` settles all the same.
+  const stuck = dirtyNow(ports.editors, request);
+  if (stuck.length > 0) return stuckTypingRefusal(stuck, request.merge);
+  await ports.refreshIndex?.(dirty);
+  return null;
+}
+
+/** Every note a pane holds unsaved typing in, the people merging among them. */
+function dirtyNow(editors: MergePanes, request: PeopleMergeRequest): VaultPath[] {
+  const dirty = new Set<VaultPath>(editors.dirtyPaths?.() ?? []);
   for (const path of [request.keep, ...request.merge]) {
-    if (ports.editors.state(path) === 'dirty') dirty.add(path);
+    if (editors.state(path) === 'dirty') dirty.add(path);
   }
-  if (dirty.size > 0) await ports.editors.flush([...dirty]);
-  await ports.refreshIndex?.([...dirty]);
+  return [...dirty];
+}
+
+/** Why a merge waits while typing could not be saved: it may hold a link the merge must move. */
+function stuckTypingRefusal(paths: readonly VaultPath[], merge: readonly VaultPath[]): string {
+  const people = merge.map(noteTitle).join(', ');
+  return (
+    `${paths.join(', ')} ${paths.length === 1 ? 'has' : 'have'} typing that couldn't be saved — ` +
+    `it may link to ${people}. Save it, then merge.`
+  );
+}
+
+/** The folders of Atlas's own a merge rewrites links in: the person's templates, views and dashboards. */
+const REWRITTEN_ATLAS_FOLDERS = [TEMPLATES_DIRECTORY, VIEWS_DIRECTORY, DASHBOARDS_DIRECTORY].map(
+  createVaultPath,
+);
+
+const isRewrittenAtlasNote = (path: VaultPath) =>
+  REWRITTEN_ATLAS_FOLDERS.some((folder) =>
+    path.toLowerCase().startsWith(`${folder.toLowerCase()}/`),
+  );
+
+/**
+ * Whether text still names a merged person by their file once its links are
+ * re-pointed — a view's SQL comparing a path, say — which no link rewrite reaches.
+ */
+function stillNames(text: string, merge: readonly VaultPath[]): boolean {
+  const folded = text.toLowerCase();
+  return merge.some((path) => folded.includes(path.toLowerCase()));
+}
+
+/** Why a merge is refused while a view or dashboard names a merged person in a way it cannot rewrite. */
+function unsafeViewRefusal(paths: readonly VaultPath[], merge: readonly VaultPath[]): string {
+  const people = merge.map(noteTitle).join(', ');
+  return (
+    `${paths.join(', ')} ${paths.length === 1 ? 'names' : 'name'} ${people} by file, not by a link, ` +
+    'so the merge cannot change it safely. Change it by hand, then merge.'
+  );
 }
 
 /** Why a merge is refused while one of Atlas's own files links to a merged person. */

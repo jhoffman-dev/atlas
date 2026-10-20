@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@atlas/domain';
 import { refreshIndex } from '../index/refresh-index.ts';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import {
@@ -152,15 +152,50 @@ describe('POST /v1/people/merge', () => {
     expect(api.activity.reports.length).toBeGreaterThan(0);
   });
 
-  it('never saves typing for the person: a note being typed in refuses the merge', async () => {
+  it('saves typing in the app first, and is a conflict while some cannot be saved', async () => {
     const { api, flushed } = await vault(FILES, { dirty: ['Kickoff.md'] });
     const preview = bodyOf(await merge(api, { keep: KEPT, merge: [SHORT] }))['merge'] as {
       refusal: string;
     };
     expect(preview.refusal).toBe('Kickoff.md has unsaved changes. Save them first.');
+    expect(flushed).toEqual([['Kickoff.md']]);
     const confirmed = await merge(api, { keep: KEPT, merge: [SHORT], confirm: true });
-    expect(codeOf(confirmed)).toBe('invalid');
-    expect(flushed).toEqual([]);
+    expect(codeOf(confirmed)).toBe('conflict');
+    expect(api.writes).toEqual([]);
+  });
+
+  it('saves typing in every pane before it looks for links, and refuses while a save is refused', async () => {
+    const { api, flushed } = await vault();
+    api.deps = {
+      ...api.deps,
+      movingNotes: {
+        ...api.deps.movingNotes,
+        state: (path) => (path === 'Notes.md' ? 'dirty' : 'closed'),
+        dirtyPaths: () => [createVaultPath('Notes.md')],
+      },
+    };
+    const preview = bodyOf(await merge(api, { keep: KEPT, merge: [SHORT] }))['merge'] as {
+      refusal: string;
+    };
+    expect(flushed).toEqual([['Notes.md']]);
+    expect(preview.refusal).toBe(
+      "Notes.md has typing that couldn't be saved — it may link to Mara. Save it, then merge.",
+    );
+  });
+
+  it('is a conflict when the app’s index cannot catch up with the vault', async () => {
+    const { api } = await vault();
+    const asked: (readonly string[])[] = [];
+    api.deps = {
+      ...api.deps,
+      indexRefresh: async (recheck) => {
+        asked.push(recheck);
+        return false;
+      },
+    };
+    const response = await merge(api, { keep: KEPT, merge: [SHORT] });
+    expect(codeOf(response)).toBe('conflict');
+    expect(asked).toEqual([[]]);
     expect(api.writes).toEqual([]);
   });
 
