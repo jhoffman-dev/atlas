@@ -24,6 +24,7 @@ export const BUDGETED_ACTIONS = [
   'Open the 420-row table',
   '⌘K + 5 keys over the table',
   'Drag a board card',
+  'Run a 920-row Atlas query',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];
