@@ -59,7 +59,7 @@ export function CellPickers({
       anchor={editor.anchor}
       label={def.label}
       options={def.options}
-      {...(def.colors !== undefined && { tones: def.colors })}
+      source={def}
       value={held === '' ? null : held}
       onPick={(option) => (option === held ? editor.end() : editor.end({ value: option }))}
       onCancel={() => editor.end()}

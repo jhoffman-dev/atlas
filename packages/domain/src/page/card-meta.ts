@@ -1,7 +1,7 @@
 import type { PropertyKind } from '../types/property-def.ts';
 import { noteNames, type NoteNames } from '../types/relation-names.ts';
 import { cardChips, cardFields } from './card-chip.ts';
-import { optionColor, type OptionColor, type OptionColors } from './pill-colour.ts';
+import { optionColor, optionColorsOf, type OptionColor, type OptionColors } from './pill-colour.ts';
 import { optionLabel } from './status-tone.ts';
 
 /** One value on a card's metadata line: "Phase 14", "Review", "3h". */
@@ -57,7 +57,10 @@ export function cardMeta({
   for (const field of pills) {
     const text = choiceLabel(values[field]);
     if (text === '') continue;
-    const color = optionColor({ colors: colors[field] }, String(values[field]));
+    const color = optionColor(
+      { key: field, colors: optionColorsOf(colors, field) },
+      String(values[field]),
+    );
     byKey.set(field, [{ key: field, text, missing: false, color }]);
   }
   for (const field of chips) {

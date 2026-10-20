@@ -87,28 +87,41 @@ function nameHash(text: string): number {
   return hash >>> 0;
 }
 
+/** Where an option's colour is read from: the property it belongs to, by key, and what its type chose. */
+export interface OptionSource {
+  readonly key?: string | undefined;
+  readonly colors?: OptionColors | undefined;
+}
+
+/** The property whose options are statuses, and so drawn on the status ramp. */
+export const STATUS_PROPERTY: OptionSource = { key: 'status' };
+
+const isStatusProperty = (property: OptionSource | null): boolean =>
+  property?.key !== undefined && property.key.trim().toLowerCase() === STATUS_PROPERTY.key;
+
 /**
  * The colour an option's pill is drawn in, wherever it is drawn: the one the
- * type file chose; else, for a status the ramp knows, its tone; else a stable
- * hue from its value. No value at all is the quiet backlog grey.
+ * type file chose; else, for the status property's options the ramp knows,
+ * their tone; else a stable hue from the value — so a meeting's Kind "Review"
+ * is a hue, not a review status. No value at all is the quiet backlog grey.
  */
-export function optionColor(
-  property: { readonly colors?: OptionColors | undefined } | null,
-  option: string,
-): OptionColor {
-  const chosen = property?.colors?.[option];
-  if (chosen !== undefined) return chosen;
-  if (option.trim() === '' || isKnownStatus(option)) return statusTone(option);
+export function optionColor(property: OptionSource | null, option: string): OptionColor {
+  const colors = property?.colors;
+  // Own keys only: an option called "constructor" is not Object's.
+  if (colors !== undefined && Object.hasOwn(colors, option)) return colors[option] ?? 'backlog';
+  if (option.trim() === '') return statusTone(option);
+  if (isStatusProperty(property) && isKnownStatus(option)) return statusTone(option);
   return hueOf(option);
 }
 
 /**
  * A relation's chip colour: the linked note's own `color` property when it
- * names a hue, else a stable hue from the note's name.
+ * names a hue, else a stable hue from the note's key (`LinkedName.key`) — the
+ * note itself, never the alias a link gives it or a title that arrives late.
  */
-export function relationHue({ name, color }: { name: string; color?: unknown }): PillHue {
+export function relationHue({ key, color }: { key: string; color?: unknown }): PillHue {
   const own = typeof color === 'string' ? color.trim().toLowerCase() : null;
-  return isPillHue(own) ? own : hueOf(name);
+  return isPillHue(own) ? own : hueOf(key);
 }
 
 /** A tag's colour, the same with or without its `#`. */
@@ -124,6 +137,17 @@ export function heldOptions(value: unknown): string[] {
   if (value === null || value === undefined) return [];
   const items = Array.isArray(value) ? value.map(String) : String(value).split(',');
   return items.map((item) => item.trim()).filter((item) => item !== '');
+}
+
+/**
+ * One property's chosen colours out of `optionColorsByKey`'s map; undefined
+ * when it chose none — including for a property called "constructor".
+ */
+export function optionColorsOf(
+  byKey: Readonly<Record<string, OptionColors>>,
+  key: string,
+): OptionColors | undefined {
+  return Object.hasOwn(byKey, key) ? byKey[key] : undefined;
 }
 
 /**

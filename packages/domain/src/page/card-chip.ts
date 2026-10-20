@@ -9,6 +9,7 @@ import {
 import {
   heldOptions,
   optionColor,
+  optionColorsOf,
   relationHue,
   type OptionColor,
   type OptionColors,
@@ -125,7 +126,7 @@ export function cardChips({
   return fields.flatMap((key) => {
     const kind = kinds[key];
     const value = values[key];
-    const pills = fieldPills({ key, value, kind, names, colors: colors[key] });
+    const pills = fieldPills({ key, value, kind, names, colors: optionColorsOf(colors, key) });
     if (pills !== null) return pills;
     const chip = cardChip({ key, value, names, ...(kind === undefined ? {} : { kind }) });
     return chip === null ? [] : [chip];
@@ -157,7 +158,7 @@ function fieldPills({
       icon: 'tag',
       text: optionLabel(option),
       you: false,
-      color: optionColor({ colors }, option),
+      color: optionColor({ key, colors }, option),
     }));
   }
   if (kind !== 'relation' && !(kind === undefined && holdsLinks(value))) return null;
@@ -167,7 +168,7 @@ function fieldPills({
     text: name.text,
     you: false,
     missing: name.missing,
-    ...(!name.missing && { color: relationHue({ name: name.text }) }),
+    ...(!name.missing && { color: relationHue({ key: name.key }) }),
   }));
 }
 

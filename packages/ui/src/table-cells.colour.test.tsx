@@ -26,7 +26,10 @@ function def(key: string, kind: PropertyDef['kind'], more: Partial<PropertyDef> 
 }
 
 const properties: Record<string, PropertyDef> = {
-  kind: def('kind', 'select', { options: ['Interview', '1on1'], colors: { '1on1': 'green' } }),
+  kind: def('kind', 'select', {
+    options: ['Interview', '1on1', 'Review'],
+    colors: { '1on1': 'green' },
+  }),
   labels: def('labels', 'multiSelect', { options: ['payroll', 'renewal'] }),
   companies: def('companies', 'relation', { target: 'company', many: true }),
   status: def('status', 'select', { options: ['doing', 'done'] }),
@@ -43,8 +46,9 @@ const result: TableResult = {
   columns: ['path', 'title', 'kind', 'labels', 'companies', 'status'],
   rows: [
     ['a.md', 'Kickoff', 'Interview', ['payroll', 'renewal'], ['[[Larkspur Payroll]]'], 'doing'],
-    ['b.md', 'Catch-up', '1on1', ['payroll'], ['[[Larkspur Payroll]]', '[[Fenn & Co]]'], 'done'],
-    ['c.md', 'Review', 'Interview', null, null, null],
+    ['b.md', 'Catch-up', '1on1', ['payroll'], ['[[Larkspur Payroll]]', '[[fenn-co]]'], 'done'],
+    ['d.md', 'Debrief', 'Interview', null, null, null],
+    ['c.md', 'Review', 'Review', null, ['[[Larkspur Payroll|Larkspur]]'], null],
   ],
   truncated: false,
   sql: '',
@@ -52,12 +56,12 @@ const result: TableResult = {
 
 const names = noteNames([
   { path: createVaultPath('companies/Larkspur Payroll.md'), title: 'Larkspur Payroll' },
-  { path: createVaultPath('companies/Fenn & Co.md'), title: 'Fenn & Co' },
+  { path: createVaultPath('companies/fenn-co.md'), title: 'Fenn & Co' },
 ]);
 
-function table() {
+function table(known = names) {
   return render(
-    <NoteNamesProvider value={names}>
+    <NoteNamesProvider value={known}>
       <TableView
         result={result}
         sorts={[]}
@@ -99,6 +103,16 @@ describe('a table’s pills', () => {
     expect(doing?.querySelector('.status-pill__dot')).not.toBeNull();
   });
 
+  it('draws a non-status option spelled like a status as a hue, with no status dot', () => {
+    const { container } = table();
+    const review = [...container.querySelectorAll('.status-pill')].find(
+      (pill) => pill.textContent === 'Review',
+    );
+    expect(review?.getAttribute('data-hue')).toBe(hueOf('Review'));
+    expect(review?.getAttribute('data-tone')).toBeNull();
+    expect(review?.querySelector('.status-pill__dot')).toBeNull();
+  });
+
   it('draws each of a multi-select’s options as its own pill', () => {
     const { container } = table();
     const firstRow = container.querySelector('tbody tr');
@@ -117,12 +131,32 @@ describe('a table’s pills', () => {
     );
     expect(larkspur).toHaveLength(2);
     for (const chip of larkspur) {
-      expect(chip.getAttribute('data-hue')).toBe(relationHue({ name: 'Larkspur Payroll' }));
+      expect(chip.getAttribute('data-hue')).toBe(relationHue({ key: 'Larkspur Payroll' }));
     }
     const fenn = [...container.querySelectorAll('.table__note')].find(
       (chip) => chip.textContent === 'Fenn & Co',
     );
-    expect(fenn?.getAttribute('data-hue')).toBe(relationHue({ name: 'Fenn & Co' }));
+    expect(fenn?.getAttribute('data-hue')).toBe(relationHue({ key: 'fenn-co' }));
+  });
+
+  it('colours an aliased link as the note it names, not as its alias', () => {
+    const { container } = table();
+    const aliased = [...container.querySelectorAll('.table__note')].find(
+      (chip) => chip.textContent === 'Larkspur',
+    );
+    expect(aliased?.getAttribute('data-hue')).toBe(relationHue({ key: 'Larkspur Payroll' }));
+  });
+
+  it('keeps a titled note’s hue the same before its title is known and after', () => {
+    const hueOfFenn = (container: HTMLElement) =>
+      [...container.querySelectorAll('.table__note')]
+        .find((chip) => /fenn/i.test(chip.textContent ?? ''))
+        ?.getAttribute('data-hue');
+    const before = hueOfFenn(table(noteNames(null)).container);
+    cleanup();
+    const after = hueOfFenn(table().container);
+    expect(before).toBeDefined();
+    expect(after).toBe(before);
   });
 
   it('leaves a link to a missing note uncoloured', () => {

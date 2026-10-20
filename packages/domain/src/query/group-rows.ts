@@ -76,7 +76,7 @@ export function groupRows({
 }): BoardColumn[] {
   const spelling = SPELLINGS[grouping];
   const toneOf = (value: string): OptionColor | null =>
-    grouping === 'relation' ? null : optionColor({ colors }, value);
+    grouping === 'relation' ? null : optionColor({ key: groupBy, colors }, value);
 
   // A column is keyed by what its value means, so a repeated option — or one
   // note linked two ways — cannot be two columns. The first spelling seen of a

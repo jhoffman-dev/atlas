@@ -8,9 +8,11 @@ import {
   OPTION_COLORS,
   optionColor,
   optionColorsByKey,
+  optionColorsOf,
   PILL_HUES,
   relationHue,
   STATUS_TONES,
+  statusTone,
   tagHue,
 } from './index.ts';
 
@@ -93,10 +95,21 @@ describe('optionColor', () => {
     expect(optionColor(kind, 'Archive')).toBe('done');
   });
 
-  it('draws a status by its tone, as it always has', () => {
-    expect(optionColor(null, 'doing')).toBe('doing');
-    expect(optionColor(null, 'next-action')).toBe('next');
-    expect(optionColor({}, 'Complete')).toBe('done');
+  it('draws the status property’s options by their tone, as it always has', () => {
+    expect(optionColor({ key: 'status' }, 'doing')).toBe('doing');
+    expect(optionColor({ key: 'status' }, 'next-action')).toBe('next');
+    expect(optionColor({ key: 'Status' }, 'Complete')).toBe('done');
+  });
+
+  it('gives any other property’s option a hue, even one spelled like a status', () => {
+    // A meeting's Kind "Review" is not a review status: no dot, no status tone.
+    expect(optionColor({ key: 'kind' }, 'Review')).toBe(hueOf('Review'));
+    expect(optionColor({ key: 'stage' }, 'done')).toBe(hueOf('done'));
+    expect(optionColor(null, 'doing')).toBe(hueOf('doing'));
+  });
+
+  it('still takes a tone the type chose for another property’s option', () => {
+    expect(optionColor({ key: 'kind', colors: { Review: 'review' } }, 'Review')).toBe('review');
   });
 
   it('gives any other option a stable hue from its value', () => {
@@ -112,17 +125,17 @@ describe('optionColor', () => {
 
 describe('relationHue', () => {
   it('colours a linked note by its name', () => {
-    expect(relationHue({ name: 'Larkspur Payroll' })).toBe(hueOf('Larkspur Payroll'));
+    expect(relationHue({ key: 'Larkspur Payroll' })).toBe(hueOf('Larkspur Payroll'));
   });
 
   it('takes the note’s own color property when it names a hue', () => {
-    expect(relationHue({ name: 'Larkspur Payroll', color: 'Green' })).toBe('green');
-    expect(relationHue({ name: 'Larkspur Payroll', color: 'gray' })).toBe('gray');
+    expect(relationHue({ key: 'Larkspur Payroll', color: 'Green' })).toBe('green');
+    expect(relationHue({ key: 'Larkspur Payroll', color: 'gray' })).toBe('gray');
   });
 
   it('ignores a color property that is not a hue', () => {
-    expect(relationHue({ name: 'Mara Quill', color: 'teal' })).toBe(hueOf('Mara Quill'));
-    expect(relationHue({ name: 'Mara Quill', color: 7 })).toBe(hueOf('Mara Quill'));
+    expect(relationHue({ key: 'Mara Quill', color: 'teal' })).toBe(hueOf('Mara Quill'));
+    expect(relationHue({ key: 'Mara Quill', color: 7 })).toBe(hueOf('Mara Quill'));
   });
 });
 
@@ -152,5 +165,38 @@ describe('optionColorsByKey', () => {
     const byKey = optionColorsByKey([kind, { key: 'provider' }]);
     expect(byKey).toEqual({ kind: { Interview: 'blue' } });
     expect(byKey['kind']).toBe(kind.colors);
+  });
+});
+
+describe('values that are also names on every object', () => {
+  const NAMES = ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf'];
+
+  it.each(NAMES)(
+    'colours an option called %s by its value, not by what objects inherit',
+    (name) => {
+      expect(optionColor({ colors: {} }, name)).toBe(hueOf(name));
+      expect(optionColor({ colors: { other: 'red' } }, name)).toBe(hueOf(name));
+      expect(optionColor(null, name)).toBe(hueOf(name));
+    },
+  );
+
+  it.each(NAMES)('reads no colours for a property called %s', (name) => {
+    expect(optionColorsOf({ kind: { a: 'red' } }, name)).toBeUndefined();
+    expect(optionColorsOf({ kind: { a: 'red' } }, 'kind')).toEqual({ a: 'red' });
+  });
+
+  it.each(NAMES)('draws a status called %s in the quiet grey', (name) => {
+    expect(statusTone(name)).toBe('backlog');
+  });
+});
+
+describe('the hash cache', () => {
+  it('gives every name the same hue after the cache has been emptied', () => {
+    const watched = ['Larkspur Payroll', 'Interview', 'mara quill'];
+    const first = watched.map(hueOf);
+    // More names than the cache holds, so it empties at least once.
+    for (let at = 0; at < 5000; at += 1) hueOf(`filler ${String(at)}`);
+    expect(watched.map(hueOf)).toEqual(first);
+    expect(first).toEqual(['purple', 'pink', 'purple']);
   });
 });

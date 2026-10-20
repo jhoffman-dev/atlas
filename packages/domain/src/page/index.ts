@@ -32,11 +32,13 @@ export {
   OPTION_COLORS,
   optionColor,
   optionColorsByKey,
+  optionColorsOf,
   PILL_HUES,
   relationHue,
+  STATUS_PROPERTY,
   tagHue,
 } from './pill-colour.ts';
-export type { OptionColor, OptionColors, PillHue } from './pill-colour.ts';
+export type { OptionColor, OptionColors, OptionSource, PillHue } from './pill-colour.ts';
 export {
   newPropertyKey,
   newPropertyValue,

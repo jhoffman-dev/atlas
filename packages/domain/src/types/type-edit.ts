@@ -335,7 +335,7 @@ export function renameOption(
     const colors = Object.fromEntries(
       Object.entries(current.colors ?? {}).filter(([option]) => option !== from),
     );
-    const keptTone = tone === optionColor(null, trimmed) ? {} : { [trimmed]: tone };
+    const keptTone = tone === optionColor({ key }, trimmed) ? {} : { [trimmed]: tone };
     const renamed = withColors(
       {
         ...current,
@@ -392,7 +392,7 @@ export function setOptionColor(
       throw new TypeEditError(`${current.label} has no "${option}"`);
     const others = Object.entries(current.colors ?? {}).filter(([name]) => name !== option);
     const chosen =
-      tone === null || tone === optionColor(null, option) ? [] : [[option, tone] as const];
+      tone === null || tone === optionColor({ key }, option) ? [] : [[option, tone] as const];
     return withColors(current, Object.fromEntries([...others, ...chosen]));
   });
 }

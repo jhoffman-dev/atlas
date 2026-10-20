@@ -2,6 +2,7 @@ import {
   cardChips,
   cardFields,
   optionColor,
+  optionColorsOf,
   type BoardRow,
   type OptionColors,
   type PropertyKind,
@@ -47,7 +48,7 @@ export function NoteFields({
           <StatusPill
             key={field}
             value={value}
-            tone={optionColor({ colors: colors[field] }, value)}
+            tone={optionColor({ key: field, colors: optionColorsOf(colors, field) }, value)}
           />
         );
       })}

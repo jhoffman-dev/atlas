@@ -66,8 +66,19 @@ describe('cardMeta', () => {
     });
     expect(some).toEqual([
       { key: 'project', text: 'Gone', missing: true },
-      { key: 'project#1', text: 'Here', missing: false, color: relationHue({ name: 'Here' }) },
+      { key: 'project#1', text: 'Here', missing: false, color: relationHue({ key: 'Here' }) },
     ]);
+  });
+
+  it('colours an aliased link as the note it names, before titles load and after', () => {
+    const names = noteNames([{ path: 'co/larkspur.md' as VaultPath, title: 'Larkspur Payroll' }]);
+    const color = (value: string, known = names) =>
+      cardMeta({ fields: ['project'], kinds, values: { project: value }, names: known })[0]?.color;
+    const plain = color('[[larkspur]]');
+    expect(plain).toBe(relationHue({ key: 'larkspur' }));
+    expect(color('[[larkspur|Payroll people]]')).toBe(plain);
+    expect(color('[[co/larkspur]]')).toBe(plain);
+    expect(color('[[larkspur]]', noteNames(null))).toBe(plain);
   });
 
   it('colours a choice by the colour its type chose, else by its value', () => {

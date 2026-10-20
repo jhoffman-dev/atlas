@@ -82,7 +82,19 @@ describe('the properties panel’s colours', () => {
     ]);
     const chip = container.querySelector('.props__link');
     expect(chip?.textContent).toContain('Larkspur Payroll');
-    expect(chip?.getAttribute('data-hue')).toBe(relationHue({ name: 'Larkspur Payroll' }));
+    expect(chip?.getAttribute('data-hue')).toBe(relationHue({ key: 'Larkspur Payroll' }));
+  });
+
+  it('colours an aliased link as the note it names, as the table does', () => {
+    const { container } = panel([
+      row('companies', 'relation', ['[[Larkspur Payroll|Larkspur]]'], {
+        target: 'company',
+        many: true,
+      }),
+    ]);
+    const chip = container.querySelector('.props__link');
+    expect(chip?.textContent).toContain('Larkspur');
+    expect(chip?.getAttribute('data-hue')).toBe(relationHue({ key: 'Larkspur Payroll' }));
   });
 
   it('leaves a link to a missing note uncoloured', () => {

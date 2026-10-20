@@ -50,6 +50,27 @@ function contrast(a: string, b: string): number {
   return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
 }
 
+/** A colour in CIELAB (D65), for how far apart two fills look. */
+function lab(hex: string): [number, number, number] {
+  const linear = [1, 3, 5].map((at) => {
+    const value = Number.parseInt(hex.slice(at, at + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const [r = 0, g = 0, b = 0] = linear;
+  const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+
+/** CIE76 ΔE: about 2 is a just-visible step; 10 is two colours told apart at a glance. */
+function deltaE(a: string, b: string): number {
+  const [l1, a1, b1] = lab(a);
+  const [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
 /** How far a colour is from grey: the spread of its channels, 0–255. */
 function chroma(hex: string): number {
   const channels = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
@@ -71,9 +92,9 @@ describe('the pill hues', () => {
   });
 
   it.each(cases)('$hue keeps a muted fill in $theme', ({ tokens, hue }) => {
-    // A pastel: near the surface in lightness, low in chroma. Notion's own
-    // light fills sit near 30; a saturated chip would be well past 60.
-    expect(chroma(hexOf(tokens, `--hue-${hue}-bg`))).toBeLessThanOrEqual(45);
+    // A pastel: low in chroma. Notion's own fills spread up to 53 (its
+    // yellow); a saturated chip would be well past 80.
+    expect(chroma(hexOf(tokens, `--hue-${hue}-bg`))).toBeLessThanOrEqual(55);
   });
 
   it.each(cases)(
@@ -85,6 +106,20 @@ describe('the pill hues', () => {
       expect(contrast(fill, surface), `${theme} ${hue}`).toBeLessThan(1.6);
     },
   );
+
+  it.each(Object.keys(THEMES))('keeps every two fills apart at a glance in %s', (theme) => {
+    const tokens = THEMES[theme as keyof typeof THEMES];
+    const close = PILL_HUES.flatMap((hue, at) =>
+      PILL_HUES.slice(at + 1)
+        .map((other) => ({
+          pair: `${hue}/${other}`,
+          apart: deltaE(hexOf(tokens, `--hue-${hue}-bg`), hexOf(tokens, `--hue-${other}-bg`)),
+        }))
+        .filter(({ apart }) => apart < 10)
+        .map(({ pair, apart }) => `${pair} ΔE ${apart.toFixed(1)}`),
+    );
+    expect(close).toEqual([]);
+  });
 
   it.each(PILL_HUES)('paints a %s pill from its own tokens', (hue) => {
     const rule = new RegExp(

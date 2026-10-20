@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
-import { optionLabel, type OptionColor } from '@atlas/domain';
+import { optionColor, optionLabel, STATUS_PROPERTY, type OptionSource } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
 import { StatusPill } from '../status-pill.tsx';
 import { NUMBER_KEYS, optionPickedByNumber } from './cell-keys.ts';
@@ -18,7 +18,7 @@ export function StatusPicker({
   anchor,
   label,
   options,
-  tones = {},
+  source = STATUS_PROPERTY,
   value,
   onPick,
   onCancel,
@@ -30,8 +30,12 @@ export function StatusPicker({
   /** The column's label: "Status". */
   label: string;
   options: readonly string[];
-  /** The colour the type chose for an option; one without is coloured by its value. */
-  tones?: Readonly<Record<string, OptionColor>>;
+  /**
+   * The property the options belong to — its key and the colours its type
+   * chose — which their dots are drawn by (`optionColor`). Left out, they are
+   * statuses.
+   */
+  source?: OptionSource;
   /** The option the cell holds now, or null. */
   value: string | null;
   onPick: (option: string) => void;
@@ -58,7 +62,7 @@ export function StatusPicker({
             <PickerBody
               label={label}
               options={options}
-              tones={tones}
+              source={source}
               value={value}
               onPick={onPick}
               onStep={onStep}
@@ -87,14 +91,14 @@ function wrapped(at: number, step: 1 | -1, count: number): number {
 function PickerBody({
   label,
   options,
-  tones,
+  source,
   value,
   onPick,
   onStep,
 }: {
   label: string;
   options: readonly string[];
-  tones: Readonly<Record<string, OptionColor>>;
+  source: OptionSource;
   value: string | null;
   onPick: (option: string) => void;
   onStep: (to: 1 | -1) => void;
@@ -163,7 +167,7 @@ function PickerBody({
         shown={shown}
         number={(option) => options.indexOf(option) + 1}
         optionId={optionId}
-        tones={tones}
+        source={source}
         value={value}
         highlighted={highlighted}
         onHighlight={(option) => setHighlight(shown.indexOf(option))}
@@ -180,7 +184,7 @@ function OptionList({
   shown,
   number,
   optionId,
-  tones,
+  source,
   value,
   highlighted,
   onHighlight,
@@ -192,7 +196,7 @@ function OptionList({
   /** An option's number key, by its place among every option: the keys do not move as the filter narrows. */
   number: (option: string) => number;
   optionId: (option: string) => string;
-  tones: Readonly<Record<string, OptionColor>>;
+  source: OptionSource;
   value: string | null;
   highlighted: string | undefined;
   onHighlight: (option: string) => void;
@@ -224,7 +228,12 @@ function OptionList({
             onMouseEnter={() => onHighlight(option)}
             onClick={() => onPick(option)}
           >
-            <StatusPill value={option} variant="dot" decorative {...tonedAs(tones, option)} />
+            <StatusPill
+              value={option}
+              variant="dot"
+              decorative
+              tone={optionColor(source, option)}
+            />
             <span className="cell-picker__label">{optionLabel(option)}</span>
             {option === value && <Icon name="check" size={13} className="cell-picker__tick" />}
             <span className="cell-picker__key" aria-hidden="true">
@@ -236,13 +245,4 @@ function OptionList({
       {shown.length === 0 && <p className="cell-picker__none">No option matches</p>}
     </div>
   );
-}
-
-/** The `tone` prop for an option the type coloured; none for one it did not. */
-function tonedAs(
-  tones: Readonly<Record<string, OptionColor>>,
-  option: string,
-): { tone?: OptionColor } {
-  const tone = tones[option];
-  return tone === undefined ? {} : { tone };
 }

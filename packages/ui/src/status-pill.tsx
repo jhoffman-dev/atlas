@@ -1,4 +1,10 @@
-import { isPillHue, optionColor, optionLabel, type OptionColor } from '@atlas/domain';
+import {
+  isPillHue,
+  optionColor,
+  optionLabel,
+  STATUS_PROPERTY,
+  type OptionColor,
+} from '@atlas/domain';
 import { pillPaint } from './pill-paint.ts';
 
 /**
@@ -25,7 +31,8 @@ export function StatusPill({
 }) {
   // A status with no words is still a status, and an image needs a name.
   const label = optionLabel(value) || 'No status';
-  const color = tone ?? optionColor(null, value);
+  // Without a colour from its property, the value is read as a status.
+  const color = tone ?? optionColor(STATUS_PROPERTY, value);
   if (variant === 'dot') {
     return (
       <span

@@ -137,24 +137,24 @@
      status, a linked note, a tag (#413): Notion's nine hues, muted. Each ink
      holds 4.5:1 or better on its own fill (styles.pill-hues.test.ts). The
      fills are solid, not tints, so they read the same on every surface. */
-  --hue-gray-bg: #ebebed;
-  --hue-gray-ink: #4f4f57;
-  --hue-brown-bg: #f0e4dc;
-  --hue-brown-ink: #674533;
-  --hue-orange-bg: #fbe4d2;
-  --hue-orange-ink: #844519;
-  --hue-yellow-bg: #f6eccb;
-  --hue-yellow-ink: #685010;
-  --hue-green-bg: #dfefe2;
-  --hue-green-ink: #2b6340;
-  --hue-blue-bg: #dde9f8;
-  --hue-blue-ink: #2b4b84;
-  --hue-purple-bg: #ebe3f6;
-  --hue-purple-ink: #533c8a;
-  --hue-pink-bg: #f7e1ec;
-  --hue-pink-ink: #7d3058;
-  --hue-red-bg: #fbe1dd;
-  --hue-red-ink: #8e332b;
+  --hue-gray-bg: #e8e8e8;
+  --hue-gray-ink: #58595e;
+  --hue-brown-bg: #decbc0;
+  --hue-brown-ink: #674634;
+  --hue-orange-bg: #fde0ca;
+  --hue-orange-ink: #7c481f;
+  --hue-yellow-bg: #fef4cd;
+  --hue-yellow-ink: #6c5416;
+  --hue-green-bg: #d3ecd7;
+  --hue-green-ink: #326140;
+  --hue-blue-bg: #d0e5f8;
+  --hue-blue-ink: #005487;
+  --hue-purple-bg: #dad3f1;
+  --hue-purple-ink: #4d4585;
+  --hue-pink-bg: #feddea;
+  --hue-pink-ink: #84375e;
+  --hue-red-bg: #fdcbca;
+  --hue-red-ink: #953835;
 
   /* Buttons: fill, text, border. Pastel, but Accept and Reject must differ. */
   --btn-primary-bg: #e3ecfb;
@@ -247,24 +247,24 @@
     --status-done-tick: var(--surface);
 
     /* The hues on dark: deep fills, the pastel as the ink. */
-    --hue-gray-bg: #2c2c31;
-    --hue-gray-ink: #cfcfd6;
-    --hue-brown-bg: #382e27;
-    --hue-brown-ink: #e0c6b4;
-    --hue-orange-bg: #3f2f20;
-    --hue-orange-ink: #f0c49a;
-    --hue-yellow-bg: #3a3420;
-    --hue-yellow-ink: #e8d48e;
-    --hue-green-bg: #22382a;
-    --hue-green-ink: #a9d9b8;
-    --hue-blue-bg: #213149;
-    --hue-blue-ink: #b5cbf0;
-    --hue-purple-bg: #302947;
-    --hue-purple-ink: #cbc1f2;
-    --hue-pink-bg: #3f2736;
-    --hue-pink-ink: #ecbcd6;
-    --hue-red-bg: #422725;
-    --hue-red-ink: #f2b8b0;
+    --hue-gray-bg: #373737;
+    --hue-gray-ink: #d0d1d7;
+    --hue-brown-bg: #32251f;
+    --hue-brown-ink: #dfc0b0;
+    --hue-orange-bg: #4b2e19;
+    --hue-orange-ink: #f5c6a0;
+    --hue-yellow-bg: #3e3a1c;
+    --hue-yellow-ink: #efd595;
+    --hue-green-bg: #26392b;
+    --hue-green-ink: #b3dbbc;
+    --hue-blue-bg: #1a3548;
+    --hue-blue-ink: #acd0f4;
+    --hue-purple-bg: #322d46;
+    --hue-purple-ink: #c8c5f2;
+    --hue-pink-bg: #452b38;
+    --hue-pink-ink: #f2bdd8;
+    --hue-red-bg: #4b2625;
+    --hue-red-ink: #fbb9b6;
 
     --btn-primary-bg: rgba(126, 162, 221, 0.18);
     --btn-primary-ink: #b5cbf0;
@@ -347,24 +347,24 @@
   --status-done-tick: var(--surface);
 
   /* The hues on dark: deep fills, the pastel as the ink. */
-  --hue-gray-bg: #2c2c31;
-  --hue-gray-ink: #cfcfd6;
-  --hue-brown-bg: #382e27;
-  --hue-brown-ink: #e0c6b4;
-  --hue-orange-bg: #3f2f20;
-  --hue-orange-ink: #f0c49a;
-  --hue-yellow-bg: #3a3420;
-  --hue-yellow-ink: #e8d48e;
-  --hue-green-bg: #22382a;
-  --hue-green-ink: #a9d9b8;
-  --hue-blue-bg: #213149;
-  --hue-blue-ink: #b5cbf0;
-  --hue-purple-bg: #302947;
-  --hue-purple-ink: #cbc1f2;
-  --hue-pink-bg: #3f2736;
-  --hue-pink-ink: #ecbcd6;
-  --hue-red-bg: #422725;
-  --hue-red-ink: #f2b8b0;
+  --hue-gray-bg: #373737;
+  --hue-gray-ink: #d0d1d7;
+  --hue-brown-bg: #32251f;
+  --hue-brown-ink: #dfc0b0;
+  --hue-orange-bg: #4b2e19;
+  --hue-orange-ink: #f5c6a0;
+  --hue-yellow-bg: #3e3a1c;
+  --hue-yellow-ink: #efd595;
+  --hue-green-bg: #26392b;
+  --hue-green-ink: #b3dbbc;
+  --hue-blue-bg: #1a3548;
+  --hue-blue-ink: #acd0f4;
+  --hue-purple-bg: #322d46;
+  --hue-purple-ink: #c8c5f2;
+  --hue-pink-bg: #452b38;
+  --hue-pink-ink: #f2bdd8;
+  --hue-red-bg: #4b2625;
+  --hue-red-ink: #fbb9b6;
 
   --btn-primary-bg: rgba(126, 162, 221, 0.18);
   --btn-primary-ink: #b5cbf0;

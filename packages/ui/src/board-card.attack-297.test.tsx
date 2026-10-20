@@ -184,7 +184,7 @@ describe('the metadata line: a relation', () => {
     relationCard(['[[Here]]', '[[Gone]]']);
     const pill = document.querySelector('.board__meta .status-pill');
     expect(pill?.textContent).toBe('Here');
-    expect(pill?.getAttribute('data-hue')).toBe(relationHue({ name: 'Here' }));
+    expect(pill?.getAttribute('data-hue')).toBe(relationHue({ key: 'Here' }));
     const gone = document.querySelector('.board__meta-item');
     expect(gone?.textContent).toBe('Gone');
     expect(gone?.getAttribute('data-missing')).toBe('true');

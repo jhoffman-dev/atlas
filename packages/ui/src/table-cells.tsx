@@ -4,6 +4,7 @@ import {
   holdsLinks,
   isYou,
   optionColor,
+  optionColorsOf,
   propertyRole,
   type OptionColors,
   type PropertyDef,
@@ -254,7 +255,7 @@ function CellFor({
   }
   const face = faceOf({ kind, column, value });
   const text = value === null || value === undefined ? '' : String(value);
-  const colors = { colors: look.colors[column] };
+  const colors = { key: column, colors: optionColorsOf(look.colors, column) };
   if (editor === undefined) {
     return (
       <span className="table__cell" title={fullValue(text)}>
@@ -345,8 +346,9 @@ function fullValue(text: string): string | undefined {
   return text === '' ? undefined : text;
 }
 
-/** The colours the column's type chose for its options, as `optionColor` reads them. */
+/** The column's key and the colours its type chose for its options, as `optionColor` reads them. */
 interface ColumnColors {
+  readonly key: string;
   readonly colors: OptionColors | undefined;
 }
 

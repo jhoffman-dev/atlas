@@ -322,7 +322,7 @@ function SelectEditor({ id, row, text, onChange }: EditorProps) {
       <span className="props__dot" aria-hidden="true" />
       <select id={id} className="props__pill-select" value={text} onChange={single(onChange)}>
         <option value="">—</option>
-        {heldOptions(row.def.options, text).map((option) => (
+        {offeredOptions(row.def.options, text).map((option) => (
           <option key={option} value={option}>
             {optionLabel(option)}
           </option>
@@ -336,7 +336,7 @@ function SelectEditor({ id, row, text, onChange }: EditorProps) {
  * The options a select offers, with the one the note holds kept on the list
  * even when the type no longer offers it, so the pill still says what the file says.
  */
-function heldOptions(options: readonly string[], held: string): readonly string[] {
+function offeredOptions(options: readonly string[], held: string): readonly string[] {
   return held === '' || options.includes(held) ? options : [...options, held];
 }
 
@@ -407,7 +407,9 @@ function RelationEditor({
               <li
                 key={link}
                 className="props__chip props__link"
-                data-hue={name?.missing === true ? undefined : relationHue({ name: title })}
+                data-hue={
+                  name === undefined || name.missing ? undefined : relationHue({ key: name.key })
+                }
               >
                 <Icon name="task" size={15} className="props__chip-icon" />
                 {name === undefined ? (

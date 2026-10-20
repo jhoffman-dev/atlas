@@ -317,8 +317,9 @@ describe('options', () => {
     );
   });
 
-  it('tones an option by its name when there is no property to ask', () => {
-    expect(optionColor(null, 'done')).toBe('done');
+  it('tones a status option by its name, and hashes any other property’s', () => {
+    expect(optionColor({ key: 'status' }, 'done')).toBe('done');
+    expect(optionColor({ key: 'stage' }, 'done')).toBe(hueOf('done'));
   });
 });
 

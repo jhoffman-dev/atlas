@@ -56,7 +56,7 @@ export function RelationCell({
       key={index}
       name={name}
       className="table__note"
-      hue={relationHue({ name: name.text })}
+      hue={relationHue({ key: name.key })}
       onOpen={onOpenNote}
     />
   ));
@@ -256,7 +256,9 @@ function LinkChips({
           <li
             key={link}
             className="props__chip props__link"
-            data-hue={name?.missing === true ? undefined : relationHue({ name: title })}
+            data-hue={
+              name === undefined || name.missing ? undefined : relationHue({ key: name.key })
+            }
           >
             {name === undefined ? (
               <span className="props__link-title">{link}</span>
