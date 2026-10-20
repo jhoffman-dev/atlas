@@ -73,17 +73,13 @@ export function useIndexFailure(store: IndexStatusStore, open: string | null): s
 }
 
 /**
- * What every reader of "the index moved" re-runs on: `ready:<revision>` once
- * ready, and `failed:<revision>` while failing — a refresh that fails again
- * still moves it, so an edit made while the index is broken still counts
- * toward a push. Otherwise the phase. It changes only when the revision or
- * the phase does, not twice per refresh.
+ * The index's key as the store holds it now: `ready:<revision>` once ready,
+ * and `failed:<revision>` while failing — a refresh that fails again still
+ * moves it, so an edit made while the index is broken still counts toward a
+ * push. Otherwise the phase. No reader re-runs on it directly: each reads it
+ * through a scoped key (`useScopedIndexKey`), which the index's news moves
+ * only when it touched what that reader is made from (ADR-0040, #327).
  */
-export function useIndexKey(store: IndexStatusStore, open: string | null): string {
-  return useStore(store, (state) => indexKeyOf(state, open));
-}
-
-/** The key {@link useIndexKey} reads, as the store holds it now. */
 export function indexKeyOf(state: IndexStatusState, open: string | null): string {
   const phase = phaseFor(state, open);
   return phase === 'ready' || phase === 'failed' ? `${phase}:${state.revision}` : phase;

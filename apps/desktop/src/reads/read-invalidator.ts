@@ -9,6 +9,7 @@ import {
 import {
   scopedQueries,
   readAgain,
+  readerFailed,
   scopeOfQuery,
   vaultQueries,
   vaultReadKey,
@@ -63,12 +64,14 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
     const facets = new Set(INDEX_FACETS.filter((facet: IndexFacet) => held.has(facet)));
     return { changes: known ? changes : null, facets };
   };
-  /** Each scoped read of `vault` the news touched, or whose last read failed. */
+  /** Each scoped read of `vault` the news touched, or whose last read failed — its own or its reader's. */
   const scopedReadsDue = (vault: string, news: IndexNews) =>
     client.getQueryCache().findAll({
       queryKey: scopedQueries(vault),
       predicate: (query) =>
-        query.state.status === 'error' || scopeTouched(scopeOfQuery(query.meta), news),
+        query.state.status === 'error' ||
+        readerFailed(query.meta) ||
+        scopeTouched(scopeOfQuery(query.meta), news),
     });
   return {
     invalidate,
