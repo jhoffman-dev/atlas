@@ -33,6 +33,10 @@ export {
 } from './resolve-wikilink.ts';
 export {
   imagePathsToCheck,
+  imagePathsToRebase,
+  notesAfterMerge,
+  rebaseImageSources,
+  retargetMergedLinks,
   notesAfterMove,
   notesAfterMoves,
   retargetLinks,

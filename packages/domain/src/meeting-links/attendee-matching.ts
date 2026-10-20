@@ -288,7 +288,7 @@ const SHARED_HOSTS: readonly string[] = [
 ];
 
 /** Whether a domain is a public mail provider's, in any country. */
-function isPublicMail(domain: string): boolean {
+export function isPublicMail(domain: string): boolean {
   return PUBLIC_MAIL_DOMAINS.has(domain) || PUBLIC_MAIL_LABELS.has(organisationLabel(domain));
 }
 
@@ -329,7 +329,10 @@ interface NamedPerson {
 function personFinder(people: readonly DirectoryPerson[]) {
   const byEmail = new Map<string, DirectoryPerson[]>();
   for (const person of people) {
-    for (const email of new Set(person.emails.map(emailKey).filter((key) => key !== ''))) {
+    // An alias written as an address is one of theirs too: a merge keeps a
+    // duplicate's name there, and a person may keep an old address there (#464).
+    const addresses = [...person.emails, ...person.aliases.filter(isWrittenAddress)];
+    for (const email of new Set(addresses.map(emailKey).filter((key) => key !== ''))) {
       byEmail.set(email, [...(byEmail.get(email) ?? []), person]);
     }
   }
@@ -460,6 +463,11 @@ export function attendeeKey(attendee: MeetingAttendee): string {
   return attendee.email === null
     ? `name:${vocabularyKey(attendee.name)}`
     : `email:${emailKey(attendee.email)}`;
+}
+
+/** Whether an alias is written as an address: something either side of one `@`, no spaces. */
+function isWrittenAddress(alias: string): boolean {
+  return /^[^\s@]+@[^\s@]+$/u.test(alias.trim());
 }
 
 /** An address as compared: the part in `<…>` when written as a mail client copies it, case folded. */
