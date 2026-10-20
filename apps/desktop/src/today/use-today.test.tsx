@@ -15,9 +15,9 @@ import {
   type QueryResult,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { settles } from '@atlas/ui/testing/settles';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useToday } from './use-today.ts';
-import { settles } from '../granola/settles.test-support.ts';
 
 /** #111: the Today page's reading, row actions and undo, on a fixed clock. */
 const NOW = Date.UTC(2026, 9, 13, 15);

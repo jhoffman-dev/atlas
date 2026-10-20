@@ -26,7 +26,8 @@
       "@atlas/application/testing/sqlite": ["./packages/application/src/testing/sqlite.ts"],
       "@atlas/adapters": ["./packages/adapters/src/index.ts"],
       "@atlas/ui": ["./packages/ui/src/index.ts"],
-      "@atlas/ui/graph": ["./packages/ui/src/graph/index.ts"]
+      "@atlas/ui/graph": ["./packages/ui/src/graph/index.ts"],
+      "@atlas/ui/testing/settles": ["./packages/ui/src/testing/settles.ts"]
     }
   },
   "include": [

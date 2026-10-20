@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { drained, settles } from './settles.test-support.ts';
 import { explainGranolaFailure, type GranolaFailure, type GranolaNote } from '@atlas/domain';
 import {
   fakeGranola,
@@ -15,6 +14,7 @@ import {
   type GranolaPullRecords,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { drained, settles } from '@atlas/ui/testing/settles';
 import {
   GRANOLA_PULL_INTERVAL_MS,
   INDEX_WAIT_MS,

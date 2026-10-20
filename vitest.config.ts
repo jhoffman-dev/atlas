@@ -13,6 +13,11 @@ export default defineConfig({
       '@atlas/ui/graph': fileURLToPath(
         new URL('./packages/ui/src/graph/index.ts', import.meta.url),
       ),
+      // Before '@atlas/ui/testing', for the same reason: `settles` loads React
+      // (Testing Library's act), and the render counter must be installed first.
+      '@atlas/ui/testing/settles': fileURLToPath(
+        new URL('./packages/ui/src/testing/settles.ts', import.meta.url),
+      ),
       // Test support (the render counter), kept out of the barrel the app is built from.
       '@atlas/ui/testing': fileURLToPath(
         new URL('./packages/ui/src/testing/index.ts', import.meta.url),
