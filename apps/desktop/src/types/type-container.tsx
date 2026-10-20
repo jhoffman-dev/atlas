@@ -1,11 +1,12 @@
-import { useEffect, type ComponentProps } from 'react';
+import { useEffect, useRef, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
-import { activeTabOf, createVaultPath } from '@atlas/domain';
+import { createVaultPath, typeShownAt } from '@atlas/domain';
 import { clearRow, focusRow, hideAside, typeEditorShown, withinOf } from '../aside/aside-store.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import { useIndexKey } from '../index/index-status-store.ts';
+import { activePlace } from '../workspace/workspace-store.ts';
 import { useWorkspaceStores } from '../workspace/workspace-wiring.tsx';
 import { typeTabsShown } from './type-tabs.ts';
 import { useTypeTable } from './use-type-table.ts';
@@ -46,11 +47,18 @@ export function TypeContainer({
   // Still read again on every news of the index: what it reads is not yet scoped (#325).
   const indexKey = useIndexKey(pane.indexStatus, pane.vault);
   const { onEditType, onNewNote, onEditTemplate } = pages.type;
-  // Pressed while the aside shows the Type tab for this tab: the editor
-  // follows the focused tab, so a type page in the other pane is not pressed.
+  // Pressed while the aside shows this type's editor: on its Type tab, with
+  // the focused tab on this type, here or in the other pane.
   const typeTabShown = useStore(aside, typeEditorShown);
-  const focused = useStore(store, (state) => activeTabOf(state.workspace).id === tabId);
-  const editing = typeTabShown && focused;
+  const showsThisType = useStore(
+    store,
+    (state) => typeShownAt(activePlace(state.workspace), pane.savedViews) === name,
+  );
+  const editing = typeTabShown && showsThisType;
+  // A press in the other pane focuses this one on its mousedown, which turns
+  // the aside to this type before the click lands: the click goes by what the
+  // button showed as the pointer came down. A key press has no such start.
+  const pressedAtStart = useRef<boolean | null>(null);
   const table = useTypeTable({
     fs: pages.ports.fs,
     markdown: pane.notes.markdown,
@@ -69,7 +77,15 @@ export function TypeContainer({
         table={table}
         types={pane.types}
         editing={editing}
-        onEditType={() => (editing ? hideAside(aside) : onEditType(name))}
+        onEditTypeStart={() => {
+          pressedAtStart.current = editing;
+        }}
+        onEditType={() => {
+          const was = pressedAtStart.current ?? editing;
+          pressedAtStart.current = null;
+          if (was) hideAside(aside);
+          else onEditType(name);
+        }}
         ports={{
           fs: pages.ports.fs,
           markdown: pane.notes.markdown,

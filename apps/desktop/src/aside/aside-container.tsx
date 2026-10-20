@@ -33,9 +33,15 @@ import { TypeAside, type TypeAsideWiring } from './type-aside.tsx';
 export const AsideContainer = memo(function AsideContainer({
   rows,
   types,
+  onSelectType,
 }: {
   rows: RowPorts;
   types: TypeAsideWiring;
+  /**
+   * The Type tab clicked: the window makes room for the wider editor first,
+   * as Edit type does. Without it, the tab is only chosen.
+   */
+  onSelectType?: () => void;
 }) {
   const { store, aside, shown } = useWorkspaceStores();
   const chosen = useAsideTab(aside);
@@ -65,7 +71,9 @@ export const AsideContainer = memo(function AsideContainer({
     <RightSidebar
       tab={tab}
       panels={panels}
-      onSelectTab={(next) => selectAsideTab(aside, next)}
+      onSelectTab={(next) =>
+        next === 'type' && onSelectType !== undefined ? onSelectType() : selectAsideTab(aside, next)
+      }
       onHide={() => hideAside(aside)}
       onEscape={focusTheWork}
     />

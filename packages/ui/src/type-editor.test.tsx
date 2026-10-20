@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { parseObjectType, TYPE_ICONS, type TypeEdit } from '@atlas/domain';
+import { addProperty, parseObjectType, TYPE_ICONS, type TypeEdit } from '@atlas/domain';
 import { TypeEditor } from './type-editor.tsx';
 
 const TASK = parseObjectType({
@@ -164,12 +164,7 @@ describe('TypeEditor', () => {
       many: false,
     });
     await userEvent.click(screen.getByRole('checkbox', { name: 'Allow many' }));
-    expect(onEdit).toHaveBeenLastCalledWith({
-      kind: 'setRelation',
-      key: 'project',
-      target: 'project',
-      many: true,
-    });
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setMany', key: 'project', many: true });
   });
 
   it('shows the other types a relation points at, which the file lists', async () => {
@@ -426,16 +421,12 @@ describe('TypeEditor in the right sidebar', () => {
     const many = screen.getByRole('checkbox', { name: 'Allow many' });
     expect((many as HTMLInputElement).checked).toBe(false);
     await userEvent.click(many);
-    // A select that allows many is a multi-select: the kind changes, with its prompts.
-    expect(onEdit).toHaveBeenLastCalledWith({
-      kind: 'changeKind',
-      key: 'status',
-      propertyKind: 'multiSelect',
-    });
+    // What that means — a multi-select — is the domain's to say (setMany).
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setMany', key: 'status', many: true });
     expect(screen.getByRole('checkbox', { name: 'Required on new notes' })).toBeDefined();
   });
 
-  it('turns a multi-select back into a single choice when Allow many is cleared', async () => {
+  it('asks for one value again when Allow many is cleared on a multi-select', async () => {
     const onEdit = editor({
       type: parseObjectType({
         name: 'book',
@@ -447,11 +438,7 @@ describe('TypeEditor in the right sidebar', () => {
     const many = screen.getByRole('checkbox', { name: 'Allow many' });
     expect((many as HTMLInputElement).checked).toBe(true);
     await userEvent.click(many);
-    expect(onEdit).toHaveBeenLastCalledWith({
-      kind: 'changeKind',
-      key: 'genres',
-      propertyKind: 'select',
-    });
+    expect(onEdit).toHaveBeenLastCalledWith({ kind: 'setMany', key: 'genres', many: false });
   });
 
   it('offers no Allow many where a kind holds one value only', async () => {
@@ -506,5 +493,48 @@ describe('TypeEditor in the right sidebar', () => {
     expect(document.querySelector('.type-editor__foot')?.textContent).toBe(
       'Edits apply to every Task note',
     );
+  });
+
+  it('puts the focus in a new property’s Name, ready to be named', () => {
+    const { rerender } = render(
+      <TypeEditor
+        type={TASK}
+        icons={TYPE_ICONS}
+        targets={TARGETS}
+        prompt={null}
+        notice={null}
+        onEdit={vi.fn()}
+      />,
+    );
+    const added = addProperty(TASK, { label: 'Property', kind: 'text' });
+    rerender(
+      <TypeEditor
+        type={added}
+        icons={TYPE_ICONS}
+        targets={TARGETS}
+        prompt={null}
+        notice={null}
+        onEdit={vi.fn()}
+      />,
+    );
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Name of Property' }));
+  });
+
+  it('puts the focus on Add property once the open property is removed', async () => {
+    editor();
+    await open('Due');
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Due' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add property' }));
+  });
+
+  it('ties each open row to its details by an id a key with spaces cannot break', async () => {
+    editor({
+      type: parseObjectType({ name: 'x', label: 'X', properties: { 'due date': 'date' } }),
+    });
+    const toggle = screen.getByRole('button', { name: 'Edit Due date' });
+    await userEvent.click(toggle);
+    const id = toggle.getAttribute('aria-controls') ?? '';
+    expect(id).not.toMatch(/\s/);
+    expect(document.getElementById(id)).not.toBeNull();
   });
 });

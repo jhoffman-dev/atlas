@@ -34,7 +34,7 @@ export const ASIDE_TABS: readonly AsideTab[] = [
 
 /**
  * The tab shown for `tab`: itself while a panel is offered for it, else the
- * first offered. The app uses the same rule to fall back for display only,
+ * first offered other than Type. The app uses the same rule to fall back for display only,
  * so a page without the chosen tab's panel never writes over the choice.
  */
 export function shownAsideTab(
@@ -42,7 +42,10 @@ export function shownAsideTab(
   panels: Partial<Record<AsideTab, ReactNode>>,
 ): AsideTab | undefined {
   const offered = ASIDE_TABS.filter((each) => Boolean(panels[each]));
-  return offered.includes(tab) ? tab : offered[0];
+  if (offered.includes(tab)) return tab;
+  // The type editor is shown only when asked for: it is wider, and the window
+  // made room for the tab chosen, not for it (useAsideWidth).
+  return offered.find((each) => each !== 'type') ?? offered[0];
 }
 
 /** Where ← → Home and End move the focus along the tabs, as the tab strip's do. */

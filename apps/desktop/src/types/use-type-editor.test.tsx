@@ -193,6 +193,18 @@ describe('useTypeEditor', () => {
     expect(typeOnDisk().properties[1]?.kind).toBe('number');
   });
 
+  it('makes a select that allows many a multi-select, counting the values first', async () => {
+    const { hook, typeOnDisk, onSaved } = setUp();
+    act(() => hook.result.current.edit({ kind: 'setMany', key: 'status', many: true }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    // Every note holds one status, which a multi-select holds as well: nothing to ask.
+    expect(hook.result.current.prompt).toBeNull();
+    expect(typeOnDisk().properties[0]).toMatchObject({
+      kind: 'multiSelect',
+      options: ['backlog', 'review', 'done'],
+    });
+  });
+
   it('shows why a change was refused, and writes nothing', async () => {
     const { hook, files } = setUp();
     act(() => hook.result.current.edit({ kind: 'addOption', key: 'status', option: 'done' }));

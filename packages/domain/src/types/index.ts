@@ -11,6 +11,7 @@ export {
   isWikiLink,
   relationTargets,
   relationTypeRefusal,
+  requiredApplies,
   validatePropertyValue,
 } from './property-value.ts';
 export { combinedExtensions, inboxTypePlan } from './inbox-setup.ts';
@@ -30,6 +31,7 @@ export {
   applyTypeEdit,
   addProperty,
   changePropertyKind,
+  manyOf,
   moveOption,
   moveProperty,
   NEW_PROPERTY_LABEL,
@@ -41,6 +43,7 @@ export {
   renameProperty,
   setDoneOption,
   setOptionColor,
+  setPropertyMany,
   setPropertyRequired,
   setRelation,
   setTypeIcon,

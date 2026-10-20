@@ -40,6 +40,7 @@ export function TypePage({
   table,
   types,
   editing,
+  onEditTypeStart,
   onEditType,
   ports,
   onSaved,
@@ -57,6 +58,8 @@ export function TypePage({
   types: readonly DefinedType[];
   /** Whether the type's editor is on screen in the right sidebar. */
   editing: boolean;
+  /** The pointer coming down on Edit type, before the press moves the focus. */
+  onEditTypeStart?: () => void;
   /** Shows the type's editor in the right sidebar, or hides it when it is shown. */
   onEditType: () => void;
   ports: {
@@ -115,6 +118,7 @@ export function TypePage({
               title="Edit type in the right sidebar"
               tone="secondary"
               pressed={editing}
+              {...(onEditTypeStart !== undefined && { onPressStart: onEditTypeStart })}
               onPress={onEditType}
             />
           </>

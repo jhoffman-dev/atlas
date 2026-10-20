@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import {
+  manyOf,
   PROPERTY_KINDS,
   propertyIcon,
   relationTypes,
+  requiredApplies,
   type PropertyDef,
   type PropertyKind,
   type TypeEdit,
@@ -58,7 +60,8 @@ export function PropertyRow({
   targets,
   onEdit,
 }: PropertyRowProps) {
-  const detailsId = `type-property-${property.key}`;
+  // From React, not the key: a key may hold spaces, which an id reference cannot.
+  const detailsId = useId();
   return (
     <div className={`type-editor__property${expanded ? ' type-editor__property--open' : ''}`}>
       <div className="type-editor__summary">
@@ -153,10 +156,10 @@ function PropertyDetails({
 }
 
 /**
- * What a property is allowed: several values, where its kind can hold them,
- * and whether new notes are asked for it. "Allow many" is no new setting: a
- * select that allows many is a multi-select, and a relation says `many`.
- * "Required" prompts on a note and never blocks one (plan question 10).
+ * What a property is allowed: several values, where its kind can hold them
+ * (`setMany`, decided by the domain), and whether new notes are asked for it,
+ * where an empty value can be missing. "Required" prompts on a note and never
+ * blocks one (plan question 10).
  */
 function PropertyFlags({
   property,
@@ -166,45 +169,33 @@ function PropertyFlags({
   onEdit: (edit: TypeEdit) => void;
 }) {
   const { key } = property;
-  const many = allowMany(property);
+  const many = manyOf(property);
   return (
     <div className="type-editor__flags">
       {many !== null && (
         <label className="type-editor__flag">
           <input
             type="checkbox"
-            checked={many.on}
-            onChange={(event) => onEdit(many.set(event.target.checked))}
+            checked={many}
+            onChange={(event) => onEdit({ kind: 'setMany', key, many: event.target.checked })}
           />
           Allow many
         </label>
       )}
-      <label className="type-editor__flag">
-        <input
-          type="checkbox"
-          checked={property.required}
-          onChange={(event) => onEdit({ kind: 'setRequired', key, required: event.target.checked })}
-        />
-        Required on new notes
-      </label>
+      {requiredApplies(property.kind) && (
+        <label className="type-editor__flag">
+          <input
+            type="checkbox"
+            checked={property.required}
+            onChange={(event) =>
+              onEdit({ kind: 'setRequired', key, required: event.target.checked })
+            }
+          />
+          Required on new notes
+        </label>
+      )}
     </div>
   );
-}
-
-/** Whether a property holds several values, and the edit that changes it; null for a kind of one. */
-function allowMany(property: PropertyDef): { on: boolean; set: (on: boolean) => TypeEdit } | null {
-  const { key } = property;
-  if (property.kind === 'select' || property.kind === 'multiSelect') {
-    return {
-      on: property.kind === 'multiSelect',
-      set: (on) => ({ kind: 'changeKind', key, propertyKind: on ? 'multiSelect' : 'select' }),
-    };
-  }
-  if (property.kind === 'relation') {
-    const target = property.target ?? '';
-    return { on: property.many, set: (on) => ({ kind: 'setRelation', key, target, many: on }) };
-  }
-  return null;
 }
 
 function RelationDetails({

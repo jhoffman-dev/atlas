@@ -176,3 +176,33 @@ describe('what an edit changes in a type file', () => {
     expect('pages' in written).toBe(false);
   });
 });
+
+describe('a shorthand property edited and put back', () => {
+  it('is written as the shorthand again once its long form would say only the kind', () => {
+    const plain = parseObjectType({ name: 'x', properties: { date: 'date' } });
+    const required = parseObjectType({
+      name: 'x',
+      properties: { date: { kind: 'date', required: true } },
+    });
+    const changes = typeFrontmatterChanges({
+      before: required,
+      after: plain,
+      written: { properties: { date: { kind: 'date', required: true } } },
+    });
+    expect(changes).toEqual({ properties: { date: 'date' } });
+  });
+
+  it('keeps the long form where the file holds a key of its own beside the kind', () => {
+    const plain = parseObjectType({ name: 'x', properties: { date: 'date' } });
+    const required = parseObjectType({
+      name: 'x',
+      properties: { date: { kind: 'date', required: true } },
+    });
+    const changes = typeFrontmatterChanges({
+      before: required,
+      after: plain,
+      written: { properties: { date: { kind: 'date', required: true, note: 'mine' } } },
+    });
+    expect(changes).toEqual({ properties: { date: { kind: 'date', note: 'mine' } } });
+  });
+});

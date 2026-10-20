@@ -146,26 +146,51 @@ function PropertiesSection({
   targets,
   onEdit,
 }: Pick<TypeEditorProps, 'type' | 'targets' | 'onEdit'>) {
-  // Which property is open, and where it was: when its key is renamed, the one
-  // now standing in its place is the same property under its new key.
-  const [open, setOpen] = useState<{ key: string; at: number } | null>(null);
+  // Which property is open, where it was, and how many there were: when its
+  // key is renamed, the one now standing in its place — the list as long as
+  // it was — is the same property under its new key. Removed, nothing is open.
+  const [open, setOpen] = useState<{ key: string; at: number; count: number } | null>(null);
+  const count = type.properties.length;
   const openKey =
     open === null
       ? null
       : type.properties.some((property) => property.key === open.key)
         ? open.key
-        : (type.properties[open.at]?.key ?? null);
-  const count = type.properties.length;
-  // A property just added opens, ready to be named.
+        : open.count === count
+          ? (type.properties[open.at]?.key ?? null)
+          : null;
+  const section = useRef<HTMLElement>(null);
+  const add = useRef<HTMLButtonElement>(null);
+  // A property just added opens, ready to be named, with the focus in its Name.
   const added = useRef(count);
+  const nameNew = useRef(false);
   useEffect(() => {
     const last = type.properties.at(-1);
-    if (count > added.current && last !== undefined) setOpen({ key: last.key, at: count - 1 });
+    if (count > added.current && last !== undefined) {
+      setOpen({ key: last.key, at: count - 1, count });
+      nameNew.current = true;
+    }
     added.current = count;
   }, [count, type.properties]);
+  useEffect(() => {
+    if (!nameNew.current || openKey === null) return;
+    nameNew.current = false;
+    section.current?.querySelector<HTMLInputElement>('.type-editor__details input')?.focus();
+  }, [openKey]);
+  const edit = (request: TypeEdit) => {
+    onEdit(request);
+    if (request.kind !== 'removeProperty') return;
+    // The row and its button go; the focus goes where the next property would be added.
+    setOpen(null);
+    add.current?.focus();
+  };
 
   return (
-    <section className="type-editor__section" aria-labelledby="type-editor-properties">
+    <section
+      ref={section}
+      className="type-editor__section"
+      aria-labelledby="type-editor-properties"
+    >
       <h2 className="type-editor__heading" id="type-editor-properties">
         Properties
         <span className="type-editor__count">{count}</span>
@@ -187,15 +212,16 @@ function PropertiesSection({
               setOpen(
                 openKey === property.key
                   ? null
-                  : { key: property.key, at: type.properties.indexOf(property) },
+                  : { key: property.key, at: type.properties.indexOf(property), count },
               )
             }
             targets={targets}
-            onEdit={onEdit}
+            onEdit={edit}
           />
         )}
       </SortableList>
       <button
+        ref={add}
         type="button"
         className="btn btn--ghost btn--sm type-editor__add"
         onClick={() => onEdit({ kind: 'addProperty', label: NEW_PROPERTY_LABEL })}

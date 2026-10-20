@@ -141,4 +141,13 @@ describe('RightSidebar', () => {
     );
     expect(container.querySelector('.aside')?.classList.contains('aside--type')).toBe(false);
   });
+
+  it('falls back past the Type tab: a chosen tab the page lacks shows Properties, at 300px', () => {
+    const { container } = show({
+      panels: { type: <p>the type</p>, properties: <p>the row</p> },
+      tab: 'outline',
+    });
+    expect(screen.getByRole('tabpanel').textContent).toBe('the row');
+    expect(container.querySelector('.aside--type')).toBeNull();
+  });
 });

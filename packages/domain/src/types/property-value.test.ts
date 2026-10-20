@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { requiredApplies } from './property-value.ts';
 import {
   isEmptyProperty,
   isWikiLink,
@@ -165,5 +166,13 @@ describe('isEmptyProperty', () => {
     expect(check('multiSelect', [' '], { required: true, options: ['bug'] })).toBe(
       'Field is required',
     );
+  });
+});
+
+describe('requiredApplies', () => {
+  it('is every kind but a thumbnail, whose empty value means a picture of the page', () => {
+    expect(requiredApplies('date')).toBe(true);
+    expect(requiredApplies('relation')).toBe(true);
+    expect(requiredApplies('thumbnail')).toBe(false);
   });
 });

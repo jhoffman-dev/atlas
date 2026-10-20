@@ -218,6 +218,7 @@ import {
   asideShown as asideShownNow,
   claudeShown as claudeShownNow,
   loadVaultAside,
+  selectAsideTab,
   setAsideFolded,
   showAsideTab,
   toggleAside as toggleAsideIn,
@@ -758,20 +759,27 @@ function AppWindow({
   });
   const asideCollapsed = useAsideCollapsed({ sidebarOpen, asideWidth });
   useEffect(() => setAsideFolded(asideStore, asideCollapsed), [asideStore, asideCollapsed]);
-  const roomForAside = useCallback((asideWidth: number) => {
+  const roomForAside = useCallback((wanted: number) => {
     const width = window.innerWidth;
-    const folds = (open: boolean) => collapseFor({ width, sidebarOpen: open, asideWidth }).aside;
+    const folds = (open: boolean) =>
+      collapseFor({ width, sidebarOpen: open, asideWidth: wanted }).aside;
     if (folds(true) && !folds(false)) setSidebarOpen(false);
   }, []);
   // An ask opens the aside whatever the store holds: the window's answer to
   // the room just made arrives after this event, so `folded` still says folded.
-  // Room is made for the width the ask will show: 340 for the type editor.
-  const askForAside = useCallback(
-    (show: (store: typeof asideStore) => void, width = ASIDE_WIDTH) => {
+  // Room is made for the width the ask will show: by default the width of the
+  // tab the aside comes back on (340 for the type editor), else the one given.
+  // Steady, so every page's toggle keeps one function for the window's life.
+  const askForAside = useSteadyCallback(
+    (show: (store: typeof asideStore) => void, width: number = asideWidth) => {
       roomForAside(width);
       show(asideStore);
     },
-    [asideStore, roomForAside],
+  );
+  /** The Type tab chosen in the open aside: room is made for the 340px editor, as Edit type does. */
+  const selectTypeTab = useCallback(
+    () => askForAside((store) => selectAsideTab(store, 'type'), ASIDE_WIDTH_TYPE),
+    [askForAside],
   );
   /**
    * A type's editor is the right sidebar's Type tab (slice 12): asked for,
@@ -962,7 +970,9 @@ function AppWindow({
   const claudeAsked = useClaudeAsked(asideStore);
   const toggleChatSeat = useCallback(
     () =>
-      claudeShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleClaude),
+      claudeShownNow(asideStore.getState())
+        ? hideAside(asideStore)
+        : askForAside(toggleClaude, ASIDE_WIDTH),
     [asideStore, askForAside],
   );
   const closeChatSeat = useCallback(() => hideAside(asideStore), [asideStore]);
@@ -1998,7 +2008,7 @@ function AppWindow({
                     )
                   }
                 >
-                  <AsideContainer rows={rowPorts} types={typeAside} />
+                  <AsideContainer rows={rowPorts} types={typeAside} onSelectType={selectTypeTab} />
                 </ClaudeSeatProvider>
               </WorkspaceStoresProvider>
             )

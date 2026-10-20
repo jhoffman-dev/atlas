@@ -2,7 +2,20 @@ import { splitWikiLinks } from '../markdown/wikilink.ts';
 import { isDateLike } from '../index/property-value.ts';
 import { PROJECT_TYPE } from './para.ts';
 import { isParaTarget } from './para-value.ts';
-import { relationTypes, relationTypesText, type PropertyDef } from './property-def.ts';
+import {
+  relationTypes,
+  relationTypesText,
+  type PropertyDef,
+  type PropertyKind,
+} from './property-def.ts';
+
+/**
+ * Whether "Required on new notes" can mean anything for a kind. An empty
+ * thumbnail is not missing: it means `auto`, a picture of the page.
+ */
+export function requiredApplies(kind: PropertyKind): boolean {
+  return kind !== 'thumbnail';
+}
 
 /**
  * Whether a value is allowed in a property, and why not if it is not.
@@ -18,8 +31,7 @@ export function validatePropertyValue({
   value: unknown;
 }): string | null {
   if (isEmptyProperty(value)) {
-    // An empty thumbnail is not missing: it means `auto`, a picture of the page.
-    return def.required && def.kind !== 'thumbnail' ? `${def.label} is required` : null;
+    return def.required && requiredApplies(def.kind) ? `${def.label} is required` : null;
   }
 
   switch (def.kind) {
