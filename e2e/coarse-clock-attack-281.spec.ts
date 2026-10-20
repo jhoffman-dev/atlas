@@ -24,7 +24,6 @@ async function openOnACoarseDisk(page: Page): Promise<FakeVault> {
   await vault.write('note.md', NOTE);
   await utimes(join(vault.root, 'note.md'), TICK_SECONDS, TICK_SECONDS);
   await installHost(page, vault, {
-    keepsManifest: true,
     echoWrites: true,
     coarseTickSeconds: TICK_SECONDS,
   });

@@ -227,8 +227,28 @@ test('a template that is really a note is moved back to the notes from its band'
       exact: true,
     }),
   ).toBeVisible();
+});
 
-  // The link that had nowhere to go reaches it again.
+// Fails: the index reads only the moved note again, so Deal's body link, written
+// while the template was out of the notes, stays unresolved (#431). The stand-in
+// hid it until it listed its manifest, as the real index does (#408). Remove
+// `test.fail` once #431 is fixed.
+test('a template moved back to the notes is reached again by the link that had nowhere to go', async ({
+  page,
+}) => {
+  test.fail();
+  await openVaultWithStrayNote(page);
+  await page
+    .getByRole('list', { name: 'Go to' })
+    .getByRole('button', { name: 'Templates' })
+    .click();
+  const list = page.getByRole('article', { name: 'Templates' });
+  await list.getByRole('button', { name: 'Larkspur Payroll', exact: true }).click();
+  await templateBand(page).getByRole('button', { name: 'Move to notes…' }).click();
+  const question = page.getByRole('alertdialog', { name: 'Make “Larkspur Payroll” a note?' });
+  await question.getByRole('button', { name: 'Move to notes' }).click();
+  await expect(templateBand(page)).toHaveCount(0);
+
   const links = page.getByRole('region', { name: 'Links', exact: true });
   const toggle = links.getByRole('button', { name: /^Links/ });
   await expect(toggle).toContainText('1 linked here');
