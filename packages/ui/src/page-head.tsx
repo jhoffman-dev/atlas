@@ -100,7 +100,11 @@ export function EditableTitle({
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === 'Enter') commit();
-        if (event.key === 'Escape') close();
+        if (event.key === 'Escape') {
+          // Answered here: leaving the title must not close the peek round the page too.
+          event.preventDefault();
+          close();
+        }
       }}
     />
   );

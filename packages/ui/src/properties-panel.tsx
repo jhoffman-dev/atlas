@@ -510,7 +510,11 @@ function DateEditor({
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') commit();
-          if (event.key === 'Escape') setDraft(day);
+          // Putting a typed date back answers the Escape: a dialog round the field stays open.
+          if (event.key === 'Escape' && draft !== day) {
+            event.preventDefault();
+            setDraft(day);
+          }
         }}
       />
       <span className="props__date-text" aria-hidden="true">

@@ -13,8 +13,8 @@ const SCALE = 0.5;
 
 /**
  * Each app surface, and the v2 board it is judged against (null: no mockup).
- * `tokens`, `peek`, `type-editor` and `inbox` are surfaces
- * `shots` does not capture yet; their boards are the target of later slices.
+ * `tokens`, `type-editor` and `inbox` are surfaces `shots` does not capture yet;
+ * their boards are the target of later slices.
  */
 const SURFACES: { surface: string; board: string | null }[] = [
   { surface: 'dashboard', board: 'Dashboard' },

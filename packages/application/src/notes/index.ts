@@ -10,6 +10,8 @@ export { NoteChangedError } from './note-changed-error.ts';
 export { FrontmatterRefusedError } from './frontmatter-refused-error.ts';
 export { NoteStillOpeningError } from './note-still-opening-error.ts';
 export { PREVIEW_BATCH, readNotePreviews } from './read-note-previews.ts';
+export { readLinkPreview } from './read-link-preview.ts';
+export type { LinkPreviewRead } from './read-link-preview.ts';
 export type { NotePreview } from './read-note-previews.ts';
 export { embedImage, ImageEmbedError, ImageRefusedError } from './embed-image.ts';
 export type { EmbeddedImage, ImageProbePort } from './embed-image.ts';

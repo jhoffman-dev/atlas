@@ -1,9 +1,12 @@
+import { movedPath, type EntryMove, type VaultPath } from '@atlas/domain';
+
 /**
  * The app's overlays, and the rule that only one is ever up.
  *
  * One value rather than a flag each: two overlays at once means two focus
  * traps fighting, and a flag left set under another overlay pops its own open
- * the moment that one closes.
+ * the moment that one closes. The peek is the one layer below them (slice
+ * 6b): a note over the panes, which an overlay may open above.
  */
 export type Overlay =
   | 'search'
@@ -114,13 +117,33 @@ export interface PaletteInput {
 
 export const NO_INPUT: PaletteInput = { query: '', selected: 0, includeArchived: false };
 
-/** The window's overlay state: which one is up, and what the search palette holds. */
+/** The list a peeked note was opened from, and where in it the note shown sits. */
+export interface PeekFrom {
+  /** What the list is, as the peek's header names it: "Task table". */
+  readonly within: string;
+  /** Its rows' notes, in the order the view's data drew them when the peek opened. */
+  readonly order: readonly VaultPath[];
+  readonly index: number;
+}
+
+/** The note in the center peek; `from` is null for one opened from no list (a link). */
+export interface Peek {
+  readonly path: VaultPath;
+  readonly from: PeekFrom | null;
+}
+
+/**
+ * The window's overlay state: the peek, the one overlay up above it, and what
+ * the search palette holds. Two levels, never more: the peek, and a menu,
+ * picker or palette over it.
+ */
 export interface OverlayState {
   readonly overlay: Overlay | null;
   readonly palette: PaletteInput;
+  readonly peek: Peek | null;
 }
 
-export const NO_OVERLAY: OverlayState = { overlay: null, palette: NO_INPUT };
+export const NO_OVERLAY: OverlayState = { overlay: null, palette: NO_INPUT, peek: null };
 
 /** `requested` asked for, by `openOverlay`'s rule. */
 export function withOpened(state: OverlayState, requested: Overlay): OverlayState {
@@ -134,7 +157,110 @@ export function withOpened(state: OverlayState, requested: Overlay): OverlayStat
 export function withClosed(state: OverlayState, closing: Overlay): OverlayState {
   const overlay = closeOverlay(state.overlay, closing);
   const paletteClosed = state.overlay === 'search' && overlay !== 'search';
-  return { overlay, palette: paletteClosed ? NO_INPUT : state.palette };
+  return { ...state, overlay, palette: paletteClosed ? NO_INPUT : state.palette };
+}
+
+/** The peek a row of a view asks for: its note, where it sits in the rows it was clicked among. */
+export function rowPeek({
+  path,
+  order,
+  within,
+}: {
+  path: VaultPath;
+  order: readonly VaultPath[];
+  within: string;
+}): Peek {
+  const index = order.indexOf(path);
+  return { path, from: index === -1 ? null : { within, order, index } };
+}
+
+/**
+ * The peek opened on `peek`. Refused while anything is up — a menu, a picker,
+ * a palette — rather than drawn above it: the peek is the lower layer, and a
+ * menu left open under a modal peek could not be reached to close.
+ */
+export function withPeekOpened(state: OverlayState, peek: Peek): OverlayState {
+  return state.overlay === null ? { ...state, peek } : state;
+}
+
+/**
+ * Another note shown in the peek in place of the one there — a link followed
+ * or a search result picked inside it — which comes from no list. Nothing
+ * while no peek is up.
+ */
+export function withPeekReplaced(state: OverlayState, path: VaultPath): OverlayState {
+  // A link to the note already shown keeps its place in the rows it steps through.
+  if (state.peek === null || state.peek.path === path) return state;
+  return { ...state, peek: { path, from: null } };
+}
+
+/**
+ * The peek on row `index` of the list it was opened from; nothing past
+ * either end. A row whose note is no longer `listed` — deleted by another
+ * program since the peek opened — is stepped past, on in the same direction.
+ */
+export function withPeekStepped(
+  state: OverlayState,
+  index: number,
+  listed: (path: VaultPath) => boolean = () => true,
+): OverlayState {
+  const from = state.peek?.from;
+  if (from === undefined || from === null) return state;
+  const direction = index < from.index ? -1 : 1;
+  let at = index;
+  while (from.order[at] !== undefined && !listed(from.order[at] as VaultPath)) at += direction;
+  const path = from.order[at];
+  if (path === undefined) return state;
+  return { ...state, peek: { path, from: { ...from, index: at } } };
+}
+
+/** The peek closed. Whatever is up above it is the peek's own, and closes with it. */
+export function withPeekClosed(state: OverlayState): OverlayState {
+  return state.peek === null ? state : withClosedAbove({ ...state, peek: null });
+}
+
+function withClosedAbove(state: OverlayState): OverlayState {
+  return state.overlay === null ? state : withClosed(state, state.overlay);
+}
+
+/**
+ * Whether the window's shortcuts that make, open or arrange notes are held:
+ * while a palette or dialog is up (`holdsTheScreen`), and while the peek is,
+ * whose note is the one being worked on. ⌘K is not held by either rule.
+ */
+export function holdsShortcuts(state: Pick<OverlayState, 'overlay' | 'peek'>): boolean {
+  return state.peek !== null || holdsTheScreen(state.overlay);
+}
+
+/** Where the peeked note sits, as its header says it; null for one opened from no list. */
+export function peekPosition(
+  peek: Peek | null,
+): { index: number; count: number; within: string } | null {
+  const from = peek?.from;
+  if (from === undefined || from === null) return null;
+  return { index: from.index, count: from.order.length, within: from.within };
+}
+
+/** The peek after a move or rename: its note, and the rows it steps through, where they went. */
+export function peekAfterMove(peek: Peek | null, move: EntryMove): Peek | null {
+  if (peek === null) return null;
+  const follow = (path: VaultPath) => movedPath(path, move) ?? path;
+  const path = follow(peek.path);
+  const order = peek.from?.order.map(follow) ?? [];
+  const unchanged = path === peek.path && order.every((row, at) => row === peek.from?.order[at]);
+  if (unchanged) return peek;
+  return { path, from: peek.from === null ? null : { ...peek.from, order } };
+}
+
+/** The peek once `gone` are deleted: closed when its note is, else stepping past them. */
+export function peekWithout(peek: Peek | null, gone: readonly VaultPath[]): Peek | null {
+  if (peek === null) return null;
+  const deleted = new Set<string>(gone);
+  if (deleted.has(peek.path)) return null;
+  const from = peek.from;
+  if (from === null || !from.order.some((path) => deleted.has(path))) return peek;
+  const order = from.order.filter((path) => !deleted.has(path));
+  return { path: peek.path, from: { ...from, order, index: order.indexOf(peek.path) } };
 }
 
 /**
