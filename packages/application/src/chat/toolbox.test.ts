@@ -126,6 +126,25 @@ describe('the chat toolbox', () => {
     });
   });
 
+  it('reads a 60 KB note through to its last line (#415)', async () => {
+    const lines = Array.from(
+      { length: 1000 },
+      (_, at) => `Line ${at}: gulls over the harbour wall.`,
+    );
+    const text = `${lines.join('\n')}\nThe very last line of the logbook.\n`;
+    expect(text.length).toBeGreaterThan(40_000);
+    const { box } = toolbox({ 'Logbook.md': text });
+    const { result } = await box.run({
+      id: 'c',
+      name: 'atlas_read_note',
+      input: { path: 'Logbook.md' },
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.content)).toMatchObject({
+      note: { body: expect.stringContaining('The very last line of the logbook.') },
+    });
+  });
+
   it('turns propose_edit into a proposal and tells the model it is not yet made', async () => {
     const { box, fixture } = toolbox({ 'Plan.md': 'One.\n' });
     const { result, proposal } = await box.run({
