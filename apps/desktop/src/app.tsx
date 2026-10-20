@@ -287,6 +287,9 @@ import { browserClipboard } from './settings/clipboard.ts';
 const OPEN_TEMPLATES = 'open-templates';
 const OPEN_TERMS = 'open-terms';
 const FIND_DUPLICATE_PEOPLE = 'find-duplicate-people';
+/** Why a merge was not worked out: links to the people might be missed. */
+const INDEX_BEHIND_FOR_MERGE =
+  'The index could not catch up with the vault, so links to these people could be missed. Try the merge again.';
 const OPEN_INBOX = 'open-inbox';
 const OPEN_REVIEW = 'open-review';
 const OPEN_TODAY = 'open-today';
@@ -1172,6 +1175,9 @@ function AppWindow({
       index: index.index,
       markdown: notes.markdown,
       editors: entryPorts.editors,
+      refreshIndex: async (saved) => {
+        if (!(await refresh({ recheck: saved }))) throw new Error(INDEX_BEHIND_FOR_MERGE);
+      },
     },
     settings: vaultSettingsWriter({ fs: vault.fs, markdown: notes.markdown }),
     notePaths,

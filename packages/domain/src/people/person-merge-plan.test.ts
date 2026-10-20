@@ -65,7 +65,7 @@ describe('what merging people changes in the kept note', () => {
     expect(Object.keys(plan.changes)).toEqual(['aliases']);
   });
 
-  it('adds a merged single value to a kept list, and a merged list to a kept single value only when it says no more', () => {
+  it('adds a merged single value to a kept list, and joins a merged list to a kept single value', () => {
     const plan = planPersonMerge({
       kept: kept({ teams: ['Payroll'], lead: '[[Tobias Fenn]]', desk: 'North' }),
       duplicates: [
@@ -74,15 +74,45 @@ describe('what merging people changes in the kept note', () => {
     });
     expect(plan.changes['teams']).toEqual(['Payroll', 'Audit']);
     expect(plan.changes['lead']).toBeUndefined();
-    expect(plan.conflicts.map((conflict) => conflict.key)).toEqual(['desk']);
+    expect(plan.changes['desk']).toEqual(['North', 'South']);
+    expect(plan.conflicts).toEqual([]);
   });
 
-  it('leaves the type alone, whatever the merged note says', () => {
+  it('joins every type, the kept note’s first, and leaves one type as it was written', () => {
     const plan = planPersonMerge({
       kept: kept(),
-      duplicates: [note('Mara.md', { type: ['person', 'contact'] })],
+      duplicates: [
+        note('Mara.md', { type: ['person', 'contact'] }),
+        note('M.md', { type: 'vendor' }),
+      ],
     });
-    expect(plan.changes['type']).toBeUndefined();
+    expect(plan.changes['type']).toEqual(['person', 'contact', 'vendor']);
+    const same = planPersonMerge({
+      kept: kept(),
+      duplicates: [note('Mara.md', { type: 'Person' })],
+    });
+    expect(same.changes['type']).toBeUndefined();
+    expect(same.conflicts).toEqual([]);
+  });
+
+  it('leaves out a merged value that is only a link to the kept person or a merged one', () => {
+    const opens: Record<string, string> = {
+      'Mara Quill': 'People/Mara Quill.md',
+      Mara: 'Mara.md',
+      'Tobias Fenn': 'Tobias Fenn.md',
+    };
+    const plan = planPersonMerge({
+      kept: kept({ related: ['[[Tobias Fenn]]'] }),
+      duplicates: [
+        note('Mara.md', {
+          same_as: '[[Mara Quill]]',
+          related: ['[[Mara|me]]', '[[Tobias Fenn]]', '[[Mara Quill]] and more'],
+        }),
+      ],
+      resolve: (target) => (opens[target] === undefined ? null : createVaultPath(opens[target])),
+    });
+    expect(plan.changes['same_as']).toBeUndefined();
+    expect(plan.changes['related']).toEqual(['[[Tobias Fenn]]', '[[Mara Quill]] and more']);
   });
 
   it('skips a merged value that is empty, as an empty list or text of spaces', () => {
@@ -111,13 +141,16 @@ describe('addresses in a merge', () => {
       ],
     });
     expect(plan.changes['email']).toBeUndefined();
+    // Exactly as written, case aside: a +tag address is an address of its own.
     expect(plan.changes['other_emails']).toEqual([
       'mq@larkspur.example.com',
       'Mara@larkspur.example.com',
+      'mara+lists@larkspur.example.com',
       'marra.quill@larkspur.example.com',
     ]);
     expect(plan.emailsAdded).toEqual([
       'Mara@larkspur.example.com',
+      'mara+lists@larkspur.example.com',
       'marra.quill@larkspur.example.com',
     ]);
     expect(plan.conflicts).toEqual([]);
@@ -175,6 +208,19 @@ describe('bodies in a merge', () => {
     expect(mergedBody('# Mara Quill\n\nLeads payroll.', plan.appended)).toBe(
       '# Mara Quill\n\nLeads payroll.\n\n## Merged from Mara\n\nMet at the [[Kickoff]].\n',
     );
+  });
+
+  it('adds a merged body the kept note already holds under its heading once, never twice', () => {
+    const merged = note('Mara.md', {}, 'Met at the kickoff.\n');
+    const once = planPersonMerge({ kept: kept({}, 'Leads.\n'), duplicates: [merged] });
+    const body = mergedBody('Leads.\n', once.appended);
+    const again = planPersonMerge({ kept: kept({}, body), duplicates: [merged] });
+    expect(again.appended).toEqual([]);
+    const changed = planPersonMerge({
+      kept: kept({}, body),
+      duplicates: [note('Mara.md', {}, 'Met at the kickoff, then lunch.\n')],
+    });
+    expect(changed.appended).toHaveLength(1);
   });
 
   it('names a merged note by its path where its title is the kept note’s too', () => {

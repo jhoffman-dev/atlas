@@ -29,14 +29,14 @@ export const mergePeople = defineTool({
   description:
     "Merge Person notes into one, as Atlas's People page does. It only previews unless " +
     'confirm is true: { merge: { keep, merge, refusal, notes, links, conflicts, aliasesAdded, ' +
-    'emailsAdded, appended, skipped } }, writing nothing. Show that to the user — above all ' +
+    'emailsAdded, appended, version } }, writing nothing. Show that to the user — above all ' +
     '"conflicts", the values the kept note keeps over a merged one\'s — then call again with ' +
-    'confirm true to merge; that also answers { report: { written, notWritten, trashed, ' +
+    "confirm true and that preview's version to merge; that also answers { report: { written, notWritten, trashed, " +
     'notTrashed, failures, links } }. Merging joins lists, adds the merged emails and titles ' +
     'to the kept note, appends each merged body under a heading, re-points every link to the ' +
     'merged people at the kept one, and puts the merged notes in the Trash. A note open in ' +
-    'Atlas with unsaved typing refuses it, and a note changed since the preview fails with ' +
-    '"conflict" and nothing written: preview again.',
+    "Atlas with unsaved typing refuses it, and a confirm whose version is not the preview's " +
+    'now — a note changed since — fails with "conflict" and nothing written: preview again.',
   inputSchema: z.object({
     keep: notePath.describe('The person to keep: "People/Mara Quill.md".'),
     merge: z
@@ -48,6 +48,11 @@ export const mergePeople = defineTool({
       .boolean()
       .optional()
       .describe('True: make the merge. Absent or false: only say what it would do.'),
+    version: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('With confirm: the "version" of the preview shown to the user.'),
   }),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   // Previews unless told plainly to write: a model that leaves confirm out gets the preview.

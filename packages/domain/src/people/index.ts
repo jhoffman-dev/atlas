@@ -29,7 +29,12 @@ export {
   possibleDuplicates,
 } from './possible-duplicates.ts';
 export type { DuplicateCandidate, DuplicatePair, DuplicateReason } from './possible-duplicates.ts';
-export { mergedBody, personMergeRefusal, planPersonMerge } from './person-merge-plan.ts';
+export {
+  mergedBody,
+  mergeVersion,
+  personMergeRefusal,
+  planPersonMerge,
+} from './person-merge-plan.ts';
 export type {
   AppendedBody,
   MergeConflict,

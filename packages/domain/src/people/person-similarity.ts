@@ -1,4 +1,7 @@
-import { emailDomain, isPublicMail } from '../meeting-links/attendee-matching.ts';
+import { addressParts } from '../meeting-links/address-key.ts';
+import { isPublicMail } from '../meeting-links/attendee-matching.ts';
+
+export { addressParts, type AddressParts } from '../meeting-links/address-key.ts';
 
 /**
  * How alike two people's addresses are, for the possible-duplicates list
@@ -17,27 +20,6 @@ export const DOMAIN_TWO_EDITS_FROM = 14;
 
 /** What separates the words of a local part: `mara.quill`, `mara_quill`, `mara-quill`. */
 const SEPARATORS = /[._-]+/u;
-
-/** An address split as it is compared: its local part and its domain, both folded; null when it is not one. */
-export interface AddressParts {
-  readonly local: string;
-  readonly domain: string;
-}
-
-/**
- * An address as compared: the part in `<…>` when written as a mail client
- * copies it, composed, case folded, and a `+tag` dropped from the local part
- * (`mara+payroll@` is `mara@`). Null for text with no `@` or nothing either side.
- */
-export function addressParts(written: string): AddressParts | null {
-  const bracketed = /<([^<>]+)>\s*$/u.exec(written)?.[1] ?? written;
-  const address = bracketed.normalize('NFC').trim().toLowerCase();
-  const at = address.lastIndexOf('@');
-  if (at <= 0) return null;
-  const local = (address.slice(0, at).split('+')[0] ?? '').trim();
-  const domain = emailDomain(address) ?? '';
-  return local === '' || domain === '' ? null : { local, domain };
-}
 
 /**
  * The fewest single-letter changes — a letter added, dropped, changed, or two
@@ -84,8 +66,13 @@ function near(left: string, right: string, one: number, two: number): boolean {
   return most > 0 && editDistanceWithin(left, right, most) !== null;
 }
 
-/** Whether two domains are one, or a small typo apart (`larkspur.example.com`, `larkspor.example.com`). */
+/**
+ * Whether two domains are one, or a small typo apart (`larkspur.example.com`,
+ * `larkspor.example.com`). A public mail provider is near only itself:
+ * `mail.com` and `gmail.com` are two providers, not a typo.
+ */
 export function domainsNear(left: string, right: string): boolean {
+  if (isPublicMail(left) || isPublicMail(right)) return left === right;
   return near(left, right, DOMAIN_ONE_EDIT_FROM, DOMAIN_TWO_EDITS_FROM);
 }
 
@@ -96,9 +83,11 @@ export type LocalMatch = 'same' | 'first-name' | 'typo';
  * Whether two local parts name the same person, and how:
  *
  * - `same` — equal once their separators are dropped (`mara.quill`, `maraquill`, `mara_quill`);
- * - `first-name` — one is the first word of the other (`mara`, `mara.quill`) — not at a
- *   public mail provider, where `mara@` is anyone called Mara;
+ * - `first-name` — one is the first word of the other (`mara`, `mara.quill`);
  * - `typo` — the compacted forms a letter or two apart, by length (`marra.quill`).
+ *
+ * At a public mail provider only `same` holds: millions share the domain, so
+ * `mara@` is anyone called Mara and `chris.wang@` is not `chris.wong@`.
  */
 export function localPartsMatch(
   left: string,
@@ -111,7 +100,8 @@ export function localPartsMatch(
   const rightCompact = rightWords.join('');
   if (leftCompact === '' || rightCompact === '') return null;
   if (leftCompact === rightCompact) return 'same';
-  if (!publicMail && isFirstWordOf(leftWords, rightWords)) return 'first-name';
+  if (publicMail) return null;
+  if (isFirstWordOf(leftWords, rightWords)) return 'first-name';
   if (near(leftCompact, rightCompact, LOCAL_ONE_EDIT_FROM, LOCAL_TWO_EDITS_FROM)) return 'typo';
   return null;
 }

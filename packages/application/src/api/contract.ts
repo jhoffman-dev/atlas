@@ -1008,6 +1008,11 @@ export interface ApiMergePeopleBody {
   readonly merge: readonly string[];
   /** True: make the merge. Absent or false: answer what it would do, and write nothing. */
   readonly confirm?: boolean;
+  /**
+   * With `confirm`: the `version` of the preview the caller was shown. The
+   * merge is made only while the vault still gives that preview.
+   */
+  readonly version?: string;
 }
 
 /** What merging people would do, worked out from the notes themselves; nothing written. */
@@ -1031,11 +1036,8 @@ export interface ApiPeopleMergePreview {
   readonly emailsAdded: readonly string[];
   /** Each merged body added to the kept note, by the heading it goes under. */
   readonly appended: readonly { readonly from: string; readonly heading: string }[];
-  /**
-   * Notes linking to a merged person that are not rewritten: in `.atlas` or a
-   * hidden folder, which the API may not write.
-   */
-  readonly skipped: readonly { readonly path: string; readonly reason: string }[];
+  /** What this preview was worked out from: send it back with `confirm` to make this merge. */
+  readonly version: string;
 }
 
 /** What a merge did, file by file: each file changed whole, or left exactly as it was. */

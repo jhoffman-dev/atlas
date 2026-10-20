@@ -32,19 +32,18 @@ export async function loadPossibleDuplicates(ports: DuplicatesPorts): Promise<Du
 }
 
 /**
- * Remembers that two people are not one, so the pair is not offered again.
- * The settings are read afresh for the pairs already remembered, then
- * written through the vault's one settings writer.
+ * Remembers that two people are not one, so the pair is not offered again:
+ * added, in the settings writer's turn, to the pairs remembered at that
+ * moment — so two pairs dismissed at once are both kept.
  */
 export async function dismissPossibleDuplicate({
-  ports,
   settings,
   pair,
 }: {
-  ports: Pick<DuplicatesPorts, 'fs' | 'markdown'>;
+  /** The vault's ports, as the list was read through. Not read again here: the writer reads in its turn. */
+  ports?: Pick<DuplicatesPorts, 'fs' | 'markdown'>;
   settings: SettingsWriter;
   pair: { readonly left: VaultPath; readonly right: VaultPath };
 }): Promise<void> {
-  const current = await readVaultSettings({ fs: ports.fs, markdown: ports.markdown });
-  await settings.save(dismissDuplicateChanges(current, pair));
+  await settings.update((current) => dismissDuplicateChanges(current, pair));
 }

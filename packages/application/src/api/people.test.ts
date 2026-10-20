@@ -65,6 +65,14 @@ async function vault(
 const merge = (api: ReturnType<typeof apiFixture>, body: unknown) =>
   api.send({ method: 'POST', path: '/v1/people/merge', body });
 
+/** The version a preview of merging SHORT into KEPT answers with. */
+async function versionOf(api: ReturnType<typeof apiFixture>): Promise<string> {
+  const shown = bodyOf(await merge(api, { keep: KEPT, merge: [SHORT] }))['merge'] as {
+    version: string;
+  };
+  return shown.version;
+}
+
 describe('GET /v1/people/duplicates', () => {
   it('answers each pair who may be one person, with why, surest first', async () => {
     const { api } = await vault();
@@ -104,14 +112,15 @@ describe('POST /v1/people/merge', () => {
       refusal: null,
       notes: [
         { path: 'Kickoff.md', links: 2 },
+        { path: '.atlas/templates/Brief.md', links: 1 },
         { path: KEPT, links: 0 },
       ],
-      links: 2,
+      links: 3,
       conflicts: [{ key: 'role', kept: 'Payroll lead', other: 'Analyst', from: SHORT }],
       aliasesAdded: ['Mara'],
       emailsAdded: ['mara@larkspur.example.com'],
       appended: [{ from: SHORT, heading: '## Merged from Mara' }],
-      skipped: [],
+      version: expect.stringMatching(/^(?:[0-9a-f]{8})+$/u),
     });
     expect(bodyOf(response)['report']).toBeUndefined();
     expect(api.writes).toEqual([]);
@@ -121,21 +130,23 @@ describe('POST /v1/people/merge', () => {
 
   it('merges with confirm: links re-pointed, the kept note merged, the merged person trashed', async () => {
     const { api, trashed } = await vault();
-    const response = await merge(api, { keep: KEPT, merge: [SHORT], confirm: true });
+    const version = await versionOf(api);
+    const response = await merge(api, { keep: KEPT, merge: [SHORT], confirm: true, version });
     expect(response.status).toBe(200);
     expect(bodyOf(response)['report']).toEqual({
-      written: ['Kickoff.md', KEPT],
+      written: ['Kickoff.md', '.atlas/templates/Brief.md', KEPT],
       notWritten: [],
       trashed: [SHORT],
       notTrashed: [],
       failures: [],
-      links: 2,
+      links: 3,
     });
     expect(api.files.get('Kickoff.md')?.text).toBe(
       note({ attendees: ['[[Mara Quill]]'] }, 'With [[Mara Quill|M]] of Larkspur Payroll.\n'),
     );
     expect(api.files.get(KEPT)?.text).toContain('## Merged from Mara\n\nMet at the kickoff.\n');
-    expect(api.files.get('.atlas/templates/Brief.md')?.text).toBe('Ask [[Mara]].\n');
+    // A template is the person's own words: it is rewritten as the app rewrites it.
+    expect(api.files.get('.atlas/templates/Brief.md')?.text).toBe('Ask [[Mara Quill]].\n');
     expect(trashed).toEqual([SHORT]);
     // An answer that wrote is said in the Activity log; a preview is not.
     expect(api.activity.reports.length).toBeGreaterThan(0);
@@ -162,8 +173,19 @@ describe('POST /v1/people/merge', () => {
     expect(api.writes).toEqual([]);
   });
 
+  it('is a conflict, with nothing written, when a confirm carries no version or another one', async () => {
+    const { api, trashed } = await vault();
+    for (const version of [undefined, 'not-this-one']) {
+      const confirmed = await merge(api, { keep: KEPT, merge: [SHORT], confirm: true, version });
+      expect(codeOf(confirmed)).toBe('conflict');
+    }
+    expect(api.writes).toEqual([]);
+    expect(trashed).toEqual([]);
+  });
+
   it('is a conflict, with nothing written, when a note changes between the preview and the writes', async () => {
     const { api } = await vault();
+    const version = await versionOf(api);
     const { readNotes } = api.deps.fs;
     let reads = 0;
     api.deps = {
@@ -180,7 +202,7 @@ describe('POST /v1/people/merge', () => {
         },
       },
     };
-    const response = await merge(api, { keep: KEPT, merge: [SHORT], confirm: true });
+    const response = await merge(api, { keep: KEPT, merge: [SHORT], confirm: true, version });
     expect(response.status).toBe(409);
     expect(codeOf(response)).toBe('conflict');
     expect(api.writes).toEqual([]);

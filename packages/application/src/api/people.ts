@@ -13,7 +13,13 @@ import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import { archivePorts } from './archive.ts';
 import type { ApiDuplicatePair, ApiPeopleMergePreview, ApiPeopleMergeReport } from './contract.ts';
-import { bodyObject, optionalArray, optionalBoolean, requiredString } from './fields.ts';
+import {
+  bodyObject,
+  optionalArray,
+  optionalBoolean,
+  optionalString,
+  requiredString,
+} from './fields.ts';
 import { isApiNotePath, notePathFrom } from './paths.ts';
 import type { MovingNotes } from './ports.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
@@ -21,12 +27,16 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
 /*
  * People through the local API (#464): the pairs who may be one person, and
  * merging them — the use-cases the People page runs, previewed unless the
- * caller confirms, as a tag rename is.
+ * caller confirms with the version of the preview it was shown, as a tag
+ * rename is previewed. Templates linking to a merged person are rewritten as
+ * the app rewrites them; any other note of Atlas's own refuses the merge.
  */
 
 /** How many people one merge may take: each is a body, a Trash move and every link to them. */
 const MAX_MERGED = 20;
-const OUTSIDE_USER_SPACE = 'in .atlas or a hidden folder, which the API cannot write';
+/** Why a confirm is not made: what it would merge is not what the caller was shown. */
+const NOT_AS_SHOWN =
+  'The vault no longer gives the preview this confirm was sent with, so nothing was merged. Preview again and confirm that.';
 
 /** `GET /v1/people/duplicates`: the possible duplicate pairs, among the notes the API reads. */
 export async function duplicatesRoute(request: VaultRequest): Promise<RouteResult> {
@@ -50,17 +60,18 @@ export async function duplicatesRoute(request: VaultRequest): Promise<RouteResul
 export async function mergePeopleRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
   const confirm = optionalBoolean(fields, 'confirm') ?? false;
+  const version = optionalString(fields, 'version');
   const notePaths = await listVaultNotes({ fs: request.fs });
   const keep = noteNamed(requiredString(fields, 'keep'), 'keep', notePaths);
   const merge = mergedPeople(fields, notePaths);
 
   const ports = mergePorts(request);
-  const whole = await previewPeopleMerge({ ports, request: { keep, merge }, notePaths });
+  const preview = await previewPeopleMerge({ ports, request: { keep, merge }, notePaths });
   request.assertStillOpen();
-  const { preview, skipped } = userSpaceOnly(whole);
-  const shown = toApiPreview(preview, skipped);
+  const shown = toApiPreview(preview);
   if (!confirm) return { status: 200, body: { merge: shown } };
   if (preview.refusal !== null) throw new ApiError('invalid', preview.refusal);
+  if (version !== preview.version) throw new ApiError('conflict', NOT_AS_SHOWN);
 
   const report = await applyPeopleMerge({ ports, preview }).catch((error: unknown) => {
     if (error instanceof PeopleMergeChangedError) throw new ApiError('conflict', error.message);
@@ -112,19 +123,6 @@ function typingLeftAlone(panes: MovingNotes): MergePanes {
   };
 }
 
-/** The preview cut to the notes the API may write; a note outside user space is named as skipped. */
-function userSpaceOnly(preview: PeopleMergePreview): {
-  preview: PeopleMergePreview;
-  skipped: { path: VaultPath; reason: string }[];
-} {
-  const writes = preview.writes.filter((write) => isApiNotePath(write.path));
-  const skipped = preview.writes
-    .filter((write) => !isApiNotePath(write.path))
-    .map((write) => ({ path: write.path, reason: OUTSIDE_USER_SPACE }));
-  const links = writes.reduce((sum, write) => sum + write.links, 0);
-  return { preview: { ...preview, writes, links }, skipped };
-}
-
 function toApiPair(pair: DuplicatePair): ApiDuplicatePair {
   return {
     left: { path: pair.left.path, name: pair.left.name },
@@ -133,10 +131,7 @@ function toApiPair(pair: DuplicatePair): ApiDuplicatePair {
   };
 }
 
-function toApiPreview(
-  preview: PeopleMergePreview,
-  skipped: readonly { path: VaultPath; reason: string }[],
-): ApiPeopleMergePreview {
+function toApiPreview(preview: PeopleMergePreview): ApiPeopleMergePreview {
   return {
     keep: preview.keep,
     merge: preview.merge,
@@ -147,7 +142,7 @@ function toApiPreview(
     aliasesAdded: preview.plan?.aliasesAdded ?? [],
     emailsAdded: preview.plan?.emailsAdded ?? [],
     appended: (preview.plan?.appended ?? []).map(({ from, heading }) => ({ from, heading })),
-    skipped,
+    version: preview.version,
   };
 }
 

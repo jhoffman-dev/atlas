@@ -1,5 +1,9 @@
 import {
+  createWikiLinkResolver,
   imagePathsToRebase,
+  isTemplateNote,
+  isUserSpaceNote,
+  mergeVersion,
   joinFrontmatter,
   mergedBody,
   notesAfterMerge,
@@ -18,6 +22,7 @@ import type { IndexPort } from '../index/ports.ts';
 import { forgetNotes, notesLinkingTo } from '../index/refresh-index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { NoteFile, OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';
+import { loadTemplates } from '../types/templates.ts';
 import { filesAmong, type LinkUpdatePanes } from '../vault/update-links.ts';
 
 /** Which person to keep, and who to merge into them. */
@@ -46,10 +51,15 @@ export interface PeopleMergePreview extends PeopleMergeRequest {
   readonly links: number;
   /** The merged people's own text as read: the merge goes ahead only while they still hold it. */
   readonly merged: readonly { readonly path: VaultPath; readonly text: string }[];
+  /**
+   * What this preview was worked out from — every file it read and the plan
+   * — as one token: a confirm carrying another is not this merge (`''` when refused).
+   */
+  readonly version: string;
 }
 
 /** The panes, as a merge needs them: their state, their typing saved, and a clean one read again. */
-export type MergePanes = Pick<OpenEditorsPort, 'state' | 'flush' | 'abandon'> &
+export type MergePanes = Pick<OpenEditorsPort, 'state' | 'flush' | 'abandon' | 'dirtyPaths'> &
   Pick<LinkUpdatePanes, 'reload'>;
 
 /** The ports a merge reads and writes through. */
@@ -61,6 +71,12 @@ export interface MergePorts {
     'frontmatterProperties' | 'frontmatterProblem' | 'updateFrontmatter'
   >;
   readonly editors: MergePanes;
+  /**
+   * Brings the index up to the files — typing just saved (`saved`, read again
+   * whatever their time says), and changes another program made — or rejects
+   * when it cannot. Without it the index is read as it stands.
+   */
+  readonly refreshIndex?: (saved: readonly VaultPath[]) => Promise<void>;
 }
 
 const refused = (request: PeopleMergeRequest, refusal: string): PeopleMergePreview => ({
@@ -70,6 +86,7 @@ const refused = (request: PeopleMergeRequest, refusal: string): PeopleMergePrevi
   writes: [],
   links: 0,
   merged: [],
+  version: '',
 });
 
 /**
@@ -89,9 +106,16 @@ export async function previewPeopleMerge({
   /** Every note in the vault, as links resolve among them. */
   notePaths: readonly VaultPath[];
 }): Promise<PeopleMergePreview> {
-  const holders = (await notesLinkingTo(ports.index, request.merge)).filter(
+  await indexEveryLink(ports, request);
+  // Templates are the person's own words too, and few: each is read whether
+  // or not the index says it links to them (#467).
+  const templates = (await loadTemplates({ fs: ports.fs })).map((template) => template.path);
+  const linking = [...(await notesLinkingTo(ports.index, request.merge)), ...templates];
+  const holders = [...new Set(linking)].filter(
     (path) => path !== request.keep && !request.merge.includes(path),
   );
+  const theirs = holders.filter((path) => !isUserSpaceNote(path) && !isTemplateNote(path));
+  if (theirs.length > 0) return refused(request, atlasOwnRefusal(theirs, request.merge));
   const involved = [request.keep, ...request.merge, ...holders];
   await saveTyping(ports.editors, involved);
   const unsaved = involved.filter((path) => ports.editors.state(path) === 'dirty');
@@ -111,18 +135,48 @@ export async function previewPeopleMerge({
     notes: notePaths,
     into: new Map(request.merge.map((path) => [path, request.keep])),
   });
-  const plan = planPersonMerge(read);
+  const plan = planPersonMerge({ ...read, resolve: createWikiLinkResolver(notePaths) });
   const kept = await keptWrite({ ports, files, request, plan, across });
-  const linking = holders.flatMap((path) => holderWrite(files.get(path), across));
-  const writes = [...linking, ...(kept === null ? [] : [kept])];
+  const rewritten = holders.flatMap((path) => holderWrite(files.get(path), across));
+  const writes = [...rewritten, ...(kept === null ? [] : [kept])];
+  const merged = request.merge.map((path) => ({ path, text: files.get(path)?.text ?? '' }));
   return {
     ...request,
     refusal: null,
     plan,
     writes,
     links: writes.reduce((sum, write) => sum + write.links, 0),
-    merged: request.merge.map((path) => ({ path, text: files.get(path)?.text ?? '' })),
+    merged,
+    version: mergeVersion({
+      read: [...merged, ...writes.map(({ path, before }) => ({ path, text: before }))],
+      plan,
+    }),
   };
+}
+
+/**
+ * Makes the index hold every link to a merged person before it is asked for
+ * them: typing in any pane — on any note, since one may have just typed
+ * `[[Mara]]` anywhere — is saved, and the index brought up to the files.
+ */
+async function indexEveryLink(ports: MergePorts, request: PeopleMergeRequest): Promise<void> {
+  const dirty = new Set<VaultPath>(ports.editors.dirtyPaths?.() ?? []);
+  for (const path of [request.keep, ...request.merge]) {
+    if (ports.editors.state(path) === 'dirty') dirty.add(path);
+  }
+  if (dirty.size > 0) await ports.editors.flush([...dirty]);
+  await ports.refreshIndex?.([...dirty]);
+}
+
+/** Why a merge is refused while one of Atlas's own files links to a merged person. */
+function atlasOwnRefusal(paths: readonly VaultPath[], merge: readonly VaultPath[]): string {
+  const files = paths.join(', ');
+  const people = merge.map(noteTitle).join(', ');
+  return (
+    `${files} ${paths.length === 1 ? 'links' : 'link'} to ${people} but ` +
+    `${paths.length === 1 ? 'is one' : 'are'} of Atlas's own files, which a merge does not rewrite. ` +
+    'Change those links by hand, then merge.'
+  );
 }
 
 async function saveTyping(editors: MergePanes, paths: readonly VaultPath[]): Promise<void> {
@@ -325,6 +379,10 @@ export async function applyPeopleMerge({
   };
 }
 
+/** Why a merged person was left in the vault: their note changed while the merge was written. */
+const CHANGED_BEFORE_TRASH =
+  'It changed while the merge was being written, so it was left where it is. Merge it again to take in the change.';
+
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
 /**
@@ -367,7 +425,14 @@ async function trashMerged({
   failures: MergeFailure[];
 }): Promise<VaultPath[]> {
   const trashed: VaultPath[] = [];
-  for (const path of preview.merge) {
+  const read = new Map(
+    (await ports.fs.readNotes(preview.merge)).map((file) => [file.path, file.text]),
+  );
+  for (const { path, text } of preview.merged) {
+    if (read.get(path) !== text) {
+      failures.push({ path, step: 'trash', reason: CHANGED_BEFORE_TRASH });
+      continue;
+    }
     try {
       await ports.fs.trashEntry({ path });
       trashed.push(path);

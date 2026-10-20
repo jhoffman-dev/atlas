@@ -1,3 +1,6 @@
+import { splitWikiLinks } from '../markdown/wikilink.ts';
+import { digestOf } from '../sources/merge.ts';
+import { addressKey } from '../meeting-links/address-key.ts';
 import {
   PERSON_EMAIL_KEY,
   PERSON_OTHER_EMAILS_KEY,
@@ -6,7 +9,6 @@ import { ALIASES_KEY } from '../terms/term.ts';
 import { vocabularyKey } from '../terms/spelling.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
-import { addressParts } from './person-similarity.ts';
 import { PERSON_TYPE } from './person.ts';
 
 /** A person's note as a merge reads it: its properties as plain values, and its body. */
@@ -65,14 +67,21 @@ function declaresPerson(properties: Readonly<Record<string, unknown>>): boolean 
 }
 
 /** Keys merged by their own rule, not the general one. */
-const OWN_RULES = new Set(['type', ALIASES_KEY, PERSON_EMAIL_KEY, PERSON_OTHER_EMAILS_KEY]);
+const OWN_RULES = new Set([ALIASES_KEY, PERSON_EMAIL_KEY, PERSON_OTHER_EMAILS_KEY]);
+
+/** The key every type a note has is joined under: none is ever dropped. */
+const TYPE_KEY = 'type';
 
 /**
  * How `duplicates` merge into `kept` (#464), in the order given:
  *
  * - Lists are joined, never dropped: each item the kept note lacks is added after its own.
+ *   A merged list joined to a kept single value makes a list, the kept value first.
+ * - Types are always joined, the kept note's first: a person who is also a contractor stays one.
  * - A value the kept note has none of is taken from the first merged note that has one.
  * - Two different single values keep the kept note's; the other is a {@link MergeConflict}.
+ * - A merged value that is only a link to the kept person or a merged one is left out:
+ *   kept, it would be the person linking to themselves.
  * - Addresses: a merged `email` the kept note has none of becomes its `email`;
  *   every other address it lacks goes into `other_emails`, so meeting import finds it.
  * - Aliases: each merged note's aliases and its title, so an attendee by that name is still them.
@@ -81,16 +90,24 @@ const OWN_RULES = new Set(['type', ALIASES_KEY, PERSON_EMAIL_KEY, PERSON_OTHER_E
 export function planPersonMerge({
   kept,
   duplicates,
+  resolve = () => null,
 }: {
   kept: MergeNote;
   duplicates: readonly MergeNote[];
+  /** Where a link's target opens, among the vault's notes before the merge. */
+  resolve?: (target: string) => VaultPath | null;
 }): PersonMergePlan {
+  const merging = new Set<string>([kept.path, ...duplicates.map((note) => note.path)]);
+  const selfLink = (value: unknown) =>
+    typeof value === 'string' && opensOneOf(value, merging, resolve);
   const values: Record<string, unknown> = { ...kept.properties };
   const conflicts: MergeConflict[] = [];
   for (const duplicate of duplicates) {
-    for (const [key, other] of Object.entries(duplicate.properties)) {
+    for (const [key, written] of Object.entries(duplicate.properties)) {
+      const other = withoutSelfLinks(written, selfLink);
       if (OWN_RULES.has(key) || isEmpty(other)) continue;
-      const merged = mergeValue(values[key], other);
+      const merged =
+        key === TYPE_KEY ? joinedTypes(values[key], other) : mergeValue(values[key], other);
       if (merged.conflict) conflicts.push({ key, kept: values[key], other, from: duplicate.path });
       else values[key] = merged.value;
     }
@@ -134,9 +151,41 @@ function mergeValue(kept: unknown, other: unknown): { value?: unknown; conflict:
   if (Array.isArray(kept)) {
     return { value: union(kept, Array.isArray(other) ? other : [other]), conflict: false };
   }
-  const others = Array.isArray(other) ? other.filter((item) => !isEmpty(item)) : [other];
-  const same = others.every((item) => comparable(item) === comparable(kept));
-  return same ? { value: kept, conflict: false } : { conflict: true };
+  if (Array.isArray(other)) {
+    const joined = union([kept], other);
+    return { value: joined.length === 1 ? kept : joined, conflict: false };
+  }
+  return comparable(other) === comparable(kept)
+    ? { value: kept, conflict: false }
+    : { conflict: true };
+}
+
+/** Every type of both notes, the kept note's first; a single type stays written as one. */
+function joinedTypes(kept: unknown, other: unknown): { value: unknown; conflict: false } {
+  const joined = union(asList(kept), asList(other));
+  return { value: joined.length === 1 && !Array.isArray(kept) ? kept : joined, conflict: false };
+}
+
+const asList = (value: unknown): unknown[] =>
+  isEmpty(value) ? [] : Array.isArray(value) ? value : [value];
+
+/** A value with every item that is only a link to one of the people merging taken out. */
+function withoutSelfLinks(value: unknown, selfLink: (item: unknown) => boolean): unknown {
+  if (Array.isArray(value)) return value.filter((item) => !selfLink(item));
+  return selfLink(value) ? null : value;
+}
+
+/** Whether text is one wiki link, alone, that opens one of `paths`. */
+function opensOneOf(
+  text: string,
+  paths: ReadonlySet<string>,
+  resolve: (target: string) => VaultPath | null,
+): boolean {
+  const pieces = splitWikiLinks(text.trim());
+  const [only] = pieces;
+  if (pieces.length !== 1 || only?.kind !== 'wikiLink') return false;
+  const opened = resolve(only.target.trim());
+  return opened !== null && paths.has(opened);
 }
 
 /** The keys whose merged value differs from the kept note's own. */
@@ -156,11 +205,6 @@ function texts(value: unknown): string[] {
   const items = Array.isArray(value) ? (value as unknown[]) : [value];
   return items.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
 }
-
-const addressKey = (written: string): string => {
-  const parts = addressParts(written);
-  return parts === null ? vocabularyKey(written) : `${parts.local}@${parts.domain}`;
-};
 
 function mergeEmails(
   kept: MergeNote,
@@ -216,13 +260,17 @@ function mergeAliases(
  */
 function appendedBodies(kept: MergeNote, duplicates: readonly MergeNote[]): AppendedBody[] {
   const titles = [kept, ...duplicates].map((note) => vocabularyKey(noteTitle(note.path)));
+  const keptBody = kept.body.replace(/\r\n/gu, '\n');
   return duplicates.flatMap((duplicate) => {
     const body = duplicate.body.replace(/^(?:[ \t]*\r?\n)+/u, '').trimEnd();
     if (body === '') return [];
     const title = noteTitle(duplicate.path);
     const shared = titles.filter((each) => each === vocabularyKey(title)).length > 1;
     const name = shared ? duplicate.path.replace(/\.md$/iu, '') : title;
-    return [{ from: duplicate.path, heading: `## Merged from ${name}`, body }];
+    const heading = `## Merged from ${name}`;
+    // Merged before — a run the Trash stopped, say: the text is there once already.
+    if (keptBody.includes(`${heading}\n\n${body.replace(/\r\n/gu, '\n')}`)) return [];
+    return [{ from: duplicate.path, heading, body }];
   });
 }
 
@@ -239,4 +287,22 @@ export function mergedBody(keptBody: string, appended: readonly AppendedBody[]):
   );
   const gap = keptBody.trim() === '' ? '' : newline;
   return `${keptBody}${ending}${gap}${sections.join(newline)}`;
+}
+
+/**
+ * One token for a merge as previewed: a digest of each file it read, by path,
+ * and of its plan. Two previews of the same files give the same token; any
+ * byte changed in any of them, or a different plan, gives another (#464).
+ */
+export function mergeVersion({
+  read,
+  plan,
+}: {
+  read: readonly { readonly path: string; readonly text: string }[];
+  plan: PersonMergePlan;
+}): string {
+  const files = [...read]
+    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+    .map(({ path, text }) => digestOf(`${path}\u0000${text}`));
+  return [...files, digestOf(JSON.stringify(plan))].join('');
 }

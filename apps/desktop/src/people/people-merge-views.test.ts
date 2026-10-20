@@ -33,6 +33,7 @@ describe('the merge’s words', () => {
       ],
       links: 3,
       merged: [],
+      version: 'v1',
     };
     expect(mergePreviewView(preview)).toEqual({
       keep: 'Mara Quill',

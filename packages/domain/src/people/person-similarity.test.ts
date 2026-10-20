@@ -121,6 +121,14 @@ describe('two addresses of one person', () => {
     expect(addressesMatch('mara', 'mara.quill@larkspur.example.com')).toBeNull();
   });
 
+  it('at a public provider, matches only one address written with or without separators', () => {
+    expect(addressesMatch('chris.wong@gmail.com', 'chris.wang@gmail.com')).toBeNull();
+    expect(addressesMatch('tobias.fenn@outlook.com', 'tobias.fen@outlook.com')).toBeNull();
+    expect(domainsNear('mail.com', 'gmail.com')).toBe(false);
+    expect(domainsNear('gmail.com', 'gmail.com')).toBe(true);
+    expect(addressesMatch('ana.lind@mail.com', 'ana.lind@gmail.com')).toBeNull();
+  });
+
   it('reads a public provider by its label, so a first name alone is no one', () => {
     expect(addressesMatch('mara@gmail.com', 'mara.quill@gmail.com')).toBeNull();
     expect(addressesMatch('mara.quill@gmail.com', 'maraquill@gmail.com')).toEqual({

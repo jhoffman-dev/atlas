@@ -86,6 +86,7 @@ function fakeVault({ failWrite = false } = {}) {
 function setUp(options: { failWrite?: boolean; failSettings?: boolean } = {}) {
   const vault = fakeVault(options);
   const shown: Overlay[] = [];
+  const written: Readonly<Record<string, unknown>>[] = [];
   const hidden: Overlay[] = [];
   const deps: PeopleMergeDeps = {
     ports: {
@@ -100,8 +101,10 @@ function setUp(options: { failWrite?: boolean; failSettings?: boolean } = {}) {
       },
     },
     settings: {
-      save: vi.fn(async () => {
+      save: vi.fn(async () => {}),
+      update: vi.fn(async (change) => {
         if (options.failSettings === true) throw new Error('The settings note is read-only.');
+        written.push(change({}));
       }),
     },
     notePaths: Object.keys(PEOPLE).map(p),
@@ -116,7 +119,7 @@ function setUp(options: { failWrite?: boolean; failSettings?: boolean } = {}) {
   const commands = peopleMergeCommands(store, () => deps);
   const settle = () =>
     vi.waitFor(() => expect(['checking', 'merging']).not.toContain(store.getState().merge?.kind));
-  return { vault, deps, store, commands, shown, hidden, settle };
+  return { vault, deps, store, commands, shown, hidden, settle, written };
 }
 
 describe('merging from a person’s page', () => {
@@ -225,7 +228,7 @@ describe('the list of people who may be one', () => {
   });
 
   it('leaves out a pair said not to be one at once, and remembers it in the settings', async () => {
-    const { deps, store, commands } = setUp();
+    const { store, commands, written } = setUp();
     commands.findDuplicates();
     await vi.waitFor(() => expect(store.getState().duplicates.kind).toBe('ready'));
     const list = store.getState().duplicates;
@@ -233,9 +236,7 @@ describe('the list of people who may be one', () => {
     commands.dismiss(key);
     expect(store.getState().duplicates).toEqual({ kind: 'ready', pairs: [] });
     await vi.waitFor(() =>
-      expect(deps.settings.save).toHaveBeenCalledWith({
-        notDuplicatePeople: [['Mara.md', 'People/Mara Quill.md']],
-      }),
+      expect(written).toEqual([{ notDuplicatePeople: [['Mara.md', 'People/Mara Quill.md']] }]),
     );
   });
 

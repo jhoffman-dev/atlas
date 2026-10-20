@@ -810,18 +810,24 @@ not a replacement. It is held to the terms above:
 `GET /v1/people/duplicates` and `POST /v1/people/merge` run the People page's
 own use-cases. A merge moves no file but the merged people's, into the Trash
 — a write the app already makes, recoverable — and writes notes' text in user
-space, each once and byte for byte apart from the merge, against the version
+space and in `.atlas/templates`, each once and byte for byte apart from the merge, against the version
 the preview read. On the same terms as a tag rename:
 
 - **It previews unless `confirm: true`.** The preview names every note
   written, the links that move, and the values the kept note keeps over a
-  merged one's; the confirmed merge is worked out afresh before it writes.
+  merged one's, and carries a `version`. A confirm carries the version it was
+  shown; the merge is worked out afresh and made only while it gives that
+  version again — otherwise `conflict`, nothing written (amended in #467: a
+  confirm with no version, or another, is not the merge the caller saw).
 - **A note being typed in refuses the merge**, never flushed: a merge that
   wrote around one note would leave its links pointing at a person about to
   go to the Trash.
 - **A note changed since the preview is `conflict`**, with nothing written.
-- **`.atlas` and hidden folders are never written**; such a note linking to a
-  merged person is listed in `skipped`.
+- **A template linking to a merged person is rewritten**, as the app rewrites
+  it: a template is the person's own words, and the link would otherwise open
+  a note in the Trash (#467). **Any other note of Atlas's own** (a type, say)
+  linking to them refuses the merge, with nothing written; hidden folders are
+  never written.
 - **Saying two people are not one is the app's alone for now.** It writes the
   vault's settings note, which only the app's one settings writer may write
   (two writers would refuse each other's writes as stale); the router is not

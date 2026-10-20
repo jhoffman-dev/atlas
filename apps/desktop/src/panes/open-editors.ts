@@ -68,6 +68,8 @@ export interface PaneEditors extends OpenEditors {
   readonly follow: (move: EntryMove) => void;
   /** Drops the unsaved edits of every pane holding one of these notes, which are gone. */
   readonly abandon: (paths: readonly VaultPath[]) => void;
+  /** Every note a pane holds unsaved typing in. */
+  readonly dirtyPaths: () => readonly VaultPath[];
 }
 
 /** The tabs' editors, by tab, so one tab can reach the note another holds. */
@@ -139,6 +141,17 @@ export function useOpenEditors(): PaneEditors {
     [holdingAny],
   );
 
+  const dirtyPaths = useCallback(
+    () => [
+      ...new Set(
+        [...editors.current.values()]
+          .filter((editor) => editor.isDirty())
+          .map((editor) => editor.path),
+      ),
+    ],
+    [],
+  );
+
   const stateOf = useCallback((path: VaultPath): OpenNoteState => {
     const holding = [...editors.current.values()].filter((editor) => editor.path === path);
     if (holding.length === 0) return 'closed';
@@ -158,6 +171,7 @@ export function useOpenEditors(): PaneEditors {
       flushHolding,
       follow,
       abandon,
+      dirtyPaths,
     }),
     [
       register,
@@ -169,6 +183,7 @@ export function useOpenEditors(): PaneEditors {
       flushHolding,
       follow,
       abandon,
+      dirtyPaths,
     ],
   );
 }

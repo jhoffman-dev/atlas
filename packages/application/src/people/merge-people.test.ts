@@ -325,3 +325,114 @@ describe('what a merge says it did', () => {
     );
   });
 });
+
+describe('finding every link before a merge (#467)', () => {
+  it('saves typing in every pane and brings the index up first, so a link only just typed is found', async () => {
+    const { vault, index, ports, pane } = await setUp();
+    // `Notes.md` is open with `[[Mara]]` typed and not saved; `Outside.md` was written
+    // by another program, and the index has not read it yet.
+    vault.files.set('Notes.md', { text: 'Nothing yet.\n', modified: 1 });
+    await refreshIndex({ fs: vault.fs, index, markdown });
+    vault.files.set('Outside.md', { text: 'From the CRM: [[Marra Quill]].\n', modified: 1 });
+    const refreshedFor: string[][] = [];
+    const typed: MergePorts = {
+      ...ports,
+      editors: {
+        ...pane.editors,
+        dirtyPaths: () => ['Notes.md' as never],
+        flush: async (paths) => {
+          pane.flushed.push([...paths]);
+          if (paths.includes(p('Notes.md'))) vault.edit('Notes.md', 'Call [[Mara]].\n');
+        },
+      },
+      refreshIndex: async (saved) => {
+        refreshedFor.push([...saved]);
+        await refreshIndex({ fs: vault.fs, index, markdown });
+      },
+    };
+    const notePaths = [...vault.files.keys()].filter((path) => path.endsWith('.md')).map(p);
+    const shown = await previewPeopleMerge({
+      ports: typed,
+      request: { keep: p(KEPT), merge: [p(SHORT), p(TYPO)] },
+      notePaths,
+    });
+    expect(pane.flushed[0]).toEqual(['Notes.md']);
+    expect(refreshedFor).toEqual([['Notes.md']]);
+    expect(shown.writes.map((write) => write.path)).toEqual([
+      'Kickoff.md',
+      'Notes.md',
+      'Outside.md',
+      'Plan.md',
+      KEPT,
+    ]);
+  });
+
+  it('refuses while the index cannot catch up, rather than missing links', async () => {
+    const { ports } = await setUp();
+    const behind: MergePorts = {
+      ...ports,
+      refreshIndex: async () => {
+        throw new Error('The index could not catch up.');
+      },
+    };
+    await expect(
+      previewPeopleMerge({
+        ports: behind,
+        request: { keep: p(KEPT), merge: [p(SHORT)] },
+        notePaths: [p(KEPT), p(SHORT)],
+      }),
+    ).rejects.toThrow('The index could not catch up.');
+  });
+
+  it('rewrites a template that links to a merged person, as the person’s own words', async () => {
+    const { vault, preview, ports } = await setUp({
+      ...VAULT,
+      '.atlas/templates/Brief.md': 'Ask [[Mara]] first.\n',
+    });
+    vault.fs.listDirectory = async (folder) =>
+      folder === '.atlas/templates'
+        ? [{ kind: 'file', name: 'Brief.md', path: p('.atlas/templates/Brief.md') }]
+        : [];
+    const shown = await preview();
+    expect(shown.writes.map((write) => write.path)).toContain('.atlas/templates/Brief.md');
+    await applyPeopleMerge({ ports, preview: shown });
+    expect(vault.text('.atlas/templates/Brief.md')).toBe('Ask [[Mara Quill]] first.\n');
+  });
+
+  it('refuses while another of Atlas’s own files links to a merged person', async () => {
+    const { preview, vault } = await setUp({
+      ...VAULT,
+      '.atlas/types/contact.md': 'Ask [[Mara]] about contacts.\n',
+    });
+    const shown = await preview([SHORT]);
+    expect(shown.refusal).toBe(
+      ".atlas/types/contact.md links to Mara but is one of Atlas's own files, which a merge does not rewrite. Change those links by hand, then merge.",
+    );
+    expect(vault.writes).toEqual([]);
+  });
+
+  it('gives the same version for the same files, and another once one changes', async () => {
+    const { vault, preview } = await setUp();
+    const first = await preview();
+    expect((await preview()).version).toBe(first.version);
+    vault.edit('Plan.md', 'Ask [[Marra Quill]] today.\n');
+    expect((await preview()).version).not.toBe(first.version);
+    expect((await preview(['Plan.md'])).version).toBe('');
+  });
+
+  it('leaves a merged person in place when their note changed while the merge was written', async () => {
+    const { vault, preview, ports } = await setUp();
+    const shown = await preview();
+    const writeTextFile = vault.fs.writeTextFile;
+    vault.fs.writeTextFile = async (args) => {
+      const written = await writeTextFile(args);
+      if (args.path === KEPT) vault.edit(SHORT, 'Changed meanwhile.\n');
+      return written;
+    };
+    const report = await applyPeopleMerge({ ports, preview: shown });
+    expect(report.trashed).toEqual([TYPO]);
+    expect(report.notTrashed).toEqual([SHORT]);
+    expect(report.failures[0]).toMatchObject({ path: SHORT, step: 'trash' });
+    expect(vault.text(SHORT)).toBe('Changed meanwhile.\n');
+  });
+});
