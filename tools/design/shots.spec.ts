@@ -285,6 +285,29 @@ function view(page: Page, name: string): Locator[] {
   ];
 }
 
+/**
+ * The center peek over the table (slice 6b, FlowPeek.dc.html): a row's note,
+ * with the preview card of the first link in it that has one.
+ */
+async function shootPeek(page: Page, theme: string): Promise<void> {
+  await page.locator('.table__sheet').evaluate((sheet) => sheet.scrollTo(0, 0));
+  if (!(await open('peek', [page.locator('.table__row .table__link')]))) return;
+  const peek = page.locator('.peek');
+  await peek.waitFor({ timeout: 5_000 }).catch(() => console.warn('peek: it never opened'));
+  const link = peek.locator('[data-link-path], a.wikilink[data-wikilink]').first();
+  if ((await link.count()) > 0) {
+    await link.hover();
+    await page
+      .getByRole('tooltip')
+      .waitFor({ timeout: 3_000 })
+      .catch(() => console.warn('peek: no preview card came up'));
+  } else console.warn('peek: its note has no link to preview');
+  await shoot(page, `peek-${theme}`);
+  await page.mouse.move(0, 0);
+  await page.keyboard.press('Escape');
+  await peek.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => undefined);
+}
+
 async function shootViews(page: Page, theme: string): Promise<void> {
   const dashboards = sidebarSection(page, 'dashboards');
   if (
@@ -322,6 +345,7 @@ async function shootViews(page: Page, theme: string): Promise<void> {
       await shoot(page, `table-editing-${theme}`);
       await page.keyboard.press('Escape');
     }
+    await shootPeek(page, theme);
   }
   if (await open('calendar', view(page, 'Calendar'))) {
     await shoot(page, `calendar-${theme}`);

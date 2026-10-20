@@ -70,8 +70,10 @@ import {
   type GroupFoldStore,
   type NotePeople,
   type NoteReveal,
+  type NotePaneState,
   type OpenHow,
   type PaneArrangement,
+  type PeekRequest,
   type Planner,
   type TemplateNotice,
   type ViewTabEditing,
@@ -80,9 +82,15 @@ import {
 import { useNote, type NotePorts } from '../notes/use-note.ts';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
 import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
-import { hideOverlay, showOverlay } from '../overlay-store.ts';
-import { pageMenuOverlay, panePopupOverlay, paneOverlayOf } from '../overlay.ts';
-import { followLink } from '../workspace/open-place.ts';
+import { hideOverlay, openPeek, showOverlay } from '../overlay-store.ts';
+import {
+  pageMenuOverlay,
+  panePopupOverlay,
+  paneOverlayOf,
+  rowPeek,
+  type Peek,
+} from '../overlay.ts';
+import { clickLink } from '../workspace/open-place.ts';
 import { useTabPageHistory } from '../workspace/tab-history.ts';
 import {
   closePane,
@@ -188,7 +196,7 @@ export interface PaneContext {
   /** Opens the tags page on a tag, by its name as written. */
   readonly openTag: (name: string) => void;
   /** The panes' editors, and whether one holds typing in a note not yet saved. */
-  readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf'>;
+  readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf' | 'flushHolding'>;
   /** Work a closed pane could not write, kept until its note is opened again. */
   readonly stranded: StrandedEdits;
   /** Where a save the pane gave up on is said (U-28). */
@@ -319,6 +327,7 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
     path,
     context: wiring.pane,
     hidden,
+    onPeek: (peek) => openPeek(overlays, peek),
     aside: { store: wiring.aside, shown: wiring.shown, workspace: store },
     onOpenNote: (target, how = 'here') => {
       const place: NavigationPlace = { kind: 'note', path: target };
@@ -329,9 +338,21 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
       }
     },
     onFollowLink: (target, heading, how) =>
-      followLink(
-        { store, reveals, notePaths: wiring.pane.notePaths, onProblem: wiring.pane.onLinkProblem },
-        { pane, target, heading: heading ?? null, ...(how !== undefined && { how }) },
+      clickLink(
+        {
+          store,
+          reveals,
+          overlays,
+          notePaths: wiring.pane.notePaths,
+          onProblem: wiring.pane.onLinkProblem,
+        },
+        {
+          pane,
+          target,
+          heading: heading ?? null,
+          ...(how !== undefined && { how }),
+          inPeek: false,
+        },
       ),
     reveal,
     onRename: note.onRename,
@@ -369,18 +390,33 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
   return (
     <div className="pane__tab" hidden={hidden} onFocusCapture={onFocusCapture}>
       <NoteNamesProvider value={names}>
-        <ChatToggleProvider value={chat}>{drawn}</ChatToggleProvider>
+        <ChatToggleProvider value={chat}>{drawn.page}</ChatToggleProvider>
       </NoteNamesProvider>
     </div>
   );
 }
 
-/** The note pane of a tab, drawn: its hooks are the tab's, which is why this is a hook. */
-function useNotePane({
+/** A note pane as drawn, and what the peek's own header shows of it. */
+export interface DrawnNotePane {
+  readonly page: ReactNode;
+  readonly state: NotePaneState;
+  /** The page's title as it heads it; null until the note is read. */
+  readonly title: string | null;
+  /** Writes the unsaved edits, settling once the write has landed or been refused. */
+  readonly flush: () => Promise<void>;
+}
+
+/**
+ * The note pane of a tab, or of the peek, drawn: its hooks are the tab's,
+ * which is why this is a hook.
+ */
+export function useNotePane({
   tabId,
   path,
   context,
+  chrome = 'page',
   hidden = false,
+  onPeek,
   onOpenNote,
   onFollowLink,
   reveal = null,
@@ -392,10 +428,14 @@ function useNotePane({
   arrangement,
   aside,
 }: {
-  /** The tab this is the content of; the editor is registered under it. */
+  /** The tab this is the content of; the editor is registered under it — the peek's under its own id. */
   tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
+  /** `peek` draws the page inside the center peek: no bar, its properties in one strip. */
+  chrome?: 'page' | 'peek';
+  /** Given, a row or card of a view in the page clicked plainly peeks its note (slice 6b). */
+  onPeek?: (peek: Peek) => void;
   /** The right sidebar (#306): where this tab says what it shows, and the workspace it follows. */
   aside: { store: AsideStore; shown: ShownNotes; workspace: WorkspaceStore };
   /**
@@ -419,7 +459,7 @@ function useNotePane({
   onShowInGraph?: (path: VaultPath) => void;
   /** Splitting, closing and the page menu's open state, which the app owns. */
   arrangement: PaneArrangement;
-}): ReactNode {
+}): DrawnNotePane {
   const { notes, index, sources, types, notePaths, onChanged, editors, savedViews } = context;
 
   const note = usePaneNote({ tabId, path, context, hidden });
@@ -489,6 +529,7 @@ function useNotePane({
     activity: context.activity,
     onChanged,
     editorSlot: arrangement.popups?.('widget-editor'),
+    inPeek: chrome === 'peek',
   });
   const savedView = useSavedView({
     note: note.open,
@@ -771,10 +812,21 @@ function useNotePane({
     },
     [aside.store, tabId, path],
   );
+  // Named for the list the row was clicked in, as the peek's header says it: "3 of 186 in Tasks".
+  const peekRow = useSteadyCallback(({ path: row, order }: PeekRequest) =>
+    onPeek?.(
+      rowPeek({
+        path: createVaultPath(row),
+        order: order.map(createVaultPath),
+        within: shownTitle ?? 'this view',
+      }),
+    ),
+  );
 
-  return (
+  const page = (
     <NotePane
       key={pageKey}
+      chrome={chrome}
       state={note.state}
       heading={heading}
       propertiesInAside={propertiesInAside}
@@ -882,6 +934,7 @@ function useNotePane({
               folds,
               onRowFocus,
               createRelated: createRelatedFromTable,
+              ...(onPeek !== undefined && { onPeek: peekRow }),
             })
       }
       {...(template === null &&
@@ -906,6 +959,7 @@ function useNotePane({
       }
     />
   );
+  return { page, state: note.state, title: shownTitle, flush: note.flush };
 }
 
 /** An artifact's saved copy, under its properties; nothing for any other note. */
@@ -1113,6 +1167,7 @@ function paneBody({
   folds,
   onRowFocus,
   createRelated,
+  onPeek,
 }: {
   source: ReturnType<typeof useSource>;
   dashboard: ReturnType<typeof useDashboard> & ReturnType<typeof useDashboardEditing>;
@@ -1136,6 +1191,8 @@ function paneBody({
   onRowFocus: (path: string) => void;
   /** "New <type>…" in a table's relation cell. */
   createRelated: CreateRelated;
+  /** Given, a table's row or a board's card clicked plainly peeks its note. */
+  onPeek?: (request: PeekRequest) => void;
 }): ReactNode {
   if (source.source !== null) {
     return (
@@ -1197,6 +1254,7 @@ function paneBody({
       onRowFocus={onRowFocus}
       onCreateRelated={createRelated}
       {...(arrangement.popups !== undefined && { popups: arrangement.popups })}
+      {...(onPeek !== undefined && { onPeek })}
     />
   );
 }

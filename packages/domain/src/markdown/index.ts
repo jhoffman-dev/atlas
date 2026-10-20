@@ -91,4 +91,6 @@ export {
   FEED_EXCERPT_BLOCKS,
   noteCover,
   noteExcerpt,
+  PREVIEW_LINES,
+  previewLines,
 } from './note-preview.ts';

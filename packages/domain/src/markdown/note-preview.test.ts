@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { EditorDocument, EditorNode } from './editor-node.ts';
-import { bodyWithoutTitle, FEED_EXCERPT_BLOCKS, noteCover, noteExcerpt } from './note-preview.ts';
+import {
+  bodyWithoutTitle,
+  FEED_EXCERPT_BLOCKS,
+  noteCover,
+  noteExcerpt,
+  previewLines,
+} from './note-preview.ts';
 
 const paragraph = (text: string): EditorNode => ({
   type: 'paragraph',
@@ -85,5 +91,53 @@ describe('noteExcerpt', () => {
 
   it('takes a smaller count when asked', () => {
     expect(noteExcerpt(blocks(3), 2).doc.content).toHaveLength(2);
+  });
+});
+
+describe('previewLines', () => {
+  const heading = (text: string): EditorNode => ({
+    type: 'heading',
+    attrs: { level: 1 },
+    content: [{ type: 'text', text }],
+  });
+  const link = (target: string, alias: string | null = null): EditorNode => ({
+    type: 'wikiLink',
+    attrs: { target, heading: null, alias },
+  });
+
+  it('reads the opening blocks as words, leaving out a heading that repeats the title', () => {
+    const body = doc(heading('Plan'), paragraph('First line.'), paragraph('Second line.'));
+    expect(previewLines(body, 'Plan')).toBe('First line.\nSecond line.');
+  });
+
+  it('reads a wiki link as its alias, else its target, and a list item by item', () => {
+    const body = doc(
+      { type: 'paragraph', content: [{ type: 'text', text: 'Done in ' }, link('P16-04')] },
+      {
+        type: 'bulletList',
+        content: [
+          { type: 'listItem', content: [paragraph('one')] },
+          {
+            type: 'listItem',
+            content: [{ type: 'paragraph', content: [link('Tasks/two', 'Two')] }],
+          },
+        ],
+      },
+    );
+    expect(previewLines(body, 'Plan')).toBe('Done in P16-04\none\nTwo');
+  });
+
+  it('stops at the first few blocks, and skips the empty ones', () => {
+    const many = doc(
+      paragraph(''),
+      ...['a', 'b', 'c', 'd', 'e', 'f'].map(paragraph),
+      image('x.png'),
+    );
+    expect(previewLines(many, 'Plan')).toBe('a\nb\nc\nd');
+  });
+
+  it('is null for a note with no words', () => {
+    expect(previewLines(doc(heading('Plan'), image('x.png')), 'Plan')).toBeNull();
+    expect(previewLines(doc(), 'Plan')).toBeNull();
   });
 });

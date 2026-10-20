@@ -10,7 +10,7 @@ afterEach(cleanup);
 
 function listen(overlay: Overlay | null = null): AppShortcuts {
   const shortcuts: AppShortcuts = {
-    overlay: () => overlay,
+    layers: () => ({ overlay, peek: null }),
     save: vi.fn(),
     newNote: vi.fn(),
     toggleSidebar: vi.fn(),

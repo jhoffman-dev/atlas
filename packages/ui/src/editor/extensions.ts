@@ -34,6 +34,7 @@ import { BlockEmbed, type TransclusionSource } from './block-embed.tsx';
 import type { BlockPicking } from './block-picking.ts';
 import { Bookmark, TopLevelDocument, type BookmarkSource } from './bookmark.tsx';
 import { LinkKeys } from './link-keys.ts';
+import { EscapeUnused } from './escape-unused.ts';
 import { QueryBlock, type QueryBlockSource } from './query-block.tsx';
 import { Callout } from './callout.ts';
 import { VaultImage } from './image.tsx';
@@ -130,6 +131,7 @@ export function createEditorExtensions({
       offerQuery: queries !== null,
     }),
     PromoteLineButton.configure({ promote: promoteLine }),
+    EscapeUnused,
   ];
 }
 
