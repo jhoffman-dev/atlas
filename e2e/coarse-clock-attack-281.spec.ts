@@ -10,6 +10,7 @@ import {
   splitWindow,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * Attack on #281 (#245): the app's own saves on a disk whose clock is coarse.
@@ -47,7 +48,8 @@ async function replaceLastCharacter(page: Page, text: string, typed: string) {
   // on a slow runner a selection made in that window is undone (zapg).
   // Read a frame later, the selection is one ProseMirror has seen.
   await expect(async () => {
-    await page.keyboard.press('End');
+    // ⌘→, not End: End does not move the caret in WebKit on macOS (#448).
+    await page.keyboard.press('Meta+ArrowRight');
     await page.keyboard.press('Shift+ArrowLeft');
     const selected = await page.evaluate(
       () =>
@@ -95,8 +97,7 @@ test('attack #281: after a refused save is discarded in the same tick, the next 
   // Another program, in the same second and at the same length: refused, rightly.
   await vault.write('note.md', '# Note\n\nShip on zig\n');
   await utimes(join(vault.root, 'note.md'), TICK_SECONDS, TICK_SECONDS);
-  await page.getByText('Ship on zag').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Ship on zag'));
   await page.keyboard.type(' Typed here.');
   await saveNow(page);
   await expect(page.getByRole('alert')).toContainText('changed on disk');
@@ -105,16 +106,9 @@ test('attack #281: after a refused save is discarded in the same tick, the next 
   await expect(page.getByRole('alert')).toHaveCount(0);
 
   // The pane now holds the file as it is: an edit to it is an ordinary save.
-  // Clicked past the line's end, not its middle: ProseMirror counts clicks
-  // near the last one within 500 ms as one gesture, and this would be the
-  // third on that spot — a triple click, selecting the line for the typing
-  // to replace.
-  const line = page.getByText('Ship on zig');
-  const box = await line.boundingBox();
-  expect(box).not.toBeNull();
-  if (box === null) return;
-  await line.click({ position: { x: box.width - 2, y: box.height / 2 } });
-  await page.keyboard.press('End');
+  // A click on the spot of the last ones is a double or triple click, and
+  // selects; the caret helper collapses that to the line's end.
+  await caretAtLineEnd(page.getByText('Ship on zig'));
   await page.keyboard.type(' After.');
   await saveNow(page);
 
@@ -131,22 +125,19 @@ test('attack #281: two panes on one note, saving in turn within one tick, are ne
   await splitWindow(page);
   await expect(pane(page, 2).getByRole('article', { name: 'note' })).toBeVisible();
 
-  await pane(page, 1).getByText('Ship on zap').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(pane(page, 1).getByText('Ship on zap'));
   await page.keyboard.type(' One.');
   await saveNow(page, pane(page, 1));
   await expectFile(vault, 'note.md').toBe('# Note\n\nShip on zap One.\n');
   await expect(pane(page, 2).getByText('Ship on zap One.')).toBeVisible();
 
-  await pane(page, 2).getByText('Ship on zap One.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(pane(page, 2).getByText('Ship on zap One.'));
   await page.keyboard.type(' Two.');
   await saveNow(page, pane(page, 2));
   await expectFile(vault, 'note.md').toBe('# Note\n\nShip on zap One. Two.\n');
   await expect(pane(page, 1).getByText('Ship on zap One. Two.')).toBeVisible();
 
-  await pane(page, 1).getByText('Ship on zap One. Two.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(pane(page, 1).getByText('Ship on zap One. Two.'));
   await page.keyboard.type(' Three.');
   await saveNow(page, pane(page, 1));
 

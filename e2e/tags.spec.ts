@@ -7,6 +7,7 @@ import {
   installHost,
   saveNow,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const ALPHA = '# Alpha\n\nAbout #project/atlas and #idea.\n';
 const BETA = '---\ntags: [idea]\n---\n# Beta\n\nMore #Idea here.\n';
@@ -40,8 +41,7 @@ test('a tag typed with suggestions is counted in the tags page and renamed in ev
   });
 
   await openNote(page, 'Gamma');
-  await page.getByText('Nothing yet.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Nothing yet.'));
   await page.keyboard.type(' #id');
   const suggestions = page.getByRole('listbox', { name: 'Tag' });
   // Three uses: Alpha's, and Beta's property and body; the one in code is not a tag.

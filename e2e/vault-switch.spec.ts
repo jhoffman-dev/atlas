@@ -12,6 +12,7 @@ import {
   saveNow,
   splitWindow,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * R14-01: unsaved work in a pane goes to the vault it was typed in, never to a
@@ -58,8 +59,7 @@ async function typeIntoNotes(page: Page, typed: string): Promise<void> {
   await sidebarSection(page, 'userSpace')
     .getByRole('treeitem', { name: 'notes', exact: true })
     .click();
-  await pane(page).getByText('Written in vault A.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(pane(page).getByText('Written in vault A.'));
   await page.keyboard.type(typed);
 }
 
@@ -145,8 +145,7 @@ const openNotes = (page: Page) =>
 
 /** Types at the end of B's note in `scope` and saves it with the pane's button. */
 async function typeAndSaveInB(scope: ReturnType<typeof pane>, typed: string): Promise<void> {
-  await scope.getByText('Written in vault B.').click();
-  await scope.page().keyboard.press('End');
+  await caretAtLineEnd(scope.getByText('Written in vault B.'));
   await scope.page().keyboard.type(typed);
   await expect(scope.getByText('Unsaved')).toBeVisible();
   await saveNow(scope.page(), scope);
