@@ -165,10 +165,19 @@ test('⌘⇧-click on a table row’s title opens the note beside, in a split', 
   await expect(page.locator('.table__link', { hasText: 'First' })).toBeVisible();
 });
 
-test('a plain click on a table row’s title opens the note in the table’s tab', async ({ page }) => {
+test('a plain click on a table row’s title peeks the note; expand opens it in the table’s tab', async ({
+  page,
+}) => {
   await openVault(page);
   await noteThenTable(page);
   await page.locator('.table__link', { hasText: 'First' }).click();
+  // Slice 6b: the peek over the table, which stays its tab's page.
+  await expect(page.locator('.peek')).toBeVisible();
+  // By CSS: the modal peek hides the page under it from role queries.
+  await expect(
+    page.locator('[aria-label="Pane 1"] .table__link', { hasText: 'First' }),
+  ).toBeAttached();
+  await page.locator('.peek').getByRole('button', { name: 'Open as full page' }).click();
   await expect(article(page, 1, 'first')).toBeVisible();
   await expect(tabsOf(page, 1)).toHaveCount(2);
 });
@@ -183,11 +192,18 @@ test('⌘-click on a link in a note opens it in a new tab, keeping the note', as
   await expect(tabsOf(page, 1)).toHaveText(['alpha', 'beta']);
 });
 
-test('a plain click on a link in a note follows it in the same tab', async ({ page }) => {
+test('a plain click on a link in a note peeks it; expand follows it in the same tab', async ({
+  page,
+}) => {
   await openVault(page);
   await row(page, 'alpha').click();
   await expect(article(page, 1, 'alpha')).toBeVisible();
   await article(page, 1, 'alpha').getByRole('link', { name: 'beta' }).click();
+  // Slice 6b: the peek over the note, which stays where it was.
+  await expect(page.locator('.peek')).toBeVisible();
+  // By CSS: the modal peek hides the page under it from role queries.
+  await expect(page.locator('[aria-label="Pane 1"] article[aria-label="alpha"]')).toBeVisible();
+  await page.locator('.peek').getByRole('button', { name: 'Open as full page' }).click();
   await expect(article(page, 1, 'beta')).toBeVisible();
   await expect(tabsOf(page, 1)).toHaveText(['beta']);
 });

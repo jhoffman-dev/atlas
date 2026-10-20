@@ -543,8 +543,12 @@ function NoteBody({
   );
 }
 
-/** The save state as a quiet word, where the Save button used to be. */
-function SaveStatus({ state }: { state: ReadyState }) {
+/**
+ * The save state as a quiet word, where the Save button used to be: in a
+ * page's bar, or the peek's header. Nothing before the note is read.
+ */
+export function SaveStatus({ state }: { state: NotePaneState }) {
+  if (state.kind !== 'ready') return null;
   return <>{state.saving ? 'Saving…' : state.dirty ? 'Unsaved' : 'Saved'}</>;
 }
 

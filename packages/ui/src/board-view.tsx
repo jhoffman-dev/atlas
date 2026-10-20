@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { OpenHow } from './open-how.ts';
+import type { PeekRequest } from './peek/peek-request.ts';
 import {
   DndContext,
   DragOverlay,
@@ -81,6 +82,7 @@ export function BoardView({
   kinds = {},
   colors = NO_COLORS,
   onOpenNote,
+  onPeek,
   onMoveCard,
   onAddCard,
   ticks,
@@ -99,6 +101,11 @@ export function BoardView({
   colors?: Readonly<Record<string, OptionColors>>;
   /** Opens a card's note; `how` is where the click asked for it, when it said. */
   onOpenNote: (path: string, how?: OpenHow) => void;
+  /**
+   * Given, a card clicked plainly peeks its note instead (slice 6b), handed
+   * every card in the order the board shows them; a ⌘-click still opens it.
+   */
+  onPeek?: (request: PeekRequest) => void;
   onMoveCard: (move: CardMove) => void;
   onAddCard: (add: CardAdd) => void;
   /** Given when the type can be ticked done: every card leads with a box. */
@@ -150,7 +157,12 @@ export function BoardView({
   }, [steadyFields, groupBy, laneBy, steadyKinds, steadyColors, ticks]);
   const lookOf = (column: BoardColumn | undefined): CardLook =>
     column !== undefined && isDoneColumn(column) ? looks.done : looks.open;
-  const openNote = useSteadyCallback(onOpenNote);
+  // The order is read as the card is clicked, so no card is drawn again for it.
+  const openNote = useSteadyCallback((path: string, how?: OpenHow) => {
+    if (how === 'here' && onPeek !== undefined) {
+      onPeek({ path, order: laned ? laneOrder(lanes, shut) : columnOrder(columns) });
+    } else onOpenNote(path, how);
+  });
   const heldHome = held === null ? undefined : lookup.homeOf.get(held.path);
 
   const drop = (event: DragEndEvent) => {
@@ -509,4 +521,16 @@ function Droppable({
       {children}
     </section>
   );
+}
+
+/** Every card's note, column by column: the order a peek steps through them. */
+function columnOrder(columns: readonly BoardColumn[]): string[] {
+  return columns.flatMap((column) => column.rows.map((row) => row.path));
+}
+
+/** Every card's note, lane by lane and column by column within each, a folded lane's left out. */
+function laneOrder(lanes: readonly BoardLane[], shut: ReadonlySet<string> | undefined): string[] {
+  return lanes
+    .filter((lane) => shut?.has(lane.group.id) !== true)
+    .flatMap((lane) => lane.cells.flatMap((cell) => cell.rows.map((row) => row.path)));
 }

@@ -92,7 +92,11 @@ export const Card = memo(function Card({
             className="board__title"
             ref={titleRef}
             {...attributes}
-            onClick={(event) => onOpen(row.path, openHowFrom(event))}
+            onClick={(event) => {
+              // WebKit does not focus a clicked button; the peek hands the focus back to it.
+              event.currentTarget.focus();
+              onOpen(row.path, openHowFrom(event));
+            }}
           >
             <TitleText>{row.title}</TitleText>
           </button>
@@ -250,6 +254,8 @@ export function AddCard({
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
+          // Answered here: closing the name field must not close a dialog round the board.
+          event.preventDefault();
           onClose();
           return;
         }

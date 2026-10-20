@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { holdsTheScreen, type Overlay } from './overlay.ts';
+import { holdsShortcuts, type Overlay, type OverlayState } from './overlay.ts';
 
 /**
  * What Shift+Cmd+\ arrives as.
@@ -16,8 +16,11 @@ const MOUSE_FORWARD = 4;
 
 /** What the window's shortcuts do. */
 export interface AppShortcuts {
-  /** What is up at the key press: a palette or dialog holds the shortcuts that make a note. */
-  readonly overlay: () => Overlay | null;
+  /**
+   * What is up at the key press — the peek, and the overlay above it: a
+   * palette, a dialog or the peek holds the shortcuts that make a note.
+   */
+  readonly layers: () => Pick<OverlayState, 'overlay' | 'peek'>;
   readonly save: () => void;
   readonly newNote: () => void;
   readonly toggleSidebar: () => void;
@@ -111,7 +114,7 @@ export function useAppShortcuts(
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const { save, newNote, toggleSidebar, toggleSplit, dailyNote, show } = latest.current;
-      const held = holdsTheScreen(latest.current.overlay());
+      const held = holdsShortcuts(latest.current.layers());
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
         save();
@@ -215,7 +218,7 @@ export function useAppShortcuts(
     };
     // A mouse's own back and forward buttons do the same.
     const onMouseUp = (event: MouseEvent) => {
-      if (holdsTheScreen(latest.current.overlay())) return;
+      if (holdsShortcuts(latest.current.layers())) return;
       if (event.button === MOUSE_BACK) latest.current.back();
       if (event.button === MOUSE_FORWARD) latest.current.forward();
     };

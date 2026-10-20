@@ -2,16 +2,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { runsOnMac, useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
+import { createVaultPath } from '@atlas/domain';
 import type { Overlay } from './overlay.ts';
 
 function listen(overlay: Overlay | null = null, onMac = true): AppShortcuts {
-  return listenTo(() => overlay, onMac);
+  return listenTo(() => ({ overlay, peek: null }), onMac);
 }
 
-/** The shortcuts, reading what is up from `overlay` at each key press. */
-function listenTo(overlay: () => Overlay | null, onMac = true): AppShortcuts {
+/** The shortcuts, reading what is up from `layers` at each key press. */
+function listenTo(layers: AppShortcuts['layers'], onMac = true): AppShortcuts {
   const shortcuts: AppShortcuts = {
-    overlay,
+    layers,
     save: vi.fn(),
     newNote: vi.fn(),
     toggleSidebar: vi.fn(),
@@ -78,7 +79,7 @@ describe('a shortcut that makes a note, pressed behind an open palette (A14-08)'
 
   it('does nothing behind a palette opened since the window last drew (#261)', () => {
     let up: Overlay | null = null;
-    const shortcuts = listenTo(() => up);
+    const shortcuts = listenTo(() => ({ overlay: up, peek: null }));
     // ⌘K opens from the store; the window is not drawn again to hand it over.
     up = 'search';
     chord({ key: 'n', code: 'KeyN' });
@@ -93,6 +94,36 @@ describe('a shortcut that makes a note, pressed behind an open palette (A14-08)'
     expect(shortcuts.newNote).toHaveBeenCalledTimes(1);
     expect(shortcuts.dailyNote).toHaveBeenCalledTimes(1);
     expect(shortcuts.quickAdd).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the shortcuts behind the peek (slice 6b, Q6)', () => {
+  const chord = (init: KeyboardEventInit) =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, ...init }));
+  const PEEK = { path: createVaultPath('Tasks/a.md'), from: null };
+
+  it('holds the ones that make, open or arrange notes while a note is peeked', () => {
+    const shortcuts = listenTo(() => ({ overlay: null, peek: PEEK }));
+    chord({ key: 'n', code: 'KeyN' });
+    chord({ key: 'D', code: 'KeyD', shiftKey: true });
+    chord({ key: '|', shiftKey: true });
+    chord({ key: '[' });
+    chord({ key: 't' });
+    expect(shortcuts.newNote).not.toHaveBeenCalled();
+    expect(shortcuts.dailyNote).not.toHaveBeenCalled();
+    expect(shortcuts.toggleSplit).not.toHaveBeenCalled();
+    expect(shortcuts.back).not.toHaveBeenCalled();
+    expect(shortcuts.tabs.newTab).not.toHaveBeenCalled();
+  });
+
+  it('still opens search over it and saves, and closes no tab under it with ⌘W', () => {
+    const shortcuts = listenTo(() => ({ overlay: null, peek: PEEK }));
+    chord({ key: 'k' });
+    chord({ key: 's' });
+    chord({ key: 'w' });
+    expect(shortcuts.show).toHaveBeenCalledWith('search');
+    expect(shortcuts.save).toHaveBeenCalledTimes(1);
+    expect(shortcuts.tabs.closeTab).not.toHaveBeenCalled();
   });
 });
 

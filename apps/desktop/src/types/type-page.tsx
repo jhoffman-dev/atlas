@@ -23,6 +23,7 @@ import {
   type PageHistory,
   type ViewTabEditing,
   type OpenHow,
+  type PeekRequest,
 } from '@atlas/ui';
 import { PageFrameFallback } from '../page-frame-fallback.tsx';
 import { schemaOf } from '../panes/table-schema.ts';
@@ -45,6 +46,7 @@ export function TypePage({
   ports,
   onSaved,
   onOpenNote,
+  onPeek,
   onNewNote,
   tabs,
   tabEditing,
@@ -71,6 +73,8 @@ export function TypePage({
   onSaved: () => void;
   /** Opens a row's note; `how` is where the click asked for it, when it said. */
   onOpenNote: (path: VaultPath, how?: OpenHow) => void;
+  /** Given, a row's name clicked plainly peeks its note, in the list the header names (slice 6b). */
+  onPeek?: (request: PeekRequest, within: string) => void;
   /** Makes a note of this type, from the foot of its table. */
   onNewNote: (type: ObjectType) => void;
   /** The type's tabs: its views, or its default table while it has none. */
@@ -158,6 +162,9 @@ export function TypePage({
             error={table.error}
             schema={schemaOf(table.type, type.name)}
             onOpenNote={(path, how) => onOpenNote(createVaultPath(path), how)}
+            {...(onPeek !== undefined && {
+              onPeek: (request: PeekRequest) => onPeek(request, `${type.label} table`),
+            })}
             onEditCell={table.editCell}
             onToggleSort={table.toggleSort}
             onNewNote={() => onNewNote(type)}

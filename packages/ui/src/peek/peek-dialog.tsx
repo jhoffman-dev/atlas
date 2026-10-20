@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
+import { escapeLeftByEditor } from '../editor/escape-unused.ts';
 import { Icon, type IconName } from '../icon.tsx';
 import { isImeKey } from '../ime.ts';
 import { KeyHints } from '../key-hints.tsx';
@@ -95,10 +96,15 @@ export function PeekDialog(props: PeekDialogProps) {
   );
 }
 
-/** An Escape something inside the peek already answered, or an input method's. */
+/**
+ * An Escape something inside the peek already answered, or an input
+ * method's. The editor prevents every Escape it is pressed in, so one it
+ * says it left alone (`escapeLeftByEditor`) is the peek's to close on.
+ */
 function escapeTakenInside(event: Event): boolean {
   if (!(event instanceof globalThis.KeyboardEvent)) return false;
-  return event.defaultPrevented || event.isComposing || event.keyCode === 229;
+  const answered = event.defaultPrevented && !escapeLeftByEditor(event);
+  return answered || event.isComposing || event.keyCode === 229;
 }
 
 /** After a step: the focus back on the peek when what held it went or was disabled. */
@@ -126,6 +132,12 @@ function answerPeekKey(event: KeyboardEvent<HTMLElement>, props: PeekDialogProps
   const open = action.how === 'tab' ? props.onOpenInNewTab : props.onOpenInSplit;
   if (open === undefined) return;
   event.preventDefault();
+  leaveWith(open, event.currentTarget);
+}
+
+/** Opens the note elsewhere once the field being typed in has committed to it, as a step does. */
+function leaveWith(open: () => void, popup: HTMLElement | null): void {
+  commitFocusedField(popup);
   open();
 }
 
@@ -149,7 +161,7 @@ function commitFocusedField(popup: HTMLElement | null): void {
 }
 
 function PeekHeader(props: PeekDialogProps & { popup: RefObject<HTMLElement | null> }) {
-  const { position, popup } = props;
+  const { position, popup, onExpand, onOpenInNewTab, onOpenInSplit } = props;
   return (
     <header className="peek__head">
       {position !== null && (
@@ -175,14 +187,26 @@ function PeekHeader(props: PeekDialogProps & { popup: RefObject<HTMLElement | nu
       <span className="peek__status" role="status">
         {props.status}
       </span>
-      {props.onExpand !== undefined && (
-        <PeekButton icon="arrow" label="Open as full page" onClick={props.onExpand} />
+      {onExpand !== undefined && (
+        <PeekButton
+          icon="arrow"
+          label="Open as full page"
+          onClick={() => leaveWith(onExpand, popup.current)}
+        />
       )}
-      {props.onOpenInNewTab !== undefined && (
-        <PeekButton icon="tab" label="Open in new tab" onClick={props.onOpenInNewTab} />
+      {onOpenInNewTab !== undefined && (
+        <PeekButton
+          icon="tab"
+          label="Open in new tab"
+          onClick={() => leaveWith(onOpenInNewTab, popup.current)}
+        />
       )}
-      {props.onOpenInSplit !== undefined && (
-        <PeekButton icon="split" label="Open in split" onClick={props.onOpenInSplit} />
+      {onOpenInSplit !== undefined && (
+        <PeekButton
+          icon="split"
+          label="Open in split"
+          onClick={() => leaveWith(onOpenInSplit, popup.current)}
+        />
       )}
       {props.menu !== undefined && (
         <PageMenu items={props.menu} open={undefined} onOpenChange={undefined} />

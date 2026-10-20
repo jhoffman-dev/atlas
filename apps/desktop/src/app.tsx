@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useReducer, useState, type ComponentProps } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useState,
+  type ComponentProps,
+} from 'react';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
@@ -155,12 +163,18 @@ import { localClock, localTimeZone, localToday } from './today.ts';
 import { cryptoRng } from './random.ts';
 import type { Overlay } from './overlay.ts';
 import {
+  closePeek,
   createOverlayStore,
+  followPeekMove,
+  forgetPeeked,
   hideOverlay as hideIn,
-  overlayNow,
+  peekNow,
+  replacePeek,
   showOverlay as showIn,
   useWindowOverlay,
 } from './overlay-store.ts';
+import { PEEK_EDITOR, PeekLayer } from './panes/peek-container.tsx';
+import { leavePeek } from './panes/peek-moves.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
 import { movingEditorsIn, openNotesIn } from './panes/open-notes.ts';
 import { useVaultEntries, type VaultEntryPorts } from './vault/use-vault-entries.ts';
@@ -414,6 +428,8 @@ function AppWindow({
     onSwitched: (next) => {
       loadVault(workspace, next.absolutePath);
       loadVaultAside(asideStore, next.absolutePath);
+      // The peeked note is the last vault's; its edits were written as the switch began.
+      closePeek(overlays);
     },
   });
   const vaultKey = location?.absolutePath ?? null;
@@ -1061,10 +1077,12 @@ function AppWindow({
   const openCreated = useCallback(
     (path: VaultPath) => {
       void reload();
-      openNote(path);
+      // Made over the peek — a capture, a related note from its strip — it is not
+      // opened in the page hidden under the peek, which nobody would see move.
+      if (peekNow(overlays) === null) openNote(path);
       void refresh();
     },
-    [reload, openNote, refresh],
+    [reload, openNote, refresh, overlays],
   );
   const {
     createNewNote,
@@ -1088,10 +1106,11 @@ function AppWindow({
   const followEntryMove = useCallback(
     (move: EntryMove) => {
       followMoveIn(workspace, move);
+      followPeekMove(overlays, move);
       viewDrafts.follow(move);
       tickMemory.follow(move);
     },
-    [workspace, viewDrafts, tickMemory],
+    [workspace, overlays, viewDrafts, tickMemory],
   );
   useEffect(() => apiMoves.point(followEntryMove), [apiMoves, followEntryMove]);
 
@@ -1100,9 +1119,10 @@ function AppWindow({
   const closeDeleted = useCallback(
     (gone: readonly VaultPath[]) => {
       closeNotesIn(workspace, gone);
+      forgetPeeked(overlays, gone);
       viewDrafts.forget(gone);
     },
-    [workspace, viewDrafts],
+    [workspace, overlays, viewDrafts],
   );
 
   const entryPorts = useMemo<VaultEntryPorts>(
@@ -1373,9 +1393,10 @@ function AppWindow({
   const captureTask = useCallback(
     async (name: string) => {
       const path = await captureNote(name, captureTemplate);
-      if (path !== null) openNote(path);
+      // Over the peek, a capture lands without moving the page hidden under it.
+      if (path !== null && peekNow(overlays) === null) openNote(path);
     },
-    [captureNote, captureTemplate, openNote],
+    [captureNote, captureTemplate, openNote, overlays],
   );
 
   /** Today's note, made on demand — where and from what is `ensureDailyNote`'s to say. */
@@ -1522,10 +1543,13 @@ function AppWindow({
   }, [appInfo]);
 
   useAppShortcuts({
-    // Read at the key press: the window is not drawn again as ⌘K opens.
-    overlay: () => overlayNow(overlays),
-    // The editors are registered under their tabs: the focused pane's shown one saves.
-    save: () => editors.savePane(activeTabOf(workspaceNow(workspace)).id),
+    // Read at the key press: the window is not drawn again as ⌘K or the peek opens.
+    layers: () => overlays.getState(),
+    // The editors are registered under their tabs: the peek's, else the focused pane's shown one saves.
+    save: () =>
+      editors.savePane(
+        peekNow(overlays) === null ? activeTabOf(workspaceNow(workspace)).id : PEEK_EDITOR,
+      ),
     newNote: () => void createNewNote(),
     toggleSidebar: () => setSidebarOpen((was) => !was),
     toggleSplit: () => toggleSplitIn(workspace),
@@ -1618,18 +1642,16 @@ function AppWindow({
       stranded={stranded}
     />
   );
-  // Steady, so the palette is not drawn again with the window while it is shut (#261).
-  const runPaletteCommand = useSteadyCallback((id: string, query: string) => {
-    const pasted = claudeArtifactUrl(query) ?? '';
-    if (
-      runPaletteArchiveCommand(id, {
-        focused: focusedNote(),
-        commands: archiveCommands,
-        openArchive,
-      })
-    ) {
-      return;
-    }
+  /** Writes what was typed in the peek, closes it, then runs `act`; at once with no peek up. */
+  const leavingPeekFor = (act: () => void) =>
+    leavePeek(overlays, {
+      flush: () => {
+        const peek = peekNow(overlays);
+        return peek === null ? Promise.resolve() : editors.flushHolding([peek.path]);
+      },
+      act,
+    });
+  const runPlaceCommand = (id: string, pasted: string) => {
     if (
       runPaletteEditTypeCommand(id, {
         editType: (name) => openType(name, 'edit'),
@@ -1647,8 +1669,29 @@ function AppWindow({
     else if (id === 'new-artifact') startNewArtifact();
     else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);
     else startNewView(null);
+  };
+  // Steady, so the palette is not drawn again with the window while it is shut (#261).
+  const runPaletteCommand = useSteadyCallback((id: string, query: string) => {
+    const pasted = claudeArtifactUrl(query) ?? '';
+    if (
+      runPaletteArchiveCommand(id, {
+        // "This note" is the one on screen: the peeked one while the peek is up.
+        focused: peekNow(overlays)?.path ?? focusedNote(),
+        commands: archiveCommands,
+        openArchive: () => leavingPeekFor(openArchive),
+      })
+    ) {
+      return;
+    }
+    // A command that goes somewhere leaves the peek first, so where it went is on screen.
+    leavingPeekFor(() => runPlaceCommand(id, pasted));
   });
-  const openPaletteHit = useSteadyCallback((path: string) => openNote(createVaultPath(path)));
+  // Picked over the peek, a result shows in it, in place of its note (Q6).
+  const openPaletteHit = useSteadyCallback((path: string) =>
+    peekNow(overlays) === null
+      ? openNote(createVaultPath(path))
+      : replacePeek(overlays, createVaultPath(path)),
+  );
 
   const granolaToast = granolaPull.toast !== null && (
     <Toast
@@ -1947,7 +1990,11 @@ function AppWindow({
                 >
                   {/* Keyed by vault: its editors, and what each pane keeps mounted, are that vault's (R14-01). */}
                   <AsideToggleProvider value={asideToggle}>
-                    <PanesContainer key={vaultKey ?? ''} />
+                    <Fragment key={vaultKey ?? ''}>
+                      <PanesContainer />
+                      {/* The peek over the panes: its editor is the vault's too. */}
+                      <PeekLayer />
+                    </Fragment>
                   </AsideToggleProvider>
                 </WorkspaceWiringProvider>
               </WorkspaceStoresProvider>
