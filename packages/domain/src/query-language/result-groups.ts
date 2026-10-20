@@ -6,7 +6,7 @@
  * named for the note it points at, and the rows without a value come last.
  */
 
-import type { StatusTone } from '../page/status-tone.ts';
+import type { OptionColor } from '../page/pill-colour.ts';
 import {
   groupingKey,
   groupRows,
@@ -27,7 +27,7 @@ export interface RowGroup {
   readonly label: string;
   /** The value a row in it holds, or null for the rows with none. */
   readonly value: string | null;
-  readonly tone: StatusTone | null;
+  readonly tone: OptionColor | null;
   readonly rows: readonly BoardRow[];
   /** The next level's groups; empty at the last level. */
   readonly subgroups: readonly RowGroup[];
@@ -39,7 +39,7 @@ export interface RowGroup {
  */
 export type GroupedBy = QueryField & {
   readonly direction?: 'asc' | 'desc';
-  readonly colors?: Readonly<Record<string, StatusTone>>;
+  readonly colors?: Readonly<Record<string, OptionColor>>;
 };
 
 /** The kinds whose groups are drawn as the pills their values are drawn as. */

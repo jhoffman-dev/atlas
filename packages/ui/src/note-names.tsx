@@ -1,5 +1,11 @@
 import { createContext, useContext } from 'react';
-import { noteNames, type LinkedName, type NoteNames, type VaultPath } from '@atlas/domain';
+import {
+  noteNames,
+  type LinkedName,
+  type NoteNames,
+  type PillHue,
+  type VaultPath,
+} from '@atlas/domain';
 
 /**
  * The vault's notes by name, which every place that shows a relation reads
@@ -23,20 +29,25 @@ export function useNoteNames(): NoteNames {
 export function LinkedNote({
   name,
   className,
+  hue,
   onOpen,
 }: {
   name: LinkedName;
   className: string;
+  /** The chip's pastel (`relationHue`); a link to nothing keeps the muted strike instead. */
+  hue?: PillHue;
   /** Left out where the note cannot be opened from here. */
   onOpen?: (path: VaultPath) => void;
 }) {
   const { path } = name;
+  const tint = hue === undefined || name.missing ? {} : { 'data-hue': hue };
   if (path !== null && onOpen !== undefined) {
     return (
       <button
         type="button"
         className={className}
         data-link-path={path}
+        {...tint}
         aria-label={`Open ${name.text}`}
         onClick={(event) => {
           // A link inside something clickable opens its note, not the thing.
@@ -53,6 +64,7 @@ export function LinkedNote({
       className={className}
       data-missing={name.missing}
       {...(path !== null && { 'data-link-path': path })}
+      {...tint}
     >
       {name.text}
     </span>

@@ -109,14 +109,19 @@ describe('a result too long for the model', () => {
   });
 
   it('answers JSON for one too-long value, holding the start of the answer', async () => {
-    const api = vault({ 'Long.md': `x${'x'.repeat(TOOL_RESULT_CHARACTERS * 2)}\n` });
+    const api = vault({
+      '.atlas/templates/Long.md': `x${'x'.repeat(TOOL_RESULT_CHARACTERS * 2)}\n`,
+    });
 
-    const result = await run(api, 'atlas_read_note', { path: 'Long.md' });
+    const result = await run(api, 'atlas_read_template', { name: 'Long' });
     const body = JSON.parse(result.content) as { cut: { note: string }; start: string };
 
     expect(result.content.length).toBeLessThanOrEqual(TOOL_RESULT_CHARACTERS);
-    expect(body.cut.note).toMatch(/ask for fewer/);
-    expect(body.start.startsWith('{"note":')).toBe(true);
+    // One item cannot be asked for in fewer results: the cut says what it was and how big.
+    expect(body.cut.note).not.toMatch(/ask for fewer/);
+    expect(body.cut.note).toMatch(/was cut/);
+    expect(body.cut.note).toMatch(/was \d{2},\d{3} characters/);
+    expect(body.start.startsWith('{"template":')).toBe(true);
   });
 });
 
@@ -132,3 +137,107 @@ function views400(): Record<string, string> {
   }
   return files;
 }
+
+/**
+ * #415: a long note reached the model cut to its first 30,000 characters,
+ * with "ask for fewer results" and no way to read on, so the chat said the
+ * note was cut off when the file on disk was whole.
+ */
+describe('atlas_read_note on a long note (#415)', () => {
+  const LAST = 'The last line: the lighthouse keeper rows home at dusk.';
+
+  /** A note of about `bytes` characters, numbered line by line, ending in LAST. */
+  function longNote(bytes: number): string {
+    const lines: string[] = [];
+    for (let at = 0; lines.join('\n').length < bytes; at += 1) {
+      lines.push(`Line ${at}: the tide came in over the flats and went out again.`);
+    }
+    return `${lines.join('\n')}\n${LAST}\n`;
+  }
+
+  interface ReadAnswer {
+    note: { body: string };
+    page?: {
+      offset: number;
+      shown: number;
+      of: number;
+      remaining: number;
+      next: number | null;
+      note: string;
+    };
+  }
+
+  it('reads a 60 KB note whole, to its last line', async () => {
+    const text = longNote(60_000);
+    const api = vault({ 'Long.md': text });
+
+    const result = await run(api, 'atlas_read_note', { path: 'Long.md' });
+    const body = JSON.parse(result.content) as ReadAnswer & { cut?: unknown };
+
+    expect(result.isError).toBe(false);
+    expect(body.cut).toBeUndefined();
+    expect(body.note.body).toBe(text);
+    expect(body.note.body).toContain(LAST);
+  });
+
+  it('pages a note too big for one answer, saying how much is left and how to read it', async () => {
+    const text = longNote(300_000);
+    const api = vault({ 'Huge.md': text });
+
+    let read = '';
+    let offset: number | null = 0;
+    let pages = 0;
+    while (offset !== null) {
+      const input: Record<string, unknown> =
+        offset === 0 ? { path: 'Huge.md' } : { path: 'Huge.md', offset };
+      const result = await run(api, 'atlas_read_note', input);
+      const body = JSON.parse(result.content) as ReadAnswer;
+      const page = body.page;
+
+      expect(result.isError).toBe(false);
+      if (page === undefined) throw new Error('a cut answer must say it is a page');
+      expect(page).toMatchObject({ offset, of: text.length, shown: body.note.body.length });
+      expect(page.remaining).toBe(text.length - offset - page.shown);
+      if (page.next !== null) {
+        expect(page.next).toBe(offset + page.shown);
+        expect(page.note).toContain(`offset ${page.next}`);
+        expect(page.note).toContain(page.remaining.toLocaleString('en-US'));
+      }
+      read += body.note.body;
+      offset = page.next;
+      pages += 1;
+      expect(pages).toBeLessThan(20);
+    }
+
+    expect(pages).toBeGreaterThan(1);
+    expect(read).toBe(text);
+    expect(read.endsWith(`${LAST}\n`)).toBe(true);
+  });
+
+  it('refuses an offset past the end of the body, saying how long it is', async () => {
+    const api = vault({ 'Short.md': 'Only a line.\n' });
+
+    const result = await run(api, 'atlas_read_note', { path: 'Short.md', offset: 500 });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatch(/^invalid: .*13 characters/);
+  });
+
+  it('refuses an offset that is not a whole number', async () => {
+    const api = vault({ 'Short.md': 'Only a line.\n' });
+
+    for (const offset of [-1, 1.5, '10', true]) {
+      const result = await run(api, 'atlas_read_note', { path: 'Short.md', offset });
+      expect(result.isError).toBe(true);
+      expect(result.content).toBe('invalid: offset must be a whole number, 0 or more.');
+    }
+  });
+
+  it('tells the model, in its description, how to page a long note', () => {
+    const spec = READ_TOOL_SPECS.find((each) => each.name === 'atlas_read_note');
+    expect(spec?.description).toMatch(/offset/);
+    expect(JSON.stringify(spec?.inputSchema)).toContain('"offset"');
+    // A turn has a bounded number of tool rounds: the model says how far it read.
+    expect(spec?.description).toMatch(/how far you read/);
+  });
+});

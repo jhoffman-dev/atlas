@@ -187,7 +187,10 @@ test('an artifact saved over the API gets its note and copy, and a card in the g
   const card = gallery.getByRole('listitem').filter({ hasText: 'Launch deck' });
   await expect(card).toBeVisible();
   await expect(card.locator('.artifact-face[data-kind="deck"]')).toBeVisible();
-  await expect(card.getByText('launch', { exact: true })).toBeVisible();
+  // The tag is its own pill, written as it was given, in its colour (#413).
+  const tag = card.locator('.status-pill', { hasText: /^launch$/ });
+  await expect(tag).toBeVisible();
+  await expect(tag).toHaveAttribute('data-hue', /^[a-z]+$/);
 
   await card.getByRole('button', { name: 'Launch deck' }).click();
   const inside = page.frameLocator('iframe[title="Saved copy of Launch deck"]');

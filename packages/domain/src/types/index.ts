@@ -34,7 +34,6 @@ export {
   moveProperty,
   NEW_PROPERTY_LABEL,
   newObjectType,
-  optionTone,
   removeOption,
   removeProperty,
   renameOption,

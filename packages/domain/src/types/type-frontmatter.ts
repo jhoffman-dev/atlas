@@ -193,7 +193,12 @@ function mergedSpec({
   for (const [key, value] of Object.entries(raw)) {
     if (!SPEC_KEYS.has(key)) merged[key] = value;
     else if (key === 'colors') {
-      const colors = mergedColors({ raw: value, wanted: wanted['colors'], was });
+      const colors = mergedColors({
+        raw: value,
+        wanted: wanted['colors'],
+        was,
+        options: wanted['options'],
+      });
       if (colors !== null) merged[key] = colors;
     } else if (Object.hasOwn(wanted, key)) merged[key] = wanted[key];
   }
@@ -205,21 +210,33 @@ function mergedSpec({
   return merged;
 }
 
+/**
+ * The colours written for an edited property: the ones the edit wants, and
+ * any the parser could not read (a colour off the palette) kept as they were —
+ * unless their option was renamed or removed, which would leave a colour for
+ * nothing (#413).
+ */
 function mergedColors({
   raw,
   wanted,
   was,
+  options,
 }: {
   raw: unknown;
   wanted: unknown;
   was: PropertyDef | undefined;
+  /** The options the edited property lists now, as written. */
+  options: unknown;
 }): Record<string, unknown> | null {
   const colors = isRecord(wanted) ? wanted : {};
   const read = was?.colors ?? {};
+  const listed = Array.isArray(options) ? options.map(String) : [];
+  const gone = (option: string) =>
+    was?.options.includes(option) === true && !listed.includes(option);
   const merged: Record<string, unknown> = {};
   for (const [option, tone] of Object.entries(isRecord(raw) ? raw : {})) {
     if (Object.hasOwn(colors, option)) merged[option] = colors[option];
-    else if (!Object.hasOwn(read, option)) merged[option] = tone;
+    else if (!Object.hasOwn(read, option) && !gone(option)) merged[option] = tone;
   }
   for (const [option, tone] of Object.entries(colors)) {
     if (!Object.hasOwn(merged, option)) merged[option] = tone;

@@ -388,6 +388,7 @@ export function ViewBody({
           groupBy={view.display.groupBy}
           fields={fields}
           kinds={schema.kinds}
+          {...(schema.colors !== undefined && { colors: schema.colors })}
           onOpenNote={onOpenNote}
           onMoveCard={view.moveCard}
           onAddCard={view.addCard}

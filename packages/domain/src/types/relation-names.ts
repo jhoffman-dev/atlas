@@ -17,6 +17,13 @@ export interface LinkedName {
   readonly path: VaultPath | null;
   /** Whether the link points at no note, and is drawn as missing. */
   readonly missing: boolean;
+  /**
+   * The note itself, however the link spells it: its file's bare name, folded.
+   * Not its alias and not its title, so `[[Larkspur Payroll|Larkspur]]` and
+   * `[[larkspur payroll]]` are one note, before the titles are known and after.
+   * What a linked note's colour is keyed by (#413).
+   */
+  readonly key: string;
 }
 
 /** The vault's notes by name, as a relation's links are read against them. */
@@ -65,6 +72,7 @@ export function noteNames(notes: readonly NamedNote[] | null): NoteNames {
       text: link.alias?.trim() || title || bareName(link.target),
       path,
       missing: notes !== null && path === null,
+      key: bareName(path ?? link.target).toLowerCase(),
     };
   };
 
