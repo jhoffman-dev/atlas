@@ -121,8 +121,8 @@ test('a new project is a project, links an area, and archives and restores by it
   expect(offered).not.toContain('New Project');
   expect(offered).not.toContain('Manual');
   // Each says which it is, so Garden the area is not taken for a project (#213).
-  await expect(suggestion(project, 'Atlas')).toHaveAttribute('aria-label', /, project,/);
-  await expect(suggestion(project, 'Garden')).toHaveAttribute('aria-label', /, area,/);
+  await expect(suggestion(project, 'Atlas')).toHaveAttribute('aria-label', /, Projects,/);
+  await expect(suggestion(project, 'Garden')).toHaveAttribute('aria-label', /, Areas,/);
 
   // Restore: Unarchive sets PARA back to project, and it is offered again.
   await page.getByRole('treeitem', { name: 'Projects', exact: true }).click();

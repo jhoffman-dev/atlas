@@ -47,15 +47,18 @@ export function useLinkInText({
   onText: (text: string) => void;
   onBlur: () => void;
 }): { field: LinkInTextField; list: ReactNode } {
-  const names = useNoteNames();
   const listId = useId();
   const input = useRef<HTMLInputElement>(null);
   const keys = useRef<ListKeys | null>(null);
   const [caret, setCaret] = useState<number | null>(null);
-  /** The text as it was when Esc closed the list: it stays closed until the text changes. */
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  /** The link Esc closed the list on, in the text as it was: closed until either changes. */
+  const [dismissed, setDismissed] = useState<{ value: string; start: number } | null>(null);
   const placeCaret = useCaretAfterPick(input);
-  const open = caret === null || dismissed === value ? null : openLinkInText(value, caret);
+  const typing = caret === null ? null : openLinkInText(value, caret);
+  const open =
+    typing !== null && dismissed?.value === value && dismissed.start === typing.start
+      ? null
+      : typing;
 
   const field: LinkInTextField = {
     ref: input,
@@ -80,7 +83,7 @@ export function useLinkInText({
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
-        setDismissed(value);
+        setDismissed({ value, start: open.start });
         return;
       }
       keys.current?.(event);
@@ -88,14 +91,12 @@ export function useLinkInText({
   };
   const list =
     open === null || caret === null ? null : (
-      <LinkSuggestions
+      <TextLinkSuggestions
         listId={listId}
         inputRef={input}
         keysRef={keys}
         query={open.query}
-        choices={EVERY_NOTE}
-        onPick={(choice) => {
-          const link = names.linkTo(createVaultPath(choice.path));
+        onLink={(link) => {
           const next = withLinkInText({ text: value, caret, link });
           onText(next.text);
           setCaret(next.caret);
@@ -104,6 +105,37 @@ export function useLinkInText({
       />
     );
   return { field, list };
+}
+
+/**
+ * The list over every note, handing over the link to write. The vault's names
+ * are read here, drawn only while the list is open, so a text field is not
+ * drawn again each time the vault's names change.
+ */
+function TextLinkSuggestions({
+  listId,
+  inputRef,
+  keysRef,
+  query,
+  onLink,
+}: {
+  listId: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+  keysRef: RefObject<ListKeys | null>;
+  query: string;
+  onLink: (link: string) => void;
+}) {
+  const names = useNoteNames();
+  return (
+    <LinkSuggestions
+      listId={listId}
+      inputRef={inputRef}
+      keysRef={keysRef}
+      query={query}
+      choices={EVERY_NOTE}
+      onPick={(choice) => onLink(names.linkTo(createVaultPath(choice.path)))}
+    />
+  );
 }
 
 /** Puts the caret just after a picked link once the field shows it. */

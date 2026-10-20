@@ -20,7 +20,6 @@ export function RelationPicker({
   pointsAt,
   onPick,
   onCreateRelated,
-  onOpen,
 }: {
   /** The field's id, for a label to point at. */
   id?: string;
@@ -34,8 +33,6 @@ export function RelationPicker({
   /** Links the note picked, or the one made. */
   onPick: (link: string) => void;
   onCreateRelated?: CreateRelated;
-  /** The picker is opening: its notes may be read only now. */
-  onOpen?: () => void;
 }) {
   if (pointsAt.length === 0) return null;
   return (
@@ -51,7 +48,6 @@ export function RelationPicker({
           creates: pointsAt,
           onCreate: (request: CreateLink) => onCreateRelated(request).then(onPick),
         })}
-        {...(onOpen !== undefined && { onOpen })}
       />
     </span>
   );

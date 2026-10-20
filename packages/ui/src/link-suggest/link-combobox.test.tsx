@@ -81,7 +81,7 @@ describe('LinkCombobox', () => {
     const { input } = field();
     await userEvent.type(input, 'lark');
     const option = screen.getByRole('option', { name: optionNamed('Larkspur Payroll') });
-    expect(option.getAttribute('aria-label')).toBe('Larkspur Payroll, project, Projects');
+    expect(option.getAttribute('aria-label')).toBe('Larkspur Payroll, Projects, Projects');
     expect(option.querySelector('.link-suggest__type')?.getAttribute('data-hue')).not.toBeNull();
   });
 
@@ -177,6 +177,34 @@ describe('LinkCombobox', () => {
     expect((input as HTMLInputElement).value).toBe('lark');
     await userEvent.keyboard('{Escape}');
     expect((input as HTMLInputElement).value).toBe('Garden');
+  });
+});
+
+describe('LinkCombobox — where the list goes', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('opens above a field near the window’s foot, no taller than the room there', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 400 });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.getAttribute('role') === 'combobox') {
+        return DOMRect.fromRect({ x: 100, y: 360, width: 120, height: 24 });
+      }
+      if (this.getAttribute('role') === 'listbox') {
+        const left = Number.parseFloat(this.style.left || '0');
+        const top = Number.parseFloat(this.style.top || '0');
+        return DOMRect.fromRect({ x: left, y: top, width: 260, height: 120 });
+      }
+      return DOMRect.fromRect({ x: 0, y: 0, width: 0, height: 0 });
+    });
+    const { input } = field();
+    await userEvent.click(input);
+    const list = screen.getByRole('listbox', { name: 'Suggested notes' });
+    // 360 above the field less the gaps: the room above, more than the 12 below.
+    expect(Number.parseFloat(list.style.maxHeight)).toBe(280);
+    expect(Number.parseFloat(list.style.top)).toBeLessThan(360);
   });
 });
 

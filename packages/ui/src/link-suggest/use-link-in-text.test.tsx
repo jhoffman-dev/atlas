@@ -51,6 +51,16 @@ function field() {
 }
 
 describe('useLinkInText', () => {
+  it('opens again when the caret moves into another [[ after Esc closed the list', async () => {
+    const { input } = field();
+    await userEvent.type(input, '[[[[ma and [[[[to');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    // The same text; the caret goes back into the first link.
+    await userEvent.keyboard('{Home}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}');
+    expect(input.selectionStart).toBe(4);
+    expect(suggestedTitles()).toEqual(['Mara Quill']);
+  });
   it('is a plain field until [[ is typed, and reads nothing before', async () => {
     const { input, want } = field();
     await userEvent.type(input, 'Met with ');

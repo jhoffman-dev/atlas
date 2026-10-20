@@ -35,6 +35,9 @@ function host({ query }: { query: IndexPort['query'] }) {
   return { status, seen, view, drawnPage: () => drawn };
 }
 
+/** A read is three queries, one per part: notes, aliases and use. */
+const PER_READ = 3;
+
 const answering = (rows: unknown[][] = ROWS) =>
   vi.fn<IndexPort['query']>(async () => ({
     columns: [...LINK_HINTS_QUERY_COLUMNS],
@@ -49,7 +52,7 @@ describe('LinkHintsHost', () => {
     expect(query).not.toHaveBeenCalled();
     expect(seen.current?.notes).toBeNull();
     await act(async () => seen.current?.want());
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(PER_READ);
     expect(seen.current?.notes).toEqual([{ path: 'People/Mara Quill.md', title: 'Mara Quill' }]);
     expect(seen.current?.hints.aliases.get('People/Mara Quill.md')).toEqual(['MQ']);
   });
@@ -66,21 +69,23 @@ describe('LinkHintsHost', () => {
     const { seen, status } = host({ query });
     await act(async () => seen.current?.want());
     await act(async () => seen.current?.want());
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(PER_READ);
     act(() => status.setState({ revision: 2 }));
     // News from the index alone reads nothing: only the next opening does.
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(PER_READ);
     await act(async () => seen.current?.want());
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(2 * PER_READ);
   });
 
   it('asks once while a read is under way', async () => {
-    let finish = () => {};
+    const waiting: (() => void)[] = [];
+    const finish = () => waiting.forEach((resolve) => resolve());
     const query = vi.fn<IndexPort['query']>(
       () =>
         new Promise((resolve) => {
-          finish = () =>
-            resolve({ columns: [...LINK_HINTS_QUERY_COLUMNS], rows: ROWS, truncated: false });
+          waiting.push(() =>
+            resolve({ columns: [...LINK_HINTS_QUERY_COLUMNS], rows: ROWS, truncated: false }),
+          );
         }),
     );
     const { seen } = host({ query });
@@ -89,12 +94,14 @@ describe('LinkHintsHost', () => {
       seen.current?.want();
     });
     await act(async () => finish());
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(PER_READ);
   });
 
   it('says why it could not read, and tries again on the next opening', async () => {
     const query = vi
       .fn<IndexPort['query']>()
+      .mockRejectedValueOnce(new Error('The index is busy.'))
+      .mockRejectedValueOnce(new Error('The index is busy.'))
       .mockRejectedValueOnce(new Error('The index is busy.'))
       .mockResolvedValue({ columns: [...LINK_HINTS_QUERY_COLUMNS], rows: ROWS, truncated: false });
     const { seen } = host({ query });

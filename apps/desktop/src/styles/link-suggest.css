@@ -43,15 +43,30 @@
   padding-block: 0;
 }
 
-/* In an Inbox row the field keeps the width its text gives it (its size), as
-   the select did: a width in percent would let the table squeeze the cell to
-   nothing and wrap the row onto a second line. */
+/* In an Inbox row the field is as wide as its prompt (its size), as the
+   select was, and gives way when the row is narrow rather than push the
+   Inbox sideways. */
 .inbox__clarify .link-combo {
-  flex: none;
+  flex: 0 1 auto;
+  max-width: 220px;
+  min-width: 0;
 }
 
 .inbox__clarify .link-combo > input {
+  max-width: 100%;
+  min-width: 0;
   width: auto;
+}
+
+/* In a narrow list the row's controls wrap, and the field takes the room its
+   line has: its prompt's width alone pushed the Inbox 44px sideways at 720px. */
+.inbox__list[data-narrow] .inbox__clarify .link-combo {
+  flex: 1 1 8em;
+  min-width: 6em;
+}
+
+.inbox__list[data-narrow] .inbox__clarify .link-combo > input {
+  width: 100%;
 }
 
 .inbox__file::placeholder {

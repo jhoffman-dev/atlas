@@ -136,7 +136,7 @@ describe('InboxPage', () => {
       within(screen.getByRole('listbox'))
         .getAllByRole('option')
         .map((option) => option.querySelector('.link-suggest__type')?.textContent),
-    ).toEqual(['project', 'area']);
+    ).toEqual(['Projects', 'Areas']);
   });
   it('files a note that is not a task into the project picked, at once', async () => {
     const props = page();
@@ -991,6 +991,17 @@ describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
       { path: 'Inbox/Call the bank.md', clarification: { project: 'Projects/Atlas.md' } },
     ]);
   });
+  it('writes the project on Tab from the armed picker, as on Enter: Tab takes the match', async () => {
+    const { onClarify } = page({ contents: tasks() });
+    focusRow('Call the bank');
+    await userEvent.keyboard('p');
+    await userEvent.keyboard('atl');
+    await userEvent.tab();
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Call the bank.md', clarification: { project: 'Projects/Atlas.md' } },
+    ]);
+  });
+
   it('writes nothing for the letters typed into the armed picker until a note is picked', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');

@@ -86,8 +86,8 @@ export function LinkCombobox({
         disabled={disabled}
         value={typed ?? current ?? ''}
         // As wide as what it shows, so a relation's chip hugs its prompt as the select did.
-        // Never narrower than its prompt, so it does not jump as typing starts.
-        size={Math.max(MIN_SIZE, placeholder.length, (typed ?? current ?? '').length) + 1}
+        // As wide as its prompt or what it holds, and no wider as you type.
+        size={Math.max(MIN_SIZE, placeholder.length, (current ?? '').length) + 1}
         onFocus={(event) => {
           // What it holds is selected, so typing replaces it.
           event.currentTarget.select();

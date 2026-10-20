@@ -42,9 +42,12 @@ export { rankNoteSuggestions } from './note-suggestions.ts';
 export {
   ALIAS_KEYS,
   compileLinkHintsQuery,
+  LINK_HINTS_KIND,
+  LINK_HINTS_PAGE_SIZE,
   LINK_HINTS_QUERY_COLUMNS,
   LINK_HINTS_QUERY_MARK,
 } from './link-hints-query.ts';
+export type { LinkHintsPart } from './link-hints-query.ts';
 export {
   foldedForSuggestion,
   linkMatchOf,

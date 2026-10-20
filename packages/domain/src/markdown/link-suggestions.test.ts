@@ -203,6 +203,20 @@ describe('a link typed into text', () => {
     });
   });
 
+  it('takes in a lone ] after the caret rather than leave a third one', () => {
+    expect(withLinkInText({ text: '[[Gar]', caret: 5, link: '[[Garden]]' })).toEqual({
+      text: '[[Garden]]',
+      caret: 10,
+    });
+  });
+
+  it('drops a [ typed once too often before the link', () => {
+    expect(openLinkInText('See [[[Gar', 10)).toEqual({ start: 4, query: 'Gar' });
+    expect(withLinkInText({ text: 'See [[[Gar', caret: 10, link: '[[Garden]]' }).text).toBe(
+      'See [[Garden]]',
+    );
+  });
+
   it('leaves the text alone when there is no half-typed link', () => {
     expect(withLinkInText({ text: 'plain', caret: 5, link: '[[X]]' })).toEqual({
       text: 'plain',

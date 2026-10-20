@@ -57,7 +57,7 @@ describe('a relation that points at a project or an area', () => {
     const types = screen
       .getAllByRole('option')
       .map((option) => option.querySelector('.link-suggest__type')?.textContent);
-    expect(types).toEqual(['project', 'area', 'area']);
+    expect(types).toEqual(['Projects', 'Areas', 'Areas']);
   });
   it('names both types in its prompt', () => {
     const { select } = picker();

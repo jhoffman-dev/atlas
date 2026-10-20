@@ -200,10 +200,13 @@ export interface OpenLinkInText {
  */
 export function openLinkInText(text: string, caret: number): OpenLinkInText | null {
   const before = text.slice(0, caret);
-  const start = before.lastIndexOf('[[');
-  if (start < 0) return null;
-  const query = before.slice(start + 2);
+  const opened = before.lastIndexOf('[[');
+  if (opened < 0) return null;
+  const query = before.slice(opened + 2);
   if (query.includes(']]') || /[\r\n]/.test(query)) return null;
+  // A `[` typed once too often (`[[[Gar`) goes with the link it would break.
+  let start = opened;
+  while (start > 0 && before[start - 1] === '[') start -= 1;
   return { start, query };
 }
 
@@ -224,7 +227,8 @@ export function withLinkInText({
   const open = openLinkInText(text, caret);
   if (open === null) return { text, caret };
   const rest = text.slice(caret);
-  const closing = /^[^\]\r\n[]*\]\]/.exec(rest)?.[0].length ?? 0;
+  // A `]]` already closing it — or the one `]` typed so far — is taken in, never doubled.
+  const closing = /^[^\]\r\n[]*\]{1,2}/.exec(rest)?.[0].length ?? 0;
   const next = `${text.slice(0, open.start)}${link}${rest.slice(closing)}`;
   return { text: next, caret: open.start + link.length };
 }

@@ -209,7 +209,7 @@ test('a task’s project, once its type is extended, offers projects and areas a
   await expectFile(vault, 'Inbox/Order seeds.md').toContain('type: task');
   const picker = page.getByRole('region', { name: 'Properties' }).getByLabel('Project');
   await picker.click();
-  await expect(suggestion(picker, 'Atlas')).toHaveAttribute('aria-label', /, project,/);
-  await expect(suggestion(picker, 'Garden')).toHaveAttribute('aria-label', /, area,/);
+  await expect(suggestion(picker, 'Atlas')).toHaveAttribute('aria-label', /, Projects,/);
+  await expect(suggestion(picker, 'Garden')).toHaveAttribute('aria-label', /, Areas,/);
   await expect(suggestion(picker, 'Mara Quill')).toHaveCount(0);
 });

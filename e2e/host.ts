@@ -1031,7 +1031,7 @@ export async function installHost(
         }
         // What a link field suggests beyond titles (#465): every note, aliases and use,
         // over files, props and relations, run for real.
-        if (statement.startsWith('/* link hints */')) {
+        if (statement.startsWith('/* link hints:')) {
           return runAtlasQuery(statement, bound, indexed.values());
         }
         // The Inbox (P30-01, #112): what waits, each task with its project and who it
