@@ -1045,7 +1045,7 @@ ORDER BY phase</pre>
         <li><b>Change it</b> in Settings (<kbd>⌘,</kbd>) → <b>Quick capture from anywhere</b>: <b>Change…</b>, then press the new keys — hold two of <kbd>⌘</kbd>, <kbd>⌥</kbd> and <kbd>⌃</kbd> with a letter, digit, function key (F1–F20) or Space. One alone is refused: a shortcut from any app reaches Atlas first, so <kbd>⌘C</kbd> would stop copying everywhere and <kbd>⌥E</kbd> typing é. So are macOS's own, such as <kbd>⌃⌘Q</kbd> (Lock Screen) and <kbd>⌥⌘Esc</kbd> (Force Quit). <b>Turn off</b> stops it; <b>Use ⌃⌥N</b> puts the default back. It's set for each Mac on its own.</li>
         <li>If macOS won't give Atlas the keys, Settings says <i>“— not working”</i> beside them, with why, and the shortcut you had before keeps working: choose others. macOS may also let two apps share a shortcut, and Atlas can't always tell — if a press opens another app, or nothing, choose other keys.</li>
         <li>It works while Atlas is running. Closing Atlas's window quits it, and then nothing is listening.</li>
-        <li>Inside Atlas, <kbd>⌃⌥N</kbd> and <kbd>⌥⌘N</kbd> open capture too, as <kbd>⇧⌘N</kbd> does.</li>
+        <li>Inside Atlas, <kbd>⌥⌘N</kbd>, and your capture-from-anywhere keys (<kbd>⌃⌥N</kbd> to start with), open capture too. One difference from <kbd>⇧⌘N</kbd>: <kbd>⌥⌘N</kbd> does nothing while a palette, a dialog or the peek is up, where <kbd>⇧⌘N</kbd> still opens capture. With no vault open, none of them opens it: Atlas says it needs a vault first.</li>
         <li><b>Today</b> in the sidebar is a view, and <b>Inbox</b> the <a href="#para">Inbox page</a>, which lists everything in the <code>Inbox</code> folder, every <a href="#meetings">meeting</a> not yet filed, and every task still at Inbox; their counts update as you work.</li>
       </ul>
     </section>
@@ -2086,7 +2086,7 @@ pnpm tauri:dev</pre>
             <tr><td><kbd>⌘N</kbd></td><td>New note</td></tr>
             <tr><td><kbd>⇧⌘N</kbd></td><td>Quick capture a task</td></tr>
             <tr><td><kbd>⌃⌥N</kbd></td><td>Quick capture from any app — Atlas comes forward with capture open (<a href="#capture-anywhere">change it in Settings</a>)</td></tr>
-            <tr><td><kbd>⌥⌘N</kbd></td><td>Open capture (as <kbd>⇧⌘N</kbd>)</td></tr>
+            <tr><td><kbd>⌥⌘N</kbd></td><td>Open capture (as <kbd>⇧⌘N</kbd>, but not over a palette, a dialog or the peek)</td></tr>
             <tr><td><kbd>⌥↑</kbd> <kbd>⌥↓</kbd></td><td>Move a sidebar section up or down, while its grip is focused</td></tr>
             <tr><td><kbd>⇧⌘D</kbd></td><td>Today's note</td></tr>
             <tr><td><kbd>⌘J</kbd></td><td>Open or close <a href="#claude">Claude</a> in the right sidebar</td></tr>
