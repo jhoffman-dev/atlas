@@ -1,9 +1,9 @@
-import type { NoteTemplate } from '@atlas/application';
+import { TERMS_SCOPE, type NoteTemplate } from '@atlas/application';
 import { useNoticeActivity } from '../activity/use-activity-log.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { termsPage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import { useIndexKey } from '../index/index-status-store.ts';
+import { useLastReadFailed, useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { useTermsPage } from './use-terms-page.ts';
 
 const TermsPage = termsPage.Component;
@@ -22,8 +22,16 @@ export interface TermsWiring {
  */
 export function TermsContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
-  // Still read again on every news of the index: what it reads is not yet scoped (#325).
-  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
+  // Read again for news of the terms, the people and the companies alone (#327),
+  // or any news after a failed read (#424).
+  const [failed, tellFailed] = useLastReadFailed();
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['terms'],
+    scope: TERMS_SCOPE,
+    failed,
+  });
   const { page, notice, added } = useTermsPage({
     ports: {
       index: pane.index,
@@ -39,6 +47,7 @@ export function TermsContainer({ wiring, chrome }: PageContainerProps) {
     onChanged: pane.onChanged,
     activity: pane.activity,
   });
+  tellFailed(page.error);
   useNoticeActivity({ errors: [notice], warnings: [] }, pane.activity);
   return (
     <LoadedLater chrome={chrome}>

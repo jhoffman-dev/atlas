@@ -4,11 +4,11 @@ import { act, renderHook } from '@testing-library/react';
 import {
   createIndexStatusStore,
   useIndexFailure,
-  useIndexKey,
   useIndexPhase,
   useIndexReady,
   useIndexStatus,
 } from './index-status-store.ts';
+import { useHeldIndexKey } from './index-key.test-support.ts';
 
 const LARKSPUR = '/vaults/Larkspur';
 const QUILL = '/vaults/Quill';
@@ -24,7 +24,7 @@ function selectorsOver(open: string | null) {
         ready: useIndexReady(store, vault),
         phase: useIndexPhase(store, vault),
         failure: useIndexFailure(store, vault),
-        key: useIndexKey(store, vault),
+        key: useHeldIndexKey(store, vault),
         status: useIndexStatus(store, vault),
       };
     },
