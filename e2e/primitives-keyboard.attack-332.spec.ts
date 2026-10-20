@@ -105,14 +105,6 @@ const RING_SURFACES: Record<string, (page: Page) => Promise<void>> = {
       page.getByRole('dialog', { name: 'Settings' }).locator('.field').first(),
     ).toBeVisible();
   },
-  'quick-add popover': async (page) => {
-    await page.locator('.fab__button').click();
-    const dialog = page.getByRole('dialog', { name: 'New Task' });
-    await expect(dialog).toBeVisible();
-    // Its buttons are disabled, and so take no focus, until the task has a name.
-    await dialog.locator('.quick-add__name').fill('Ring');
-    await expect(dialog.locator('.btn:enabled').first()).toBeVisible();
-  },
   // The rows' own buttons, inside the list's scroller: opening a row would take them away.
   inbox: async (page) => {
     await page

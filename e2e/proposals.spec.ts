@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /**
  * P29-02: what Claude proposes waits as a note in `Inbox/Proposals/`, and the
@@ -109,10 +110,10 @@ test('a task proposal accepted on the Inbox page makes the task, and the task op
   await expect(card.getByRole('button', { name: /2026-10-01 Standup#\^t0003/ })).toBeVisible();
   await card.getByRole('button', { name: 'Accept' }).click();
 
-  const notice = page
-    .getByRole('status')
-    .filter({ hasText: 'Accepted: Send Mara the payroll file.' });
+  // Said in the window's toast (UI v2, slice 15), held under the pointer while the files are read.
+  const notice = toastSaying(page, 'Accepted: Send Mara the payroll file.');
   await expect(notice).toBeVisible();
+  await notice.hover();
   await expect(card).toHaveCount(0);
   await expect(page.getByText('Nothing to answer.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Inbox/ })).toContainText('1');
@@ -126,7 +127,7 @@ test('a task proposal accepted on the Inbox page makes the task, and the task op
     'state: accepted',
   );
 
-  await notice.getByRole('button', { name: 'Open Send Mara the payroll file' }).click();
+  await notice.getByRole('button', { name: 'Open', exact: true }).click();
   const opened = page.getByRole('main');
   await expect(
     opened.getByRole('heading', { level: 1, name: 'Send Mara the payroll file' }),

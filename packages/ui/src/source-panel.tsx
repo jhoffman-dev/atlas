@@ -83,7 +83,7 @@ export function SourcePanel({
         {onChooseFile !== undefined && (
           <button
             type="button"
-            className="btn btn--tinted btn--sm"
+            className="btn btn--secondary btn--sm"
             onClick={onChooseFile}
             disabled={refreshing}
           >

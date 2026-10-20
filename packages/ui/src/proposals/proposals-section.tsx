@@ -10,7 +10,6 @@ import {
   type ProposalSlot,
   type VaultPath,
 } from '@atlas/domain';
-import { UNDO_BAR_MS, useDismissAfter } from '../dismiss-after.ts';
 import { Icon } from '../icon.tsx';
 import { SelectAllBox, SelectionBar, type RowSelection } from '../row-selection.tsx';
 import { ConflictGroupRow } from './conflict-group.tsx';
@@ -30,22 +29,16 @@ export interface ProposalsContents {
   readonly unreadable: readonly { readonly path: VaultPath; readonly problem: string }[];
 }
 
-/** What the last answer did, said at the top of the section. */
-export interface ProposalNotice {
-  readonly text: string;
-  /** The note an accept made or changed, to open from the notice. */
-  readonly opens: { readonly path: VaultPath; readonly title: string } | null;
-  /** Whether the answer can be taken back from the notice. */
-  readonly undoable: boolean;
-  /** Whether it says something failed: then it stays until dismissed, rather than going by itself. */
-  readonly failed: boolean;
-}
-
 export interface ProposalsSectionProps {
   /** Null while the folder is being read. */
   readonly contents: ProposalsContents | null;
   readonly error: string | null;
-  readonly notice: ProposalNotice | null;
+  /**
+   * A failure with nothing to take back, said at the top of the section until
+   * it is dismissed. What an answer did is said in the window's toast, with
+   * its Undo (UI v2, slice 15).
+   */
+  readonly notice: string | null;
   /**
    * `undo` while an accept is being undone, which holds the answers until it
    * is; null otherwise. An answer itself holds nothing: its proposal leaves
@@ -56,13 +49,18 @@ export interface ProposalsSectionProps {
   readonly problems: ReadonlyMap<VaultPath, string>;
   /** Whether answers are still being written: the section stays while they are, though none is left to answer. */
   readonly answering?: boolean;
+  /**
+   * Whether a proposal was answered here since the Inbox opened: the section
+   * stays, once the last has gone, to say there is nothing left to answer.
+   */
+  readonly answered?: boolean;
   /** Accepts a proposal — with its payload as edited, when it was. */
   readonly onAccept: (path: VaultPath, payload?: unknown) => void;
   readonly onReject: (path: VaultPath) => void;
   /**
    * Accepts the proposal picked and, once that is written, rejects `rest`:
    * the other values of its question, and copies of the one picked. A refused
-   * accept rejects nothing. One notice, one Undo for the whole choice.
+   * accept rejects nothing. One toast, one Undo for the whole choice.
    */
   readonly onAcceptChoice: (picked: VaultPath, rest: readonly VaultPath[]) => void;
   /** Which open proposals are chosen, to answer together (#168). */
@@ -72,8 +70,7 @@ export interface ProposalsSectionProps {
   readonly onAcceptMany: (paths: readonly VaultPath[]) => void;
   /** Rejects each of these as Reject would one, in turn. */
   readonly onRejectMany: (paths: readonly VaultPath[]) => void;
-  readonly onUndo: () => void;
-  /** Takes the notice away — and the Undo it offered — once it has had its time (#165), or when asked. */
+  /** Takes the failure said away, once it has been read. */
   readonly onDismissNotice: () => void;
   readonly onOpen: (path: VaultPath) => void;
   /** Opens the block a proposal cites, given as its link. */
@@ -146,7 +143,7 @@ export function ProposalsSection(props: ProposalsSectionProps) {
           </button>
         )}
       </div>
-      {props.notice !== null && <Notice {...props} notice={props.notice} />}
+      {props.notice !== null && <Notice notice={props.notice} onDismiss={props.onDismissNotice} />}
       <Chosen {...props} entries={shown} />
       <ProposalList {...props} entries={shown} list={list} keepingFocus={keepingFocus} />
       {props.contents !== null && props.contents.stranded.length > 0 && (
@@ -192,8 +189,9 @@ export function proposalsToShow({
   error,
   notice,
   answering = false,
+  answered = false,
 }: ProposalsSectionProps): boolean {
-  if (error !== null || notice !== null || answering) return true;
+  if (error !== null || notice !== null || answering || answered) return true;
   if (contents === null) return false;
   return contents.open.length + contents.stranded.length + contents.unreadable.length > 0;
 }
@@ -204,45 +202,16 @@ function describe(contents: ProposalsContents | null): string | null {
   return `${count} open ${count === 1 ? 'proposal' : 'proposals'} · nothing is written until you accept`;
 }
 
-/**
- * What the last answer did, for 20 seconds unless held: its Undo lasts as
- * long as it does. A failure stays until dismissed, so it is read.
- */
-function Notice({
-  notice,
-  busy,
-  onOpen,
-  onUndo,
-  onDismissNotice,
-}: ProposalsSectionProps & { notice: ProposalNotice }) {
-  const hold = useDismissAfter({
-    ms: UNDO_BAR_MS,
-    showing: notice,
-    onDismiss: onDismissNotice,
-    stays: notice.failed,
-  });
+/** A failure the last answer or undo left, which stays until it is read and dismissed. */
+function Notice({ notice, onDismiss }: { notice: string; onDismiss: () => void }) {
   return (
-    <div className="proposals__notice" role="status" {...hold}>
-      <span>{notice.text}</span>
-      {notice.opens !== null && (
-        <button
-          type="button"
-          className="btn btn--secondary"
-          onClick={() => notice.opens !== null && onOpen(notice.opens.path)}
-        >
-          Open {notice.opens.title}
-        </button>
-      )}
-      {notice.undoable && (
-        <button type="button" className="btn btn--ghost" disabled={busy !== null} onClick={onUndo}>
-          Undo
-        </button>
-      )}
+    <div className="proposals__notice" role="status">
+      <span>{notice}</span>
       <button
         type="button"
         className="btn btn--ghost btn--sm"
         aria-label="Dismiss"
-        onClick={onDismissNotice}
+        onClick={onDismiss}
       >
         ×
       </button>

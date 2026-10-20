@@ -3,7 +3,7 @@ import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings, type SettingsWriter } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 
-/** The types the add button offers, as the vault's settings list them; null when unset. */
+/** The types quick add offers, as the vault's settings list them; null when unset. */
 export async function loadQuickAddSetting(args: {
   fs: VaultFsPort;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
@@ -11,12 +11,12 @@ export async function loadQuickAddSetting(args: {
   return quickAddOf(await readVaultSettings(args));
 }
 
-/** The types the add button offers in settings already read; null when unset. */
+/** The types quick add offers in settings already read; null when unset. */
 export function quickAddOf(settings: Readonly<Record<string, unknown>>): readonly string[] | null {
   return parseQuickAdd(settings[QUICK_ADD_KEY]);
 }
 
-/** Writes the add button's types into the vault's settings. */
+/** Writes quick add's types into the vault's settings. */
 export async function saveQuickAddSetting({
   settings,
   types,

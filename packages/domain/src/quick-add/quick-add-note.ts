@@ -25,13 +25,6 @@ export function quickAddFields(type: Pick<ObjectType, 'properties'>): readonly P
   return unique.slice(0, QUICK_ADD_FIELD_LIMIT);
 }
 
-/** What each field starts as: a single choice at its first option, anything else empty. */
-export function quickAddStartValues(fields: readonly PropertyDef[]): Record<string, string> {
-  return Object.fromEntries(
-    fields.map((field) => [field.key, field.kind === 'select' ? (field.options[0] ?? '') : '']),
-  );
-}
-
 /**
  * What a quick-added note's frontmatter is changed by: its type, and every
  * field that was filled in, as the value its kind stores — a number as a

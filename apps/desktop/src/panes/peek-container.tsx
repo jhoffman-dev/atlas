@@ -94,6 +94,7 @@ function PeekContainer({ peek }: { peek: Peek }) {
       onExpand={() => leaveFor(peek.path, 'here')}
       onOpenInNewTab={() => leaveFor(peek.path, 'new-tab')}
       onOpenInSplit={() => leaveFor(peek.path, 'split')}
+      toastSlot={context.toasts.placeIn}
     >
       <div ref={watch}>{ready && drawn.page}</div>
       <LinkPreviewLayer store={hovered} />

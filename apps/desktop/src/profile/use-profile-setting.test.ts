@@ -15,7 +15,7 @@ const SETTINGS = '.atlas/settings.md';
 const HAND_WRITTEN = [
   '---',
   '# my settings, kept tidy by hand',
-  'quickAdd: [task, project]   # the add button',
+  'quickAdd: [task, project]   # quick add',
   "sidebarOrder: ['views', 'types']",
   'syncInterval: 5',
   '---',

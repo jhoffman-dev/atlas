@@ -57,7 +57,6 @@ function section(open: readonly ProposalNote[], more: Partial<ProposalsSectionPr
     onClearSelection: vi.fn(),
     onAcceptMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
     onRejectMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
-    onUndo: vi.fn(),
     onDismissNotice: vi.fn(),
     onOpen: vi.fn<(path: VaultPath) => void>(),
     onOpenSource: vi.fn<(link: string) => void>(),

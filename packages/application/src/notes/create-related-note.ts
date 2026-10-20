@@ -27,7 +27,7 @@ export class RelatedNoteRefusedError extends Error {
 
 /**
  * "New company…" in a relation's picker: a new note of the type the relation
- * points at, made as the add button makes one — from the type's template when
+ * points at, made as quick add makes one — from the type's template when
  * the vault has one, which is read and never touched, at the usual place for
  * a new note, named as typed and numbered when the name is taken.
  *
