@@ -61,7 +61,8 @@ export function compileReviewTasksQuery(): CompiledQuery {
       `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOn",`,
       `  ${allItems(TASK_KEYS.contexts)} AS "contexts",`,
       `  (SELECT r.dst FROM relations AS r WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' AND r.dst IS NOT NULL ORDER BY r.idx LIMIT 1) AS "project",`,
-      `  (SELECT pf.title FROM relations AS r JOIN files AS pf ON pf.path = r.dst WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' ORDER BY r.idx LIMIT 1) AS "projectTitle"`,
+      `  (SELECT pf.title FROM relations AS r JOIN files AS pf ON pf.path = r.dst WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' ORDER BY r.idx LIMIT 1) AS "projectTitle",`,
+      `  (SELECT group_concat(n, char(31)) FROM (SELECT r.name AS n FROM relations AS r WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' ORDER BY r.idx)) AS "projectLinks"`,
       `FROM files AS f`,
       `WHERE ${inUseOfTypeSql('f.path', '?')}`,
       // `+` keeps the planner off `props_key (key, value_text)`, which would walk
@@ -125,13 +126,13 @@ function shownName(item: string): string {
     .trim();
 }
 
-/** A task's contexts as the statement joined them: each as written, trimmed, blanks left out. */
-function contextsOf(joined: unknown): readonly string[] {
+/** Items as the statement joined them — a task's contexts, its project's link names — each trimmed, blanks left out. */
+function itemsOf(joined: unknown): readonly string[] {
   if (typeof joined !== 'string') return [];
   return joined
     .split(ITEM_SEPARATOR)
-    .map((context) => context.trim())
-    .filter((context) => context !== '');
+    .map((item) => item.trim())
+    .filter((item) => item !== '');
 }
 
 /** A row of {@link compileReviewTasksQuery}, as the review reads it. */
@@ -146,9 +147,11 @@ export function reviewTask(row: Readonly<Record<string, unknown>>): ReviewTask {
     // Absent when the row did not carry it, which is not knowing it: see ReviewTask.
     ...(Object.hasOwn(row, 'recurrence') && { recurrence: textOrNull(row['recurrence']) }),
     waitingOn: waitingOnNames(row['waitingOn']),
-    contexts: contextsOf(row['contexts']),
+    contexts: itemsOf(row['contexts']),
     project: project === null ? null : createVaultPath(project),
     projectTitle: project === null ? null : (textOrNull(row['projectTitle']) ?? project),
+    // Absent when the row did not carry it, which is not knowing it: see ReviewTask.
+    ...(Object.hasOwn(row, 'projectLinks') && { projectLinks: itemsOf(row['projectLinks']) }),
     modified: Number(row['modified']) || 0,
   };
 }

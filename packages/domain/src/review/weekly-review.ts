@@ -31,6 +31,11 @@ export interface ReviewTask {
   readonly project: VaultPath | null;
   /** That note's title, or null when it links none. */
   readonly projectTitle: string | null;
+  /**
+   * The names its `project` links by, as links find notes (folded), whether
+   * or not a note goes by one yet. Absent when the read did not say.
+   */
+  readonly projectLinks?: readonly string[];
   /** When its file last changed, in milliseconds since the epoch. */
   readonly modified: number;
 }

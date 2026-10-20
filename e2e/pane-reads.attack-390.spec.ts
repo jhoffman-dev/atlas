@@ -68,13 +68,19 @@ async function notesVault(): Promise<FakeVault> {
   return vault;
 }
 
-async function gtdVault(filedUnder: { path: string; type: string }): Promise<FakeVault> {
+/** A vault of two tasks filed under `filedUnder`: a note of its `type`, or of none for null. */
+async function gtdVault(filedUnder: { path: string; type: string | null }): Promise<FakeVault> {
   const vault = await createVault();
-  for (const folder of ['.atlas/types', 'Projects', 'Areas', 'Tasks', 'Inbox']) {
+  for (const folder of ['.atlas/types', 'Projects', 'Areas', 'Notes', 'Tasks', 'Inbox']) {
     await vault.mkdir(folder);
   }
   await vault.write('.atlas/types/task.md', GTD_TASK_TYPE);
-  await vault.write(filedUnder.path, note([`type: ${filedUnder.type}`], 'Where it goes.'));
+  await vault.write(
+    filedUnder.path,
+    filedUnder.type === null
+      ? 'Where it goes.\n'
+      : note([`type: ${filedUnder.type}`], 'Where it goes.'),
+  );
   const name = filedUnder.path.slice(filedUnder.path.lastIndexOf('/') + 1, -3);
   await vault.write(
     'Tasks/Weed the beds.md',
@@ -280,5 +286,53 @@ test.describe('attack-390: guards (passing on the PR head)', () => {
 
     await writeOutside(page, vault, 'Elsewhere.md', '# Elsewhere\n\nNo link now.\n');
     await expect(toggle).toContainText('No links yet');
+  });
+});
+
+test.describe('#392: Today hears the untyped note a task is filed under', () => {
+  const nextActionsOf = (page: Page) =>
+    page
+      .getByRole('article', { name: 'Today' })
+      .getByRole('region', { name: 'Next actions', exact: true });
+
+  test('drops the group when another program deletes the note', async ({ page }) => {
+    const vault = await gtdVault({ path: 'Notes/Garden plan.md', type: null });
+    await open(page, vault);
+    await goTo(page).getByRole('button', { name: 'Today' }).click();
+    const nextActions = nextActionsOf(page);
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(1);
+
+    await deleteOutside(page, vault, 'Notes/Garden plan.md');
+    // No task's bytes changed and the note has no type: only its own path names it.
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(0);
+  });
+
+  test('drops the group when another program renames the note, and the link no longer finds it', async ({
+    page,
+  }) => {
+    const vault = await gtdVault({ path: 'Notes/Garden plan.md', type: null });
+    await open(page, vault);
+    await goTo(page).getByRole('button', { name: 'Today' }).click();
+    const nextActions = nextActionsOf(page);
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(1);
+
+    await moveOutside(page, vault, 'Notes/Garden plan.md', 'Notes/Vegetable plan.md');
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(0);
+  });
+
+  test('groups the task when another program makes the note its link names, none until then', async ({
+    page,
+  }) => {
+    const vault = await gtdVault({ path: 'Notes/Garden plan.md', type: null });
+    await unlink(join(vault.root, 'Notes/Garden plan.md'));
+    await open(page, vault);
+    await goTo(page).getByRole('button', { name: 'Today' }).click();
+    const nextActions = nextActionsOf(page);
+    await expect(nextActions.getByText('Weed the beds')).toBeVisible();
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(0);
+
+    // The link resolves only once the note is there: no task's bytes changed.
+    await writeOutside(page, vault, 'Notes/Garden plan.md', 'Where it goes.\n');
+    await expect(nextActions.getByRole('group', { name: 'Garden plan' })).toHaveCount(1);
   });
 });
