@@ -94,3 +94,22 @@ describe('Toast', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Toast — reached by Tab in WebKit (#468)', () => {
+  // WebKit, and so the app's webview, Tabs only to a button that says it is
+  // in the tab order: without the attribute, Tab never reaches an Undo.
+  it('puts each of its buttons in the tab order by name', () => {
+    render(
+      <Toast
+        message="Changed “Order chairs”."
+        tone="change"
+        onUndo={() => {}}
+        action={{ label: 'Open', onClick: () => {} }}
+        onDismiss={() => {}}
+      />,
+    );
+    for (const name of ['Undo', 'Open', 'Dismiss']) {
+      expect(screen.getByRole('button', { name }).getAttribute('tabindex')).toBe('0');
+    }
+  });
+});

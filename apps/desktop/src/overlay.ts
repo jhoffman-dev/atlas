@@ -20,7 +20,6 @@ export type Overlay =
   | 'open-from-github'
   | 'template-delete'
   | 'template-to-note'
-  | QuickAddOverlay
   | QueryPopupOverlay
   | PagesOverlay
   | PageMenuOverlay
@@ -31,12 +30,6 @@ export type Overlay =
  * move and the question before a delete.
  */
 export type PagesOverlay = 'tree-menu' | 'pages-menu' | 'move-picker' | 'delete-dialog';
-
-/**
- * The floating add button's speed dial, and its quick-add popover. Neither is
- * modal: each gives way to anything asked for over it, as a menu does.
- */
-export type QuickAddOverlay = 'quick-add-menu' | 'quick-add';
 
 /** A popup on the query page — Save as view, Add to dashboard — by its name. */
 export type QueryPopupOverlay = `query-${string}`;

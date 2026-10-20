@@ -301,14 +301,6 @@ const RING_SURFACES: Record<string, (page: Page) => Promise<void>> = {
       page.getByRole('dialog', { name: 'Settings' }).locator('.field').first(),
     ).toBeVisible();
   },
-  'quick-add popover': async (page) => {
-    await page.locator('.fab__button').click();
-    const dialog = page.getByRole('dialog', { name: 'New Task' });
-    await expect(dialog).toBeVisible();
-    // Its buttons are disabled, and so take no focus, until the task has a name.
-    await dialog.locator('.quick-add__name').fill('Ring');
-    await expect(dialog.locator('.btn:enabled').first()).toBeVisible();
-  },
   // The rows' own buttons, inside the list's scroller: opening a row would take them away.
   inbox: async (page) => {
     await page
@@ -412,76 +404,6 @@ for (const theme of THEMES) {
       return Math.max(...marks.map((mark) => ratio(mark, menuGround)));
     });
     expect(best).toBeGreaterThanOrEqual(3);
-  });
-}
-
-test('the quick-add toast sits bottom right, above the quick-add button, inside the window', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await openVault(page);
-  await page.locator('.fab__button').click();
-  const popover = page.getByRole('dialog', { name: 'New Task' });
-  await popover.getByRole('textbox', { name: 'Task name' }).fill('Water the ferns');
-  await popover.getByRole('textbox', { name: 'Task name' }).press('Enter');
-  // The live region is the message alone; the toast itself is `.toast`.
-  const toast = page.locator('.toast').filter({ hasText: 'Task added' });
-  await expect(toast).toBeVisible();
-  await expect(toast.getByRole('status')).toHaveText('Task added');
-  const box = (await toast.boundingBox())!;
-  const fab = (await page.locator('.fab__button').boundingBox())!;
-  expect(box.x + box.width).toBeLessThanOrEqual(1280);
-  expect(box.x + box.width).toBeGreaterThan(1280 - 60);
-  expect(box.y + box.height).toBeLessThanOrEqual(800);
-  expect(box.y + box.height, 'clear of the quick-add button').toBeLessThanOrEqual(fab.y - 4);
-  expect(box.y, 'in the bottom quarter').toBeGreaterThan(800 - 200);
-});
-
-/** Pages a toast can arrive over, each with controls along its top right. */
-const UNDER_TOAST: Record<string, (page: Page) => Promise<void>> = {
-  table: async (page) => {
-    await sidebarSection(page, 'views').getByRole('button', { name: 'Sheet', exact: true }).click();
-    await expect(page.locator('.table__row').first()).toBeVisible();
-  },
-  note: async (page) => {
-    await page
-      .getByRole('navigation', { name: 'Vault' })
-      .getByText('Field notes', { exact: true })
-      .first()
-      .click();
-    await expect(page.getByRole('article', { name: 'Field notes', exact: true })).toBeVisible();
-  },
-  board: async (page) => {
-    await sidebarSection(page, 'views').getByRole('button', { name: 'Board', exact: true }).click();
-    await expect(page.locator('.board__card').first()).toBeVisible();
-  },
-};
-
-for (const [surface, open] of Object.entries(UNDER_TOAST)) {
-  test(`the quick-add toast covers no control of the ${surface} beneath it`, async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await openVault(page);
-    await open(page);
-    await page.locator('.fab__button').click();
-    const popover = page.getByRole('dialog', { name: 'New Task' });
-    await popover.getByRole('textbox', { name: 'Task name' }).fill('Water the ferns');
-    await popover.getByRole('textbox', { name: 'Task name' }).press('Enter');
-    const toast = page.locator('.toast');
-    await expect(toast).toBeVisible();
-    const covered = await toast.evaluate((element) => {
-      const over = element.getBoundingClientRect();
-      return [...document.querySelectorAll<HTMLElement>('button, input, select, [role="tab"]')]
-        .filter((control) => !element.contains(control))
-        .filter((control) => {
-          const box = control.getBoundingClientRect();
-          if (box.width === 0 || box.height === 0) return false;
-          const cx = box.left + box.width / 2;
-          const cy = box.top + box.height / 2;
-          return cx >= over.left && cx <= over.right && cy >= over.top && cy <= over.bottom;
-        })
-        .map((control) => control.getAttribute('aria-label') ?? control.textContent?.trim() ?? '');
-    });
-    expect(covered).toEqual([]);
   });
 }
 

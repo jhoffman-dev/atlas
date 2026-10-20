@@ -1,5 +1,5 @@
 /**
- * Adversarial pass on P30-02 (ADR-0029): the add button makes tasks too, and
+ * Adversarial pass on P30-02 (ADR-0029): quick add makes tasks too, and
  * a task it makes is held to the same rules as one changed anywhere else —
  * and Waiting never needs someone to wait on (#202).
  */

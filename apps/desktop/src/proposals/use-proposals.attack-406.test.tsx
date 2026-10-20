@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, proposalEntries, type VaultPath } from '@atlas/domain';
 import { recordingActivity, type ProposalPorts } from '@atlas/application';
-import { inMemoryProposalVault as vault } from './proposals.test-support.ts';
+import { inMemoryProposalVault as vault, windowToasts } from './proposals.test-support.ts';
 import { useProposals } from './use-proposals.ts';
 
 const path = (raw: string): VaultPath => createVaultPath(raw);
@@ -44,7 +44,8 @@ const NOTES = {
 };
 
 function drive(ports: ProposalPorts) {
-  return renderHook(() =>
+  const shown = windowToasts();
+  const hook = renderHook(() =>
     useProposals({
       ports,
       clock: { today: () => '2026-10-08' },
@@ -52,8 +53,11 @@ function drive(ports: ProposalPorts) {
       onSettled: vi.fn(),
       activity: recordingActivity(),
       closing: noClosing,
+      toasts: shown.toasts,
+      onOpen: vi.fn(),
     }),
   );
+  return Object.assign(hook, shown);
 }
 
 /** What ConflictGroupRow's Accept choice does with the picked path and the rest. */
@@ -90,7 +94,7 @@ describe('Accept choice — as the section fires it (attack #406)', () => {
     expect(setup.files.has('People/Mara Quill (Larkspur).md')).toBe(true);
 
     // The accept made a person and linked them: it must be one Undo away.
-    expect(hook.result.current.section.notice?.undoable).toBe(true);
+    await waitFor(() => expect(hook.said()?.onUndo).toBeTypeOf('function'));
   });
 
   it('rejects none of the other choices when the accept of the one picked is refused', async () => {

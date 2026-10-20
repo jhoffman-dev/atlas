@@ -40,6 +40,12 @@ export interface PeekDialogProps {
   fallbackFocus?: FocusFallback;
   /** Where the dialog is drawn: the document's body, unless given (the gallery's themed panels). */
   container?: RefObject<HTMLElement | null>;
+  /**
+   * Given a place inside the dialog — after its header, before the note — for
+   * the window's toasts, so they are in its focus trap and Tab reaches their
+   * Undo; told null as the dialog goes.
+   */
+  toastSlot?: (element: HTMLElement | null) => void;
   /** The note: `NotePane` with `chrome="peek"`. */
   children: ReactNode;
 }
@@ -87,6 +93,7 @@ export function PeekDialog(props: PeekDialogProps) {
             onKeyDown={(event) => answerPeekKey(event, props)}
           >
             <PeekHeader {...props} popup={popup} />
+            {props.toastSlot !== undefined && <ToastPlace onPlace={props.toastSlot} />}
             <div className="peek__body">{props.children}</div>
             <KeyHints hints={hintsOf(props)} />
           </Dialog.Popup>
@@ -158,6 +165,11 @@ function commitFocusedField(popup: HTMLElement | null): void {
   const held = popup?.ownerDocument.activeElement;
   if (!(held instanceof HTMLElement) || held === popup || popup?.contains(held) !== true) return;
   if (peekKeyPlace(held) !== 'chrome') held.blur();
+}
+
+/** Where the window's toasts are drawn while the peek is up: in its focus trap. */
+function ToastPlace({ onPlace }: { onPlace: (element: HTMLElement | null) => void }) {
+  return <div className="peek__toasts" ref={onPlace} />;
 }
 
 function PeekHeader(props: PeekDialogProps & { popup: RefObject<HTMLElement | null> }) {

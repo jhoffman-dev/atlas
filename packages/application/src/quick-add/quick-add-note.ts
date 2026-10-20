@@ -12,7 +12,7 @@ import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /**
- * Adds a note of a type from the add button: its title, and the few
+ * Adds a note of a type by quick add: its title, and the few
  * properties asked for on the way.
  *
  * It starts from the type's template when the vault has one — so what a new
@@ -61,7 +61,7 @@ export async function quickAddNote({
 }
 
 /**
- * What a note added from the add button starts as: the type's template, or
+ * What a note added by quick add starts as: the type's template, or
  * an empty note of the type, with the fields filled in written into its
  * frontmatter through the byte-preserving write. A new Project starts as a
  * project (#213) unless its template or its fields say otherwise.

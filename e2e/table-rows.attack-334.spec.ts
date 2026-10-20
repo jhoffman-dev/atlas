@@ -255,7 +255,7 @@ function focusPlacement(page: Page) {
     const box = sheetEl.getBoundingClientRect();
     const head = sheetEl.querySelector('thead th')!.getBoundingClientRect();
     const row = line.getBoundingClientRect();
-    // Wholly in the window, and its last cell not under the floating "+".
+    // Wholly in the window, and its last cell under nothing at the window's foot.
     const cell = line.lastElementChild!.getBoundingClientRect();
     const hit = document.elementFromPoint(cell.right - 20, (cell.top + cell.bottom) / 2);
     const uncovered = hit !== null && line.contains(hit);

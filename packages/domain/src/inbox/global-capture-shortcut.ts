@@ -7,7 +7,7 @@
  * letter, because Alt turns a letter into a dead key on a Mac layout.
  */
 
-/** ⌃⌥N: unused by macOS and by the apps Atlas sits beside, and close to ⌥⌘N, the add button. */
+/** ⌃⌥N: unused by macOS and by the apps Atlas sits beside, and close to ⌥⌘N, which opens capture in the app. */
 export const DEFAULT_GLOBAL_CAPTURE_SHORTCUT = 'Control+Alt+KeyN';
 
 /** The modifiers, in the order a Mac menu shows them and the shortcut is written. */

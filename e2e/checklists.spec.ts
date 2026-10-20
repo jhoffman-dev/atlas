@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /**
  * P30-03: a task's checklist is its subtasks. Its progress is a bar on the
@@ -107,8 +108,10 @@ test('promoting a line makes the task, links it back, and one Undo takes back bo
   await expectFile(vault, 'tasks/Plan the launch.md').toBe(
     PLAN.replace('- [ ] Order chairs\n', `- [ ] [[Order chairs]] ^${id}\n`),
   );
-  const notice = page.getByRole('status').filter({ hasText: 'is a task now' });
+  // Said in the window's toast (UI v2, slice 15), held under the pointer while the file is read.
+  const notice = toastSaying(page, 'is a task now');
   await expect(notice).toContainText('“Order chairs” is a task now.');
+  await notice.hover();
   const link = page.getByLabel('Note', { exact: true }).locator('[data-wikilink="Order chairs"]');
   await expect(link).toHaveCount(1);
 

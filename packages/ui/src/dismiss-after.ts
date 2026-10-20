@@ -3,9 +3,6 @@ import { useEffect, useRef, useState, type FocusEvent } from 'react';
 /** How long a toast stays before it goes by itself (the brief: about five seconds). */
 export const TOAST_MS = 5000;
 
-/** How long a bar offering Undo stays before it goes by itself, and its undo with it (#165). */
-export const UNDO_BAR_MS = 20_000;
-
 /** What the element that goes by itself listens to, so it can be held while in use. */
 export interface HoldWhileInUse {
   readonly onPointerEnter: () => void;

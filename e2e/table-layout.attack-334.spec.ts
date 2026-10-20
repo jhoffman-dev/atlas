@@ -1,6 +1,6 @@
 /**
  * Attack on #334 (UI v2 slice 4, #296): the table's 34px rows against long
- * and many-valued cells, the footer under the floating "+", the view bar and
+ * and many-valued cells, the footer and the last row at the window's foot, the view bar and
  * its save notice, contrast in both themes, and the editing input's ring.
  */
 import { expect, test, type Page } from './fixtures.ts';
@@ -151,12 +151,11 @@ test.describe('34px rows hold whatever their cells hold', () => {
   });
 });
 
-test.describe('the footer under the floating "+"', () => {
+test.describe('the footer and the last row, at the foot of the window', () => {
   test('every part of the footer is on top where it is drawn: nothing sits over it', async ({
     page,
   }) => {
     await openVault(page);
-    await expect(page.locator('.fab__button')).toBeVisible();
     const covered = await page.locator('.table__footer').evaluate((footer) => {
       const found: string[] = [];
       for (const part of footer.children) {
@@ -174,11 +173,10 @@ test.describe('the footer under the floating "+"', () => {
     expect(covered.found).toEqual([]);
   });
 
-  test('with the sheet scrolled to its end, the last row’s last cell is not under the "+"', async ({
+  test('with the sheet scrolled to its end, the last row’s last cell is under nothing', async ({
     page,
   }) => {
     await openVault(page, { tasks: 80 });
-    await expect(page.locator('.fab__button')).toBeVisible();
     await page.locator('.table__sheet').evaluate((sheet) => {
       sheet.scrollTop = sheet.scrollHeight;
     });
