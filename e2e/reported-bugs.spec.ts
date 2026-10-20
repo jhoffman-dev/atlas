@@ -127,7 +127,7 @@ async function caretAtLineEnd(page: Page, text: string) {
   await expect(async () => {
     await page.keyboard.press('Meta+ArrowRight');
     expect(await editorCaret(page)).toEqual({ line: text, offset: text.length });
-  }).toPass();
+  }).toPass({ timeout: 5_000 });
 }
 
 /** Where the note's editor has its caret: the text of that line and the offset in it. */
