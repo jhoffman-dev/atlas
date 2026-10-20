@@ -12,8 +12,11 @@
  * then; under load the caret the key moved is put back at the note's start,
  * and the typing after it lands there. So the editor's own selection is what
  * is waited on, and the key pressed again if it was undone (where it already
- * is, ⌘→ changes nothing). Pressing it also collapses the word or line a quick second or third click
- * on the same spot selects.
+ * is, ⌘→ changes nothing). Pressing it also collapses the word or line a
+ * quick second or third click on the same spot selects.
+ *
+ * ⌘→ goes to the end of the line as drawn, so on a paragraph that wraps it
+ * stops short of the block's end: the check then fails loudly, never passes.
  */
 import { expect, type Locator } from '@playwright/test';
 

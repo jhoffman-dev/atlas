@@ -177,12 +177,16 @@ export default tseslint.config(
     rules: {
       'no-restricted-syntax': [
         'error',
-        {
-          selector:
-            "CallExpression[callee.property.name='press'][arguments.0.value=/^(End|Home)$/]",
+        ...[
+          // press('End'), press("Shift+Home")
+          "CallExpression[callee.property.name='press'][arguments.0.value=/^(Shift\\+)?(End|Home)$/]",
+          // press(`End`)
+          "CallExpression[callee.property.name='press'][arguments.0.quasis.0.value.raw=/^(Shift\\+)?(End|Home)$/]",
+        ].map((selector) => ({
+          selector,
           message:
             'End and Home do not move the caret in WebKit on macOS: use caretAtLineEnd or caretAtLineStart from e2e/caret.ts.',
-        },
+        })),
       ],
     },
   },
