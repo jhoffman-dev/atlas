@@ -1,8 +1,12 @@
 import { memo, useRef } from 'react';
 import {
+  heldOptions,
   holdsLinks,
   isYou,
+  optionColor,
+  optionColorsOf,
   propertyRole,
+  type OptionColors,
   type PropertyDef,
   type PropertyKind,
 } from '@atlas/domain';
@@ -23,7 +27,7 @@ import { Icon } from './icon.tsx';
 import { openHowFrom, type OpenHow } from './open-how.ts';
 import { SelectBox } from './row-selection.tsx';
 import { sameEntries } from './steady-value.ts';
-import { StatusPill } from './status-pill.tsx';
+import { StatusPill, TintedPill } from './status-pill.tsx';
 
 export type { CellEdit, CellValue } from './cells/cell-editing.ts';
 
@@ -42,6 +46,8 @@ export interface RowLook {
   readonly labels: Readonly<Record<string, string>>;
   /** The declared property under each key, for the editor it opens. */
   readonly properties: Readonly<Record<string, PropertyDef>>;
+  /** The colours the type chose for each select's options, which its pills are drawn in. */
+  readonly colors: Readonly<Record<string, OptionColors>>;
   readonly onOpenNote: (path: string, how?: OpenHow) => void;
   /** Given while cells edit in place; left out, the cells are read only. */
   readonly editor?: CellEditorHooks | undefined;
@@ -247,13 +253,13 @@ function CellFor({
       />
     );
   }
-  const face =
-    kind === 'select' ? 'pill' : propertyRole(column) === 'person' && isYou(value) ? 'you' : 'text';
+  const face = faceOf({ kind, column, value });
   const text = value === null || value === undefined ? '' : String(value);
+  const colors = { key: column, colors: optionColorsOf(look.colors, column) };
   if (editor === undefined) {
     return (
       <span className="table__cell" title={fullValue(text)}>
-        <CellFace text={text} look={face} />
+        <CellFace text={text} value={value} look={face} colors={colors} />
       </span>
     );
   }
@@ -268,6 +274,8 @@ function CellFor({
     <Cell
       at={at}
       text={text}
+      value={value}
+      colors={colors}
       face={face}
       editor={editor}
       picks={picks}
@@ -286,6 +294,8 @@ function CellFor({
 function Cell({
   at,
   text,
+  value,
+  colors,
   face,
   editor,
   picks,
@@ -293,7 +303,9 @@ function Cell({
 }: {
   at: CellAt;
   text: string;
-  face: 'pill' | 'you' | 'text';
+  value: unknown;
+  colors: ColumnColors;
+  face: CellLook;
   editor: CellEditorHooks;
   /** Whether the cell edits in a picker under it, rather than a field in it. */
   picks: boolean;
@@ -321,7 +333,7 @@ function Cell({
         if (press.opens(event)) editor.start(at);
       }}
     >
-      <CellFace text={text} look={face} />
+      <CellFace text={text} value={value} look={face} colors={colors} />
     </button>
   );
 }
@@ -334,9 +346,52 @@ function fullValue(text: string): string | undefined {
   return text === '' ? undefined : text;
 }
 
-function CellFace({ text, look }: { text: string; look: 'pill' | 'you' | 'text' }) {
+/** The column's key and the colours its type chose for its options, as `optionColor` reads them. */
+interface ColumnColors {
+  readonly key: string;
+  readonly colors: OptionColors | undefined;
+}
+
+/** How a cell's value reads: a choice's pill, several choices' pills, "You", or its words. */
+type CellLook = 'pill' | 'pills' | 'you' | 'text';
+
+function faceOf({
+  kind,
+  column,
+  value,
+}: {
+  kind: PropertyKind | undefined;
+  column: string;
+  value: unknown;
+}): CellLook {
+  if (kind === 'select') return 'pill';
+  if (kind === 'multiSelect') return 'pills';
+  return propertyRole(column) === 'person' && isYou(value) ? 'you' : 'text';
+}
+
+function CellFace({
+  text,
+  value,
+  look,
+  colors,
+}: {
+  text: string;
+  value: unknown;
+  look: CellLook;
+  colors: ColumnColors;
+}) {
   if (text === '') return null;
-  if (look === 'pill') return <StatusPill value={text} />;
+  if (look === 'pill') return <StatusPill value={text} tone={optionColor(colors, text)} />;
+  if (look === 'pills') {
+    return (
+      <span className="table__pills">
+        {heldOptions(value).map((option, at) => (
+          // A list may hold an option twice; each is drawn where it stands.
+          <TintedPill key={at} text={option} color={optionColor(colors, option)} />
+        ))}
+      </span>
+    );
+  }
   if (look === 'you') {
     return (
       <span className="table__you" aria-label={text}>

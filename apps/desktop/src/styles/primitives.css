@@ -474,6 +474,64 @@
   --pill-dot: var(--status-done-dot);
 }
 
+/* A hue (#413): any pill, chip or tag that carries `data-hue` is drawn in
+   that pastel. Each reads `--pill` and `--pill-ink`; the dot, where there is
+   one (a board column's head), is the ink. Chrome never carries a hue. */
+
+[data-hue='gray'] {
+  --pill: var(--hue-gray-bg);
+  --pill-ink: var(--hue-gray-ink);
+  --pill-dot: var(--hue-gray-ink);
+}
+
+[data-hue='brown'] {
+  --pill: var(--hue-brown-bg);
+  --pill-ink: var(--hue-brown-ink);
+  --pill-dot: var(--hue-brown-ink);
+}
+
+[data-hue='orange'] {
+  --pill: var(--hue-orange-bg);
+  --pill-ink: var(--hue-orange-ink);
+  --pill-dot: var(--hue-orange-ink);
+}
+
+[data-hue='yellow'] {
+  --pill: var(--hue-yellow-bg);
+  --pill-ink: var(--hue-yellow-ink);
+  --pill-dot: var(--hue-yellow-ink);
+}
+
+[data-hue='green'] {
+  --pill: var(--hue-green-bg);
+  --pill-ink: var(--hue-green-ink);
+  --pill-dot: var(--hue-green-ink);
+}
+
+[data-hue='blue'] {
+  --pill: var(--hue-blue-bg);
+  --pill-ink: var(--hue-blue-ink);
+  --pill-dot: var(--hue-blue-ink);
+}
+
+[data-hue='purple'] {
+  --pill: var(--hue-purple-bg);
+  --pill-ink: var(--hue-purple-ink);
+  --pill-dot: var(--hue-purple-ink);
+}
+
+[data-hue='pink'] {
+  --pill: var(--hue-pink-bg);
+  --pill-ink: var(--hue-pink-ink);
+  --pill-dot: var(--hue-pink-ink);
+}
+
+[data-hue='red'] {
+  --pill: var(--hue-red-bg);
+  --pill-ink: var(--hue-red-ink);
+  --pill-dot: var(--hue-red-ink);
+}
+
 /* A key, or a chord, is plain 11.5px metadata text: ⌘K, ↵, esc. No box. */
 .key {
   color: var(--ink-3);

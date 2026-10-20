@@ -1,6 +1,5 @@
 import { humanizeKey } from '../page/property-label.ts';
-import type { StatusTone } from '../page/status-tone.ts';
-import { statusTone } from '../page/status-tone.ts';
+import { optionColor, type OptionColor } from '../page/pill-colour.ts';
 import type { SidebarIcon } from '../sidebar/sidebar-icon.ts';
 import type { NoteMigration } from './note-migration.ts';
 import type { ObjectType, PropertyDef, PropertyKind } from './property-def.ts';
@@ -60,7 +59,7 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 /** The property with exactly these option colours: none at all when there are none. */
 function withColors(
   property: PropertyDef,
-  colors: Readonly<Record<string, StatusTone>> | undefined,
+  colors: Readonly<Record<string, OptionColor>> | undefined,
 ): PropertyDef {
   const next: Mutable<PropertyDef> = { ...property };
   if (colors === undefined || Object.keys(colors).length === 0) delete next.colors;
@@ -332,11 +331,11 @@ export function renameOption(
       throw new TypeEditError(`${current.label} has no "${from}"`);
     const problem = optionProblem(current, trimmed, from);
     if (problem !== null) throw new TypeEditError(problem);
-    const tone = current.colors?.[from] ?? statusTone(from);
+    const tone = optionColor(current, from);
     const colors = Object.fromEntries(
       Object.entries(current.colors ?? {}).filter(([option]) => option !== from),
     );
-    const keptTone = tone === statusTone(trimmed) ? {} : { [trimmed]: tone };
+    const keptTone = tone === optionColor({ key }, trimmed) ? {} : { [trimmed]: tone };
     const renamed = withColors(
       {
         ...current,
@@ -383,16 +382,17 @@ export function removeOption(
   });
 }
 
-/** Chooses an option's colour on the status ramp; null goes back to the one its name gives it. */
+/** Chooses an option's colour, a tone or a hue; null goes back to the one its value gives it. */
 export function setOptionColor(
   type: ObjectType,
-  { key, option, tone }: { key: string; option: string; tone: StatusTone | null },
+  { key, option, tone }: { key: string; option: string; tone: OptionColor | null },
 ): ObjectType {
   return withOptions(type, key, (current) => {
     if (!current.options.includes(option))
       throw new TypeEditError(`${current.label} has no "${option}"`);
     const others = Object.entries(current.colors ?? {}).filter(([name]) => name !== option);
-    const chosen = tone === null || tone === statusTone(option) ? [] : [[option, tone] as const];
+    const chosen =
+      tone === null || tone === optionColor({ key }, option) ? [] : [[option, tone] as const];
     return withColors(current, Object.fromEntries([...others, ...chosen]));
   });
 }
@@ -414,14 +414,6 @@ export function setDoneOption(
     }
     return withDone(current, option ?? undefined);
   });
-}
-
-/** The tone an option is drawn in: the one the type chose, else the one its name gives it. */
-export function optionTone(
-  property: Pick<PropertyDef, 'colors'> | null,
-  option: string,
-): StatusTone {
-  return property?.colors?.[option] ?? statusTone(option);
 }
 
 /** One change asked for in the type editor, as data: what the person did, not what it means. */
@@ -463,7 +455,7 @@ export type TypeEdit =
       readonly kind: 'setOptionColor';
       readonly key: string;
       readonly option: string;
-      readonly tone: StatusTone | null;
+      readonly tone: OptionColor | null;
     }
   | { readonly kind: 'setDoneOption'; readonly key: string; readonly option: string | null };
 

@@ -6,6 +6,7 @@
  * shown as `[[…]]`, and the value a card moved there is given is the link.
  */
 import { describe, expect, it } from 'vitest';
+import { hueOf } from '../page/pill-colour.ts';
 import { noteNames } from '../types/relation-names.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { groupRows, type BoardRow } from './group-rows.ts';
@@ -110,14 +111,14 @@ describe('grouping by a relation', () => {
 });
 
 describe('grouping by an option', () => {
-  it('tones a column by the colour the type chose, else by its name', () => {
+  it('colours a column by the colour the type chose, else by its value', () => {
     const columns = groupRows({
       rows: [],
       groupBy: 'status',
       options: ['in review', 'done', 'custom'],
       colors: { 'in review': 'review' },
     });
-    expect(columns.map((column) => column.tone)).toEqual(['review', 'done', 'backlog']);
+    expect(columns.map((column) => column.tone)).toEqual(['review', 'done', hueOf('custom')]);
   });
 
   it('keeps a value exactly as the type declares it', () => {

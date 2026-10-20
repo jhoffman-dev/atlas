@@ -4,17 +4,19 @@ import {
   formatPropertyDate,
   linkedNames,
   linkedNotes,
+  optionColor,
   optionLabel,
   propertyIcon,
+  relationHue,
   relationTypes,
   relationTypesText,
-  statusTone,
   withDatePart,
   withLink,
   withoutLink,
   type PropertyDef,
   type VaultPath,
 } from '@atlas/domain';
+import { pillPaint } from './pill-paint.ts';
 import { AddPropertyPopover, type NewProperty } from './add-property-popover.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { LinkedNote, useNoteNames } from './note-names.tsx';
@@ -316,11 +318,11 @@ function NumberEditor({ id, text, onChange }: EditorProps) {
 
 function SelectEditor({ id, row, text, onChange }: EditorProps) {
   return (
-    <span className="props__pill" data-tone={text === '' ? 'empty' : statusTone(text)}>
+    <span className="props__pill" {...pillPaint(text === '' ? null : optionColor(row.def, text))}>
       <span className="props__dot" aria-hidden="true" />
       <select id={id} className="props__pill-select" value={text} onChange={single(onChange)}>
         <option value="">—</option>
-        {row.def.options.map((option) => (
+        {offeredOptions(row.def.options, text).map((option) => (
           <option key={option} value={option}>
             {optionLabel(option)}
           </option>
@@ -328,6 +330,14 @@ function SelectEditor({ id, row, text, onChange }: EditorProps) {
       </select>
     </span>
   );
+}
+
+/**
+ * The options a select offers, with the one the note holds kept on the list
+ * even when the type no longer offers it, so the pill still says what the file says.
+ */
+function offeredOptions(options: readonly string[], held: string): readonly string[] {
+  return held === '' || options.includes(held) ? options : [...options, held];
 }
 
 function MultiSelectEditor({ id, row, onChange }: EditorProps) {
@@ -394,7 +404,13 @@ function RelationEditor({
             const [name] = linkedNames(link, names);
             const title = name?.text ?? link;
             return (
-              <li key={link} className="props__chip props__link">
+              <li
+                key={link}
+                className="props__chip props__link"
+                data-hue={
+                  name === undefined || name.missing ? undefined : relationHue({ key: name.key })
+                }
+              >
                 <Icon name="task" size={15} className="props__chip-icon" />
                 {name === undefined ? (
                   <span className="props__link-title">{link}</span>

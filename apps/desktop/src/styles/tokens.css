@@ -133,6 +133,29 @@
   --status-done-tint: #e6f3ea;
   --status-done-tick: #ffffff; /* the tick on a finished card, on the done dot */
 
+  /* Pills that only help the eye find a value again — an option that is not a
+     status, a linked note, a tag (#413): Notion's nine hues, muted. Each ink
+     holds 4.5:1 or better on its own fill (styles.pill-hues.test.ts). The
+     fills are solid, not tints, so they read the same on every surface. */
+  --hue-gray-bg: #e8e8e8;
+  --hue-gray-ink: #58595e;
+  --hue-brown-bg: #decbc0;
+  --hue-brown-ink: #674634;
+  --hue-orange-bg: #fde0ca;
+  --hue-orange-ink: #7c481f;
+  --hue-yellow-bg: #fef4cd;
+  --hue-yellow-ink: #6c5416;
+  --hue-green-bg: #d3ecd7;
+  --hue-green-ink: #326140;
+  --hue-blue-bg: #d0e5f8;
+  --hue-blue-ink: #005487;
+  --hue-purple-bg: #dad3f1;
+  --hue-purple-ink: #4d4585;
+  --hue-pink-bg: #feddea;
+  --hue-pink-ink: #84375e;
+  --hue-red-bg: #fdcbca;
+  --hue-red-ink: #953835;
+
   /* Buttons: fill, text, border. Pastel, but Accept and Reject must differ. */
   --btn-primary-bg: #e3ecfb;
   --btn-primary-ink: #23457e;
@@ -223,6 +246,26 @@
     /* The surface, not white: white is 2.15:1 on the sage dot; the surface is 8.2:1 (#369). */
     --status-done-tick: var(--surface);
 
+    /* The hues on dark: deep fills, the pastel as the ink. */
+    --hue-gray-bg: #373737;
+    --hue-gray-ink: #d0d1d7;
+    --hue-brown-bg: #32251f;
+    --hue-brown-ink: #dfc0b0;
+    --hue-orange-bg: #4b2e19;
+    --hue-orange-ink: #f5c6a0;
+    --hue-yellow-bg: #3e3a1c;
+    --hue-yellow-ink: #efd595;
+    --hue-green-bg: #26392b;
+    --hue-green-ink: #b3dbbc;
+    --hue-blue-bg: #1a3548;
+    --hue-blue-ink: #acd0f4;
+    --hue-purple-bg: #322d46;
+    --hue-purple-ink: #c8c5f2;
+    --hue-pink-bg: #452b38;
+    --hue-pink-ink: #f2bdd8;
+    --hue-red-bg: #4b2625;
+    --hue-red-ink: #fbb9b6;
+
     --btn-primary-bg: rgba(126, 162, 221, 0.18);
     --btn-primary-ink: #b5cbf0;
     --btn-primary-line: transparent;
@@ -302,6 +345,26 @@
   --status-done-tint: rgba(125, 191, 147, 0.16);
   /* The surface, not white: white is 2.15:1 on the sage dot; the surface is 8.2:1 (#369). */
   --status-done-tick: var(--surface);
+
+  /* The hues on dark: deep fills, the pastel as the ink. */
+  --hue-gray-bg: #373737;
+  --hue-gray-ink: #d0d1d7;
+  --hue-brown-bg: #32251f;
+  --hue-brown-ink: #dfc0b0;
+  --hue-orange-bg: #4b2e19;
+  --hue-orange-ink: #f5c6a0;
+  --hue-yellow-bg: #3e3a1c;
+  --hue-yellow-ink: #efd595;
+  --hue-green-bg: #26392b;
+  --hue-green-ink: #b3dbbc;
+  --hue-blue-bg: #1a3548;
+  --hue-blue-ink: #acd0f4;
+  --hue-purple-bg: #322d46;
+  --hue-purple-ink: #c8c5f2;
+  --hue-pink-bg: #452b38;
+  --hue-pink-ink: #f2bdd8;
+  --hue-red-bg: #4b2625;
+  --hue-red-ink: #fbb9b6;
 
   --btn-primary-bg: rgba(126, 162, 221, 0.18);
   --btn-primary-ink: #b5cbf0;

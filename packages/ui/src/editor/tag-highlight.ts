@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core';
 import { Mark, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import { findTags } from '@atlas/domain';
+import { findTags, tagHue } from '@atlas/domain';
 
 /** Text whose `#` is never a tag: code, and a link's words. */
 const NOT_TAGGED_MARKS: ReadonlySet<string> = new Set(['code', 'link']);
@@ -48,6 +48,8 @@ function blockDecorations(block: ProseMirrorNode, position: number): Decoration[
         nodeName: 'span',
         class: 'tag',
         'data-tag': tag.name,
+        // The same pastel the tag has everywhere it is shown (#413).
+        'data-hue': tagHue(tag.name),
       }),
     ),
   );

@@ -11,6 +11,7 @@ import {
   moveProperty,
   renameProperty,
   parseObjectType,
+  removeOption,
   renameOption,
   setRelation,
   splitFrontmatter,
@@ -77,6 +78,56 @@ describe('writing an edited type file', () => {
       (type) => renameOption(type, { key: 'status', from: 'review', to: 'in review' }).type,
     );
     expect(text).toMatch(/colors:\n\s+in review: review/);
+  });
+
+  it('drops the old name’s colour on a rename, even one it could not read (#413)', () => {
+    const file = [
+      '---',
+      '# Meetings.',
+      'name: meeting',
+      'properties:',
+      '  kind:',
+      '    kind: select',
+      '    options: [Interview, Call, Debrief]',
+      '    colors:',
+      '      Interview: blue',
+      '      Call: teal',
+      '      Debrief: chartreuse',
+      '---',
+      '',
+      '# Meeting',
+      '',
+    ].join('\n');
+    const { edited, text } = edit(
+      file,
+      (type) => renameOption(type, { key: 'kind', from: 'Call', to: 'Phone' }).type,
+    );
+    expect(text).not.toMatch(/^\s+Call:/m);
+    // The untouched options' colours stay as written, readable or not.
+    expect(text).toContain('      Interview: blue\n');
+    expect(text).toContain('      Debrief: chartreuse\n');
+    expect(text).toMatch(/^\s+Phone: [a-z]+$/m);
+    expect(text.startsWith('---\n# Meetings.\nname: meeting\n')).toBe(true);
+    expect(text.endsWith('---\n\n# Meeting\n')).toBe(true);
+    const { frontmatter } = splitFrontmatter(text);
+    expect(parseObjectType(parseFrontmatterProperties(frontmatter))).toEqual(edited);
+  });
+
+  it('drops a removed option’s colour it could not read', () => {
+    const file = [
+      '---',
+      'name: meeting',
+      'properties:',
+      '  kind:',
+      '    kind: select',
+      '    options: [Interview, Call]',
+      '    colors: { Interview: blue, Call: teal }',
+      '---',
+      '',
+    ].join('\n');
+    const { text } = edit(file, (type) => removeOption(type, { key: 'kind', option: 'Call' }));
+    expect(text).not.toContain('Call');
+    expect(text).toContain('Interview: blue');
   });
 });
 

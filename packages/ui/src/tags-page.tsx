@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TaggedNote } from '@atlas/application';
-import { formatTag, type TagSort, type TagTreeNode, type VaultPath } from '@atlas/domain';
+import { formatTag, tagHue, type TagSort, type TagTreeNode, type VaultPath } from '@atlas/domain';
 import { Icon } from './icon.tsx';
 import { SegmentedControl } from './segmented-control.tsx';
 import { TagRenameForm, type TagRenameControls } from './tag-rename-form.tsx';
@@ -157,7 +157,11 @@ function TagRow({
         onClick={() => onSelect(node.key)}
       >
         <Icon name="tag" size={15} className="tags__icon" />
-        <span className="tags__name">{node.label}</span>
+        <span className="tags__name">
+          <span className="tags__pill" data-hue={tagHue(node.name)}>
+            {node.label}
+          </span>
+        </span>
         <Count of={node.total} />
       </button>
       {node.children.length > 0 && (

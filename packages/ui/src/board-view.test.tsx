@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { noteNames, type BoardColumn, type VaultPath } from '@atlas/domain';
+import { hueOf, noteNames, type BoardColumn, type VaultPath } from '@atlas/domain';
 import { BoardView } from './board-view.tsx';
 import { NoteNamesProvider } from './note-names.tsx';
 import { announced, dragByKeyboard, layOut, type Box } from './drag/test-layout.ts';
@@ -335,7 +335,7 @@ describe('BoardView card content', () => {
     expect(item?.getAttribute('data-missing')).toBe('true');
   });
 
-  it('writes a choice on a card into the metadata line as a word, not a pill', () => {
+  it('draws a choice on a card as a pill in its colour, and words as words (#413)', () => {
     render(
       <BoardView
         {...props}
@@ -357,9 +357,12 @@ describe('BoardView card content', () => {
       />,
     );
     const card = document.querySelector('.board__card');
-    // The column is the status; only the stage is written on the card.
-    expect(card?.querySelector('.board__meta')?.textContent).toBe('Seed · Phase 2');
-    expect(card?.querySelector('.status-pill')).toBeNull();
+    // The column is the status; only the stage is on the card.
+    expect(card?.querySelector('.board__meta')?.textContent).toBe('Seed Phase 2');
+    const pill = card?.querySelector('.board__meta .status-pill');
+    expect(pill?.textContent).toBe('Seed');
+    expect(pill?.getAttribute('data-hue')).toBe(hueOf('seed'));
+    expect(card?.querySelector('.board__meta-item')?.textContent).toBe('Phase 2');
   });
 
   it('shows a summary as words, without its markdown', () => {
