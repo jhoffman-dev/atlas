@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { shippedPropertiesLine, shippedPropertiesSkippedLine, typeSetupLines } from '@atlas/domain';
 import {
   acceptTypeSetup,
@@ -15,6 +15,12 @@ const NOTHING_OFFERED: TypeSetupOffer = { types: [], extensions: [] };
 
 /** The offer to set the vault's types up for PARA: types to add, and what its own would gain. */
 export interface TypesOffer {
+  /**
+   * The vault's types are still being read, so whether anything is offered is
+   * not known yet: the Inbox holds its rows back for it, as for its other
+   * offers (#381, #130). No lines while it is.
+   */
+  readonly reading: boolean;
   /** One line per change, saying what it does. */
   readonly lines: readonly string[];
   readonly accept: () => Promise<void>;
@@ -26,7 +32,7 @@ export interface TypesOffer {
  * the properties Atlas ships that it predates (#162), and anything else —
  * PARA for a vault without it, PARA's change to the vault's own types, its
  * Project type's PARA and Area (#213) — is held as an offer, which the Inbox
- * shows (P30-01).
+ * shows (P30-01). Null once the types are read and nothing is offered.
  */
 export function useBuiltInTypes({
   fs,
@@ -43,6 +49,8 @@ export function useBuiltInTypes({
   onChanged: () => void;
 }): TypesOffer | null {
   const [offer, setOffer] = useState<TypeSetupOffer>(NOTHING_OFFERED);
+  // The vault whose types were last read, offer or not: until it is this one, they are being read.
+  const [readFor, setReadFor] = useState<string | null>(null);
   // Read when a write lands, not a reason to set the vault up again.
   const changed = useRef(onChanged);
   useEffect(() => {
@@ -96,6 +104,7 @@ export function useBuiltInTypes({
 
   useEffect(() => {
     setOffer(NOTHING_OFFERED);
+    setReadFor(null);
     if (vaultKey === null) return;
     let cancelled = false;
     ensureBuiltInTypes({ fs, markdown, vault: vaultKey })
@@ -103,10 +112,13 @@ export function useBuiltInTypes({
         if (cancelled) return;
         announceProperties(ensured.properties);
         setOffer(ensured.offer);
+        setReadFor(vaultKey);
         if (ensured.properties.gained.length > 0) changed.current();
       })
       .catch((cause: unknown) => {
-        if (!cancelled) report([{ name: 'PARA', reason: String(cause) }]);
+        if (cancelled) return;
+        report([{ name: 'PARA', reason: String(cause) }]);
+        setReadFor(vaultKey);
       });
     return () => {
       cancelled = true;
@@ -122,6 +134,10 @@ export function useBuiltInTypes({
 
   const dismiss = useCallback(() => setOffer(NOTHING_OFFERED), []);
 
-  const lines = typeSetupLines(offer);
-  return lines.length === 0 ? null : { lines, accept, dismiss };
+  const reading = vaultKey !== null && readFor !== vaultKey;
+  // One object while nothing about it changes, so what the Inbox is handed is not new on every render.
+  return useMemo(() => {
+    const lines = typeSetupLines(offer);
+    return lines.length === 0 && !reading ? null : { reading, lines, accept, dismiss };
+  }, [reading, offer, accept, dismiss]);
 }

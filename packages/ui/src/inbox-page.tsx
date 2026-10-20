@@ -64,7 +64,7 @@ export interface InboxContents {
 }
 
 /** The offer to set the vault's types up for PARA and the Inbox, with what each gains. */
-export interface InboxTypesOffer {
+export interface InboxTypesOffer extends InboxOfferReading {
   readonly lines: readonly string[];
   readonly onAccept: () => void;
   readonly onDismiss: () => void;
@@ -159,7 +159,7 @@ export function InboxPage(props: InboxPageProps) {
     () => ({ scroller, page: article, list, answers, room }),
     [],
   );
-  const offersRead = [migration, paraMigration, tidy, cleanup, meetingProjects];
+  const offersRead = [offer, migration, paraMigration, tidy, cleanup, meetingProjects];
   const live = useOffersKnown(
     offersRead.some((read) => read?.reading === true),
     offersRead.some((read) => read?.waitingForIndex === true),
@@ -193,7 +193,7 @@ export function InboxPage(props: InboxPageProps) {
             {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
             <Offers
               offers={[
-                ['types', offer && <TypesOffer {...offer} />],
+                slot('types', offer, (known) => <TypesOffer {...known} />),
                 slot('tasks', migration, (known) => <TaskMigration {...known} />),
                 slot('para', paraMigration, (known) => <ParaMigration {...known} />),
                 slot('tidy', tidy, (known) => <VaultTidy {...known} />),
@@ -480,6 +480,7 @@ function InboxList({
   refusals = NO_REFUSALS,
   summaryPending,
 }: InboxPageProps) {
+  const stranded = useRef<VaultPath | null>(null);
   if (error !== null) {
     return (
       <p className="table__error" role="alert">
@@ -527,6 +528,7 @@ function InboxList({
             busy={busy}
             refusals={refusals}
             {...(summaryPending !== undefined && { summaryPending })}
+            stranded={stranded}
           />
         </table>
         {contents.truncated && (
