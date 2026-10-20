@@ -1,8 +1,9 @@
 import type { ComponentProps } from 'react';
+import { TAGS_SCOPE } from '@atlas/application';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { tagsScreen } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import { useIndexKey } from '../index/index-status-store.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 
 const TagsScreen = tagsScreen.Component;
 
@@ -25,8 +26,13 @@ export function TagsContainer({
   selected,
 }: PageContainerProps & { selected: string | null }) {
   const { pages, pane } = wiring;
-  // Still read again on every news of the index: what it reads is not yet scoped (#325).
-  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
+  // Any note can take the chosen tag, and a write can change the tags alone (#327).
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['tags'],
+    scope: TAGS_SCOPE,
+  });
   return (
     <LoadedLater chrome={chrome}>
       <TagsScreen

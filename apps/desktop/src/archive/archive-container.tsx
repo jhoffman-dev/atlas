@@ -1,7 +1,8 @@
+import { ARCHIVE_SCOPE } from '@atlas/application';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { archivePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import { useIndexKey } from '../index/index-status-store.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { useArchivePage } from './use-archive.ts';
 
 const ArchivePage = archivePage.Component;
@@ -14,8 +15,13 @@ const ArchivePage = archivePage.Component;
  */
 export function ArchiveContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
-  // Still read again on every news of the index: what it reads is not yet scoped (#325).
-  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
+  // Read again for news of the Archive and the projects alone (#327).
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['archive'],
+    scope: ARCHIVE_SCOPE,
+  });
   const page = useArchivePage({
     ports: pages.ports,
     indexKey,

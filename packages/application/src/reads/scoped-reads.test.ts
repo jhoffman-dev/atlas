@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QUERY_BLOCK_NODE, queryBlockNode, type NoteChange } from '@atlas/domain';
 import {
+  ARCHIVE_SCOPE,
   AUTOMATIONS_SCOPE,
   INBOX_CHOICES_SCOPE,
   INBOX_SCOPE,
@@ -9,10 +10,16 @@ import {
   PEOPLE_SCOPE,
   PERSON_EMAILS_SCOPE,
   PROJECTS_SCOPE,
+  QUERY_SCOPE,
+  RULE_QUERY_SCOPE,
   scopeTouched,
   REVIEW_SCOPE,
+  SEARCH_SCOPE,
   SECRETS_SCOPE,
   SYNC_SCOPE,
+  TAGS_SCOPE,
+  TERMS_SCOPE,
+  typeTableScope,
   UNKNOWN_NEWS,
   type IndexNews,
   type PaneNote,
@@ -243,5 +250,61 @@ describe('which of the index’s news reaches the window’s controllers (#326)'
 
   it('reads the secrets again for any note: any note can be a source that names one', () => {
     expect(reaches(SECRETS_SCOPE, plain)).toBe(true);
+  });
+});
+
+describe('which of the index’s news reaches the pages that still read on every news (#327)', () => {
+  const plain = changed('Notes/Sourdough.md');
+
+  it('reads the Archive again for a note in it, or for a project, whose `para` can archive it', () => {
+    expect(reaches(ARCHIVE_SCOPE, changed('Archive/2025/Old plan.md'))).toBe(true);
+    expect(reaches(ARCHIVE_SCOPE, changed('archive/Old plan.md'))).toBe(true);
+    expect(
+      reaches(ARCHIVE_SCOPE, { ...changed('Archive/Old.md'), kind: 'removed' } as NoteChange),
+    ).toBe(true);
+    expect(reaches(ARCHIVE_SCOPE, changed('Projects/Garden.md', 'project'))).toBe(true);
+    expect(reaches(ARCHIVE_SCOPE, plain)).toBe(false);
+    expect(reaches(ARCHIVE_SCOPE, changed('Archives/Old plan.md'))).toBe(false);
+    expect(reaches(ARCHIVE_SCOPE, changed('Tasks/Call.md', 'task'))).toBe(false);
+    expect(scopeTouched(ARCHIVE_SCOPE, UNKNOWN_NEWS)).toBe(true);
+  });
+
+  it('reads the terms again for a term, a person or a company — what the vocabulary is spelt from', () => {
+    expect(reaches(TERMS_SCOPE, changed('Terms/Kubernetes.md', 'term'))).toBe(true);
+    expect(reaches(TERMS_SCOPE, changed('People/Ada.md', 'person'))).toBe(true);
+    expect(reaches(TERMS_SCOPE, changed('Companies/Acme.md', 'company'))).toBe(true);
+    // A note that stopped being a term leaves the list.
+    expect(reaches(TERMS_SCOPE, changed('Notes/Was a term.md', null, { beforeType: 'term' }))).toBe(
+      true,
+    );
+    expect(reaches(TERMS_SCOPE, plain)).toBe(false);
+    expect(reaches(TERMS_SCOPE, changed('Tasks/Call.md', 'task'))).toBe(false);
+    expect(scopeTouched(TERMS_SCOPE, UNKNOWN_NEWS)).toBe(true);
+  });
+
+  it('reads a type’s table again for a note of that type, or a type file, and not another type', () => {
+    const tasks = typeTableScope('task');
+    expect(reaches(tasks, changed('Tasks/Call.md', 'task'))).toBe(true);
+    expect(reaches(tasks, changed('Tasks/Call.md', 'task,project'))).toBe(true);
+    expect(reaches(tasks, changed('Notes/Done with.md', null, { beforeType: 'task' }))).toBe(true);
+    expect(reaches(tasks, changed('.atlas/types/task.md'))).toBe(true);
+    expect(reaches(tasks, changed('Projects/Garden.md', 'project'))).toBe(false);
+    expect(reaches(tasks, plain)).toBe(false);
+    expect(scopeTouched(tasks, UNKNOWN_NEWS)).toBe(true);
+  });
+
+  it('reads the tags page again for any note, and for a write that changed only the tags', () => {
+    expect(reaches(TAGS_SCOPE, plain)).toBe(true);
+    expect(scopeTouched(TAGS_SCOPE, news([], new Set(['tags'])))).toBe(true);
+    expect(scopeTouched(TAGS_SCOPE, news([], new Set(['graph'])))).toBe(false);
+    expect(scopeTouched(TAGS_SCOPE, UNKNOWN_NEWS)).toBe(true);
+  });
+
+  it('reads a query of the whole vault again for any note: the query page, the rule editor, search', () => {
+    for (const scope of [QUERY_SCOPE, RULE_QUERY_SCOPE, SEARCH_SCOPE]) {
+      expect(reaches(scope, plain)).toBe(true);
+      expect(reaches(scope, changed('.atlas/types/task.md'))).toBe(true);
+      expect(scopeTouched(scope, UNKNOWN_NEWS)).toBe(true);
+    }
   });
 });

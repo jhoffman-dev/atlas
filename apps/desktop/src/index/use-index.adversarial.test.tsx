@@ -11,7 +11,7 @@ import {
   type IndexPort,
   type VaultFsPort,
 } from '@atlas/application';
-import { useIndexKey } from './index-status-store.ts';
+import { useHeldIndexKey } from './index-key.test-support.ts';
 import { openOnce } from './open-once.ts';
 import { createSyncQueue } from './sync-queue.ts';
 import { useIndex, type IndexPorts } from './use-index.ts';
@@ -62,7 +62,7 @@ describe('useIndex: the change key moves for the sync schedule (#238 attack)', (
     const keys: string[] = [];
     const { result } = renderHook(() => {
       const index = useIndex({ ports, vaultKey: LARKSPUR, activity, changes });
-      keysOf(keys, useIndexKey(index.store, LARKSPUR));
+      keysOf(keys, useHeldIndexKey(index.store, LARKSPUR));
       return index;
     });
     await waitFor(() => expect(result.current.status.kind).toBe('ready'));
@@ -183,7 +183,7 @@ function windowOn(portsFor: (vault: string) => IndexPorts, first: string) {
   const hook = renderHook(
     ({ vaultKey }: { vaultKey: string }) => {
       const index = useIndex({ ports: portsFor(vaultKey), vaultKey, activity, changes });
-      seen.push({ vault: vaultKey, key: useIndexKey(index.store, vaultKey) });
+      seen.push({ vault: vaultKey, key: useHeldIndexKey(index.store, vaultKey) });
       return index;
     },
     { initialProps: { vaultKey: first } },

@@ -1,4 +1,5 @@
 import {
+  ARCHIVE_DIRECTORY,
   ATLAS_DIRECTORY,
   AUTOMATIONS_DIRECTORY,
   COMPANY_TYPE,
@@ -12,6 +13,8 @@ import {
   QUERY_BLOCK_NODE,
   splitWikiLinks,
   TASK_TYPE,
+  TERM_TYPE,
+  TYPES_DIRECTORY,
   type EditorNode,
   type IndexFacet,
   type NoteChange,
@@ -103,6 +106,46 @@ export const AUTOMATIONS_SCOPE: ReadScope = { folders: [AUTOMATIONS_DIRECTORY] }
 
 /** The sources that name a secret (`listSecrets`): any note can be one. */
 export const SECRETS_SCOPE: ReadScope = { anyNote: true };
+
+/**
+ * What the Archive lists (`listArchive`): every note in the Archive folder,
+ * and the projects whose `para` is archive (ADR-0037) — so a project's change
+ * reads it again whether it was archived or brought back (#327).
+ */
+export const ARCHIVE_SCOPE: ReadScope = {
+  folders: [ARCHIVE_DIRECTORY],
+  types: [PROJECT_TYPE],
+};
+
+/**
+ * What the Terms page lists (`loadTerms`): the terms, and the people and
+ * companies whose names and other spellings the vocabulary is made of.
+ */
+export const TERMS_SCOPE: ReadScope = { types: [TERM_TYPE, PERSON_TYPE, COMPANY_TYPE] };
+
+/**
+ * What a type's table lists (`typeTableQuery`): its notes, whose own
+ * properties are its columns, and the type files, whose properties the
+ * index's view of the type is built from.
+ */
+export function typeTableScope(typeName: string): ReadScope {
+  return { types: [typeName], folders: [TYPES_DIRECTORY] };
+}
+
+/**
+ * What the tags page lists for the chosen tag (`loadTaggedNotes`): any note
+ * can take a tag, and a write can change the tags alone.
+ */
+export const TAGS_SCOPE: ReadScope = { anyNote: true, facets: ['tags'] };
+
+/** The query page (`useQueryPage`): a query of the whole vault, and the index's schema. */
+export const QUERY_SCOPE: ReadScope = { anyNote: true };
+
+/** The rule editor's "which notes" builder: a query of the whole vault, as the query page's. */
+export const RULE_QUERY_SCOPE: ReadScope = { anyNote: true };
+
+/** The search palette's hits (`searchNotes`): any note can match. */
+export const SEARCH_SCOPE: ReadScope = { anyNote: true };
 
 /**
  * What the index had to say when it last had news for its readers: the notes
