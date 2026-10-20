@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectSaved, installHost, saveNow } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 async function openNote(page: Page, contents: string) {
   const vault = await createVault();
@@ -79,8 +80,7 @@ async function decorationBox(page: Page) {
 test('the text of a half-typed command stays ordinary inline text', async ({ page }) => {
   await openNote(page, 'start\n');
 
-  await page.getByText('start').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('start'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('/qu');
   await page.getByRole('listbox', { name: 'Insert block' }).waitFor();
@@ -95,8 +95,7 @@ test('the text of a half-typed command stays ordinary inline text', async ({ pag
 test('the same holds for a wiki link being typed', async ({ page }) => {
   await openNote(page, 'start\n');
 
-  await page.getByText('start').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('start'));
   await page.keyboard.type(' [[No');
   await page.getByRole('listbox', { name: 'Link to note' }).waitFor();
 
@@ -106,51 +105,10 @@ test('the same holds for a wiki link being typed', async ({ page }) => {
   expect(box?.width ?? 0).toBeLessThan((box?.paragraphWidth ?? 0) / 2);
 });
 
-/**
- * Puts the caret at the end of the line with this text, and waits until the
- * editor holds it there (#445).
- *
- * The click lands at the line's start on purpose: where a click lands is not
- * to be relied on, so the key that follows must take the caret to the end
- * from anywhere on the line. End does not: in WebKit on macOS it scrolls and
- * leaves the caret where it was. ⌘→ is the Mac's end of line.
- *
- * And the key alone is not enough. For 20 ms after it is focused, ProseMirror
- * puts its own selection back on the page unless it has read the page's by
- * then; under load the caret the key moved is put back at the note's start,
- * and the Enter and the command after it land there. So the editor's own
- * selection is what is waited on, and the key pressed again if it was undone
- * (at the line's end it changes nothing).
- */
-async function caretAtLineEnd(page: Page, text: string) {
-  await page.getByText(text).click({ position: { x: 1, y: 5 } });
-  await expect(async () => {
-    await page.keyboard.press('Meta+ArrowRight');
-    expect(await editorCaret(page)).toEqual({ line: text, offset: text.length });
-  }).toPass({ timeout: 5_000 });
-}
-
-/** Where the note's editor has its caret: the text of that line and the offset in it. */
-function editorCaret(page: Page) {
-  return page.getByLabel('Note', { exact: true }).evaluate((element) => {
-    // Tiptap hangs the editor on its element; its selection is not in the DOM.
-    const { selection } = (
-      element as HTMLElement & {
-        editor: {
-          state: {
-            selection: { $head: { parent: { textContent: string }; parentOffset: number } };
-          };
-        };
-      }
-    ).editor.state;
-    return { line: selection.$head.parent.textContent, offset: selection.$head.parentOffset };
-  });
-}
-
 test('typing after a slash command puts the text where the cursor is', async ({ page }) => {
   const vault = await openNote(page, 'start\n');
 
-  await caretAtLineEnd(page, 'start');
+  await caretAtLineEnd(page.getByText('start'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('/quote');
   await page.getByRole('listbox', { name: 'Insert block' }).waitFor();
@@ -167,7 +125,7 @@ test('typing after a slash command puts the text where the cursor is', async ({ 
 test('a slash-inserted heading takes the text that follows it', async ({ page }) => {
   const vault = await openNote(page, 'start\n');
 
-  await caretAtLineEnd(page, 'start');
+  await caretAtLineEnd(page.getByText('start'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('/head');
   await page.getByRole('listbox', { name: 'Insert block' }).waitFor();

@@ -7,6 +7,7 @@ import {
   saveNow,
   sidebarSection,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * Issue #16, ADR-0026: templates have a home. A type's template is edited
@@ -70,8 +71,7 @@ test('a type’s template is edited from the type, and says it is a template', a
   // A template is never a favourite: the mark would be copied into every new note.
   await expect(page.getByRole('button', { name: 'Add Person to favorites' })).toHaveCount(0);
 
-  await page.getByText('Met at:').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Met at:'));
   await page.keyboard.type(' the library');
   await saveNow(page);
   await expectSaved(page);
@@ -114,8 +114,7 @@ test('a new note of the type starts as the edited template', async ({ page }) =>
   await typeRow(page, 'Person').click();
   await page.getByRole('button', { name: 'Edit template' }).click();
   await expect(templateBand(page)).toBeVisible();
-  await page.getByText('Met at:').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Met at:'));
   await page.keyboard.type(' the park');
   await saveNow(page);
   await expectFile(vault, '.atlas/templates/Person.md').toContain('Met at: the park');

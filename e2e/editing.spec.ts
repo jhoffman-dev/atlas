@@ -1,5 +1,6 @@
 import { expect, test } from './fixtures.ts';
 import { createVault, expectFile, expectSaved, installHost, saveNow, saveStatus } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const NOTE = [
   '---',
@@ -36,8 +37,7 @@ test('editing one paragraph rewrites that paragraph and nothing else', async ({ 
   await expect(page.getByText('title: Today')).toHaveCount(0);
   await expectSaved(page);
 
-  await page.getByText('First paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('First paragraph.'));
   await page.keyboard.type(' Edited.');
 
   await expect(page.getByText('Unsaved')).toBeVisible();
@@ -59,8 +59,7 @@ test('Cmd+S saves, with no Save button on the page', async ({ page }) => {
   await expectSaved(page);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
 
-  await page.getByText('First paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('First paragraph.'));
   await page.keyboard.type(' Keyed.');
   await expect(saveStatus(page)).toHaveText('Unsaved');
   await page.keyboard.press('ControlOrMeta+s');
@@ -103,8 +102,7 @@ test('markdown shortcuts work while typing', async ({ page }) => {
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await page.getByRole('treeitem', { name: 'empty', exact: true }).click();
 
-  await page.getByText('start').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('start'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('## A heading');
   await expect(page.getByRole('heading', { name: 'A heading', level: 2 })).toBeVisible();
@@ -126,8 +124,7 @@ test('a table survives an edit elsewhere in the note', async ({ page }) => {
   // Since Phase 3 the table is a real table rather than a block of source.
   await expect(page.locator('.editor table')).toBeVisible();
 
-  await page.getByText('First paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('First paragraph.'));
   await page.keyboard.type('!');
   await saveNow(page);
   await expectSaved(page);

@@ -16,6 +16,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const PERSON_TYPE = '---\nname: person\nlabel: Person\nproperties:\n  role: text\n---\n';
 const COMPANY_TYPE = '---\nname: company\nlabel: Company\nproperties:\n  site: text\n---\n';
@@ -47,8 +48,7 @@ async function openVault(page: Page): Promise<{ vault: FakeVault; host: FakeHost
 /** Puts the caret at the end of the Standup note's paragraph. */
 async function typeInStandup(page: Page) {
   await page.getByRole('treeitem', { name: 'Standup', exact: true }).click();
-  await page.getByText('Notes here.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Notes here.'));
 }
 
 const mentions = (page: Page) => page.getByRole('listbox', { name: 'Mention a person' });

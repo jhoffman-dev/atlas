@@ -4,6 +4,7 @@
  */
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const TASKS = 12;
 const TASK_TYPE = [
@@ -80,14 +81,12 @@ test('typing then ⌥↓ writes the typing to the note it was typed in, once, an
   await openTaskTable(page);
   await rowName(page, 4).click();
   const dialog = page.getByRole('dialog', { name: title(4) });
-  await dialog.getByText('Body of errand 4.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(dialog.getByText('Body of errand 4.'));
   await page.keyboard.type(' Typed in four.');
   await page.keyboard.press('Alt+ArrowDown');
   const next = page.getByRole('dialog', { name: title(5) });
   await expect(next).toBeVisible();
-  await next.getByText('Body of errand 5.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(next.getByText('Body of errand 5.'));
   await page.keyboard.type(' Typed in five.');
   await page.keyboard.press('Escape');
   await expect(peek(page)).toHaveCount(0);
@@ -212,14 +211,12 @@ test('typing in the page, then peeking the same note and typing there, keeps bot
     .getByRole('treeitem', { name: 'Plan', exact: true })
     .click();
   const plan = page.getByRole('article', { name: 'Plan' });
-  await plan.getByText('First line.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(plan.getByText('First line.'));
   await page.keyboard.type(' From the page.');
   // Straight on, inside the page's autosave delay: peek the note itself.
   await plan.locator('[data-wikilink="Plan"]').click();
   const dialog = page.getByRole('dialog', { name: 'Plan' });
-  await dialog.getByText('See').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(dialog.getByText('See'));
   await page.keyboard.type(' From the peek.');
 
   await expectFile(vault, 'Plan.md').toContain('From the peek.');

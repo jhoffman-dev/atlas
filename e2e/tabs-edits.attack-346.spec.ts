@@ -11,6 +11,7 @@ import {
   type FakeVault,
   closePane,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /*
  * Attack on #346: typing is never lost across tab operations. Each test ends
@@ -45,8 +46,7 @@ const article = (page: Page, which: 1 | 2, name: string) =>
 async function openAndType(page: Page, name: string, typed: string) {
   await row(page, name).click();
   await expect(article(page, 1, name)).toBeVisible();
-  await article(page, 1, name).getByText(`Line of ${name}.`).click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, name).getByText(`Line of ${name}.`));
   await page.keyboard.type(typed);
 }
 
@@ -58,8 +58,7 @@ test('typing then ⌘W at once writes every keystroke', async ({ page }) => {
   await expect(article(page, 1, 'beta')).toBeVisible();
   await row(page, 'alpha').click({ modifiers: ['Meta'] });
   await expect(tabsOf(page, 1)).toHaveText(['beta', 'alpha']);
-  await article(page, 1, 'alpha').getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'alpha').getByText('Line of alpha.'));
   await page.keyboard.type(' Closed at once.');
   await page.keyboard.press('Meta+w');
   await expect(tabsOf(page, 1)).toHaveText(['beta']);
@@ -71,8 +70,7 @@ test('typing then ⌃Tab at once writes every keystroke', async ({ page }) => {
   await row(page, 'beta').click();
   await expect(article(page, 1, 'beta')).toBeVisible();
   await row(page, 'alpha').click({ modifiers: ['Meta'] });
-  await article(page, 1, 'alpha').getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'alpha').getByText('Line of alpha.'));
   await page.keyboard.type(' Switched at once.');
   await page.keyboard.press('Control+Tab');
   await expect(tab(page, 1, 'beta')).toHaveAttribute('aria-selected', 'true');
@@ -120,8 +118,7 @@ test('typing then closing the pane that holds the tab writes every keystroke', a
   await expect(article(page, 1, 'beta')).toBeVisible();
   await row(page, 'alpha').click({ modifiers: ['Meta', 'Shift'] });
   await expect(article(page, 2, 'alpha')).toBeVisible();
-  await article(page, 2, 'alpha').getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 2, 'alpha').getByText('Line of alpha.'));
   await page.keyboard.type(' Pane closed.');
   await closePane(page, 2);
   await expect(pane(page, 2)).toHaveCount(0);
@@ -134,8 +131,7 @@ test('typing in a hidden tab, then closing its pane, writes every keystroke', as
   await expect(article(page, 1, 'beta')).toBeVisible();
   await row(page, 'alpha').click({ modifiers: ['Meta', 'Shift'] });
   await expect(article(page, 2, 'alpha')).toBeVisible();
-  await article(page, 2, 'alpha').getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 2, 'alpha').getByText('Line of alpha.'));
   await page.keyboard.type(' Behind gamma.');
   // Pane 2 gets a second tab, so alpha is hidden in it when the pane closes.
   await page.keyboard.press('Meta+t');
@@ -170,8 +166,7 @@ test('switching tabs back and forth on a typed note writes nothing more', async 
   // there must be exactly one place typing goes, and the file must have it.
   const shown = pane(page, 1).locator('.pane__tab:not([hidden])');
   await expect(shown.getByRole('article', { name: 'alpha', exact: true })).toBeVisible();
-  await shown.getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown.getByText('Line of alpha.'));
   await page.keyboard.type(' Once.');
   await expectSaved(pane(page, 1));
   await expectFile(vault, 'alpha.md').toBe(edited('alpha', ' Once.'));
@@ -181,8 +176,7 @@ test('switching tabs back and forth on a typed note writes nothing more', async 
   // No write loop: switching tabs with nothing typed writes nothing, so the
   // next typing is exactly one write more.
   await expect(shown.getByRole('article', { name: 'alpha', exact: true })).toBeVisible();
-  await shown.getByText('Line of alpha. Once.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown.getByText('Line of alpha. Once.'));
   await page.keyboard.type(' Twice.');
   await expectFile(vault, 'alpha.md').toBe(edited('alpha', ' Once. Twice.'));
   await expectSaved(pane(page, 1));
@@ -202,8 +196,7 @@ test('duplicate tabs on one note (⌘-click twice): the other tab shows the typi
   // Type in the last alpha tab, switch to the first, and the first shows it.
   await alphaTabs.last().click();
   const shown = pane(page, 1).locator('.pane__tab:not([hidden])');
-  await shown.getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown.getByText('Line of alpha.'));
   await page.keyboard.type(' From the second.');
   await alphaTabs.first().click();
   await expect(
@@ -211,12 +204,9 @@ test('duplicate tabs on one note (⌘-click twice): the other tab shows the typi
   ).toBeVisible();
   await expectFile(vault, 'alpha.md').toBe(edited('alpha', ' From the second.'));
   // Typing in the first after that is not refused as a conflict, and wins.
-  await page.keyboard.press('End');
-  await pane(page, 1)
-    .locator('.pane__tab:not([hidden])')
-    .getByText('Line of alpha.', { exact: false })
-    .click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(
+    pane(page, 1).locator('.pane__tab:not([hidden])').getByText('Line of alpha.', { exact: false }),
+  );
   await page.keyboard.type(' Then the first.');
   await expectSaved(pane(page, 1));
   await expectFile(vault, 'alpha.md').toBe(edited('alpha', ' From the second. Then the first.'));
@@ -239,8 +229,7 @@ test('an outside change to a note in a hidden tab shows when the tab is shown, w
   await expect(article(page, 1, 'alpha').getByText('Line of alpha. Mine. Theirs.')).toBeVisible();
   await expect(pane(page, 1).getByRole('alert')).toHaveCount(0);
   // Typing on after it is written over theirs, not refused.
-  await article(page, 1, 'alpha').getByText('Line of alpha. Mine. Theirs.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'alpha').getByText('Line of alpha. Mine. Theirs.'));
   await page.keyboard.type(' Again.');
   await expectFile(vault, 'alpha.md').toBe('# alpha\n\nLine of alpha. Mine. Theirs. Again.\n');
 });
@@ -263,8 +252,7 @@ test('typing in a hidden tab then switching vault writes it into its own vault o
   await openAndType(page, 'alpha', ' Typed in A.');
   await row(page, 'beta').click({ modifiers: ['Meta'] });
   await row(page, 'gamma').click({ modifiers: ['Meta'] });
-  await article(page, 1, 'gamma').getByText('Line of gamma.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'gamma').getByText('Line of gamma.'));
   await page.keyboard.type(' Also A.');
   await switchTo(page, host, a, b);
   await expect(page.getByText(/notes indexed/)).toBeVisible();
@@ -292,8 +280,7 @@ test('typing in a tab that was hidden through an outside change never writes ove
   await vault.write('alpha.md', '# alpha\n\nLine of alpha. Mine.\n\nTheirs, added outside.\n');
   await emitVaultChanged(page, ['alpha.md']);
   await tab(page, 1, 'alpha').click();
-  await article(page, 1, 'alpha').getByText('Line of alpha. Mine.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'alpha').getByText('Line of alpha. Mine.'));
   await page.keyboard.type(' Later.');
   // Either the editor caught up and the file has both, or the save is refused
   // and the pane says so; never their paragraph silently gone.
@@ -319,17 +306,13 @@ test('typing in one of two tabs on a note, then at once in the other, loses neit
   const alphaTabs = strip(page, 1).getByRole('tab', { name: 'alpha', exact: true });
   await expect(alphaTabs).toHaveCount(2);
   const shown = () => pane(page, 1).locator('.pane__tab:not([hidden])');
-  await shown().getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown().getByText('Line of alpha.'));
   await page.keyboard.type(' Second tab.');
   // Straight to the other tab on the note, and typing there before the first
   // tab's write has had time to land and reload it.
   await page.keyboard.press('Control+Tab');
   await expect(alphaTabs.first()).toHaveAttribute('aria-selected', 'true');
-  await shown()
-    .getByText(/^Line of alpha\./)
-    .click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown().getByText(/^Line of alpha\./));
   await page.keyboard.type(' First tab.');
   // Both typings on disk, or the pane says the save was refused; never one of
   // them silently written over by the other.
@@ -375,13 +358,11 @@ test('⌘Z in one of two tabs on the same note undoes only that tab’s typing',
   const alphaTabs = strip(page, 1).getByRole('tab', { name: 'alpha', exact: true });
   await expect(alphaTabs).toHaveCount(2);
   const shown = () => pane(page, 1).locator('.pane__tab:not([hidden])');
-  await shown().getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown().getByText('Line of alpha.'));
   await page.keyboard.type(' Second.');
   await alphaTabs.first().click();
   await expect(shown().getByText('Line of alpha. Second.')).toBeVisible();
-  await shown().getByText('Line of alpha. Second.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown().getByText('Line of alpha. Second.'));
   await page.keyboard.type(' First.');
   await expectFile(vault, 'alpha.md').toBe(edited('alpha', ' Second. First.'));
   await page.keyboard.press('Meta+z');
@@ -470,8 +451,7 @@ test('typing in a tab whose note was renamed while it was hidden writes the rena
   await renameFromSidebar(page, 'alpha', 'omega');
   await expect.poll(() => vault.exists('omega.md')).toBe(true);
   await tab(page, 1, 'omega').click();
-  await article(page, 1, 'omega').getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'omega').getByText('Line of alpha.'));
   await page.keyboard.type(' After the rename.');
   await expectFile(vault, 'omega.md').toBe(edited('alpha', ' After the rename.'));
   expect(await vault.exists('alpha.md')).toBe(false);
@@ -526,8 +506,7 @@ test('a vault whose remembered tabs name the same notes gets its own notes in th
   await row(page, 'alpha').click({ modifiers: ['Meta'] });
   await expect(tabsOf(page, 1)).toHaveText(['alpha', 'gamma', 'alpha']);
   const shown = pane(page, 1).locator('.pane__tab:not([hidden])');
-  await shown.getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(shown.getByText('Line of alpha.'));
   await page.keyboard.type(' Typed in A.');
   // B remembers the same three places, with the same ids.
   const remembered = await page.evaluate(
@@ -564,8 +543,7 @@ test('⌘W on a tab whose last write fails keeps the typing, and ⌘⇧T brings 
   const { vault, host } = await openVault(page);
   await row(page, 'beta').click();
   await row(page, 'alpha').click({ modifiers: ['Meta'] });
-  await article(page, 1, 'alpha').getByText('Line of alpha.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'alpha').getByText('Line of alpha.'));
   await page.keyboard.type(' Closed on a full disk.');
   host.failNext('write_text_file', 'the disk is full');
   await page.keyboard.press('Meta+w');
