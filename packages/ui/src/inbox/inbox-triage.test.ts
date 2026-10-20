@@ -83,5 +83,6 @@ describe('rowAfterLeaving', () => {
   it('is the row above when none below is still listed, and nothing when none is', () => {
     expect(left(listOf('A', 'B'), 'C')).toBe('Inbox/B.md');
     expect(left([], 'B')).toBeNull();
+    expect(left(listOf('A', 'B'), 'Gone')).toBeNull();
   });
 });

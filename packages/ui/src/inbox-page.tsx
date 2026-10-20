@@ -480,6 +480,7 @@ function InboxList({
   refusals = NO_REFUSALS,
   summaryPending,
 }: InboxPageProps) {
+  const stranded = useRef<VaultPath | null>(null);
   if (error !== null) {
     return (
       <p className="table__error" role="alert">
@@ -527,6 +528,7 @@ function InboxList({
             busy={busy}
             refusals={refusals}
             {...(summaryPending !== undefined && { summaryPending })}
+            stranded={stranded}
           />
         </table>
         {contents.truncated && (

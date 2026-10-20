@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FocusEvent,
+  type MutableRefObject,
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
@@ -28,6 +29,9 @@ export type ClarifyInboxItem = (args: {
 }) => Promise<boolean>;
 
 const NOTHING_PICKED: InboxDraft = {};
+
+/** Where a row that left holding the focus, with no row to hand it to, is kept. */
+export type StrandedRow = MutableRefObject<VaultPath | null>;
 
 /**
  * Where a key never fires (#307): a field, where the letter is typed; a
@@ -73,6 +77,7 @@ export function useInboxTriage({
   statuses = GTD_STATUSES,
   onClarify,
   busy = false,
+  stranded: keptStranded,
 }: {
   items: readonly InboxItem[];
   /** The statuses the vault's Task type declares: a key for one it lacks does nothing. */
@@ -80,6 +85,8 @@ export function useInboxTriage({
   onClarify: ClarifyInboxItem;
   /** While the row's own controls are disabled, so are its keys. */
   busy?: boolean;
+  /** Kept by whatever outlives the rows: the list unmounts once it is empty. */
+  stranded?: StrandedRow;
 }) {
   const [drafts, setDrafts] = useState<Readonly<Record<string, InboxDraft>>>({});
   const [focused, setFocused] = useState<VaultPath | null>(null);
@@ -92,6 +99,11 @@ export function useInboxTriage({
   // The row a key lands on: the one the focus is in, kept where the key
   // handler can read it without being made anew on each render.
   const focusedRow = useRef<VaultPath | null>(null);
+  // Whether a row holds the focus now, not merely held it last: only then does a row leaving hand it on.
+  const rowHasFocus = useRef(false);
+  // A row that left holding the focus with no row to hand it to: it takes the focus back should it return.
+  const ownStranded = useRef<VaultPath | null>(null);
+  const stranded = keptStranded ?? ownStranded;
   const declared = useRef(statuses);
   declared.current = statuses;
   const idle = useRef(!busy);
@@ -110,6 +122,8 @@ export function useInboxTriage({
     (path: VaultPath) => {
       setFocused(path);
       focusedRow.current = path;
+      rowHasFocus.current = true;
+      stranded.current = null;
       focusPlaced(path);
     },
     [focusPlaced],
@@ -117,16 +131,38 @@ export function useInboxTriage({
 
   // The app takes a row off the list as soon as it is acted on and writes it
   // after (#260): the focus it held goes on to the next row then, not once the
-  // write is done, so the next key lands there and not on the page.
+  // write is done, so the next key lands there and not on the page. Only the
+  // row that held the focus as it left, in this change, hands it on (#423).
   useEffect(() => {
     const before = listed.current;
     listed.current = items;
+    const back = stranded.current;
+    if (back !== null && items.some((item) => item.path === back)) {
+      // Its write refused, the last row is back: the next key is for it, unless the focus has gone elsewhere.
+      stranded.current = null;
+      if (focusLeftWithRow()) focusRow(back);
+      return;
+    }
     const path = focusedRow.current;
     if (path === null || items.some((item) => item.path === path)) return;
-    if (!focusLeftWithRow()) return;
+    const handsOn = rowHasFocus.current && focusLeftWithRow();
+    focusedRow.current = null;
+    rowHasFocus.current = false;
+    if (!handsOn) return;
     const next = rowAfterLeaving(before, items, path);
     if (next !== null) focusRow(next);
-  }, [items, focusRow]);
+    else if (before.some((item) => item.path === path)) stranded.current = path;
+  }, [items, focusRow, stranded]);
+
+  // The last row leaving empties the list, and the page draws no rows at all:
+  // what held the focus is kept where the page can give it back.
+  useEffect(
+    () => () => {
+      const path = focusedRow.current;
+      if (path !== null && rowHasFocus.current && focusLeftWithRow()) stranded.current = path;
+    },
+    [stranded],
+  );
 
   const act = useCallback(
     async (path: VaultPath, clarification: Clarification) => {
@@ -135,7 +171,8 @@ export function useInboxTriage({
       setDrafts((held) => Object.fromEntries(Object.entries(held).filter(([at]) => at !== path)));
       // Focus that has gone elsewhere since — another note opened, say — is left there.
       const at = document.activeElement;
-      const stillHere = at === document.body || elementOf(path)?.contains(at) === true;
+      const onPage = at === document.body && focusedRow.current === path && rowHasFocus.current;
+      const stillHere = onPage || elementOf(path)?.contains(at) === true;
       if (next !== null && stillHere) focusRow(next);
     },
     [clarify, focusRow, elementOf],
@@ -265,7 +302,14 @@ export function useInboxTriage({
   const onListBlur = useCallback(
     (event: FocusEvent<HTMLElement>) => {
       const left = event.target;
+      const list = event.currentTarget;
       if (armed.current !== null && left.dataset['field'] === armed.current.field) disarm(false);
+      // Once the focus has settled: a row taken out of the DOM is not the person moving the focus away.
+      queueMicrotask(() => {
+        if (!left.isConnected || list.contains(document.activeElement)) return;
+        rowHasFocus.current = false;
+        stranded.current = null;
+      });
     },
     [disarm],
   );
@@ -299,6 +343,8 @@ export function useInboxTriage({
     focused,
     onRowFocus: useCallback((path: VaultPath) => {
       focusedRow.current = path;
+      rowHasFocus.current = true;
+      stranded.current = null;
       setFocused(path);
     }, []),
     onListKeyDown,

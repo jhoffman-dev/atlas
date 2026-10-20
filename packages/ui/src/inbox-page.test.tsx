@@ -881,6 +881,45 @@ describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
     elsewhere.remove();
   });
 
+  it('leaves the focus on the page when the person put it there before the row left (#423 review)', async () => {
+    const all = tasks();
+    const view = page({ contents: all });
+    focusRow('Call the bank');
+    // The blur is the person's: the hook reads it once the focus has settled.
+    await act(async () => rowOf('Call the bank').blur());
+    expect(document.activeElement).toBe(document.body);
+
+    view.rerender({
+      contents: { ...all, items: all.items.filter((each) => each.title !== 'Call the bank') },
+    });
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('gives the focus back to the last row when its key emptied the list and the write was refused (#423)', async () => {
+    let refuse: (done: boolean) => void = () => {};
+    const onClarify = vi.fn(() => new Promise<boolean>((settle) => (refuse = settle)));
+    const only = {
+      items: tasks().items.filter((each) => each.title === 'Fix the gate'),
+      truncated: false,
+      total: 1,
+    };
+    const view = page({ contents: only, onClarify });
+    focusRow('Fix the gate');
+    await userEvent.keyboard('n');
+    view.rerender({ contents: { ...only, items: [], total: 0 } });
+    expect(document.activeElement).toBe(document.body);
+
+    // Refused: the row comes back, and the next key must land on it, not on the page.
+    await act(async () => refuse(false));
+    view.rerender({ contents: only });
+    expect(document.activeElement).toBe(rowOf('Fix the gate'));
+    await userEvent.keyboard('s');
+    expect(clarified(onClarify).at(-1)).toEqual({
+      path: 'Inbox/Fix the gate.md',
+      clarification: { status: 'someday' },
+    });
+  });
+
   it('shows the six keys on the focused row only, in the order Next, Waiting, Someday, Schedule, Project, Done', () => {
     page({ contents: tasks() });
     expect(screen.queryAllByRole('button', { name: /, key [A-Z]$/ })).toHaveLength(0);

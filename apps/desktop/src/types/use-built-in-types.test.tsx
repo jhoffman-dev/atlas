@@ -106,6 +106,38 @@ describe('useBuiltInTypes', () => {
     );
   });
 
+  it('is still reading the vault switched to when the last one’s read lands, and shows none of its lines (#423)', async () => {
+    const vaultFs = (files: Record<string, string>, held: Promise<void>) => {
+      const memory = memoryVault(files);
+      return fakeVaultFs({
+        ...memory.fs,
+        readNotes: async (paths) => {
+          await held;
+          return paths.flatMap((path) => {
+            const text = memory.files.get(path);
+            return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+          });
+        },
+      });
+    };
+    let releaseA = () => {};
+    const heldA = new Promise<void>((done) => (releaseA = done));
+    const a = vaultFs({ '.atlas/types/task.md': TASK }, heldA);
+    const b = vaultFs({ '.atlas/types/task.md': TASK }, new Promise<void>(() => {}));
+    const activity = recordingActivity();
+    const hook = renderHook(
+      ({ fs, vaultKey }: { fs: typeof a; vaultKey: string }) =>
+        useBuiltInTypes({ fs, markdown: remarkMarkdown, vaultKey, activity, onChanged: vi.fn() }),
+      { initialProps: { fs: a, vaultKey: '/vault-a' } },
+    );
+    hook.rerender({ fs: b, vaultKey: '/vault-b' });
+
+    await act(async () => releaseA());
+    // A's answer is A's: B is still being read, and offers nothing yet.
+    expect(hook.result.current?.reading).toBe(true);
+    expect(hook.result.current?.lines).toEqual([]);
+  });
+
   it('stops waiting when the types cannot be read, and says why in Activity', async () => {
     const { hook, activity } = setup(
       { '.atlas/types/task.md': TASK },
