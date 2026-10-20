@@ -233,14 +233,11 @@ test('a template that is really a note is moved back to the notes from its band'
   ).toBeVisible();
 });
 
-// Fails: the index reads only the moved note again, so Deal's body link, written
-// while the template was out of the notes, stays unresolved (#431). The stand-in
-// hid it until it listed its manifest, as the real index does (#408). Remove
-// `test.fail` once #431 is fixed.
+// Deal's body link, written while the template was out of the notes, is read
+// again when the note it names comes back (#431).
 test('a template moved back to the notes is reached again by the link that had nowhere to go', async ({
   page,
 }) => {
-  test.fail();
   await openVaultWithStrayNote(page);
   // The move itself is held to account by the passing test above, which takes the same steps.
   await moveStrayNoteToNotesFromItsBand(page);
