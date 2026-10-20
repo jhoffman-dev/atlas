@@ -288,9 +288,13 @@ test('with no worker to read the notes, the vault is still indexed and the windo
   // Read in the window, a note at a time with a breath between: no worker saw one.
   expect(watch.derivedInWorker).toBe(0);
   expect(watch.longestGap).toBeLessThan(LONGEST_TASK_IN_WINDOW_MS);
-  // And it is said, once, so a slow index has its reason on record.
-  const said = host.activityLog().match(/Indexing in the window, which is slower/g) ?? [];
-  expect(said).toHaveLength(1);
+  // And it is said, once, so a slow index has its reason on record. The line
+  // is recorded as the build ends, with the status, but written a moment
+  // later with whatever else came (ACTIVITY_WRITE_DELAY_MS): so the file is
+  // waited on, not read once (#444).
+  await expect
+    .poll(() => host.activityLog().match(/Indexing in the window, which is slower/g) ?? [])
+    .toHaveLength(1);
   expect(host.activityLog()).toContain('Workers are not allowed here.');
   process.stdout.write(
     `[index-responsive] ${count + 1} notes in the window: its longest task was ${Math.round(watch.longestGap)} ms\n`,
