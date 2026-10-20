@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { updateFrontmatter } from './frontmatter-write.ts';
+import { parseFrontmatterProperties } from './frontmatter.ts';
 
 const block = (...lines: string[]) => `---\n${lines.join('\n')}\n---\n`;
 
@@ -19,7 +20,7 @@ describe('#430 an inline comment and a comment below a changed value', () => {
   it('the inline comment keeps its spacing, and a blank line between them stays', () => {
     expect(
       updateFrontmatter(block('t: T   #  inl', '', '   # deep', 'b: 2'), { t: 'U # hash' }),
-    ).toBe(block("t: 'U # hash'   #  inl", '', '   # deep', 'b: 2'));
+    ).toBe(block('t: "U # hash"   #  inl', '', '   # deep', 'b: 2'));
   });
 
   it('under a flow list', () => {
@@ -90,10 +91,33 @@ describe('#430 a value changed to a block list or map', () => {
     );
   });
 
-  it('a scalar to two lines of text', () => {
-    expect(updateFrontmatter(block('t: T', '  # deep', 'b: 2'), { t: 'one\ntwo' })).toBe(
-      block('t: |-', '  one', '  two', '  # deep', 'b: 2'),
+  it('a block of text to two lines, the comment shallower than the text', () => {
+    expect(updateFrontmatter(block('t: |', '  a', ' # deep', 'b: 2'), { t: 'one\ntwo' })).toBe(
+      block('t: |-', '  one', '  two', ' # deep', 'b: 2'),
     );
+  });
+
+  it('a list to two lines of text, the comment shallower than the text', () => {
+    expect(updateFrontmatter(block('t:', '  - x', ' # deep', 'b: 2'), { t: 'one\ntwo' })).toBe(
+      block('t: |-', '  one', '  two', ' # deep', 'b: 2'),
+    );
+  });
+
+  it('guard: a comment as deep as the new text is not put where it would be read as text', () => {
+    const written = updateFrontmatter(block('t:', '  - x', '    # deep', 'b: 2'), {
+      t: 'one\ntwo',
+    });
+    expect(parseFrontmatterProperties(written)).toEqual({ t: 'one\ntwo', b: 2 });
+  });
+
+  it('guard: a comment the new value keeps a node of is left where the library puts it', () => {
+    // The comment is taken off the item before writing; it cannot go back
+    // under the list, so it is given back to the item, not lost.
+    const written = updateFrontmatter(block('t:', '  - x', '    # deep', 'b: 2'), {
+      t: ['x', 'one\ntwo'],
+    });
+    expect(parseFrontmatterProperties(written)).toEqual({ t: ['x', 'one\ntwo'], b: 2 });
+    expect(written).toContain('# deep');
   });
 });
 

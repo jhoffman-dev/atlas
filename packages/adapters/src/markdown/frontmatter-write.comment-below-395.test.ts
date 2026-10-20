@@ -193,7 +193,10 @@ function generated(random: () => number): Case {
     for (let n = below; n > 0; n--) {
       // A blank line, or a line as deep as its text, is a block scalar's own.
       if (!block && random() < 0.2) lines.push('');
-      lines.push(`${' '.repeat(indent + 1 + (block ? 0 : pick(5)))}# below k${at}`);
+      // A comment as deep as a block of text would be read as its text: under
+      // a value changed to one, it stays shallower.
+      const shallow = block || (at === target && typeof value === 'string' && value.includes('\n'));
+      lines.push(`${' '.repeat(indent + 1 + (shallow ? 0 : pick(5)))}# below k${at}`);
     }
     if (!block && random() < 0.3) lines.push('');
   }
