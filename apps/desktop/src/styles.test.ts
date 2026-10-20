@@ -288,3 +288,138 @@ describe('the styles folder', () => {
     expect(importedSections()[0]).toBe('tokens.css');
   });
 });
+
+/**
+ * The v2 rules, pinned for good (UI v2 slice 15, `Tokens.dc.html`'s rules
+ * list): content never floats — a shadow with a blur is for what floats over
+ * the page or is in the hand while dragged; nothing is rounder than 8px but
+ * a round mark (50%: a dot, an avatar, a swatch, a spinner); no capitals by
+ * CSS; no weight above 600.
+ *
+ * What breaks a rule today is named below, so the lists can only shrink:
+ * each is a follow-up of slice 15, left as it is because fixing it changes
+ * what is drawn. A new offender fails, and so does one fixed but still listed.
+ */
+describe('the v2 rules', () => {
+  /** Surfaces that float over the page: menus, popovers, palettes, the peek's previews, toasts. */
+  const FLOATS =
+    /^\.(menu|palette|toast|peek|link-preview|link-hover|suggestions|cell-picker|view-popover|filter-value__list|image__alt|widget-sheet)\b|popover\b/;
+  /** Something in the hand while it is dragged, lifted off the page. */
+  const IN_HAND = /--(lifted|held)\b|^\.widget-ghost\b/;
+
+  /** A shadow with a blur, or one of the floating shadow tokens. */
+  const floats = (value: string) =>
+    /--shadow-(popover|overlay)\b/.test(value) ||
+    value.split(',').some((part) => {
+      const lengths = [...part.matchAll(/(-?\d+(?:\.\d+)?)px/g)].map((match) => Number(match[1]));
+      return !part.includes('inset') && lengths.length >= 3 && (lengths[2] ?? 0) > 0;
+    });
+
+  const declarationsOf = (body: string) =>
+    [...body.matchAll(/(?<![\w-])([a-z-]+)\s*:\s*([^;]+);/g)].map((match) => ({
+      property: match[1] ?? '',
+      value: (match[2] ?? '').replace(/\s+/g, ' ').trim(),
+    }));
+
+  /** The selectors of `source` that break each rule. */
+  function offenders(source: string) {
+    const found = { shadows: [] as string[], radii: [] as string[], capitals: [] as string[] };
+    const heavy: string[] = [];
+    for (const { selector, body } of rulesOf(source)) {
+      const name = selector.replace(/\s+/g, ' ');
+      for (const { property, value } of declarationsOf(body)) {
+        const allowedToFloat = FLOATS.test(name) || IN_HAND.test(name);
+        if (property === 'box-shadow' && floats(value) && !allowedToFloat) found.shadows.push(name);
+        if (property === 'border-radius' && tooRound(value)) found.radii.push(name);
+        if (property === 'text-transform' && value.includes('uppercase')) found.capitals.push(name);
+        if (property === 'font-weight' && Number.parseInt(value, 10) > 600) heavy.push(name);
+      }
+    }
+    return { ...found, heavy };
+  }
+
+  /** Rounder than 8px, and not a round mark's 50%. */
+  const tooRound = (value: string) =>
+    value.includes('--radius-pill') ||
+    [...value.matchAll(/(\d+(?:\.\d+)?)px/g)].some((match) => Number(match[1]) > 8);
+
+  const today = offenders(css);
+  const sorted = (list: readonly string[]) => [...new Set(list)].sort();
+
+  it('lets only what floats over the page, or is being dragged, cast a shadow', () => {
+    expect(today.shadows).toEqual([]);
+  });
+
+  it('would catch a shadow on the panel, and a 12px radius on a card (mutation guard)', () => {
+    const mutated = offenders(
+      `${css}\n.panel { box-shadow: var(--shadow-popover); }\n.card { border-radius: 12px; }`,
+    );
+    expect(mutated.shadows).toEqual(['.panel']);
+    expect(mutated.radii).toContain('.card');
+    expect(
+      offenders(`${css}\n.card { text-transform: uppercase; font-weight: 700; }`),
+    ).toMatchObject({
+      capitals: expect.arrayContaining(['.card']),
+      heavy: expect.arrayContaining(['.card']),
+    });
+  });
+
+  it('rounds nothing past 8px but its round marks — save the pill shapes still listed', () => {
+    expect(sorted(today.radii)).toEqual(
+      sorted([
+        '.callout__title::before',
+        '.checklist-progress__track',
+        '.inbox__file',
+        '.index-progress',
+        '.new-view__layout',
+        '.pane--focused::before',
+        '.proposals__notice',
+        '.selection-bar',
+        '.selection-bar__action, .selection-bar__clear',
+        '.star',
+        '.toggle',
+        '.toggle__knob',
+        '.tree__more',
+        '.view-popover',
+        '.widget-sheet__kind, .widget-sheet__icon',
+        '.widget__grip',
+        '.widget__resize::after',
+      ]),
+    );
+  });
+
+  it('sets no capitals by CSS — save the labels still listed', () => {
+    expect(sorted(today.capitals)).toEqual(
+      sorted([
+        '.artifact-face__status',
+        '.card__label',
+        '.new-type__legend',
+        '.proposal-row__kind',
+        '.query__schema-title',
+      ]),
+    );
+  });
+
+  it('weighs nothing above 600 — save the headings and chips still listed', () => {
+    expect(sorted(today.heavy)).toEqual(
+      sorted([
+        '.confirm__title',
+        '.granola__details summary',
+        '.graph__edge-label',
+        '.inbox__grid th',
+        '.links__heading',
+        '.new-type__legend',
+        '.new-type__title',
+        '.new-view__layout',
+        '.note-chip',
+        '.props__chip-select',
+        '.props__link',
+        '.props__pill-select, .props__chip-select',
+        '.proposals__heading',
+        '.selection-bar',
+        '.view-popover__direction, .view-popover__submit',
+        '.view-popover__title',
+      ]),
+    );
+  });
+});
