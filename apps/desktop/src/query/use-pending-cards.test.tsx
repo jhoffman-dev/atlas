@@ -55,7 +55,9 @@ const moveTo = (status: string) => ({
 describe('usePendingCards', () => {
   it('lets every card go when another index or view is open, so none is drawn in it', () => {
     const view = board([], [gate().opened]);
-    act(() => view.result.current.move(moveTo('done')));
+    act(() => {
+      void view.result.current.move(moveTo('done'));
+    });
     expect(view.result.current.shown).not.toBe(SHAPE);
 
     view.rerender({ scope: ['index-b', 'Board.md'] });
@@ -66,8 +68,12 @@ describe('usePendingCards', () => {
     const written: string[] = [];
     const first = gate();
     const view = board(written, [first.opened]);
-    act(() => view.result.current.move(moveTo('done')));
-    act(() => view.result.current.move(moveTo('backlog')));
+    act(() => {
+      void view.result.current.move(moveTo('done'));
+    });
+    act(() => {
+      void view.result.current.move(moveTo('backlog'));
+    });
     await act(async () => {});
     expect(written).toEqual([]);
 

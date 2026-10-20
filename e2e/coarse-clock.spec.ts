@@ -36,9 +36,7 @@ async function openTheNote(page: Page): Promise<FakeVault> {
   const vault = await createVault();
   await vault.write('note.md', NOTE);
   await utimes(join(vault.root, 'note.md'), TICK_SECONDS, TICK_SECONDS);
-  // The manifest is kept, as the real index keeps it, so a refresh reads
-  // again only what it has reason to: otherwise it reads every note anyway.
-  await installHost(page, vault, { keepsManifest: true });
+  await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/^1 notes? indexed/)).toBeVisible();

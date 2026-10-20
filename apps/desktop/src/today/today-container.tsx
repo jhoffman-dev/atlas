@@ -1,4 +1,5 @@
-import { REVIEW_SCOPE } from '@atlas/application';
+import { useState } from 'react';
+import { REVIEW_SCOPE, todayScope, type ReadScope } from '@atlas/application';
 import { TodayPage } from '@atlas/ui';
 import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { localClock } from '../today.ts';
@@ -22,12 +23,14 @@ export interface TodayWiring {
 export function TodayContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
   // Read again for news of the tasks, the projects and the Inbox alone: a
-  // note saved elsewhere does not draw the page (#325).
+  // note saved elsewhere does not draw the page (#325). And of the notes the
+  // tasks last read are filed under, whatever their type, or link by (#392).
+  const [scope, setScope] = useState<ReadScope>(REVIEW_SCOPE);
   const indexKey = useScopedIndexKey({
     status: pane.indexStatus,
     vault: pane.vault,
     reader: ['today'],
-    scope: REVIEW_SCOPE,
+    scope,
   });
   const today = useToday({
     ports: pages.ports,
@@ -42,6 +45,10 @@ export function TodayContainer({ wiring, chrome }: PageContainerProps) {
     activity: pane.activity,
     held: pages.holds.today,
   });
+  // Set while drawing, as React has a value from the last draw kept: the page
+  // is drawn once again before anything is shown, with no commit between.
+  const read = todayScope(today.page.today);
+  if (namesOf(read) !== namesOf(scope)) setScope(read);
   return (
     <TodayPage
       {...today.page}
@@ -54,3 +61,7 @@ export function TodayContainer({ wiring, chrome }: PageContainerProps) {
     />
   );
 }
+
+/** The notes and the link names a scope adds to the review's, as one text to compare. */
+const namesOf = (scope: ReadScope) =>
+  [...(scope.notes ?? []), '', ...(scope.linkedNames ?? [])].join('\n');

@@ -24,13 +24,17 @@ import { syncConflictNotice, syncIndicatorBadge, syncSettingsView } from './sync
 import { QUIT_SYNC_WAIT_MS, SYNC_TICK_MS } from './use-sync-schedule.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { toldNews } from '../reads/told-news.test-support.ts';
+import { drained, settles } from '../granola/settles.test-support.ts';
 
 const NOT_A_REPO = failed('fatal: not a git repository', 128);
 /** What a vault Atlas set up for sync says in its settings, beside its `.gitignore` block. */
 const SET_UP = 'sync: github\nautomationsMac: mac-studio\nautomationsMacName: Studio';
 
+/** Where the hand clock, and the fake timers' clock in the tests that use them, start. */
+const START = Date.UTC(2026, 8, 28, 14, 5);
+
 /** A clock the test moves by hand. */
-function handClock(start = Date.UTC(2026, 8, 28, 14, 5)) {
+function handClock(start = START) {
   let now = start;
   return {
     now: () => now,
@@ -367,14 +371,14 @@ describe('useSync', () => {
 
 describe('useSync: sending and bringing in by itself (A29-01)', () => {
   it('sends a change about half a minute after it, and nothing without one', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const { hook, called, clock, tell } = setUpHook({
       script: model.script,
       settings: `${SET_UP}\nsyncInterval: 60`,
     });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
-    await waitFor(() => expect(hook.result.current.settings?.pullIntervalMinutes).toBe(60));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.settings?.pullIntervalMinutes).toBe(60));
     const pushes = called('push').length;
     await wait(clock, 25_000);
     expect(called('commit')).toHaveLength(0);
@@ -383,19 +387,19 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
     await wait(clock, 25_000);
     expect(called('commit')).toHaveLength(0);
     await wait(clock, 10_000);
-    await waitFor(() => expect(called('commit')).toHaveLength(1));
+    await settles(() => expect(called('commit')).toHaveLength(1));
     expect(called('push').length).toBe(pushes + 1);
   });
 
   it('sends at least every five minutes while changes keep coming', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const { hook, called, clock, tell } = setUpHook({
       script: model.script,
       settings: `${SET_UP}\nsyncInterval: 60`,
     });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
-    await waitFor(() => expect(hook.result.current.settings?.pullIntervalMinutes).toBe(60));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.settings?.pullIntervalMinutes).toBe(60));
     // A change every 20 s from the first one: the half-minute quiet never comes.
     for (let second = 0; second < 300; second += 20) {
       model.state.edits = [`Log ${second}.md`];
@@ -404,33 +408,33 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
       if (second + 20 < 300) expect(called('commit'), `${second + 20} s in`).toHaveLength(0);
     }
     // Five minutes after the first change, still typing, it is sent.
-    await waitFor(() => expect(called('commit')).toHaveLength(1));
+    await settles(() => expect(called('commit')).toHaveLength(1));
   });
 
   it('looks at GitHub every minute, and brings changes in only when there are some', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const { hook, called, clock, onPulled } = setUpHook({ script: model.script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     const fetches = called('fetch').length;
     const merges = called('merge').length;
     await wait(clock, 60_000);
-    await waitFor(() => expect(called('fetch').length).toBe(fetches + 1));
+    await settles(() => expect(called('fetch').length).toBe(fetches + 1));
     // Nothing new on GitHub: a look, and no sync.
     expect(called('merge').length).toBe(merges);
     expect(called('addAll')).toHaveLength(1);
     model.state.onGitHub = 2;
     await wait(clock, 60_000);
-    await waitFor(() => expect(called('merge').length).toBe(merges + 1));
-    await waitFor(() => expect(onPulled).toHaveBeenCalledOnce());
+    await settles(() => expect(called('merge').length).toBe(merges + 1));
+    await settles(() => expect(onPulled).toHaveBeenCalledOnce());
     expect(hook.result.current.behind).toBe(0);
   });
 
   it('waits for typing to stop before bringing other Macs’ changes in, showing the vault behind', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const { hook, called, clock, tell } = setUpHook({ script: model.script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     const merges = called('merge').length;
     model.state.onGitHub = 1;
     // Typing: a change every 20 s, through the minute's look.
@@ -439,7 +443,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
       act(() => tell());
       await wait(clock, 20_000);
     }
-    await waitFor(() => expect(hook.result.current.behind).toBe(1));
+    await settles(() => expect(hook.result.current.behind).toBe(1));
     expect(called('merge').length).toBe(merges);
     expect(syncIndicatorBadge(hook.result.current)).toEqual({
       tone: 'behind',
@@ -450,19 +454,19 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
     );
     // Typing stops: the sync that sends it brings the other Mac's change in too.
     await wait(clock, 35_000);
-    await waitFor(() => expect(called('merge').length).toBe(merges + 1));
-    await waitFor(() => expect(hook.result.current.behind).toBe(0));
+    await settles(() => expect(called('merge').length).toBe(merges + 1));
+    await settles(() => expect(hook.result.current.behind).toBe(0));
     expect(syncIndicatorBadge(hook.result.current)).toEqual({ tone: 'ok', label: 'Synced' });
   });
 
   it('runs nothing by itself while paused, and picks up again when resumed', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const { hook, called, clock, tell, pauses } = setUpHook({
       script: model.script,
       paused: true,
     });
-    await waitFor(() => expect(hook.result.current.setup?.kind).toBe('set-up'));
+    await settles(() => expect(hook.result.current.setup?.kind).toBe('set-up'));
     expect(hook.result.current.paused).toBe(true);
     expect(syncIndicatorBadge(hook.result.current)).toEqual({
       tone: 'paused',
@@ -478,11 +482,11 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
     act(() => hook.result.current.setPaused(false));
     expect(pauses.get('/Users/j/Notes')).toBe(false);
     await wait(clock, 10_000);
-    await waitFor(() => expect(called('commit')).toHaveLength(1));
+    await settles(() => expect(called('commit')).toHaveLength(1));
   });
 
   it('runs a sync asked for during a look at GitHub once the look ends, never beside it', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     let hold: Promise<void> | null = null;
     let release: () => void = () => {};
@@ -490,7 +494,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
       script: model.script,
       beforeFetch: () => hold ?? Promise.resolve(),
     });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     const stages = called('addAll').length;
     hold = new Promise<void>((resolve) => (release = resolve));
     await wait(clock, 60_000);
@@ -500,8 +504,8 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
     expect(called('addAll')).toHaveLength(stages);
     hold = null;
     release();
-    await waitFor(() => expect(called('addAll')).toHaveLength(stages + 1));
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(called('addAll')).toHaveLength(stages + 1));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
   });
 
   it('still syncs when asked while paused', async () => {
@@ -513,9 +517,9 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
   });
 
   it('syncs once more as the window closes, but lets it close when that hangs', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const { hook, called, closeTasks, options } = setUpHook({ script: modelGit().script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     expect(closeTasks).toHaveLength(1);
     await act(async () => {
       await closeTasks[0]?.();
@@ -677,7 +681,7 @@ describe('useSync, after the second A29-01 review', () => {
   // [M3] A sync that committed and then could not reach GitHub left its
   // commits unsent until the next edit: a look found nothing behind.
   it('sends what a failed sync left unsent at the next look, with no new edit', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     model.state.edits = ['Today.md'];
     let offline = true;
@@ -690,22 +694,22 @@ describe('useSync, after the second A29-01 review', () => {
       },
     };
     const { hook, called, clock } = setUpHook({ script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('failed'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('failed'));
     expect(model.state.ahead).toBe(1);
     offline = false;
     await wait(clock, 60_000);
-    await waitFor(() => expect(called('push')).toHaveLength(1));
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(called('push')).toHaveLength(1));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     expect(model.state.ahead).toBe(0);
   });
 
   // [L1] A tick between a vault switch's wait and the switch itself started
   // a sync on the vault being left, whose host calls were then refused.
   it('starts nothing on the vault being left once a switch has waited for it', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const { hook, called, clock, tell } = setUpHook({ script: model.script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     model.state.edits = ['Today.md'];
     act(() => tell());
     const fetches = called('fetch').length;
@@ -717,7 +721,7 @@ describe('useSync, after the second A29-01 review', () => {
     // A switch that never happens — the same vault chosen again — does not
     // stop sync for good: the vault's change is sent once the moment passes.
     await wait(clock, 35_000);
-    await waitFor(() => expect(called('commit')).toHaveLength(1));
+    await settles(() => expect(called('commit')).toHaveLength(1));
   });
 
   // [L8] The last vault's set-up error showed on the next.
@@ -768,22 +772,22 @@ describe('useSync: what the session has synced (ADR-0034)', () => {
   });
 
   it('counts each sync of a vault that brought files in, and none that brought nothing', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     model.state.onGitHub = 1;
     const { hook, called, clock } = setUpHook({ script: model.script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     expect([...hook.result.current.syncPulls]).toEqual([['/Users/j/Notes', 1]]);
 
     // A sync that finds nothing new on GitHub brings nothing in.
     act(() => hook.result.current.syncNow());
-    await waitFor(() => expect(called('fetch').length).toBeGreaterThan(1));
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(called('fetch').length).toBeGreaterThan(1));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     expect(hook.result.current.syncPulls.get('/Users/j/Notes')).toBe(1);
 
     model.state.onGitHub = 2;
     await wait(clock, 60_000);
-    await waitFor(() => expect(hook.result.current.syncPulls.get('/Users/j/Notes')).toBe(2));
+    await settles(() => expect(hook.result.current.syncPulls.get('/Users/j/Notes')).toBe(2));
   });
 
   it('does not name a vault whose sync failed', async () => {
@@ -1026,21 +1030,22 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
   });
 
   it('takes a look at GitHub that finds nothing new as a pull: after a wake, it reopens the gate with no sync', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const sleep = fakeSleepClock();
     const model = modelGit();
     const { hook, called, clock } = setUpHook({ script: model.script, sleep });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     const merges = called('merge').length;
     sleep.sleep(20 * 60_000);
     expect(await acts(hook)).toBe(false);
     await wait(clock, 60_000);
-    await waitFor(async () => expect(await acts(hook)).toBe(true));
+    await drained();
+    expect(await acts(hook)).toBe(true);
     expect(called('merge').length).toBe(merges);
   });
 
   it('keeps what it knew when a look at GitHub fails: the look changed no file', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const online = model.script.fetch as () => GitResult;
     let offline = false;
@@ -1049,20 +1054,20 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
       fetch: () => (offline ? failed('fatal: unable to access GitHub', 128) : online()),
     };
     const { hook, clock } = setUpHook({ script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     expect(await acts(hook)).toBe(true);
     offline = true;
     await wait(clock, 60_000);
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('failed'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('failed'));
     expect(hook.result.current.pulledFiles.standing).toMatchObject({ kind: 'pulled' });
     expect(await acts(hook)).toBe(true);
   });
 
   it('acts on nothing once a look finds other Macs’ changes, until the sync brings them in', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: START });
     const model = modelGit();
     const { hook, called, clock, tell } = setUpHook({ script: model.script });
-    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    await settles(() => expect(hook.result.current.phase.kind).toBe('synced'));
     expect(await acts(hook)).toBe(true);
     const merges = called('merge').length;
     model.state.onGitHub = 1;
@@ -1072,11 +1077,12 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
       act(() => tell());
       await wait(clock, 20_000);
     }
-    await waitFor(() => expect(hook.result.current.behind).toBe(1));
+    await settles(() => expect(hook.result.current.behind).toBe(1));
     expect(await acts(hook)).toBe(false);
     await wait(clock, 35_000);
-    await waitFor(() => expect(called('merge').length).toBe(merges + 1));
-    await waitFor(async () => expect(await acts(hook)).toBe(true));
+    await settles(() => expect(called('merge').length).toBe(merges + 1));
+    await drained();
+    expect(await acts(hook)).toBe(true);
   });
 
   it('waits, once sync is set up on a vault, for its first sync or look to complete', async () => {

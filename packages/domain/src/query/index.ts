@@ -119,3 +119,4 @@ export {
   sqlProblem,
 } from './sql-query.ts';
 export type { SchemaTable, SqlResult } from './sql-query.ts';
+export { cellShownValue, cellWriteValue, sameCellValue } from './cell-value.ts';

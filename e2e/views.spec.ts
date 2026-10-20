@@ -108,10 +108,10 @@ test('clicking a title opens that note', async ({ page }) => {
 test('editing a cell writes the note it came from', async ({ page }) => {
   const vault = await openViewVault(page);
 
-  await page.getByRole('button', { name: 'doing' }).click();
-  const input = page.locator('.table__input');
-  await input.fill('done');
-  await input.press('Enter');
+  // A status opens its picker (#300): its third option, by its number key.
+  await page.getByRole('button', { name: 'Doing', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Set Status' })).toBeVisible();
+  await page.keyboard.press('3');
 
   await expectFile(vault, 'first.md').toContain('status: done');
   // And nothing else about that note changed.
