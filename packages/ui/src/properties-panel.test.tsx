@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, noteNames, type PropertyDef, type PropertyKind } from '@atlas/domain';
+import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 import { NoteNamesProvider } from './note-names.tsx';
 import { PropertiesPanel, type NewProperty, type PropertyRow } from './properties-panel.tsx';
 
@@ -130,22 +131,22 @@ describe('PropertiesPanel', () => {
     expect(onChange).toHaveBeenLastCalledWith('field', ['a', 'b']);
   });
 
-  it('offers only the notes given for a relation', () => {
+  it('offers only the notes given for a relation', async () => {
     panel([row('relation', null, { target: 'person' })], vi.fn(), {
       field: [{ path: 'Ada.md', title: 'Ada' }],
     });
-    const options = [...screen.getByLabelText('Field').querySelectorAll('option')];
-    expect(options.map((option) => option.textContent)).toEqual(['— no person —', 'Ada']);
+    const field = screen.getByLabelText('Field');
+    expect(field.getAttribute('placeholder')).toBe('— no person —');
+    await userEvent.click(field);
+    expect(suggestedTitles()).toEqual(['Ada']);
   });
-
   it('writes a relation as a wiki link', async () => {
     const onChange = panel([row('relation', null, { target: 'person' })], vi.fn(), {
       field: [{ path: 'Ada.md', title: 'Ada' }],
     });
-    await userEvent.selectOptions(screen.getByLabelText('Field'), '[[Ada]]');
+    await pickSuggestion(screen.getByLabelText('Field'), 'Ada');
     expect(onChange).toHaveBeenLastCalledWith('field', '[[Ada]]');
   });
-
   it('shows a url property as a url field', () => {
     panel([row('url', 'https://example.com')]);
     expect(screen.getByLabelText('Field').getAttribute('type')).toBe('url');
@@ -471,10 +472,7 @@ describe('a relation that holds several notes', () => {
 
   it('adds another, keeping the ones it has', async () => {
     const onChange = several(['[[Write report]]']);
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'Field' }),
-      '[[Book flights]]',
-    );
+    await pickSuggestion(screen.getByRole('combobox', { name: 'Field' }), 'Book flights');
     expect(lastRule(onChange, ['[[Write report]]'])).toEqual([
       '[[Write report]]',
       '[[Book flights]]',
@@ -485,27 +483,23 @@ describe('a relation that holds several notes', () => {
     // Two picked in quick succession: the second is added to the first even
     // though the first had not come back from the file when it was picked.
     const onChange = several([]);
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'Field' }),
-      '[[Book flights]]',
-    );
+    await pickSuggestion(screen.getByRole('combobox', { name: 'Field' }), 'Book flights');
     expect(lastRule(onChange, ['[[Write report]]'])).toEqual([
       '[[Write report]]',
       '[[Book flights]]',
     ]);
   });
 
-  it('offers to add only the notes not linked yet, and stays ready for another', () => {
+  it('offers to add only the notes not linked yet, and stays ready for another', async () => {
     several(['[[Write report]]']);
-    const add = screen.getByRole('combobox', { name: 'Field' }) as HTMLSelectElement;
-    expect([...add.querySelectorAll('option')].map((option) => option.textContent)).toEqual([
-      'Add a task…',
-      'Book flights',
-      'Pay rent',
-    ]);
+    const add = screen.getByRole('combobox', { name: 'Field' }) as HTMLInputElement;
+    expect(add.placeholder).toBe('Add a task…');
+    await userEvent.click(add);
+    expect(suggestedTitles()).toEqual(['Book flights', 'Pay rent']);
+    await pickSuggestion(add, 'Pay rent');
     expect(add.value).toBe('');
+    expect(document.activeElement).toBe(add);
   });
-
   it('takes one note out with its chip', async () => {
     const onChange = several(['[[Write report]]', '[[Book flights]]']);
     await userEvent.click(screen.getByRole('button', { name: 'Remove Write report from Field' }));
@@ -623,18 +617,16 @@ describe('a relation read against the vault', () => {
 
   it('links a titled note by its filename, which is what finds it', async () => {
     const { onChange } = relation(null);
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Field' }), 'Atlas');
+    await pickSuggestion(screen.getByRole('combobox', { name: 'Field' }), 'Atlas');
     expect(onChange).toHaveBeenLastCalledWith('field', '[[P-01]]');
   });
-
-  it('offers to change the one note, without offering it again', () => {
+  it('offers to change the one note, without offering it again', async () => {
     relation('[[P-01]]');
     const picker = screen.getByRole('combobox', { name: 'Field' });
-    expect([...picker.querySelectorAll('option')].map((option) => option.textContent)).toEqual([
-      'Change project…',
-    ]);
+    expect(picker.getAttribute('placeholder')).toBe('Change project…');
+    await userEvent.click(picker);
+    expect(suggestedTitles()).toEqual([]);
   });
-
   it('shows links under a key no type declares, with nothing to pick from', () => {
     relation('[[Ada]]', { target: null });
     expect(screen.getByRole('button', { name: 'Open Ada Lovelace' })).toBeDefined();
@@ -660,65 +652,51 @@ describe('making a new note from a relation (issue #15)', () => {
     return onChange;
   };
 
-  it('offers a new one after the notes there are', () => {
+  it('offers to make a company of what was typed, after the notes it meets', async () => {
     withCreate(vi.fn());
-    const options = [...screen.getByLabelText('Field').querySelectorAll('option')];
-    expect(options.map((option) => option.textContent)).toEqual([
-      '— no company —',
-      'Acme',
-      'New company…',
-    ]);
+    await userEvent.type(screen.getByLabelText('Field'), 'a');
+    expect(suggestedTitles()).toEqual(['Acme']);
+    expect(screen.getByRole('option', { name: 'Create company ‘a’' })).toBeDefined();
+    await userEvent.type(screen.getByLabelText('Field'), 'cme');
+    expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
   });
-
-  it('asks for the name, makes the note and links what was made', async () => {
+  it('makes the note named as typed and links what was made', async () => {
     const onCreateRelated = vi.fn(async () => '[[Larkspur Payroll]]');
     const onChange = withCreate(onCreateRelated);
 
-    await userEvent.selectOptions(screen.getByLabelText('Field'), 'New company…');
-    const name = screen.getByRole('textbox', { name: 'Name of the new company' });
-    await userEvent.type(name, 'Larkspur Payroll{Enter}');
+    await userEvent.type(screen.getByLabelText('Field'), 'Larkspur Payroll');
+    await userEvent.click(
+      screen.getByRole('option', { name: 'Create company ‘Larkspur Payroll’' }),
+    );
 
     expect(onCreateRelated).toHaveBeenCalledWith({
       target: 'company',
       name: 'Larkspur Payroll',
     });
     expect(onChange).toHaveBeenLastCalledWith('field', '[[Larkspur Payroll]]');
-    expect(screen.queryByRole('textbox', { name: 'Name of the new company' })).toBeNull();
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
-
   it('says why a note was not made, and links nothing', async () => {
     const onChange = withCreate(async () => {
       throw new Error('No room for it');
     });
-    await userEvent.selectOptions(screen.getByLabelText('Field'), 'New company…');
-    await userEvent.type(
-      screen.getByRole('textbox', { name: 'Name of the new company' }),
-      'Larkspur Payroll{Enter}',
-    );
+    await userEvent.type(screen.getByLabelText('Field'), 'Larkspur Payroll{Enter}');
     expect((await screen.findByRole('alert')).textContent).toContain('No room for it');
     expect(onChange).not.toHaveBeenCalled();
   });
-
   it('makes nothing for Escape or an empty name', async () => {
     const onCreateRelated = vi.fn(async () => '[[x]]');
     withCreate(onCreateRelated);
-    await userEvent.selectOptions(screen.getByLabelText('Field'), 'New company…');
-    await userEvent.type(
-      screen.getByRole('textbox', { name: 'Name of the new company' }),
-      '  {Enter}',
-    );
+    await userEvent.type(screen.getByLabelText('Field'), '  {Enter}');
+    expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
     expect(onCreateRelated).not.toHaveBeenCalled();
-    await userEvent.type(
-      screen.getByRole('textbox', { name: 'Name of the new company' }),
-      'x{Escape}',
-    );
-    expect(screen.queryByRole('textbox', { name: 'Name of the new company' })).toBeNull();
+    await userEvent.type(screen.getByLabelText('Field'), 'x{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
     expect(onCreateRelated).not.toHaveBeenCalled();
   });
-
-  it('offers no new note where the panel cannot make one', () => {
+  it('offers no new note where the panel cannot make one', async () => {
     panel([company()], vi.fn(), { field: [{ path: 'Acme.md', title: 'Acme' }] });
-    const options = [...screen.getByLabelText('Field').querySelectorAll('option')];
-    expect(options.map((option) => option.textContent)).toEqual(['— no company —', 'Acme']);
+    await userEvent.type(screen.getByLabelText('Field'), 'Larkspur');
+    expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
   });
 });

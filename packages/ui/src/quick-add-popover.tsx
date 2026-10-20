@@ -1,11 +1,11 @@
 import { useId, useState, type KeyboardEvent } from 'react';
-import { optionLabel, type PropertyDef } from '@atlas/domain';
+import { createVaultPath, linkedNames, optionLabel, type PropertyDef } from '@atlas/domain';
 import { Icon, type IconName } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { KeyHints } from './key-hints.tsx';
 import { useNoteNames } from './note-names.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
-import { RelationOptions } from './relation-options.tsx';
+import { LinkCombobox } from './link-suggest/link-combobox.tsx';
 
 const HINTS = [
   ['↵', 'to add'],
@@ -155,10 +155,14 @@ function QuickAddField({
 }) {
   const id = useId();
   return (
-    <label className="quick-add__field" htmlFor={id}>
-      <span className="quick-add__label">{field.label}</span>
+    // The label names its control by id rather than wrapping it: a link field's
+    // suggestions hang inside the control, and a click on one would be the label's.
+    <div className="quick-add__field">
+      <label className="quick-add__label" htmlFor={id}>
+        {field.label}
+      </label>
       <FieldControl id={id} field={field} value={value} choices={choices} onChange={onChange} />
-    </label>
+    </div>
   );
 }
 
@@ -199,11 +203,25 @@ function FieldControl({
       );
     case 'relation':
       return (
-        <span className="select">
-          <select {...choose}>
-            <option value="">— none —</option>
-            <RelationOptions choices={choices} names={names} />
-          </select>
+        <span className="quick-add__link">
+          <LinkCombobox
+            id={id}
+            className="field quick-add__control"
+            placeholder="— none —"
+            {...(value !== '' && { current: linkedNames(value, names)[0]?.text ?? value })}
+            choices={choices}
+            onPick={(choice) => onChange(names.linkTo(createVaultPath(choice.path)))}
+          />
+          {value !== '' && (
+            <button
+              type="button"
+              className="quick-add__clear"
+              aria-label={`Clear ${field.label}`}
+              onClick={() => onChange('')}
+            >
+              <Icon name="close" size={12} />
+            </button>
+          )}
         </span>
       );
     case 'date':

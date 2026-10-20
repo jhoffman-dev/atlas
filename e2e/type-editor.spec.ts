@@ -12,6 +12,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from './host.ts';
+import { pickSuggestion, suggestedTitles } from './link-suggest.ts';
 
 const PERSON_TYPE = [
   '---',
@@ -134,9 +135,12 @@ test('a new type with a relation to Person, and a note of it pointing at someone
 
   // The type's notes are on its page beside the editor all along.
   await page.getByRole('button', { name: 'New book' }).click();
-  const author = page.getByRole('region', { name: 'Properties' }).getByLabel('Author');
-  await expect.poll(() => author.locator('option').allTextContents()).toContain('Ada Lovelace');
-  await author.selectOption({ label: 'Ada Lovelace' });
+  const author = page
+    .getByRole('region', { name: 'Properties' })
+    .getByRole('combobox', { name: 'Author', exact: true });
+  await author.click();
+  await expect.poll(() => suggestedTitles(author).allTextContents()).toContain('Ada Lovelace');
+  await pickSuggestion(author, 'Ada Lovelace');
   await expectFile(vault, 'New Book.md').toMatch(/type: book\nauthor: "\[\[Ada Lovelace\]\]"/);
 });
 

@@ -8,6 +8,7 @@ import {
   type ObjectType,
   type PropertyDef,
 } from '@atlas/domain';
+import { pickSuggestion } from './link-suggest/link-suggest.test-support.ts';
 import { QuickAddPopover } from './quick-add-popover.tsx';
 
 const property = (key: string, kind: PropertyDef['kind'], extra: Partial<PropertyDef> = {}) =>
@@ -87,7 +88,9 @@ describe('QuickAddPopover', () => {
       expect(control.classList.contains('field')).toBe(true);
     }
     expect(screen.getByLabelText('Status').closest('.select')).not.toBeNull();
-    expect(screen.getByLabelText('Project').closest('.select')).not.toBeNull();
+    // A link field suggests notes as you type (#465): no select.
+    expect(screen.getByLabelText('Project').getAttribute('role')).toBe('combobox');
+    expect(screen.getByLabelText('Project').closest('.select')).toBeNull();
     expect(screen.getByLabelText('Due').closest('.select')).toBeNull();
   });
 
@@ -115,7 +118,8 @@ describe('QuickAddPopover', () => {
   it('adds on Enter with what was filled in, staying where you were', async () => {
     const { onAdd } = renderFor(TASK);
     await userEvent.selectOptions(screen.getByLabelText('Status'), 'doing');
-    await userEvent.selectOptions(screen.getByLabelText('Project'), 'Garden');
+    await pickSuggestion(screen.getByLabelText('Project'), 'Garden');
+    expect((screen.getByLabelText('Project') as HTMLInputElement).value).toBe('Garden');
     await userEvent.type(screen.getByRole('textbox', { name: 'Task name' }), 'Plant bulbs{Enter}');
 
     expect(onAdd).toHaveBeenCalledWith({
@@ -132,6 +136,16 @@ describe('QuickAddPopover', () => {
     expect(onAdd).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'First', open: true }));
   });
 
+  it('clears a project picked, and writes none', async () => {
+    const { onAdd } = renderFor(TASK);
+    await pickSuggestion(screen.getByLabelText('Project'), 'Garden');
+    await userEvent.click(screen.getByRole('button', { name: 'Clear Project' }));
+    expect((screen.getByLabelText('Project') as HTMLInputElement).value).toBe('');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Task name' }), 'Plant bulbs{Enter}');
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ values: expect.objectContaining({ project: '' }) }),
+    );
+  });
   it('offers "Add and open" as a button too', async () => {
     const { onAdd } = renderFor(PERSON);
     await userEvent.type(screen.getByRole('textbox', { name: 'Person name' }), 'Ada');

@@ -2,6 +2,7 @@
 // names one invariant a cell's write must hold for the note it lands in.
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, emitVaultChanged, expectFile, installHost, sidebarSection } from './host.ts';
+import { pickSuggestion, suggestion } from './link-suggest.ts';
 
 const TASK_TYPE = [
   '---',
@@ -89,7 +90,7 @@ test('linking a third note to a many-relation keeps the two it held as two links
   await cell(page, 'owners').click();
   const relation = picker(page, 'Owners');
   await expect(relation).toBeVisible();
-  await relation.getByRole('combobox').selectOption({ label: 'Ada Lim' });
+  await pickSuggestion(relation.getByRole('combobox'), 'Ada Lim');
 
   await expectFile(vault, 'first.md').toContain('Ada Lim');
   const written = await vault.read('first.md');
@@ -178,13 +179,11 @@ test('removing one link from a many-relation keeps the other', async ({ page }) 
 test('a many-relation picker does not offer a note already linked', async ({ page }) => {
   await openTable(page);
   await cell(page, 'owners').click();
-  const relation = picker(page, 'Owners');
-  await expect(
-    relation.getByRole('combobox').locator('option', { hasText: 'Ada Lim' }),
-  ).toHaveCount(1);
-  await expect(
-    relation.getByRole('combobox').locator('option', { hasText: 'Tobias Fenn' }),
-  ).toHaveCount(0);
+  const field = picker(page, 'Owners').getByRole('combobox');
+  // The picker's field suggests what is not linked yet.
+  await field.click();
+  await expect(suggestion(field, 'Ada Lim')).toHaveCount(1);
+  await expect(suggestion(field, 'Tobias Fenn')).toHaveCount(0);
 });
 
 test('a cell edited again while its last commit is read back is not refused as changed', async ({

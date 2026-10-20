@@ -10,6 +10,7 @@
  */
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { createFromSuggestion, suggestedTitles } from './link-suggest.ts';
 
 const PERSON_TYPE = [
   '---',
@@ -56,13 +57,11 @@ test('a new company from a person’s Company picker is a new note, and the temp
 
   const company = properties(page).getByRole('combobox', { name: 'Company' });
   // The real company is offered; the template that says `type: company` is not.
-  await expect.poll(() => company.locator('option').allTextContents()).toContain('Acme');
-  await expect(company.locator('option')).toHaveText(['— no company —', 'Acme', 'New company…']);
+  await company.click();
+  await expect.poll(() => suggestedTitles(company).allTextContents()).toEqual(['Acme']);
 
-  await company.selectOption({ label: 'New company…' });
-  const name = properties(page).getByRole('textbox', { name: 'Name of the new company' });
-  await name.fill('Larkspur Payroll');
-  await name.press('Enter');
+  // Typed and found nowhere, the name is offered to be made, as a company (#465).
+  await createFromSuggestion(company, 'company', 'Larkspur Payroll');
 
   await expectFile(vault, 'Sam Rivera.md').toContain('company: "[[Larkspur Payroll]]"');
   // Made in the company type's home folder (#214).

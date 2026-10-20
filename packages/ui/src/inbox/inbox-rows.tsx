@@ -5,7 +5,6 @@ import {
   GTD_STATUS_LABELS,
   humanizeKey,
   isGtdStatus,
-  noteNames,
   type GtdStatus,
   type InboxItem,
   type InboxTask,
@@ -13,7 +12,7 @@ import {
 } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
 import type { RelationChoice } from '../properties-panel.tsx';
-import { RelationOptions } from '../relation-options.tsx';
+import { LinkCombobox } from '../link-suggest/link-combobox.tsx';
 import { useSteadyCallback } from '../steady-callback.ts';
 import { Spacer } from '../grouped-rows.tsx';
 import { useVirtualRows } from '../virtual-rows.ts';
@@ -472,12 +471,11 @@ function ClarifyTask({
 }
 
 /**
- * Valued by path, a picker works out no link, so it needs none of the vault's
- * names: reading them would draw every row again each time a note changes.
+ * A picker of notes, valued by path: a field that suggests them as you type
+ * (#465), showing the title of the one it holds while nothing is typed. A
+ * pick is always deliberate — ↵, Tab or a click — never typeahead passing
+ * over an option, as it was in the select this replaces.
  */
-const BY_PATH = noteNames(null);
-
-/** A picker of notes, valued by path. */
 function NotePicker({
   label,
   value,
@@ -496,20 +494,18 @@ function NotePicker({
   /** Which picker a triage key opens (P): named so the key finds it. */
   field?: 'project';
 }) {
+  const current = choices.find((choice) => choice.path === value)?.title;
   return (
-    <select
+    <LinkCombobox
+      label={label}
       className="inbox__file"
-      aria-label={label}
-      {...(field !== undefined && { 'data-field': field })}
-      value={choices.some((choice) => choice.path === value) ? value : ''}
+      placeholder={placeholder}
+      {...(current !== undefined && { current })}
+      choices={choices}
       disabled={disabled}
-      onChange={(event) => {
-        if (event.target.value !== '') onPick(createVaultPath(event.target.value));
-      }}
-    >
-      <option value="">{placeholder}</option>
-      <RelationOptions choices={choices} names={BY_PATH} optionValue={(choice) => choice.path} />
-    </select>
+      onPick={(choice) => onPick(createVaultPath(choice.path))}
+      {...(field !== undefined && { field })}
+    />
   );
 }
 

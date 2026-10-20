@@ -11,6 +11,7 @@ import {
   type InboxPageProps,
 } from './inbox-page.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
+import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 
 /** A captured task, as the Inbox reads one that says nothing yet but its status. */
 const CAPTURED: InboxTask = {
@@ -125,24 +126,21 @@ describe('InboxPage', () => {
     expect(props.onOpen).toHaveBeenCalledWith('Inbox/Meetings/Standup.md');
   });
 
-  it('offers the projects and the areas to file a note under, each under its own', () => {
+  it('offers the projects and the areas to file a note under, each named by its type', async () => {
     page();
     const picker = screen.getByRole('combobox', { name: 'File Idea under' });
-    const groups = [...picker.querySelectorAll('optgroup')];
-    expect(groups.map((group) => group.label)).toEqual(['Projects', 'Areas']);
+    expect(picker.getAttribute('placeholder')).toBe('File under…');
+    await userEvent.click(picker);
+    expect(suggestedTitles()).toEqual(['Atlas', 'Garden']);
     expect(
-      within(picker)
+      within(screen.getByRole('listbox'))
         .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['File under…', 'Atlas', 'Garden']);
+        .map((option) => option.querySelector('.link-suggest__type')?.textContent),
+    ).toEqual(['project', 'area']);
   });
-
   it('files a note that is not a task into the project picked, at once', async () => {
     const props = page();
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'File Standup under' }),
-      'Garden',
-    );
+    await pickSuggestion(screen.getByRole('combobox', { name: 'File Standup under' }), 'Garden');
     expect(props.onClarify).toHaveBeenCalledWith({
       path: 'Inbox/Meetings/Standup.md',
       clarification: { project: 'Areas/Garden.md' },
@@ -152,15 +150,15 @@ describe('InboxPage', () => {
   it('files nothing while a note is being filed, or when there is nothing to file under', () => {
     page({ busy: true });
     expect(
-      (screen.getByRole('combobox', { name: 'File Idea under' }) as HTMLSelectElement).disabled,
+      (screen.getByRole('combobox', { name: 'File Idea under' }) as HTMLInputElement).disabled,
     ).toBe(true);
   });
 
   it('says there is no project or area yet rather than offering an empty list', () => {
     page({ filing: [] });
-    const picker = screen.getByRole('combobox', { name: 'File Idea under' }) as HTMLSelectElement;
+    const picker = screen.getByRole('combobox', { name: 'File Idea under' }) as HTMLInputElement;
     expect(picker.disabled).toBe(true);
-    expect(picker.options[0]?.textContent).toBe('No project or area yet');
+    expect(picker.placeholder).toBe('No project or area yet');
   });
 
   it('says why the last undo could not be done', () => {
@@ -300,7 +298,7 @@ describe('InboxPage — clarifying a task on its row', () => {
   it('does not write a person picked while the row said Waiting once the status was changed again', async () => {
     const props = page();
     await userEvent.selectOptions(control('Status of Call the bank'), 'Waiting');
-    await userEvent.selectOptions(control('Who Call the bank waits on'), 'Mara Quill');
+    await pickSuggestion(control('Who Call the bank waits on'), 'Mara Quill');
     await userEvent.selectOptions(control('Status of Call the bank'), 'Next Action');
     expect(screen.queryByRole('combobox', { name: 'Who Call the bank waits on' })).toBeNull();
     await userEvent.click(done());
@@ -321,7 +319,7 @@ describe('InboxPage — clarifying a task on its row', () => {
     expect((done() as HTMLButtonElement).disabled).toBe(true);
 
     await userEvent.selectOptions(control('Status of Call the bank'), 'Next Action');
-    await userEvent.selectOptions(control('File Call the bank under'), 'Atlas');
+    await pickSuggestion(control('File Call the bank under'), 'Atlas');
 
     expect(props.onClarify).not.toHaveBeenCalled();
     expect((done() as HTMLButtonElement).disabled).toBe(false);
@@ -330,7 +328,7 @@ describe('InboxPage — clarifying a task on its row', () => {
   it('writes the status and the project together on Done', async () => {
     const props = page();
     await userEvent.selectOptions(control('Status of Call the bank'), 'Next Action');
-    await userEvent.selectOptions(control('File Call the bank under'), 'Atlas');
+    await pickSuggestion(control('File Call the bank under'), 'Atlas');
     await userEvent.click(done());
 
     expect(props.onClarify).toHaveBeenCalledTimes(1);
@@ -346,12 +344,10 @@ describe('InboxPage — clarifying a task on its row', () => {
 
     await userEvent.selectOptions(control('Status of Call the bank'), 'Waiting');
     const who = control('Who Call the bank waits on');
-    expect(
-      within(who)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Waiting on…', 'Mara Quill', 'Tobias Fenn']);
-    await userEvent.selectOptions(who, 'Mara Quill');
+    expect(who.getAttribute('placeholder')).toBe('Waiting on…');
+    await userEvent.click(who);
+    expect(suggestedTitles()).toEqual(['Mara Quill', 'Tobias Fenn']);
+    await pickSuggestion(who, 'Mara Quill');
     await userEvent.click(done());
 
     expect(props.onClarify).toHaveBeenCalledTimes(1);
@@ -398,10 +394,8 @@ describe('InboxPage — clarifying a task on its row', () => {
       },
     });
     expect((control('Status of Chase') as HTMLSelectElement).value).toBe('waiting');
-    expect((control('File Chase under') as HTMLSelectElement).value).toBe('Areas/Garden.md');
-    expect((control('Who Chase waits on') as HTMLSelectElement).value).toBe(
-      'People/Tobias Fenn.md',
-    );
+    expect((control('File Chase under') as HTMLInputElement).value).toBe('Garden');
+    expect((control('Who Chase waits on') as HTMLInputElement).value).toBe('Tobias Fenn');
 
     await userEvent.clear(screen.getByLabelText('Chase is due'));
     await userEvent.click(within(rowOf('Chase')).getByRole('button', { name: 'Save' }));
@@ -915,21 +909,21 @@ describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
     expect(onClarify).toHaveBeenCalledOnce();
   });
 
-  it('P opens the project picker; the project picked is held, and Enter writes it, the status unchanged', async () => {
+  it('P opens the project picker; typing narrows it, and Enter writes the project, the status unchanged', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');
     await userEvent.keyboard('p');
     const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
     expect(document.activeElement).toBe(picker);
-    // A closed select changes as typeahead passes over it: that alone writes nothing.
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    // Typing only narrows the suggestions: that alone writes nothing.
+    await userEvent.keyboard('atl');
+    expect(suggestedTitles()).toEqual(['Atlas']);
     expect(onClarify).not.toHaveBeenCalled();
-    fireEvent.keyDown(picker, { key: 'Enter' });
+    await userEvent.keyboard('{Enter}');
     expect(clarified(onClarify)).toEqual([
       { path: 'Inbox/Call the bank.md', clarification: { project: 'Projects/Atlas.md' } },
     ]);
   });
-
   it('T opens the defer date; the day picked is held, and Enter writes it', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');
@@ -950,12 +944,11 @@ describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
     await userEvent.keyboard('p');
     const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
     act(() => picker.blur());
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    await pickSuggestion(picker, 'Atlas');
     expect(onClarify).not.toHaveBeenCalled();
     const done = within(rowOf('Call the bank')).getByRole('button', { name: 'Save' });
     expect((done as HTMLButtonElement).disabled).toBe(false);
   });
-
   it('offers no key for a status the vault’s Task type lacks, and the key does nothing', async () => {
     const { onClarify } = page({
       contents: tasks(),
@@ -980,69 +973,66 @@ describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
     await userEvent.keyboard('p');
     const picker = screen.getByRole('combobox', { name: 'File Standup under' });
     expect(document.activeElement).toBe(picker);
-    fireEvent.change(picker, { target: { value: 'Areas/Garden.md' } });
+    await userEvent.keyboard('gar');
     expect(onClarify).not.toHaveBeenCalled();
-    fireEvent.keyDown(picker, { key: 'Enter' });
+    await userEvent.keyboard('{Enter}');
     expect(clarified(onClarify)).toEqual([
       { path: 'Inbox/Meetings/Standup.md', clarification: { project: 'Areas/Garden.md' } },
     ]);
   });
 
-  it('writes a pick the pointer made from the opened list at once', () => {
+  it('writes a pick the pointer made from the opened list at once', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');
-    fireEvent.keyDown(rowOf('Call the bank'), { key: 'p' });
-    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
-    fireEvent.pointerDown(picker);
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    await userEvent.keyboard('p');
+    await userEvent.keyboard('atl');
+    await userEvent.click(screen.getByRole('option', { name: /^Atlas,/ }));
     expect(clarified(onClarify)).toEqual([
       { path: 'Inbox/Call the bank.md', clarification: { project: 'Projects/Atlas.md' } },
     ]);
   });
-
-  it('does not take a pointer pick for the keys typed after it: typeahead still waits for Enter', () => {
+  it('writes nothing for the letters typed into the armed picker until a note is picked', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');
-    fireEvent.keyDown(rowOf('Call the bank'), { key: 'p' });
-    const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
-    fireEvent.pointerDown(picker);
-    fireEvent.keyDown(picker, { key: 'a' });
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    await userEvent.keyboard('p');
+    fireEvent.pointerDown(screen.getByRole('combobox', { name: 'File Call the bank under' }));
+    await userEvent.keyboard('atlas');
     expect(onClarify).not.toHaveBeenCalled();
   });
-
-  it('Escape leaves the armed picker, gives the row the focus back and drops the pick it held', async () => {
+  it('Escape closes the suggestions, then leaves the armed picker and gives the row the focus back', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');
     await userEvent.keyboard('p');
     const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    await userEvent.keyboard('atl');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(document.activeElement).toBe(picker);
     await userEvent.keyboard('{Escape}');
     expect(document.activeElement).toBe(rowOf('Call the bank'));
-    expect((picker as HTMLSelectElement).value).toBe('');
-    fireEvent.keyDown(picker, { key: 'Enter' });
+    expect((picker as HTMLInputElement).value).toBe('');
     expect(onClarify).not.toHaveBeenCalled();
   });
-
   it('Escape gives back the pick the row held before the key armed the picker', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');
     const picker = screen.getByRole('combobox', { name: 'File Call the bank under' });
     // Held with the mouse, before any key.
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    await pickSuggestion(picker, 'Atlas');
+    focusRow('Call the bank');
     fireEvent.keyDown(rowOf('Call the bank'), { key: 'p' });
-    fireEvent.change(picker, { target: { value: '' } });
-    await userEvent.keyboard('{Escape}');
-    expect((picker as HTMLSelectElement).value).toBe('Projects/Atlas.md');
+    await userEvent.keyboard('gar');
+    await userEvent.keyboard('{Escape}{Escape}');
+    expect((picker as HTMLInputElement).value).toBe('Atlas');
     expect(onClarify).not.toHaveBeenCalled();
   });
-
   it('writes the picks a row holds together with a status key', async () => {
     const { onClarify } = page({ contents: tasks() });
     focusRow('Call the bank');
-    fireEvent.change(screen.getByRole('combobox', { name: 'File Call the bank under' }), {
-      target: { value: 'Projects/Atlas.md' },
-    });
+    await pickSuggestion(
+      screen.getByRole('combobox', { name: 'File Call the bank under' }),
+      'Atlas',
+    );
     fireEvent.keyDown(rowOf('Call the bank'), { key: 'w' });
     await act(async () => {});
     expect(clarified(onClarify)).toEqual([

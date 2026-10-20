@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost } from './host.ts';
+import { pickSuggestion } from './link-suggest.ts';
 
 /**
  * U-13: the floating add button — Task by default, the types set in Settings
@@ -70,7 +71,7 @@ test('with only Task, the button asks for a task at once and adds it', async ({ 
   const popover = page.getByRole('dialog', { name: 'New Task' });
   await expect(popover.getByLabel('Status')).toHaveValue('backlog');
   await popover.getByLabel('Status').selectOption('doing');
-  await popover.getByLabel('Project').selectOption({ label: 'Garden' });
+  await pickSuggestion(popover.getByLabel('Project', { exact: true }), 'Garden');
   await addFromPopover(page, 'Task', 'Renew the passport');
 
   // From the vault's template, with what was filled in.

@@ -15,6 +15,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from '../../e2e/host.ts';
+import { pickSuggestion } from '../../e2e/link-suggest.ts';
 
 const OUT = join(import.meta.dirname, '..', '..', 'design', 'out', 'shots');
 const VAULT = join(import.meta.dirname, '..', '..', 'vault');
@@ -1403,12 +1404,14 @@ async function shootInboxClarify(page: Page, theme: string): Promise<void> {
   const status = inbox.getByRole('combobox', { name: 'Status of Chase the Larkspur quote' });
   await status.waitFor();
   await status.selectOption({ label: 'Waiting' });
-  await inbox
-    .getByRole('combobox', { name: 'Who Chase the Larkspur quote waits on' })
-    .selectOption({ label: 'Mara Quill' });
-  await inbox
-    .getByRole('combobox', { name: 'File Chase the Larkspur quote under' })
-    .selectOption({ label: 'Ledger migration' });
+  await pickSuggestion(
+    inbox.getByRole('combobox', { name: 'Who Chase the Larkspur quote waits on' }),
+    'Mara Quill',
+  );
+  await pickSuggestion(
+    inbox.getByRole('combobox', { name: 'File Chase the Larkspur quote under' }),
+    'Ledger migration',
+  );
   await shoot(page, `inbox-clarify-${theme}`);
   // A refusal on its row. Waiting with nobody picked is no longer one (#202):
   // a note whose frontmatter cannot be read, made a task, is.

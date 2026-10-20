@@ -2,6 +2,7 @@ import { sep } from 'node:path';
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeHost, type FakeVault } from './host.ts';
 import { toastSaying } from './toasts.ts';
+import { pickSuggestion } from './link-suggest.ts';
 
 /**
  * #112: GTD's clarify step on the Inbox page. One Inbox — the folder, and
@@ -146,9 +147,7 @@ test('a task is clarified to Next Action with a project: one Done sets the statu
   await inbox
     .getByRole('combobox', { name: 'Status of Call the bank' })
     .selectOption({ label: 'Next Action' });
-  await inbox
-    .getByRole('combobox', { name: 'File Call the bank under' })
-    .selectOption({ label: 'Atlas' });
+  await pickSuggestion(inbox.getByRole('combobox', { name: 'File Call the bank under' }), 'Atlas');
   // Nothing is written until Done.
   expect(await vault.read('Inbox/Call the bank.md')).toBe(CALL);
   await row(page, 'Call the bank')
@@ -188,7 +187,7 @@ test('Waiting offers who on the same row, needs no one, and writes both together
   const who = inbox.getByRole('combobox', { name: 'Who Chase the quote waits on' });
   await expect(who).toBeVisible();
 
-  await who.selectOption({ label: 'Mara Quill' });
+  await pickSuggestion(who, 'Mara Quill');
   await row(page, 'Chase the quote')
     .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
@@ -246,9 +245,10 @@ test('a task at Inbox outside the Inbox folder is clarified where it lives, link
   await inbox
     .getByRole('combobox', { name: 'Status of Renew the passport' })
     .selectOption({ label: 'Backlog' });
-  await inbox
-    .getByRole('combobox', { name: 'File Renew the passport under' })
-    .selectOption({ label: 'Atlas' });
+  await pickSuggestion(
+    inbox.getByRole('combobox', { name: 'File Renew the passport under' }),
+    'Atlas',
+  );
   await inbox.getByLabel('Renew the passport is due').fill('2027-04-01');
   await row(page, 'Renew the passport')
     .getByRole('button', { name: 'Save', exact: true })
@@ -273,12 +273,11 @@ test('Undo takes the last clarification back: the file returns, saying what it s
   await inbox
     .getByRole('combobox', { name: 'Status of Call the bank' })
     .selectOption({ label: 'Waiting' });
-  await inbox
-    .getByRole('combobox', { name: 'Who Call the bank waits on' })
-    .selectOption({ label: 'Mara Quill' });
-  await inbox
-    .getByRole('combobox', { name: 'File Call the bank under' })
-    .selectOption({ label: 'Atlas' });
+  await pickSuggestion(
+    inbox.getByRole('combobox', { name: 'Who Call the bank waits on' }),
+    'Mara Quill',
+  );
+  await pickSuggestion(inbox.getByRole('combobox', { name: 'File Call the bank under' }), 'Atlas');
   await row(page, 'Call the bank')
     .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');

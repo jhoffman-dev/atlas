@@ -226,8 +226,7 @@
       "commits": 8,
       "renders": 259,
       "calls": {
-        "index_query": 3,
-        "read_notes": 3
+        "index_query": 3
       }
     },
     "Run a 920-row Atlas query": {

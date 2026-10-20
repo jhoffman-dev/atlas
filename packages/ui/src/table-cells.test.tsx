@@ -18,6 +18,7 @@ import {
   type TableSchema,
   type TableViewProps,
 } from './table-view.tsx';
+import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 
 const STATUSES = [
   'inbox',
@@ -378,11 +379,11 @@ describe('a relation cell', () => {
     const onEditCell = table();
     await userEvent.click(stop('Larkspur launch'));
     const select = within(popover('Project')).getByRole('combobox');
-    expect([...select.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
-      'Change project…',
-      'Garden',
-    ]);
-    await userEvent.selectOptions(select, '[[P-02]]');
+    expect(select.getAttribute('placeholder')).toBe('Change project…');
+    // The picker takes the focus as it opens, and with it suggests the notes not linked yet.
+    await userEvent.click(select);
+    expect(suggestedTitles()).toEqual(['Garden']);
+    await pickSuggestion(select, 'Garden');
     expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
       path: 'a.md',
       column: 'project',
@@ -393,7 +394,7 @@ describe('a relation cell', () => {
   it('adds to a relation of several, and removes one by its ×', async () => {
     const onEditCell = table();
     await userEvent.click(stop('Ada Lovelace'));
-    await userEvent.selectOptions(within(popover('People')).getByRole('combobox'), '[[Mara]]');
+    await pickSuggestion(within(popover('People')).getByRole('combobox'), 'Mara Quill');
     expect(onEditCell).toHaveBeenLastCalledWith({
       path: 'a.md',
       column: 'people',
@@ -430,11 +431,8 @@ describe('a relation cell', () => {
     const onEditCell = table({ onCreateRelated });
     await userEvent.click(stop('Larkspur launch'));
     const select = within(popover('Project')).getByRole('combobox');
-    await userEvent.selectOptions(select, 'New project…');
-    await userEvent.type(
-      screen.getByRole('textbox', { name: 'Name of the new project' }),
-      'Fête{Enter}',
-    );
+    await userEvent.type(select, 'Fête');
+    await userEvent.click(screen.getByRole('option', { name: 'Create project ‘Fête’' }));
     expect(onCreateRelated).toHaveBeenCalledWith({ target: 'project', name: 'Fête' });
     await vi.waitFor(() =>
       expect(onEditCell).toHaveBeenCalledWith({

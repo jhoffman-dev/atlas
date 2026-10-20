@@ -1,0 +1,144 @@
+import { useId, useRef, useState } from 'react';
+import { isImeKey } from '../ime.ts';
+import type { RelationChoice } from '../properties-panel.tsx';
+import { LinkSuggestions, type CreateLink, type ListKeys } from './link-suggestions.tsx';
+
+/**
+ * A link or relation field that suggests notes as you type (#465): the one
+ * picker for a relation everywhere a link is set outside the editor — the
+ * properties panel, the right sidebar and the peek, a table's cell, quick
+ * add and the Inbox. An ARIA combobox over `LinkSuggestions`.
+ *
+ * It opens as it takes the focus, is clicked or is typed in, and only then
+ * asks for what it offers (`onOpen`): a field nobody opens reads nothing.
+ * Esc with something typed takes it back and closes the list, and only the
+ * list; with nothing typed — or a second Esc — it is the page's as well.
+ * Picking hands the note over (`onPick`) — how it is written is the
+ * caller's, as it was for the select this replaces — and empties the field.
+ */
+export function LinkCombobox({
+  id,
+  label,
+  placeholder,
+  current,
+  choices,
+  creates,
+  onPick,
+  onCreate,
+  onOpen,
+  disabled = false,
+  field,
+  className = 'link-combo__input',
+}: {
+  id?: string;
+  /** What the field is called, where no `<label>` names it by `id`: "File Weekly review under". */
+  label?: string;
+  placeholder: string;
+  /** What the field holds now, shown while nothing is being typed: a project's title. */
+  current?: string;
+  /** The notes it may link, before any typing narrows them. */
+  choices: readonly RelationChoice[];
+  /** The types a note may be made of from what is typed. */
+  creates?: readonly string[];
+  onPick: (choice: RelationChoice) => void;
+  /** Makes a note of `target` called `name` and links it; rejects with why not. */
+  onCreate?: (request: CreateLink) => Promise<void>;
+  /** The list is opening: what it offers may be gathered only now. */
+  onOpen?: () => void;
+  disabled?: boolean;
+  /** Which picker a triage key opens: named so the key finds it. */
+  field?: string;
+  className?: string;
+}) {
+  const listId = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const keys = useRef<ListKeys | null>(null);
+  const [open, setOpen] = useState(false);
+  /** What is typed; null while nothing is, and the field shows what it holds. */
+  const [typed, setTyped] = useState<string | null>(null);
+
+  const show = () => {
+    if (open || disabled) return;
+    onOpen?.();
+    setOpen(true);
+  };
+  const close = () => {
+    setOpen(false);
+    setTyped(null);
+    keys.current = null;
+  };
+
+  return (
+    <span className="link-combo" data-open={open ? '' : undefined}>
+      <input
+        ref={input}
+        id={id}
+        className={className}
+        role="combobox"
+        {...(label !== undefined && { 'aria-label': label })}
+        aria-autocomplete="list"
+        aria-expanded={open}
+        {...(open && { 'aria-controls': listId })}
+        {...(field !== undefined && { 'data-field': field })}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={placeholder}
+        disabled={disabled}
+        value={typed ?? current ?? ''}
+        // As wide as what it shows, so a relation's chip hugs its prompt as the select did.
+        // Never narrower than its prompt, so it does not jump as typing starts.
+        size={Math.max(MIN_SIZE, placeholder.length, (typed ?? current ?? '').length) + 1}
+        onFocus={(event) => {
+          // What it holds is selected, so typing replaces it.
+          event.currentTarget.select();
+          show();
+        }}
+        onClick={show}
+        onBlur={close}
+        onChange={(event) => {
+          setTyped(event.target.value);
+          show();
+        }}
+        onKeyDown={(event) => {
+          if (isImeKey(event)) return;
+          if (event.key === 'Escape' && open) {
+            // With something typed, Esc takes it back and closes the list, not the
+            // popover or the row it is in; with nothing typed, it is theirs too.
+            if (typed !== null) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+            close();
+            return;
+          }
+          if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+            event.preventDefault();
+            show();
+            return;
+          }
+          if (open) keys.current?.(event);
+        }}
+      />
+      {open && (
+        <LinkSuggestions
+          listId={listId}
+          inputRef={input}
+          keysRef={keys}
+          query={typed ?? ''}
+          choices={choices}
+          {...(creates !== undefined && { creates })}
+          onPick={(choice) => {
+            close();
+            onPick(choice);
+          }}
+          {...(onCreate !== undefined && {
+            onCreate: (request: CreateLink) => onCreate(request).then(close),
+          })}
+        />
+      )}
+    </span>
+  );
+}
+
+/** The fewest characters a link field is wide enough for. */
+const MIN_SIZE = 8;

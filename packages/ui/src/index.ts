@@ -155,6 +155,8 @@ export type { GroupOption } from './view-settings-popovers.tsx';
 export { QueryPage } from './query-page.tsx';
 export type { AddToDashboard, QueryChoice, QueryPageProps, SaveAsView } from './query-page.tsx';
 export { LinkedNote, NoteNamesProvider, useNoteNames } from './note-names.tsx';
+export { LinkHintsProvider, useLinkHints } from './link-suggest/link-hints.tsx';
+export type { LinkHintsSource } from './link-suggest/link-hints.tsx';
 export { ArtifactViewer, ARTIFACT_SANDBOX } from './artifact-viewer.tsx';
 export type { ArtifactViewerCopy } from './artifact-viewer.tsx';
 export { ArtifactCardFace } from './artifact-card-face.tsx';
