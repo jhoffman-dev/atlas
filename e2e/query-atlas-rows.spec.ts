@@ -45,7 +45,8 @@ async function openQueryPage(page: Page, size: { width: number; height: number }
   await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
-  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  // 2,000 notes: a busy CI runner can take longer than the default 5 s to index them.
+  await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'New in Views' }).click();
   await page.getByRole('menuitem', { name: 'New query' }).click();
   await expect(page.getByRole('heading', { name: 'Query', exact: true })).toBeVisible();
