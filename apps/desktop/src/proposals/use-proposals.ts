@@ -76,7 +76,8 @@ function acceptedNotice(accepted: AcceptedProposal): ProposalNotice {
     text: `Accepted: ${accepted.headline}.${archivedNote(accepted)}`,
     opens: made?.path ?? null,
     undoable: true,
-    failed: false,
+    // Left in the Inbox, the proposal is a warning, though the accept itself can be taken back.
+    failed: accepted.archiveProblem !== null,
   };
 }
 
@@ -189,17 +190,9 @@ export function useProposals(options: ProposalsOptions) {
     ) => {
       if (accepted.length === 0 || madeIn !== openVault.current) return;
       setUndoing(true);
-      const named = {
-        activity: logOfVaultOpenNow(activity),
-        write: 'proposal',
-        path: null,
-        refusal: ANSWER_REFUSALS,
-      } as const;
       // Last accepted, first taken back, each checked on its own: one changed since stays, and says why.
-      const undoOne = (one: AcceptedProposal) =>
-        withGiveUpRecorded(named, () => undoAcceptedProposal({ ports, accepted: one }));
-      const undoReject = (one: RejectedProposal) =>
-        withGiveUpRecorded(named, () => undoRejectedProposal({ ports, rejected: one }));
+      const undoOne = (one: AcceptedProposal) => undoAcceptedProposal({ ports, accepted: one });
+      const undoReject = (one: RejectedProposal) => undoRejectedProposal({ ports, rejected: one });
       queue.enqueue(madeIn, async () => {
         const undone = await inTurn([...accepted].reverse(), undoOne);
         // The other values come back only with the accept: while it stands, they would be a second answer.
@@ -208,11 +201,12 @@ export function useProposals(options: ProposalsOptions) {
         const outcome = withReopened(undoneNotice(accepted, undone), reopened);
         setUndoing(false);
         if (madeIn !== openVault.current) return;
-        if (staysOnPage(outcome)) say(outcome.text);
-        else toastProposal({ toasts, notice: outcome, onOpen });
+        // Said where the person is, whether or not they are still on the Inbox: a
+        // refusal as a warning toast, which the toasts keep in Activity, once.
+        toastProposal({ toasts, notice: outcome, onOpen });
       });
     },
-    [activity, ports, queue, say, toasts, onOpen],
+    [ports, queue, toasts, onOpen],
   );
 
   /** Says what an answer did: in a toast with its Undo, or on the page when it failed with nothing to undo. */

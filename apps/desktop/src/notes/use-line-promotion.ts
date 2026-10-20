@@ -31,8 +31,9 @@ const PROMOTION_REFUSALS = [PromotionRefused, TaskRuleRefusedError, UnsavedTypin
  * the task is made and the line rewritten in one use-case, and the window's
  * toast says what was made (UI v2, slice 15), with Open and one Undo that
  * takes back both — a byte-preserving write, refused once either moved on,
- * and nothing once another vault has opened. A failure is said on the page
- * until dismissed; one it gives up on is also recorded in the Activity log.
+ * and nothing once another vault has opened; a refused Undo is a warning
+ * toast. A line that could not become a task is said on the page until
+ * dismissed; one it gives up on is also recorded in the Activity log.
  */
 export function useLinePromotion({
   fs,
@@ -66,27 +67,30 @@ export function useLinePromotion({
   const dismiss = useCallback(() => setSaid(null), []);
   const taskType = useMemo(() => taskTypeOf(types), [types]);
 
+  /**
+   * Takes a promotion back, from its toast. What stops it is said in the
+   * window's toasts too — where the person is, whether or not the pane that
+   * made the task is still up or still shows its note: refused as a warning,
+   * failed as an error, and either kept in Activity by the toasts, once.
+   */
   const undo = useCallback(
     async (promotion: Promotion) => {
-      const named = {
-        activity,
-        write: 'task',
-        path: promotion.source,
-        refusal: PROMOTION_REFUSALS,
-      } as const;
       try {
-        await withGiveUpRecorded(named, () => undoPromotion({ fs, openNotes, promotion }));
+        await undoPromotion({ fs, openNotes, promotion });
         onChanged();
       } catch (error) {
-        setSaid({ path: promotion.source, message: errorMessage(error) });
+        const refused = PROMOTION_REFUSALS.some((refusal) => error instanceof refusal);
+        toasts.show({ message: errorMessage(error), tone: refused ? 'warning' : 'error' });
       }
     },
-    [fs, openNotes, onChanged, activity],
+    [fs, openNotes, onChanged, toasts],
   );
 
   const promote = useCallback(
     async (source: VaultPath, line: PromotedLine) => {
       const named = { activity, write: 'task', path: source, refusal: PROMOTION_REFUSALS } as const;
+      // The vault it is asked in: one opened before the task lands gets none of it.
+      const madeIn = toasts.vaultNow();
       try {
         await flush();
         const promotion = await withGiveUpRecorded(named, () =>
@@ -101,9 +105,9 @@ export function useLinePromotion({
             choice: { source, line: line.index, text: line.text },
           }),
         );
+        if (toasts.vaultNow() !== madeIn) return;
         onChanged();
         setSaid(null);
-        const madeIn = toasts.vaultNow();
         toasts.show({
           message: `“${noteTitle(promotion.task)}” is a task now.`,
           tone: 'change',
@@ -114,7 +118,7 @@ export function useLinePromotion({
           action: { label: 'Open', onClick: () => onOpenNote(promotion.task) },
         });
       } catch (error) {
-        setSaid({ path: source, message: errorMessage(error) });
+        if (toasts.vaultNow() === madeIn) setSaid({ path: source, message: errorMessage(error) });
       }
     },
     [

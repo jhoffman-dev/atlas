@@ -2,8 +2,9 @@
 /**
  * Make task, said in the window's toast (UI v2, slice 15): the task made is
  * said with Open and one Undo that takes back the task and the line — a real
- * write of the bytes the note held, refused once either has moved on, and
- * nothing at all once another vault has opened. A failure stays on the page.
+ * write of the bytes the note held, refused once either has moved on — said
+ * as a warning toast — and nothing at all once another vault has opened. A
+ * line that could not become a task is said on the page.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -110,15 +111,18 @@ describe('Make task, said in a toast', () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it('refuses the Undo once the note has moved on, and says why on the page', async () => {
-    const { files, edit, hook, promote } = promoting();
+  it('refuses the Undo once the note has moved on, and says why in a warning toast', async () => {
+    const { files, edit, hook, promote, shown } = promoting();
     const { toast, task } = await promote();
     const later = `${files.get(PLAN)?.text ?? ''}A line typed elsewhere.\n`;
     edit(PLAN, later);
 
     await act(async () => toast.onUndo?.());
 
-    await waitFor(() => expect(hook.result.current?.notice?.message).toMatch(/changed/i));
+    // Said where the person is — the toast — and not on a page they may have left.
+    await waitFor(() => expect(shown().at(-1)).toMatchObject({ tone: 'warning' }));
+    expect(shown().at(-1)?.message).toMatch(/changed/i);
+    expect(hook.result.current?.notice).toBeNull();
     expect(files.get(PLAN)?.text).toBe(later);
     expect(files.has(task)).toBe(true);
   });

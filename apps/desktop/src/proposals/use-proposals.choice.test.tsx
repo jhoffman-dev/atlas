@@ -89,8 +89,8 @@ describe('Accept choice', () => {
     });
 
     hook.undo();
-    // Nothing taken back is left to undo: the failure stays on the page until read.
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    // Refused: said as a warning toast, where the person is.
+    await waitFor(() => expect(hook.said()?.tone).toBe('warning'));
     expect(setup.files.has(`Archive/${GARDEN}`)).toBe(true);
   });
 });

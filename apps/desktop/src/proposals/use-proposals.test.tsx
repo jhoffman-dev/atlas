@@ -712,7 +712,7 @@ describe('useProposals — an Undo queued behind a later answer (review)', () =>
     expect(setup.files.get(SECOND)?.text).toContain('state: open');
   });
 
-  it('says an undo that failed on the page, and keeps it up until dismissed', async () => {
+  it('says an undo that failed in a warning toast, where the person is', async () => {
     const setup = vault({ [PROPOSAL]: PROPOSAL_TEXT });
     const ports: ProposalPorts = {
       ...setup.ports,
@@ -730,10 +730,9 @@ describe('useProposals — an Undo queued behind a later answer (review)', () =>
     expect(hook.result.current.section.notice).toBeNull();
 
     undo();
-    await waitFor(() => expect(hook.result.current.section.notice).toMatch(/The Trash is locked/));
-    expect(said()).toBeUndefined();
-
-    act(() => hook.result.current.section.onDismissNotice());
+    await waitFor(() => expect(said()?.message).toMatch(/The Trash is locked/));
+    expect(said()).toMatchObject({ tone: 'warning' });
+    expect(said()?.onUndo).toBeUndefined();
     expect(hook.result.current.section.notice).toBeNull();
   });
 });
