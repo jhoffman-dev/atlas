@@ -13,7 +13,12 @@ import {
 import { errorMessage } from './error-message.ts';
 
 /** Writes a note's properties, settling once the write has landed. */
-export type WriteProperties = (args: { path: string; values: PropertyChanges }) => Promise<void>;
+export type WriteProperties = (args: {
+  path: string;
+  values: PropertyChanges;
+  /** What the change did, in the view's words, for the toast that offers to undo it (#320). */
+  said?: string;
+}) => Promise<void>;
 
 /**
  * Moves a card: writes `values`, and draws the card meanwhile as `shown`
@@ -24,6 +29,8 @@ export type MoveProperties = (args: {
   path: string;
   values: PropertyChanges;
   shown: (values: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>;
+  /** What the move did, in the view's words, for the toast that offers to undo it (#320). */
+  said?: string;
 }) => Promise<void>;
 
 /** A board's columns and swimlanes. */
@@ -119,7 +126,7 @@ export function usePendingCards({
   const failedPath = useRef<string | null>(null);
 
   const move = useCallback<MoveProperties>(
-    ({ path, values, shown }) => {
+    ({ path, values, shown, said }) => {
       const now = latest.current;
       const { moving } = store.getState();
       const card: MovingCard = {
@@ -134,7 +141,9 @@ export function usePendingCards({
       failedPath.current = null;
       // As the drop is asked, like Today's rows: only a read of the index since moves on from here.
       const askedAt = now.indexKey;
-      const landed = inTurn(path, () => write({ path, values }));
+      const landed = inTurn(path, () =>
+        write({ path, values, ...(said !== undefined && { said }) }),
+      );
       landed.then(
         () => {
           landedAt.current.set(card, { at: runsBegun(), indexKey: askedAt });

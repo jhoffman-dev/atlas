@@ -9,6 +9,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /**
  * #111: the Today page. On a fixed clock, a vault's tasks land in exactly the
@@ -222,7 +223,9 @@ test('ticking a task finishes it and takes it off the page, and Undo brings it b
   await expectFile(vault, 'Tasks/Draft the plan.md').toContain('status: archive');
   await expectFile(vault, 'Tasks/Draft the plan.md').toContain('completed: 2026-10-13');
 
-  await today(page).getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await toastSaying(page, 'Finished “Draft the plan”.')
+    .getByRole('button', { name: 'Undo' })
+    .click();
 
   await expect(itemsIn(page, 'In progress')).toHaveText(['Draft the plan']);
   await expectFile(vault, 'Tasks/Draft the plan.md').toContain('status: in-progress');
@@ -360,7 +363,9 @@ test('a tick takes the row off the page before its write lands (#260)', async ({
   await expect.poll(() => host.writesTo('Tasks/Draft the plan.md')).toBeGreaterThan(0);
   release();
   await expectFile(vault, 'Tasks/Draft the plan.md').toContain('status: archive');
-  await expect(today(page).getByRole('status').getByRole('button', { name: 'Undo' })).toBeVisible();
+  await expect(
+    toastSaying(page, 'Finished “Draft the plan”.').getByRole('button', { name: 'Undo' }),
+  ).toBeVisible();
   await expect(section(page, 'In progress').getByText('Nothing is under way.')).toBeVisible();
 });
 

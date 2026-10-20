@@ -122,7 +122,7 @@ describe('useToday — attacks on settling by the index key (#239)', () => {
     expect(statusOf(text())).toBe('waiting');
 
     // Undo: the file is next-action again; the index has not caught up yet.
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await waitFor(() => expect(statusOf(text())).toBe('next-action'));
 
     // While the undo's refresh is still running, the window hands new ports:
@@ -145,7 +145,7 @@ describe('useToday — attacks on settling by the index key (#239)', () => {
     indexed.status = 'waiting';
     rerender(props({ ports, indexKey: 'ready:2' }));
     await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(false));
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await waitFor(() => expect(statusOf(text())).toBe('next-action'));
 
     await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'someday' }));
@@ -292,7 +292,7 @@ describe('useToday — attacks on settling by the index key (#239)', () => {
     await waitFor(() => expect(memory.files.get(PATH)).toContain('defer'));
 
     expect(result.current.page.settling.size).toBe(0);
-    expect(result.current.page.notice).toBeNull();
+    expect(result.current.notice).toBeNull();
   });
 
   it('settles on the first read of a moved key even when the write changed nothing the index shows', async () => {

@@ -1,6 +1,7 @@
 import { sep } from 'node:path';
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeHost, type FakeVault } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /**
  * #112: GTD's clarify step on the Inbox page. One Inbox — the folder, and
@@ -286,13 +287,15 @@ test('Undo takes the last clarification back: the file returns, saying what it s
   expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toHaveCount(0);
 
-  const said = inbox.getByRole('status').filter({ hasText: 'Clarified “Call the bank”.' });
+  const said = toastSaying(page, 'Clarified “Call the bank”.');
   await said.getByRole('button', { name: 'Undo' }).click();
 
   await expectFile(vault, 'Inbox/Call the bank.md').toBe(CALL);
   expect(await vault.exists(FILED_CALL)).toBe(false);
   expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toBeVisible();
+  // Its Undo spent, the toast has gone, and the page draws no undo of its own.
+  await expect(said).toHaveCount(0);
   await expect(inbox.getByRole('button', { name: 'Undo' })).toHaveCount(0);
 });
 

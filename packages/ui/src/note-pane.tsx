@@ -41,6 +41,7 @@ import {
 } from './properties-panel.tsx';
 import type { RelationTarget } from './type-editor.tsx';
 import type { OverlaySlots } from './overlay-slot.ts';
+import { delayedSpinner } from './delayed-spinner.tsx';
 
 export type NotePaneState =
   | { readonly kind: 'empty' }
@@ -228,11 +229,8 @@ function PaneMessage({ state }: { state: NotePaneState }) {
       </p>
     );
   }
-  return (
-    <p className="viewer viewer--muted">
-      {state.kind === 'loading' ? 'Reading…' : 'Select a note to read it.'}
-    </p>
-  );
+  if (state.kind === 'loading') return delayedSpinner('Reading the note…');
+  return <p className="viewer viewer--muted">Select a note to read it.</p>;
 }
 
 type ReadyState = Extract<NotePaneState, { kind: 'ready' }>;

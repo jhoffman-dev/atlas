@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 /**
  * The Today page and the weekly review (UI v2 slice 13a, #310): the table
  * view's 34px rows under 15/600 section titles, a row's metadata on one
- * line with a · between the pieces, and the last action on a well notice
- * bar. These hold what the restyle has to carry in both themes: every text
+ * line with a · between the pieces; the last action is said in the
+ * window's toasts (#320), not on a bar of the page's own. These hold what the restyle has to carry in both themes: every text
  * run at AA (WCAG 1.4.3) on the ground it sits on — the surface, a hovered
  * row, the well, a secondary control — and the rows' override gone, so the
  * list places them by the height the table draws.
@@ -67,7 +67,6 @@ function contrast(a: string, b: string): number {
 const tokenIn = (declaration: string | undefined) =>
   /var\((--[\w-]+)\)/.exec(declaration ?? '')?.[1] ?? '';
 
-const notice = blockOf(today, '.today__notice {');
 const link = blockOf(today, '.today__link {');
 const linkWords = blockOf(today, '.today__link-words {');
 const groupName = blockOf(today, '.today__group-name {');
@@ -84,11 +83,8 @@ describe('the Today page and the weekly review', () => {
     expect(today).not.toContain('44px');
   });
 
-  it('draw the last action on the well between hairlines, with no shadow', () => {
-    expect(tokenIn(notice.get('background'))).toBe('--well');
-    expect(tokenIn(notice.get('border-top'))).toBe('--line');
-    expect(tokenIn(notice.get('border-bottom'))).toBe('--line');
-    expect(notice.has('box-shadow')).toBe(false);
+  it('draw no undo bar of their own: the last action is the toast’s (#320)', () => {
+    expect(today).not.toContain('.today__notice');
   });
 
   it('join the metadata with a · in the separator grey, and keep no chip per value', () => {
@@ -123,12 +119,6 @@ describe.each(Object.entries(themes))('Today and review contrast, %s theme', (_n
   it('a group’s name, and the count beside a title, clear AA on the surface', () => {
     expect(on(tokenIn(groupName.get('color')), '--surface')).toBeGreaterThanOrEqual(4.5);
     expect(on(tokenIn(count.get('color')), '--surface')).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('the notice’s words and its Undo, a ghost button, clear AA on the well', () => {
-    const well = tokenIn(notice.get('background'));
-    expect(on(tokenIn(notice.get('color')), well)).toBeGreaterThanOrEqual(4.5);
-    expect(on('--btn-ghost-ink', well)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('the elsewhere strip’s words and Move to… clear AA on the secondary control', () => {

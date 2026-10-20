@@ -88,7 +88,7 @@ describe('useToday on a window-held set of writes', () => {
 
     release();
     await waitFor(() => expect(memory.files.get(PATH)).toContain('status: archive'));
-    await waitFor(() => expect(first.result.current.page.notice?.title).toBe('Ship the page'));
-    expect(second.result.current.page.notice?.title).toBe('Ship the page');
+    await waitFor(() => expect(first.result.current.notice?.title).toBe('Ship the page'));
+    expect(second.result.current.notice?.title).toBe('Ship the page');
   });
 });

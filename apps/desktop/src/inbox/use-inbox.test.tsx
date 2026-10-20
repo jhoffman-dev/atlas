@@ -22,6 +22,7 @@ import {
   TASK_TYPE_FILE,
   type ObjectType,
 } from '@atlas/domain';
+import { createToasts } from '../toasts/toasts.ts';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 
 const CALL = createVaultPath('Inbox/Call the bank.md');
@@ -613,5 +614,110 @@ describe('useInbox — what it hands every row (#217)', () => {
     hook.rerender({ ...initial, types: [fewer] });
 
     expect(hook.result.current.statuses).toEqual(['inbox', 'next-action']);
+  });
+});
+
+describe('useInbox — said in the window’s toasts (#320)', () => {
+  const pressUndo = async (toasts: ReturnType<typeof createToasts>, at = -1) => {
+    const toast = toasts.store.getState().toasts.at(at);
+    await act(async () => {
+      toast?.onUndo?.();
+      toasts.dismiss(toast?.id ?? -1);
+    });
+  };
+
+  it('says a clarification once it is written, with an Undo that puts the note back', async () => {
+    const toasts = createToasts();
+    const { hook, files } = inbox({ toasts });
+    await act(() =>
+      hook.result.current.clarify({
+        path: CALL,
+        clarification: { status: 'next-action', project: createVaultPath('Projects/Atlas.md') },
+      }),
+    );
+    expect(toasts.store.getState().toasts).toMatchObject([
+      { message: 'Clarified “Call the bank”.', tone: 'change' },
+    ]);
+
+    await pressUndo(toasts);
+
+    await waitFor(() => expect(files.get(CALL)).toBe(CAPTURED));
+    expect(files.has('Tasks/2026/10/Call the bank.md')).toBe(false);
+    expect(hook.result.current.lastAction).toBeNull();
+  });
+
+  it('lets the undo go with its toast', async () => {
+    const toasts = createToasts();
+    const { hook, files } = inbox({ toasts });
+    await act(() =>
+      hook.result.current.clarify({ path: CALL, clarification: { status: 'backlog' } }),
+    );
+    const clarified = files.get(CALL);
+    act(() => toasts.dismiss(toasts.store.getState().toasts[0]?.id ?? -1));
+
+    expect(hook.result.current.lastAction).toBeNull();
+    await act(() => hook.result.current.undo());
+    expect(files.get(CALL)).toBe(clarified);
+  });
+
+  it('clears the row’s refusal once its Undo from the toast is written (#455 review)', async () => {
+    const toasts = createToasts();
+    const { hook, initial } = inbox({ toasts });
+    const refusing = {
+      ...initial.ports,
+      fs: {
+        ...initial.ports.fs,
+        moveEntry: async () => {
+          throw new Error('The disk is full.');
+        },
+      },
+    };
+    hook.rerender({ ...initial, ports: refusing });
+    await act(() =>
+      hook.result.current.clarify({
+        path: CALL,
+        clarification: { status: 'next-action', project: createVaultPath('Projects/Atlas.md') },
+      }),
+    );
+    expect(hook.result.current.refusals.map((refusal) => refusal.path)).toEqual([CALL]);
+
+    await pressUndo(toasts);
+
+    await waitFor(() => expect(hook.result.current.refusals).toEqual([]));
+  });
+
+  it('offers an undo that could not be written again, in a toast of its own (#455)', async () => {
+    const toasts = createToasts();
+    const { hook, initial, files } = inbox({ toasts });
+    await act(() =>
+      hook.result.current.clarify({ path: CALL, clarification: { status: 'backlog' } }),
+    );
+    const { fs } = initial.ports;
+    const write = fs.writeTextFile;
+    fs.writeTextFile = async () => {
+      fs.writeTextFile = write;
+      throw new Error('The disk is full.');
+    };
+
+    await pressUndo(toasts);
+    await waitFor(() => expect(hook.result.current.problem).toMatch(/disk is full/));
+    expect(toasts.store.getState().toasts.map((toast) => toast.message)).toEqual([
+      'Clarified “Call the bank”.',
+    ]);
+
+    await pressUndo(toasts);
+    await waitFor(() => expect(files.get(CALL)).toBe(CAPTURED));
+  });
+
+  it('says nothing for a clarification that failed', async () => {
+    const toasts = createToasts();
+    const { hook } = inbox({ toasts });
+    await act(() =>
+      hook.result.current.clarify({
+        path: createVaultPath('Inbox/Gone.md'),
+        clarification: { status: 'backlog' },
+      }),
+    );
+    expect(toasts.store.getState().toasts).toEqual([]);
   });
 });

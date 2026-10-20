@@ -21,14 +21,18 @@ import {
   type TodayReport,
   type UndoableChange,
 } from '@atlas/application';
-import type { TodayAction } from '@atlas/ui';
+import { todayActionWords, type TodayAction } from '@atlas/ui';
 import { errorMessage } from '../query/error-message.ts';
 import { keptTodayReport } from './kept-today-report.ts';
 import { createTodayWrites, NOTHING_SETTLING, type TodayWrites } from './today-writes.ts';
 import { useReviewWrites, type ReviewWritesOptions } from '../review/use-review-writes.ts';
+import type { Toasts } from '../toasts/toasts.ts';
 
 /** How often an open page asks the clock whether the day has turned. */
 const DAY_CHECK_MS = 60_000;
+
+/** The page's one place in the window's toasts: a change takes the place of the one before (#320). */
+const TODAY_TOAST = 'today';
 
 export interface TodayOptions extends Omit<ReviewWritesOptions, 'ports' | 'clock'> {
   readonly ports: ReviewWritesOptions['ports'] & { readonly index: Pick<IndexPort, 'query'> };
@@ -56,6 +60,12 @@ export interface TodayOptions extends Omit<ReviewWritesOptions, 'ports' | 'clock
    * handed none.
    */
   readonly held?: TodayWrites;
+  /**
+   * Where each change is said, with its Undo (#320): the window's toasts,
+   * drawn outside the page so saying it draws no row. Nothing is said when
+   * handed none.
+   */
+  readonly toasts?: Pick<Toasts, 'show'>;
 }
 
 /**
@@ -72,7 +82,8 @@ export interface TodayOptions extends Omit<ReviewWritesOptions, 'ports' | 'clock
  * made after the write is on the page.
  */
 export function useToday(options: TodayOptions) {
-  const { ports, editors, clock, types, vaultKey, indexKey, open, onSettled, activity } = options;
+  const { ports, editors, clock, types, vaultKey, indexKey, open, onSettled, activity, toasts } =
+    options;
   const indexReady = options.indexReady ?? true;
   const [read, setRead] = useState<ReadFrom | null>(null);
   const [own] = useState(createTodayWrites);
@@ -97,6 +108,10 @@ export function useToday(options: TodayOptions) {
   // be of the index from before it, now that a refresh keeps the index ready
   // (#239): the row settles only on a read of an index that has moved since.
   const keyNow = useRef(indexKey);
+  // The vault open now, read when a toast's Undo is pressed: one made in
+  // another vault writes nothing here, through the window's panes or not.
+  const vaultNow = useRef({ index: ports.index, vaultKey });
+  vaultNow.current = { index: ports.index, vaultKey };
   keyNow.current = indexKey;
   const day = useDayOf(clock, open);
   // The types the sidebar's Inbox count is read with, so the page's Inbox link counts the same.
@@ -168,6 +183,53 @@ export function useToday(options: TodayOptions) {
     [settling, indexOpen, vaultKey],
   );
 
+  /** Takes one change back — only while it is still the last one, so an older toast undoes nothing. */
+  const undoChange = useCallback(
+    async (change: LastChange) => {
+      if (held.store.getState().last !== change) return;
+      if (!sameVault(change, vaultNow.current)) return;
+      const { path } = change;
+      const askedAt = keyNow.current;
+      const undone = await actOn(path, (put) => put(change.undo));
+      // An undo that could not be written is offered again, in a toast of its own, to be tried again.
+      if (!undone) {
+        if (sameVault(change, vaultNow.current)) offerAgain.current(change);
+        return;
+      }
+      setLast((was) => (was === change ? null : was));
+      // The task is back as it was, so its row can be acted on again — as what the
+      // file held before the change, which the page's own read may be behind.
+      const since = readsBegun.begun;
+      setSettling((was) => ({
+        ...was,
+        rows: new Map([...was.rows].filter(([row]) => row !== path)),
+        changes: new Map([...was.changes].filter(([row]) => row !== path)),
+        known: new Map([...was.known, [path, { task: change.was, since, askedAt }]]),
+      }));
+    },
+    [held, actOn],
+  );
+  // Said in the window's toasts as the change lands, in its commit, not in an effect after it.
+  const offerAgain = useRef<(change: LastChange) => void>(() => undefined);
+  const announce = useCallback(
+    (change: LastChange) =>
+      toasts?.show({
+        message: todayActionWords(change),
+        tone: 'change',
+        slot: TODAY_TOAST,
+        onUndo: () => void undoChange(change),
+        // The undo lasts as long as the toast offering it: once that has gone, so has the undo.
+        onGone: () => setLast((was) => (was === change ? null : was)),
+      }),
+    [toasts, undoChange, setLast],
+  );
+  useEffect(() => {
+    offerAgain.current = (change) => {
+      setLast(change);
+      announce(change);
+    };
+  });
+
   const change = useCallback(
     async ({ path, title, action, values }: Change) => {
       if (settlingHere.has(path)) return;
@@ -193,15 +255,16 @@ export function useToday(options: TodayOptions) {
       }
       // A change that could not be read back was still made: nothing to offer, and the row settles.
       const { undo: takeBack, was: before } = made as UndoableChange;
-      setLast(
+      const changed =
         takeBack === null
           ? null
-          : { index, vaultKey, path, title, action, undo: takeBack, was: before },
-      );
+          : { index, vaultKey, path, title, action, undo: takeBack, was: before };
+      setLast(changed);
+      if (changed !== null) announce(changed);
       const since = readsBegun.begun;
       setSettling((was) => withLanded(was, { path, values, landed: { since, askedAt } }));
     },
-    [actOn, ports, vaultKey, rows, knownHere, settlingHere],
+    [actOn, ports, vaultKey, rows, knownHere, settlingHere, announce],
   );
 
   const done = useCallback(
@@ -225,26 +288,12 @@ export function useToday(options: TodayOptions) {
     },
     [change, clock, setProblem],
   );
-  const undo = useCallback(async () => {
-    if (undoable === null) return;
-    const { path } = undoable;
-    const askedAt = keyNow.current;
-    const undone = await actOn(path, (put) => put(undoable.undo));
-    // An undo that could not be written stays on offer, to be tried again.
-    if (!undone) return;
-    setLast((was) => (was === undoable ? null : was));
-    // The task is back as it was, so its row can be acted on again — as what the
-    // file held before the change, which the page's own read may be behind.
-    const since = readsBegun.begun;
-    setSettling((was) => ({
-      ...was,
-      rows: new Map([...was.rows].filter(([row]) => row !== path)),
-      changes: new Map([...was.changes].filter(([row]) => row !== path)),
-      known: new Map([...was.known, [path, { task: undoable.was, since, askedAt }]]),
-    }));
-  }, [undoable, actOn]);
+  const undo = useCallback(
+    async () => (undoable === null ? undefined : undoChange(undoable)),
+    [undoable, undoChange],
+  );
   const dismiss = useCallback(() => setLast(null), []);
-  // One notice per change, kept across renders, so its bar's time runs from when it was shown (#165).
+  // One notice per change, kept across renders, so its time runs from when it was shown (#165).
   const undoNow = useRef(undo);
   useEffect(() => {
     undoNow.current = undo;
@@ -265,13 +314,14 @@ export function useToday(options: TodayOptions) {
   return {
     /** Whether the vault has tasks, which is when the page's sidebar row shows. */
     shown: taskTypeOf(types) !== null,
+    /** The last change, while it can be taken back — as its toast offers. */
+    notice,
     page: {
       today: shownToday,
       error: current?.error ?? null,
       busy,
       problem,
       settling: settlingHere,
-      notice,
       onDone: done,
       onSetStatus: setStatus,
       onDefer: defer,

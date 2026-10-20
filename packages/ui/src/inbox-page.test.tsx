@@ -474,67 +474,10 @@ describe('InboxPage — clarifying a task on its row', () => {
     });
   });
 
-  it('offers to take the last clarification back', async () => {
-    const onUndo = vi.fn();
-    page({ lastAction: { title: 'Call the bank' }, onUndo, onDismissLastAction: vi.fn() });
-    const said = screen.getByRole('status');
-    expect(said.textContent).toContain('Clarified “Call the bank”.');
-    await userEvent.click(within(said).getByRole('button', { name: 'Undo' }));
-    expect(onUndo).toHaveBeenCalledOnce();
-  });
-
-  it('offers no undo when nothing was clarified', () => {
-    page({ onUndo: vi.fn() });
+  it('draws no undo bar of its own: a clarification is said in the window’s toasts (#320)', () => {
+    page();
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
-  });
-});
-
-describe('InboxPage — the undo bar goes by itself (#165)', () => {
-  afterEach(() => vi.useRealTimers());
-
-  it('dismisses “Clarified …” and its Undo after 20 seconds', () => {
-    vi.useFakeTimers();
-    const onDismissLastAction = vi.fn();
-    page({ lastAction: { title: 'Call the bank' }, onUndo: vi.fn(), onDismissLastAction });
-
-    act(() => vi.advanceTimersByTime(19_900));
-    expect(onDismissLastAction).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(200));
-    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
-  });
-
-  it('waits while the pointer is on it', () => {
-    vi.useFakeTimers();
-    const onDismissLastAction = vi.fn();
-    page({ lastAction: { title: 'Call the bank' }, onUndo: vi.fn(), onDismissLastAction });
-    const said = screen.getByRole('status');
-
-    fireEvent.pointerEnter(said);
-    act(() => vi.advanceTimersByTime(120_000));
-    expect(onDismissLastAction).not.toHaveBeenCalled();
-    fireEvent.pointerLeave(said);
-    act(() => vi.advanceTimersByTime(20_100));
-    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('InboxPage — a second clarification of the same title (review)', () => {
-  afterEach(() => vi.useRealTimers());
-
-  it('gives it the full 20 seconds again', () => {
-    vi.useFakeTimers();
-    const onDismissLastAction = vi.fn();
-    const view = page({
-      lastAction: { title: 'Call the bank' },
-      onUndo: vi.fn(),
-      onDismissLastAction,
-    });
-    act(() => vi.advanceTimersByTime(15_000));
-    view.rerender({ lastAction: { title: 'Call the bank' } });
-    act(() => vi.advanceTimersByTime(15_000));
-    expect(onDismissLastAction).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(5_100));
-    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.inbox__done')).toBeNull();
   });
 });
 

@@ -256,6 +256,15 @@ pnpm tauri:dev</pre>
         <li><b>A narrow window</b> folds the right sidebar first — under about 1020px with the left sidebar open — and the left sidebar never folds on its own. Asking for the right sidebar there (the button, <kbd>⌥⌘\</kbd> or <kbd>⌘J</kbd>) hides the left one to make room; <kbd>⌘\</kbd> brings it back. <kbd>Esc</kbd> inside the sidebar puts the focus back on the page.</li>
       </ul>
       <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings and the light/dark switch sit at the bottom of the sidebar (<kbd>⌘,</kbd>), beside the <a href="#sync">sync</a> light once sync is set up. <kbd>⌘J</kbd> opens <a href="#claude">Claude</a> in the right sidebar's <b>Claude</b> tab.</p>
+      <h3 id="undo">Undo, and what Atlas tells you</h3>
+      <p>A change you make from a list is said in a small dark box at the bottom right — <i>Finished “Send the Larkspur invoice”.</i>, <i>Clarified “Call the bank”.</i>, <i>Moved “Call Mara Quill” to waiting.</i> on a board, <i>Changed “Call Mara Quill”.</i> for a cell — with <b>Undo</b> and a <b>×</b>.</p>
+      <ul>
+        <li><b>Where it happens.</b> Ticking, moving or deferring a task on <a href="#today">Today</a>, clarifying a row in the <a href="#para">Inbox</a>, and, in a view's table, board, calendar or timeline, editing a cell, ticking a box or dragging a card or a bar.</li>
+        <li><b>Undo puts the note back byte for byte</b> — your comments, quoting and spacing as you wrote them — not the old values written afresh. It is refused if the note has changed since, by you, another pane, another app or sync, and the box says so in amber: <i>“Send the Larkspur invoice” has changed since — its properties changed — so the change was not undone.</i> It is refused too while the note has unsaved typing in a pane. A change to a note open in a pane is that pane's to undo (<kbd>⌘Z</kbd>), so a view offers no Undo for it.</li>
+        <li><b>It goes by itself after 5 seconds</b>, and its Undo with it. It waits while the pointer is on it or <kbd>Tab</kbd> has reached its Undo; it never takes the focus. Up to three show at once, oldest on top. Today and the Inbox each keep one: their next change takes the last one's place, and only the last can be undone. An error stays until you press <b>×</b>.</li>
+        <li><b>Missed one?</b> Warnings (amber) and errors (red) are also lines in <a href="#activity">Activity</a>, so one that went while you were looking elsewhere can be found later. A change that worked isn't: the file is its record.</li>
+        <li><b>Loading.</b> A page or note that takes more than about 150 ms to read shows a small turning ring where it will be; anything quicker shows nothing at all, so nothing flashes.</li>
+      </ul>
     </section>
 
     <section id="notes">
@@ -446,7 +455,7 @@ pnpm tauri:dev</pre>
         <li>Only a project or an area still in use can be chosen — not one waiting in the Inbox itself, and not an archived one.</li>
         <li><b>A refusal shows on the row</b> it was for, in red, and what you picked stays picked. Nothing was written — except when the status was saved and the filing then failed: the row says so, and the task stays where it was with its new status.</li>
         <li><b>Only statuses your Task type has.</b> A vault whose tasks are still on statuses of their own is offered only the GTD statuses its Task type declares, and is never given one it doesn't; <a href="#tasks">move the tasks to GTD</a> to get all eight. A person picked while the row said Waiting isn't written if you change the status again before Save.</li>
-        <li><b>Undo.</b> After each one the page says <i>Clarified “Call the bank”.</i> with <b>Undo</b>: the note goes back where it was and says exactly what it said. Only the last one can be undone, and not once the note has been changed since. The line goes by itself after 20 seconds, and the undo with it; it waits while the pointer is on it or <kbd>Tab</kbd> has reached its Undo. Today's <i>Finished …</i> line and a checklist line's <i>… is a task now.</i> go the same way; a checklist line's refusal, with nothing to undo, stays until you dismiss it.</li>
+        <li><b>Undo.</b> Once each one is saved, the <a href="#undo">box at the bottom right</a> says <i>Clarified “Call the bank”.</i> with <b>Undo</b>: the note goes back where it was and says exactly what it said. Only the last one can be undone, and not once the note has been changed since. The box goes by itself after 5 seconds, and the undo with it; it waits while the pointer is on it or <kbd>Tab</kbd> has reached its Undo. A checklist line's <i>… is a task now.</i> stays on the note's page, for 20 seconds; its refusal, with nothing to undo, stays until you dismiss it.</li>
         <li><b>Work down the list.</b> Once a row is done — by a key or by <b>Save</b> — the next row has the focus, so the list is worked top to bottom from the keyboard; <kbd>Tab</kbd> walks its name, status, project and dates. A vault whose Task type lacks a status is not offered its key.</li>
         <li><b>Make task</b>, on a plain note with no type, makes it a task waiting in the Inbox, to clarify like any other.</li>
         <li>Proposals aren't filed: they're answered, in the page's <a href="#proposals">Proposals</a> section, and are never in this list.</li>
@@ -1004,7 +1013,7 @@ ORDER BY phase</pre>
         <li><b>Move to…</b> any other status, <b>Waiting</b> included — it never asks who.</li>
         <li><b>+1d</b> and <b>+7d</b> — defer until tomorrow, or for a week. The task leaves the page and comes back that day.</li>
       </ul>
-      <p>The page updates in place. A row acts on what it showed you: if the task has changed since the page read it — ticked in another view, say — the action is refused and says so, and nothing is written. A row you have just acted on takes no other action until the page has caught up. A line at the top offers <b>Undo</b> for the last thing you did — it puts back exactly what the action changed, as it was written, and refuses if the task has been edited since. Everything is reachable with <kbd>Tab</kbd>; after a row leaves, focus lands on the row that was under it, so <kbd>Space</kbd> ticks down a list.</p>
+      <p>The page updates in place. A row acts on what it showed you: if the task has changed since the page read it — ticked in another view, say — the action is refused and says so, and nothing is written. A row you have just acted on takes no other action until the page has caught up. The <a href="#undo">box at the bottom right</a> offers <b>Undo</b> for the last thing you did — it puts back exactly what the action changed, as it was written, and refuses if the task has been edited since. Everything is reachable with <kbd>Tab</kbd>; after a row leaves, focus lands on the row that was under it, so <kbd>Space</kbd> ticks down a list.</p>
       <p>If your vault has a saved view titled <b>Today</b>, the sidebar still shows one Today row — the page — and the page links to your view from its top right: <b>Open the “Today” view</b>.</p>
       <h3>The weekly review</h3>
       <p><b>Weekly review</b> in the sidebar, under the Inbox — or <kbd>⌘K</kbd> → <b>Weekly review</b> — puts GTD's questions of the week on one page:</p>
@@ -1742,7 +1751,7 @@ do: archive</pre>
         <li>Each <a href="#sync">sync</a> — what it saved, brought in and sent — plus conflicts, files left out and failures.</li>
         <li>Saves a note gives up on; edits kept on screen after a failed save show as a warning.</li>
         <li>Writes a screen gives up on, under <b>Saves</b>: an edit in a view or dashboard, a view saved, a query added to a dashboard, a card added, an image, an artifact or its copy, a setting, the Local API's switch and token, a weekly review action, a task planned on the calendar or its Undo, a proposal answered, a note filed from the Inbox, <b>Make task</b> or its Undo, and a term added or its spellings changed. One line each. Something refused before anything is written — a name already taken, a file that isn't an image, a block changed since — isn't recorded; the screen says why.</li>
-        <li>Every red notice. One failure is one line.</li>
+        <li>Every red notice, and every warning or error said in the <a href="#undo">box at the bottom right</a> — an Undo refused, say. One failure is one line.</li>
       </ul>
       <p>Not recorded: typing, autosaves, reads, note contents, secrets, folder paths, or the “update links?” offer.</p>
       <h3>Where it's kept</h3>

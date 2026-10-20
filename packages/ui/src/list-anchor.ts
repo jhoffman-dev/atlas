@@ -13,7 +13,7 @@ export interface ListAnchorParts {
   readonly list: RefObject<HTMLElement | null>;
   /**
    * A `display: contents` wrapper of what the page says back to the person —
-   * an undo bar, why an undo failed. It answers what they just did, so as it
+   * why an undo failed. It answers what they just did, so as it
    * comes it is let push the list down rather than scrolled out of their
    * sight; as it goes, the list is held.
    */
@@ -265,7 +265,7 @@ function answersHeight(parts: ListAnchorParts): number {
 
 /**
  * How much of a move came from the answers growing above the anchor: let
- * through. Answers going — an undo bar running out — are nothing the person
+ * through. Answers going — one dismissed, say — are nothing the person
  * did, so the list is held as they shrink.
  */
 function answersCame(parts: ListAnchorParts, now: Placed, before: Placed): number {
