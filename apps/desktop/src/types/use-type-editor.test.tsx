@@ -58,16 +58,18 @@ function setUp({ failWrite = null }: { failWrite?: string | null } = {}) {
   };
   const onSaved = vi.fn();
   const openNotes = { setPropertiesIfOpen: async () => false };
-  const hook = renderHook(() =>
-    useTypeEditor({
-      fs,
-      markdown: remarkMarkdown,
-      index,
-      openNotes,
-      type,
-      types: [type],
-      onSaved,
-    }),
+  const hook = renderHook(
+    ({ shown }: { shown: DefinedType }) =>
+      useTypeEditor({
+        fs,
+        markdown: remarkMarkdown,
+        index,
+        openNotes,
+        type: shown,
+        types: [type],
+        onSaved,
+      }),
+    { initialProps: { shown: type } },
   );
   const typeOnDisk = () =>
     parseObjectType(
@@ -75,7 +77,7 @@ function setUp({ failWrite = null }: { failWrite?: string | null } = {}) {
         splitFrontmatter(files.get(TYPE_PATH) ?? '').frontmatter,
       ),
     );
-  return { hook, files, onSaved, typeOnDisk };
+  return { hook, files, onSaved, typeOnDisk, type };
 }
 
 const status = (text: string | undefined) => /status: (.*)/.exec(text ?? '')?.[1];
@@ -239,6 +241,41 @@ describe('useTypeEditor', () => {
       target: 'task',
     });
     expect(hook.result.current.notice).toBeNull();
+  });
+
+  it('keeps its changes over a re-read older than them, until its own re-read lands', async () => {
+    // #456: a re-read begun before a kind change landed reached the editor
+    // after it, with nothing pending, and the next pick ("Points at") was
+    // worked out from it: "Author is not a relation", and the pick was lost.
+    const { hook, typeOnDisk, onSaved, type } = setUp();
+    const rereads: (() => void)[] = [];
+    onSaved.mockImplementation(() => new Promise<void>((resolve) => rereads.push(resolve)));
+    act(() => {
+      hook.result.current.edit({ kind: 'addProperty', label: 'Author' });
+      hook.result.current.edit({ kind: 'changeKind', key: 'author', propertyKind: 'relation' });
+    });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(2));
+    // The type as read before either change, shown before the re-read the saves asked for.
+    hook.rerender({ shown: { ...type } });
+    expect(hook.result.current.draft?.properties.at(-1)?.kind).toBe('relation');
+    act(() =>
+      hook.result.current.edit({ kind: 'setRelation', key: 'author', target: 'task', many: true }),
+    );
+    // Saved, or refused with a notice: whichever, then said which.
+    await waitFor(() =>
+      expect(onSaved.mock.calls.length === 3 || hook.result.current.notice !== null).toBe(true),
+    );
+    expect(hook.result.current.notice).toBeNull();
+    expect(typeOnDisk().properties.at(-1)).toMatchObject({
+      key: 'author',
+      kind: 'relation',
+      target: 'task',
+      many: true,
+    });
+    // Its own re-reads landed, what the file says is shown again.
+    await act(async () => rereads.forEach((landed) => landed()));
+    hook.rerender({ shown: { ...typeOnDisk(), path: type.path, label: 'Chore' } });
+    expect(hook.result.current.draft?.label).toBe('Chore');
   });
 
   it('reports each note it could not rewrite, and rewrites the rest', async () => {
