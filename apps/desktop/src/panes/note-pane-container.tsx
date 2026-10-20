@@ -79,6 +79,7 @@ import {
 } from '@atlas/ui';
 import { useNote, type NotePorts } from '../notes/use-note.ts';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
+import type { ReadTypesAgain } from '../types/use-types.ts';
 import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { hideOverlay, showOverlay } from '../overlay-store.ts';
 import { pageMenuOverlay, panePopupOverlay, paneOverlayOf } from '../overlay.ts';
@@ -179,7 +180,7 @@ export interface PaneContext {
   /** Every sync of the index's news: a hidden tab hears here that its note changed outside. */
   readonly changes: NoteChanges;
   /** Re-reads the types as well, after this pane wrote a type file; settles once they are read. */
-  readonly onTypeSaved: () => Promise<void>;
+  readonly onTypeSaved: ReadTypesAgain;
   readonly suggestNotes: (query: string) => NoteSuggestion[];
   /** Tags offered after `#`. */
   readonly suggestTags: (query: string) => readonly TagSuggestion[];

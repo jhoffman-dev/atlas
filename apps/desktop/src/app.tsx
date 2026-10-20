@@ -546,7 +546,7 @@ function AppWindow({
   }, [reload, refresh]);
   const typesChanged = useCallback(() => {
     onChanged();
-    reloadTypes();
+    void reloadTypes();
   }, [onChanged, reloadTypes]);
   // PARA's types are written into a vault that lacks them as it opens (P30-01).
   const typesOffer = useBuiltInTypes({

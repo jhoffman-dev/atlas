@@ -28,6 +28,7 @@ import { PageFrameFallback } from '../page-frame-fallback.tsx';
 import { schemaOf } from '../panes/table-schema.ts';
 import type { useTypeTable } from './use-type-table.ts';
 import { useTypeEditor } from './use-type-editor.ts';
+import type { ReadTypesAgain } from './use-types.ts';
 
 /**
  * A type's own page: its name, renamed in place, and — for a type with no
@@ -68,7 +69,7 @@ export function TypePage({
     index: IndexPort;
     openNotes: Pick<OpenNotes, 'setPropertiesIfOpen'>;
   };
-  onSaved: () => Promise<void>;
+  onSaved: ReadTypesAgain;
   /** Opens a row's note; `how` is where the click asked for it, when it said. */
   onOpenNote: (path: VaultPath, how?: OpenHow) => void;
   /** Makes a note of this type, from the foot of its table. */
