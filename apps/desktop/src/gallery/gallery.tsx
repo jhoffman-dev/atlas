@@ -34,6 +34,7 @@ import {
   type TableSchema,
   type TabStripTab,
 } from '@atlas/ui';
+import { PeekSpecimen } from './peek-specimen.tsx';
 
 /**
  * Every primitive, in both themes, side by side.
@@ -518,6 +519,10 @@ function Specimens() {
 
       <Row title="Table">
         <TableSpecimen />
+      </Row>
+
+      <Row title="Peek">
+        <PeekSpecimen />
       </Row>
 
       <Row title="Right sidebar">

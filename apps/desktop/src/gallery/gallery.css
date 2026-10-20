@@ -105,3 +105,13 @@
   overflow: hidden;
   width: 960px;
 }
+
+/* The rows the peek specimen opens, as a table's would. */
+.gallery-page__peek-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

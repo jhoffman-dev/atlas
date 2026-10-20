@@ -287,8 +287,11 @@ function HistoryButton({
   );
 }
 
-/** The "…" menu. Open state, focus, typeahead and Escape are Base UI's (ADR-0015). */
-function PageMenu({
+/**
+ * The "…" menu, on a page's bar and on the peek's. Open state, focus,
+ * typeahead and Escape are Base UI's (ADR-0015).
+ */
+export function PageMenu({
   items,
   open,
   onOpenChange,

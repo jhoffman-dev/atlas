@@ -249,6 +249,14 @@ const GLYPHS = {
   pulse: <path d="M3 12h4l2.5-6 5 12 2.5-6h4" {...round} {...joined} />,
   check: <path d="M6 12.5l4 4 8-8.5" {...round} {...joined} strokeWidth={2.2} />,
   up: <path d="M12 5v14M6.5 10.5L12 5l5.5 5.5" {...round} {...joined} strokeWidth={2} />,
+  // The peek's previous and next row, and its "open in new tab" (FlowPeek.dc.html).
+  down: <path d="M12 19V5M6.5 13.5L12 19l5.5-5.5" {...round} {...joined} strokeWidth={2} />,
+  tab: (
+    <>
+      <rect x="3.5" y="5.5" width="17" height="14" rx="3" {...line} />
+      <path d="M3.5 10h17M10 5.5V10" {...line} />
+    </>
+  ),
   // The chat's own: Claude's spark, and what a message can do.
   spark: (
     <path
