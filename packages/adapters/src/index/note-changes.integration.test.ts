@@ -49,7 +49,9 @@ const FILES_TABLE = `
     target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
   CREATE TABLE IF NOT EXISTS props (path TEXT NOT NULL, key TEXT NOT NULL,
     idx INTEGER NOT NULL DEFAULT 0, value_text TEXT, value_num REAL, value_date TEXT,
-    value_json TEXT);`;
+    value_json TEXT);
+  CREATE TABLE IF NOT EXISTS links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL,
+    kind TEXT NOT NULL, leaf TEXT NOT NULL DEFAULT '');`;
 
 interface SentNote {
   path: string;

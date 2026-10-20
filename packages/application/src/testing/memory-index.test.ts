@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   compileGraphQuery,
   compileNoteFacetsQuery,
-  compileRelationHoldersQuery,
+  compileLinkHoldersQuery,
   compileTagCountsQuery,
   type GraphQueryPart,
 } from '@atlas/domain';
@@ -42,9 +42,9 @@ const NOTES = [
   note('b.md', {
     properties: [prop('type', 1, 'second'), prop('type', 0, 'task'), prop('status', 0, 'done')],
     links: [
-      { target: 'a', path: 'a.md', kind: 'wikilink' },
-      { target: 'nowhere', path: null, kind: 'wikilink' },
-      { target: 'a.md', path: 'a.md', kind: 'markdown' },
+      { target: 'a', leaf: 'a', path: 'a.md', kind: 'wikilink' },
+      { target: 'nowhere', leaf: 'nowhere', path: null, kind: 'wikilink' },
+      { target: 'a.md', leaf: 'a', path: 'a.md', kind: 'markdown' },
     ],
     tags: [
       { key: 'x', name: 'X' },
@@ -92,11 +92,8 @@ describe('the in-memory index, beside the one in SQLite', () => {
     }
   });
 
-  it('answers the tag counts and the relation holders with the same rows', async () => {
-    for (const { sql, parameters } of [
-      compileTagCountsQuery(0),
-      compileRelationHoldersQuery(['b', 'nobody']),
-    ]) {
+  it('answers the tag counts with the same rows', async () => {
+    for (const { sql, parameters } of [compileTagCountsQuery(0)]) {
       const [memory, sqlite] = await Promise.all(
         [memoryIndexPort(), sqliteIndexPort()].map(async (index) =>
           (await filled(index)).query(sql, parameters),
@@ -104,6 +101,30 @@ describe('the in-memory index, beside the one in SQLite', () => {
       );
       expect(sorted(memory?.rows ?? [])).toEqual(sorted(sqlite?.rows ?? []));
       expect(memory?.rows.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('answers which notes hold a link a note made or gone moves, by relation or in the body', async () => {
+    const cases: [Parameters<typeof compileLinkHoldersQuery>, string[]][] = [
+      // a.md's relation names b, and points elsewhere than the new x/b.md.
+      [[{ made: ['x/b.md'], gone: [] }], ['a.md']],
+      // Only b.md's body link names nowhere.
+      [[{ made: ['p/Nowhere.md'], gone: [] }], ['b.md']],
+      // b.md's body links point at a.md, which has gone.
+      [[{ made: [], gone: ['a.md'] }], ['b.md']],
+      // Already the note it means: a.md's relation is not moved by b.md coming back (#440).
+      [[{ made: ['b.md'], gone: [] }], []],
+      [[{ made: ['x/b.md', 'nowhere.md'], gone: [] }, 1], ['b.md']],
+    ];
+    for (const [query, holders] of cases) {
+      const { sql, parameters } = compileLinkHoldersQuery(...query);
+      const [memory, sqlite] = await Promise.all(
+        [memoryIndexPort(), sqliteIndexPort()].map(async (index) =>
+          (await filled(index)).query(sql, parameters),
+        ),
+      );
+      expect(sqlite?.rows, JSON.stringify(query)).toEqual(holders.map((path) => [path]));
+      expect(memory?.rows, JSON.stringify(query)).toEqual(sqlite?.rows);
     }
   });
 

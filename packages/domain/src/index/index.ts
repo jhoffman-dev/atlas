@@ -5,13 +5,14 @@ export { summaryOf } from './summary.ts';
 export { matchingCommands } from './palette-commands.ts';
 export type { PaletteCommand } from './palette-commands.ts';
 export {
-  compileRelationHoldersQuery,
+  compileLinkHoldersQuery,
+  LINK_NAMES_PER_QUERY,
   linkedName,
+  linkLeaf,
   linkTargets,
   relationsOf,
-  RELATION_NAMES_PER_QUERY,
 } from './relation-rows.ts';
-export type { IndexableRelation } from './relation-rows.ts';
+export type { IndexableRelation, LinkChanges } from './relation-rows.ts';
 export {
   arrivedPaths,
   noteChangesBetween,

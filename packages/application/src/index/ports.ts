@@ -34,6 +34,8 @@ export interface IndexEntry extends NoteVersion {
 export interface IndexedLinkRow {
   /** The link exactly as written. */
   readonly target: string;
+  /** The last part of the target as links fold it (`linkLeaf`), for finding the link again (#431). */
+  readonly leaf: string;
   /** The note it resolves to, or null when it points nowhere yet. */
   readonly path: string | null;
   readonly kind: 'wikilink' | 'markdown';

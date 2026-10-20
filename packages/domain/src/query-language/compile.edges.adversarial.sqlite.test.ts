@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { indexablePropertiesOf } from '../index/property-value.ts';
-import { compileRelationHoldersQuery, linkedName, relationsOf } from '../index/relation-rows.ts';
+import { compileLinkHoldersQuery, relationsOf } from '../index/relation-rows.ts';
 import { resolveWikiLinkTarget } from '../markdown/resolve-wikilink.ts';
 import { toBoardRows } from '../query/group-rows.ts';
 import { tagKey } from '../tags/tag-name.ts';
@@ -31,7 +31,9 @@ const SCHEMA = `
                       value_text TEXT, value_num REAL, value_date TEXT, value_json TEXT);
   CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                           target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
-  CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);`;
+  CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
+  CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL,
+                      leaf TEXT NOT NULL DEFAULT '');`;
 
 function indexOf(notes: readonly Note[]) {
   const paths = notes.map((note) => createVaultPath(note.path));
@@ -279,7 +281,7 @@ describe('the relations a new or removed note makes stale (adversarial)', () => 
         .prepare('INSERT INTO relations (src, key, idx, target, name) VALUES (?, ?, 0, ?, ?)')
         .run(row.src, 'project', row.target, relation?.name ?? '');
     }
-    const { sql, parameters } = compileRelationHoldersQuery([linkedName(changedPath)]);
+    const { sql, parameters } = compileLinkHoldersQuery({ made: [changedPath], gone: [] });
     return (database.prepare(sql).all(...parameters) as { path: string }[]).map((row) => row.path);
   };
 
