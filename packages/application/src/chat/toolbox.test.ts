@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { CHAT_READ_TOOLS } from '@atlas/domain';
 import { apiFixture, VAULT } from '../testing/api-fixture.ts';
 import { blockMarkdown } from '../testing/block-markdown.ts';
-import { READ_TOOL_SPECS, TOOL_RESULT_CHARACTERS } from './read-tools.ts';
+import { NOTE_READ_CHARACTERS } from './note-page.ts';
+import { READ_TOOL_SPECS } from './read-tools.ts';
 import { createChatToolbox, createToolboxes } from './toolbox.ts';
 
 function toolbox(files: Record<string, string>, index = {}) {
@@ -112,27 +113,27 @@ describe('the chat toolbox', () => {
     expect(result).toMatchObject({ isError: true, content: expect.stringMatching(/^no_vault/) });
   });
 
-  it('cuts a very long result', async () => {
-    const { box } = toolbox({ 'Long.md': 'x'.repeat(TOOL_RESULT_CHARACTERS * 2) });
+  it('answers a note too long for one read as its first page, saying how to read on', async () => {
+    const { box } = toolbox({ 'Long.md': 'x'.repeat(NOTE_READ_CHARACTERS * 2) });
     const { result } = await box.run({
       id: 'c',
       name: 'atlas_read_note',
       input: { path: 'Long.md' },
     });
-    // Cut, it is still JSON the model can read, saying it was cut.
-    expect(result.content.length).toBeLessThanOrEqual(TOOL_RESULT_CHARACTERS);
-    expect(JSON.parse(result.content)).toMatchObject({
-      cut: { note: expect.stringMatching(/ask for fewer results/) },
-    });
+    // Still JSON the model can read, saying where the next page starts.
+    expect(result.content.length).toBeLessThanOrEqual(NOTE_READ_CHARACTERS);
+    const { page } = JSON.parse(result.content) as { page: { next: number; note: string } };
+    expect(page.next).toBeGreaterThan(0);
+    expect(page.note).toContain(`offset ${page.next}`);
   });
 
   it('reads a 60 KB note through to its last line (#415)', async () => {
     const lines = Array.from(
-      { length: 1000 },
+      { length: 1550 },
       (_, at) => `Line ${at}: gulls over the harbour wall.`,
     );
     const text = `${lines.join('\n')}\nThe very last line of the logbook.\n`;
-    expect(text.length).toBeGreaterThan(40_000);
+    expect(text.length).toBeGreaterThan(58_000);
     const { box } = toolbox({ 'Logbook.md': text });
     const { result } = await box.run({
       id: 'c',

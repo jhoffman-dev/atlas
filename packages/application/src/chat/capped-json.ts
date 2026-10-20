@@ -53,7 +53,7 @@ function longestList(body: Fields): string | null {
 }
 
 /** The largest count from 0 to `most` that fits, by halving; null when not even 0 does. */
-function mostThatFit(most: number, fits: (count: number) => boolean): number | null {
+export function mostThatFit(most: number, fits: (count: number) => boolean): number | null {
   if (!fits(0)) return null;
   let [low, high] = [0, most];
   while (low < high) {

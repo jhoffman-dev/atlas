@@ -109,14 +109,16 @@ describe('a result too long for the model', () => {
   });
 
   it('answers JSON for one too-long value, holding the start of the answer', async () => {
-    const api = vault({ 'Long.md': `x${'x'.repeat(TOOL_RESULT_CHARACTERS * 2)}\n` });
+    const api = vault({
+      '.atlas/templates/Long.md': `x${'x'.repeat(TOOL_RESULT_CHARACTERS * 2)}\n`,
+    });
 
-    const result = await run(api, 'atlas_read_note', { path: 'Long.md' });
+    const result = await run(api, 'atlas_read_template', { name: 'Long' });
     const body = JSON.parse(result.content) as { cut: { note: string }; start: string };
 
     expect(result.content.length).toBeLessThanOrEqual(TOOL_RESULT_CHARACTERS);
     expect(body.cut.note).toMatch(/ask for fewer/);
-    expect(body.start.startsWith('{"note":')).toBe(true);
+    expect(body.start.startsWith('{"template":')).toBe(true);
   });
 });
 

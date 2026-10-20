@@ -52,7 +52,9 @@ describe('contextSection', () => {
       path: null,
       text: 'x'.repeat(CONTEXT_CHARACTERS + 10),
     });
-    expect(section).toContain('(cut here; read the rest with a tool)');
+    expect(section).toContain(
+      '(cut here: 10 more characters of it are not shown; read the rest with a tool)',
+    );
     expect(section).not.toContain('x'.repeat(CONTEXT_CHARACTERS + 1));
     expect(section).not.toContain('path=');
   });
