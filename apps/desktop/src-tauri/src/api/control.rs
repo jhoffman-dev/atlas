@@ -876,8 +876,8 @@ mod tests {
         );
     }
 
-    /// Only a hang guard: status() answers in microseconds, so a test that
-    /// reaches it would otherwise wait for ever behind the lock.
+    /// Only a hang guard: status() answers, and a release wait begins, in
+    /// microseconds, so a test that reaches it would otherwise wait for ever.
     const STATUS_HANG_GUARD: std::time::Duration = std::time::Duration::from_secs(30);
 
     /// Off, on, off, on in quick succession, a child's copy of the listener
@@ -929,7 +929,9 @@ mod tests {
         let toggling = control.clone();
         let forward = echo(&control);
         let turning_on = std::thread::spawn(move || toggling.set_enabled(true, forward));
-        waiting_began.recv().unwrap();
+        waiting_began
+            .recv_timeout(STATUS_HANG_GUARD)
+            .expect("the release wait never began");
         let off = control.set_enabled(false, echo(&control)).unwrap();
         turning_on.join().unwrap().unwrap();
         drop(held);
