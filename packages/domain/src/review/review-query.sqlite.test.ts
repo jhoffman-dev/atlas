@@ -97,6 +97,7 @@ describe('compileReviewTasksQuery', () => {
         contexts: ['@office', '@calls'],
         project: 'Projects/Atlas.md',
         projectTitle: 'Atlas',
+        projectLinks: ['atlas'],
         modified: 1234,
       },
     ]);

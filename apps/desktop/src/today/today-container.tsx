@@ -24,7 +24,7 @@ export function TodayContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
   // Read again for news of the tasks, the projects and the Inbox alone: a
   // note saved elsewhere does not draw the page (#325). And of the notes the
-  // tasks last read are filed under, whatever their type (#392).
+  // tasks last read are filed under, whatever their type, or link by (#392).
   const [scope, setScope] = useState<ReadScope>(REVIEW_SCOPE);
   const indexKey = useScopedIndexKey({
     status: pane.indexStatus,
@@ -48,7 +48,7 @@ export function TodayContainer({ wiring, chrome }: PageContainerProps) {
   // Set while drawing, as React has a value from the last draw kept: the page
   // is drawn once again before anything is shown, with no commit between.
   const read = todayScope(today.page.today);
-  if (notesOf(read) !== notesOf(scope)) setScope(read);
+  if (namesOf(read) !== namesOf(scope)) setScope(read);
   return (
     <TodayPage
       {...today.page}
@@ -62,4 +62,6 @@ export function TodayContainer({ wiring, chrome }: PageContainerProps) {
   );
 }
 
-const notesOf = (scope: ReadScope) => (scope.notes ?? []).join('\n');
+/** The notes and the link names a scope adds to the review's, as one text to compare. */
+const namesOf = (scope: ReadScope) =>
+  [...(scope.notes ?? []), '', ...(scope.linkedNames ?? [])].join('\n');
