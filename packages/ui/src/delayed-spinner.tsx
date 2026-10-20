@@ -11,15 +11,16 @@ export const SPINNER_DELAY_MS = 150;
  * stylesheet's own clock, so a read that lands sooner never flashes a
  * spinner, and no skeleton stands in for what is coming. The block holds the
  * ring's place from the start, so nothing moves as it appears; `label` is
- * what a screen reader hears.
+ * what a screen reader hears — the live region's own words, drawn nowhere.
  *
  * An element, not a component: the wait costs no state, no timer and no
  * render — a page opening draws nothing more for it (the work budgets).
  */
 export function delayedSpinner(label: string) {
   return (
-    <p className="spinner" role="status" aria-label={label}>
+    <p className="spinner" role="status">
       <span className="spinner__ring" aria-hidden />
+      <span className="visually-hidden">{label}</span>
     </p>
   );
 }

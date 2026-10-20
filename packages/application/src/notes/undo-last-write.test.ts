@@ -138,6 +138,22 @@ describe('undoLastWrite', () => {
     );
   });
 
+  it('is refused, as changed since, once the note was moved or deleted (#455)', async () => {
+    const vault = vaultWith(TEXT);
+    const record = await vault.write({ status: 'Waiting' });
+    const gone = {
+      ...vault.fs,
+      readTextFile: async () => Promise.reject(new Error('No such file')),
+    };
+
+    const undo = undoLastWrite({ fs: gone, panes: vault.panes, record });
+
+    await expect(undo).rejects.toThrow(ChangedSinceError);
+    await expect(undo).rejects.toThrow(
+      '“Send the Larkspur invoice” could not be read — it was moved or deleted since — so the change was not undone.',
+    );
+  });
+
   it('is refused while a pane holds unsaved typing in the note', async () => {
     const vault = vaultWith(TEXT);
     const record = await vault.write({ status: 'Waiting' });

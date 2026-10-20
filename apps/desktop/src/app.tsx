@@ -1900,7 +1900,7 @@ function AppWindow({
           notices={
             <>
               {notices}
-              <ToastHost toasts={toasts} activity={activityLog}>
+              <ToastHost toasts={toasts} activity={activityLog} vault={vaultKey}>
                 {granolaToast}
               </ToastHost>
             </>

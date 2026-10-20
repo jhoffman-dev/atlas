@@ -77,7 +77,7 @@ function setUp() {
     });
   };
   const text = () => memory.files.get(PATH) ?? '';
-  return { ...hook, toasts, shown, pressUndo, text, files: memory.files };
+  return { ...hook, toasts, shown, pressUndo, text, files: memory.files, fs: ports.fs };
 }
 
 describe('useToday and the toasts', () => {
@@ -130,6 +130,25 @@ describe('useToday and the toasts', () => {
     await page.pressUndo(first);
     expect(page.text()).toBe(deferred);
     expect(page.result.current.notice?.title).toBe('Call Mara Quill');
+  });
+
+  it('offers an undo that could not be written again, in a toast of its own, to be tried again', async () => {
+    const page = setUp();
+    await waitFor(() => expect(page.result.current.page.today).not.toBeNull());
+    await act(async () => page.result.current.page.onDone(ROW));
+    const write = page.fs.writeTextFile;
+    page.fs.writeTextFile = async () => {
+      page.fs.writeTextFile = write;
+      throw new Error('The disk is full.');
+    };
+
+    await page.pressUndo();
+    await waitFor(() => expect(page.result.current.page.problem).toMatch(/disk is full/));
+    expect(page.shown().map((toast) => toast.message)).toEqual(['Finished “Ship the page”.']);
+    expect(page.result.current.notice).not.toBeNull();
+
+    await page.pressUndo();
+    await waitFor(() => expect(page.text()).toBe(TEXT));
   });
 
   it('refuses an undo over a later edit, and keeps the edit', async () => {

@@ -361,7 +361,8 @@ describe('TableView', () => {
 
   it('says it is working before results arrive, with the delayed spinner (#320)', () => {
     render(<TableView {...props} result={null} />);
-    const spinner = screen.getByRole('status', { name: 'Running the view…' });
+    const spinner = screen.getByRole('status');
+    expect(spinner.textContent).toBe('Running the view…');
     expect(spinner.querySelector('.spinner__ring')).not.toBeNull();
   });
 });

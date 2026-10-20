@@ -13,10 +13,11 @@ describe('delayedSpinner', () => {
     expect(SPINNER_DELAY_MS).toBe(150);
   });
 
-  it('is named for what it waits on, with a ring and no words to see', () => {
+  it('says what it waits on in words a screen reader hears and nobody sees, beside a ring', () => {
     render(<div>{delayedSpinner('Reading the day…')}</div>);
-    const spinner = screen.getByRole('status', { name: 'Reading the day…' });
-    expect(spinner.querySelector('.spinner__ring')).not.toBeNull();
-    expect(spinner.textContent).toBe('');
+    const spinner = screen.getByRole('status');
+    expect(spinner.textContent).toBe('Reading the day…');
+    expect(spinner.querySelector('.visually-hidden')?.textContent).toBe('Reading the day…');
+    expect(spinner.querySelector('.spinner__ring')?.getAttribute('aria-hidden')).toBe('true');
   });
 });

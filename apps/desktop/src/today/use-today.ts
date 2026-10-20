@@ -108,6 +108,10 @@ export function useToday(options: TodayOptions) {
   // be of the index from before it, now that a refresh keeps the index ready
   // (#239): the row settles only on a read of an index that has moved since.
   const keyNow = useRef(indexKey);
+  // The vault open now, read when a toast's Undo is pressed: one made in
+  // another vault writes nothing here, through the window's panes or not.
+  const vaultNow = useRef({ index: ports.index, vaultKey });
+  vaultNow.current = { index: ports.index, vaultKey };
   keyNow.current = indexKey;
   const day = useDayOf(clock, open);
   // The types the sidebar's Inbox count is read with, so the page's Inbox link counts the same.
@@ -183,11 +187,15 @@ export function useToday(options: TodayOptions) {
   const undoChange = useCallback(
     async (change: LastChange) => {
       if (held.store.getState().last !== change) return;
+      if (!sameVault(change, vaultNow.current)) return;
       const { path } = change;
       const askedAt = keyNow.current;
       const undone = await actOn(path, (put) => put(change.undo));
-      // An undo that could not be written stays on offer, to be tried again.
-      if (!undone) return;
+      // An undo that could not be written is offered again, in a toast of its own, to be tried again.
+      if (!undone) {
+        if (sameVault(change, vaultNow.current)) offerAgain.current(change);
+        return;
+      }
       setLast((was) => (was === change ? null : was));
       // The task is back as it was, so its row can be acted on again — as what the
       // file held before the change, which the page's own read may be behind.
@@ -202,6 +210,7 @@ export function useToday(options: TodayOptions) {
     [held, actOn],
   );
   // Said in the window's toasts as the change lands, in its commit, not in an effect after it.
+  const offerAgain = useRef<(change: LastChange) => void>(() => undefined);
   const announce = useCallback(
     (change: LastChange) =>
       toasts?.show({
@@ -214,6 +223,12 @@ export function useToday(options: TodayOptions) {
       }),
     [toasts, undoChange, setLast],
   );
+  useEffect(() => {
+    offerAgain.current = (change) => {
+      setLast(change);
+      announce(change);
+    };
+  });
 
   const change = useCallback(
     async ({ path, title, action, values }: Change) => {

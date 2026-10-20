@@ -1,7 +1,10 @@
 import { createStore, type StoreApi } from 'zustand';
 import type { ToastShown } from '@atlas/ui';
 
-/** How many toasts show at once; one more lets the oldest go. */
+/**
+ * How many toasts show at once; one more lets the oldest go — an error
+ * among them, which otherwise stays until dismissed: Activity keeps it.
+ */
 export const MAX_TOASTS = 3;
 
 /** A toast asked for: what it says, and what it can take back. */
@@ -36,11 +39,20 @@ export interface Toasts {
   /** Shows a toast and answers with its id. */
   show(request: ToastRequest): number;
   dismiss(id: number): void;
+  /**
+   * Says which vault is open. Another one opening lets every toast go, since
+   * each toast's Undo belongs to the vault it was made in; nothing happens
+   * when none is up, or the vault is the same.
+   */
+  openVault(vault: string | null): void;
+  /** The vault open now, as last said: an Undo made in another writes nothing. */
+  vaultNow(): string | null;
 }
 
 export function createToasts(): Toasts {
   const store = createStore<ToastsState>()(() => ({ toasts: [] }));
   let shown = 0;
+  let open: string | null = null;
   /** Takes the toasts `going` picks out of the queue, and tells each it has gone. */
   const letGo = (going: (toast: QueuedToast, at: number) => boolean, adding?: QueuedToast) => {
     const { toasts } = store.getState();
@@ -65,5 +77,11 @@ export function createToasts(): Toasts {
       return toast.id;
     },
     dismiss: (id) => letGo((toast) => toast.id === id),
+    openVault: (vault) => {
+      if (vault === open) return;
+      open = vault;
+      if (store.getState().toasts.length > 0) letGo(() => true);
+    },
+    vaultNow: () => open,
   };
 }

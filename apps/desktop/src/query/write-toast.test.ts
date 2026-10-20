@@ -85,3 +85,21 @@ describe('sayWritten', () => {
     expect(view.shown()[0]?.message).toContain('The disk is full.');
   });
 });
+
+describe('sayWritten across a vault switch (#455)', () => {
+  it('lets its toast go as another vault opens, and its Undo, pressed late, writes nothing', async () => {
+    const view = viewWith(AFTER);
+    view.toasts.openVault('/vaults/a');
+    sayWritten({ record, undo: view.undo });
+    const [toast] = view.shown();
+
+    view.toasts.openVault('/vaults/b');
+    expect(view.shown()).toEqual([]);
+    toast?.onUndo?.();
+    await Promise.resolve();
+
+    expect(view.memory.files.get(PATH)).toBe(AFTER);
+    expect(view.onUndone).not.toHaveBeenCalled();
+    expect(view.shown()).toEqual([]);
+  });
+});

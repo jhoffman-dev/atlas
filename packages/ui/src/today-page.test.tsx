@@ -356,7 +356,7 @@ describe('TodayPage', () => {
 
   it('shows the read’s failure in place of the sections, and waits while there is none yet', () => {
     const { rerender } = page({ today: null });
-    expect(screen.getByRole('status', { name: 'Reading the day…' })).toBeDefined();
+    expect(screen.getByRole('status').textContent).toBe('Reading the day…');
     rerender({ today: null, error: 'the index is closed' });
     expect(screen.getByRole('alert').textContent).toBe('the index is closed');
     expect(screen.queryByRole('region')).toBeNull();

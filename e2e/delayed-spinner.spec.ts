@@ -22,7 +22,7 @@ test('a slow read shows nothing at 149 ms, the spinner at 150, and the note once
   await sidebarSection(page, 'userSpace')
     .getByRole('treeitem', { name: 'Larkspur Payroll', exact: true })
     .click();
-  const spinner = page.getByRole('status', { name: 'Reading the note…' });
+  const spinner = page.getByRole('status').filter({ hasText: 'Reading the note…' });
   await expect(spinner).toBeAttached();
 
   const ring = spinner.locator('.spinner__ring');

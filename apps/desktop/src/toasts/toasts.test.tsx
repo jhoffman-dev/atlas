@@ -102,3 +102,33 @@ describe('ToastHost', () => {
     ]);
   });
 });
+
+describe('the toasts and another vault (#455)', () => {
+  it('lets every toast go when another vault opens, telling each it has gone', () => {
+    const toasts = createToasts();
+    const gone = vi.fn();
+    const activity = { record: vi.fn() };
+    const { rerender } = render(
+      <ToastHost toasts={toasts} activity={activity} vault="/vaults/a" />,
+    );
+    act(() => void toasts.show({ message: 'Finished “A”.', tone: 'change', onGone: gone }));
+    rerender(<ToastHost toasts={toasts} activity={activity} vault="/vaults/a" />);
+    expect(said(toasts)).toHaveLength(1);
+
+    rerender(<ToastHost toasts={toasts} activity={activity} vault="/vaults/b" />);
+
+    expect(said(toasts)).toEqual([]);
+    expect(gone).toHaveBeenCalledTimes(1);
+  });
+
+  it('changes nothing, and draws nothing, when none is up or the vault is the same', () => {
+    const toasts = createToasts();
+    const before = toasts.store.getState();
+    toasts.openVault('/vaults/a');
+    expect(toasts.store.getState()).toBe(before);
+    toasts.show({ message: 'x', tone: 'change' });
+    toasts.openVault('/vaults/a');
+    expect(said(toasts)).toEqual(['x']);
+    expect(toasts.vaultNow()).toBe('/vaults/a');
+  });
+});

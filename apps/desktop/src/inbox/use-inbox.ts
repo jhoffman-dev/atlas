@@ -274,10 +274,19 @@ export function useInbox(options: InboxOptions) {
   );
 
   const last = told?.last ?? null;
-  /** Takes one clarification back — only while it is still the last one, so an older toast undoes nothing. */
+  // The vault open now, read as an undo ends: a vault opened meanwhile is offered nothing of the last one's.
+  const vaultNow = useRef(vaultKey);
+  vaultNow.current = vaultKey;
+  /**
+   * Takes one clarification back — only while it is still the last one of the
+   * vault open now, so an older toast, or one made in another vault, undoes nothing.
+   */
   const undoClarification = useCallback(
     (taken: LastClarification) => {
-      if (!settled || held.store.getState().said?.last !== taken) return Promise.resolve(false);
+      const shown = held.store.getState().said;
+      if (!settled || shown?.vaultKey !== vaultKey || shown.last !== taken) {
+        return Promise.resolve(false);
+      }
       const asked = vaultKey;
       const path = taken.undo.to;
       const named = { activity: logOfVaultOpenNow(activity), write: 'edit', path } as const;
@@ -295,8 +304,9 @@ export function useInbox(options: InboxOptions) {
               }),
             );
             writes.markUndone(taken.undo);
+            // Its toast has gone by now — pressing Undo sends it — so the last may already be let go.
             setSaid((before) =>
-              before?.vaultKey === asked && before.last === taken
+              before?.vaultKey === asked && (before.last === taken || before.last === null)
                 ? {
                     ...before,
                     problem: null,
@@ -307,13 +317,16 @@ export function useInbox(options: InboxOptions) {
             );
             return { done: true, wrote: true };
           } catch (cause) {
-            say(asked, { problem: errorMessage(cause), last: 'kept' });
+            // Not taken back: it is offered again, in a toast of its own, to be tried again.
+            const still = vaultNow.current === asked;
+            say(asked, { problem: errorMessage(cause), last: still ? taken : 'kept' });
+            if (still) announce(taken);
             return NOT_WRITTEN;
           }
         })
         .finally(() => setUndoing((count) => count - 1));
     },
-    [settled, held, vaultKey, activity, writes, ports, say, setSaid],
+    [settled, held, vaultKey, activity, writes, ports, say, setSaid, announce],
   );
   const undo = useCallback(
     () => (last === null ? Promise.resolve(false) : undoClarification(last)),

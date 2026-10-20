@@ -56,7 +56,8 @@ export async function writeUndoably<Result>({
  * held before, never a blind overwrite. Refused with
  * {@link ChangedSinceError} — nothing written — once the note says anything
  * other than what the write left, a property or a word of the body; with
- * {@link UnsavedTypingError} while a pane holds unsaved typing in it. The
+ * {@link UnsavedTypingError} while a pane holds unsaved typing in it, and
+ * as changed since when it cannot be read — moved or deleted. The
  * write itself is guarded by the stamp and the whole text just read, so a
  * change landing in between is refused by the host too. A pane showing the
  * note without typing reads it again.
@@ -72,7 +73,13 @@ export async function undoLastWrite({
 }): Promise<void> {
   const { path } = record;
   if (panes.state(path) === 'dirty') throw new UnsavedTypingError(path);
-  const now = await fs.readTextFile(path);
+  const now = await fs.readTextFile(path).catch(() => {
+    // The host does not tell a missing file from an unreadable one; either way
+    // there is nothing here to put the bytes back over, and the undo is refused.
+    throw new ChangedSinceError(
+      `“${noteTitle(path)}” could not be read — it was moved or deleted since — so the change was not undone.`,
+    );
+  });
   const undo = writeUndo({ record, now: now.text });
   if (undo.kind === 'already') return;
   if (undo.kind === 'changed') throw new ChangedSinceError(changedSince(path, undo.part));
