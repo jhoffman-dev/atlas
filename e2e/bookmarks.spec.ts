@@ -11,6 +11,7 @@ import {
   solidPng,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd, caretAtLineStart } from './caret.ts';
 
 /**
  * Bookmarks (U-21, P22): a link can be shown as a card with the page's
@@ -53,8 +54,7 @@ test('a link switched to a bookmark shows the page, is saved with its marker, an
   await openPlans(page);
 
   // A link, typed as ever.
-  await page.getByText('The summer, roughly.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('The summer, roughly.'));
   await page.keyboard.type(' [[Rom');
   await page
     .getByRole('listbox', { name: 'Link to note' })
@@ -126,8 +126,7 @@ test('a card opens its note by a click or Mod+Enter; Enter starts a line after i
 
   await openPlans(page);
   // From the keyboard: up from the paragraph below selects the card.
-  await page.getByText('Packing list.').click();
-  await page.keyboard.press('Home');
+  await caretAtLineStart(page.getByText('Packing list.'));
   await page.keyboard.press('ArrowUp');
   await expect(page.locator('.bookmark--selected')).toBeVisible();
   // Enter does what it does after any block: a new line, ready to type.
@@ -141,8 +140,7 @@ test('a card opens its note by a click or Mod+Enter; Enter starts a line after i
   await expect(page.getByRole('article', { name: 'Plans' })).toBeVisible();
 
   // Mod+Enter opens it.
-  await page.getByText('Also Naples.').click();
-  await page.keyboard.press('Home');
+  await caretAtLineStart(page.getByText('Also Naples.'));
   await page.keyboard.press('ArrowUp');
   await expect(page.locator('.bookmark--selected')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+Enter');
@@ -162,8 +160,7 @@ test('a card is a hairline card at rest and wears the focus ring once selected',
   await expect(card).toHaveCSS('border-top-width', '1px');
   await expect(card).toHaveCSS('border-radius', '4px');
 
-  await page.getByText('Packing list.').click();
-  await page.keyboard.press('Home');
+  await caretAtLineStart(page.getByText('Packing list.'));
   await page.keyboard.press('ArrowUp');
   await expect(card).toHaveClass(/bookmark--selected/);
   await expect(card).not.toHaveCSS('box-shadow', 'none');
@@ -200,8 +197,7 @@ test('Shift+Enter in the [[ list puts the link in as a bookmark', async ({ page 
   const vault = await openVault(page);
   await openPlans(page);
 
-  await page.getByText('Packing list.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Packing list.'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('[[Rom');
   const list = page.getByRole('listbox', { name: 'Link to note' });

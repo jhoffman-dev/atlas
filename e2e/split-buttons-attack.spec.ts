@@ -7,6 +7,7 @@ import {
   sidebarSection,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 // Adversarial pass on issue #9: the pane bar's Split right and Close pane buttons.
 // Several of these fail on purpose — each is a bug found, left red for the fix:
@@ -44,8 +45,7 @@ const openNote = (page: Page, name: string) =>
   sidebarSection(page, 'userSpace').getByRole('treeitem', { name, exact: true }).click();
 
 async function typeInto(page: Page, which: 1 | 2, existing: string, addition: string) {
-  await pane(page, which).getByText(existing).click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(pane(page, which).getByText(existing));
   await page.keyboard.type(addition);
 }
 

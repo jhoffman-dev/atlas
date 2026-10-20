@@ -8,6 +8,7 @@ import {
   pageCommand,
   saveNow,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * A small web: Hub links to Spoke; Task points at Hub through a `project`
@@ -65,8 +66,7 @@ test('a note linked from the menu gets the link in its file, and a backlink on i
 test('/link at the start of a line links a note at the cursor', async ({ page }) => {
   const vault = await openLinkedVault(page);
   await openNote(page, 'Far');
-  await page.getByText('The edge.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('The edge.'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('/link');
   await page

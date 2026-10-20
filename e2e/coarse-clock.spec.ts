@@ -9,6 +9,7 @@ import {
   saveNow,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * Another program's write on a disk whose clock is coarse (#245): HFS+ keeps
@@ -51,8 +52,7 @@ test('a save from a note another program rewrote in the same tick is refused, no
   const vault = await openTheNote(page);
   await writeInTheSameTick(vault, 'note.md', THEIRS);
 
-  await page.getByText('Ship on Monday.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Ship on Monday.'));
   await page.keyboard.type(' Typed here.');
   await saveNow(page);
 

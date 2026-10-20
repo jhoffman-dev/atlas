@@ -159,4 +159,31 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // End and Home do not move the caret in WebKit on macOS, and ProseMirror
+    // can put the caret back 20 ms after a click (#445, #448).
+    files: ['e2e/**/*.spec.ts'],
+    // These press End and Home on lists and tables whose own keyboard
+    // handling is under test, never in the editor.
+    ignores: [
+      'e2e/sidebar-geometry.attack-332.spec.ts',
+      'e2e/sidebar-keyboard.spec.ts',
+      'e2e/sidebar-scroll.spec.ts',
+      'e2e/table-grouped.attack-252.spec.ts',
+      'e2e/table-keyboard.attack-244.spec.ts',
+      'e2e/table-keyboard.spec.ts',
+      'e2e/today-optimistic.attack-274.spec.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name='press'][arguments.0.value=/^(End|Home)$/]",
+          message:
+            'End and Home do not move the caret in WebKit on macOS: use caretAtLineEnd or caretAtLineStart from e2e/caret.ts.',
+        },
+      ],
+    },
+  },
 );
