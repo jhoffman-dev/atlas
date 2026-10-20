@@ -77,7 +77,11 @@ export interface GranolaPullController {
   readonly toast: string | null;
   /** How many times a toast has been shown: the Toast's `key`, so the same words again start its time afresh. */
   readonly toastShown: number;
-  readonly dismissToast: () => void;
+  /**
+   * Lets the showing counted `shown` go. A later showing is left up: the Toast
+   * it replaces can time out before the window draws the new one.
+   */
+  readonly dismissToast: (shown: number) => void;
   readonly syncNow: () => void;
   /** Takes the key's status the host answered a change of key with. */
   readonly knowKey: (status: GranolaKeyStatus) => void;
@@ -265,9 +269,13 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
     lastPullAt: mine.lastPullAt,
     toast: mine.toast,
     toastShown: mine.toastShown,
-    dismissToast: useCallback(() => {
-      if (vaultKey !== null) update(vaultKey, () => ({ toast: null }));
-    }, [vaultKey, update]),
+    dismissToast: useCallback(
+      (shown: number) => {
+        if (vaultKey === null) return;
+        update(vaultKey, (known) => (known.toastShown === shown ? { toast: null } : {}));
+      },
+      [vaultKey, update],
+    ),
     syncNow: useCallback(() => void pull('sync-now'), [pull]),
     knowKey: useCallback(
       (key: GranolaKeyStatus) => {
