@@ -61,9 +61,10 @@ function cellText(value: unknown): string {
 
 /** The context as the system prompt carries it: fenced, labelled as data, and cut to size. */
 export function contextSection(context: ChatContext): string {
+  const left = context.text.length - CONTEXT_CHARACTERS;
   const cut =
-    context.text.length > CONTEXT_CHARACTERS
-      ? `${context.text.slice(0, CONTEXT_CHARACTERS)}\n(cut here; read the rest with a tool)`
+    left > 0
+      ? `${context.text.slice(0, CONTEXT_CHARACTERS)}\n${cutSaying(context, left)}`
       : context.text;
   // The title and path are the vault's text too: quoted, and unable to open or close a tag.
   const attribute = (value: string) => neutralizeFraming(JSON.stringify(value));
@@ -74,6 +75,15 @@ export function contextSection(context: ChatContext): string {
     neutralizeFraming(cut),
     '</vault_data>',
   ].join('\n');
+}
+
+/** Where the context was cut, how much is left, and how to read it — never cut silently (#415). */
+function cutSaying(context: ChatContext, left: number): string {
+  const how =
+    context.kind === 'note'
+      ? '. Read the whole note with atlas_read_note, which pages a long one.)'
+      : '; read the rest with a tool)';
+  return `(cut here: ${left.toLocaleString('en-US')} more characters of it are not shown${how}`;
 }
 
 /**

@@ -112,18 +112,18 @@ describe('what a type chooses for how it looks', () => {
     expect('icon' in parseObjectType({ name: 'x', icon: 'system' })).toBe(false);
   });
 
-  it('reads option colours on the ramp, for options the property lists', () => {
+  it('reads option colours — a tone or a palette hue — for options the property lists', () => {
     const type = parseObjectType({
       name: 'x',
       properties: {
         status: {
           kind: 'select',
-          options: ['queued', 'shipped'],
-          colors: { queued: 'next', shipped: 'purple', ghost: 'done' },
+          options: ['queued', 'shipped', 'held'],
+          colors: { queued: 'next', shipped: 'purple', held: 'teal', ghost: 'done' },
         },
       },
     });
-    expect(type.properties[0]?.colors).toEqual({ queued: 'next' });
+    expect(type.properties[0]?.colors).toEqual({ queued: 'next', shipped: 'purple' });
   });
 
   it('has no colours when none are chosen, or they are not a map', () => {

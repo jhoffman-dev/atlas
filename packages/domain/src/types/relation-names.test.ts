@@ -18,19 +18,19 @@ const names = noteNames([
 describe('linkedNames', () => {
   it('names a linked note by its title', () => {
     expect(linkedNames('[[Atlas]]', names)).toEqual([
-      { text: 'Atlas', path: 'Atlas.md', missing: false },
+      { text: 'Atlas', path: 'Atlas.md', missing: false, key: 'atlas' },
     ]);
   });
 
   it('uses the title the note gives itself, not its filename', () => {
     expect(linkedNames('[[A15-03]]', names)).toEqual([
-      { text: 'Split the sidebar', path: 'A15-03.md', missing: false },
+      { text: 'Split the sidebar', path: 'A15-03.md', missing: false, key: 'a15-03' },
     ]);
   });
 
   it('shows the alias a link was given', () => {
     expect(linkedNames('[[Atlas|The app]]', names)).toEqual([
-      { text: 'The app', path: 'Atlas.md', missing: false },
+      { text: 'The app', path: 'Atlas.md', missing: false, key: 'atlas' },
     ]);
   });
 
@@ -40,19 +40,20 @@ describe('linkedNames', () => {
       text: 'Ada Lovelace',
       path: 'people/Ada Lovelace.md',
       missing: false,
+      key: 'ada lovelace',
     });
   });
 
   it('shows a link to nothing as its bare name, marked missing', () => {
     expect(linkedNames('[[archive/Gone.md]]', names)).toEqual([
-      { text: 'Gone', path: null, missing: true },
+      { text: 'Gone', path: null, missing: true, key: 'gone' },
     ]);
   });
 
   it('reads every link in a list, or in the joined cell a view makes of one', () => {
     const both = [
-      { text: 'Atlas', path: 'Atlas.md', missing: false },
-      { text: 'Ada Lovelace', path: 'people/Ada Lovelace.md', missing: false },
+      { text: 'Atlas', path: 'Atlas.md', missing: false, key: 'atlas' },
+      { text: 'Ada Lovelace', path: 'people/Ada Lovelace.md', missing: false, key: 'ada lovelace' },
     ];
     expect(linkedNames(['[[Atlas]]', '[[Ada Lovelace]]'], names)).toEqual(both);
     expect(linkedNames('[[Atlas]], [[Ada Lovelace]]', names)).toEqual(both);
@@ -66,8 +67,25 @@ describe('linkedNames', () => {
 
   it('marks nothing missing before the notes are known', () => {
     expect(linkedNames('[[Gone]]', noteNames(null))).toEqual([
-      { text: 'Gone', path: null, missing: false },
+      { text: 'Gone', path: null, missing: false, key: 'gone' },
     ]);
+  });
+});
+
+describe('a linked note’s key', () => {
+  it('is the note itself, whatever the link calls it: alias, case or folder aside', () => {
+    const keys = ['[[Atlas]]', '[[Atlas|The app]]', '[[atlas]]', '[[Atlas.md]]'].map(
+      (link) => linkedNames(link, names)[0]?.key,
+    );
+    expect(keys).toEqual(['atlas', 'atlas', 'atlas', 'atlas']);
+  });
+
+  it('is the same before the notes are known and after, even for a titled note', () => {
+    for (const link of ['[[A15-03]]', '[[A15-03|Sidebar]]', '[[people/Ada Lovelace]]']) {
+      const before = linkedNames(link, noteNames(null))[0]?.key;
+      expect(before).toBeDefined();
+      expect(linkedNames(link, names)[0]?.key).toBe(before);
+    }
   });
 });
 

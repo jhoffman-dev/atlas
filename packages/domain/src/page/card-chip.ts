@@ -1,5 +1,19 @@
 import type { PropertyKind } from '../types/property-def.ts';
-import { linkedNames, noteNames, withNoteNames, type NoteNames } from '../types/relation-names.ts';
+import {
+  holdsLinks,
+  linkedNames,
+  noteNames,
+  withNoteNames,
+  type NoteNames,
+} from '../types/relation-names.ts';
+import {
+  heldOptions,
+  optionColor,
+  optionColorsOf,
+  relationHue,
+  type OptionColor,
+  type OptionColors,
+} from './pill-colour.ts';
 import { formatPropertyDate } from './property-date.ts';
 import { humanizeKey } from './property-label.ts';
 import { isYou, propertyRole } from './property-role.ts';
@@ -16,6 +30,11 @@ export interface CardChip {
   readonly you: boolean;
   /** For a relation: whether every note it links is missing, drawn struck through. */
   readonly missing?: boolean;
+  /**
+   * Drawn as a pill in this colour rather than as a chip: one of a
+   * multi-select's options, or one note a relation links (#413).
+   */
+  readonly color?: OptionColor;
 }
 
 /** Before the vault's notes are known, links read as their bare names. */
@@ -84,24 +103,73 @@ export function cardChip({
   return chip('tag', text);
 }
 
-/** The chips a card shows, in the order its view lists the fields. */
+/**
+ * The chips a card shows, in the order its view lists the fields. A
+ * multi-select's options and a relation's notes are a pill each, in the
+ * colour each is drawn in everywhere (`fieldPills`).
+ */
 export function cardChips({
   fields,
   values,
   kinds = {},
   names = UNKNOWN_NOTES,
+  colors = {},
 }: {
   fields: readonly string[];
   values: Readonly<Record<string, unknown>>;
   kinds?: Readonly<Record<string, PropertyKind>>;
   names?: NoteNames;
+  /** The colours each select's type chose for its options (`optionColorsByKey`). */
+  colors?: Readonly<Record<string, OptionColors>>;
 }): CardChip[] {
-  return fields
-    .map((key) => {
-      const kind = kinds[key];
-      return cardChip({ key, value: values[key], names, ...(kind === undefined ? {} : { kind }) });
-    })
-    .filter((chip) => chip !== null);
+  return fields.flatMap((key) => {
+    const kind = kinds[key];
+    const value = values[key];
+    const pills = fieldPills({ key, value, kind, names, colors: optionColorsOf(colors, key) });
+    if (pills !== null) return pills;
+    const chip = cardChip({ key, value, names, ...(kind === undefined ? {} : { kind }) });
+    return chip === null ? [] : [chip];
+  });
+}
+
+/**
+ * A multi-select's options, or the notes a relation links, a pill each; null
+ * for a field that is neither. A link to a note that is not there keeps no
+ * colour, and is struck through instead.
+ */
+function fieldPills({
+  key,
+  value,
+  kind,
+  names,
+  colors,
+}: {
+  key: string;
+  value: unknown;
+  kind: PropertyKind | undefined;
+  names: NoteNames;
+  colors: OptionColors | undefined;
+}): CardChip[] | null {
+  const keyed = (at: number) => (at === 0 ? key : `${key}#${String(at)}`);
+  if (kind === 'multiSelect') {
+    return heldOptions(value).map((option, at) => ({
+      key: keyed(at),
+      icon: 'tag',
+      // As the note writes it: a multi-select is often tags, which keep their case.
+      text: option,
+      you: false,
+      color: optionColor({ key, colors }, option),
+    }));
+  }
+  if (kind !== 'relation' && !(kind === undefined && holdsLinks(value))) return null;
+  return linkedNames(value, names).map((name, at) => ({
+    key: keyed(at),
+    icon: 'note',
+    text: name.text,
+    you: false,
+    missing: name.missing,
+    ...(!name.missing && { color: relationHue({ key: name.key }) }),
+  }));
 }
 
 /** Keys a card shows in a place of its own — the title, the summary — or, the path, not at all. */

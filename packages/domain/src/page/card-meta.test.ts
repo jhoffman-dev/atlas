@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { noteNames } from '../types/relation-names.ts';
 import { cardMeta } from './card-meta.ts';
+import { hueOf, relationHue } from './pill-colour.ts';
 
 describe('cardMeta', () => {
   const kinds = {
@@ -53,7 +54,7 @@ describe('cardMeta', () => {
     ]);
   });
 
-  it('marks a relation whose every note is missing, and not one with a note present', () => {
+  it('writes each linked note as its own item: missing ones struck, present ones in their hue', () => {
     const names = noteNames([{ path: 'Here.md' as VaultPath, title: 'Here' }]);
     const gone = cardMeta({ fields: ['project'], kinds, values: { project: '[[Gone]]' }, names });
     expect(gone).toEqual([{ key: 'project', text: 'Gone', missing: true }]);
@@ -63,7 +64,43 @@ describe('cardMeta', () => {
       values: { project: ['[[Gone]]', '[[Here]]'] },
       names,
     });
-    expect(some[0]?.missing).toBe(false);
+    expect(some).toEqual([
+      { key: 'project', text: 'Gone', missing: true },
+      { key: 'project#1', text: 'Here', missing: false, color: relationHue({ key: 'Here' }) },
+    ]);
+  });
+
+  it('colours an aliased link as the note it names, before titles load and after', () => {
+    const names = noteNames([{ path: 'co/larkspur.md' as VaultPath, title: 'Larkspur Payroll' }]);
+    const color = (value: string, known = names) =>
+      cardMeta({ fields: ['project'], kinds, values: { project: value }, names: known })[0]?.color;
+    const plain = color('[[larkspur]]');
+    expect(plain).toBe(relationHue({ key: 'larkspur' }));
+    expect(color('[[larkspur|Payroll people]]')).toBe(plain);
+    expect(color('[[co/larkspur]]')).toBe(plain);
+    expect(color('[[larkspur]]', noteNames(null))).toBe(plain);
+  });
+
+  it('colours a choice by the colour its type chose, else by its value', () => {
+    const items = cardMeta({
+      fields: ['stage', 'kind'],
+      kinds: { ...kinds, kind: 'select' },
+      values: { stage: 'Interview', kind: 'Interview' },
+      colors: { stage: { Interview: 'green' } },
+    });
+    expect(items.map((item) => item.color)).toEqual(['green', hueOf('Interview')]);
+  });
+
+  it('writes each of a multi-select’s options as its own pill, as the note writes it', () => {
+    const items = cardMeta({
+      fields: ['labels'],
+      kinds: { labels: 'multiSelect' },
+      values: { labels: ['payroll', 'renewal'] },
+    });
+    expect(items).toEqual([
+      { key: 'labels', text: 'payroll', missing: false, color: hueOf('payroll') },
+      { key: 'labels#1', text: 'renewal', missing: false, color: hueOf('renewal') },
+    ]);
   });
 
   it('leaves out an empty chip, so a line can be empty', () => {

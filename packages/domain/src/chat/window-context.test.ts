@@ -52,9 +52,23 @@ describe('contextSection', () => {
       path: null,
       text: 'x'.repeat(CONTEXT_CHARACTERS + 10),
     });
-    expect(section).toContain('(cut here; read the rest with a tool)');
+    expect(section).toContain(
+      '(cut here: 10 more characters of it are not shown; read the rest with a tool)',
+    );
     expect(section).not.toContain('x'.repeat(CONTEXT_CHARACTERS + 1));
     expect(section).not.toContain('path=');
+  });
+
+  it('cuts a long open note saying how much is left and how to read it whole (#415)', () => {
+    const section = contextSection({
+      kind: 'note',
+      title: 'Logbook',
+      path: createVaultPath('Logbook.md'),
+      text: 'x'.repeat(CONTEXT_CHARACTERS + 1234),
+    });
+    expect(section).toContain('1,234 more characters of it are not shown');
+    expect(section).toContain('atlas_read_note');
+    expect(section).not.toContain('x'.repeat(CONTEXT_CHARACTERS + 1));
   });
 });
 

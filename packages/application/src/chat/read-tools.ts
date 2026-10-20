@@ -1,6 +1,7 @@
 import type { ModelToolSpec, ToolCall, ToolResult } from '@atlas/domain';
 import { routeApiRequest, type ApiRequest, type ApiRouterDeps } from '../api/index.ts';
 import { cappedJson } from './capped-json.ts';
+import { notePageAnswer } from './note-page.ts';
 
 /**
  * The chat's read tools (P27-03). Each is one request to the local API's
@@ -19,6 +20,8 @@ type Call = Pick<ApiRequest, 'method' | 'path' | 'query' | 'body'>;
 interface ReadTool {
   readonly spec: ModelToolSpec;
   readonly request: (input: Input) => Call;
+  /** What the model is shown of a successful answer; the answer as capped JSON when absent. */
+  readonly answer?: (body: unknown, input: Input) => { content: string; isError: boolean };
 }
 
 const str = (description: string) => ({ type: 'string', description });
@@ -48,6 +51,15 @@ function segment(input: Input, key: string): string {
     throw new InvalidToolInput(`${key} must be a non-empty string.`);
   }
   return encodeURIComponent(value);
+}
+/** A character offset into a note's body: 0 when not given. */
+function offsetOf(input: Input): number {
+  const value = input['offset'];
+  if (value === undefined || value === null) return 0;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new InvalidToolInput('offset must be a whole number, 0 or more.');
+  }
+  return value;
 }
 /** The query string as the router reads it: defined values only, as text. */
 function query(input: Input, keys: readonly string[]): Record<string, string> {
@@ -89,12 +101,32 @@ const READ_TOOLS: readonly ReadTool[] = [
       name: 'atlas_read_note',
       description:
         'Read one note: its properties, its markdown body, and "modified". Use a path another tool ' +
-        'returned, never a guessed one; a path with no note answers with the nearest real ones.',
-      inputSchema: object({ path: str('The note\'s vault path, e.g. "Projects/Q3.md".') }, [
-        'path',
-      ]),
+        'returned, never a guessed one; a path with no note answers with the nearest real ones. ' +
+        'A note too long for one answer comes back a page at a time: the answer then has a ' +
+        '"page" { offset, shown, of, remaining, next }, and you read on by calling again with ' +
+        'offset set to "next" until "next" is null. Read every page before saying what the note ' +
+        'holds; the note on disk is whole. If a turn runs out of lookups before the last page, ' +
+        'tell the person how far you read and ask them to say "continue".',
+      inputSchema: object(
+        {
+          path: str('The note\'s vault path, e.g. "Projects/Q3.md".'),
+          offset: {
+            type: 'integer',
+            minimum: 0,
+            description:
+              'Where in the body to start, in characters: the "next" of the page before. ' +
+              'Leave it out to read from the start.',
+          },
+        },
+        ['path'],
+      ),
     },
-    request: (input) => get(`/v1/notes/${segment(input, 'path')}`),
+    request: (input) => {
+      offsetOf(input);
+      return get(`/v1/notes/${segment(input, 'path')}`);
+    },
+    answer: (body, input) =>
+      notePageAnswer(body as Parameters<typeof notePageAnswer>[0], offsetOf(input)),
   },
   {
     spec: {
@@ -332,11 +364,19 @@ export async function runReadTool({
     };
   }
   const response = await routeApiRequest({ id: requestId, ...request }, api);
-  const failed = response.status >= 400;
-  const content = failed
-    ? capped(errorText(response.body))
-    : cappedJson(response.body, TOOL_RESULT_CHARACTERS);
-  return { callId: call.id, name: call.name, content, isError: failed };
+  if (response.status >= 400) {
+    return {
+      callId: call.id,
+      name: call.name,
+      content: capped(errorText(response.body)),
+      isError: true,
+    };
+  }
+  const answered = tool.answer?.(response.body, call.input) ?? {
+    content: cappedJson(response.body, TOOL_RESULT_CHARACTERS),
+    isError: false,
+  };
+  return { callId: call.id, name: call.name, ...answered };
 }
 
 function errorText(body: unknown): string {

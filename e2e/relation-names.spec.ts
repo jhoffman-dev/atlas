@@ -140,13 +140,14 @@ test('a relation set through the note reads as the note it names, everywhere it 
   await expect(table.getByRole('button', { name: 'Open Grace Hopper' })).toBeVisible();
   await expect(table).not.toContainText('[[');
 
-  // A board card's chips.
+  // A board card's pills: each linked note its own, by name, in its colour (#413).
   await sidebarSection(page, 'views')
     .getByRole('button', { name: 'Task board', exact: true })
     .click();
   const next = page.getByRole('region', { name: 'Next', exact: true });
-  await expect(next.getByText('Atlas', { exact: true })).toBeVisible();
-  await expect(next.getByText('Ada Lovelace, Grace Hopper', { exact: true })).toBeVisible();
+  const pills = next.locator('.board__meta .status-pill');
+  await expect(pills).toHaveText(['Atlas', 'Ada Lovelace', 'Grace Hopper']);
+  for (const pill of await pills.all()) await expect(pill).toHaveAttribute('data-hue', /^[a-z]+$/);
   await expect(next).not.toContainText('[[');
 
   // A dashboard's bars.

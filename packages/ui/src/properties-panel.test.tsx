@@ -96,7 +96,7 @@ describe('PropertiesPanel', () => {
   });
 
   it('draws a status as a pill in its column colours', () => {
-    panel([row('select', 'doing', { options: ['backlog', 'doing'] })]);
+    panel([row('select', 'doing', { key: 'status', options: ['backlog', 'doing'] })]);
     const pill = screen.getByLabelText('Field').closest('.props__pill');
     expect(pill?.getAttribute('data-tone')).toBe('doing');
   });
