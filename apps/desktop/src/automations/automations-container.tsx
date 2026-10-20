@@ -1,9 +1,10 @@
 import type { ComponentProps } from 'react';
+import { RULE_QUERY_SCOPE } from '@atlas/application';
 import { LoadedLater, PageFrameFallback } from '../page-frame-fallback.tsx';
 import { automationsScreen } from '../pages-on-first-use.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import { useIndexKey } from '../index/index-status-store.ts';
+import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { useAutomationsController, type AutomationsStore } from './automations-store.ts';
 
 const AutomationsScreen = automationsScreen.Component;
@@ -24,8 +25,13 @@ export interface AutomationsWiring {
 export function AutomationsContainer({ wiring, chrome }: PageContainerProps) {
   const { pages, pane } = wiring;
   const automations = useAutomationsController(pages.automations.store);
-  // The rule editor's query builder still reads again on every news of the index (#325).
-  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
+  // The rule editor's query builder asks of the whole vault, so any note's news reads it again (#327).
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['rule-editor'],
+    scope: RULE_QUERY_SCOPE,
+  });
   // The page's frame, as while its chunk loads, until the runner has said where the rules stand.
   if (automations === null) return <PageFrameFallback {...chrome} />;
   return (

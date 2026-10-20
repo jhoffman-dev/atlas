@@ -8,6 +8,8 @@ import { createOverlayStore, overlayNow, showOverlay } from './overlay-store.ts'
 import { createWorkspaceStore } from './workspace/workspace-store.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
 import { createIndexStatusStore } from './index/index-status-store.ts';
+import { queryWrapper } from './reads/query-wrapper.tsx';
+import { createReadInvalidator } from './reads/read-invalidator.ts';
 
 const RECIPES = { path: createVaultPath('recipes.md'), title: 'Recipes', snippet: 'Sourdough' };
 const NEW_VIEW = { id: 'new-view', label: 'New view' };
@@ -19,6 +21,8 @@ function slot() {
   const status = createIndexStatusStore();
   status.setState({ vault: '/vault', phase: 'ready', revision: 1 });
   const search = vi.fn(async () => [RECIPES]);
+  const { client, wrapper } = queryWrapper();
+  const reads = createReadInvalidator({ client });
   render(
     <SearchPaletteSlot
       store={store}
@@ -32,8 +36,9 @@ function slot() {
       onPick={onPick}
       fallbackFocus={() => null}
     />,
+    { wrapper },
   );
-  return { store, onCommand, onPick, status, search };
+  return { store, onCommand, onPick, status, reads, search };
 }
 
 const palette = () => screen.queryByRole('dialog', { name: 'Search notes' });
@@ -83,13 +88,16 @@ describe('the search palette slot', () => {
 
 describe('the search palette slot and the index (#326)', () => {
   it('searches again when the index has news while it is up, reading the news itself', async () => {
-    const { store, status, search } = slot();
+    const { store, status, reads, search } = slot();
     act(() => showOverlay(store, 'search'));
     await userEvent.type(await screen.findByLabelText('Search the vault'), 'sour');
     await waitFor(() => expect(search).toHaveBeenCalled());
     const asked = search.mock.calls.length;
 
-    act(() => status.setState({ revision: 2 }));
+    act(() => {
+      status.setState({ revision: 2 });
+      reads.indexMoved('/vault', false);
+    });
     await waitFor(() => expect(search.mock.calls.length).toBe(asked + 1));
   });
 });

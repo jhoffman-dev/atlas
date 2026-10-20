@@ -65,8 +65,17 @@ export const scopedReadKey = (vault: string, ...what: readonly unknown[]) =>
 /** Every scoped read of the vault at `vault`. */
 export const scopedQueries = (vault: string) => [...vaultQueries(vault), 'scoped'] as const;
 
-/** What a scoped read is made from, as its query's `meta` says it. */
-export const scopedReadMeta = (scope: ReadScope) => ({ scope });
+/**
+ * What a scoped read is made from, as its query's `meta` says it, and whether
+ * the reader that reads on it said its last read failed (#424): a reader that
+ * reads in its own effect keeps its error itself, where the cache cannot see it.
+ */
+export const scopedReadMeta = (scope: ReadScope, failed = false) => ({ scope, failed });
+
+/** Whether the reader of a scoped read said its last read failed ({@link scopedReadMeta}). */
+export function readerFailed(meta: Readonly<Record<string, unknown>> | undefined): boolean {
+  return meta?.['failed'] === true;
+}
 
 /** The scope a scoped read's query was given, or any note for one that said none. */
 export function scopeOfQuery(meta: Readonly<Record<string, unknown>> | undefined): ReadScope {
