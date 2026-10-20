@@ -121,8 +121,12 @@
    `.page--wide`, whose containment broke the virtualised tables (13b).
    The page's height is handed down to the result, as `.page--wide` hands it
    to a view's table, so the result's sheet is the scroller its rows are
-   virtualised in rather than growing to every row (#401). */
+   virtualised in rather than growing to every row (#401). It never gets
+   less than a floor, though: in a window too short for the editor, the
+   actions and that floor, the panel scrolls the page instead. */
 .query {
+  --query-editor-height: 180px;
+  --query-result-floor: 240px;
   container: query / inline-size;
   display: flex;
   flex: 1;
@@ -137,7 +141,7 @@
   flex: 1;
   gap: var(--space-5);
   grid-template-columns: minmax(0, 1fr) 240px;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(auto, 1fr);
   min-height: 0;
 }
 
@@ -146,8 +150,20 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  min-height: 0;
   min-width: 0;
+}
+
+/* The floor, as the editor, the actions' 28px row and the gaps between
+   them, plus the result's own. Set here, not left to the content: the
+   result's content is as tall as all its rows. */
+.query__main:has(> .table) {
+  min-height: calc(
+    var(--query-editor-height) + 28px + 2 * var(--space-3) + var(--query-result-floor)
+  );
+}
+
+.page--wide .query .table {
+  min-height: var(--query-result-floor);
 }
 
 .query__editor {
@@ -156,8 +172,9 @@
   border-radius: var(--radius-control);
   display: grid;
   font: var(--text-mono) / 1.6 var(--font-mono);
+  flex: none;
   grid-template-columns: auto minmax(0, 1fr);
-  height: 180px;
+  height: var(--query-editor-height);
   overflow: hidden;
 }
 
@@ -194,6 +211,7 @@
 .query__actions {
   align-items: center;
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
