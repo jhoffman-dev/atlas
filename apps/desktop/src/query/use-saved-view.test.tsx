@@ -179,7 +179,9 @@ describe('a view writing a note', () => {
     const { registry, asked } = fakeEditors(true);
     const view = await showView({ vault, editors: registry });
 
-    act(() => view.result.current.editCell({ path: TASK_PATH, column: 'status', value: 'doing' }));
+    await act(() =>
+      view.result.current.editCell({ path: TASK_PATH, column: 'status', value: 'doing' }),
+    );
     act(() => view.result.current.reschedule({ path: TASK_PATH, start: '2026-09-21', end: null }));
     act(() =>
       view.result.current.moveBar({ path: TASK_PATH, start: '2026-09-21', end: '2026-09-23' }),

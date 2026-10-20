@@ -103,3 +103,37 @@ describe('the index’s key as a pane’s reader sees it (#325)', () => {
     expect(drawn).toBe(before);
   });
 });
+
+describe('the key of a reader whose last read failed (#424)', () => {
+  it('moves on the index’s next news, touched or not, and holds again once the reader has read', async () => {
+    const status = createIndexStatusStore();
+    status.setState({ vault: '/one', phase: 'ready', revision: 1 });
+    const { client, wrapper } = queryWrapper();
+    const reads = createReadInvalidator({ client });
+    const hook = renderHook(
+      ({ failed }: { failed: boolean }) =>
+        useScopedIndexKey({
+          status,
+          vault: '/one',
+          reader: ['archive'],
+          scope: { notes: ['a.md'] },
+          failed,
+        }),
+      { wrapper, initialProps: { failed: true } },
+    );
+    const elsewhere = (revision: number) =>
+      act(() => {
+        reads.noteChanges('/one', [edited('b.md')]);
+        status.setState({ revision });
+        reads.indexMoved('/one');
+      });
+
+    await elsewhere(2);
+    await waitFor(() => expect(hook.result.current).toBe('ready:2'));
+
+    hook.rerender({ failed: false });
+    await elsewhere(3);
+    await act(() => new Promise((turn) => setTimeout(turn, 0)));
+    expect(hook.result.current).toBe('ready:2');
+  });
+});

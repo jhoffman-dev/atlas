@@ -2,7 +2,7 @@
 type: adr
 id: ADR-0040
 title: Reads are cached queries, and the window's state is in stores
-status: proposed
+status: accepted
 date: 2026-10-17
 ---
 
@@ -87,14 +87,20 @@ per vault.
 
 - An edit costs work in proportion to what it changed, not to how many
   readers the window has.
-- `indexKey` is kept, derived from the index-status store, while readers move
-  off it one by one (Performances 5 to 10). It is deleted in Performance 11,
-  when this ADR is accepted.
+- `indexKey` was kept, derived from the index-status store, while readers
+  moved off it one by one (Performances 5 to 10). Performance 11 (#327) moved
+  the last of them — the Archive, the Terms page, a type's table, the tags
+  page, the query page, the rule editor and the search palette — and deleted
+  it; this ADR was accepted then. Every reader of the index now re-runs on a
+  key of its own scope (`useScopedIndexKey`, or `useScopedIndexNews` for one
+  that only listens), judged by `scopeTouched` in `packages/application`.
+  News whose notes are not known still reaches every scope.
 - Readers no longer blank or pause while a refresh runs. A reader that runs
   during a refresh sees each row either as it was or as it now is, never half
   written: the index writes whole notes.
-- The sync schedule counts an edit when the index's key moves, which now
-  happens when a refresh settles rather than when it starts. A watcher event
+- The sync schedule counts an edit when the index has news for any note
+  (`SYNC_SCOPE`), which happens when a refresh settles rather than when it
+  starts. A watcher event
   for anything the index does not hold (a template, a view, a dashboard, an
   attachment, a folder) asks for a loud refresh, so its readers and the push
   schedule still hear of it. A refresh that fails still moves the key.

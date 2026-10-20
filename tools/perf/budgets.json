@@ -222,6 +222,14 @@
         "write_text_file": 3
       }
     },
+    "Run a 2,000-row SQL query": {
+      "commits": 8,
+      "renders": 259,
+      "calls": {
+        "index_query": 3,
+        "read_notes": 3
+      }
+    },
     "Run a 920-row Atlas query": {
       "commits": 6,
       "renders": 136,

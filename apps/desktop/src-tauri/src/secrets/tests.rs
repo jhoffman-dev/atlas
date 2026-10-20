@@ -1,6 +1,5 @@
 use std::future::Future;
 use std::path::Path;
-use std::time::{Duration, Instant};
 
 use super::{
     account, binding::bound_origins, describe, entries_in, fill, names_in, redact, remove_secret,
@@ -602,26 +601,22 @@ pub(crate) fn use_eight_other_values() {
     }
 }
 
-/// Runs `work` joined, on one task, with a step that only has to be polled
-/// once more, and checks that step was not kept waiting while `work` ran:
-/// it finishes at once when `work` builds its matchers on another thread,
-/// and only after them when they are built on this one — the async worker
-/// every other command shares.
+/// Runs `work` and checks it built a matcher, and built none on this
+/// thread — the async worker every other command shares — but on a thread
+/// kept for blocking work. Counted, not timed: a loaded machine slows both
+/// alike, and a build on the worker is caught however quick it was (#403).
 pub(crate) async fn assert_never_stalls_the_worker<T>(work: impl Future<Output = T>) -> T {
-    let started = Instant::now();
-    let work = async {
-        let done = work.await;
-        (done, started.elapsed())
-    };
-    let other = async {
-        tokio::task::yield_now().await;
-        started.elapsed()
-    };
-    let ((done, took), waited) = tokio::join!(work, other);
-    assert!(
-        waited * 10 < took && took > Duration::from_millis(5),
-        "another step waited {waited:?} of the {took:?} the work took"
+    let on_this_thread = || super::redact::BUILT_ON_THIS_THREAD.with(std::cell::Cell::get);
+    let anywhere = || super::redact::BUILT_ANYWHERE.load(std::sync::atomic::Ordering::SeqCst);
+    let (worker_before, anywhere_before) = (on_this_thread(), anywhere());
+    let done = work.await;
+    assert_eq!(
+        on_this_thread() - worker_before,
+        0,
+        "a matcher was built on the async worker"
     );
+    // Other tests build meanwhile, so this only shows the work built at all.
+    assert!(anywhere() > anywhere_before, "the work built no matcher");
     done
 }
 

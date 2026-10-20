@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject 
 import { Popover } from '@base-ui/react/popover';
 import { optionColor, optionLabel, STATUS_PROPERTY, type OptionSource } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
+import { isImeKey } from '../ime.ts';
 import { StatusPill } from '../status-pill.tsx';
 import { NUMBER_KEYS, optionPickedByNumber } from './cell-keys.ts';
 
@@ -20,6 +21,7 @@ export function StatusPicker({
   options,
   source = STATUS_PROPERTY,
   value,
+  selected,
   onPick,
   onCancel,
   onStep,
@@ -38,6 +40,12 @@ export function StatusPicker({
   source?: OptionSource;
   /** The option the cell holds now, or null. */
   value: string | null;
+  /**
+   * Given, the picker is a multi-select's: every option held is ticked, and
+   * picking one — a click, ↵, its number key — toggles it, the picker staying
+   * open for the next.
+   */
+  selected?: readonly string[];
   onPick: (option: string) => void;
   onCancel: () => void;
   /** Tab and ⇧Tab: leave the cell as it was and edit the next or previous. */
@@ -63,7 +71,8 @@ export function StatusPicker({
               label={label}
               options={options}
               source={source}
-              value={value}
+              held={selected ?? (value === null ? [] : [value])}
+              multiple={selected !== undefined}
               onPick={onPick}
               onStep={onStep}
             />
@@ -92,26 +101,31 @@ function PickerBody({
   label,
   options,
   source,
-  value,
+  held,
+  multiple,
   onPick,
   onStep,
 }: {
   label: string;
   options: readonly string[];
   source: OptionSource;
-  value: string | null;
+  /** The options the cell holds now. */
+  held: readonly string[];
+  multiple: boolean;
   onPick: (option: string) => void;
   onStep: (to: 1 | -1) => void;
 }) {
   const id = useId();
   const [filter, setFilter] = useState('');
-  const [highlight, setHighlight] = useState(Math.max(options.indexOf(value ?? ''), 0));
+  const [highlight, setHighlight] = useState(
+    multiple ? 0 : Math.max(options.indexOf(held[0] ?? ''), 0),
+  );
   const shown = options.filter((option) => matches(option, filter));
   const highlighted = shown[Math.min(highlight, shown.length - 1)];
   const optionId = (option: string) => `${id}-${options.indexOf(option)}`;
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || isImeKey(event)) return;
     const picked = optionPickedByNumber({
       key: event.key,
       filter,
@@ -168,7 +182,8 @@ function PickerBody({
         number={(option) => options.indexOf(option) + 1}
         optionId={optionId}
         source={source}
-        value={value}
+        held={held}
+        multiple={multiple}
         highlighted={highlighted}
         onHighlight={(option) => setHighlight(shown.indexOf(option))}
         onPick={onPick}
@@ -185,7 +200,8 @@ function OptionList({
   number,
   optionId,
   source,
-  value,
+  held,
+  multiple,
   highlighted,
   onHighlight,
   onPick,
@@ -197,7 +213,8 @@ function OptionList({
   number: (option: string) => number;
   optionId: (option: string) => string;
   source: OptionSource;
-  value: string | null;
+  held: readonly string[];
+  multiple: boolean;
   highlighted: string | undefined;
   onHighlight: (option: string) => void;
   onPick: (option: string) => void;
@@ -213,7 +230,14 @@ function OptionList({
     }
   }, [highlighted, optionId]);
   return (
-    <div ref={list} id={id} className="cell-picker__list" role="listbox" aria-label={label}>
+    <div
+      ref={list}
+      id={id}
+      className="cell-picker__list"
+      role="listbox"
+      aria-label={label}
+      aria-multiselectable={multiple || undefined}
+    >
       {shown.map((option) => {
         const key = number(option);
         return (
@@ -223,7 +247,7 @@ function OptionList({
             role="option"
             className="cell-picker__option"
             // Selected is what the cell holds; the highlight is where the arrows are.
-            aria-selected={option === value}
+            aria-selected={held.includes(option)}
             data-highlighted={option === highlighted ? '' : undefined}
             onMouseEnter={() => onHighlight(option)}
             onClick={() => onPick(option)}
@@ -235,7 +259,7 @@ function OptionList({
               tone={optionColor(source, option)}
             />
             <span className="cell-picker__label">{optionLabel(option)}</span>
-            {option === value && <Icon name="check" size={13} className="cell-picker__tick" />}
+            {held.includes(option) && <Icon name="check" size={13} className="cell-picker__tick" />}
             <span className="cell-picker__key" aria-hidden="true">
               {key <= NUMBER_KEYS ? key : ''}
             </span>

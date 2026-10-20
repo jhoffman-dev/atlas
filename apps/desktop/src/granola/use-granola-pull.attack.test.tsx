@@ -2,7 +2,8 @@
 // Adversarial probes for PR #156 (P28-12). Diagnose only: a red test here is a defect.
 import { StrictMode, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { settles } from './settles.test-support.ts';
 import { type GranolaNote } from '@atlas/domain';
 import {
   fakeGranola,
@@ -22,6 +23,9 @@ import {
 } from './use-granola-pull.ts';
 import { readAgain, vaultReadKey } from '../reads/query-client.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
+
+/** Where the fake clock stands until a test moves it: the hook's clock reads it through `Date.now`. */
+const FIXED_NOW = new Date('2026-03-02T09:00:00.000Z');
 
 const VAULT = '/Users/mara/Vault';
 const OTHER = '/Users/mara/Other';
@@ -130,7 +134,7 @@ function setUp({
 /** Lets fifteen minutes pass on the fake timers. */
 const fifteenMinutes = () => act(async () => vi.advanceTimersByTime(GRANOLA_PULL_INTERVAL_MS));
 
-beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+beforeEach(() => vi.useFakeTimers({ now: FIXED_NOW }));
 afterEach(() => vi.useRealTimers());
 
 describe('useGranolaPull, attacked (PR #156)', () => {
@@ -149,19 +153,19 @@ describe('useGranolaPull, attacked (PR #156)', () => {
     gate.current = first.promise;
     hook.rerender({ ...options, granola: counting });
     // The startup pull of VAULT is under way, its listing held.
-    await waitFor(() => expect(hook.result.current.pulling).toBe(true));
+    await settles(() => expect(hook.result.current.pulling).toBe(true));
 
     // Another vault is opened, and VAULT again, while that pull still runs.
     const both = new Set([VAULT, OTHER]);
     hook.rerender({ ...options, granola: counting, vaultKey: OTHER, syncedThisSession: both });
     await act(async () => undefined);
     hook.rerender({ ...options, granola: counting, syncedThisSession: both });
-    await waitFor(() => expect(hook.result.current.key).toEqual(KEY_HELD));
+    await settles(() => expect(hook.result.current.key).toEqual(KEY_HELD));
     await act(async () => undefined);
 
     first.settle();
-    await waitFor(() => expect(hook.result.current.report?.ended).toBe('pulled'));
-    await waitFor(() => expect(hook.result.current.pulling).toBe(false));
+    await settles(() => expect(hook.result.current.report?.ended).toBe('pulled'));
+    await settles(() => expect(hook.result.current.pulling).toBe(false));
     await act(async () => undefined);
     const before = asked;
 
@@ -169,32 +173,32 @@ describe('useGranolaPull, attacked (PR #156)', () => {
     const second = held<void>();
     gate.current = second.promise;
     act(() => hook.result.current.syncNow());
-    await waitFor(() => expect(asked).toBe(before + 1));
+    await settles(() => expect(asked).toBe(before + 1));
     expect(hook.result.current.pulling).toBe(true);
     second.settle();
-    await waitFor(() => expect(hook.result.current.report?.mode).toBe('sync-now'));
+    await settles(() => expect(hook.result.current.report?.mode).toBe('sync-now'));
   });
 
   it('ATTACK: React StrictMode (as main.tsx renders) lists Granola once on open', async () => {
     const { hook, lists } = setUp({ strict: true });
-    await waitFor(() => expect(hook.result.current.report?.ended).toBe('pulled'));
+    await settles(() => expect(hook.result.current.report?.ended).toBe('pulled'));
     await act(async () => undefined);
     expect(lists()).toBe(1);
   });
 
   it('ATTACK: StrictMode keeps one 15-minute timer', async () => {
     const { lists } = setUp({ strict: true });
-    await waitFor(() => expect(lists()).toBe(1));
+    await settles(() => expect(lists()).toBe(1));
     await fifteenMinutes();
-    await waitFor(() => expect(lists()).toBe(2));
+    await settles(() => expect(lists()).toBe(2));
     await act(async () => undefined);
     expect(lists()).toBe(2);
   });
 
   it('ATTACK: timer + Sync now + key save at the same moment list at most twice', async () => {
     const { hook, gate, lists } = setUp();
-    await waitFor(() => expect(lists()).toBe(1));
-    await waitFor(() => expect(hook.result.current.pulling).toBe(false));
+    await settles(() => expect(lists()).toBe(1));
+    await settles(() => expect(hook.result.current.pulling).toBe(false));
     const listing = held<void>();
     gate.current = listing.promise;
     await act(async () => {
@@ -204,7 +208,7 @@ describe('useGranolaPull, attacked (PR #156)', () => {
       hook.result.current.knowKey({ hasKey: true, lastRefusal: null });
     });
     listing.settle();
-    await waitFor(() => expect(hook.result.current.pulling).toBe(false));
+    await settles(() => expect(hook.result.current.pulling).toBe(false));
     await act(async () => undefined);
     // The periodic pull, then the one Sync now queued behind it.
     expect(lists()).toBe(3);
@@ -212,7 +216,7 @@ describe('useGranolaPull, attacked (PR #156)', () => {
 
   it('ATTACK: no timer survives closing the vault', async () => {
     const { hook, lists, options } = setUp();
-    await waitFor(() => expect(lists()).toBe(1));
+    await settles(() => expect(lists()).toBe(1));
     hook.rerender({ ...options, vaultKey: null });
     await fifteenMinutes();
     await fifteenMinutes();
@@ -230,7 +234,7 @@ describe('useGranolaPull, attacked (PR #156)', () => {
       return calls === 1 ? firstCatch.promise : Promise.resolve(true);
     });
     const { hook, lists, options } = setUp({ catchUpIndex });
-    await waitFor(() => expect(catchUpIndex).toHaveBeenCalledOnce());
+    await settles(() => expect(catchUpIndex).toHaveBeenCalledOnce());
 
     // Another vault, not yet synced, is opened; then this one again.
     hook.rerender({ ...options, vaultKey: OTHER, catchUpIndex });
@@ -243,13 +247,13 @@ describe('useGranolaPull, attacked (PR #156)', () => {
     await fifteenMinutes();
 
     // "The vault opened again tries again" (useCaughtUp): it was opened again.
-    await waitFor(() => expect(hook.result.current.ready).toBe(true));
+    await settles(() => expect(hook.result.current.ready).toBe(true));
     expect(lists()).toBeGreaterThan(0);
   });
 
   it('ATTACK: settings read out of order do not leave the 15-minute pull on after granola_periodic: false', async () => {
     const fixture = setUp({ settings: 'granola_periodic: true' });
-    await waitFor(() => expect(fixture.hook.result.current.report?.ended).toBe('pulled'));
+    await settles(() => expect(fixture.hook.result.current.report?.ended).toBe('pulled'));
     let text = 'granola_periodic: true';
     const slow = held<void>();
     let slowOne = true;
@@ -284,7 +288,7 @@ describe('useGranolaPull, attacked (PR #156)', () => {
   });
   it('control: the same change read in order turns the 15-minute pull off', async () => {
     const fixture = setUp({ settings: 'granola_periodic: true' });
-    await waitFor(() => expect(fixture.hook.result.current.report?.ended).toBe('pulled'));
+    await settles(() => expect(fixture.hook.result.current.report?.ended).toBe('pulled'));
     fixture.hook.rerender({ ...fixture.options, fs: vaultWith('granola_periodic: false') });
     await act(() => fixture.settingsChanged());
     await act(async () => undefined);

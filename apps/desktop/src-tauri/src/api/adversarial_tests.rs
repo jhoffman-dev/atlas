@@ -152,23 +152,33 @@ async fn read_until_closed_or_quiet(reader: &mut tokio::net::tcp::OwnedReadHalf)
     received
 }
 
-/// What arrives on `stream` within `within` of virtual time, and whether the
-/// server closed the connection in that time. Steps a tenth of a second at a
-/// time: the paused clock advances whenever the runtime is idle, including
-/// while real loopback I/O is in flight, so small steps keep a slow moment
-/// under load from eating the whole budget.
-async fn received_within(stream: &mut TcpStream, within: Duration) -> (String, bool) {
-    let deadline = tokio::time::Instant::now() + within;
-    let mut received = Vec::new();
-    while tokio::time::Instant::now() < deadline {
-        let mut chunk = [0u8; 64 * 1024];
-        match tokio::time::timeout(Duration::from_millis(100), stream.read(&mut chunk)).await {
-            Ok(Ok(0)) | Ok(Err(_)) => return (String::from_utf8_lossy(&received).into(), true),
-            Ok(Ok(read)) => received.extend_from_slice(&chunk[..read]),
-            Err(_) => {}
-        }
+/// How long, on the machine's clock, a test waits with the paused clock
+/// stopped before failing. Only a hang guard: loopback I/O is done in
+/// milliseconds, so a test that reaches it would otherwise wait for ever.
+const STOPPED_GUARD: Duration = Duration::from_secs(30);
+
+/// `work` with the paused clock stopped — so no server deadline can fall
+/// while it runs — failing the test if it is not done within `STOPPED_GUARD`
+/// on the machine's clock. Whatever `work` waits for must come from the
+/// server's own doing, never from one of its timeouts (#403).
+async fn stopped<T>(what: &str, work: impl std::future::Future<Output = T>) -> T {
+    tokio::select! {
+        done = frozen(work) => done,
+        _ = after_real(STOPPED_GUARD) => panic!("{what}: not done with the clock stopped"),
     }
-    (String::from_utf8_lossy(&received).into(), false)
+}
+
+/// Everything `stream` receives until the server closes it, with the paused
+/// clock stopped: a close that only a timeout would bring never comes. A
+/// reset is as much a close as an end of stream, so how it ends is not asked.
+async fn received_until_closed(stream: &mut TcpStream) -> String {
+    let mut received = Vec::new();
+    let _ = stopped(
+        "the server kept the connection open",
+        stream.read_to_end(&mut received),
+    )
+    .await;
+    String::from_utf8_lossy(&received).into()
 }
 
 /// Invariant: only a token holder keeps a connection. Every refusal the host
@@ -206,15 +216,15 @@ async fn a_refusal_before_the_router_closes_the_connection() {
     ];
     for (status, first) in refused {
         let follow_up = format!("GET /v1/status HTTP/1.1\r\n{host}{token}\r\n");
-        let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        let mut stream = frozen(TcpStream::connect(("127.0.0.1", port)))
+            .await
+            .unwrap();
         // The server may already have closed by the time the follow-up is sent.
-        let _ = stream
-            .write_all(format!("{first}{follow_up}").as_bytes())
-            .await;
+        let _ = frozen(stream.write_all(format!("{first}{follow_up}").as_bytes())).await;
 
-        // Half the 10 s header timeout, which would close it anyway — and only
-        // after answering the follow-up.
-        let (received, closed) = received_within(&mut stream, Duration::from_secs(5)).await;
+        // With the clock stopped, so the 10 s header timeout, which would close
+        // it anyway, never falls: the refusal itself has to close it.
+        let received = received_until_closed(&mut stream).await;
 
         assert_eq!(status_of(&received), status, "{received}");
         assert!(
@@ -222,7 +232,6 @@ async fn a_refusal_before_the_router_closes_the_connection() {
             "{received}"
         );
         assert_eq!(received.matches("HTTP/1.1 ").count(), 1, "{received}");
-        assert!(closed, "a {status} left the connection open: {received}");
     }
     assert!(forwarded.lock().unwrap().is_empty());
 }
@@ -236,27 +245,32 @@ async fn token_less_non_readers_do_not_hold_the_connection_slots() {
     let (running, _) = serve_echo();
     let port = running.port;
     let refused = format!("GET /v1/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n").repeat(2000);
+    // All with the clock stopped, so the 10 s header timeout, when idle hogs
+    // would let go, never falls: only the refusals can free the slots.
     let mut hogs = Vec::new();
     for _ in 0..32 {
-        let mut hog = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        let mut hog = stopped("a hog connecting", TcpStream::connect(("127.0.0.1", port)))
+            .await
+            .unwrap();
         // The server may close before the whole flood is written.
-        let _ = hog.write_all(refused.as_bytes()).await;
+        let _ = stopped("a hog's flood", hog.write_all(refused.as_bytes())).await;
         hogs.push(hog);
     }
 
-    let mut caller = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-    caller
-        .write_all(
-            format!(
-                "GET /v1/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\
-                 Authorization: Bearer {TOKEN}\r\nConnection: close\r\n\r\n"
-            )
-            .as_bytes(),
-        )
+    let mut caller = stopped(
+        "the caller connecting",
+        TcpStream::connect(("127.0.0.1", port)),
+    )
+    .await
+    .unwrap();
+    let asked = format!(
+        "GET /v1/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\
+         Authorization: Bearer {TOKEN}\r\nConnection: close\r\n\r\n"
+    );
+    stopped("the caller's request", caller.write_all(asked.as_bytes()))
         .await
         .unwrap();
-    // Half the 10 s header timeout, which is when idle hogs would let go.
-    let (received, _) = received_within(&mut caller, Duration::from_secs(5)).await;
+    let received = received_until_closed(&mut caller).await;
 
     assert_eq!(
         status_of(&received),
@@ -268,34 +282,19 @@ async fn token_less_non_readers_do_not_hold_the_connection_slots() {
 
 /// Hardening that holds: a connection that went quiet after one refused
 /// request is closed — at once, since the refusal says `Connection: close` —
-/// rather than kept alive for ever.
+/// rather than kept alive for ever. At once is asked literally: the clock
+/// stands still while the close is awaited, so no timeout can be what closed it.
 #[tokio::test(start_paused = true)]
 async fn an_idle_keep_alive_connection_after_a_refusal_is_closed() {
     let (running, _) = serve_echo();
     let port = running.port;
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-    stream
-        .write_all(format!("GET /v1/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n").as_bytes())
+    let mut stream = frozen(TcpStream::connect(("127.0.0.1", port)))
         .await
         .unwrap();
-    // Step the virtual clock a second at a time, so it can never leap past the
-    // server's header timer before the server has had the chance to set it.
-    let mut received = Vec::new();
-    let mut closed_after = None;
-    for second in 0..60u64 {
-        let mut chunk = [0u8; 4096];
-        match tokio::time::timeout(Duration::from_millis(100), stream.read(&mut chunk)).await {
-            Ok(Ok(0)) | Ok(Err(_)) => {
-                closed_after = Some(second);
-                break;
-            }
-            Ok(Ok(read)) => received.extend_from_slice(&chunk[..read]),
-            Err(_) => {}
-        }
-    }
-    assert_eq!(status_of(&String::from_utf8_lossy(&received)), 401);
-    let closed_after = closed_after.expect("the idle connection was still open a minute later");
-    assert!(closed_after <= 15, "closed only after {closed_after}s");
+    let asked = format!("GET /v1/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n");
+    frozen(stream.write_all(asked.as_bytes())).await.unwrap();
+    let received = received_until_closed(&mut stream).await;
+    assert_eq!(status_of(&received), 401, "{received}");
 }
 
 /// Resolves once `real` has passed on the machine's clock, which the paused
