@@ -1,5 +1,5 @@
 import { humanizeKey } from '../page/property-label.ts';
-import { STATUS_TONES, type StatusTone } from '../page/status-tone.ts';
+import { isOptionColor, type OptionColor } from '../page/pill-colour.ts';
 import type { SidebarIcon } from '../sidebar/sidebar-icon.ts';
 import { TYPE_ICONS } from './type-icon.ts';
 /**
@@ -54,10 +54,11 @@ export interface PropertyDef {
   /** For relation: whether it holds one note or several. */
   readonly many: boolean;
   /**
-   * For select and multiSelect: the tone an option's pill is drawn in, where
-   * the type chose one. An option without one is toned by its name.
+   * For select and multiSelect: the colour an option's pill is drawn in, where
+   * the type chose one — a status tone or a palette hue (`OPTION_COLORS`). An
+   * option without one is coloured by its value (`optionColor`).
    */
-  readonly colors?: Readonly<Record<string, StatusTone>>;
+  readonly colors?: Readonly<Record<string, OptionColor>>;
   /**
    * For select: the option that means finished — what ticking a note's
    * checkbox sets. Written as `done: <option>` in the type file; see
@@ -219,18 +220,18 @@ function parseDone({
 }
 
 /**
- * The tones chosen for a select's options. A tone that is not on the ramp, or
- * one for an option the property does not list, is dropped: it could only ever
- * colour something that is not there.
+ * The colours chosen for a select's options: a status tone or a palette hue.
+ * A colour that is neither, or one for an option the property does not list,
+ * is dropped: it could only ever colour something that is not there.
  */
 function parseColors(
   raw: unknown,
   options: readonly string[],
-): Readonly<Record<string, StatusTone>> | null {
+): Readonly<Record<string, OptionColor>> | null {
   if (!isRecord(raw)) return null;
   const colors = Object.entries(raw).filter(
-    (entry): entry is [string, StatusTone] =>
-      options.includes(entry[0]) && STATUS_TONES.some((tone) => tone === entry[1]),
+    (entry): entry is [string, OptionColor] =>
+      options.includes(entry[0]) && isOptionColor(entry[1]),
   );
   return colors.length === 0 ? null : Object.fromEntries(colors);
 }

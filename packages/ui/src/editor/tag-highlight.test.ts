@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Editor, type JSONContent } from '@tiptap/core';
 import type { EditorState } from '@tiptap/pm/state';
 import type { DecorationSet } from '@tiptap/pm/view';
+import { tagHue } from '@atlas/domain';
 import { createEditorExtensions } from './extensions.ts';
 
 const editors: Editor[] = [];
@@ -156,5 +157,20 @@ describe('what counts as the text a tag is read in', () => {
     // `**x**#tag`: the tag's text run starts at its #.
     const instance = editing(doc(paragraph(text('x', [{ type: 'bold' }]), text('#tag'))));
     expect(tagsIn(instance)).toEqual([['#tag', 'tag']]);
+  });
+});
+
+describe('a tag’s colour', () => {
+  it('wears the hue its name gives it, the same each time it is written (#413)', () => {
+    const instance = editing(doc(paragraph(text('#payroll and #hiring, then #payroll'))));
+    const hues = [...instance.view.dom.querySelectorAll('.tag')].map((element) => [
+      element.getAttribute('data-tag'),
+      element.getAttribute('data-hue'),
+    ]);
+    expect(hues).toEqual([
+      ['payroll', tagHue('payroll')],
+      ['hiring', tagHue('hiring')],
+      ['payroll', tagHue('payroll')],
+    ]);
   });
 });

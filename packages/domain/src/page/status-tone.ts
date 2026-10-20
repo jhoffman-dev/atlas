@@ -41,7 +41,9 @@ const TONES: Readonly<Record<string, StatusTone>> = {
 };
 
 export function statusTone(value: string): StatusTone {
-  return TONES[value.trim().toLowerCase()] ?? 'backlog';
+  const key = value.trim().toLowerCase();
+  // Own keys only: a value called "constructor" is not a status.
+  return Object.hasOwn(TONES, key) ? (TONES[key] ?? 'backlog') : 'backlog';
 }
 
 /**

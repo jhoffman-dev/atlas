@@ -1,12 +1,20 @@
 import { Fragment, memo, useState, type ReactNode } from 'react';
 import { openHowFrom, type OpenHow } from './open-how.ts';
 import { useDraggable } from '@dnd-kit/core';
-import { cardMeta, plainText, type BoardRow, type PropertyKind } from '@atlas/domain';
+import {
+  cardMeta,
+  plainText,
+  type BoardRow,
+  type CardMetaItem,
+  type OptionColors,
+  type PropertyKind,
+} from '@atlas/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import { ChecklistProgress } from './checklist-progress.tsx';
 import { Icon } from './icon.tsx';
 import { useNoteNames } from './note-names.tsx';
+import { TintedPill } from './status-pill.tsx';
 
 /** What a card needs to be drawn, the same in its column and under the pointer. */
 export interface CardLook {
@@ -17,6 +25,8 @@ export interface CardLook {
   readonly laneBy?: string;
   /** The declared kind of each property, so a value can say what it is. */
   readonly kinds: Readonly<Record<string, PropertyKind>>;
+  /** The colours each select's type chose for its options, which its pills are drawn in. */
+  readonly colors: Readonly<Record<string, OptionColors>>;
   /** The card sits in the column that means finished. */
   readonly done: boolean;
   /** Given when the type can be ticked done: the card leads with a box instead of a tick. */
@@ -156,10 +166,12 @@ function CardFace({
 }
 
 /**
- * A card's fields as one line of words joined by `·` — "Phase 14 · From you ·
- * 3h" — with no chip and no icon per value (brief rule 4); `cardMeta` decides
- * the words. A line with nothing on it is not drawn. Only the dot is hidden
- * from a screen reader, so the spaces round it keep neighbouring values apart.
+ * A card's fields as one line — "Phase 14 · From you · 3h" — with no icon per
+ * value (brief rule 4). A choice and a linked note are muted pills, which the
+ * eye finds faster than words (#413); the rest are words joined by `·`.
+ * `cardMeta` decides both. A line with nothing on it is not drawn. Only the
+ * dot is hidden from a screen reader, so the spaces round it keep
+ * neighbouring values apart.
  */
 function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
   const names = useNoteNames();
@@ -170,6 +182,7 @@ function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
     kinds: look.kinds,
     values: row.values,
     names,
+    colors: look.colors,
   });
   if (items.length === 0) return null;
 
@@ -177,20 +190,32 @@ function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
     <p className="board__meta">
       {items.map((item, at) => (
         <Fragment key={item.key}>
-          {at > 0 && (
-            <>
-              {' '}
-              <span className="board__meta-sep" aria-hidden="true">
-                ·
-              </span>{' '}
-            </>
+          {at > 0 && <MetaGap dotted={!isPill(items[at - 1]) && !isPill(item)} />}
+          {item.color === undefined ? (
+            <span className="board__meta-item" data-missing={item.missing}>
+              {item.text}
+            </span>
+          ) : (
+            <TintedPill text={item.text} color={item.color} />
           )}
-          <span className="board__meta-item" data-missing={item.missing}>
-            {item.text}
-          </span>
         </Fragment>
       ))}
     </p>
+  );
+}
+
+const isPill = (item: CardMetaItem | undefined): boolean => item?.color !== undefined;
+
+/** What parts two values on the line: a `·` between words; a pill is set apart by its own fill. */
+function MetaGap({ dotted }: { dotted: boolean }) {
+  if (!dotted) return <> </>;
+  return (
+    <>
+      {' '}
+      <span className="board__meta-sep" aria-hidden="true">
+        ·
+      </span>{' '}
+    </>
   );
 }
 

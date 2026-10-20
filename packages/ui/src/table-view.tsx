@@ -5,10 +5,12 @@ import {
   groupTotals,
   humanizeKey,
   newNoteLabel,
+  optionColorsByKey,
   tableArrangement,
   toBoardRows,
   type BoardRow,
   type GroupLine,
+  type OptionColors,
   type PropertyDef,
   type PropertyKind,
   type QuerySort,
@@ -52,6 +54,12 @@ export interface TableSchema {
    * select's options, a relation's targets. Left out, those cells edit as text.
    */
   readonly properties?: Readonly<Record<string, PropertyDef>>;
+  /**
+   * The colours the type chose for each select's options, by key
+   * (`optionColorsByKey`). Left out, they are read from `properties`; an
+   * option with none is coloured by its value.
+   */
+  readonly colors?: Readonly<Record<string, OptionColors>>;
 }
 
 const NO_SCHEMA: TableSchema = { kinds: {}, labels: {}, noun: '' };
@@ -201,6 +209,10 @@ function TableSheet({
   const order = () => (grouped ? rowOrder(lines) : rows.map((row) => row.path));
   const kinds = useSteadyValue(schema.kinds, sameEntries);
   const properties = useSteadyValue(schema.properties ?? NO_PROPERTIES, sameEntries);
+  const colors = useSteadyValue(
+    schema.colors ?? optionColorsByKey(Object.values(properties)),
+    sameEntries,
+  );
   const { editing, editor } = useCellEditing({
     onEditCell,
     paths,
@@ -212,6 +224,7 @@ function TableSheet({
     kinds,
     labels: useSteadyValue(schema.labels, sameEntries),
     properties,
+    colors,
     onOpenNote,
     editor,
     ticks,
@@ -343,6 +356,7 @@ function useRowLook({
   kinds,
   labels,
   properties,
+  colors,
   onOpenNote,
   editor,
   ticks,
@@ -354,6 +368,7 @@ function useRowLook({
   kinds: RowLook['kinds'];
   labels: RowLook['labels'];
   properties: RowLook['properties'];
+  colors: RowLook['colors'];
   onOpenNote: TableViewProps['onOpenNote'];
   editor: CellEditorHooks | undefined;
   ticks: DoneTicks | undefined;
@@ -378,6 +393,7 @@ function useRowLook({
       kinds,
       labels,
       properties,
+      colors,
       onOpenNote: open,
       editor,
       onTick: ticked ? tick : undefined,
@@ -389,6 +405,7 @@ function useRowLook({
       kinds,
       labels,
       properties,
+      colors,
       open,
       editor,
       tick,
