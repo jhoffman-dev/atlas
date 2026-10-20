@@ -199,11 +199,8 @@ function openVaultWithStrayNote(page: Page, more: Readonly<Record<string, string
   });
 }
 
-test('a template that is really a note is moved back to the notes from its band', async ({
-  page,
-}) => {
-  const { vault } = await openVaultWithStrayNote(page);
-
+/** Opens the stray note from the Templates page and moves it to the notes from its band. */
+async function moveStrayNoteToNotesFromItsBand(page: Page) {
   await page
     .getByRole('list', { name: 'Go to' })
     .getByRole('button', { name: 'Templates' })
@@ -211,10 +208,17 @@ test('a template that is really a note is moved back to the notes from its band'
   const list = page.getByRole('article', { name: 'Templates' });
   await list.getByRole('button', { name: 'Larkspur Payroll', exact: true }).click();
   await expect(templateBand(page)).toBeVisible();
-
   await templateBand(page).getByRole('button', { name: 'Move to notes…' }).click();
   const question = page.getByRole('alertdialog', { name: 'Make “Larkspur Payroll” a note?' });
   await question.getByRole('button', { name: 'Move to notes' }).click();
+}
+
+test('a template that is really a note is moved back to the notes from its band', async ({
+  page,
+}) => {
+  const { vault } = await openVaultWithStrayNote(page);
+
+  await moveStrayNoteToNotesFromItsBand(page);
 
   // Its bytes are what they were, at the top of the vault, and it is a note again.
   await expectFile(vault, 'Larkspur Payroll.md').toBe(COMPANY_NOTE);
@@ -238,16 +242,8 @@ test('a template moved back to the notes is reached again by the link that had n
 }) => {
   test.fail();
   await openVaultWithStrayNote(page);
-  await page
-    .getByRole('list', { name: 'Go to' })
-    .getByRole('button', { name: 'Templates' })
-    .click();
-  const list = page.getByRole('article', { name: 'Templates' });
-  await list.getByRole('button', { name: 'Larkspur Payroll', exact: true }).click();
-  await templateBand(page).getByRole('button', { name: 'Move to notes…' }).click();
-  const question = page.getByRole('alertdialog', { name: 'Make “Larkspur Payroll” a note?' });
-  await question.getByRole('button', { name: 'Move to notes' }).click();
-  await expect(templateBand(page)).toHaveCount(0);
+  // The move itself is held to account by the passing test above, which takes the same steps.
+  await moveStrayNoteToNotesFromItsBand(page);
 
   const links = page.getByRole('region', { name: 'Links', exact: true });
   const toggle = links.getByRole('button', { name: /^Links/ });
