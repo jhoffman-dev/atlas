@@ -215,9 +215,8 @@ function holdToBudget(action: BudgetedAction, budget: ActionBudget | undefined):
 async function countedPass(browser: Browser, into: Map<string, Work>): Promise<Pass> {
   const page = await newPage(browser);
   const vault = await writeFixtureVault([PROJECT_BOARD]);
-  // With a manifest, as the real index has: without one every refresh re-reads all 2,000 notes.
   // And with the watcher's echo of every write, as the real host sends it.
-  await installHost(page, vault, { keepsManifest: true, echoWrites: true });
+  await installHost(page, vault, { echoWrites: true });
   await page.addInitScript(installRenderCounter);
   await page.addInitScript(installWorkClock, clockAt({ virtual: true }));
   await page.goto('/');
@@ -309,7 +308,7 @@ async function timedPass(browser: Browser): Promise<Pass> {
   const page = await newPage(browser);
   await page.addInitScript(installWorkClock, clockAt({ virtual: false }));
   const vault = await writeFixtureVault([PROJECT_BOARD]);
-  await installHost(page, vault, { keepsManifest: true, echoWrites: true });
+  await installHost(page, vault, { echoWrites: true });
   await installProbe(page);
   await page.goto('/');
   const time = async (

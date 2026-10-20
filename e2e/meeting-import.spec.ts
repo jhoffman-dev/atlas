@@ -67,10 +67,7 @@ async function openWithHost(page: Page): Promise<{ vault: FakeVault; host: FakeH
   // Captured, so waiting in the Inbox beside the meetings that arrive (P30-01).
   await vault.write('Inbox/Call Mara.md', '---\ntype: task\nstatus: backlog\n---\n\n# Call Mara\n');
 
-  // The import moves notes while syncs run, so the index lists what it holds,
-  // as the real one does: a refresh then takes out a copy archived from under
-  // a sync that had read it, which a stand-in listing none never can (#405).
-  const host = await installHost(page, vault, { keepsManifest: true });
+  const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
