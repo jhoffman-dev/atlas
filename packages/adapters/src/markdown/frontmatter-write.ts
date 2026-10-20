@@ -84,6 +84,9 @@ export function updateFrontmatter(
   );
   const touched = new Set<string>();
   const asWritten = new Map<string, string>();
+  const before = segments(source);
+  /** Pairs whose comments below the value were taken off it, and how to put them back. */
+  const cleared = new Map<string, () => void>();
   for (const [key, change] of changed) {
     const node = change instanceof KeyAsWritten ? writtenValue(key, change.text) : undefined;
     const removing = node === null || change === null || change === undefined;
@@ -91,8 +94,12 @@ export function updateFrontmatter(
     // Only the pair the reader reads is written; a shadowed one keeps its bytes.
     const id = idOf(key, Math.max(pairsOf(document, key).length - 1, 0));
     touched.add(id);
-    if (node === undefined) setKey(document, key, change);
-    else if (node === null) setKey(document, key, null);
+    if (node === undefined) {
+      setKey(document, key, change);
+      const putBack =
+        change === null || change === undefined ? null : clearCommentBelow(document, key, before);
+      if (putBack !== null) cleared.set(id, putBack);
+    } else if (node === null) setKey(document, key, null);
     else {
       asWritten.set(id, (change as KeyAsWritten).text);
       putNode(document, key, node);
@@ -110,17 +117,34 @@ export function updateFrontmatter(
     return `${opening}${`${kept}${around?.tail ?? ''}`.replace(/\n/g, eol)}${closing}`;
   }
 
-  const written = document
-    .toString({
-      // Never wrap: a long value must not gain a line break it did not have.
-      lineWidth: 0,
-      // `[one, two]` rather than `[ one, two ]`, so an untouched inline list is
-      // written back exactly as it was found.
-      flowCollectionPadding: false,
-      ...lists,
-    })
-    .replace(/\n$/, '');
-  const kept = keepUntouched({ original: source, written, touched, asWritten });
+  const write = () =>
+    keepUntouched({
+      before,
+      written: document
+        .toString({
+          // Never wrap: a long value must not gain a line break it did not have.
+          lineWidth: 0,
+          // `[one, two]` rather than `[ one, two ]`, so an untouched inline list is
+          // written back exactly as it was found.
+          flowCollectionPadding: false,
+          ...lists,
+        })
+        .replace(/\n$/, ''),
+      touched,
+      asWritten,
+      cleared: new Set(cleared.keys()),
+    });
+  const first = write();
+  let kept = first.text;
+  if (first.unplaced.length > 0) {
+    // A key whose comments below could not be put back under it is the
+    // library's to write, those comments and all.
+    for (const id of first.unplaced) {
+      cleared.get(id)?.();
+      cleared.delete(id);
+    }
+    kept = write().text;
+  }
   // Blank lines were all a block held: they stay above the keys it now has.
   const blank = source.trim() === '' ? content.replace(/\r\n/g, '\n') : '';
   return `${opening}${`${blank}${kept}`.replace(/\n/g, eol)}${eol}${closing}`;
@@ -643,14 +667,19 @@ interface Segments {
     readonly text: string;
     readonly above: string;
     /**
-     * For a value that ends on a line of its own making (a scalar not in block
-     * style, or a flow list or map): the key and value lines, cut just after
-     * the value, and the lines below that line the key's text holds. Null for
-     * any other value.
+     * The key's text cut where its value ends: the key and value lines up to
+     * the value's last character, the rest of that line (spaces, an inline
+     * comment, the newline), and the lines below it the key's text holds.
+     * `block` is a value written in block style, whose rest is its last
+     * item's. Null when where the value ends cannot be told.
      */
     readonly value: {
       readonly lines: string;
+      readonly rest: string;
       readonly inline: boolean;
+      readonly block: boolean;
+      /** The column a line below would be read as the value's text from (its last block scalar's); 0 for any line. */
+      readonly joins: number | null;
       readonly below: string;
     } | null;
   }[];
@@ -672,29 +701,38 @@ interface Segments {
  * given as written is moved from the column it was written at to the block's.
  */
 function keepUntouched({
-  original,
+  before,
   written,
   touched,
   asWritten,
+  cleared,
 }: {
-  original: string;
+  /** The original block, cut by {@link segments}. */
+  before: Segments | null;
   written: string;
   touched: ReadonlySet<string>;
   /** Pairs' ids whose text is given, written as that text wherever they stand. */
   asWritten: ReadonlyMap<string, string>;
-}): string {
-  const before = segments(original);
+  /** Pairs' ids whose comments below the value were taken off it before writing. */
+  cleared: ReadonlySet<string>;
+}): {
+  text: string;
+  /** Of `cleared`, the pairs whose comments below could not be written back under them. */
+  unplaced: string[];
+} {
+  const unplaced = [...cleared];
   const after = segments(written);
-  if (after === null) return written;
+  if (after === null) return { text: written, unplaced };
   if (before === null) {
     // Nothing of the original to keep, but a key given as written is still written so.
-    if (asWritten.size === 0) return written;
+    if (asWritten.size === 0) return { text: written, unplaced };
     const keys = after.keys.map((segment) => {
       const given = asWritten.get(segment.id);
       return given === undefined ? segment.text : shifted(given, -keyColumnOf(given));
     });
-    return `${after.head}${keys.join('')}${after.tail}`.replace(/\n$/, '');
+    return { text: `${after.head}${keys.join('')}${after.tail}`.replace(/\n$/, ''), unplaced };
   }
+  const placed = new Set<string>();
   const found = new Map(before.keys.map((segment) => [segment.id, segment]));
   const indent = before.indent.length;
   const keys = after.keys.map((segment) => {
@@ -704,20 +742,53 @@ function keepUntouched({
     if (original === undefined) return shifted(segment.text, indent);
     if (!touched.has(segment.id)) return original.text;
     // The library reads a comment under a value as the value's own, the field
-    // an inline comment uses, and writes it inline (#395). With no inline
-    // comment to keep, the value line is written bare and the lines under it
-    // are the original's.
-    if (original.value !== null && !original.value.inline && segment.value !== null) {
-      return `${original.above}${shifted(segment.value.lines, indent)}${original.value.below}`;
+    // an inline comment uses, and writes it inline or under the value's last
+    // item (#395, #430). So only the value is the library's: what stood after
+    // it on its line and the lines under it are the original's.
+    const was = original.value;
+    const now = segment.value;
+    if (was !== null && now !== null) {
+      if (!now.block) {
+        placed.add(segment.id);
+        return `${original.above}${shifted(now.lines, indent)}${was.block ? '\n' : was.rest}${was.below}`;
+      }
+      // A value written in blocks holds what is left of the comments it had —
+      // its last item's own — so it is the library's only once the ones below
+      // it were taken off; an inline comment has no line left to stand on, and
+      // a line below that its last block of text would read as its own stays
+      // with the library.
+      const joins = now.joins === null ? null : now.joins + indent;
+      if ((was.block || !was.inline) && cleared.has(segment.id) && !readAsText(was.below, joins)) {
+        placed.add(segment.id);
+        return `${original.above}${shifted(`${now.lines}${now.rest}`, indent)}${was.below}`;
+      }
     }
     return `${original.above}${shifted(segment.text.slice(segment.above.length), indent)}`;
   });
   // The head is comments and blank lines no key owns: no change reaches them.
-  return `${before.head}${keys.join('')}${before.tail}`.replace(/\n$/, '');
+  return {
+    text: `${before.head}${keys.join('')}${before.tail}`.replace(/\n$/, ''),
+    unplaced: unplaced.filter((id) => !placed.has(id)),
+  };
+}
+
+/**
+ * Whether lines put under a value ending in a block scalar would be read as
+ * its text: a non-blank line at `joins` or deeper, any line at all when the
+ * scalar keeps its trailing lines (`joins` 0). Null `joins`: none would.
+ */
+function readAsText(below: string, joins: number | null): boolean {
+  if (joins === null) return false;
+  if (joins === 0) return below !== '';
+  return below
+    .split('\n')
+    .some((line) => line.trim() !== '' && /^ */.exec(line)![0].length >= joins);
 }
 
 function segments(text: string): Segments | null {
-  const source = text.endsWith('\n') ? text : `${text}\n`;
+  // The text is lines without the last one's newline: a newline it ends with
+  // is a blank line, the tail's to keep (#430).
+  const source = `${text}\n`;
   const document = parseDocument(source);
   const contents = document.contents;
   // A flow map (`{title: Plan}`) holds its keys on shared lines, so it cannot
@@ -756,18 +827,202 @@ function valueLines(
   value: unknown,
   { from, to }: { from: number; to: number },
 ): Segments['keys'][number]['value'] {
-  const ownLine =
-    (isScalar(value) && value.type !== 'BLOCK_LITERAL' && value.type !== 'BLOCK_FOLDED') ||
-    ((isMap(value) || isSeq(value)) && value.flow === true);
-  if (!ownLine || value.range === undefined || value.range === null) return null;
-  const cut = value.range[1];
-  const lineEnds = Math.min(lineEnd(source, value.range), to);
-  const lines = source.slice(from, cut);
+  const end = isNode(value) ? valueEnd(source, value) : null;
+  if (end === null || end.at < from || end.at > to) return null;
+  const lineEnds = Math.min(lineEnd(source, [end.at, end.at, end.at]), to);
+  const rest = source.slice(end.at, lineEnds);
   return {
-    lines: lines.endsWith('\n') ? lines : `${lines}\n`,
-    inline: source.slice(cut, lineEnds).trim() !== '',
+    lines: source.slice(from, end.at),
+    rest,
+    inline: rest.trim() !== '',
+    block: !endsOnItsOwnLine(value as Node),
+    joins: end.joins,
     below: source.slice(lineEnds, to),
   };
+}
+
+/** A scalar not in block style, or a flow list or map: a value whose line ends where it does. */
+function endsOnItsOwnLine(value: Node): boolean {
+  return (
+    (isScalar(value) && value.type !== 'BLOCK_LITERAL' && value.type !== 'BLOCK_FOLDED') ||
+    isAlias(value) ||
+    ((isMap(value) || isSeq(value)) && value.flow === true)
+  );
+}
+
+/**
+ * Where a value's own text ends: the end of the last scalar, alias or flow
+ * collection in it — a block list's or map's range runs on over the comment
+ * lines under it, as a block scalar's does over the shallower ones. With it,
+ * the column from which a line put below would be read as the value's text,
+ * when it ends in a block scalar. Null when the end cannot be told.
+ */
+function valueEnd(source: string, value: Node): { at: number; joins: number | null } | null {
+  let end: { at: number; joins: number | null } | null = null;
+  let unknown = false;
+  const reach = (node: Node) => {
+    const reached = isBlockScalar(node)
+      ? blockScalarEnd(source, node as Scalar)
+      : node.range
+        ? { at: node.range[1], joins: null }
+        : null;
+    if (reached === null) unknown = true;
+    else if (end === null || reached.at > end.at) end = reached;
+  };
+  const reachable = (node: Node) => isScalar(node) || endsOnItsOwnLine(node);
+  if (reachable(value)) reach(value);
+  else {
+    visit(value, {
+      Node: (_, node) => {
+        if (!reachable(node)) return undefined;
+        reach(node);
+        return visit.SKIP;
+      },
+    });
+  }
+  return unknown ? null : end;
+}
+
+const isBlockScalar = (node: Node) =>
+  isScalar(node) && (node.type === 'BLOCK_LITERAL' || node.type === 'BLOCK_FOLDED');
+
+/**
+ * Where a block scalar's text ends — past the comment lines shallower than
+ * its text and, unless it keeps them (`|+`), the blank lines its range runs
+ * on over — and the column its text is at. Null for one with an explicit
+ * indent, or no text to tell the column by.
+ */
+function blockScalarEnd(source: string, node: Scalar): { at: number; joins: number } | null {
+  if (node.range === undefined || node.range === null) return null;
+  const [start, stop] = node.range;
+  const headerEnds = source.indexOf('\n', start);
+  const header = source.slice(start, headerEnds === -1 ? stop : headerEnds).replace(/#.*/, '');
+  if (headerEnds === -1 || headerEnds >= stop || /\d/.test(header)) return null;
+  const keeps = header.includes('+');
+  const lines = source.slice(headerEnds + 1, stop).split('\n');
+  const first = lines.find((line) => line.trim() !== '');
+  if (first === undefined) return null;
+  const column = /^ */.exec(first)![0].length;
+  let at = stop;
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const line = lines[index] as string;
+    const length = line.length + (index === lines.length - 1 ? 0 : 1);
+    const shallowComment = /^ *#/.test(line) && /^ */.exec(line)![0].length < column;
+    if (!(shallowComment || (!keeps && line.trim() === ''))) break;
+    at -= length;
+  }
+  return { at, joins: keeps ? 0 : column };
+}
+
+/**
+ * Takes the comment lines under `key`'s value, as it was found, off the nodes
+ * of its new value that still hold them, so the library does not write them
+ * into the value it writes (#430); they are written back as they were found,
+ * under it. Returns how to put them back, when none of its nodes holds them
+ * or the ones that do are each inside the last and hold them at the ends of
+ * their comments; null, leaving the nodes alone, for anything else.
+ */
+function clearCommentBelow(
+  document: Document,
+  key: string,
+  before: Segments | null,
+): (() => void) | null {
+  const pair = pairOf(document, key);
+  const keys = before?.keys ?? [];
+  const at = keys.findIndex(
+    (segment) => segment.id === idOf(key, pairsOf(document, key).length - 1),
+  );
+  const found = keys[at];
+  if (before === null || pair === undefined || found === undefined || found.value === null) {
+    return null;
+  }
+  if (!found.value.block && found.value.inline) return null;
+  const below = `${found.value.below}${at === before.keys.length - 1 ? before.tail : ''}`;
+  // The library may hold the next key's comment lines with these, at the end
+  // of the same comment; they are that key's to write.
+  const lines = `${below}${keys[at + 1]?.above ?? ''}`;
+  const said = commentSaid(lines);
+  if (said.length === 0) return () => undefined;
+  // Every node of the pair whose comment says any of those lines (a bare `#`
+  // says what any comment does); with none, the library writes them
+  // elsewhere — a block scalar's go above the next key.
+  const texts = commentSaid(
+    lines
+      .split('\n')
+      .filter((line) => /^ *#/.test(line))
+      .join('\n'),
+  );
+  const says = (comment: string | null | undefined) =>
+    typeof comment === 'string' &&
+    texts.some((text) => text.trim() === '' || comment.includes(text));
+  const mentions: { node: Node; path: readonly unknown[] }[] = [];
+  for (const side of [pair.key, pair.value]) {
+    if (!isNode(side)) continue;
+    visit(side, {
+      Node: (_, node, path) => {
+        if (says(node.comment) || says(node.commentBefore)) mentions.push({ node, path });
+      },
+    });
+  }
+  if (mentions.length === 0) return () => undefined;
+  const nested = mentions.every(
+    ({ node, path }, index) =>
+      !says(node.commentBefore) &&
+      (index === 0 || path.includes((mentions[index - 1] as { node: Node }).node)),
+  );
+  if (!nested) return null;
+  const own = /^\s*#(.*)$/.exec(found.value.rest.replace(/\n$/, ''))?.[1] ?? '';
+  return takeOff(mentions.map(({ node }) => node).reverse(), said, own);
+}
+
+/**
+ * The lines from the first comment line in `below` to the last, as the
+ * library holds them in a comment: each comment line's text after its `#`,
+ * a blank line as an empty one.
+ */
+function commentSaid(below: string): string[] {
+  const lines = below.split('\n');
+  const first = lines.findIndex((line) => /^ *#/.test(line));
+  if (first === -1) return [];
+  const last = lines.findLastIndex((line) => /^ *#/.test(line));
+  return lines.slice(first, last + 1).map((line) => line.replace(/^ *#?/, ''));
+}
+
+/**
+ * Takes `said` off the ends of the comments of `nodes`, the deepest first:
+ * each takes the longest run of the lines left that its comment ends with,
+ * leaving nothing of it or — the deepest only — `own`, the inline comment
+ * on the line the value ends on. Lines left over are held outside the value
+ * (the next key's comment above it). Null, with every node as it was, when a
+ * node's comment does not end so.
+ */
+function takeOff(
+  nodes: readonly Node[],
+  said: readonly string[],
+  own: string,
+): (() => void) | null {
+  const kept = nodes.map((node) => node.comment);
+  const putBack = () => nodes.forEach((node, index) => (node.comment = kept[index] ?? null));
+  let from = 0;
+  for (const [index, node] of nodes.entries()) {
+    while (said[from] === '') from += 1;
+    const comment = node.comment ?? '';
+    let to = said.length;
+    while (to > from && !comment.endsWith(said.slice(from, to).join('\n'))) to -= 1;
+    const left = comment.slice(0, comment.length - said.slice(from, to).join('\n').length);
+    const rest = left.replace(/\n+$/, '');
+    if (
+      to === from ||
+      (left !== '' && !left.endsWith('\n')) ||
+      (rest !== '' && (index > 0 || rest !== own))
+    ) {
+      putBack();
+      return null;
+    }
+    node.comment = rest === '' ? null : rest;
+    from = to;
+  }
+  return putBack;
 }
 
 /**
