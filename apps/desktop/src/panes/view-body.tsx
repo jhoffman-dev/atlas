@@ -22,7 +22,6 @@ import {
   GalleryView,
   LayoutMenu,
   GroupByPopover,
-  SelectionBar,
   PropertiesPopover,
   ViewSaveControls,
   ListView,
@@ -32,6 +31,7 @@ import {
   type CoverSource,
   type Planner,
   type GroupFolds,
+  type CreateRelated,
   type OverlaySlots,
   type ViewField,
   type ViewTabEditing,
@@ -48,6 +48,8 @@ import type { useSqlView } from '../query/use-sql-view.ts';
 import { localToday } from '../today.ts';
 import { useMinuteNow } from './use-minute-now.ts';
 import { schemaOf } from './table-schema.ts';
+import { ViewTable } from './view-table.tsx';
+import { CELL_PICKER } from '../overlay.ts';
 import type { ViewChoosing } from '../archive/use-view-choosing.ts';
 
 // The rarer layouts load on first use; a table, a list and a board are drawn at start-up.
@@ -300,6 +302,8 @@ export function ViewBody({
   choosing,
   folds,
   onRowFocus,
+  onCreateRelated,
+  popups,
 }: {
   view: SavedView;
   /** The tray of tasks to plan, for a calendar of blocks. */
@@ -322,6 +326,10 @@ export function ViewBody({
   choosing: ViewChoosing;
   /** Told the row a table's focus landed in, for the right sidebar; left out, nothing follows it. */
   onRowFocus?: (path: string) => void;
+  /** "New <type>…" in a table's relation picker. */
+  onCreateRelated?: CreateRelated;
+  /** The pane's popups' open state, held by the app's one-overlay rule: a table cell's picker is one. */
+  popups?: OverlaySlots;
 }) {
   const schema = schemaOf(view.type, view.query?.type ?? '');
   // Spread rather than passed, so a type with no done option draws no boxes.
@@ -329,44 +337,17 @@ export function ViewBody({
   const board = useShownBoard(view);
 
   if (view.error !== null || view.result === null || view.display.layout === 'table') {
-    const choose = choosing.on && view.display.layout === 'table';
     return (
-      <>
-        {choose && (
-          <SelectionBar
-            count={choosing.count}
-            actions={choosing.actions}
-            onClear={choosing.clear}
-          />
-        )}
-        <TableView
-          result={view.result}
-          sorts={view.query?.sorts ?? []}
-          error={view.error}
-          schema={schema}
-          onOpenNote={onOpenNote}
-          onEditCell={view.editCell}
-          onToggleSort={view.toggleSort}
-          onNewNote={() => addAndOpen(view, onOpenNote)}
-          hiddenColumns={view.hidden}
-          {...ticks}
-          {...(onRowFocus !== undefined && { onRowFocus })}
-          {...(choose && { selection: choosing.selection })}
-          {...(view.display.groupBy !== null && {
-            grouping: {
-              groups: view.groups,
-              collapsed: folds.collapsed,
-              onToggle: folds.onToggle,
-              onNew: (chain) => {
-                // A failed create is shown as the view's error by `addInGroup` itself.
-                void view.addInGroup(chain).then((path) => {
-                  if (path !== null) onOpenNote(path);
-                });
-              },
-            },
-          })}
-        />
-      </>
+      <ViewTable
+        view={view}
+        choosing={choosing}
+        folds={folds}
+        onOpenNote={onOpenNote}
+        onNewNote={() => addAndOpen(view, onOpenNote)}
+        {...(onRowFocus !== undefined && { onRowFocus })}
+        {...(onCreateRelated !== undefined && { onCreateRelated })}
+        {...(popups !== undefined && { pickerSlot: popups(CELL_PICKER) })}
+      />
     );
   }
 

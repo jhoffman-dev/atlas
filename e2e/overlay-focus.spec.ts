@@ -141,3 +141,56 @@ test('the new-note menu is usable from the keyboard alone', async ({ page }) => 
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(button).toBeFocused();
 });
+
+/** A vault whose one view is a table of tasks with a status to pick (#300). */
+async function openTaskTable(page: Page) {
+  const vault = await createVault();
+  await vault.mkdir('.atlas/types');
+  await vault.mkdir('.atlas/views');
+  await vault.write(
+    '.atlas/types/task.md',
+    '---\nname: task\nproperties:\n  status:\n    kind: select\n    options: [backlog, doing, done]\n---\n',
+  );
+  await vault.write(
+    '.atlas/views/Tasks.md',
+    '---\natlas: view\ntype: task\ncolumns: [status]\n---\n',
+  );
+  await vault.write('one.md', '---\ntype: task\nstatus: doing\n---\n\n# One\n');
+  await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Vault' })
+    .getByRole('button', { name: 'Tasks', exact: true })
+    .click();
+  const cell = page.locator('.table [data-cell-stop="status"]').first();
+  await expect(cell).toBeVisible();
+  return { vault, cell };
+}
+
+test('a cell’s picker hands focus back to its cell on Esc', async ({ page }) => {
+  const { cell } = await openTaskTable(page);
+  await cell.click();
+  const picker = page.getByRole('dialog', { name: 'Set Status' });
+  await expect(picker).toBeVisible();
+  // Guard the guard: the focus went into the picker, so its coming back is the picker's doing.
+  await expect(picker.getByRole('combobox')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(picker).toHaveCount(0);
+  await expect(cell).toBeFocused();
+});
+
+test('Cmd+K over a cell’s picker closes the picker first, writing nothing', async ({ page }) => {
+  const { vault, cell } = await openTaskTable(page);
+  await cell.click();
+  // By CSS, not by role: under the palette the page leaves the accessibility tree.
+  const picker = page.locator('.cell-picker');
+  await expect(picker).toBeVisible();
+  await openSearch(page);
+  await expect.poll(() => focused(page)).toBe('input.palette__input');
+  await expect(picker).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Search notes' })).toHaveCount(0);
+  expect(await vault.read('one.md')).toContain('status: doing');
+});

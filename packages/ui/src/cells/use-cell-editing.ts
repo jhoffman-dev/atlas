@@ -20,6 +20,7 @@ export function useCellEditing({
   paths,
   order,
   columns,
+  valueAt,
 }: {
   /** Left out, cells are read only. A promise it returns says whether the write landed. */
   onEditCell: ((edit: CellEdit) => unknown) | undefined;
@@ -29,7 +30,18 @@ export function useCellEditing({
   order: () => readonly string[];
   /** The columns that edit, in the order the table shows them. */
   columns: () => readonly string[];
-}): { editing: CellEditing | null; editor: CellEditorHooks | undefined } {
+  /** What a cell shows now, read as its edit begins. */
+  valueAt: (at: CellAt) => unknown;
+}): {
+  editing: CellEditing | null;
+  editor: CellEditorHooks | undefined;
+  /**
+   * Ends the edit as something else takes the screen — another overlay over
+   * a picker: nothing is written, and the cell does not take the focus back
+   * from what took it.
+   */
+  dismiss: () => void;
+} {
   const [editing, setEditing] = useState<CellEditing | null>(null);
   const anchor = useRef<HTMLElement | null>(null);
   const returning = useRef<CellAt | null>(null);
@@ -45,11 +57,20 @@ export function useCellEditing({
    * Writes an edit's change, given one, as the edit is left — once: the
    * table leaving the page in the same frame finds nothing left to write.
    */
-  const leave = (at: CellAt, change: Change | null) => {
-    if (change !== null) write({ path: at.path, column: at.column, value: change.value });
+  const leave = (at: CellEditing, change: Change | null) => {
+    if (change !== null) {
+      write({ path: at.path, column: at.column, value: change.value, began: at.began });
+    }
     latest.current = null;
     anchor.current = null;
   };
+  const opened = (at: CellAt): CellEditing => ({
+    path: at.path,
+    column: at.column,
+    draft: null,
+    pending: null,
+    began: { value: valueAt(at) },
+  });
   const start = useSteadyCallback((at: CellAt) => {
     // What was typed in a cell left open — scrolled away, say — is written
     // before another is opened over it.
@@ -57,7 +78,7 @@ export function useCellEditing({
     // A new edit overtakes a cell waiting to take the focus back.
     returning.current = null;
     opening.current = true;
-    setEditing({ ...at, draft: null, pending: null });
+    setEditing(opened(at));
   });
   const draft = useSteadyCallback((text: string, pending: Change | null) =>
     setEditing((was) => (was === null ? null : { ...was, draft: text, pending })),
@@ -66,6 +87,11 @@ export function useCellEditing({
     if (editing === null) return;
     leave(editing, change ?? null);
     returning.current = { path: editing.path, column: editing.column };
+    setEditing(null);
+  });
+  const dismiss = useSteadyCallback(() => {
+    if (editing === null) return;
+    leave(editing, null);
     setEditing(null);
   });
   const step = useSteadyCallback((to: 1 | -1, change?: Change) => {
@@ -77,7 +103,7 @@ export function useCellEditing({
       setEditing(null);
     } else {
       opening.current = true;
-      setEditing({ ...next, draft: null, pending: null });
+      setEditing(opened(next));
     }
   });
 
@@ -97,7 +123,12 @@ export function useCellEditing({
     () => () => {
       const left = latest.current;
       if (left !== null && left.pending !== null) {
-        write({ path: left.path, column: left.column, value: left.pending.value });
+        write({
+          path: left.path,
+          column: left.column,
+          value: left.pending.value,
+          began: left.began,
+        });
       }
     },
     [write],
@@ -108,5 +139,5 @@ export function useCellEditing({
     () => (editable ? { start, draft, end, step, write, anchor, returning, opening } : undefined),
     [editable, start, draft, end, step, write],
   );
-  return { editing: editable ? editing : null, editor };
+  return { editing: editable ? editing : null, editor, dismiss };
 }

@@ -166,7 +166,12 @@ describe('TableView', () => {
     await userEvent.clear(input);
     await userEvent.type(input, 'done{Enter}');
 
-    expect(onEditCell).toHaveBeenCalledWith({ path: 'a.md', column: 'status', value: 'done' });
+    expect(onEditCell).toHaveBeenCalledWith({
+      path: 'a.md',
+      column: 'status',
+      value: 'done',
+      began: { value: 'doing' },
+    });
   });
 
   it('writes an edit in progress once when its row leaves the result: the note is still there', async () => {
@@ -190,6 +195,7 @@ describe('TableView', () => {
       path: 'a.md',
       column: 'status',
       value: 'done',
+      began: { value: 'doing' },
     });
     // The row back again is not being edited.
     rerender(<TableView {...props} result={result} onEditCell={onEditCell} />);
@@ -211,6 +217,7 @@ describe('TableView', () => {
       path: 'a.md',
       column: 'status',
       value: 'doing!',
+      began: { value: 'doing' },
     });
   });
 
@@ -224,6 +231,7 @@ describe('TableView', () => {
       path: 'a.md',
       column: 'status',
       value: 'doing!',
+      began: { value: 'doing' },
     });
   });
 

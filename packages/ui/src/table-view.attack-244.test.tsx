@@ -336,7 +336,9 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     const back = document.querySelector('tr[data-index="0"] .table__input') as HTMLInputElement;
     expect(back.value).toBe('2026-04-01');
     fireEvent.keyDown(back, { key: 'Enter' });
-    expect(edits).toEqual([{ path: 'r0.md', column: 'due', value: '2026-04-01' }]);
+    expect(edits).toEqual([
+      { path: 'r0.md', column: 'due', value: '2026-04-01', began: { value: '2026-03-01' } },
+    ]);
   });
 
   it('a draft left in a row scrolled out is written once when another cell is opened', () => {
@@ -355,7 +357,9 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     // The cell's button gives way to the field, so its line is read before the click.
     const line = drawn.closest('tr');
     fireEvent.click(drawn);
-    expect(edits).toEqual([{ path: 'r0.md', column: 'due', value: '2026-04-01' }]);
+    expect(edits).toEqual([
+      { path: 'r0.md', column: 'due', value: '2026-04-01', began: { value: '2026-03-01' } },
+    ]);
     const opened = document.querySelector('.table__input') as HTMLInputElement;
     expect(opened.closest('tr')).toBe(line);
     expect(document.activeElement).toBe(opened);

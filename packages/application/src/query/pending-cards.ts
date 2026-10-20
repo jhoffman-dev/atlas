@@ -57,14 +57,60 @@ export function rowsAsPending({
   /** The read the rows came from. */
   read: ReadMoment;
 }): readonly BoardRow[] {
-  const moved = new Map<string, Values>();
-  for (const card of pending) {
-    if (!readAnswers(card.landed, read))
-      moved.set(card.path, { ...moved.get(card.path), ...card.values });
-  }
+  const moved = pendingValues(pending, read);
   if (!rows.some((row) => moved.has(row.path))) return rows;
   return rows.map((row) => {
     const values = moved.get(row.path);
     return values === undefined ? row : { ...row, values: { ...row.values, ...values } };
   });
+}
+
+/** Each pending note's values, laid over one another in the order they were changed. */
+function pendingValues(pending: readonly PendingCard[], read: ReadMoment): Map<string, Values> {
+  const moved = new Map<string, Values>();
+  for (const card of pending) {
+    if (!readAnswers(card.landed, read))
+      moved.set(card.path, { ...moved.get(card.path), ...card.values });
+  }
+  return moved;
+}
+
+/** A query's answer as a table draws it: its columns, and a row of cells for each note. */
+export interface TableRows {
+  readonly columns: readonly string[];
+  readonly rows: readonly (readonly unknown[])[];
+}
+
+/**
+ * A table's rows as they are drawn while their cells' writes land (#300):
+ * the rule `rowsAsPending` holds for a board's cards, for the table's rows —
+ * a cell committed is drawn as committed until a read stands for its write.
+ * A row with nothing pending is the array it was, so only an edited row draws
+ * again; the result itself when nothing is pending.
+ */
+export function resultAsPending<Result extends TableRows>({
+  result,
+  pending,
+  read,
+}: {
+  result: Result;
+  pending: readonly PendingCard[];
+  read: ReadMoment;
+}): Result {
+  const moved = pendingValues(pending, read);
+  const pathAt = result.columns.indexOf('path');
+  if (moved.size === 0 || pathAt === -1) return result;
+  let changed = false;
+  const rows = result.rows.map((row) => {
+    const values = moved.get(String(row[pathAt]));
+    if (values === undefined) return row;
+    const cells = row.map((cell, at) => {
+      const column = result.columns[at] ?? '';
+      return Object.hasOwn(values, column) ? values[column] : cell;
+    });
+    if (cells.every((cell, at) => cell === row[at])) return row;
+    changed = true;
+    return cells;
+  });
+  return changed ? { ...result, rows } : result;
 }
