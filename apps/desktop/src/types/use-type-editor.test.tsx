@@ -56,7 +56,7 @@ function setUp({ failWrite = null }: { failWrite?: string | null } = {}) {
     ...parseObjectType(remarkMarkdown.frontmatterProperties(frontmatter)),
     path: createVaultPath(TYPE_PATH),
   };
-  const onSaved = vi.fn();
+  const onSaved = vi.fn(async () => {});
   const openNotes = { setPropertiesIfOpen: async () => false };
   const hook = renderHook(
     ({ shown }: { shown: DefinedType }) =>
@@ -344,7 +344,7 @@ function setUpTwoTypes() {
   });
   const task = defined(TYPE_PATH);
   const project = defined(PROJECT_PATH);
-  const onSaved = vi.fn();
+  const onSaved = vi.fn(async () => {});
   const openNotes = { setPropertiesIfOpen: async () => false };
   const hook = renderHook(
     ({ type }: { type: DefinedType }) =>
@@ -476,7 +476,7 @@ function setUpBook() {
     ),
     path: createVaultPath(BOOK_PATH),
   };
-  const onSaved = vi.fn();
+  const onSaved = vi.fn(async () => {});
   const hook = renderHook(() =>
     useTypeEditor({
       fs,

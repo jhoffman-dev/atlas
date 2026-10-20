@@ -87,7 +87,7 @@ function show(place: NavigationPlace, chosen: 'type' | 'properties' = 'type') {
     nameOf: () => 'Meeting',
     tab: activeTabOf(workspaceNow(store)).id,
   };
-  const onTypeSaved = vi.fn();
+  const onTypeSaved = vi.fn(async () => {});
   const rows = {
     pane: {
       notes: { fs, markdown: remarkMarkdown },

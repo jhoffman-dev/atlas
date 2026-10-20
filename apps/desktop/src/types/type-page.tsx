@@ -68,7 +68,7 @@ export function TypePage({
     index: IndexPort;
     openNotes: Pick<OpenNotes, 'setPropertiesIfOpen'>;
   };
-  onSaved: () => void;
+  onSaved: () => Promise<void>;
   /** Opens a row's note; `how` is where the click asked for it, when it said. */
   onOpenNote: (path: VaultPath, how?: OpenHow) => void;
   /** Makes a note of this type, from the foot of its table. */

@@ -108,7 +108,8 @@ export function useTypeEditor({
   openNotes: Pick<OpenNotes, 'setPropertiesIfOpen'>;
   type: DefinedType | null;
   types: readonly DefinedType[];
-  onSaved: () => void;
+  /** Asks for the types to be read again; settles once that read has landed. */
+  onSaved: () => Promise<void>;
 }) {
   const [draft, setDraft] = useState<ObjectType | null>(type);
   const [prompt, setPrompt] = useState<TypeEditorPrompt | null>(null);
@@ -116,7 +117,11 @@ export function useTypeEditor({
   const queue = useRef<Promise<void>>(Promise.resolve());
   /** The type as the last change left it, which the next change starts from. */
   const latest = useRef<ObjectType | null>(type);
-  /** Changes still being carried out; while there are any, a re-read may be stale. */
+  /**
+   * Changes still being carried out, or written but not yet read back: while
+   * there are any, a re-read may be stale — the types read before the last
+   * write are still what is shown until the read it asked for lands (#456).
+   */
   const pending = useRef(0);
   /** Answers the open question with 'cancel', if one is open. */
   const cancelQuestion = useRef<(() => void) | null>(null);
@@ -231,7 +236,13 @@ export function useTypeEditor({
         }
         throw cause;
       } finally {
-        onSaved();
+        pending.current += 1;
+        // A read that fails is said where the types are (`useTypes`'s
+        // failure); all this waits for is that it is over.
+        const readBack = () => {
+          pending.current -= 1;
+        };
+        onSaved().then(readBack, readBack);
       }
     },
     [type, types, fs, markdown, openNotes, plan, onSaved],

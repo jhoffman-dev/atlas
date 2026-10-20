@@ -25,7 +25,12 @@ export function useTypes({
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
-}): { types: readonly DefinedType[]; failure: string | null; reload: () => void } {
+}): {
+  types: readonly DefinedType[];
+  failure: string | null;
+  /** Reads the types again; settles once that read has landed, or was given up for a later one. */
+  reload: () => Promise<void>;
+} {
   const client = useQueryClient();
   const { data, error } = useQuery({
     queryKey: vaultReadKey(vaultKey ?? '', 'types'),
@@ -33,7 +38,7 @@ export function useTypes({
     enabled: vaultKey !== null,
   });
   const reload = useCallback(
-    () => void readAgain(client, vaultReadKey(vaultKey ?? '', 'types')),
+    () => readAgain(client, vaultReadKey(vaultKey ?? '', 'types')),
     [client, vaultKey],
   );
   const failure =

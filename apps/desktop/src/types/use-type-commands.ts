@@ -26,16 +26,19 @@ export function useTypeCommands({
   notePaths: readonly string[];
   /** Re-reads the tree and the index, after something wrote to the vault. */
   onChanged: () => void;
-  reloadTypes: () => void;
+  reloadTypes: () => Promise<void>;
   onTypeCreated: (type: DefinedType) => void;
   onNoteCreated: (path: VaultPath) => void;
 }) {
   const { fs, markdown } = ports;
 
-  /** After the type editor writes a type file: the type, the tree and the index follow. */
+  /**
+   * After the type editor writes a type file: the type, the tree and the index
+   * follow. Settles once the types have been read again.
+   */
   const onTypeSaved = useCallback(() => {
-    reloadTypes();
     onChanged();
+    return reloadTypes();
   }, [reloadTypes, onChanged]);
 
   const newType = useNewType({
