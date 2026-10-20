@@ -40,6 +40,7 @@ import {
   type PagePlace,
   type VaultEntry,
   type VaultPath,
+  typeShownAt,
 } from '@atlas/domain';
 import {
   createNoteChanges,
@@ -70,6 +71,8 @@ import {
 } from '@atlas/application';
 import {
   AppShell,
+  ASIDE_WIDTH,
+  ASIDE_WIDTH_TYPE,
   AsideToggleProvider,
   ChatToggleProvider,
   collapseFor,
@@ -127,7 +130,6 @@ import { useStrandedEdits } from './notes/stranded-edits.ts';
 import { browserStrandedStore } from './notes/browser-stranded-store.ts';
 import { placeName } from './panes/place-name.ts';
 import type { PaneContext } from './panes/note-pane-container.tsx';
-import type { TypePageMode } from './types/type-page.tsx';
 import { createRevealStore } from './panes/reveals.ts';
 import { ActiveSidebar } from './workspace/active-sidebar.tsx';
 import { browserWorkspaceStore } from './workspace/browser-workspace-store.ts';
@@ -138,6 +140,7 @@ import {
   openPlace,
   usePageShown,
   closeNotes as closeNotesIn,
+  activePlace,
   createWorkspaceStore,
   focusedNotePath,
   followMove as followMoveIn,
@@ -216,6 +219,7 @@ import {
   claudeShown as claudeShownNow,
   loadVaultAside,
   setAsideFolded,
+  showAsideTab,
   toggleAside as toggleAsideIn,
   toggleClaude,
   useAsideShown,
@@ -226,6 +230,7 @@ import { browserAsideStore } from './aside/browser-aside-store.ts';
 import { ClaudeSeatProvider } from './aside/claude-seat.tsx';
 import { createShownNotes } from './aside/shown-notes.ts';
 import { useAsideCollapsed } from './aside/use-aside-collapsed.ts';
+import { useAsideWidth } from './aside/use-aside-width.ts';
 import { browserFabStore } from './quick-add/browser-fab-store.ts';
 import { QuickAdd } from './quick-add/quick-add.tsx';
 import type { GlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
@@ -243,7 +248,6 @@ import { useArchive } from './archive/use-archive.ts';
 import { useInboxWaiting } from './inbox/use-inbox-waiting.ts';
 import { createPendingWrites } from './workspace/pending-writes.ts';
 import { createPageHoldsByVault } from './workspace/page-holds.ts';
-import { askToEdit, createTypeModeStore } from './types/type-mode-store.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
@@ -739,16 +743,55 @@ function AppWindow({
     (place: PagePlace) => openPlace(workspace, place, 'here'),
     [workspace],
   );
-  // A type opened to be edited: the ask names the tab it lands in, whose mode it is.
-  const [typeModes] = useState(createTypeModeStore);
-  const openType = useCallback(
-    (name: string, mode: TypePageMode = 'notes') => {
-      openPage({ kind: 'type', name });
-      if (mode === 'edit') {
-        askToEdit(typeModes, { tabId: activeTabOf(workspaceNow(workspace)).id, name });
-      }
+  // The aside folds where the window is too narrow for it beside the left
+  // sidebar (collapse.ts). Asking for it there — ⌘J, the bar's button, ⌥⌘\ —
+  // hides the left sidebar instead, where that makes room (not under 796px,
+  // where the aside folds on its own: the sidebar then stays), so Claude is
+  // reachable in a 1000px window; ⌘\ brings the sidebar back. The store is
+  // told as the window folds it, so the toggle's pressed state, each note's
+  // body and every ask read what is on screen, not what is remembered.
+  const asideWidth = useAsideWidth({
+    aside: asideStore,
+    workspace,
+    savedViews: catalog.savedViews,
+    types,
+  });
+  const asideCollapsed = useAsideCollapsed({ sidebarOpen, asideWidth });
+  useEffect(() => setAsideFolded(asideStore, asideCollapsed), [asideStore, asideCollapsed]);
+  const roomForAside = useCallback((asideWidth: number) => {
+    const width = window.innerWidth;
+    const folds = (open: boolean) => collapseFor({ width, sidebarOpen: open, asideWidth }).aside;
+    if (folds(true) && !folds(false)) setSidebarOpen(false);
+  }, []);
+  // An ask opens the aside whatever the store holds: the window's answer to
+  // the room just made arrives after this event, so `folded` still says folded.
+  // Room is made for the width the ask will show: 340 for the type editor.
+  const askForAside = useCallback(
+    (show: (store: typeof asideStore) => void, width = ASIDE_WIDTH) => {
+      roomForAside(width);
+      show(asideStore);
     },
-    [openPage, typeModes, workspace],
+    [asideStore, roomForAside],
+  );
+  /**
+   * A type's editor is the right sidebar's Type tab (slice 12): asked for,
+   * the type is shown — its page, unless the focused tab already shows it or
+   * one of its views — and the aside comes up on Type, room made for 340px.
+   */
+  const editType = useCallback(
+    (name: string) => {
+      const shown = typeShownAt(activePlace(workspaceNow(workspace)), catalog.savedViews);
+      if (shown !== name) openPage({ kind: 'type', name });
+      askForAside((store) => showAsideTab(store, 'type'), ASIDE_WIDTH_TYPE);
+    },
+    [workspace, catalog.savedViews, openPage, askForAside],
+  );
+  const openType = useCallback(
+    (name: string, mode: 'notes' | 'edit' = 'notes') => {
+      if (mode === 'edit') editType(name);
+      else openPage({ kind: 'type', name });
+    },
+    [openPage, editType],
   );
   // What the pages hold in flight, per vault: shared by every tab on a page, kept across a switch and back.
   const [holdsByVault] = useState(createPageHoldsByVault);
@@ -910,29 +953,6 @@ function AppWindow({
         selfEmails: () => ownerEmails,
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
-  );
-  // The aside folds where the window is too narrow for it beside the left
-  // sidebar (collapse.ts). Asking for it there — ⌘J, the bar's button, ⌥⌘\ —
-  // hides the left sidebar instead, where that makes room (not under 796px,
-  // where the aside folds on its own: the sidebar then stays), so Claude is
-  // reachable in a 1000px window; ⌘\ brings the sidebar back. The store is
-  // told as the window folds it, so the toggle's pressed state, each note's
-  // body and every ask read what is on screen, not what is remembered.
-  const asideCollapsed = useAsideCollapsed({ sidebarOpen });
-  useEffect(() => setAsideFolded(asideStore, asideCollapsed), [asideStore, asideCollapsed]);
-  const roomForAside = useCallback(() => {
-    const width = window.innerWidth;
-    const folds = (open: boolean) => collapseFor({ width, sidebarOpen: open }).aside;
-    if (folds(true) && !folds(false)) setSidebarOpen(false);
-  }, []);
-  // An ask opens the aside whatever the store holds: the window's answer to
-  // the room just made arrives after this event, so `folded` still says folded.
-  const askForAside = useCallback(
-    (show: (store: typeof asideStore) => void) => {
-      roomForAside();
-      show(asideStore);
-    },
-    [asideStore, roomForAside],
   );
   // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings
   // the aside up on it. Its toggle and close are one function each for the
@@ -1589,6 +1609,14 @@ function AppWindow({
     [asideShown, toggleAsideSeat],
   );
   const rowPorts = useMemo(() => ({ pane: paneContext, openNote }), [paneContext, openNote]);
+  const typeAside = useMemo(
+    () => ({
+      onDelete: (path: VaultPath) => entries.askDelete({ path, kind: 'file' }),
+      onEditTemplate: editTypeTemplate,
+      onOpenType: (name: string) => openType(name),
+    }),
+    [entries, editTypeTemplate, openType],
+  );
 
   const syncBadge = syncIndicatorBadge(sync);
   const fromGitHub = useOpenFromGitHub({
@@ -1925,14 +1953,12 @@ function AppWindow({
                         renames: tagRenames.forVault(location.absolutePath),
                       },
                       type: {
-                        editAsked: typeModes,
-                        onNotes: openTypePage,
+                        onEditType: editType,
                         // An artifact is saved from its link or its page, not made blank.
                         onNewNote: (type) =>
                           type.name === ARTIFACT_TYPE
                             ? startNewArtifact()
                             : newNoteOfType.create(type),
-                        onDelete: (path) => entries.askDelete({ path, kind: 'file' }),
                         onEditTemplate: (type) => editTypeTemplate(type.name),
                       },
                     },
@@ -1972,7 +1998,7 @@ function AppWindow({
                     )
                   }
                 >
-                  <AsideContainer rows={rowPorts} />
+                  <AsideContainer rows={rowPorts} types={typeAside} />
                 </ClaudeSeatProvider>
               </WorkspaceStoresProvider>
             )

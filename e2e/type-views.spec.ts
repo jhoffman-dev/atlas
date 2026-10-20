@@ -320,15 +320,23 @@ test('a type is edited from its sidebar menu and from the search palette', async
     .getByRole('menu', { name: 'Task' })
     .getByRole('menuitem', { name: 'Edit type' })
     .click();
-  await expect(page.getByRole('radio', { name: 'Edit type' })).toBeChecked();
-  await expect(page.getByRole('button', { name: 'Edit Status' })).toBeVisible();
+  const aside = page.getByRole('complementary', { name: 'Right sidebar' });
+  await expect(page.getByRole('button', { name: 'Edit type' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(aside.getByRole('button', { name: 'Edit Status' })).toBeVisible();
 
   await openType(page, 'Project');
   await expect(tabTitles(page)).toHaveText(['Projects']);
   await page.keyboard.press('Meta+k');
   await page.getByRole('searchbox', { name: 'Search the vault' }).fill('edit task type');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('radio', { name: 'Edit type' })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Edit type' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   // Task's definition, not Project's: only Task has a status.
-  await expect(page.getByRole('button', { name: 'Edit Status' })).toBeVisible();
+  await expect(aside.getByRole('textbox', { name: 'Name of this type' })).toHaveValue('Task');
+  await expect(aside.getByRole('button', { name: 'Edit Status' })).toBeVisible();
 });

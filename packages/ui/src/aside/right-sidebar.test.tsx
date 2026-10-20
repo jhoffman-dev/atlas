@@ -120,4 +120,25 @@ describe('RightSidebar', () => {
     expect(screen.getByRole('tabpanel').textContent).toBe('the rows');
     expect(tab('Properties').getAttribute('aria-selected')).toBe('true');
   });
+
+  it('offers the type editor first, as Type, and widens to 340px only while it is shown', () => {
+    const { container, rerender, props } = show({
+      panels: { type: <p>the type</p>, properties: <p>the row</p> },
+      tab: 'type',
+    });
+    expect(screen.getAllByRole('tab').map((each) => each.textContent)).toEqual([
+      'Type',
+      'Properties',
+    ]);
+    expect(screen.getByRole('tabpanel').textContent).toBe('the type');
+    expect(container.querySelector('.aside')?.classList.contains('aside--type')).toBe(true);
+    rerender(
+      <RightSidebar
+        {...props}
+        panels={{ type: <p>the type</p>, properties: <p>the row</p> }}
+        tab="properties"
+      />,
+    );
+    expect(container.querySelector('.aside')?.classList.contains('aside--type')).toBe(false);
+  });
 });

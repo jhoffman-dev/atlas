@@ -9,13 +9,14 @@ import {
 import { Icon } from '../icon.tsx';
 
 /**
- * The aside's tabs, in the order the row draws them. `claude` is the chat's
- * seat (UI v2 plan, open question 4): slice 8a draws the tab and its slot, and
- * slice 8b moves the chat into it.
+ * The aside's tabs, in the order the row draws them. `type` is the type
+ * editor (slice 12), offered while a type or one of its views is shown.
+ * `claude` is the chat's seat (UI v2 plan, open question 4).
  */
-export type AsideTab = 'properties' | 'backlinks' | 'outline' | 'claude';
+export type AsideTab = 'type' | 'properties' | 'backlinks' | 'outline' | 'claude';
 
 const TAB_LABELS: Readonly<Record<AsideTab, string>> = {
+  type: 'Type',
   properties: 'Properties',
   backlinks: 'Backlinks',
   outline: 'Outline',
@@ -23,7 +24,13 @@ const TAB_LABELS: Readonly<Record<AsideTab, string>> = {
 };
 
 /** The tabs in the order the row draws them; the app reads it to know which are offered. */
-export const ASIDE_TABS: readonly AsideTab[] = ['properties', 'backlinks', 'outline', 'claude'];
+export const ASIDE_TABS: readonly AsideTab[] = [
+  'type',
+  'properties',
+  'backlinks',
+  'outline',
+  'claude',
+];
 
 /**
  * The tab shown for `tab`: itself while a panel is offered for it, else the
@@ -133,7 +140,12 @@ export function RightSidebar({
   };
 
   return (
-    <aside className="aside" aria-label="Right sidebar" onKeyDown={onKeyDown}>
+    <aside
+      // The type editor is the wider aside (plan question 18); the slot reads it (aside.css).
+      className={shown === 'type' ? 'aside aside--type' : 'aside'}
+      aria-label="Right sidebar"
+      onKeyDown={onKeyDown}
+    >
       <div className="aside__bar">
         <div
           ref={list}

@@ -150,14 +150,16 @@ const PAGES: Record<string, (page: Page) => Promise<void>> = {
     await page.getByRole('menuitem', { name: 'New query' }).click();
   },
   Tags: (page) => page.getByRole('button', { name: 'Tags', exact: true }).click(),
-  // A type opens on its views (ADR-0023); its own page is the tab's "Edit" button.
+  // A type opens on its views (ADR-0023); "Edit Task type" from elsewhere
+  // opens its own page, with the editor in the right sidebar (slice 12),
+  // which is put away so the page's own head is what is measured.
   'a type page': async (page) => {
-    await sidebarSection(page, 'types')
-      .locator('.sidebar__item', { hasText: /^Task/ })
-      .first()
-      .click();
-    await page.getByRole('button', { name: 'Edit Task type' }).click();
-    await expect(page.getByRole('radio', { name: 'Edit type' })).toBeChecked();
+    await page.keyboard.press('Meta+k');
+    await page.getByRole('searchbox', { name: 'Search the vault' }).fill('edit task type');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('article', { name: 'Task', exact: true })).toBeVisible();
+    const hide = page.getByRole('button', { name: 'Hide right sidebar' });
+    if (await hide.isVisible()) await hide.click();
   },
   'a view': (page) =>
     sidebarSection(page, 'views').getByRole('button', { name: LONG_VIEW, exact: true }).click(),

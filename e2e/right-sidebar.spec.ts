@@ -198,7 +198,8 @@ test('selecting a table row shows the row’s properties, and editing one writes
   const table = page.getByRole('article', { name: 'Task', exact: true });
   await expect(table.getByRole('button', { name: 'Plan' })).toBeVisible();
   await toggle(page).click();
-  await expect(aside(page).getByRole('tab')).toHaveText(['Properties', 'Claude']);
+  // A type's page also offers its editor, first (slice 12); Properties stays the tab chosen.
+  await expect(aside(page).getByRole('tab')).toHaveText(['Type', 'Properties', 'Claude']);
   await expect(aside(page).getByText(/Nothing selected/)).toBeVisible();
 
   // The focus landing in a row's cell — here Plan's owner — is the selection; the note stays shut.

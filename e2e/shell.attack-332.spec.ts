@@ -383,10 +383,13 @@ const OPENERS: Record<string, (page: Page) => Promise<void>> = {
       .click(),
   Automations: (page) =>
     page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Automations' }).click(),
+  // "Edit … type" from elsewhere opens the type's own page; at 720px the
+  // right sidebar that holds its editor is folded, so the page is all there is.
   'a type page': async (page) => {
-    await sidebarSection(page, 'types').locator('.sidebar__item').first().click();
-    await page.getByRole('button', { name: `Edit ${LONG_TYPE} type` }).click();
-    await expect(page.getByRole('radio', { name: 'Edit type' })).toBeChecked();
+    await page.keyboard.press('Meta+k');
+    await page.getByRole('searchbox', { name: 'Search the vault' }).fill(`edit ${LONG_TYPE} type`);
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('article', { name: LONG_TYPE, exact: true })).toBeVisible();
   },
 };
 

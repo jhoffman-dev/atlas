@@ -107,25 +107,25 @@
 
 .type-editor {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: var(--space-6);
-  max-width: 760px;
-  padding-top: var(--space-4);
+  min-height: 0;
 }
 
 .type-editor__section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 2px;
 }
 
 .type-editor__heading {
+  align-items: baseline;
   color: var(--ink-3);
-  font-size: var(--text-label);
-  font-weight: 800;
-  letter-spacing: var(--tracking-label);
-  margin: 0;
-  text-transform: uppercase;
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 500;
+  justify-content: space-between;
+  margin: 0 0 var(--space-1);
 }
 
 .type-editor__empty {
@@ -186,17 +186,15 @@
 }
 
 .type-editor__property {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  border-radius: var(--radius-control);
 }
 
 .type-editor__summary {
   align-items: center;
   display: flex;
   gap: var(--space-2);
-  min-height: 44px;
-  padding: 0 var(--space-2) 0 var(--space-2);
+  min-height: 30px;
+  padding: 0 2px 0 0;
 }
 
 .type-editor__glyph {
@@ -207,28 +205,42 @@
 .type-editor__label {
   color: var(--ink);
   flex: 1;
-  font-size: var(--text-body);
-  font-weight: 700;
+  font-size: var(--text-ui);
+  font-weight: 500;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.type-editor__kind,
-.type-editor__badge {
-  background: var(--chip);
-  border-radius: var(--radius-pill);
-  color: var(--chip-ink);
+.type-editor__kind {
+  color: var(--ink-3);
   flex: none;
   font-size: var(--text-small);
-  font-weight: 700;
-  padding: 2px 9px;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .type-editor__badge {
-  background: var(--you);
-  color: var(--accent-text);
+  background: var(--well);
+  border-radius: var(--radius-chip);
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 500;
+  padding: 1px 6px;
+}
+
+/* The open property sits on the well inside a hairline (FlowType.dc.html). */
+.type-editor__property--open {
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.type-editor__expand {
+  height: 24px;
+  width: 24px;
 }
 
 .type-editor__expand .icon {
@@ -241,18 +253,17 @@
 }
 
 .type-editor__details {
-  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-3) var(--space-4) var(--space-3) 38px;
+  padding: var(--space-1) var(--space-2) var(--space-2) 28px;
 }
 
 .type-editor__row {
   align-items: center;
   display: flex;
-  gap: var(--space-3);
-  min-height: 36px;
+  gap: var(--space-2);
+  min-height: 32px;
 }
 
 .type-editor__row--end {
@@ -263,8 +274,8 @@
   color: var(--ink-3);
   flex: none;
   font-size: var(--text-ui);
-  font-weight: 600;
-  width: 120px;
+  font-weight: 500;
+  width: 76px;
 }
 
 .type-editor__field,
@@ -283,7 +294,7 @@
 
 .type-editor__row .type-editor__field {
   flex: 1;
-  max-width: 360px;
+  width: 0;
 }
 
 .type-editor__field--code {
@@ -304,6 +315,174 @@ select.type-editor__field,
 
 .type-editor__remove {
   color: var(--danger);
+  font-weight: 500;
+}
+
+/* ---- The type editor in the right sidebar (slice 12, FlowType.dc.html) ----
+   340px wide (.aside--type, aside.css): an icon tile and the name over a
+   hairline, the properties scrolling under it, then the template and default
+   view rows and a quiet foot pinned to the bottom. */
+
+.type-editor__head {
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 14px 16px 12px;
+}
+
+.type-editor__identity {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.type-editor__tile {
+  align-items: center;
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.type-editor__tile:hover,
+.type-editor__tile[aria-expanded='true'] {
+  background: var(--hover);
+}
+
+.type-editor__tile:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* The name reads as a title until it is pointed at or typed in. */
+.type-editor__name {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-section);
+  font-weight: 600;
+  min-width: 0;
+  padding: 3px 6px;
+}
+
+.type-editor__name:hover {
+  background: var(--hover);
+}
+
+.type-editor__name:focus {
+  background: var(--surface);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.type-editor__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 12px 16px;
+}
+
+.type-editor__count {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* In the well of an open property, a field is a box on the surface (FlowType.dc.html). */
+.type-editor__details .type-editor__field {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-weight: 400;
+}
+
+.type-editor__details .type-editor__field:focus {
+  box-shadow: var(--ring);
+}
+
+.type-editor__flags {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 2px 84px;
+}
+
+.type-editor__flag {
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-ui);
+  gap: var(--space-2);
+  min-height: 24px;
+}
+
+.type-editor__flag input {
+  accent-color: var(--ink);
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
+.type-editor__links {
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  padding: 6px 8px;
+}
+
+.type-editor__link {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.type-editor__link:hover {
+  background: var(--hover);
+}
+
+.type-editor__link:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.type-editor__link-name {
+  color: var(--ink-3);
+}
+
+.type-editor__foot {
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  flex: none;
+  font-size: var(--text-small);
+  margin: 0;
+  padding: 10px 16px;
 }
 
 /* A built-in type (P21-01): why it stays, where the delete button would be. */
@@ -358,6 +537,7 @@ select.type-editor__field,
 .type-editor__add {
   align-self: flex-start;
   gap: var(--space-1);
+  margin-top: var(--space-1);
 }
 
 .type-editor__prompt,

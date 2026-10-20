@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { ASIDE_COLLAPSES_BELOW, ASIDE_COLLAPSES_BELOW_ALONE, collapseFor } from '@atlas/ui';
+import {
+  ASIDE_COLLAPSES_BELOW,
+  ASIDE_COLLAPSES_BELOW_ALONE,
+  ASIDE_WIDTH_TYPE,
+  asideCollapsesBelow,
+  collapseFor,
+} from '@atlas/ui';
 import { useAsideCollapsed } from './use-aside-collapsed.ts';
 
 /**
@@ -58,6 +64,22 @@ describe('useAsideCollapsed', () => {
     expect(result.current).toBe(collapseFor({ width, sidebarOpen: false }).aside);
     expect(result.current).toBe(false);
     expect(width).toBeGreaterThanOrEqual(ASIDE_COLLAPSES_BELOW_ALONE);
+  });
+
+  it('folds the wider type editor sooner, by the same rule (shell.css’s .aside--type queries)', () => {
+    const typeBelow = asideCollapsesBelow({ sidebarOpen: true, asideWidth: ASIDE_WIDTH_TYPE });
+    // Wide enough for the 300px aside, not for the 340px one.
+    const width = typeBelow - 1;
+    expect(width).toBeGreaterThanOrEqual(ASIDE_COLLAPSES_BELOW);
+    windowOf(width);
+    const { result, rerender } = renderHook(
+      ({ asideWidth }: { asideWidth: number }) =>
+        useAsideCollapsed({ sidebarOpen: true, asideWidth }),
+      { initialProps: { asideWidth: ASIDE_WIDTH_TYPE } },
+    );
+    expect(result.current).toBe(true);
+    rerender({ asideWidth: 300 });
+    expect(result.current).toBe(false);
   });
 
   it('stops listening as it unmounts', () => {

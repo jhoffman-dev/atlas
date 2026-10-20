@@ -1,20 +1,17 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   NEW_PROPERTY_LABEL,
-  PROPERTY_KINDS,
-  propertyIcon,
-  relationTypes,
+  objectTypeIcon,
   type ObjectType,
-  type PropertyDef,
-  type PropertyKind,
   type SidebarIcon,
   type TypeEdit,
 } from '@atlas/domain';
 import { CommitField } from './commit-field.tsx';
-import { Icon, propertyGlyph, sidebarGlyph } from './icon.tsx';
-import { OptionsEditor } from './options-editor.tsx';
+import { Icon, sidebarGlyph } from './icon.tsx';
 import { SortableList } from './sortable-list.tsx';
-import { Toggle } from './toggle.tsx';
+import { PropertyRow, type RelationTarget } from './type-editor-property.tsx';
+
+export { KIND_LABELS, type RelationTarget } from './type-editor-property.tsx';
 
 /** A change that needs a decision before it is made: how many notes it touches, and the ways on. */
 export interface TypeEditorPrompt {
@@ -34,12 +31,6 @@ export interface TypeEditorNotice {
   readonly details?: readonly string[];
 }
 
-/** A type a relation can point at. */
-export interface RelationTarget {
-  readonly name: string;
-  readonly label: string;
-}
-
 /**
  * Deleting the type: asked for through `onDelete`, or refused — a built-in
  * type — with the reason shown where the button would be.
@@ -50,36 +41,13 @@ export interface TypeDeletion {
   readonly onDelete: () => void;
 }
 
-/** What each kind of property is called where one is chosen. */
-export const KIND_LABELS: Readonly<Record<PropertyKind, string>> = {
-  text: 'Text',
-  number: 'Number',
-  date: 'Date',
-  checkbox: 'Checkbox',
-  select: 'Select',
-  multiSelect: 'Multi-select',
-  url: 'URL',
-  relation: 'Relation',
-  thumbnail: 'Thumbnail',
-};
+/** The view a type's notes open on, named, and how to go to it. */
+export interface TypeDefaultView {
+  readonly title: string;
+  readonly onOpen: () => void;
+}
 
-/**
- * The type editor: a type's icon and its properties, each opened in place to
- * change its name, key, kind and what else its kind has — options for a
- * select, a target for a relation.
- *
- * Every change is handed over as a `TypeEdit` and made elsewhere; one that
- * would touch notes comes back as a `prompt` to decide on.
- */
-export function TypeEditor({
-  type,
-  icons,
-  targets,
-  prompt,
-  notice,
-  onEdit,
-  deletion,
-}: {
+export interface TypeEditorProps {
   type: ObjectType;
   /** The glyphs a type may choose from. */
   icons: readonly SidebarIcon[];
@@ -89,7 +57,95 @@ export function TypeEditor({
   onEdit: (edit: TypeEdit) => void;
   /** Left out where the type cannot be deleted from here at all. */
   deletion?: TypeDeletion;
-}) {
+  /** Opens the template new notes of the type start as; no row without it. */
+  onOpenTemplate?: () => void;
+  /** No row without it. */
+  defaultView?: TypeDefaultView;
+}
+
+/**
+ * The type editor, as the right sidebar holds it (slice 12, FlowType.dc.html):
+ * the type's icon and name, its properties as rows that open in place — name,
+ * kind, Allow many, Required on new notes, and what else the kind has —
+ * then its template and default view, and a foot saying where edits land.
+ *
+ * Every change is handed over as a `TypeEdit` and made elsewhere; one that
+ * would touch notes comes back as a `prompt` to decide on.
+ */
+export function TypeEditor(props: TypeEditorProps) {
+  const { type, prompt, notice, deletion } = props;
+  return (
+    <div className="type-editor">
+      <TypeHead type={type} icons={props.icons} onEdit={props.onEdit} />
+      <div className="type-editor__body">
+        {prompt !== null && <PromptCard prompt={prompt} />}
+        {notice !== null && <NoticeLine notice={notice} />}
+        <PropertiesSection type={type} targets={props.targets} onEdit={props.onEdit} />
+        {deletion !== undefined && <DeleteSection label={type.label} deletion={deletion} />}
+      </div>
+      <TypeLinks
+        label={type.label}
+        {...(props.onOpenTemplate !== undefined && { onOpenTemplate: props.onOpenTemplate })}
+        {...(props.defaultView !== undefined && { defaultView: props.defaultView })}
+      />
+      <p className="type-editor__foot">
+        {notice?.tone === 'problem' ? 'Edits apply' : 'Saved · edits apply'} to every {type.label}{' '}
+        note
+      </p>
+    </div>
+  );
+}
+
+/** The icon tile, which opens the choice of glyphs, and the type's name, renamed in place. */
+function TypeHead({ type, icons, onEdit }: Pick<TypeEditorProps, 'type' | 'icons' | 'onEdit'>) {
+  const [choosing, setChoosing] = useState(false);
+  return (
+    <div className="type-editor__head">
+      <div className="type-editor__identity">
+        <button
+          type="button"
+          className="type-editor__tile"
+          aria-label="Change icon"
+          aria-expanded={choosing}
+          aria-controls="type-editor-icons"
+          title="Change icon"
+          onClick={() => setChoosing((was) => !was)}
+        >
+          <Icon name={sidebarGlyph(objectTypeIcon(type))} size={17} />
+        </button>
+        <CommitField
+          value={type.label}
+          label="Name of this type"
+          className="type-editor__name"
+          onCommit={(label) => onEdit({ kind: 'setLabel', label })}
+        />
+      </div>
+      {choosing && (
+        <div className="type-editor__icons" id="type-editor-icons" role="group" aria-label="Icon">
+          {icons.map((icon) => (
+            <button
+              key={icon}
+              type="button"
+              className="new-type__icon"
+              aria-pressed={type.icon === icon}
+              aria-label={`${icon} icon`}
+              title={icon}
+              onClick={() => onEdit({ kind: 'setIcon', icon: type.icon === icon ? null : icon })}
+            >
+              <Icon name={sidebarGlyph(icon)} size={17} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PropertiesSection({
+  type,
+  targets,
+  onEdit,
+}: Pick<TypeEditorProps, 'type' | 'targets' | 'onEdit'>) {
   // Which property is open, and where it was: when its key is renamed, the one
   // now standing in its place is the same property under its new key.
   const [open, setOpen] = useState<{ key: string; at: number } | null>(null);
@@ -109,72 +165,82 @@ export function TypeEditor({
   }, [count, type.properties]);
 
   return (
-    <div className="type-editor">
-      {prompt !== null && <PromptCard prompt={prompt} />}
-      {notice !== null && <NoticeLine notice={notice} />}
+    <section className="type-editor__section" aria-labelledby="type-editor-properties">
+      <h2 className="type-editor__heading" id="type-editor-properties">
+        Properties
+        <span className="type-editor__count">{count}</span>
+      </h2>
+      {count === 0 && <p className="type-editor__empty">No properties yet.</p>}
+      <SortableList
+        className="type-editor__properties"
+        items={type.properties}
+        idOf={(property) => property.key}
+        nameOf={(property) => property.label}
+        onMove={({ id, to }) => onEdit({ kind: 'moveProperty', key: id, to })}
+      >
+        {(property, handle) => (
+          <PropertyRow
+            property={property}
+            handle={handle}
+            expanded={openKey === property.key}
+            onToggle={() =>
+              setOpen(
+                openKey === property.key
+                  ? null
+                  : { key: property.key, at: type.properties.indexOf(property) },
+              )
+            }
+            targets={targets}
+            onEdit={onEdit}
+          />
+        )}
+      </SortableList>
+      <button
+        type="button"
+        className="btn btn--ghost btn--sm type-editor__add"
+        onClick={() => onEdit({ kind: 'addProperty', label: NEW_PROPERTY_LABEL })}
+      >
+        <Icon name="plus" size={14} />
+        Add property
+      </button>
+    </section>
+  );
+}
 
-      <section className="type-editor__section" aria-labelledby="type-editor-icon">
-        <h2 className="type-editor__heading" id="type-editor-icon">
-          Icon
-        </h2>
-        <div className="type-editor__icons" role="group" aria-label="Icon">
-          {icons.map((icon) => (
-            <button
-              key={icon}
-              type="button"
-              className="new-type__icon"
-              aria-pressed={type.icon === icon}
-              aria-label={`${icon} icon`}
-              title={icon}
-              onClick={() => onEdit({ kind: 'setIcon', icon: type.icon === icon ? null : icon })}
-            >
-              <Icon name={sidebarGlyph(icon)} size={17} />
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="type-editor__section" aria-labelledby="type-editor-properties">
-        <h2 className="type-editor__heading" id="type-editor-properties">
-          Properties
-        </h2>
-        {count === 0 && <p className="type-editor__empty">No properties yet.</p>}
-        <SortableList
-          className="type-editor__properties"
-          items={type.properties}
-          idOf={(property) => property.key}
-          nameOf={(property) => property.label}
-          onMove={({ id, to }) => onEdit({ kind: 'moveProperty', key: id, to })}
-        >
-          {(property, handle) => (
-            <PropertyRow
-              property={property}
-              handle={handle}
-              expanded={openKey === property.key}
-              onToggle={() =>
-                setOpen(
-                  openKey === property.key
-                    ? null
-                    : { key: property.key, at: type.properties.indexOf(property) },
-                )
-              }
-              targets={targets}
-              onEdit={onEdit}
-            />
-          )}
-        </SortableList>
-        <button
-          type="button"
-          className="btn btn--tinted type-editor__add"
-          onClick={() => onEdit({ kind: 'addProperty', label: NEW_PROPERTY_LABEL })}
-        >
-          <Icon name="plus" size={15} />
-          Add property
-        </button>
-      </section>
-
-      {deletion !== undefined && <DeleteSection label={type.label} deletion={deletion} />}
+/** The template and default view, as label-and-value rows that go to them. */
+function TypeLinks({
+  label,
+  onOpenTemplate,
+  defaultView,
+}: {
+  label: string;
+  onOpenTemplate?: () => void;
+  defaultView?: TypeDefaultView;
+}) {
+  if (onOpenTemplate === undefined && defaultView === undefined) return null;
+  return (
+    <div className="type-editor__links">
+      {onOpenTemplate !== undefined && (
+        <LinkRow name="Template" value={label} onOpen={onOpenTemplate} />
+      )}
+      {defaultView !== undefined && (
+        <LinkRow name="Default view" value={defaultView.title} onOpen={defaultView.onOpen} />
+      )}
     </div>
+  );
+}
+
+function LinkRow({ name, value, onOpen }: { name: string; value: string; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="type-editor__link"
+      aria-label={`${name}: ${value}`}
+      onClick={onOpen}
+    >
+      <span className="type-editor__link-name">{name}</span>
+      <span className="type-editor__link-value">{value}</span>
+    </button>
   );
 }
 
@@ -256,176 +322,5 @@ function NoticeLine({ notice }: { notice: TypeEditorNotice }) {
         </ul>
       )}
     </div>
-  );
-}
-
-function PropertyRow({
-  property,
-  handle,
-  expanded,
-  onToggle,
-  targets,
-  onEdit,
-}: {
-  property: PropertyDef;
-  handle: ReactNode;
-  expanded: boolean;
-  onToggle: () => void;
-  targets: readonly RelationTarget[];
-  onEdit: (edit: TypeEdit) => void;
-}) {
-  const detailsId = `type-property-${property.key}`;
-  return (
-    <div className="type-editor__property">
-      <div className="type-editor__summary">
-        {handle}
-        <Icon name={propertyGlyph(propertyIcon(property.kind))} className="type-editor__glyph" />
-        <span className="type-editor__label">{property.label}</span>
-        <span className="type-editor__kind">{KIND_LABELS[property.kind]}</span>
-        {property.required && <span className="type-editor__badge">Required</span>}
-        <button
-          type="button"
-          className="icon-button type-editor__expand"
-          aria-expanded={expanded}
-          aria-controls={detailsId}
-          aria-label={`Edit ${property.label}`}
-          onClick={onToggle}
-        >
-          <Icon name="chevron" size={14} />
-        </button>
-      </div>
-      {expanded && (
-        <div className="type-editor__details" id={detailsId}>
-          <PropertyDetails property={property} targets={targets} onEdit={onEdit} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PropertyDetails({
-  property,
-  targets,
-  onEdit,
-}: {
-  property: PropertyDef;
-  targets: readonly RelationTarget[];
-  onEdit: (edit: TypeEdit) => void;
-}) {
-  const { key, label } = property;
-  const hasOptions = property.kind === 'select' || property.kind === 'multiSelect';
-
-  return (
-    <>
-      <label className="type-editor__row">
-        <span className="type-editor__row-label">Name</span>
-        <CommitField
-          value={label}
-          label={`Name of ${label}`}
-          onCommit={(next) => onEdit({ kind: 'renameProperty', key, newKey: key, label: next })}
-        />
-      </label>
-      <label className="type-editor__row">
-        <span className="type-editor__row-label">Stored as</span>
-        <CommitField
-          value={key}
-          label={`Key of ${label}`}
-          className="type-editor__field type-editor__field--code"
-          onCommit={(next) => onEdit({ kind: 'renameProperty', key, newKey: next, label })}
-        />
-      </label>
-      <label className="type-editor__row">
-        <span className="type-editor__row-label">Kind</span>
-        <select
-          className="type-editor__field"
-          aria-label={`Kind of ${label}`}
-          value={property.kind}
-          onChange={(event) =>
-            onEdit({ kind: 'changeKind', key, propertyKind: event.target.value as PropertyKind })
-          }
-        >
-          {PROPERTY_KINDS.map((kind) => (
-            <option key={kind} value={kind}>
-              {KIND_LABELS[kind]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="type-editor__row">
-        <span className="type-editor__row-label">Required</span>
-        <Toggle
-          label={`${label} is required`}
-          checked={property.required}
-          onChange={(required) => onEdit({ kind: 'setRequired', key, required })}
-        />
-      </div>
-      {property.kind === 'relation' && (
-        <RelationDetails property={property} targets={targets} onEdit={onEdit} />
-      )}
-      {hasOptions && <OptionsEditor property={property} onEdit={onEdit} />}
-      <div className="type-editor__row type-editor__row--end">
-        <button
-          type="button"
-          className="btn btn--ghost type-editor__remove"
-          onClick={() => onEdit({ kind: 'removeProperty', key })}
-        >
-          Remove {label}
-        </button>
-      </div>
-    </>
-  );
-}
-
-function RelationDetails({
-  property,
-  targets,
-  onEdit,
-}: {
-  property: PropertyDef;
-  targets: readonly RelationTarget[];
-  onEdit: (edit: TypeEdit) => void;
-}) {
-  const target = property.target ?? '';
-  const others = relationTypes(property).filter((name) => name !== target);
-  return (
-    <>
-      <label className="type-editor__row">
-        <span className="type-editor__row-label">Points at</span>
-        <select
-          className="type-editor__field"
-          aria-label={`Type ${property.label} points at`}
-          value={target}
-          onChange={(event) =>
-            onEdit({
-              kind: 'setRelation',
-              key: property.key,
-              target: event.target.value,
-              many: property.many,
-            })
-          }
-        >
-          {targets.map((choice) => (
-            <option key={choice.name} value={choice.name}>
-              {choice.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      {/* Written as a list in the type file; kept unless "Points at" is changed. */}
-      {others.length > 0 && (
-        <div className="type-editor__row">
-          <span className="type-editor__row-label">And at</span>
-          <span>{others.join(', ')}</span>
-        </div>
-      )}
-      <div className="type-editor__row">
-        <span className="type-editor__row-label">Several notes</span>
-        <Toggle
-          label={`${property.label} holds several notes`}
-          checked={property.many}
-          onChange={(many) => onEdit({ kind: 'setRelation', key: property.key, target, many })}
-        />
-      </div>
-    </>
   );
 }

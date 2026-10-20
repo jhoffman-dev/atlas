@@ -100,6 +100,14 @@ export function useAsideShown(store: AsideStore): boolean {
 
 export const asideShown = (state: AsideState): boolean => state.open && !state.folded;
 
+/**
+ * Whether the aside is on screen on its Type tab: the type editor, for
+ * whichever type the focused tab shows — offered there, as only a type's
+ * page or view can be the tab a type's own button was pressed in.
+ */
+export const typeEditorShown = (state: AsideState): boolean =>
+  asideShown(state) && state.tab === 'type';
+
 /** The row `tab` holds while the tab is still on the page it was focused on, read outside a render. */
 export function focusedRowOf(
   state: AsideState,

@@ -1,6 +1,6 @@
 import { memo, useMemo, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import { activeTabOf, outlineOf, type TabId, type VaultPath } from '@atlas/domain';
+import { activeTabOf, outlineOf, typeShownAt, type TabId, type VaultPath } from '@atlas/domain';
 import {
   BacklinksPane,
   OutlinePane,
@@ -17,17 +17,26 @@ import { hideAside, selectAsideTab, useAsideTab, useFocusedRow, withinOf } from 
 import { ClaudeSeat } from './claude-seat.tsx';
 import { RowAside, type RowPorts } from './row-aside.tsx';
 import { useShownDoc, useShownNote, type ShownNotes } from './shown-notes.ts';
+import { TypeAside, type TypeAsideWiring } from './type-aside.tsx';
 
 /**
  * The right sidebar, wired (#306): it follows the focused tab through the
  * workspace store and reads what that tab shows — the row its table last
  * focused, else the note it is on — through selectors, never through props
  * from `App`, so a tick on Today or a keystroke elsewhere draws nothing here.
- * The Claude tab is the chat's seat (plan question 4). Memoised: its one
- * prop is the row's ports, which change with the vault's, so its own
- * subscriptions are what draw it.
+ * The Claude tab is the chat's seat (plan question 4); the Type tab is the
+ * editor of the type the tab shows, on its page or one of its views (slice
+ * 12). Memoised: its props are the row's ports, which change with the
+ * vault's, and the type editor's wiring, so its own subscriptions are what
+ * draw it.
  */
-export const AsideContainer = memo(function AsideContainer({ rows }: { rows: RowPorts }) {
+export const AsideContainer = memo(function AsideContainer({
+  rows,
+  types,
+}: {
+  rows: RowPorts;
+  types: TypeAsideWiring;
+}) {
   const { store, aside, shown } = useWorkspaceStores();
   const chosen = useAsideTab(aside);
   const activeTab = useStore(store, (state) => activeTabOf(state.workspace).id);
@@ -42,7 +51,13 @@ export const AsideContainer = memo(function AsideContainer({ rows }: { rows: Row
       : notePath !== null
         ? notePanels({ shown, tab: activeTab, path: notePath })
         : { properties: <NothingSelected /> };
-  const panels = { ...subject, claude: <ClaudeSeat /> };
+  const typeName = typeShownAt(place, rows.pane.savedViews);
+  const type = rows.pane.types.find((each) => each.name === typeName);
+  const editor =
+    type === undefined
+      ? {}
+      : { type: <TypeAside key={type.name} type={type} ports={rows} wiring={types} /> };
+  const panels = { ...editor, ...subject, claude: <ClaudeSeat /> };
   // Shown for the page at hand only: a page without an Outline does not
   // forget that the person chose Outline, so the choice is not written over.
   const tab = shownAsideTab(chosen, panels) ?? chosen;

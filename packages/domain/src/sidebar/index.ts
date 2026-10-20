@@ -24,6 +24,7 @@ export {
   typePageTabs,
   viewTabs,
 } from './view-tabs.ts';
+export { typeShownAt } from './type-shown-at.ts';
 export {
   compareViewPlaces,
   defaultViewTab,

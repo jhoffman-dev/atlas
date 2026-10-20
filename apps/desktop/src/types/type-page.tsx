@@ -2,8 +2,6 @@ import {
   createVaultPath,
   objectTypeIcon,
   pageCrumb,
-  TYPE_ICONS,
-  typeDeleteRefusal,
   type ObjectType,
   type VaultPath,
   type ViewTab,
@@ -20,9 +18,7 @@ import {
   PageAction,
   PageBar,
   PageHead,
-  SegmentedControl,
   TableView,
-  TypeEditor,
   ViewTabs,
   type PageHistory,
   type ViewTabEditing,
@@ -33,24 +29,18 @@ import { schemaOf } from '../panes/table-schema.ts';
 import type { useTypeTable } from './use-type-table.ts';
 import { useTypeEditor } from './use-type-editor.ts';
 
-/** What the type page shows: the type's notes, or the type itself to edit. */
-export type TypePageMode = 'notes' | 'edit';
-
-const MODES = [
-  { value: 'notes', label: 'Notes' },
-  { value: 'edit', label: 'Edit type' },
-] as const;
-
 /**
- * A type's own page: its definition, edited in place, and — for a type with no
+ * A type's own page: its name, renamed in place, and — for a type with no
  * views — its default table under the one tab it has (ADR-0023). A type with
  * views opens on one of them instead; reached by Back, this page lists them.
+ * The type itself is edited in the right sidebar's Type tab (slice 12), which
+ * "Edit type" shows and hides.
  */
 export function TypePage({
   table,
   types,
-  mode,
-  onModeChange,
+  editing,
+  onEditType,
   ports,
   onSaved,
   onOpenNote,
@@ -58,7 +48,6 @@ export function TypePage({
   tabs,
   tabEditing,
   onOpenView,
-  onDelete,
   onEditTemplate,
   onRowFocus,
   onShowSidebar,
@@ -66,8 +55,10 @@ export function TypePage({
 }: {
   table: ReturnType<typeof useTypeTable>;
   types: readonly DefinedType[];
-  mode: TypePageMode;
-  onModeChange: (mode: TypePageMode) => void;
+  /** Whether the type's editor is on screen in the right sidebar. */
+  editing: boolean;
+  /** Shows the type's editor in the right sidebar, or hides it when it is shown. */
+  onEditType: () => void;
   ports: {
     fs: VaultFsPort;
     markdown: MarkdownPort;
@@ -84,8 +75,6 @@ export function TypePage({
   /** What the tabs can do: add a view, rename or copy the default table. */
   tabEditing: ViewTabEditing | undefined;
   onOpenView: (path: VaultPath) => void;
-  /** Asks to put the type's file in the Trash, through the same question as any note. */
-  onDelete: (path: VaultPath) => void;
   /** Opens the template the type's new notes start as, made if it has none. */
   onEditTemplate: (type: ObjectType) => void;
   /** Told the row the table's focus landed in, for the right sidebar. */
@@ -120,7 +109,14 @@ export function TypePage({
               tone="secondary"
               onPress={() => onEditTemplate(type)}
             />
-            <SegmentedControl label="Show" options={MODES} value={mode} onChange={onModeChange} />
+            <PageAction
+              icon="panel"
+              label="Edit type"
+              title="Edit type in the right sidebar"
+              tone="secondary"
+              pressed={editing}
+              onPress={onEditType}
+            />
           </>
         }
         {...(onShowSidebar !== undefined && { onShowSidebar })}
@@ -138,50 +134,31 @@ export function TypePage({
               />
             }
           />
-          {mode === 'notes' && (
-            <div className="view-toolbar">
-              <ViewTabs
-                tabs={tabs}
-                onOpenView={(path) => onOpenView(createVaultPath(path))}
-                // The page's own controls already open the type and its template.
-                editing={
-                  tabEditing && {
-                    ...tabEditing,
-                    onEditType: undefined,
-                    onEditTemplate: undefined,
-                  }
+          <div className="view-toolbar">
+            <ViewTabs
+              tabs={tabs}
+              onOpenView={(path) => onOpenView(createVaultPath(path))}
+              // The page's own controls already open the type and its template.
+              editing={
+                tabEditing && {
+                  ...tabEditing,
+                  onEditType: undefined,
+                  onEditTemplate: undefined,
                 }
-              />
-            </div>
-          )}
-          {mode === 'edit' ? (
-            <TypeEditor
-              type={type}
-              icons={TYPE_ICONS}
-              targets={types.map(({ name, label }) => ({ name, label }))}
-              prompt={editor.prompt}
-              notice={editor.notice}
-              onEdit={editor.edit}
-              {...(defined !== null && {
-                deletion: {
-                  refusal: typeDeleteRefusal(type),
-                  onDelete: () => onDelete(defined.path),
-                },
-              })}
+              }
             />
-          ) : (
-            <TableView
-              result={table.result}
-              sorts={table.sorts}
-              error={table.error}
-              schema={schemaOf(table.type, type.name)}
-              onOpenNote={(path, how) => onOpenNote(createVaultPath(path), how)}
-              onEditCell={table.editCell}
-              onToggleSort={table.toggleSort}
-              onNewNote={() => onNewNote(type)}
-              {...(onRowFocus !== undefined && { onRowFocus })}
-            />
-          )}
+          </div>
+          <TableView
+            result={table.result}
+            sorts={table.sorts}
+            error={table.error}
+            schema={schemaOf(table.type, type.name)}
+            onOpenNote={(path, how) => onOpenNote(createVaultPath(path), how)}
+            onEditCell={table.editCell}
+            onToggleSort={table.toggleSort}
+            onNewNote={() => onNewNote(type)}
+            {...(onRowFocus !== undefined && { onRowFocus })}
+          />
         </article>
       </div>
     </>
