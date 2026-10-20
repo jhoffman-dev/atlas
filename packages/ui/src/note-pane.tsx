@@ -182,6 +182,8 @@ export interface NotePaneProps {
   toolbar?: ReactNode;
   /** Opens the folder picker for this page; left out where it cannot be moved. */
   onMoveTo?: () => void;
+  /** Asks which person to merge this one into (#464); given only on a person's page. */
+  onMergeInto?: () => void;
   /** Asks to put this page in the Trash; left out where it cannot be deleted. */
   onDelete?: () => void;
   /** Puts this page in the Archive; left out where it cannot be archived. */
@@ -623,10 +625,19 @@ function pageItems({
  * Moving the page and throwing it away, last and set apart: a view or a
  * dashboard goes to the Trash from here, since it has no row in Pages to do it from.
  */
-function fileItems({ onMoveTo, onDelete, onArchive, onUnarchive }: NotePaneProps): PageMenuItem[] {
+function fileItems({
+  onMoveTo,
+  onMergeInto,
+  onDelete,
+  onArchive,
+  onUnarchive,
+}: NotePaneProps): PageMenuItem[] {
   const items: PageMenuItem[] = [];
   if (onMoveTo !== undefined) {
     items.push({ label: 'Move to…', onSelect: onMoveTo, movesFocus: true });
+  }
+  if (onMergeInto !== undefined) {
+    items.push({ label: 'Merge into…', onSelect: onMergeInto, movesFocus: true });
   }
   if (onArchive !== undefined) items.push({ label: 'Archive', onSelect: onArchive });
   if (onUnarchive !== undefined) items.push({ label: 'Unarchive', onSelect: onUnarchive });

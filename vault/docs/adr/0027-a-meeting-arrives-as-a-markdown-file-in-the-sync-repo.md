@@ -427,7 +427,7 @@ project: `matchAttendees` and `planMeetingLinks` in
 pipeline (#19) is to run as a deterministic step.
 
 - **Sure links are written; the rest is proposed.** An attendee is matched
-  by `email` or `other_emails` first, then by name or alias (spelt as the
+  by `email` or `other_emails` first — or an alias written as an address (#464: an old address kept among the aliases still matches) — then by name or alias (spelt as the
   vocabulary compares spellings, P28-05). Exactly one person is a link; two or
   more are a `link` proposal for each, never a guess; none is a `person`
   proposal with their name, address and the company their domain surely

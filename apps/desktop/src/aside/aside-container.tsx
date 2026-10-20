@@ -102,7 +102,13 @@ function NoteProperties({ shown, tab, path }: NotePanelProps) {
   if (note === null || note.path !== path) return <Reading />;
   // No Open or New tab at the foot: the note is the tab the aside follows.
   return (
-    <PropertiesPane {...note.panel} context={note.kicker} title={note.title} path={note.path} />
+    <PropertiesPane
+      {...note.panel}
+      context={note.kicker}
+      title={note.title}
+      path={note.path}
+      {...(note.onMergeInto !== undefined && { onMergeInto: note.onMergeInto })}
+    />
   );
 }
 

@@ -34,6 +34,7 @@ export function movingEditorsIn(
       followLayout(move);
     },
     abandon: (paths) => editors.abandon(paths),
+    dirtyPaths: () => editors.dirtyPaths(),
     reload: (path) => editors.reloadOthers({ tabId: NO_TAB, path }),
   };
 }

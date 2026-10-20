@@ -98,6 +98,12 @@ export interface ApiRouterDeps {
   readonly openNotes: OpenNotes;
   /** The panes again, for archiving: a move they must follow. */
   readonly movingNotes: MovingNotes;
+  /**
+   * The app's own index refresh: every note's time and size checked, `recheck`
+   * read again whatever they say. Resolves true once the index holds the files.
+   * Left out, a request refreshes the index itself.
+   */
+  readonly indexRefresh?: (recheck: readonly VaultPath[]) => Promise<boolean>;
   /** The app's thumbnail queue, bound to the vault open now. */
   readonly thumbnails: Pick<ThumbnailQueue, 'requestOrFail'>;
   /** Where a source's feeds and files are read from; the host fills in any secret. */

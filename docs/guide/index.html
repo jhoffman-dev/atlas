@@ -1186,6 +1186,21 @@ ORDER BY phase</pre>
       <h3>Other spellings of a name</h3>
       <p>A Person — and a Company — has an <b>Also spelt</b> property (<code>aliases</code> in the file): a nickname or a short form, commas between them in the properties panel. They are for matching a meeting's attendees to the person; Atlas never uses them to correct text. To correct a mishearing of the name, list it under <b>Misheard as</b> (<code>variants</code>) on the same note — or add the name on the <a href="#terms">Terms</a> page, which puts it there.</p>
       <p class="muted">A vault whose Person or Company type was made before this has no such property yet: add one called <code>aliases</code> on <a href="#edit-type">Edit type</a> as a <b>Multi-select</b>, or give the note an <code>aliases</code> list by hand. Atlas reads <code>aliases</code> either way.</p>
+      <h3 id="merge-people">Merge two people into one</h3>
+      <p>The same person can end up as two notes — <code>mara@larkspur.example.com</code> and <code>mara.quill@larkspur.example.com</code> made two, or <code>Tobias Fenn.md</code> sits at the top of the vault and in <code>People/</code>. On the one to get rid of, open the page's <b>…</b> menu (or the right sidebar's <b>Properties</b>) and choose <b>Merge into…</b>, then pick the person to keep.</p>
+      <p>To merge several at once, tick them in the <b>Person</b> table (or in a People view with <b>Select</b> on) and choose <b>Merge 2 people into…</b> on the bar above it — or <kbd>⌘K</kbd> <i>Merge selected people…</i> — then pick the person they all go into.</p>
+      <p>Before anything is written, Atlas says what the merge does: how many links in how many notes will open the kept person, the aliases and emails they gain, and any value the two disagree on — the kept person keeps their own, and the other is listed so you can copy it by hand. <b>Merge</b> then:</p>
+      <ul>
+        <li>points every link to the other person at the kept one — in text, embeds, properties like a meeting's people, your templates and the filters of saved views — keeping its display text, <code>#heading</code> and <code>^block</code>;</li>
+        <li>adds their emails to <b>Other emails</b> and their name and aliases to <b>Also spelt</b>, so the next meeting with them finds the kept person;</li>
+        <li>joins lists (projects, tags…) and types, and fills properties the kept person had empty;</li>
+        <li>adds their text at the end, under <b>Merged from …</b>;</li>
+        <li>puts their note in the Trash, where you can get it back in Finder.</li>
+      </ul>
+      <p>A toast says how it went, with a link to <a href="#activity">Activity</a>. There is no Undo: the Trash keeps the other note. Before the preview Atlas saves what you've typed anywhere and catches the index up, so a link you've just written is found. A link in one of Atlas's own files other than a template, view or dashboard (a type, say), or a view that names the person by file in its SQL, stops the merge until you change it by hand; so does typing Atlas couldn't save. If a note changed after the preview, nothing is merged and Atlas asks you to look again. If a write fails part-way, the toast names exactly which notes were changed and which weren't, nobody goes to the Trash, and merging again picks up where it stopped.</p>
+      <h3 id="possible-duplicates">Find people who may be one</h3>
+      <p>On the <b>Person</b> type's page, <b>Possible duplicates</b> (also in <kbd>⌘K</kbd> as <i>Possible duplicate people</i>) lists pairs that look like one person: the same name in two folders, the same email, an alias that is the other's name, or emails that match — <code>mara</code> and <code>mara.quill</code> at one company, <code>mara.quill</code> and <code>maraquill</code>, a typo like <code>marra.quill</code>, or a domain a letter off. At public mail providers (Gmail, Outlook, iCloud…) only the same address written with or without dots counts. Each pair shows why, with <b>Merge…</b> (and a button to keep the other one instead) or <b>Not the same</b>, which Atlas remembers in the vault's settings so the pair isn't offered again.</p>
+      <p class="muted">A meeting's attendee also matches a person whose <b>Also spelt</b> holds their email address.</p>
     </section>
 
     <section id="linked-pages">

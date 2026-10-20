@@ -78,6 +78,7 @@ function PeekContainer({ peek }: { peek: Peek }) {
     onToggleFavorite: note.onToggleFavorite,
     onMoveTo: note.onMoveTo,
     onDelete: note.onDelete,
+    onMergeInto: note.onMergeInto,
     onShowInGraph: note.onShowInGraph,
     arrangement: {},
   });

@@ -11,6 +11,7 @@ import { imageTools } from './tools/images.ts';
 import { meetingTools } from './tools/meetings.ts';
 import { inboxTools } from './tools/inbox.ts';
 import { noteTools } from './tools/notes.ts';
+import { peopleTools } from './tools/people.ts';
 import { proposalTools } from './tools/proposals.ts';
 import { queryTools } from './tools/queries.ts';
 import { scheduleTools } from './tools/schedule.ts';
@@ -35,6 +36,7 @@ export const ATLAS_TOOLS = [
   ...imageTools,
   ...sourceTools,
   ...tagTools,
+  ...peopleTools,
   ...templateTools,
   ...termTools,
   ...archiveTools,

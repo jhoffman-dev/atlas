@@ -171,6 +171,7 @@ function boundPanes(panes: MovingNotes, assertStillOpen: () => void): MovingNote
     reload: (path) => {
       if (stillOpen()) panes.reload(path);
     },
+    dirtyPaths: () => (stillOpen() ? (panes.dirtyPaths?.() ?? []) : []),
   };
 }
 
