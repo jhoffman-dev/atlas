@@ -72,7 +72,7 @@ export function syncSettingsView(sync: SyncController, vaultName: string): SyncS
 }
 
 /** The sidebar's sync light, or null for a vault that does not sync. */
-export function syncIndicatorBadge(sync: SyncController) {
+export function syncIndicatorBadge(sync: Pick<SyncController, 'phase' | 'behind' | 'paused'>) {
   return syncBadge(sync.phase, { behind: sync.behind, paused: sync.paused });
 }
 

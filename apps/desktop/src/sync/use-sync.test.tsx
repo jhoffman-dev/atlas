@@ -23,6 +23,7 @@ import { useSync, type SyncOptions } from './use-sync.ts';
 import { syncConflictNotice, syncIndicatorBadge, syncSettingsView } from './sync-view.ts';
 import { QUIT_SYNC_WAIT_MS, SYNC_TICK_MS } from './use-sync-schedule.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
+import { toldNews } from '../reads/told-news.test-support.ts';
 
 const NOT_A_REPO = failed('fatal: not a git repository', 128);
 /** What a vault Atlas set up for sync says in its settings, beside its `.gitignore` block. */
@@ -131,6 +132,8 @@ function setUpHook({
   paused = false,
   beforeFetch,
   sleep = fakeSleepClock(),
+  edits = toldNews(),
+  query = queryWrapper(),
 }: {
   script?: GitScript;
   parentTop?: ReturnType<typeof said>;
@@ -144,6 +147,9 @@ function setUpHook({
   beforeFetch?: () => Promise<void>;
   /** The host's sleep counter (#172). */
   sleep?: ReturnType<typeof fakeSleepClock>;
+  /** Where sync hears of an edit: the index's news, told by hand unless a test wires the real one. */
+  edits?: { feed: SyncOptions['edits']; tell: () => void };
+  query?: ReturnType<typeof queryWrapper>;
 } = {}) {
   const { git, called } = scriptedGit({ script });
   const order: string[] = [];
@@ -192,7 +198,7 @@ function setUpHook({
     fs: fs ?? vaultFiles(settings),
     markdown: remarkMarkdown,
     vaultKey: '/Users/j/Notes',
-    changeKey: 'ready:1',
+    edits: edits.feed,
     clock,
     activity,
     flushAll: async () => void order.push('flush'),
@@ -205,10 +211,22 @@ function setUpHook({
     onPulled,
   };
   const hook = renderHook((props: SyncOptions) => useSync(props), {
-    wrapper: queryWrapper().wrapper,
+    wrapper: query.wrapper,
     initialProps: options,
   });
-  return { hook, called, order, closeTasks, clock, onPulled, options, pauses, listRepositories };
+  const { tell } = edits;
+  return {
+    hook,
+    called,
+    order,
+    closeTasks,
+    clock,
+    onPulled,
+    options,
+    pauses,
+    listRepositories,
+    tell,
+  };
 }
 
 /** Moves the hand clock and the timers together, a tick at a time, as time passing would. */
@@ -351,7 +369,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
   it('sends a change about half a minute after it, and nothing without one', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const model = modelGit();
-    const { hook, called, clock, options } = setUpHook({
+    const { hook, called, clock, tell } = setUpHook({
       script: model.script,
       settings: `${SET_UP}\nsyncInterval: 60`,
     });
@@ -361,7 +379,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
     await wait(clock, 25_000);
     expect(called('commit')).toHaveLength(0);
     model.state.edits = ['Today.md'];
-    hook.rerender({ ...options, changeKey: 'ready:2' });
+    act(() => tell());
     await wait(clock, 25_000);
     expect(called('commit')).toHaveLength(0);
     await wait(clock, 10_000);
@@ -372,7 +390,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
   it('sends at least every five minutes while changes keep coming', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const model = modelGit();
-    const { hook, called, clock, options } = setUpHook({
+    const { hook, called, clock, tell } = setUpHook({
       script: model.script,
       settings: `${SET_UP}\nsyncInterval: 60`,
     });
@@ -381,7 +399,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
     // A change every 20 s from the first one: the half-minute quiet never comes.
     for (let second = 0; second < 300; second += 20) {
       model.state.edits = [`Log ${second}.md`];
-      hook.rerender({ ...options, changeKey: `ready:${second}` });
+      act(() => tell());
       await wait(clock, 20_000);
       if (second + 20 < 300) expect(called('commit'), `${second + 20} s in`).toHaveLength(0);
     }
@@ -411,14 +429,14 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
   it('waits for typing to stop before bringing other Macs’ changes in, showing the vault behind', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const model = modelGit();
-    const { hook, called, clock, options } = setUpHook({ script: model.script });
+    const { hook, called, clock, tell } = setUpHook({ script: model.script });
     await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
     const merges = called('merge').length;
     model.state.onGitHub = 1;
     // Typing: a change every 20 s, through the minute's look.
     for (let second = 20; second <= 80; second += 20) {
       model.state.edits = [`Draft ${second}.md`];
-      hook.rerender({ ...options, changeKey: `ready:${second}` });
+      act(() => tell());
       await wait(clock, 20_000);
     }
     await waitFor(() => expect(hook.result.current.behind).toBe(1));
@@ -440,7 +458,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
   it('runs nothing by itself while paused, and picks up again when resumed', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const model = modelGit();
-    const { hook, called, clock, options, pauses } = setUpHook({
+    const { hook, called, clock, tell, pauses } = setUpHook({
       script: model.script,
       paused: true,
     });
@@ -453,7 +471,7 @@ describe('useSync: sending and bringing in by itself (A29-01)', () => {
     // Paused: not even as the vault opens.
     expect(called('fetch')).toHaveLength(0);
     model.state.edits = ['Today.md'];
-    hook.rerender({ ...options, changeKey: 'ready:2' });
+    act(() => tell());
     await wait(clock, 120_000);
     expect(called('fetch')).toHaveLength(0);
     expect(called('commit')).toHaveLength(0);
@@ -686,10 +704,10 @@ describe('useSync, after the second A29-01 review', () => {
   it('starts nothing on the vault being left once a switch has waited for it', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const model = modelGit();
-    const { hook, called, clock, options } = setUpHook({ script: model.script });
+    const { hook, called, clock, tell } = setUpHook({ script: model.script });
     await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
     model.state.edits = ['Today.md'];
-    hook.rerender({ ...options, changeKey: 'ready:2' });
+    act(() => tell());
     const fetches = called('fetch').length;
     await act(async () => hook.result.current.settle());
     act(() => hook.result.current.syncNow());
@@ -1043,7 +1061,7 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
   it('acts on nothing once a look finds other Macs’ changes, until the sync brings them in', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const model = modelGit();
-    const { hook, called, clock, options } = setUpHook({ script: model.script });
+    const { hook, called, clock, tell } = setUpHook({ script: model.script });
     await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
     expect(await acts(hook)).toBe(true);
     const merges = called('merge').length;
@@ -1051,7 +1069,7 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
     // Typing holds the sync back past the minute's look.
     for (let second = 20; second <= 80; second += 20) {
       model.state.edits = [`Draft ${second}.md`];
-      hook.rerender({ ...options, changeKey: `ready:${second}` });
+      act(() => tell());
       await wait(clock, 20_000);
     }
     await waitFor(() => expect(hook.result.current.behind).toBe(1));

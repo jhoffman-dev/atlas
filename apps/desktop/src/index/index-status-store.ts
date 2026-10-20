@@ -65,10 +65,6 @@ export function useIndexPhase(store: IndexStatusStore, open: string | null): Ind
   return useStore(store, (state) => phaseFor(state, open));
 }
 
-export function useIndexRevision(store: IndexStatusStore): number {
-  return useStore(store, (state) => state.revision);
-}
-
 /** Why the open vault's index failed, or null while it has not. */
 export function useIndexFailure(store: IndexStatusStore, open: string | null): string | null {
   return useStore(store, (state) =>

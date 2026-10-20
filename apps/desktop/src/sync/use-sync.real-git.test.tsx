@@ -28,6 +28,7 @@ import {
   type Env,
 } from './two-macs.harness.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
+import { toldNews } from '../reads/told-news.test-support.ts';
 
 function handClock(start = Date.UTC(2026, 9, 4, 15, 40)) {
   let now = start;
@@ -71,6 +72,7 @@ describe('a vault set up from Settings syncs by itself (issue #8)', () => {
       await mac.write('.atlas/settings.md', '---\nquickAdd:\n  - task\n---\n\n# Settings\n');
       vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
       const clock = handClock();
+      const edits = toldNews();
       const options: SyncOptions = {
         host: {
           git: () => mac.git,
@@ -89,7 +91,7 @@ describe('a vault set up from Settings syncs by itself (issue #8)', () => {
         fs: vaultFsOf(mac),
         markdown: remarkMarkdown,
         vaultKey: root,
-        changeKey: 'ready:1',
+        edits: edits.feed,
         clock,
         activity: recordingActivity(),
         flushAll: async () => {},
@@ -108,7 +110,7 @@ describe('a vault set up from Settings syncs by itself (issue #8)', () => {
 
       // Push as you work: a new note goes up about half a minute after it is written.
       await mac.write('Later.md', 'written after setting up\n');
-      hook.rerender({ ...options, changeKey: 'ready:2' });
+      act(() => edits.tell());
       await wait(clock, 40_000);
       await until(async () => expect(await onGitHub(base, bare, env)).toContain('Later.md'));
 

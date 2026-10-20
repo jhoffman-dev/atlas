@@ -12,6 +12,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import type { SecretRow, SecretSave } from '@atlas/ui';
+import type { IndexNewsFeed } from '../reads/use-scoped-index-news.ts';
 
 /** Settings → Secrets as the card draws it, and what it can ask for. */
 export interface SecretsSetting {
@@ -47,7 +48,7 @@ export function useSecrets({
   markdown,
   index,
   vault,
-  changeKey,
+  edits,
   active,
 }: {
   store: SecretStorePort;
@@ -56,7 +57,11 @@ export function useSecrets({
   index: IndexPort;
   /** The open vault's path, which each write names so a switch refuses it. */
   vault: string | null;
-  changeKey: string;
+  /**
+   * The index's news of any note (`SECRETS_SCOPE`): any note can be a source
+   * that names a secret. Heard only while Settings is open (#326).
+   */
+  edits: IndexNewsFeed;
   /** True while Settings is open. */
   active: boolean;
 }): SecretsSetting {
@@ -84,7 +89,11 @@ export function useSecrets({
           setProblem(cause instanceof Error ? cause.message : String(cause));
         }
       });
-  }, [store, fs, markdown, index, vault, changeKey, reads, active]);
+  }, [store, fs, markdown, index, vault, reads, active]);
+  useEffect(
+    () => (active ? edits.subscribe(() => setReads((count) => count + 1)) : undefined),
+    [edits, active],
+  );
 
   const run = useCallback(async (action: () => Promise<string | null>): Promise<boolean> => {
     setPending(true);

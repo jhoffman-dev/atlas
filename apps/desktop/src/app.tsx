@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-  type ComponentProps,
-} from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState, type ComponentProps } from 'react';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
@@ -24,7 +16,6 @@ import {
   moveRefusal,
   noteNames,
   noteTitle,
-  ownerNeededBy,
   tagKey,
   taskTypeOf,
   ARTIFACT_KINDS,
@@ -53,6 +44,8 @@ import {
   PEOPLE_SCOPE,
   PERSON_EMAILS_SCOPE,
   PROJECTS_SCOPE,
+  SECRETS_SCOPE,
+  SYNC_SCOPE,
   setNoteProperty,
   readsTouchedByPaths,
   reportingIndexWrites,
@@ -82,7 +75,6 @@ import {
   IndexSettings,
   indexStatusText,
   SidebarFooter,
-  SyncIndicator,
   OpenFromGitHubDialog,
   VaultHeader,
   VaultEmptyState,
@@ -98,12 +90,7 @@ import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
-import {
-  useIndexFailure,
-  useIndexKey,
-  useIndexReady,
-  useIndexRevision,
-} from './index/index-status-store.ts';
+import { useIndexFailure, useIndexReady } from './index/index-status-store.ts';
 import { openOnce } from './index/open-once.ts';
 import { createWindowQueryClient } from './reads/query-client.ts';
 import { createReadInvalidator } from './reads/read-invalidator.ts';
@@ -251,8 +238,9 @@ import { useParaMigration } from './para/use-para-migration.ts';
 import { useVaultTidy } from './vault/use-vault-tidy.ts';
 import { useMeetingCleanup } from './meetings/use-meeting-cleanup.ts';
 import { useMeetingProjects } from './meetings/use-meeting-projects.ts';
-import { useAutomations } from './automations/use-automations.ts';
-import { useMeetingImport } from './meetings/use-meeting-import.ts';
+import { AutomationsRunner } from './automations/automations-runner.tsx';
+import { createAutomationsStore, useOwnerNeeded } from './automations/automations-store.ts';
+import { MeetingImportRunner } from './meetings/meeting-import-runner.tsx';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
 import { paletteArchiveCommands, runPaletteArchiveCommand } from './archive/palette-archive.ts';
 import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
@@ -260,15 +248,16 @@ import { useProfileSetting } from './profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from './profile/use-self-emails-setting.ts';
 import { settingsUnreadable, vaultOwnerKnown } from './profile/vault-owner-known.ts';
 import { useSettingsPause } from './profile/use-settings-pause.ts';
-import { automationsScheduled } from './automations/automations-scheduled.ts';
 import { browserChatSettingsStore } from './chat/chat-settings-store.ts';
 import { claudeStepPorts } from './chat/claude-step-ports.ts';
 import { chatWindowOf } from './chat/chat-window.ts';
 import { useChat, type ChatPorts } from './chat/use-chat.ts';
 import { closingInStages } from './activity/closing-stages.ts';
-import { useSync, type SyncHostPorts } from './sync/use-sync.ts';
+import type { SyncHostPorts } from './sync/use-sync.ts';
+import { createSyncStore, settleSync, useSyncForWindow } from './sync/sync-store.ts';
+import { SyncLight, SyncRunner, SyncSettingsSlot } from './sync/sync-container.tsx';
+import { useScopedIndexNews } from './reads/use-scoped-index-news.ts';
 import { useOpenFromGitHub } from './sync/use-open-from-github.ts';
-import { syncConflictNotice, syncIndicatorBadge } from './sync/sync-view.ts';
 import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
@@ -380,9 +369,11 @@ function AppWindow({
   // The right sidebar (#306): remembered per vault as the tabs are, read in the same event.
   const [asideStore] = useState(() => createAsideStore({ remembered: browserAsideStore }));
   const [shownNotes] = useState(createShownNotes);
-  // Set once the sync hook below exists: a switch waits for a sync under way,
-  // whose remaining steps would otherwise be refused half-done (U-29).
-  const settleSync = useRef<() => Promise<void>>(() => Promise.resolve());
+  // Where the sync, run by its own runner below, says how it stands (#326). A
+  // switch waits for a sync under way, whose remaining steps would otherwise
+  // be refused half-done (U-29).
+  const [syncStore] = useState(createSyncStore);
+  const [automationsStore] = useState(createAutomationsStore);
   // The Inbox and Proposals tabs hold their background writes here: a switch
   // waits for the clarifications and answers still being written behind those
   // pages, which the host would refuse once another vault is open (#217, #166).
@@ -390,8 +381,8 @@ function AppWindow({
   const leaveVault = useCallback(async () => {
     await editors.flushAll();
     await answersWrittenOrGivenUp(pendingWrites.drained());
-    await settleSync.current();
-  }, [editors, pendingWrites]);
+    await settleSync(syncStore);
+  }, [editors, pendingWrites, syncStore]);
   // So is the window's close, whatever tab those pages are in, or were.
   useAnswersWrittenBeforeClose(pendingWrites, closing.writes);
   // Every pane's unsaved work is written before the host moves to another vault,
@@ -514,9 +505,6 @@ function AppWindow({
       void refresh(refreshAfterWatch(paths));
     },
   });
-  // Everything derived from the index re-runs when this changes: backlinks,
-  // saved views and dashboard widgets. It moves only with the revision (#238).
-  const indexKey = useIndexKey(indexStore, vaultKey);
   // The window's readers of one kind of note read again for news of that kind alone (#325).
   const peopleKey = useScopedIndexKey({
     status: indexStore,
@@ -573,22 +561,15 @@ function AppWindow({
     onChanged: typesChanged,
   });
 
-  // Sync through GitHub (U-29): pulls on open, on its schedule, and before the window closes.
-  const sync = useSync({
-    host: syncPorts,
-    fs: vault.fs,
-    markdown: notes.markdown,
-    vaultKey,
-    changeKey: indexKey,
-    clock: localClock,
-    activity: activityLog,
-    flushAll: editors.flushAll,
-    closing: closing.first,
-    onPulled: onChanged,
+  // Sync through GitHub (U-29) is run by `SyncRunner`, drawn below; it counts
+  // an edit from the index's news of any note, heard without drawing (#326).
+  const syncEdits = useScopedIndexNews({
+    status: indexStore,
+    vault: vaultKey,
+    reader: 'sync',
+    scope: SYNC_SCOPE,
   });
-  useEffect(() => {
-    settleSync.current = sync.settle;
-  }, [sync.settle]);
+  const sync = useSyncForWindow(syncStore);
   // Granola's meetings (ADR-0034): on open once sync has pulled, every 15 minutes, and on Sync now.
   const granolaPull = useGranolaPull({
     granola: granolaPorts.port,
@@ -680,8 +661,7 @@ function AppWindow({
     [apiDeps, notePorts.markdown],
   );
 
-  const indexRevision = useIndexRevision(indexStore);
-  useSqlViews({ index: index.index, types, ready: indexReady, revision: indexRevision });
+  useSqlViews({ index: index.index, types, ready: indexReady, status: indexStore });
 
   const paletteCommandsFor = useSteadyCallback((focused: NavigationPlace | null) => [
     ...PALETTE_COMMANDS,
@@ -1192,28 +1172,10 @@ function AppWindow({
     void reload();
     return refreshed;
   }, [refresh, reload]);
-  // Meetings that n8n commits arrive by pull: each is checked, deduplicated and marked (P28-04).
-  useMeetingImport({
-    changes: noteChanges,
-    ports: archivePorts,
-    clock: localClock,
-    activity: activityLog,
-    vaultKey,
-    // Only the Mac that runs the automations writes into meeting files (U-29),
-    // and only on fresh sync state (ADR-0035 part 4).
-    active: sync.automationsHere,
-    indexReady,
-    selfName: ownerName,
-    selfEmails: ownerEmails,
-    ownerKnown,
-    pulledFiles: sync.pulledFiles,
-    onWritten: settleArchive,
-  });
   const archive = useArchive({
     ports: archivePorts,
     clock: localClock,
     notePaths,
-    indexKey,
     onSettled: settleArchive,
     offerLinks: entries.offerLinks,
   });
@@ -1254,6 +1216,7 @@ function AppWindow({
     () => (ownerKnown ? { selfName: ownerName, selfEmails: ownerEmails } : null),
     [ownerKnown, ownerName, ownerEmails],
   );
+  const ownerNeeded = useOwnerNeeded(automationsStore, cleanupOwner);
   const meetingCleanup = useMeetingCleanup({
     ports: cleanupPorts,
     owner: cleanupOwner,
@@ -1295,36 +1258,7 @@ function AppWindow({
     () => ({ ...archivePorts, types, notePaths, claude: claudeStep }),
     [archivePorts, types, notePaths, claudeStep],
   );
-  const automations = useAutomations({
-    ports: automationPorts,
-    clock: localClock,
-    vaultKey,
-    indexKey,
-    indexReady,
-    activity: activityLog,
-    onSettled: settleArchive,
-    live: automationsShown,
-    // A synced vault runs its automations on one Mac only (U-29), once it and the owner are known.
-    scheduled: automationsScheduled({
-      automationsHere: sync.automationsHere,
-      macKnown: sync.thisMac !== null && sync.settings !== null,
-      ownerKnown,
-    }),
-    // A rule a note sets off hears of it here (P29-01).
-    changes: noteChanges,
-    // Its Claude step runs only on fresh sync state (ADR-0035 part 4).
-    pulledFiles: sync.pulledFiles,
-  });
-  const { watchingSince: automationsSince, pauses: automationPauses } = automations;
-  useEffect(
-    () =>
-      apiAutomations.point({
-        vault: vaultKey,
-        watchingSince: automationsSince,
-        pauses: automationPauses,
-      }),
-    [apiAutomations, vaultKey, automationsSince, automationPauses],
-  );
+  // The automations, and the meeting import, are run by their runners, drawn below (#326).
   const treeMenuFor = useCallback(
     (entry: VaultEntry) =>
       withCommandBeforeDelete(
@@ -1355,13 +1289,20 @@ function AppWindow({
     vaultKey,
     activity: activityLog,
   });
+  // Heard, not drawn: listed again for news of any note while Settings is open.
+  const secretsNews = useScopedIndexNews({
+    status: indexStore,
+    vault: vaultKey,
+    reader: 'secrets',
+    scope: SECRETS_SCOPE,
+  });
   const secrets = useSecrets({
     store: sources.secrets,
     fs: vault.fs,
     markdown: notes.markdown,
     index: index.index,
     vault: vaultKey,
-    changeKey: indexKey,
+    edits: secretsNews,
     active: overlay === 'settings',
   });
   const googleCalendarSetting = useGoogleCalendar({
@@ -1590,7 +1531,8 @@ function AppWindow({
   );
   const rowPorts = useMemo(() => ({ pane: paneContext, openNote }), [paneContext, openNote]);
 
-  const syncBadge = syncIndicatorBadge(sync);
+  // Steady, so the sync light is drawn for its own news and not with the window (#326).
+  const openSyncSettings = useCallback(() => showOverlay('settings'), [showOverlay]);
   const fromGitHub = useOpenFromGitHub({
     folders: syncPorts.folders,
     store: choosing.store,
@@ -1632,7 +1574,7 @@ function AppWindow({
         sidebarOrderFailure,
         indexFailure,
         captureNeedsVault,
-        syncConflictNotice(sync.phase),
+        sync.conflict,
       ]}
       links={entries.links}
       stranded={stranded}
@@ -1728,15 +1670,7 @@ function AppWindow({
               problem: settingsProblem,
               onOpenSettings: () => showOverlay('settings'),
             },
-      ownerUnknown:
-        ownerKnown &&
-        automations.listing !== null &&
-        ownerNeededBy(
-          automations.listing.automations.map(({ rule }) => rule),
-          { selfName: ownerName, selfEmails: ownerEmails, people: [] },
-        )
-          ? { onOpenSettings: () => showOverlay('settings') }
-          : null,
+      ownerUnknown: ownerNeeded ? { onOpenSettings: () => showOverlay('settings') } : null,
       meetingProjects,
       view:
         inboxView === null
@@ -1753,10 +1687,7 @@ function AppWindow({
       vaultTidy,
       meetingCleanup,
       settingsProblem,
-      ownerKnown,
-      automations.listing,
-      ownerName,
-      ownerEmails,
+      ownerNeeded,
       meetingProjects,
       inboxView,
       openNote,
@@ -1766,6 +1697,49 @@ function AppWindow({
   return (
     <NoteNamesProvider value={names}>
       <ChatToggleProvider value={chatToggle}>
+        <SyncRunner
+          store={syncStore}
+          host={syncPorts}
+          fs={vault.fs}
+          markdown={notes.markdown}
+          vaultKey={vaultKey}
+          edits={syncEdits}
+          clock={localClock}
+          activity={activityLog}
+          flushAll={editors.flushAll}
+          closing={closing.first}
+          onPulled={onChanged}
+        />
+        <AutomationsRunner
+          store={automationsStore}
+          status={indexStore}
+          relay={apiAutomations}
+          ports={automationPorts}
+          clock={localClock}
+          vaultKey={vaultKey}
+          indexReady={indexReady}
+          activity={activityLog}
+          onSettled={settleArchive}
+          live={automationsShown}
+          sync={syncStore}
+          ownerKnown={ownerKnown}
+          // A rule a note sets off hears of it here (P29-01).
+          changes={noteChanges}
+        />
+        {/* Meetings that n8n commits arrive by pull: each is checked, deduplicated and marked (P28-04). */}
+        <MeetingImportRunner
+          sync={syncStore}
+          changes={noteChanges}
+          ports={archivePorts}
+          clock={localClock}
+          activity={activityLog}
+          vaultKey={vaultKey}
+          indexReady={indexReady}
+          selfName={ownerName}
+          selfEmails={ownerEmails}
+          ownerKnown={ownerKnown}
+          onWritten={settleArchive}
+        />
         <AppShell
           sidebarOpen={sidebarOpen}
           asideOpen={asideShown}
@@ -1874,11 +1848,7 @@ function AppWindow({
               <SidebarFooter
                 themeStore={browserThemeStore}
                 onOpenSettings={() => showOverlay('settings')}
-                sync={
-                  syncBadge !== null && (
-                    <SyncIndicator badge={syncBadge} onOpen={() => showOverlay('settings')} />
-                  )
-                }
+                sync={<SyncLight store={syncStore} onOpen={openSyncSettings} />}
               />
             </>
           }
@@ -1917,7 +1887,7 @@ function AppWindow({
                       templates: templatesPage.page,
                       terms: { templates },
                       activity: { activity },
-                      automations: { automations, ports: automationPorts },
+                      automations: { store: automationsStore, ports: automationPorts },
                       graph: { state: vaultGraph },
                       query: { text: queryText },
                       tags: {
@@ -2027,7 +1997,11 @@ function AppWindow({
                 )}
                 {location !== null && <GranolaSettingsCard setting={granolaSetting} />}
                 <ClaudeSettingsCard chat={chat} />
-                {location !== null && <SyncSettingsCard sync={sync} vaultName={location.name} />}
+                {location !== null && (
+                  <SyncSettingsSlot store={syncStore}>
+                    {(syncNow) => <SyncSettingsCard sync={syncNow} vaultName={location.name} />}
+                  </SyncSettingsSlot>
+                )}
               </SettingsPanel>
             ) : overlay === 'move-picker' && entries.picker !== null ? (
               <MovePicker
@@ -2125,7 +2099,8 @@ function AppWindow({
                 index={index.index}
                 commandsFor={paletteCommandsFor}
                 offerFor={paletteOffersFor}
-                changeKey={indexKey}
+                indexStatus={indexStore}
+                vault={vaultKey}
                 onCommand={runPaletteCommand}
                 onPick={openPaletteHit}
                 fallbackFocus={focusFallback}

@@ -7,6 +7,7 @@ import {
   firstUnsyncedAfterEdit,
 } from '@atlas/domain';
 import type { Clock, WindowClosingPort } from '@atlas/application';
+import type { IndexNewsFeed } from '../reads/use-scoped-index-news.ts';
 
 /** How often the clock is checked for a sync, or a look at GitHub, that has come due. */
 export const SYNC_TICK_MS = 5_000;
@@ -25,7 +26,7 @@ export function useSyncSchedule({
   paused,
   pushDelaySeconds,
   pullIntervalMinutes,
-  changeKey,
+  edits,
   clock,
   lastSyncAt,
   lastCheckAt,
@@ -37,7 +38,7 @@ export function useSyncSchedule({
   paused: boolean;
   pushDelaySeconds: number | null;
   pullIntervalMinutes: number | null;
-  changeKey: string;
+  edits: IndexNewsFeed;
   clock: Pick<Clock, 'now'>;
   lastSyncAt: MutableRefObject<number | null>;
   lastCheckAt: MutableRefObject<number | null>;
@@ -49,21 +50,23 @@ export function useSyncSchedule({
   const firstUnsyncedEditAt = useRef<number | null>(null);
   const latest = useRef({ run, check });
   latest.current = { run, check };
-  const firstKey = useRef(changeKey);
 
   // Every change counts, one made while a sync runs included: that one is not
   // in it, and is sent in turn. What a sync brings in counts too, which costs
   // one more sync that finds nothing to send.
-  useEffect(() => {
-    if (changeKey === firstKey.current) return;
-    const now = clock.now();
-    firstUnsyncedEditAt.current = firstUnsyncedAfterEdit({
-      now,
-      firstUnsyncedEditAt: firstUnsyncedEditAt.current,
-      lastSyncAt: lastSyncAt.current,
-    });
-    lastEditAt.current = now;
-  }, [changeKey, clock, lastSyncAt]);
+  useEffect(
+    () =>
+      edits.subscribe(() => {
+        const now = clock.now();
+        firstUnsyncedEditAt.current = firstUnsyncedAfterEdit({
+          now,
+          firstUnsyncedEditAt: firstUnsyncedEditAt.current,
+          lastSyncAt: lastSyncAt.current,
+        });
+        lastEditAt.current = now;
+      }),
+    [edits, clock, lastSyncAt],
+  );
 
   useEffect(() => {
     if (!enabled || paused) return;

@@ -29,6 +29,7 @@ import type { SyncPauseStore } from './browser-sync-pause.ts';
 import { usePulledFiles, type PulledFilesGate } from './use-pulled-files.ts';
 import { useExclusive, useInspection, useSyncRuns, type ThisMac } from './use-sync-runs.ts';
 import { useSyncSchedule } from './use-sync-schedule.ts';
+import type { IndexNewsFeed } from '../reads/use-scoped-index-news.ts';
 import { useRepositories, useSetUp, type RepositoryList } from './use-sync-setup.ts';
 
 /** The host's git, gh, the sync's own files, this Mac, its pause switch (U-29), and how long it has slept (#172). */
@@ -48,8 +49,12 @@ export interface SyncOptions {
   readonly markdown: MarkdownPort;
   /** The open vault's root; null with none open. */
   readonly vaultKey: string | null;
-  /** Changes when the vault's files do: an edit, a move, a Claude edit, an automation's run. */
-  readonly changeKey: string;
+  /**
+   * Tells of each change to the vault's files — an edit, a move, a Claude
+   * edit, an automation's run — as the index's news (`SYNC_SCOPE`), heard
+   * without drawing the window (#326).
+   */
+  readonly edits: IndexNewsFeed;
   readonly clock: Pick<Clock, 'now' | 'localNow'>;
   readonly activity: Pick<ActivityLog, 'inVault' | 'inOpenVault'>;
   /** Writes every pane's unsaved typing. */
@@ -155,7 +160,7 @@ export function useSync(options: SyncOptions): SyncController {
     paused,
     pushDelaySeconds: settings.value?.pushDelaySeconds ?? null,
     pullIntervalMinutes: settings.value?.pullIntervalMinutes ?? null,
-    changeKey: options.changeKey,
+    edits: options.edits,
     clock: options.clock,
     lastSyncAt,
     lastCheckAt,

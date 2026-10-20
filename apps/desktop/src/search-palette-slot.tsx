@@ -3,6 +3,7 @@ import type { NavigationPlace, PaletteCommand } from '@atlas/domain';
 import type { IndexPort } from '@atlas/application';
 import { SearchPalette } from '@atlas/ui';
 import { useSearch } from './index/use-search.ts';
+import { useIndexKey, type IndexStatusStore } from './index/index-status-store.ts';
 import { hideOverlay, useOverlayUp, type OverlayStore } from './overlay-store.ts';
 import { useFocusedPlace, type WorkspaceStore } from './workspace/workspace-store.ts';
 
@@ -29,8 +30,14 @@ export interface SearchPaletteSlotProps {
   readonly commandsFor: (focused: NavigationPlace | null) => readonly PaletteCommand[];
   /** Commands the query itself calls for — a pasted link, say — listed first. */
   readonly offerFor: (query: string) => readonly PaletteCommand[];
-  /** Changes whenever the index does: see `useSearch`. */
-  readonly changeKey: string;
+  /**
+   * The index's status, read while the palette is up: the hits are searched
+   * again when the index has news (`useSearch`), without drawing the window
+   * that holds the palette (#326).
+   */
+  readonly indexStatus: IndexStatusStore;
+  /** The open vault's root; null with none open. */
+  readonly vault: string | null;
   /** A command chosen, once the palette has closed, with the query it was chosen from. */
   readonly onCommand: (id: string, query: string) => void;
   /** A note chosen, once the palette has closed. */
@@ -44,13 +51,15 @@ function OpenSearchPalette({
   index,
   commandsFor,
   offerFor,
-  changeKey,
+  indexStatus,
+  vault,
   onCommand,
   onPick,
   fallbackFocus,
 }: SearchPaletteSlotProps) {
   const focused = useFocusedPlace(workspace);
   const commands = useMemo(() => commandsFor(focused), [commandsFor, focused]);
+  const changeKey = useIndexKey(indexStatus, vault);
   const search = useSearch({ index, commands, offerFor, changeKey, store });
   return (
     <SearchPalette
