@@ -642,6 +642,17 @@ interface Segments {
     readonly id: string;
     readonly text: string;
     readonly above: string;
+    /**
+     * For a value that ends on a line of its own making (a scalar not in block
+     * style, or a flow list or map): the key and value lines, cut just after
+     * the value, and the lines below that line the key's text holds. Null for
+     * any other value.
+     */
+    readonly value: {
+      readonly lines: string;
+      readonly inline: boolean;
+      readonly below: string;
+    } | null;
   }[];
   /** Whatever follows the last key's value: a trailing comment. */
   readonly tail: string;
@@ -692,6 +703,13 @@ function keepUntouched({
     const original = found.get(segment.id);
     if (original === undefined) return shifted(segment.text, indent);
     if (!touched.has(segment.id)) return original.text;
+    // The library reads a comment under a value as the value's own, the field
+    // an inline comment uses, and writes it inline (#395). With no inline
+    // comment to keep, the value line is written bare and the lines under it
+    // are the original's.
+    if (original.value !== null && !original.value.inline && segment.value !== null) {
+      return `${original.above}${shifted(segment.value.lines, indent)}${original.value.below}`;
+    }
     return `${original.above}${shifted(segment.text.slice(segment.above.length), indent)}`;
   });
   // The head is comments and blank lines no key owns: no change reaches them.
@@ -720,14 +738,36 @@ function segments(text: string): Segments | null {
     const key = keyOf(pair.key, document);
     const occurrence = seen.get(key) ?? 0;
     seen.set(key, occurrence + 1);
+    const ends = starts[at + 1] ?? end;
     return {
       key,
       id: idOf(key, occurrence),
-      text: source.slice(starts[at], starts[at + 1] ?? end),
+      text: source.slice(starts[at], ends),
       above: source.slice(starts[at], lines[at]),
+      value: valueLines(source, pair.value, { from: lines[at] as number, to: ends }),
     };
   });
   return { head: source.slice(0, starts[0]), indent, keys, tail: source.slice(end) };
+}
+
+/** A key's {@link Segments} `value`, for the key's text between `from` and `to`. */
+function valueLines(
+  source: string,
+  value: unknown,
+  { from, to }: { from: number; to: number },
+): Segments['keys'][number]['value'] {
+  const ownLine =
+    (isScalar(value) && value.type !== 'BLOCK_LITERAL' && value.type !== 'BLOCK_FOLDED') ||
+    ((isMap(value) || isSeq(value)) && value.flow === true);
+  if (!ownLine || !isNode(value) || value.range === undefined || value.range === null) return null;
+  const cut = value.range[1];
+  const lineEnds = Math.min(lineEnd(source, value.range), to);
+  const lines = source.slice(from, cut);
+  return {
+    lines: lines.endsWith('\n') ? lines : `${lines}\n`,
+    inline: source.slice(cut, lineEnds).trim() !== '',
+    below: source.slice(lineEnds, to),
+  };
 }
 
 /**
