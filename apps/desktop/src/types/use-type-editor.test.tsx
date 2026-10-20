@@ -56,18 +56,20 @@ function setUp({ failWrite = null }: { failWrite?: string | null } = {}) {
     ...parseObjectType(remarkMarkdown.frontmatterProperties(frontmatter)),
     path: createVaultPath(TYPE_PATH),
   };
-  const onSaved = vi.fn();
+  const onSaved = vi.fn(async (): Promise<readonly DefinedType[] | null> => null);
   const openNotes = { setPropertiesIfOpen: async () => false };
-  const hook = renderHook(() =>
-    useTypeEditor({
-      fs,
-      markdown: remarkMarkdown,
-      index,
-      openNotes,
-      type,
-      types: [type],
-      onSaved,
-    }),
+  const hook = renderHook(
+    ({ shown }: { shown: DefinedType }) =>
+      useTypeEditor({
+        fs,
+        markdown: remarkMarkdown,
+        index,
+        openNotes,
+        type: shown,
+        types: [type],
+        onSaved,
+      }),
+    { initialProps: { shown: type } },
   );
   const typeOnDisk = () =>
     parseObjectType(
@@ -75,7 +77,7 @@ function setUp({ failWrite = null }: { failWrite?: string | null } = {}) {
         splitFrontmatter(files.get(TYPE_PATH) ?? '').frontmatter,
       ),
     );
-  return { hook, files, onSaved, typeOnDisk };
+  return { hook, files, onSaved, typeOnDisk, type };
 }
 
 const status = (text: string | undefined) => /status: (.*)/.exec(text ?? '')?.[1];
@@ -241,6 +243,75 @@ describe('useTypeEditor', () => {
     expect(hook.result.current.notice).toBeNull();
   });
 
+  it('keeps its changes over a re-read older than them, until its own re-read lands', async () => {
+    // #456: a re-read begun before a kind change landed reached the editor
+    // after it, with nothing pending, and the next pick ("Points at") was
+    // worked out from it: "Author is not a relation", and the pick was lost.
+    const { hook, typeOnDisk, onSaved, type } = setUp();
+    const rereads: ((types: null) => void)[] = [];
+    onSaved.mockImplementation(() => new Promise((resolve) => rereads.push(resolve)));
+    act(() => {
+      hook.result.current.edit({ kind: 'addProperty', label: 'Author' });
+      hook.result.current.edit({ kind: 'changeKind', key: 'author', propertyKind: 'relation' });
+    });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(2));
+    // The type as read before either change, shown before the re-read the saves asked for.
+    hook.rerender({ shown: { ...type } });
+    expect(hook.result.current.draft?.properties.at(-1)?.kind).toBe('relation');
+    act(() =>
+      hook.result.current.edit({ kind: 'setRelation', key: 'author', target: 'task', many: true }),
+    );
+    // Saved, or refused with a notice: whichever, then said which.
+    await waitFor(() =>
+      expect(onSaved.mock.calls.length === 3 || hook.result.current.notice !== null).toBe(true),
+    );
+    expect(hook.result.current.notice).toBeNull();
+    expect(typeOnDisk().properties.at(-1)).toMatchObject({
+      key: 'author',
+      kind: 'relation',
+      target: 'task',
+      many: true,
+    });
+    // Its own re-reads landed, what the file says is shown again.
+    await act(async () => rereads.forEach((landed) => landed(null)));
+    hook.rerender({ shown: { ...typeOnDisk(), path: type.path, label: 'Chore' } });
+    expect(hook.result.current.draft?.label).toBe('Chore');
+  });
+
+  it('shows a change made outside while its own was pending, once its re-read lands', async () => {
+    // Passed over while the label was on its way; the next answer is the same
+    // types, which draws nothing new, so the re-read's own answer is shown.
+    const { hook, files, onSaved, type } = setUp();
+    let landed: (types: readonly DefinedType[]) => void = () => {};
+    onSaved.mockImplementation(() => new Promise((resolve) => (landed = resolve)));
+    act(() => hook.result.current.edit({ kind: 'setLabel', label: 'Chore' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    // Someone renames the type in another editor before the re-read lands.
+    files.set(TYPE_PATH, (files.get(TYPE_PATH) ?? '').replace('label: Chore', 'label: Errand'));
+    const outside = { ...type, label: 'Errand' };
+    hook.rerender({ shown: outside });
+    expect(hook.result.current.draft?.label).toBe('Chore');
+    await act(async () => landed([outside]));
+    expect(hook.result.current.draft?.label).toBe('Errand');
+    act(() => hook.result.current.edit({ kind: 'setIcon', icon: 'grid' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(2));
+    expect(hook.result.current.draft).toMatchObject({ label: 'Errand', icon: 'grid' });
+  });
+
+  it('takes re-reads again once one it waited on has failed', async () => {
+    const { hook, onSaved, type } = setUp();
+    onSaved.mockImplementation(async () => {
+      throw new Error('the types could not be read');
+    });
+    act(() => hook.result.current.edit({ kind: 'setLabel', label: 'Chore' }));
+    await waitFor(() => expect(hook.result.current.draft?.label).toBe('Chore'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    // Nothing is pending once the failed read is over: the next re-read is shown.
+    await act(async () => hook.rerender({ shown: { ...type, label: 'Errand' } }));
+    expect(hook.result.current.draft?.label).toBe('Errand');
+    expect(hook.result.current.notice).toBeNull();
+  });
+
   it('reports each note it could not rewrite, and rewrites the rest', async () => {
     const { hook, files } = setUp({ failWrite: 'a.md' });
     act(() =>
@@ -307,7 +378,7 @@ function setUpTwoTypes() {
   });
   const task = defined(TYPE_PATH);
   const project = defined(PROJECT_PATH);
-  const onSaved = vi.fn();
+  const onSaved = vi.fn(async (): Promise<readonly DefinedType[] | null> => null);
   const openNotes = { setPropertiesIfOpen: async () => false };
   const hook = renderHook(
     ({ type }: { type: DefinedType }) =>
@@ -439,7 +510,7 @@ function setUpBook() {
     ),
     path: createVaultPath(BOOK_PATH),
   };
-  const onSaved = vi.fn();
+  const onSaved = vi.fn(async (): Promise<readonly DefinedType[] | null> => null);
   const hook = renderHook(() =>
     useTypeEditor({
       fs,
