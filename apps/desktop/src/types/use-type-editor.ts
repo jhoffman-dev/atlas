@@ -22,6 +22,7 @@ import {
 } from '@atlas/application';
 import type { TypeEditorNotice, TypeEditorPrompt } from '@atlas/ui';
 import { localToday } from '../today.ts';
+import type { ReadTypesAgain } from './use-types.ts';
 
 const message = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -108,7 +109,8 @@ export function useTypeEditor({
   openNotes: Pick<OpenNotes, 'setPropertiesIfOpen'>;
   type: DefinedType | null;
   types: readonly DefinedType[];
-  onSaved: () => void;
+  /** Asks for the types to be read again; settles with them once that read has landed. */
+  onSaved: ReadTypesAgain;
 }) {
   const [draft, setDraft] = useState<ObjectType | null>(type);
   const [prompt, setPrompt] = useState<TypeEditorPrompt | null>(null);
@@ -116,8 +118,14 @@ export function useTypeEditor({
   const queue = useRef<Promise<void>>(Promise.resolve());
   /** The type as the last change left it, which the next change starts from. */
   const latest = useRef<ObjectType | null>(type);
-  /** Changes still being carried out; while there are any, a re-read may be stale. */
+  /**
+   * Changes still being carried out, or written but not yet read back: while
+   * there are any, a re-read may be stale — the types read before the last
+   * write are still what is shown until the read it asked for lands (#456).
+   */
   const pending = useRef(0);
+  /** The file the editor is on: a re-read that lands for another is not this one's. */
+  const shownPath = useRef(type?.path);
   /** Answers the open question with 'cancel', if one is open. */
   const cancelQuestion = useRef<(() => void) | null>(null);
 
@@ -132,6 +140,7 @@ export function useTypeEditor({
   // carries over, even mid-change, and a question it left open is cancelled so
   // the changes queued behind it are not stuck waiting on an answer.
   useEffect(() => {
+    shownPath.current = type?.path;
     latest.current = type;
     setDraft(type);
     setNotice(null);
@@ -197,6 +206,23 @@ export function useTypeEditor({
     [type, fs, markdown, index, ask],
   );
 
+  /**
+   * One change's re-read is over. When it is the last one out, what it read is
+   * shown: a re-read that landed while changes were pending was passed over,
+   * and the next may be the same answer, which draws nothing new.
+   */
+  const readBack = useCallback(
+    (path: VaultPath) => (fresh: readonly DefinedType[] | null) => {
+      pending.current -= 1;
+      if (pending.current > 0 || fresh === null || shownPath.current !== path) return;
+      const now = fresh.find((each) => each.path === path);
+      if (now === undefined || now === latest.current) return;
+      latest.current = now;
+      setDraft(now);
+    },
+    [],
+  );
+
   /** One change, start to finish: made, asked about, written, and its notes brought along. */
   const carryOut = useCallback(
     async (request: TypeEdit) => {
@@ -231,10 +257,13 @@ export function useTypeEditor({
         }
         throw cause;
       } finally {
-        onSaved();
+        pending.current += 1;
+        // A read that fails is said where the types are (`useTypes`'s
+        // failure); all this waits for is that it is over.
+        onSaved().then(readBack(type.path), () => readBack(type.path)(null));
       }
     },
-    [type, types, fs, markdown, openNotes, plan, onSaved],
+    [type, types, fs, markdown, openNotes, plan, onSaved, readBack],
   );
 
   const edit = useCallback(
