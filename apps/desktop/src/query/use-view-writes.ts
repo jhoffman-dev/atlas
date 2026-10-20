@@ -3,9 +3,11 @@ import {
   calendarEndKey,
   cellShownValue,
   createVaultPath,
+  noteTitle,
   type ObjectType,
   type StatusProperty,
   type ViewDisplay,
+  type WriteRecord,
 } from '@atlas/domain';
 import {
   cardAsMoved,
@@ -13,6 +15,7 @@ import {
   cellEditChanges,
   setNoteProperties,
   TaskRuleRefusedError,
+  writeUndoably,
   type ActivityLog,
   type MarkdownPort,
   type PropertyChanges,
@@ -25,16 +28,24 @@ import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';
 import { errorMessage } from './error-message.ts';
 import type { MoveProperties, WriteProperties } from './use-pending-cards.ts';
+import { sayWritten, type ViewUndo } from './write-toast.ts';
 
 /** Writes one note the view shows — a row, a card, or the view note itself. */
-export type ChangeProperties = (args: { path: string; values: PropertyChanges }) => void;
+export type ChangeProperties = (args: {
+  path: string;
+  values: PropertyChanges;
+  /** What the change did, in the view's words, for the toast that offers to undo it (#320). */
+  said?: string;
+}) => void;
 
 /**
  * Writes a note the view is showing — which may be open in a pane.
  *
  * A pane holding the note writes it through its own save, so the pane is not
  * left holding a modification time the file has moved past; only a note no
- * pane has open is written straight to the file.
+ * pane has open is written straight to the file — and that write is
+ * recorded, to be taken back (#320): answered with its record, or null when
+ * a pane wrote it or nothing changed.
  */
 export async function writeNoteProperties({
   editors,
@@ -58,44 +69,60 @@ export async function writeNoteProperties({
    * holds, whatever the file's stamp.
    */
   ifModified?: number;
-}): Promise<void> {
-  const takenByAPane = await editors.setPropertiesIfOpen({ path: createVaultPath(path), values });
-  if (takenByAPane) return;
-  await setNoteProperties({
+}): Promise<WriteRecord | null> {
+  const target = createVaultPath(path);
+  const takenByAPane = await editors.setPropertiesIfOpen({ path: target, values });
+  if (takenByAPane) return null;
+  const { record } = await writeUndoably({
     fs,
-    markdown,
-    path,
-    values,
-    today,
-    ...(ifModified !== undefined && { ifModified }),
+    path: target,
+    write: (recording) =>
+      setNoteProperties({
+        fs: recording,
+        markdown,
+        path,
+        values,
+        today,
+        ...(ifModified !== undefined && { ifModified }),
+      }),
   });
+  return record;
 }
 
-/** `writeNoteProperties` for a view's gestures: one the view gives up on is recorded in the Activity log. */
+/**
+ * `writeNoteProperties` for a view's gestures: one the view gives up on is
+ * recorded in the Activity log, and one written to its file is said in the
+ * window's toasts with its Undo, when the view is handed them (#320).
+ */
 export function useWriteProperties({
   editors,
   fs,
   markdown,
   activity,
+  undo,
 }: {
   editors: OpenEditors;
   fs: VaultFsPort;
   markdown: MarkdownPort;
   activity: Pick<ActivityLog, 'inOpenVault'>;
+  undo?: Omit<ViewUndo, 'fs'> | undefined;
 }): WriteProperties {
   return useCallback(
-    ({ path, values }) => {
+    async ({ path, values, said }) => {
       const edit = {
         activity,
         write: 'edit',
         path,
         refusal: [TaskRuleRefusedError, FrontmatterRefusedError],
       } as const;
-      return withGiveUpRecorded(edit, () =>
+      const record = await withGiveUpRecorded(edit, () =>
         writeNoteProperties({ editors, fs, markdown, path, values }),
       );
+      if (record !== null && undo !== undefined) {
+        sayWritten({ record, undo: { ...undo, fs }, ...(said !== undefined && { words: said }) });
+      }
     },
-    [editors, fs, markdown, activity],
+    [editors, fs, markdown, activity, undo],
   );
 }
 
@@ -197,11 +224,15 @@ export function useRowWrites({
           : null;
       if (column === null && lane === null) return;
       const moved = { column, lane, status, columnOptions: groupOptions };
+      const to = [column?.value, lane?.value]
+        .filter((value): value is string => typeof value === 'string')
+        .join(' · ');
       // A failed move is said on the board by the pending cards themselves.
       void moveProperties({
         path: move.path,
         values: cardMoveChanges(moved),
         shown: (values) => cardAsMoved({ values, move: moved }),
+        said: `Moved “${noteTitle(createVaultPath(move.path))}” to ${to === '' ? 'no group' : to}.`,
       });
     },
     [display, type, groupOptions, status, moveProperties],

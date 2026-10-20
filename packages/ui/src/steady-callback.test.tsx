@@ -75,7 +75,6 @@ describe('useSteadyCallback, through the Today page', () => {
     error: null,
     busy: false,
     problem: null,
-    notice: null,
     view: null,
     onOpen: vi.fn(),
     onOpenInbox: vi.fn(),

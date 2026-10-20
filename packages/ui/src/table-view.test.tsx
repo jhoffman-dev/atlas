@@ -359,9 +359,11 @@ describe('TableView', () => {
     expect(screen.getByRole('alert').textContent).toBe('no such column: nope');
   });
 
-  it('says it is working before results arrive', () => {
+  it('says it is working before results arrive, with the delayed spinner (#320)', () => {
     render(<TableView {...props} result={null} />);
-    expect(screen.getByText('Running…')).toBeDefined();
+    const spinner = screen.getByRole('status');
+    expect(spinner.textContent).toBe('Running the view…');
+    expect(spinner.querySelector('.spinner__ring')).not.toBeNull();
   });
 });
 

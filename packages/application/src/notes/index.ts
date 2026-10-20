@@ -23,3 +23,5 @@ export {
   UNREADABLE_FRONTMATTER,
 } from './export-for-confluence.ts';
 export type { NoteForConfluence } from './export-for-confluence.ts';
+export { undoLastWrite, writeUndoably } from './undo-last-write.ts';
+export type { UndoableWrite, UndoPanes } from './undo-last-write.ts';

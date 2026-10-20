@@ -10,6 +10,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /*
  * Attack on PR #356 (pages are tabs): each page kind now owns its hooks in
@@ -267,10 +268,8 @@ test.describe('the same page in two places', () => {
     release();
     await expectFile(vault, CELLO).toContain('status: someday');
     expect(host.writesTo(CELLO)).toBe(asked);
-    const clarifiedIn = (which: 1 | 2) =>
-      inboxIn(page, which).getByRole('status').filter({ hasText: 'Clarified “Learn the cello”' });
-    await expect(clarifiedIn(2)).toBeVisible();
-    await expect(clarifiedIn(1)).toBeVisible();
+    // Said once, by the window, over both panes (#320).
+    await expect(toastSaying(page, 'Clarified “Learn the cello”')).toHaveCount(1);
     // Nothing was written over or refused: no pane says the note "changed since it was read".
     await expect(page.getByRole('alert').filter({ hasText: /changed since/ })).toHaveCount(0);
   });

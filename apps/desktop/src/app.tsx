@@ -196,6 +196,8 @@ import {
 } from './settings/settings-sections.ts';
 import { browserImagePlacementStore } from './notes/browser-image-placement-store.ts';
 import { useTickMemory } from './query/tick-memory.ts';
+import { createToasts } from './toasts/toasts.ts';
+import { ToastHost } from './toasts/toast-host.tsx';
 import { useViewDrafts } from './query/use-view-drafts.ts';
 import { useNewView } from './query/use-new-view.ts';
 import { createBrowserTypeTabStore } from './types/browser-type-tab-store.ts';
@@ -442,6 +444,8 @@ function AppWindow({
     vaultKey,
     closing: closing.last,
   });
+  // The window's toasts: a change said with its Undo, held outside the pages (#320).
+  const [toasts] = useState(createToasts);
   // One feed for the window: every refresh of the index says here which notes changed (P28-03).
   const [noteChanges] = useState(() =>
     createNoteChanges({
@@ -1475,6 +1479,7 @@ function AppWindow({
       editors,
       stranded,
       activity: activityLog,
+      toasts,
       savedViews: catalog.savedViews,
       typeTabs: typeViews.editingFor,
       queryViews: catalog.queryViews,
@@ -1512,6 +1517,7 @@ function AppWindow({
       editors,
       stranded,
       activityLog,
+      toasts,
       catalog.savedViews,
       typeViews.editingFor,
       catalog.queryViews,
@@ -1937,7 +1943,9 @@ function AppWindow({
           notices={
             <>
               {notices}
-              {granolaToast}
+              <ToastHost toasts={toasts} activity={activityLog} vault={vaultKey}>
+                {granolaToast}
+              </ToastHost>
             </>
           }
           main={

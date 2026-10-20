@@ -49,6 +49,7 @@ import {
 } from '@atlas/application';
 import {
   useNoteNames,
+  useSteadyCallback,
   type CardAdd,
   type CardMove,
   type CellEdit,
@@ -65,6 +66,7 @@ import { useNotePreviews, type NotePreviews } from './use-note-previews.ts';
 import { usePendingCards, type BoardShape, type PendingCards } from './use-pending-cards.ts';
 import { useRelationChoices, type RelationChoicesByKey } from './use-relation-choices.ts';
 import { useChangeProperties, useRowWrites, useWriteProperties } from './use-view-writes.ts';
+import type { ViewUndo } from './write-toast.ts';
 import { useViewEdits } from './use-view-edits.ts';
 import type { ViewDrafts } from './use-view-drafts.ts';
 
@@ -91,6 +93,7 @@ export function useSavedView({
   viewPaths,
   tickMemory,
   activity,
+  toasts,
 }: {
   note: OpenNote | null;
   index: IndexPort;
@@ -111,6 +114,11 @@ export function useSavedView({
   tickMemory: TickMemory;
   /** Where an edit the view gives up on is recorded. */
   activity: Pick<ActivityLog, 'inOpenVault'>;
+  /**
+   * Where a row's change is said with its Undo (#320) — the window's toasts,
+   * and the panes the undo must not write under. Nothing is said without.
+   */
+  toasts?: Omit<ViewUndo, 'fs' | 'onUndone'>;
 }): {
   query: ViewQuery | null;
   display: ViewDisplay;
@@ -215,7 +223,18 @@ export function useSavedView({
     () => (result === null ? [] : toBoardRows({ columns: result.columns, rows: result.rows })),
     [result],
   );
-  const writeProperties = useWriteProperties({ editors, fs, markdown, activity });
+  // Steady: a view handed a new `onChanged` is no reason to draw its rows' writers again (#325).
+  const onUndone = useSteadyCallback(onChanged);
+  const toastsShow = toasts?.toasts;
+  const toastsPanes = toasts?.panes;
+  const undo = useMemo(
+    () =>
+      toastsShow === undefined || toastsPanes === undefined
+        ? undefined
+        : { toasts: toastsShow, panes: toastsPanes, onUndone },
+    [toastsShow, toastsPanes, onUndone],
+  );
+  const writeProperties = useWriteProperties({ editors, fs, markdown, activity, undo });
   // Every card as it is drawn: one moved, where the move puts it until the index has it (#260).
   const cards = usePendingCards({
     rows: readRows,
@@ -270,6 +289,7 @@ export function useSavedView({
     fs,
     markdown,
     activity,
+    undo,
     onChanged,
     onError: setError,
   });

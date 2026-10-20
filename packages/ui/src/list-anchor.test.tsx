@@ -66,7 +66,7 @@ function page(overrides: Partial<InboxPageProps> = {}) {
 let layout: FakeLayout;
 beforeEach(() => {
   layout = installFakeLayout({
-    blocks: '.page-head, .inbox__offer, .proposals, .table__error, .inbox__done, .table',
+    blocks: '.page-head, .inbox__offer, .proposals, .table__error, .table',
     scroller: '.panel__body--rows',
   });
 });
@@ -136,15 +136,6 @@ describe('useListAnchor in the Inbox (#130)', () => {
     // Given back down to what fills the view at the top: nothing is left to scroll into.
     expect(room?.style.height).toBe('100px');
     expect(layout.scroller().scrollHeight - layout.scroller().clientHeight).toBe(0);
-  });
-
-  it('lets the undo bar push the rows down: it answers what the person just did', () => {
-    const rerender = page();
-    const before = settledRowAt();
-    rerender({ lastAction: { title: 'Idea' }, onUndo: vi.fn(), onDismissLastAction: vi.fn() });
-    expect(settledRowAt()).toBe(before + 50);
-    expect(layout.scroller().scrollTop).toBe(0);
-    expect(newAbove()).toBeNull();
   });
 
   it('holds the offer the pointer is on instead of the rows', () => {

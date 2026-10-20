@@ -7,6 +7,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /**
  * Second attack on #130 (PR #283), in WebKit: the Inbox's manual scroll
@@ -460,45 +461,16 @@ async function clarify(page: Page, title: string): Promise<void> {
     .filter({ has: page.getByRole('button', { name: title, exact: true }) })
     .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
-  await expect(
-    inbox(page)
-      .getByRole('status')
-      .filter({ hasText: `Clarified “${title}”.` }),
-  ).toBeVisible();
+  await expect(toastSaying(page, `Clarified “${title}”.`)).toBeVisible();
 }
 
-/*
- * Passes here only because WebKit's own anchoring holds the rows as the bar
- * goes; `useListAnchor` lets it pull them up (see the unit test of the
- * undo bar in packages/ui/src/list-anchor.attack-283b.test.tsx).
- */
-test('the undo bar running out on its own, while the list is scrolled, does not move the rows (#130 attack)', async ({
-  page,
-}) => {
-  await openTasks(page);
-  await scrollTo(page, 600);
-  await settle(page, 20);
-  const { title } = await rowAtMiddle(page);
-  await clarify(page, title);
-  await settle(page, 20);
-  const { title: watched } = await rowAtMiddle(page);
-  // The pointer rests on a row, not on the bar, so nothing holds the bar open.
-  const area = (await page.locator('.panel__body--rows').boundingBox())!;
-  await page.mouse.move(area.x + area.width / 3, area.y + area.height / 2 + 100);
-  const before = await rowTop(page, watched);
-  await page.clock.fastForward(21_000);
-  await expect(inbox(page).getByRole('status').filter({ hasText: 'Clarified' })).toHaveCount(0);
-  await settle(page, 20);
-  expect(Math.abs((await rowTop(page, watched))! - before!)).toBeLessThanOrEqual(1);
-});
-
-test('a row clarified as the settings warning arrives above: the list stays where the undo bar put it (#130 attack)', async ({
+test('a row clarified as the settings warning arrives above: the list stays where it was (#130 attack)', async ({
   page,
 }) => {
   const { vault } = await openTasks(page);
   await scrollTo(page, 600);
   await settle(page, 20);
-  // A first clarification puts the undo bar up; the second only changes its words.
+  // A first clarification is said in a toast, over the page; the second takes its place.
   await clarify(page, (await rowAtMiddle(page)).title);
   await settle(page, 20);
   const { title } = await rowAtMiddle(page);
@@ -518,11 +490,7 @@ test('a row clarified as the settings warning arrives above: the list stays wher
     emitVaultChanged(page, ['.atlas/settings.md']),
   ]);
   await expect(warning(page)).toBeAttached();
-  await expect(
-    inbox(page)
-      .getByRole('status')
-      .filter({ hasText: `Clarified “${title}”.` }),
-  ).toBeVisible();
+  await expect(toastSaying(page, `Clarified “${title}”.`)).toBeVisible();
   await settle(page, 20);
   expect(Math.abs((await tableAt()) - before)).toBeLessThanOrEqual(1);
 });

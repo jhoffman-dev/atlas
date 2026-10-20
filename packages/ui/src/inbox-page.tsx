@@ -1,6 +1,5 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
-import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
@@ -20,6 +19,7 @@ import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
 import { MeetingCleanup, type MeetingCleanupProps } from './meeting-cleanup.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
 import { useListAnchor, type ListAnchorParts } from './list-anchor.ts';
+import { delayedSpinner } from './delayed-spinner.tsx';
 
 const NO_REFUSALS: readonly InboxRefusal[] = [];
 
@@ -93,11 +93,6 @@ export interface InboxPageProps {
   refusals?: readonly InboxRefusal[];
   /** Why each imported meeting's summary still waits, by path; a meeting not in it waits for none (#186). */
   summaryPending?: ReadonlyMap<string, string>;
-  /** The last clarification, while it can be taken back: a new object for each, kept across renders. */
-  lastAction?: { readonly title: string } | null;
-  onUndo?: () => void;
-  /** Ends the offer to take the last clarification back, once its bar has had its time (#165); with `onUndo`. */
-  onDismissLastAction?: () => void;
   typesOffer?: InboxTypesOffer | null;
   /** Moving the vault's tasks to GTD's eight statuses, previewed first (P30-02). */
   taskMigration?: TaskMigrationProps | null;
@@ -207,7 +202,6 @@ export function InboxPage(props: InboxPageProps) {
                   {problem}
                 </p>
               )}
-              <LastAction {...props} />
             </div>
             <div
               style={IN_PLACE}
@@ -429,44 +423,6 @@ function leftRefusal({ contents, refusals = NO_REFUSALS }: InboxPageProps): stri
   return left.length === 0 ? null : left.map((refusal) => refusal.reason).join(' ');
 }
 
-function LastAction({ lastAction, onUndo, onDismissLastAction, busy }: InboxPageProps) {
-  if (lastAction === null || lastAction === undefined) return null;
-  if (onUndo === undefined || onDismissLastAction === undefined) return null;
-  return (
-    <LastActionBar
-      lastAction={lastAction}
-      busy={busy}
-      onUndo={onUndo}
-      onDismiss={onDismissLastAction}
-    />
-  );
-}
-
-/** The last clarification, for 20 seconds unless held: its Undo lasts as long as it does. */
-function LastActionBar({
-  lastAction,
-  busy,
-  onUndo,
-  onDismiss,
-}: {
-  lastAction: { readonly title: string };
-  busy: boolean;
-  onUndo: () => void;
-  onDismiss: () => void;
-}) {
-  // Each clarification is its own object, so a second note of the same title gets its own time.
-  const hold = useDismissAfter({ ms: UNDO_BAR_MS, showing: lastAction, onDismiss });
-  const { title } = lastAction;
-  return (
-    <p className="inbox__done" role="status" {...hold}>
-      Clarified “{title}”.
-      <button type="button" className="btn btn--ghost btn--sm" disabled={busy} onClick={onUndo}>
-        Undo
-      </button>
-    </p>
-  );
-}
-
 function InboxList({
   contents,
   error,
@@ -488,7 +444,7 @@ function InboxList({
       </p>
     );
   }
-  if (contents === null) return <p className="table__empty">Reading the Inbox…</p>;
+  if (contents === null) return delayedSpinner('Reading the Inbox…');
   if (contents.items.length === 0) {
     return (
       <p className="inbox__empty">

@@ -170,6 +170,9 @@ async function writeChanges({
         ? underNewFrontmatter(frontmatter, document.body)
         : frontmatter + document.body,
     expectedModified: modified,
+    // The whole text too, so a write landing within the disk's timestamp tick is refused
+    // (#245) — and the text a write is recorded as replacing is the text it replaced (#320).
+    expectedText: text,
   });
 }
 

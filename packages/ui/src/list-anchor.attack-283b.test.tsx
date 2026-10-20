@@ -55,7 +55,7 @@ function page() {
 let layout: FakeLayout;
 beforeEach(() => {
   layout = installFakeLayout({
-    blocks: '.page-head, .inbox__offer, .proposals, .table__error, .inbox__done',
+    blocks: '.page-head, .inbox__offer, .proposals, .table__error',
     scroller: '.panel__body--rows',
   });
 });
@@ -99,25 +99,5 @@ describe('"New above" while scrolled down the list (#130 attack)', () => {
     });
     expect(inView(offer())).toBe(false);
     expect(newAbove()).not.toBeNull();
-  });
-});
-
-describe('the undo bar going on its own while scrolled down the list (#130 attack)', () => {
-  it('leaves the rows where they are on screen', () => {
-    const rerender = page();
-    document.querySelector<HTMLElement>('.table')!.style.height = '1500px';
-    layout.flush();
-    act(() => {
-      layout.scroller().scrollTop = 600;
-    });
-    const lastAction = { title: 'Item 3' };
-    rerender({ lastAction, onUndo: vi.fn(), onDismissLastAction: vi.fn() });
-    layout.flush();
-    const table = document.querySelector('.table')!;
-    const before = layout.topOf(table);
-    // Its 20 seconds are up: nothing the person did, so nothing should move under them.
-    rerender({ lastAction: null });
-    layout.flush();
-    expect(layout.topOf(table)).toBe(before);
   });
 });

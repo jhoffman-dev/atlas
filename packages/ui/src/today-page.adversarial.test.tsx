@@ -46,7 +46,6 @@ function pageOf(tasks: readonly ReviewTask[], overrides: Partial<TodayPageProps>
       error={null}
       busy={false}
       problem={null}
-      notice={null}
       view={null}
       onOpen={vi.fn()}
       onOpenInbox={vi.fn()}
@@ -78,13 +77,10 @@ describe('TodayPage, with names nobody chose kindly', () => {
     expect(container.querySelector('img, script, b, iframe')).toBeNull();
   });
 
-  it('shows the undo notice’s title and a problem as written', () => {
+  it('shows a problem as written', () => {
     const [markup = ''] = HOSTILE;
-    const { container } = pageOf([task('Plain', 1, {})], {
-      problem: markup,
-      notice: { title: markup, action: { kind: 'done' }, onUndo: vi.fn(), onDismiss: vi.fn() },
-    });
-    expect(container.textContent?.split(markup).length).toBeGreaterThanOrEqual(3);
+    const { container } = pageOf([task('Plain', 1, {})], { problem: markup });
+    expect(container.textContent?.split(markup).length).toBeGreaterThanOrEqual(2);
     expect(container.querySelector('img, script')).toBeNull();
   });
 

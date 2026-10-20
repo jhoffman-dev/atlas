@@ -3,6 +3,13 @@ import { TOAST_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 
 /**
+ * What a toast tells of, drawn as its dot in a muted hue: a change made
+ * (green), a warning (amber) — an undo refused, say — or an error (red),
+ * which stays until it is sent away, since it must be read.
+ */
+export type ToastTone = 'change' | 'warning' | 'error';
+
+/**
  * A small word that something happened — "Task added" — top right, on a dark
  * surface, with what can be done about it: Undo for a change, an action of
  * the caller's ("Open"), either or both, and a × to send it away. Only the
@@ -20,11 +27,14 @@ import { Icon } from './icon.tsx';
  */
 export function Toast({
   message,
+  tone,
   action,
   onUndo,
   onDismiss,
 }: {
   message: string;
+  /** Drawn as a dot before the words; none for a plain word such as "Task added". */
+  tone?: ToastTone;
   action?: { readonly label: string; readonly onClick: () => void };
   onUndo?: () => void;
   onDismiss: () => void;
@@ -32,7 +42,12 @@ export function Toast({
   // The ref answers a second press in the same tick; the state stops the timer.
   const acted = useRef(false);
   const [done, setDone] = useState(false);
-  const hold = useDismissAfter({ ms: TOAST_MS, showing: message, onDismiss, stays: done });
+  const hold = useDismissAfter({
+    ms: TOAST_MS,
+    showing: message,
+    onDismiss,
+    stays: done || tone === 'error',
+  });
   const once = (does?: () => void) => () => {
     if (acted.current) return;
     acted.current = true;
@@ -42,6 +57,7 @@ export function Toast({
   };
   return (
     <div className="toast" {...hold}>
+      {tone !== undefined && <span className={`toast__dot toast__dot--${tone}`} aria-hidden />}
       <span className="toast__message" role="status">
         {message}
       </span>

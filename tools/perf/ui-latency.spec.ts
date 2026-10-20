@@ -81,6 +81,11 @@ const NOTE_PICKERS = 'article[aria-label="Inbox"] div.inbox__clarify select.inbo
 const inboxRow = () => page.getByRole('button', { name: /^Inbox/ }).first();
 
 test('open the Inbox', async () => {
+  // Each turn opens the Inbox on the 2,000-note fixture (~2–3 s on CI) and goes back to
+  // Today: five turns took 28.4 s on main's CI runner, so the default 30 s was the test's
+  // own ceiling, not a measure of the app — times are printed, never failed on. A turn's
+  // own allowance, as the other repeated tests have.
+  test.setTimeout((REPEATS / 2) * 30_000);
   await waitForQuiet(page);
   for (let turn = 0; turn < REPEATS / 2; turn += 1) {
     record(

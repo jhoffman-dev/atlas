@@ -78,8 +78,9 @@ export function useReviewWrites({
       const edit = { activity, write: 'edit', path, refusal: REFUSALS } as const;
       const { fs, markdown } = ports;
       const today = clock.today();
-      const put: PutProperties = (values, ifModified) =>
-        writeNoteProperties({
+      // The page takes its own changes back (`changeUndoably`), so the write's record is not kept.
+      const put: PutProperties = async (values, ifModified) => {
+        await writeNoteProperties({
           editors,
           fs,
           markdown,
@@ -88,6 +89,7 @@ export function useReviewWrites({
           today,
           ...(ifModified !== undefined && { ifModified }),
         });
+      };
       return act(() => withGiveUpRecorded(edit, () => work(put)));
     },
     [act, activity, clock, editors, ports],

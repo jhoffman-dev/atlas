@@ -156,16 +156,6 @@ form.inbox__clarify {
   text-align: right;
 }
 
-.inbox__done {
-  align-items: center;
-  color: var(--ink-2);
-  display: flex;
-  font-size: var(--text-ui);
-  gap: var(--space-3);
-  margin: 0 0 var(--space-3);
-  padding: 0 18px;
-}
-
 /* An offer is the notice bar (primitives.css), full-bleed under the page
    bar: out past the page's padding (page.css `.page--wide`: 6px above, 32px
    at the sides), with the page's 18px gap closed between one bar and the

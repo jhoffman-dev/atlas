@@ -593,6 +593,47 @@
   z-index: 21;
 }
 
+/* The window's toasts, one column at the toast's own corner (#320): each
+   keeps its own place in it, oldest on top, and the column lets the pointer
+   through wherever no toast is. */
+.toast-stack {
+  bottom: calc(24px + 56px + 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(340px, 100% - 24px);
+  pointer-events: none;
+  position: absolute;
+  right: 12px;
+  z-index: 21;
+}
+
+.toast-stack > .toast {
+  max-width: 100%;
+  pointer-events: auto;
+  position: static;
+}
+
+/* What the toast tells of, in a muted hue that reads on its dark surface. */
+.toast__dot {
+  border-radius: 50%;
+  flex: none;
+  height: 7px;
+  width: 7px;
+}
+
+.toast__dot--change {
+  background: var(--toast-dot-change);
+}
+
+.toast__dot--warning {
+  background: var(--toast-dot-warning);
+}
+
+.toast__dot--error {
+  background: var(--toast-dot-error);
+}
+
 .toast__message {
   flex: 1;
   line-height: var(--leading-body);
@@ -642,4 +683,47 @@
   box-shadow: 0 0 0 1px var(--toast-ink-2);
   color: var(--toast-ink);
   outline: none;
+}
+
+/* Loading, shown only once it has taken 150 ms (#320, SPINNER_DELAY_MS): the
+   ring is held invisible until then by the stylesheet's own clock — no timer,
+   no render — so a fast read never flashes it. The block holds its place
+   from the start, so nothing moves as it appears. No words, no skeleton. */
+.spinner {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  min-height: calc(14px + 2 * var(--space-3));
+  padding: var(--space-3) 20px;
+}
+
+.spinner__ring {
+  animation:
+    spinner-shown 0s linear 150ms forwards,
+    spinner-turn 0.9s linear 150ms infinite;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  border-top-color: var(--ink-2);
+  height: 14px;
+  opacity: 0;
+  width: 14px;
+}
+
+@keyframes spinner-shown {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner__ring {
+    animation: spinner-shown 0s linear 150ms forwards;
+  }
 }

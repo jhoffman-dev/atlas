@@ -76,7 +76,6 @@ function props(today: TodayReport, overrides: Partial<TodayPageProps> = {}): Tod
     error: null,
     busy: false,
     problem: null,
-    notice: null,
     view: null,
     onOpen: vi.fn(),
     onOpenInbox: vi.fn(),
