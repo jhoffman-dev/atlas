@@ -5,6 +5,8 @@ import { createVault, installHost } from './host.ts';
  * #401: the SQL query page's result is virtualised as the other tables are.
  * A 2,000-row result draws only a window of its rows, the result's own sheet
  * scrolls rather than the panel around it, and the last row can be reached.
+ *
+ * At 800px the page is narrow enough to stack the tables under the result.
  */
 
 const ROWS = 2000;
@@ -13,8 +15,8 @@ const MOST_DRAWN = 120;
 const NUMBERS = `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${ROWS})
 SELECT 'Row ' || i AS title, i AS number FROM n`;
 
-async function openQueryPage(page: Page) {
-  await page.setViewportSize({ width: 1440, height: 900 });
+async function openQueryPage(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 900 });
   const vault = await createVault();
   await vault.write('first.md', '# First\n\nA note.\n');
   await installHost(page, vault);
@@ -34,31 +36,33 @@ const article = (page: Page) => page.getByRole('article', { name: 'Query' });
 const sheet = (page: Page) => article(page).locator('.table__sheet');
 const drawn = (page: Page) => sheet(page).locator('tr[data-index]');
 
-test('a 2,000-row SQL result draws a window of rows in its own scrolling sheet, down to the last', async ({
-  page,
-}) => {
-  await openQueryPage(page);
-  const editor = page.getByRole('textbox', { name: 'SQL' });
-  await editor.fill(NUMBERS);
-  await editor.press('Meta+Enter');
-  await expect(page.locator('.query__count')).toHaveText(`${ROWS} rows`);
-  await expect(sheet(page).getByRole('cell', { name: 'Row 1', exact: true })).toBeVisible();
+for (const width of [1440, 800]) {
+  test(`at ${width}px, a 2,000-row SQL result draws a window of rows in its own scrolling sheet, down to the last`, async ({
+    page,
+  }) => {
+    await openQueryPage(page, width);
+    const editor = page.getByRole('textbox', { name: 'SQL' });
+    await editor.fill(NUMBERS);
+    await editor.press('Meta+Enter');
+    await expect(page.locator('.query__count')).toHaveText(`${ROWS} rows`);
+    await expect(sheet(page).getByRole('cell', { name: 'Row 1', exact: true })).toBeVisible();
 
-  const count = await drawn(page).count();
-  expect(count, `${count} of ${ROWS} rows drawn`).toBeGreaterThan(0);
-  expect(count, `${count} of ${ROWS} rows drawn`).toBeLessThanOrEqual(MOST_DRAWN);
+    const count = await drawn(page).count();
+    expect(count, `${count} of ${ROWS} rows drawn`).toBeGreaterThan(0);
+    expect(count, `${count} of ${ROWS} rows drawn`).toBeLessThanOrEqual(MOST_DRAWN);
 
-  // The sheet is the scroller, as on every other table; the panel stays put.
-  const panelScrolls = await page
-    .locator('.panel__body', { has: article(page) })
-    .evaluate((body) => body.scrollHeight > body.clientHeight + 1);
-  expect(panelScrolls, 'the panel around the result scrolls').toBe(false);
-  const sheetScrolls = await sheet(page).evaluate((el) => el.scrollHeight > el.clientHeight);
-  expect(sheetScrolls, 'the result sheet scrolls').toBe(true);
+    // The sheet is the scroller, as on every other table; the panel stays put.
+    const panelScrolls = await page
+      .locator('.panel__body', { has: article(page) })
+      .evaluate((body) => body.scrollHeight > body.clientHeight + 1);
+    expect(panelScrolls, 'the panel around the result scrolls').toBe(false);
+    const sheetScrolls = await sheet(page).evaluate((el) => el.scrollHeight > el.clientHeight);
+    expect(sheetScrolls, 'the result sheet scrolls').toBe(true);
 
-  await sheet(page).evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
+    await sheet(page).evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(sheet(page).getByRole('cell', { name: `Row ${ROWS}`, exact: true })).toBeVisible();
+    expect(await drawn(page).count()).toBeLessThanOrEqual(MOST_DRAWN);
   });
-  await expect(sheet(page).getByRole('cell', { name: `Row ${ROWS}`, exact: true })).toBeVisible();
-  expect(await drawn(page).count()).toBeLessThanOrEqual(MOST_DRAWN);
-});
+}
