@@ -61,9 +61,8 @@ export const INBOX_SCOPE: ReadScope = {
  * types (project, area) — and the Inbox's count.
  *
  * Not covered: a `project:` link a task resolves to a note of no filed-under
- * type (an untyped note). Its retitle, move or deletion changes the group's
- * heading without news of any covered note; the group is right again on the
- * next news Today hears (#392).
+ * type (an untyped note). Today covers it by `todayScope`, from what it read
+ * (#392); the weekly review heads no group with it.
  */
 export const REVIEW_SCOPE: ReadScope = {
   ...INBOX_SCOPE,
