@@ -7,10 +7,10 @@ import {
   importOutcomesOf,
   isMeetingInboxPath,
   LINK_NAMES_PER_QUERY,
-  linkedName,
   noteChangesBetween,
   type CompiledQuery,
   type ImportOutcome,
+  type LinkChanges,
   type NoteChange,
   type NoteVersion,
   type VaultPath,
@@ -149,7 +149,7 @@ export async function refreshIndex({
   // A note made or gone can change which note an unchanged note's link means,
   // in a property or in the body (#431).
   const added = [...current.keys()].filter((path) => !known.has(path));
-  const staleByLink = await linkHolders(index, [...added, ...removed]);
+  const staleByLink = await linkHolders(index, { made: added, gone: removed });
   const stalePaths = new Set(stale.map((note) => note.path as string));
   for (const path of staleByLink) {
     const note = current.get(path);
@@ -348,30 +348,44 @@ function versionsNow({
 
 /**
  * Takes notes the app has just moved or deleted out of the index at once, and
- * with them every note whose link — a relation or in the body — named them.
- * The refresh that follows cannot see a removal it did not make, so it would
- * never re-resolve those links; taken out too, the holders are read again as new notes.
+ * with them every note whose link — a relation or in the body — pointed at
+ * them. The refresh that follows cannot see a removal it did not make, so it
+ * would never re-resolve those links; taken out too, the holders are read
+ * again as new notes. The notes linking to a holder are not: their links
+ * already point at it (#440).
  */
 export async function forgetNotes(index: IndexPort, paths: readonly VaultPath[]): Promise<void> {
   if (paths.length === 0) return;
-  const holders = await linkHolders(index, paths);
+  const holders = await linkHolders(index, { made: [], gone: paths });
   await index.remove([...new Set<string>([...paths, ...holders])].map(createVaultPath));
 }
 
 /**
- * The indexed notes holding a link, a relation or in the body, written as the name of one of these
- * notes — asked before those notes' own rows change, so a note that has gone
- * is still there to be pointed at.
+ * The indexed notes holding a link, a relation or in the body, that these
+ * notes made or gone could move — asked before those notes' own rows change,
+ * so a note that has gone is still there to be pointed at. Every page of each
+ * answer is read: the host cuts a long one short, and a holder left out would
+ * never be read again.
  */
-async function linkHolders(index: IndexPort, changed: readonly string[]): Promise<string[]> {
-  const names = [...new Set(changed.map(linkedName))];
+async function linkHolders(index: IndexPort, changes: LinkChanges): Promise<string[]> {
+  const changed = [
+    ...changes.made.map((path) => ({ path, made: true })),
+    ...changes.gone.map((path) => ({ path, made: false })),
+  ];
   const holders: string[] = [];
-  for (let offset = 0; offset < names.length; offset += LINK_NAMES_PER_QUERY) {
-    const { sql, parameters } = compileLinkHoldersQuery(
-      names.slice(offset, offset + LINK_NAMES_PER_QUERY),
-    );
-    const result = await index.query(sql, parameters);
-    holders.push(...result.rows.map((row) => String(row[0])));
+  for (let at = 0; at < changed.length; at += LINK_NAMES_PER_QUERY) {
+    const batch = changed.slice(at, at + LINK_NAMES_PER_QUERY);
+    const asked: LinkChanges = {
+      made: batch.filter((note) => note.made).map((note) => note.path),
+      gone: batch.filter((note) => !note.made).map((note) => note.path),
+    };
+    for (let offset = 0; ;) {
+      const { sql, parameters } = compileLinkHoldersQuery(asked, offset);
+      const result = await index.query(sql, parameters);
+      holders.push(...result.rows.map((row) => String(row[0])));
+      if (!result.truncated || result.rows.length === 0) break;
+      offset += result.rows.length;
+    }
   }
   return holders;
 }

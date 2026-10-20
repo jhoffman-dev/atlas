@@ -88,7 +88,7 @@ function answer(
   }
   if (sql.startsWith('/* tags:counts */')) return rows(['key', 'name', 'count'], tagCounts(all));
   if (sql.startsWith('SELECT DISTINCT src AS "path" FROM relations WHERE')) {
-    return rows(['path'], linkHolders(all, parameters));
+    return rows(['path'], linkHolders(all, sql, parameters));
   }
   if (ANSWERED_EMPTY.some((marker) => sql.startsWith(marker))) return rows([], []);
   throw new Error(`memoryIndexPort does not answer this statement: ${sql.slice(0, 60)}`);
@@ -121,23 +121,40 @@ function tagCounts(all: readonly IndexedNote[]): unknown[][] {
 }
 
 /**
- * The notes holding a relation or a body link by one of these names, bound
- * three to a name for each of the two tables (`compileLinkHoldersQuery`).
+ * The notes holding a relation or a body link that a note made or gone could
+ * move, from where the caller asks (`compileLinkHoldersQuery`). Its values are
+ * bound in this order: for each note made, its name, name, `/name` and path
+ * (relations); each note gone; for each note made, its name and path (links);
+ * each note gone again; and the offset. The SQL says how many notes were made.
  */
-function linkHolders(all: readonly IndexedNote[], parameters: readonly unknown[]): unknown[][] {
-  const names = parameters
-    .slice(0, parameters.length / 2)
-    .filter((_, at) => at % 3 === 0)
-    .map(String);
-  const holds = (name: string) =>
-    names.some((wanted) => name === wanted || name.endsWith(`/${wanted}`));
+function linkHolders(
+  all: readonly IndexedNote[],
+  sql: string,
+  parameters: readonly unknown[],
+): unknown[][] {
+  const madeCount = sql.split('(leaf = ? AND').length - 1;
+  const goneCount = (parameters.length - 1 - madeCount * 6) / 2;
+  const gone = parameters.slice(madeCount * 4, madeCount * 4 + goneCount).map(String);
+  const made = Array.from({ length: madeCount }, (_, at) => {
+    const from = madeCount * 4 + goneCount + at * 2;
+    return { name: String(parameters[from]), path: String(parameters[from + 1]) };
+  });
+  const moves = (path: string | null, sameName: (wanted: string) => boolean) =>
+    (path !== null && gone.includes(path)) ||
+    made.some((note) => sameName(note.name) && path !== note.path);
+  const holds = (note: IndexedNote) =>
+    note.relations.some((relation) =>
+      moves(
+        relation.path,
+        (wanted) => relation.name === wanted || relation.name.endsWith(`/${wanted}`),
+      ),
+    ) || note.links.some((link) => moves(link.path, (wanted) => link.leaf === wanted));
   return all
-    .filter(
-      (note) =>
-        note.relations.some((relation) => holds(relation.name)) ||
-        note.links.some((link) => holds(link.name)),
-    )
-    .map((note) => [note.path]);
+    .filter(holds)
+    .map((note) => note.path)
+    .sort()
+    .slice(Number(parameters.at(-1)))
+    .map((path) => [path]);
 }
 
 const wikiLinks = (note: IndexedNote): string[] =>

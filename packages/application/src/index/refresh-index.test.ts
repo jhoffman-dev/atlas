@@ -223,7 +223,7 @@ describe('refreshIndex', () => {
     await refreshIndex({ fs, index, markdown });
 
     expect(written[0]?.links).toEqual([
-      { target: 'private', name: 'private', path: null, kind: 'wikilink' },
+      { target: 'private', leaf: 'private', path: null, kind: 'wikilink' },
     ]);
   });
 });
@@ -449,7 +449,7 @@ describe('toIndexedNote', () => {
 
   it('records a link and where it resolves to', () => {
     expect(build('see [[Target]] here').links).toEqual([
-      { target: 'Target', name: 'target', path: 'Notes/Target.md', kind: 'wikilink' },
+      { target: 'Target', leaf: 'target', path: 'Notes/Target.md', kind: 'wikilink' },
     ]);
   });
 
@@ -561,7 +561,7 @@ describe('toIndexedNote', () => {
 
   it('records a link that points nowhere, so it can be found later', () => {
     expect(build('see [[Missing]] here').links).toEqual([
-      { target: 'Missing', name: 'missing', path: null, kind: 'wikilink' },
+      { target: 'Missing', leaf: 'missing', path: null, kind: 'wikilink' },
     ]);
   });
 

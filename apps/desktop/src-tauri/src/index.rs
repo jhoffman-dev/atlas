@@ -57,9 +57,9 @@ use crate::vault::VaultState;
 /// for the day found none of that day's meetings. 17: only the file name stem
 /// is searched, not the folders or `.md` — a folder named for a project put
 /// every note in it ahead of the notes that mention the project, and "md"
-/// matched every note. 18: a body link keeps its target folded as links fold
-/// it (`links.name`), so a refresh can find the links a note just made or gone
-/// could mean (#431), as it finds relations.
+/// matched every note. 18: a body link keeps the last part of its target as
+/// links fold it (`links.leaf`), indexed, so a refresh finds the links a note
+/// just made could mean (#431) by a lookup rather than a scan.
 const SCHEMA_VERSION: i64 = 18;
 
 const CACHE_DIR: &str = ".atlas-cache";
@@ -82,9 +82,10 @@ pub struct IndexedProperty {
 pub struct IndexedLink {
     /// The link exactly as written.
     pub target: String,
-    /// The target as TypeScript folds link names; stored, never computed here.
-    #[serde(default)]
-    pub name: String,
+    /// The last part of the target as TypeScript folds link names; stored,
+    /// never computed here. Required: a link sent without it could never be
+    /// found again when the note it names is made.
+    pub leaf: String,
     /// The note it resolves to, or None when it points nowhere yet.
     pub path: Option<String>,
     pub kind: String,
@@ -444,10 +445,11 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 dst    TEXT,
                 target TEXT NOT NULL,
                 kind   TEXT NOT NULL,
-                name   TEXT NOT NULL DEFAULT ''
+                leaf   TEXT NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS links_src ON links(src);
             CREATE INDEX IF NOT EXISTS links_dst ON links(dst, src);
+            CREATE INDEX IF NOT EXISTS links_leaf ON links(leaf, dst, src);
 
             CREATE TABLE IF NOT EXISTS tags (
                 path TEXT NOT NULL,
@@ -696,8 +698,8 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
     for link in &note.links {
         transaction
             .execute(
-                "INSERT INTO links (src, dst, target, kind, name) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![note.path, link.path, link.target, link.kind, link.name],
+                "INSERT INTO links (src, dst, target, kind, leaf) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![note.path, link.path, link.target, link.kind, link.leaf],
             )
             .map_err(stringly)?;
     }
@@ -1303,18 +1305,40 @@ mod tests {
     }
 
     #[test]
-    fn stores_the_name_typescript_folded_a_body_link_to_as_given() {
+    fn stores_the_leaf_typescript_folded_a_body_link_to_as_given() {
         let mut index = empty_index();
         let mut first = note("a.md", "A", "alpha");
-        let mut folded = link("\u{c9}cole.md", None);
-        folded.name = "\u{e9}cole".to_string();
+        let mut folded = link("p/\u{c9}cole.md", None);
+        folded.leaf = "\u{e9}cole".to_string();
         first.links = vec![folded];
         put_notes(&mut index, &[first]).unwrap();
-        let result = run_query(&index, "SELECT target, name FROM links", &[]).unwrap();
+        let result = run_query(&index, "SELECT target, leaf FROM links", &[]).unwrap();
         assert_eq!(
             serde_json::to_value(&result.rows).unwrap(),
-            serde_json::json!([["\u{c9}cole.md", "\u{e9}cole"]])
+            serde_json::json!([["p/\u{c9}cole.md", "\u{e9}cole"]])
         );
+    }
+
+    #[test]
+    fn finds_the_links_to_a_name_by_the_leaf_index() {
+        let index = empty_index();
+        let plan: Vec<String> = index
+            .prepare("EXPLAIN QUERY PLAN SELECT src FROM links WHERE leaf = ?1 AND (dst IS NULL OR dst <> ?2)")
+            .unwrap()
+            .query_map(params!["later", "Later.md"], |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert!(
+            plan.iter().any(|step| step.contains("links_leaf")),
+            "{plan:?}"
+        );
+    }
+
+    #[test]
+    fn refuses_a_body_link_sent_without_its_leaf() {
+        let sent = serde_json::json!({ "target": "Later", "path": null, "kind": "wikilink" });
+        assert!(serde_json::from_value::<IndexedLink>(sent).is_err());
     }
 
     type RelationRow = (String, String, i64, String, Option<String>);
@@ -1763,7 +1787,7 @@ mod tests {
     fn link(target: &str, path: Option<&str>) -> IndexedLink {
         IndexedLink {
             target: target.to_string(),
-            name: String::new(),
+            leaf: String::new(),
             path: path.map(str::to_string),
             kind: "wikilink".to_string(),
         }

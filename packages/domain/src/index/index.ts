@@ -8,10 +8,11 @@ export {
   compileLinkHoldersQuery,
   LINK_NAMES_PER_QUERY,
   linkedName,
+  linkLeaf,
   linkTargets,
   relationsOf,
 } from './relation-rows.ts';
-export type { IndexableRelation } from './relation-rows.ts';
+export type { IndexableRelation, LinkChanges } from './relation-rows.ts';
 export {
   arrivedPaths,
   noteChangesBetween,

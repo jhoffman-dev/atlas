@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, foldedLinkName, type IndexFacet } from '@atlas/domain';
+import { createVaultPath, linkLeaf, type IndexFacet } from '@atlas/domain';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { reportingIndexWrites } from './reporting-index-writes.ts';
@@ -42,7 +42,7 @@ function reporting(index: IndexPort = sqliteIndexPort()) {
 
 const linkTo = (path: string) => ({
   target: path,
-  name: foldedLinkName(path),
+  leaf: linkLeaf(path),
   path,
   kind: 'wikilink' as const,
 });

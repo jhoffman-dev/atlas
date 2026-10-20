@@ -20,7 +20,7 @@ export function sqliteIndexPort(): IndexPort {
                             target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
     CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL,
-                        name TEXT NOT NULL DEFAULT '');`);
+                        leaf TEXT NOT NULL DEFAULT '');`);
   const removeNote = (path: string) => {
     for (const [table, column] of TABLES) {
       database.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(path);
@@ -105,6 +105,6 @@ function insertNote(database: DatabaseSync, note: IndexedNote): void {
   for (const link of note.links) {
     database
       .prepare('INSERT INTO links VALUES (?, ?, ?, ?, ?)')
-      .run(note.path, link.path, link.target, link.kind, link.name);
+      .run(note.path, link.path, link.target, link.kind, link.leaf);
   }
 }

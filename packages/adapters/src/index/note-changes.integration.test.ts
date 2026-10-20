@@ -51,7 +51,7 @@ const FILES_TABLE = `
     idx INTEGER NOT NULL DEFAULT 0, value_text TEXT, value_num REAL, value_date TEXT,
     value_json TEXT);
   CREATE TABLE IF NOT EXISTS links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL,
-    kind TEXT NOT NULL, name TEXT NOT NULL DEFAULT '');`;
+    kind TEXT NOT NULL, leaf TEXT NOT NULL DEFAULT '');`;
 
 interface SentNote {
   path: string;

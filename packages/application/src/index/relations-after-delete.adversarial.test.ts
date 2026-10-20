@@ -78,7 +78,7 @@ function sqliteIndex(): IndexPort & { relationOf: (src: string) => string | null
   );
   // Asked with the relations which body links name a note gone (#431); these notes are put without any.
   database.exec(
-    'CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL)',
+    'CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL, leaf TEXT NOT NULL)',
   );
   // Asked how the meeting import settled each note held (#92); these notes hold no stamp.
   database.exec(

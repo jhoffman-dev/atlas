@@ -94,7 +94,7 @@ interface StoredNote {
   /** The type its frontmatter declares, which the manifest hands back. */
   type?: string | null;
   body: string;
-  links: { target: string; name: string; path: string | null }[];
+  links: { target: string; leaf: string; path: string | null }[];
   /** Every use of a tag, as the app found it. */
   tags?: { key: string; name: string }[];
   /** Every link a property holds, and the note the app resolved it to. */
@@ -258,7 +258,7 @@ function runAtlasQuery(
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                             target TEXT NOT NULL, name TEXT NOT NULL, dst TEXT);
     CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL,
-                        name TEXT NOT NULL DEFAULT '');
+                        leaf TEXT NOT NULL DEFAULT '');
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL,
                        name TEXT NOT NULL);`);
   const relation = database.prepare('INSERT INTO relations VALUES (?, ?, ?, ?, ?, ?)');
@@ -268,7 +268,7 @@ function runAtlasQuery(
     for (const row of note.relations ?? []) {
       relation.run(note.path, row.key, row.index, row.target, row.name, row.path);
     }
-    for (const row of note.links ?? []) link.run(note.path, row.path, row.target, row.name);
+    for (const row of note.links ?? []) link.run(note.path, row.path, row.target, row.leaf);
     (note.tags ?? []).forEach((use, at) => tag.run(note.path, at, use.key, use.name));
   }
   const prepared = database.prepare(statement);

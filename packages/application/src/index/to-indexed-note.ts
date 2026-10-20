@@ -5,10 +5,10 @@ import {
   createVaultPath,
   createWikiLinkResolver,
   declaresImport,
-  foldedLinkName,
   digestOf,
   importOutcomeOf,
   indexablePropertiesOf,
+  linkLeaf,
   mayHoldBlockIds,
   mayHoldChecklist,
   noteTags,
@@ -94,7 +94,7 @@ function linksIn(body: string, resolveLink: (target: string) => VaultPath | null
     .filter((piece) => piece.kind === 'wikiLink')
     .map((link) => ({
       target: link.target,
-      name: foldedLinkName(link.target),
+      leaf: linkLeaf(link.target),
       path: resolveLink(link.target),
       kind: 'wikilink' as const,
     }));
