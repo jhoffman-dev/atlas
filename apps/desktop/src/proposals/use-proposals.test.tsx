@@ -8,7 +8,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, type VaultPath } from '@atlas/domain';
 import { recordingActivity, type ProposalPorts } from '@atlas/application';
-import { inMemoryProposalVault as vault } from './proposals.test-support.ts';
+import { createToasts } from '../toasts/toasts.ts';
+import { inMemoryProposalVault as vault, windowToasts } from './proposals.test-support.ts';
 import { useProposals } from './use-proposals.ts';
 
 const path = (raw: string): VaultPath => createVaultPath(raw);
@@ -58,7 +59,9 @@ function render(
 /** The hook over `ports`, as the Inbox page drives it. */
 function drive(setup: ReturnType<typeof vault>, ports: ProposalPorts) {
   const onSettled = vi.fn();
+  const onOpen = vi.fn();
   const activity = recordingActivity();
+  const shown = windowToasts();
   const hook = renderHook(
     ({ indexKey }: { indexKey: string }) =>
       useProposals({
@@ -68,10 +71,12 @@ function drive(setup: ReturnType<typeof vault>, ports: ProposalPorts) {
         onSettled,
         activity,
         closing: noClosing,
+        toasts: shown.toasts,
+        onOpen,
       }),
     { initialProps: { indexKey: 'v1' } },
   );
-  return { ...setup, hook, onSettled, activity };
+  return { ...setup, ...shown, hook, onSettled, onOpen, activity };
 }
 
 describe('useProposals', () => {
@@ -81,62 +86,66 @@ describe('useProposals', () => {
     expect(hook.result.current.section.contents?.open[0]?.path).toBe(PROPOSAL);
   });
 
-  it('accepts one: the task is made, the proposal archived, and the page offers to open it', async () => {
-    const { hook, files, onSettled } = render();
+  it('accepts one: the task is made, the proposal archived, and a toast offers to open it', async () => {
+    const { hook, files, onSettled, onOpen, said } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
     expect(hook.result.current.count).toBe(0);
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(said()).toBeDefined());
 
     expect(files.get(TASK)?.text).toContain('source: "[[2026-10-01 Standup#^t0003]]"');
     expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
-    expect(hook.result.current.section.notice).toEqual({
-      text: 'Accepted: Send Mara the payroll file.',
-      opens: { path: TASK, title: 'Send Mara the payroll file' },
-      undoable: true,
-      failed: false,
+    expect(said()).toMatchObject({
+      message: 'Accepted: Send Mara the payroll file.',
+      tone: 'change',
+      action: { label: 'Open Send Mara the payroll file' },
     });
+    expect(said()?.onUndo).toBeTypeOf('function');
+    expect(hook.result.current.section.notice).toBeNull();
+    said()?.action?.onClick();
+    expect(onOpen).toHaveBeenCalledWith(TASK);
     expect(onSettled).toHaveBeenCalled();
   });
 
-  it('undoes the accept: the task goes and the proposal is back, open', async () => {
-    const { hook, files } = render();
+  it('undoes the accept from its toast: the task goes and the proposal is back, open', async () => {
+    const { hook, files, said, undo } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
 
-    act(() => hook.result.current.section.onUndo());
+    undo();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     expect(files.has(TASK)).toBe(false);
     expect(files.get(PROPOSAL)?.text).toContain('state: open');
-    expect(hook.result.current.section.notice).toMatchObject({
-      text: 'Undone: Send Mara the payroll file is back in the Inbox.',
-      undoable: false,
+    expect(said()).toMatchObject({
+      message: 'Undone: Send Mara the payroll file is back in the Inbox.',
+      tone: 'change',
     });
+    expect(said()?.onUndo).toBeUndefined();
   });
 
   it('lets go of a chosen proposal once Accept answers it alone, so Undo brings it back unticked', async () => {
-    const { hook } = render();
+    const { hook, said, undo } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
     act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
 
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
-    act(() => hook.result.current.section.onUndo());
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
+    undo();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     expect(hook.result.current.section.selection.selected.size).toBe(0);
   });
 
   it('lets go of a chosen proposal once Reject answers it alone', async () => {
-    const { hook, files } = render();
+    const { hook, files, said } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
     act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
 
     act(() => hook.result.current.section.onReject(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(said()).toBeDefined());
     // Put back by hand — out of the Archive, open again — it comes back unticked.
     files.delete(`Archive/${PROPOSAL}`);
     files.set(PROPOSAL, { text: PROPOSAL_TEXT, modified: 99 });
@@ -193,21 +202,18 @@ describe('useProposals', () => {
   });
 
   it('rejects one, archiving it, with nothing to undo', async () => {
-    const { hook, files } = render();
+    const { hook, files, said } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     act(() => hook.result.current.section.onReject(path(PROPOSAL)));
     expect(hook.result.current.count).toBe(0);
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(said()).toBeDefined());
 
     expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: rejected');
     expect(files.has(TASK)).toBe(false);
-    expect(hook.result.current.section.notice).toEqual({
-      text: 'Rejected: Send the file.',
-      opens: null,
-      undoable: false,
-      failed: false,
-    });
+    expect(said()).toMatchObject({ message: 'Rejected: Send the file.', tone: 'change' });
+    expect(said()?.onUndo).toBeUndefined();
+    expect(said()?.action).toBeUndefined();
   });
 
   it('answers one proposal at a time, so a second press does nothing', async () => {
@@ -270,7 +276,7 @@ const openTitles = (hook: { result: { current: ReturnType<typeof useProposals> }
 
 describe('useProposals — an answer leaves the list at once (#166)', () => {
   it('takes the answered proposal off the list before its write lands, holding no other', async () => {
-    const { hook, files, release } = heldVault({
+    const { hook, files, release, said } = heldVault({
       [PROPOSAL]: PROPOSAL_TEXT,
       [SECOND]: SECOND_TEXT,
     });
@@ -285,7 +291,7 @@ describe('useProposals — an answer leaves the list at once (#166)', () => {
     expect(hook.result.current.section.answering).toBe(true);
 
     release();
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
     expect(files.has(TASK)).toBe(true);
     expect(openTitles(hook)).toEqual([SECOND]);
   });
@@ -310,7 +316,7 @@ describe('useProposals — an answer leaves the list at once (#166)', () => {
   });
 
   it('does not bring an answered proposal back from a read begun before it was answered', async () => {
-    const { hook, release, holdReads } = heldVault({
+    const { hook, release, holdReads, said } = heldVault({
       [PROPOSAL]: PROPOSAL_TEXT,
       [SECOND]: SECOND_TEXT,
     });
@@ -324,13 +330,13 @@ describe('useProposals — an answer leaves the list at once (#166)', () => {
     expect(openTitles(hook)).toEqual([SECOND]);
 
     release();
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
     await act(() => new Promise((settle) => setTimeout(settle, 20)));
     expect(openTitles(hook)).toEqual([SECOND]);
   });
 
   it('puts the proposal back, saying why, when its write fails', async () => {
-    const { hook } = render({ [PROPOSAL]: PROPOSAL_TEXT }, 'The disk is full.');
+    const { hook, said } = render({ [PROPOSAL]: PROPOSAL_TEXT }, 'The disk is full.');
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
@@ -338,7 +344,7 @@ describe('useProposals — an answer leaves the list at once (#166)', () => {
 
     await waitFor(() => expect(openTitles(hook)).toEqual([PROPOSAL]));
     expect(hook.result.current.section.problems.get(path(PROPOSAL))).toMatch(/The disk is full/);
-    expect(hook.result.current.section.notice?.undoable ?? false).toBe(false);
+    expect(said()).toBeUndefined();
   });
 
   it('reads the proposals again once the answers are written, not once for each', async () => {
@@ -362,31 +368,29 @@ describe('useProposals — an answer leaves the list at once (#166)', () => {
   });
 });
 
-describe('useProposals — the undo lasts as long as its notice (#165)', () => {
-  it('takes nothing back once the notice offering Undo has gone', async () => {
-    const { hook, files } = render();
-    await waitFor(() => expect(hook.result.current.count).toBe(1));
+describe('useProposals — one answer’s Undo at a time (#165)', () => {
+  it('lets a newer answer’s toast take the place of the one before, and its Undo with it', async () => {
+    const { hook, toasts, said } = render({ [PROPOSAL]: PROPOSAL_TEXT, [SECOND]: SECOND_TEXT });
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
 
-    act(() => hook.result.current.section.onDismissNotice());
-    expect(hook.result.current.section.notice).toBeNull();
+    act(() => hook.result.current.section.onReject(path(SECOND)));
+    await waitFor(() => expect(said()?.message).toBe('Rejected: Call Tobias.'));
 
-    act(() => hook.result.current.section.onUndo());
-    await act(() => new Promise((settle) => setTimeout(settle, 20)));
-    expect(files.has(TASK)).toBe(true);
-    expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
+    expect(toasts.store.getState().toasts).toHaveLength(1);
+    expect(said()?.onUndo).toBeUndefined();
   });
 });
 
 describe('useProposals — adversarial: another vault opened after an accept', () => {
-  // The hook holds the last accept for its Undo, and the notice offering it,
-  // across a change of `ports` — which is what opening another vault is. The
-  // page then offers "Undo" in vault B for what was accepted in vault A, and
-  // pressing it runs A's paths against B's files.
-  it('no longer offers Undo once the ports are another vault’s', async () => {
+  // The toast offering Undo is let go as another vault opens (ToastHost); an
+  // Undo pressed in the moment before must still not run vault A's paths
+  // against vault B's files, nor take A's accept back behind its back.
+  it('writes nothing for an Undo pressed once the ports are another vault’s', async () => {
     const first = vault({ [PROPOSAL]: PROPOSAL_TEXT });
     const second = vault({ 'Elsewhere.md': 'Another vault.\n' });
+    const shown = windowToasts();
     const hook = renderHook(
       ({ ports }: { ports: ProposalPorts }) =>
         useProposals({
@@ -396,17 +400,25 @@ describe('useProposals — adversarial: another vault opened after an accept', (
           onSettled: () => {},
           activity: recordingActivity(),
           closing: noClosing,
+          toasts: shown.toasts,
+          onOpen: () => {},
         }),
       { initialProps: { ports: first.ports } },
     );
     await waitFor(() => expect(hook.result.current.count).toBe(1));
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(shown.said()?.onUndo).toBeDefined());
+    const accepted = shown.said();
 
     hook.rerender({ ports: second.ports });
     await waitFor(() => expect(hook.result.current.count).toBe(0));
+    shown.undo(accepted);
+    await act(() => new Promise((settle) => setTimeout(settle, 20)));
 
-    expect(hook.result.current.section.notice?.undoable ?? false).toBe(false);
+    expect(first.files.has(TASK)).toBe(true);
+    expect(first.files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
+    expect([...second.files.keys()]).toEqual(['Elsewhere.md']);
+    expect(hook.result.current.section.busy).toBeNull();
   });
 });
 
@@ -418,16 +430,16 @@ describe('useProposals — answering several at once (#168)', () => {
   };
 
   it('accepts each chosen one as Accept does one, and one Undo takes them all back', async () => {
-    const { hook, files } = render(THREE);
+    const { hook, files, said, undo } = render(THREE);
     await waitFor(() => expect(hook.result.current.count).toBe(3));
     act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
     act(() => hook.result.current.section.selection.onToggle(SECOND));
 
     act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
     expect(openTitles(hook)).toEqual([THIRD]);
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
 
-    expect(hook.result.current.section.notice?.text).toBe('Accepted 2 proposals.');
+    expect(said()?.message).toBe('Accepted 2 proposals.');
     for (const accepted of [PROPOSAL, SECOND]) {
       expect(files.get(`Archive/${accepted}`)?.text).toContain('state: accepted');
       expect(files.get(`Archive/${accepted}`)?.text).toContain('answered_via: app');
@@ -435,11 +447,9 @@ describe('useProposals — answering several at once (#168)', () => {
     expect(files.has(TASK)).toBe(true);
     expect(files.has(SECOND_TASK)).toBe(true);
 
-    act(() => hook.result.current.section.onUndo());
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(false));
-    expect(hook.result.current.section.notice?.text).toBe(
-      'Undone: 2 proposals are back in the Inbox.',
-    );
+    undo();
+    await waitFor(() => expect(said()?.message).toBe('Undone: 2 proposals are back in the Inbox.'));
+    expect(said()?.onUndo).toBeUndefined();
     expect(files.has(TASK)).toBe(false);
     expect(files.has(SECOND_TASK)).toBe(false);
     expect(files.get(PROPOSAL)?.text).toContain('state: open');
@@ -450,20 +460,19 @@ describe('useProposals — answering several at once (#168)', () => {
   });
 
   it('says on its card why one was refused, keeps it chosen, and still answers the rest', async () => {
-    const { hook, files } = render({ ...THREE, [PROPOSAL]: GONE_TEXT });
+    const { hook, files, said } = render({ ...THREE, [PROPOSAL]: GONE_TEXT });
     await waitFor(() => expect(hook.result.current.count).toBe(3));
     act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
     act(() => hook.result.current.section.selection.onToggle(SECOND));
 
     act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(said()).toBeDefined());
 
-    expect(hook.result.current.section.notice).toEqual({
-      text: 'Accepted 1 proposal. 1 was not: its card says why.',
-      opens: null,
-      undoable: true,
-      failed: false,
+    expect(said()).toMatchObject({
+      message: 'Accepted 1 proposal. 1 was not: its card says why.',
+      tone: 'change',
     });
+    expect(said()?.onUndo).toBeTypeOf('function');
     expect(hook.result.current.section.problems.get(path(PROPOSAL))).toMatch(
       /which is not a note any more/,
     );
@@ -474,7 +483,7 @@ describe('useProposals — answering several at once (#168)', () => {
 
   it('keeps what was chosen while the batch was written, with the ones it could not answer (review)', async () => {
     const setup = holdingOne({ ...THREE, [PROPOSAL]: GONE_TEXT }, SECOND_TASK);
-    const { hook } = drive(setup, setup.ports);
+    const { hook, said } = drive(setup, setup.ports);
     await waitFor(() => expect(hook.result.current.count).toBe(3));
     act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
     act(() => hook.result.current.section.selection.onToggle(SECOND));
@@ -482,7 +491,7 @@ describe('useProposals — answering several at once (#168)', () => {
 
     act(() => hook.result.current.section.selection.onToggle(THIRD));
     setup.release();
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(said()).toBeDefined());
     await waitFor(() => expect(hook.result.current.count).toBe(2));
 
     expect([...hook.result.current.section.selection.selected].sort()).toEqual(
@@ -505,18 +514,14 @@ describe('useProposals — answering several at once (#168)', () => {
   });
 
   it('rejects each chosen one, archiving it, with nothing to undo', async () => {
-    const { hook, files } = render(THREE);
+    const { hook, files, said } = render(THREE);
     await waitFor(() => expect(hook.result.current.count).toBe(3));
 
     act(() => hook.result.current.section.onRejectMany([path(PROPOSAL), path(THIRD)]));
-    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(said()).toBeDefined());
 
-    expect(hook.result.current.section.notice).toEqual({
-      text: 'Rejected 2 proposals.',
-      opens: null,
-      undoable: false,
-      failed: false,
-    });
+    expect(said()).toMatchObject({ message: 'Rejected 2 proposals.', tone: 'change' });
+    expect(said()?.onUndo).toBeUndefined();
     expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: rejected');
     expect(files.get(`Archive/${THIRD}`)?.text).toContain('state: rejected');
     expect(openTitles(hook)).toEqual([SECOND]);
@@ -579,6 +584,8 @@ describe('useProposals — adversarial: a queued answer fails after another vaul
           onSettled: () => {},
           activity,
           closing: noClosing,
+          toasts: createToasts(),
+          onOpen: () => {},
         }),
       { initialProps: { ports: firstPorts } },
     );
@@ -616,7 +623,8 @@ function holdingOne(notes: Record<string, string>, held: string) {
 
 /** The hook over one vault's ports and then another's, as opening another vault does. */
 function switching(ports: ProposalPorts) {
-  return renderHook(
+  const shown = windowToasts();
+  const hook = renderHook(
     ({ ports: open }: { ports: ProposalPorts }) =>
       useProposals({
         ports: open,
@@ -625,9 +633,12 @@ function switching(ports: ProposalPorts) {
         onSettled: () => {},
         activity: recordingActivity(),
         closing: noClosing,
+        toasts: shown.toasts,
+        onOpen: () => {},
       }),
     { initialProps: { ports } },
   );
+  return Object.assign(hook, { said: shown.said });
 }
 
 describe('useProposals — another vault opened while answers are written (review)', () => {
@@ -663,33 +674,33 @@ describe('useProposals — another vault opened while answers are written (revie
     expect(first.files.has(TASK)).toBe(true);
     expect([...second.files.keys()]).toEqual(['Elsewhere.md']);
     expect(hook.result.current.section.notice).toBeNull();
+    expect(hook.said()).toBeUndefined();
   });
 });
 
 describe('useProposals — an Undo queued behind a later answer (review)', () => {
-  it('leaves the later accept’s notice and its own Undo up when the earlier undo finishes', async () => {
+  it('leaves the later accept’s toast and its own Undo up when the earlier undo finishes', async () => {
     const setup = holdingOne({ [PROPOSAL]: PROPOSAL_TEXT, [SECOND]: SECOND_TEXT }, SECOND_TASK);
-    const { hook } = drive(setup, setup.ports);
+    const { hook, said, undo } = drive(setup, setup.ports);
     await waitFor(() => expect(hook.result.current.count).toBe(2));
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
 
     act(() => hook.result.current.section.onAccept(path(SECOND)));
-    act(() => hook.result.current.section.onUndo());
+    undo();
     setup.release();
     await waitFor(() => expect(setup.files.has(TASK)).toBe(false));
     await act(() => new Promise((settle) => setTimeout(settle, 20)));
 
-    expect(hook.result.current.section.notice).toMatchObject({
-      text: 'Accepted: Call Tobias Fenn.',
-      undoable: true,
-    });
-    act(() => hook.result.current.section.onUndo());
+    const later = said('Accepted: Call Tobias Fenn.');
+    expect(later?.onUndo).toBeTypeOf('function');
+    expect(said('Undone: Send Mara the payroll file is back in the Inbox.')).toBeDefined();
+    undo(later);
     await waitFor(() => expect(setup.files.has(SECOND_TASK)).toBe(false));
     expect(setup.files.get(SECOND)?.text).toContain('state: open');
   });
 
-  it('says an undo that failed, and keeps it up until dismissed', async () => {
+  it('says an undo that failed on the page, and keeps it up until dismissed', async () => {
     const setup = vault({ [PROPOSAL]: PROPOSAL_TEXT });
     const ports: ProposalPorts = {
       ...setup.ports,
@@ -700,15 +711,18 @@ describe('useProposals — an Undo queued behind a later answer (review)', () =>
         },
       },
     };
-    const { hook } = drive(setup, ports);
+    const { hook, said, undo } = drive(setup, ports);
     await waitFor(() => expect(hook.result.current.count).toBe(1));
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
-    expect(hook.result.current.section.notice?.failed).toBe(false);
+    await waitFor(() => expect(said()?.onUndo).toBeDefined());
+    expect(hook.result.current.section.notice).toBeNull();
 
-    act(() => hook.result.current.section.onUndo());
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(false));
-    expect(hook.result.current.section.notice?.failed).toBe(true);
+    undo();
+    await waitFor(() => expect(hook.result.current.section.notice).toMatch(/The Trash is locked/));
+    expect(said()).toBeUndefined();
+
+    act(() => hook.result.current.section.onDismissNotice());
+    expect(hook.result.current.section.notice).toBeNull();
   });
 });
 
@@ -730,6 +744,8 @@ describe('useProposals — closing the window (review)', () => {
         onSettled: () => {},
         activity: recordingActivity(),
         closing,
+        toasts: createToasts(),
+        onOpen: () => {},
       }),
     );
     await waitFor(() => expect(hook.result.current.count).toBe(1));

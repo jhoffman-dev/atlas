@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, type VaultPath } from '@atlas/domain';
 import { recordingActivity, type ProposalPorts } from '@atlas/application';
-import { inMemoryProposalVault as vault } from './proposals.test-support.ts';
+import { inMemoryProposalVault as vault, windowToasts } from './proposals.test-support.ts';
 import { useProposals } from './use-proposals.ts';
 
 const path = (raw: string): VaultPath => createVaultPath(raw);
@@ -40,7 +40,8 @@ const notes = (many: boolean) => ({
 });
 
 function drive(ports: ProposalPorts) {
-  return renderHook(() =>
+  const shown = windowToasts();
+  const hook = renderHook(() =>
     useProposals({
       ports,
       clock: { today: () => '2026-10-08' },
@@ -48,8 +49,11 @@ function drive(ports: ProposalPorts) {
       onSettled: vi.fn(),
       activity: recordingActivity(),
       closing: noClosing,
+      toasts: shown.toasts,
+      onOpen: vi.fn(),
     }),
   );
+  return Object.assign(hook, shown);
 }
 
 describe('Accept choice', () => {
@@ -59,16 +63,16 @@ describe('Accept choice', () => {
     await waitFor(() => expect(hook.result.current.count).toBe(2));
 
     act(() => hook.result.current.section.onAcceptChoice(path(LARKSPUR), [path(GARDEN)]));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(hook.said()?.onUndo).toBeDefined());
     await waitFor(() => expect(setup.files.has(`Archive/${GARDEN}`)).toBe(true));
-    expect(hook.result.current.section.notice?.text).toMatch(/Rejected 1 other proposal/);
+    expect(hook.said()?.message).toMatch(/Rejected 1 other proposal/);
 
-    act(() => hook.result.current.section.onUndo());
+    hook.undo();
     await waitFor(() => expect(hook.result.current.count).toBe(2));
     expect(setup.files.has(GARDEN)).toBe(true);
     expect(setup.files.get(GARDEN)?.text).toContain('state: open');
     expect(setup.files.get(MEETING)?.text).not.toContain('Larkspur');
-    expect(hook.result.current.section.notice?.text).toMatch(/open again/);
+    expect(hook.said()?.message).toMatch(/open again/);
   });
 
   it('leaves the other value rejected when the accept could not be undone', async () => {
@@ -76,7 +80,7 @@ describe('Accept choice', () => {
     const hook = drive(setup.ports);
     await waitFor(() => expect(hook.result.current.count).toBe(2));
     act(() => hook.result.current.section.onAcceptChoice(path(LARKSPUR), [path(GARDEN)]));
-    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    await waitFor(() => expect(hook.said()?.onUndo).toBeDefined());
     await waitFor(() => expect(setup.files.has(`Archive/${GARDEN}`)).toBe(true));
     // The meeting changed since: the accept's link is not the note's now.
     setup.files.set(MEETING, {
@@ -84,8 +88,9 @@ describe('Accept choice', () => {
       modified: 9999,
     });
 
-    act(() => hook.result.current.section.onUndo());
-    await waitFor(() => expect(hook.result.current.section.notice?.failed).toBe(true));
+    hook.undo();
+    // Nothing taken back is left to undo: the failure stays on the page until read.
+    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
     expect(setup.files.has(`Archive/${GARDEN}`)).toBe(true);
   });
 });

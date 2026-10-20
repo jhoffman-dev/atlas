@@ -7,6 +7,8 @@ import {
 } from '@atlas/domain';
 import { fakeIndexPort, fakeVaultFs, type ProposalPorts } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { act } from '@testing-library/react';
+import { createToasts } from '../toasts/toasts.ts';
 
 const path = (raw: string): VaultPath => createVaultPath(raw);
 
@@ -91,3 +93,23 @@ export function inMemoryProposalVault(notes: Record<string, string>) {
 }
 
 /** Test support for the Proposals hooks: the vault above, shared by their tests. */
+
+/**
+ * The window's toasts, where the hook says an answer and offers its Undo
+ * (UI v2, slice 15), and what the tests read of them.
+ */
+export function windowToasts() {
+  const toasts = createToasts();
+  toasts.openVault('Larkspur');
+  const all = () => toasts.store.getState().toasts;
+  /** The toast saying `words`, or the newest. */
+  const said = (words?: string) =>
+    words === undefined ? all().at(-1) : all().find((toast) => toast.message === words);
+  /** Presses a toast's Undo as its button does: once, and the toast goes. */
+  const undo = (toast = said()) =>
+    act(() => {
+      toast?.onUndo?.();
+      if (toast !== undefined) toasts.dismiss(toast.id);
+    });
+  return { toasts, said, undo };
+}
