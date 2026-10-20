@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfileSettings } from './profile-settings.tsx';
 import { SAVE_EMAILS_AFTER_MS, type SelfEmailsView } from './self-emails-form.tsx';
+import { settles } from './settles.test-support.ts';
+
+/** Where the fake clock stands until a test moves it. */
+const FIXED_NOW = new Date('2026-03-02T09:00:00.000Z');
 
 const NO_EMAILS: SelfEmailsView = {
   kept: '',
@@ -115,11 +119,18 @@ describe('ProfileSettings: your emails', () => {
 
   /** Typing as a person does, with the clock under the test's hand. */
   function typist() {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: FIXED_NOW });
+    // Testing Library ends each user action by awaiting a 0 ms timer, which it runs
+    // itself only when it sees Jest's fake timers: this lets it run that timer on
+    // Vitest's, without moving the clock.
+    vi.stubGlobal('jest', { advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms) });
     return userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
   }
   const rest = () => act(async () => void vi.advanceTimersByTime(SAVE_EMAILS_AFTER_MS));
-  afterEach(() => void vi.useRealTimers());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it('has no Save button: the field is the whole control (#226)', () => {
     renderWith({ emails: { kept: 'mara@example.com' } });
@@ -148,7 +159,7 @@ describe('ProfileSettings: your emails', () => {
     await rest();
     expect(onSaveEmails).toHaveBeenCalledTimes(1);
     expect(onSaveEmails).toHaveBeenCalledWith('mara.quill@example.com, mq@example.com');
-    await waitFor(() => expect(state()).toBe('Saved'));
+    await settles(() => expect(state()).toBe('Saved'));
   });
 
   it('saves on leaving the field, without waiting, and once', async () => {
@@ -179,7 +190,7 @@ describe('ProfileSettings: your emails', () => {
     await user.tab();
     redraw({ kept: 'mara@example.com', problem: 'The settings note is read-only.' });
 
-    await waitFor(() => expect(failure()).toBe('Couldn’t save: The settings note is read-only.'));
+    await settles(() => expect(failure()).toBe('Couldn’t save: The settings note is read-only.'));
     expect(emailsField().value).toBe('mq@example.org');
   });
 
@@ -193,7 +204,7 @@ describe('ProfileSettings: your emails', () => {
     expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com and mq');
     redraw({ kept: 'mara@example.com', problem: 'Not an email address: “and”.' });
 
-    await waitFor(() => expect(failure()).toBe('Couldn’t save: Not an email address: “and”.'));
+    await settles(() => expect(failure()).toBe('Couldn’t save: Not an email address: “and”.'));
     expect(emailsField().value).toBe('mara@example.com and mq');
   });
 
@@ -203,7 +214,7 @@ describe('ProfileSettings: your emails', () => {
     onSaveEmails.mockResolvedValueOnce(false);
     await user.type(emailsField(), 'mq@example.org');
     await user.tab();
-    await waitFor(() => expect(failure()).toBeDefined());
+    await settles(() => expect(failure()).toBeDefined());
     await user.click(emailsField());
     await user.tab();
     expect(onSaveEmails).toHaveBeenCalledTimes(2);
@@ -238,7 +249,7 @@ describe('ProfileSettings: your emails', () => {
     expect(onSaveEmails).toHaveBeenCalledWith('');
     // Nothing saved now: the hook hands back the Person note's addresses as in use.
     redraw({ kept: '', suggested: 'mara.quill@example.com' });
-    await waitFor(() => expect(emailsField().value).toBe('mara.quill@example.com'));
+    await settles(() => expect(emailsField().value).toBe('mara.quill@example.com'));
   });
 
   it('saves typing not yet saved when Settings closes', async () => {

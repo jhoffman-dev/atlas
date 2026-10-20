@@ -17,6 +17,7 @@ import {
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useToday } from './use-today.ts';
+import { settles } from '../granola/settles.test-support.ts';
 
 /** #111: the Today page's reading, row actions and undo, on a fixed clock. */
 const NOW = Date.UTC(2026, 9, 13, 15);
@@ -440,7 +441,7 @@ describe('useToday', () => {
 
   describe('the day turning', () => {
     it('reads again within a minute of the clock’s day changing, with nobody looking', async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.useFakeTimers({ now: NOW });
       try {
         const day = { today: '2026-10-13' };
         const clock = { today: () => day.today, now: () => NOW };
@@ -464,13 +465,13 @@ describe('useToday', () => {
             onSettled,
           }),
         );
-        await waitFor(() => expect(result.current.page.today?.today).toBe('2026-10-13'));
+        await settles(() => expect(result.current.page.today?.today).toBe('2026-10-13'));
 
         day.today = '2026-10-14';
         await act(async () => vi.advanceTimersByTimeAsync(59_000));
         expect(result.current.page.today?.today).toBe('2026-10-13');
         await act(async () => vi.advanceTimersByTimeAsync(2_000));
-        await waitFor(() => expect(result.current.page.today?.today).toBe('2026-10-14'));
+        await settles(() => expect(result.current.page.today?.today).toBe('2026-10-14'));
         const overdue = result.current.page.today?.sections.find(({ id }) => id === 'overdue');
         expect(overdue?.count).toBe(1);
       } finally {
