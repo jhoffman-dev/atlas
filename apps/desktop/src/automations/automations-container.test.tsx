@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import { AutomationsContainer } from './automations-container.tsx';
 import { createAutomationsStore } from './automations-store.ts';
@@ -19,6 +20,7 @@ describe('the Automations page before its runner has said anything (#419)', () =
         tabId={'tab-1' as PageContainerProps['tabId']}
         chrome={{ history }}
       />,
+      { wrapper: queryWrapper().wrapper },
     );
     expect(screen.getByRole('group', { name: 'History' })).toBeTruthy();
     expect(container.querySelector('.panel__body')?.getAttribute('aria-busy')).toBe('true');

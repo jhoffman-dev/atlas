@@ -65,6 +65,7 @@ import {
   useCalendarNav,
   type CalendarNavigation,
   type ChatToggle,
+  type CreateRelated,
   type GroupFolds,
   type GroupFoldStore,
   type NotePeople,
@@ -505,6 +506,16 @@ export function useNotePane({
     beside: path,
     onChanged,
   });
+  // A note made from a table's relation cell goes where a new note of its
+  // type goes: the page beside it is the view, which lives in .atlas/views.
+  const createRelatedFromTable = useCreateRelated({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    types,
+    notePaths,
+    beside: null,
+    onChanged,
+  });
   const dashboard = useDashboard({ note: note.open, index, types, notePaths, indexKey });
   const dashboardEditing = useDashboardEditing({
     note: note.open,
@@ -922,6 +933,7 @@ export function useNotePane({
               choosing,
               folds,
               onRowFocus,
+              createRelated: createRelatedFromTable,
               ...(onPeek !== undefined && { onPeek: peekRow }),
             })
       }
@@ -1154,6 +1166,7 @@ function paneBody({
   choosing,
   folds,
   onRowFocus,
+  createRelated,
   onPeek,
 }: {
   source: ReturnType<typeof useSource>;
@@ -1176,6 +1189,8 @@ function paneBody({
   folds: GroupFolds;
   /** Told the row a table's focus landed in, for the aside. */
   onRowFocus: (path: string) => void;
+  /** "New <type>…" in a table's relation cell. */
+  createRelated: CreateRelated;
   /** Given, a table's row or a board's card clicked plainly peeks its note. */
   onPeek?: (request: PeekRequest) => void;
 }): ReactNode {
@@ -1237,6 +1252,8 @@ function paneBody({
       choosing={choosing}
       folds={folds}
       onRowFocus={onRowFocus}
+      onCreateRelated={createRelated}
+      {...(arrangement.popups !== undefined && { popups: arrangement.popups })}
       {...(onPeek !== undefined && { onPeek })}
     />
   );

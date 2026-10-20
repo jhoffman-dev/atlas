@@ -142,6 +142,7 @@ describe('attack #354 — the edit lifecycle', () => {
       path: 'a.md',
       column: 'note',
       value: 'first!',
+      began: { value: 'first' },
     });
     expect(field().value).toBe('second');
   });
@@ -255,6 +256,7 @@ describe('attack #354 — the number cell', () => {
       path: 'a.md',
       column: 'count',
       value: 0.5,
+      began: { value: 3 },
     });
   });
 
@@ -284,6 +286,7 @@ describe('attack #354 — the date cell', () => {
       path: 'a.md',
       column: 'due',
       value: '2026-03-05T09:30',
+      began: { value: '2026-03-01T09:30' },
     });
   });
 });
@@ -350,6 +353,7 @@ describe('attack #354 — the status picker', () => {
       path: 'a.md',
       column: 'status',
       value: 'archive',
+      began: { value: 'next' },
     });
   });
 

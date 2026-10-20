@@ -1736,6 +1736,7 @@ function AppWindow({
         typesOffer === null
           ? null
           : {
+              reading: typesOffer.reading,
               lines: typesOffer.lines,
               onAccept: () => void typesOffer.accept(),
               onDismiss: typesOffer.dismiss,

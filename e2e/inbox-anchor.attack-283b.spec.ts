@@ -77,9 +77,7 @@ async function openInbox(
       ['---', 'type: task', 'status: todo', '---', '', 'Ship it.', ''].join('\n'),
     );
   }
-  // Listing what it indexed, as the real index does: the Inbox's offers are read
-  // ahead from that list (#130, last fix round), so the page opens with them known.
-  const host = await installHost(page, vault, { keepsManifest: true });
+  const host = await installHost(page, vault);
   const releaseTasks = lateTasks ? host.holdReads(LATE_TASK, { alone: true }) : () => {};
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();

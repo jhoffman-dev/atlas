@@ -538,7 +538,6 @@ export async function installHost(
   vault: FakeVault,
   {
     feeds = {},
-    keepsManifest = false,
     echoWrites = false,
     coarseTickSeconds,
   }: {
@@ -548,13 +547,6 @@ export async function installHost(
      * refreshes by writing to it.
      */
     feeds?: Record<string, string>;
-    /**
-     * Lists what was indexed as the index's manifest, as the real index does,
-     * so a refresh re-reads only the notes that changed. Off by default: the
-     * e2e suite was written against a stand-in that lists none. The perf
-     * harness turns it on, or every refresh it times re-reads the whole vault.
-     */
-    keepsManifest?: boolean;
     /**
      * Reports the app's own writes back as `vault-changed`, as the real
      * watcher does: the paths a write touched (a save's temporary beside its
@@ -949,7 +941,8 @@ export async function installHost(
         indexed.clear();
         return null;
       case 'index_manifest':
-        if (!keepsManifest) return [];
+        // Lists what was indexed, as the real index does: a refresh re-reads
+        // only the notes that changed, and removes a note that is gone (#408).
         return [...indexed.values()].map((note) => ({
           path: note.path,
           modified: note.modified ?? 0,

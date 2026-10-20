@@ -19,7 +19,12 @@ import { Spacer } from '../grouped-rows.tsx';
 import { useVirtualRows } from '../virtual-rows.ts';
 import { asksWhoItWaitsOn, clarificationOf, type InboxDraft } from './inbox-triage.ts';
 import { triageKeysShown, type TriageKeyShown } from './triage-keys.ts';
-import { useInboxTriage, type ClarifyInboxItem, type InboxTriage } from './use-inbox-triage.ts';
+import {
+  useInboxTriage,
+  type ClarifyInboxItem,
+  type InboxTriage,
+  type StrandedRow,
+} from './use-inbox-triage.ts';
 
 /** Why a row's last clarification was refused or left unfinished. */
 export interface InboxRefusal {
@@ -43,6 +48,11 @@ export interface InboxRowsProps {
   refusals: readonly InboxRefusal[];
   /** Why each imported meeting's summary still waits, by path: shown on its row (#186). */
   summaryPending?: ReadonlyMap<string, string>;
+  /**
+   * Kept by the page, which outlives the rows: the row whose key emptied the
+   * list while it held the focus, to take the focus back should it return.
+   */
+  stranded?: StrandedRow;
 }
 
 /** A row's height until it is measured, as WebKit draws a note's. */
@@ -93,8 +103,15 @@ export function InboxRows({
   busy,
   refusals,
   summaryPending,
+  stranded,
 }: InboxRowsProps) {
-  const triage = useInboxTriage({ items, statuses, onClarify, busy });
+  const triage = useInboxTriage({
+    items,
+    statuses,
+    onClarify,
+    busy,
+    ...(stranded !== undefined && { stranded }),
+  });
   const keys = useMemo(() => items.map((item) => item.path), [items]);
   const triageKeys = useMemo(() => triageKeysShown(statuses), [statuses]);
   const body = useRef<HTMLTableSectionElement>(null);

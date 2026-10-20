@@ -44,8 +44,7 @@ async function openVault(page: Page): Promise<FakeVault> {
   await vault.write('Orchard.md', '---\ntype: project\npara: area\n---\n\n# Orchard\n');
   await vault.write('Mend the fence.md', '---\ntype: task\n---\n\n# Mend the fence\n');
   await vault.write('Order seeds.md', '---\ntype: task\n---\n\n# Order seeds\n');
-  // The real index lists what it holds, so a refresh can see a note gone.
-  await installHost(page, vault, { keepsManifest: true });
+  await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();

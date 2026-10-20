@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { BoardRow, StatusProperty } from '@atlas/domain';
-import { cardAsMoved, rowsAsPending, type PendingCard } from './pending-cards.ts';
+import { cardAsMoved, resultAsPending, rowsAsPending, type PendingCard } from './pending-cards.ts';
 
 const STATUS: StatusProperty = {
   key: 'status',
@@ -168,5 +168,52 @@ describe('rowsAsPending', () => {
   it('is the rows themselves when the card being written is not among them', () => {
     const pending: PendingCard[] = [{ path: 'Gone.md', values: { status: 'done' }, landed: null }];
     expect(rowsAsPending({ rows: ROWS, pending, read })).toBe(ROWS);
+  });
+});
+
+describe('resultAsPending (#300)', () => {
+  const READ = { at: 1, indexKey: 'a' };
+  const result = {
+    columns: ['path', 'title', 'status', 'phase'],
+    rows: [
+      ['one.md', 'One', 'backlog', 1],
+      ['two.md', 'Two', 'doing', 2],
+    ],
+  };
+  const edited = (values: Record<string, unknown>, landed: PendingCard['landed'] = null) => ({
+    path: 'one.md',
+    values,
+    landed,
+  });
+
+  it('draws a cell committed and not yet read back as committed', () => {
+    const shown = resultAsPending({ result, pending: [edited({ status: 'done' })], read: READ });
+    expect(shown.rows[0]).toEqual(['one.md', 'One', 'done', 1]);
+  });
+
+  it('leaves every other row the object it was, so only the edited row draws again', () => {
+    const shown = resultAsPending({ result, pending: [edited({ status: 'done' })], read: READ });
+    expect(shown.rows[1]).toBe(result.rows[1]);
+    expect(shown.columns).toBe(result.columns);
+  });
+
+  it('is the result itself while nothing is pending', () => {
+    expect(resultAsPending({ result, pending: [], read: READ })).toBe(result);
+  });
+
+  it('lets a cell go once a read stands for its write', () => {
+    const landed = { at: 1, indexKey: 'a' };
+    const later = { at: 2, indexKey: 'b' };
+    const shown = resultAsPending({
+      result,
+      pending: [edited({ status: 'done' }, landed)],
+      read: later,
+    });
+    expect(shown).toBe(result);
+  });
+
+  it('ignores a pending value for a column the result does not carry', () => {
+    const shown = resultAsPending({ result, pending: [edited({ owner: 'x' })], read: READ });
+    expect(shown.rows[0]).toEqual(result.rows[0]);
   });
 });

@@ -334,6 +334,17 @@ async function shootViews(page: Page, theme: string): Promise<void> {
     // Scrolled to the last row: the header should still be at the top of the sheet.
     await page.locator('.table__sheet').evaluate((sheet) => sheet.scrollTo(0, sheet.scrollHeight));
     await shoot(page, `all-tasks-scrolled-${theme}`);
+    await page.locator('.table__sheet').evaluate((sheet) => sheet.scrollTo(0, 0));
+    // Editing in place (#300): the status picker open on the fifth row, against FlowTable.
+    const fifth = page.locator('.table__sheet tbody tr').nth(4);
+    if (await open('table-editing', [fifth.locator('[data-cell-stop="status"]')])) {
+      await page
+        .getByRole('dialog', { name: /^Set / })
+        .waitFor({ timeout: 3_000 })
+        .catch(() => console.warn('table-editing: the picker did not open'));
+      await shoot(page, `table-editing-${theme}`);
+      await page.keyboard.press('Escape');
+    }
     await shootPeek(page, theme);
   }
   if (await open('calendar', view(page, 'Calendar'))) {

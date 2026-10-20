@@ -269,7 +269,24 @@ fn matcher_with(
     build(value).map_err(|_| TooLongToProtect)
 }
 
+/// How many matchers were built, here and on this thread: a test tells a
+/// build on the async worker from one on a thread kept for it by counting,
+/// not by timing either (#403).
+#[cfg(test)]
+pub(super) static BUILT_ANYWHERE: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+thread_local! {
+    pub(super) static BUILT_ON_THIS_THREAD: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
 fn compiled(value: &str) -> Result<Regex, regex::Error> {
+    #[cfg(test)]
+    {
+        BUILT_ANYWHERE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        BUILT_ON_THIS_THREAD.with(|built| built.set(built.get() + 1));
+    }
     RegexBuilder::new(&pattern(value))
         .size_limit(MATCHER_SIZE_LIMIT)
         .build()
@@ -374,7 +391,6 @@ fn json_short_escape(c: char) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
-    use std::time::{Duration, Instant};
 
     use regex::Regex;
 
@@ -563,13 +579,7 @@ mod tests {
     fn building_a_matcher_is_bounded_by_the_size_limit() {
         let token = super::super::tests::a_signed_token(3_000);
 
-        let started = Instant::now();
         matcher(&token).expect("a 3 KB signed token fits the limit");
-        let took = started.elapsed();
-
-        // Well under a second in a debug build; ten seconds is a hang, not a
-        // slow machine.
-        assert!(took < Duration::from_secs(10), "{took:?}");
         match compiled(&token.repeat(4)) {
             Err(regex::Error::CompiledTooBig(limit)) => assert_eq!(limit, MATCHER_SIZE_LIMIT),
             other => panic!(

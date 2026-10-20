@@ -36,6 +36,7 @@ import {
   type ViewQuery,
 } from '@atlas/domain';
 import {
+  readCellValue,
   relationGroupLinks,
   runView,
   type IndexPort,
@@ -46,7 +47,14 @@ import {
   type ViewResult,
   type ActivityLog,
 } from '@atlas/application';
-import { useNoteNames, type CardAdd, type CardMove, type DoneTicks } from '@atlas/ui';
+import {
+  useNoteNames,
+  type CardAdd,
+  type CardMove,
+  type CellEdit,
+  type DoneTicks,
+  type ReadHeldCell,
+} from '@atlas/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from './error-message.ts';
 import type { TickMemory } from './tick-memory.ts';
@@ -55,6 +63,7 @@ import { useDoneTicks } from './use-done-ticks.ts';
 import { useFilterChoices, type FilterChoicesByKey } from './use-filter-choices.ts';
 import { useNotePreviews, type NotePreviews } from './use-note-previews.ts';
 import { usePendingCards, type BoardShape, type PendingCards } from './use-pending-cards.ts';
+import { useRelationChoices, type RelationChoicesByKey } from './use-relation-choices.ts';
 import { useChangeProperties, useRowWrites, useWriteProperties } from './use-view-writes.ts';
 import { useViewEdits } from './use-view-edits.ts';
 import type { ViewDrafts } from './use-view-drafts.ts';
@@ -131,7 +140,16 @@ export function useSavedView({
   /** Asks for a property's filter choices: its value box has opened, or a filter on it is listed. */
   wantFilterChoices: (key: string) => void;
   error: string | null;
-  editCell: (args: { path: string; column: string; value: string }) => void;
+  /** A cell committed in the table: settles once written, fails as a refusal or a failed write does. */
+  editCell: (edit: CellEdit) => Promise<void>;
+  /** The notes each relation column's picker offers, once wanted. */
+  relationChoices: RelationChoicesByKey;
+  /** Why a relation's notes could not be read, by its key. */
+  relationChoiceProblems: Readonly<Record<string, string>>;
+  /** Asks for a relation's notes: its cell's picker has opened. */
+  wantRelationChoices: (key: string) => void;
+  /** What a cell holding several values holds, read from its note once its writes so far have ended. */
+  readHeldCell: ReadHeldCell;
   toggleSort: (column: string) => void;
   setFilters: (filters: readonly QueryFilter[]) => void;
   setSorts: (sorts: readonly QuerySort[]) => void;
@@ -230,6 +248,23 @@ export function useSavedView({
     names,
   });
 
+  const {
+    choices: relationChoices,
+    problems: relationChoiceProblems,
+    want: wantRelationChoices,
+  } = useRelationChoices({
+    type,
+    index,
+    indexKey,
+  });
+
+  const { settled } = cards;
+  const readHeldCell = useCallback<ReadHeldCell>(
+    ({ path, column }) =>
+      settled(path).then(() => readCellValue({ fs, markdown, path, key: column })),
+    [settled, fs, markdown],
+  );
+
   const changeProperties = useChangeProperties({
     editors,
     fs,
@@ -245,6 +280,8 @@ export function useSavedView({
     status,
     changeProperties,
     moveProperties: cards.move,
+    shownOf: cards.shownOf,
+    refuse: cards.refuse,
   });
   const layouts = useMemo(() => (type === null ? [] : layoutChoices(type)), [type]);
   const setLayout = useLayoutEdit({ display, type, status, applyEdits });
@@ -294,6 +331,10 @@ export function useSavedView({
     groupChoices: choices,
     filterChoices,
     wantFilterChoices,
+    relationChoices,
+    relationChoiceProblems,
+    wantRelationChoices,
+    readHeldCell,
     error,
     ...viewEdits,
     ...rowWrites,

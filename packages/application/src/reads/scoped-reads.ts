@@ -1,4 +1,5 @@
 import {
+  ARCHIVE_DIRECTORY,
   ATLAS_DIRECTORY,
   AUTOMATIONS_DIRECTORY,
   COMPANY_TYPE,
@@ -12,6 +13,8 @@ import {
   QUERY_BLOCK_NODE,
   splitWikiLinks,
   TASK_TYPE,
+  TERM_TYPE,
+  TYPES_DIRECTORY,
   type EditorNode,
   type IndexFacet,
   type NoteChange,
@@ -61,9 +64,8 @@ export const INBOX_SCOPE: ReadScope = {
  * types (project, area) — and the Inbox's count.
  *
  * Not covered: a `project:` link a task resolves to a note of no filed-under
- * type (an untyped note). Its retitle, move or deletion changes the group's
- * heading without news of any covered note; the group is right again on the
- * next news Today hears (#392).
+ * type (an untyped note). Today covers it by `todayScope`, from what it read
+ * (#392); the weekly review heads no group with it.
  */
 export const REVIEW_SCOPE: ReadScope = {
   ...INBOX_SCOPE,
@@ -103,6 +105,46 @@ export const AUTOMATIONS_SCOPE: ReadScope = { folders: [AUTOMATIONS_DIRECTORY] }
 
 /** The sources that name a secret (`listSecrets`): any note can be one. */
 export const SECRETS_SCOPE: ReadScope = { anyNote: true };
+
+/**
+ * What the Archive lists (`listArchive`): every note in the Archive folder,
+ * and the projects whose `para` is archive (ADR-0037) — so a project's change
+ * reads it again whether it was archived or brought back (#327).
+ */
+export const ARCHIVE_SCOPE: ReadScope = {
+  folders: [ARCHIVE_DIRECTORY],
+  types: [PROJECT_TYPE],
+};
+
+/**
+ * What the Terms page lists (`loadTerms`): the terms, and the people and
+ * companies whose names and other spellings the vocabulary is made of.
+ */
+export const TERMS_SCOPE: ReadScope = { types: [TERM_TYPE, PERSON_TYPE, COMPANY_TYPE] };
+
+/**
+ * What a type's table lists (`typeTableQuery`): its notes, whose own
+ * properties are its columns, and the type files, whose properties the
+ * index's view of the type is built from.
+ */
+export function typeTableScope(typeName: string): ReadScope {
+  return { types: [typeName], folders: [TYPES_DIRECTORY] };
+}
+
+/** What the tags page lists for the chosen tag (`loadTaggedNotes`): any note can take a tag. */
+export const TAGS_SCOPE: ReadScope = { anyNote: true };
+
+/**
+ * The query page (`useQueryPage`): a query of the whole vault. Its schema is
+ * read with it; a views rebuild alone tells no news, so it does not move it.
+ */
+export const QUERY_SCOPE: ReadScope = { anyNote: true };
+
+/** The rule editor's "which notes" builder: a query of the whole vault, as the query page's. */
+export const RULE_QUERY_SCOPE: ReadScope = { anyNote: true };
+
+/** The search palette's hits (`searchNotes`): any note can match. */
+export const SEARCH_SCOPE: ReadScope = { anyNote: true };
 
 /**
  * What the index had to say when it last had news for its readers: the notes

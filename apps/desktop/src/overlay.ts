@@ -55,6 +55,12 @@ export function panePopupOverlay(pane: number, name: string): PanePopupOverlay {
   return `pane-${pane}-${name}`;
 }
 
+/**
+ * A table cell's picker — a status's options, a relation's notes (#300) — by
+ * its name among the pane's popups: one per pane, as only one cell edits.
+ */
+export const CELL_PICKER = 'cell-picker';
+
 /** The palettes, Settings, New type, and Pages' picker and delete question. Each is a modal dialog; a menu is not a place, only a choice. */
 const MODAL: ReadonlySet<Overlay> = new Set([
   'search',

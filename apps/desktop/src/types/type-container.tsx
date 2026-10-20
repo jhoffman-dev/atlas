@@ -1,11 +1,12 @@
-import { useEffect, useRef, type ComponentProps } from 'react';
+import { useEffect, useMemo, useRef, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
 import { createVaultPath, typeShownAt } from '@atlas/domain';
+import { typeTableScope } from '@atlas/application';
 import { clearRow, focusRow, hideAside, typeEditorShown, withinOf } from '../aside/aside-store.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
-import { useIndexKey } from '../index/index-status-store.ts';
+import { useLastReadFailed, useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { openPeek } from '../overlay-store.ts';
 import { rowPeek } from '../overlay.ts';
 import { activePlace } from '../workspace/workspace-store.ts';
@@ -46,8 +47,17 @@ export function TypeContainer({
   const { aside, store } = useWorkspaceStores();
   // The row this tab's table held goes with the tab.
   useEffect(() => () => clearRow(aside, tabId), [aside, tabId]);
-  // Still read again on every news of the index: what it reads is not yet scoped (#325).
-  const indexKey = useIndexKey(pane.indexStatus, pane.vault);
+  // Read again for news of this type's notes and the type files alone (#327), or
+  // any news after a failed read (#424): a view not yet rebuilt is rebuilt on news.
+  const scope = useMemo(() => typeTableScope(name), [name]);
+  const [failed, tellFailed] = useLastReadFailed();
+  const indexKey = useScopedIndexKey({
+    status: pane.indexStatus,
+    vault: pane.vault,
+    reader: ['type', name],
+    scope,
+    failed,
+  });
   const { onEditType, onNewNote, onEditTemplate } = pages.type;
   // Pressed while the aside shows this type's editor: on its Type tab, with
   // the focused tab on this type, here or in the other pane.
@@ -72,6 +82,7 @@ export function TypeContainer({
     editors: pane.editors,
     activity: pane.activity,
   });
+  tellFailed(table.error);
   return (
     <LoadedLater chrome={chrome}>
       <TypePage

@@ -13,7 +13,8 @@ import {
   recordingActivity,
 } from '@atlas/application';
 import { IndexProgressPill, LiveIndexSettings } from './index-progress.tsx';
-import { useIndexKey, type IndexPhase, type IndexStatusStore } from './index-status-store.ts';
+import type { IndexPhase, IndexStatusStore } from './index-status-store.ts';
+import { useHeldIndexKey } from './index-key.test-support.ts';
 import { openOnce } from './open-once.ts';
 import { refreshAfterWatch } from './watched-paths.ts';
 import { useIndex, type IndexPorts, type IndexStatus } from './use-index.ts';
@@ -348,7 +349,7 @@ describe('useIndex: what a watcher event moves (#239)', () => {
     const keys: string[] = [];
     const { result } = renderHook(() => {
       const index = useIndex({ ports, vaultKey: VAULT, activity, changes });
-      const key = useIndexKey(index.store, VAULT);
+      const key = useHeldIndexKey(index.store, VAULT);
       if (keys.at(-1) !== key) keys.push(key);
       return index;
     });

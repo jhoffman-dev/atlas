@@ -245,6 +245,42 @@ describe('useInbox — Undo, with writes behind the page (#217)', () => {
   });
 });
 
+describe('useInbox — one triage key per row, in turn (#308)', () => {
+  it('takes each row off as its key is pressed, writes only the status each key gave, and Undo takes the last back', async () => {
+    const { hook, shown, hold, files } = inbox();
+    await waitFor(() => expect(shown()).toEqual([CALL, PAY]));
+    const release = hold();
+
+    // W on the first row, then D on the next before the first is written: what the keys send, the status alone.
+    let first: Promise<boolean> = Promise.resolve(false);
+    let second: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      first = hook.result.current.clarify({ path: CALL, clarification: { status: 'waiting' } });
+    });
+    expect(shown()).toEqual([PAY]);
+    act(() => {
+      second = hook.result.current.clarify({ path: PAY, clarification: { status: 'archive' } });
+    });
+    expect(shown()).toEqual([]);
+
+    release();
+    await act(async () => {
+      expect(await Promise.all([first, second])).toEqual([true, true]);
+    });
+    // The status line changes and nothing else: no project, no line of the note moved.
+    expect(files.get(CALL)).toBe(CAPTURED.replace('status: inbox', 'status: waiting'));
+    expect(files.get(PAY)).toContain('status: archive');
+    expect(files.get(PAY)).not.toContain('project:');
+    expect(hook.result.current.lastAction).toEqual({ title: 'Pay Tobias Fenn' });
+
+    await act(async () => {
+      expect(await hook.result.current.undo()).toBe(true);
+    });
+    expect(files.get(PAY)).toBe(CAPTURED);
+    expect(files.get(CALL)).toBe(CAPTURED.replace('status: inbox', 'status: waiting'));
+  });
+});
+
 describe('useInbox — closing the window (#217)', () => {
   it('holds the close until what is being written is written', async () => {
     const { hook, shown, hold, closes, files } = inbox();

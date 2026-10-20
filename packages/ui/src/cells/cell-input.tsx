@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import type { CellEditorHooks, CellValue } from './cell-editing.ts';
 import { useOpeningFocus } from './cell-focus.ts';
+import { isImeKey } from '../ime.ts';
 import { editorKeyAction } from './cell-keys.ts';
 
 /** What a draft commits, or null for one that commits nothing. */
@@ -60,6 +61,8 @@ export function CellInput({
         if (event.currentTarget.isConnected) end();
       }}
       onKeyDown={(event) => {
+        // The Enter that ends an input method's composition is the IME's, not a commit.
+        if (isImeKey(event)) return;
         const action = editorKeyAction(event);
         if (action === null) return;
         event.preventDefault();
