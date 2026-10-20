@@ -118,9 +118,7 @@ describe('Make task Undo from the toast (attack-468)', () => {
     const { files, toasts, hook, shown } = promoting({ flush });
     let making: Promise<void> | undefined;
     act(() => {
-      making = Promise.resolve(
-        hook.result.current?.promote({ index: 0, text: 'Order chairs' }),
-      );
+      making = Promise.resolve(hook.result.current?.promote({ index: 0, text: 'Order chairs' }));
     });
     // Another vault opens while the pane's typing is still being written.
     toasts.openVault('Elsewhere');
