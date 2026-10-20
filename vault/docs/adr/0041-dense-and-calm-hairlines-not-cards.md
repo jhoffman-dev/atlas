@@ -153,9 +153,9 @@ WebKit, and so the app's webview, Tabs to no button that does not.
   a hue, a button's kind. Chrome is neutral.
 - The older role tokens (`--ground`, `--panel`, `--raised`, `--accent`…) are
   aliases of the v2 names, so a component that reads one still draws in v2.
-- Today's exceptions to the guards are follow-ups: 17 selectors rounder than
+- Today's exceptions to the guards are follow-ups: 19 selectors rounder than
   8px (pill shapes, the switch, the selection bar…), 5 that set capitals by
-  CSS, and 16 heavier than 600. They are listed in `styles.test.ts`. Each
+  CSS, and 17 heavier than 600. They are listed in `styles.test.ts`. Each
   one fixed changes what is drawn, so each needs its own look in
   `pnpm shots`, and is then taken off its list.
 - The retired add button left room at the window's foot, and that room is

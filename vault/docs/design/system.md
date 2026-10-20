@@ -69,8 +69,8 @@ stylesheet, for good.
   - No `text-transform: uppercase`.
   - No `font-weight` above 600.
 
-The last three each carry a named list of today's exceptions (17 radii, 5
-capitals, 16 weights). A new offender fails, and so does one that was fixed
+The last three each carry a named list of today's exceptions (19 radii, 5
+capitals, 17 weights). A new offender fails, and so does one that was fixed
 but is still listed, so the lists can only shrink. Fixing one changes what is
 drawn, so each is a follow-up, not a cleanup.
 
