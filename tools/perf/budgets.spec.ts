@@ -453,6 +453,7 @@ async function everyAction(pass: Pass): Promise<void> {
   ]);
   await searchOverTheTable(pass);
   await dragACard(pass);
+  await runALongSqlQuery(pass);
 }
 
 const sidebarButton = (page: Page, name: RegExp) => page.getByRole('button', { name }).first();
@@ -695,6 +696,57 @@ async function dragACard(pass: Pass): Promise<void> {
     ),
   ]);
   await expect.poll(() => pass.vault.read(cardPath)).toMatch(/^status: paused$/m);
+}
+
+const SQL_EDITOR = 'textarea[aria-label="SQL"]';
+const SQL_ROWS = 2000;
+/** Numbers 1 to 2,000, made by SQLite itself: a result as long as the fixture's notes. */
+const SQL_NUMBERS = `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${SQL_ROWS})
+SELECT 'Row ' || i AS title, i AS number FROM n`;
+
+/** Opens a new SQL query with a 2,000-row statement typed in; runs it, ready once the count is shown (#401). */
+async function runALongSqlQuery(pass: Pass): Promise<void> {
+  const { page } = pass;
+  // One step at a time: the page runs on the work clock, which moves only between steps.
+  await pass.setUp(
+    phase(
+      () => page.getByRole('button', { name: 'New in Views' }).click(),
+      exists,
+      '[role="menuitem"]',
+    ),
+  );
+  await pass.setUp(
+    phase(
+      () => page.getByRole('menuitem', { name: 'New query' }).click(),
+      exists,
+      '[role="radiogroup"][aria-label="Query language"]',
+    ),
+  );
+  await pass.setUp(
+    phase(
+      () =>
+        page
+          .getByRole('radiogroup', { name: 'Query language' })
+          .getByRole('radio', { name: 'SQL' })
+          .click(),
+      exists,
+      SQL_EDITOR,
+    ),
+  );
+  await pass.setUp(
+    phase(
+      () => page.locator(SQL_EDITOR).fill(SQL_NUMBERS),
+      ({ selector, sql }) => document.querySelector<HTMLTextAreaElement>(selector)?.value === sql,
+      { selector: SQL_EDITOR, sql: SQL_NUMBERS },
+    ),
+  );
+  await pass.budgeted('Run a 2,000-row SQL query', [
+    phase(
+      () => page.locator(SQL_EDITOR).press('Meta+Enter'),
+      (text) => document.querySelector('.query__count')?.textContent === text,
+      `${SQL_ROWS} rows`,
+    ),
+  ]);
 }
 
 async function centreOf(target: Locator): Promise<{ x: number; y: number }> {
