@@ -22,7 +22,8 @@ import { personChoice } from './people-merge-views.ts';
 export type MergeFlow =
   | {
       readonly kind: 'picking';
-      readonly subject: VaultPath;
+      /** The people to merge, whose page or rows asked: the one kept is picked from everyone else. */
+      readonly subjects: readonly VaultPath[];
       readonly choices: readonly MergePersonChoice[];
     }
   | { readonly kind: 'checking'; readonly request: PeopleMergeRequest }
@@ -41,6 +42,8 @@ export interface PeopleMergeState {
   /** Whether the merge was asked for from the list, which offers to keep the other one and comes back to the list. */
   readonly fromList: boolean;
   readonly duplicates: DuplicatesFlow;
+  /** The people chosen in a People table now, for ⌘K's "Merge selected people…". */
+  readonly chosen: readonly VaultPath[];
 }
 
 export type PeopleMergeStore = StoreApi<PeopleMergeState>;
@@ -50,6 +53,7 @@ export function createPeopleMergeStore(): PeopleMergeStore {
     merge: null,
     fromList: false,
     duplicates: { kind: 'loading' },
+    chosen: [],
   }));
 }
 
@@ -68,12 +72,22 @@ export interface PeopleMergeDeps {
   readonly openActivity: () => void;
 }
 
+/** Why ⌘K's "Merge selected people…" has no one to merge. */
+const NOTHING_CHOSEN =
+  'No people are selected. Tick the people to merge in the Person table, or a People view with Select on, then try again.';
+
 const message = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
 /** The merge's commands: steady for the store's life, reading `deps()` when they run. */
 export interface PeopleMergeCommands {
   /** "Merge into…" on a person's page: asks who to keep. */
   mergeInto(subject: VaultPath): void;
+  /** "Merge…" on rows chosen in a People table: asks who to merge them all into. */
+  mergeMany(subjects: readonly VaultPath[]): void;
+  /** Says which people a People table has chosen now; none when it lets go. */
+  noteChosen(paths: readonly VaultPath[]): void;
+  /** ⌘K's "Merge selected people…": the people chosen now, or why there are none. */
+  mergeChosen(): void;
   pick(keep: string): void;
   /** From the list: merges a pair, keeping its first person until swapped. */
   mergePair(key: string): void;
@@ -119,26 +133,48 @@ export function peopleMergeCommands(
     deps().overlay.show('people-duplicates');
     loadList();
   };
+  /** Opens the merge on `subjects`, asking which other person to merge them all into. */
+  const askWhoToKeep = (subjects: readonly VaultPath[]) => {
+    const merging = [...new Set(subjects)];
+    store.setState({ fromList: false });
+    set({ kind: 'checking', request: { keep: merging[0]!, merge: [] } });
+    deps().overlay.show('merge-people');
+    loadPeople({ index: deps().ports.index })
+      .then((people) => {
+        const choices = people
+          .map((person) => person.path)
+          .filter((path) => !merging.includes(path))
+          .map(personChoice)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        set({ kind: 'picking', subjects: merging, choices });
+      })
+      .catch((cause: unknown) => set({ kind: 'refused', message: message(cause) }));
+  };
   return {
     mergeInto(subject) {
+      askWhoToKeep([subject]);
+    },
+    mergeMany(subjects) {
+      askWhoToKeep(subjects);
+    },
+    noteChosen(paths) {
+      store.setState({ chosen: [...paths] });
+    },
+    mergeChosen() {
+      const { chosen } = store.getState();
+      if (chosen.length > 0) {
+        askWhoToKeep(chosen);
+        return;
+      }
       store.setState({ fromList: false });
-      set({ kind: 'checking', request: { keep: subject, merge: [] } });
+      set({ kind: 'refused', message: NOTHING_CHOSEN });
       deps().overlay.show('merge-people');
-      loadPeople({ index: deps().ports.index })
-        .then((people) => {
-          const choices = people
-            .map((person) => person.path)
-            .filter((path) => path !== subject)
-            .map(personChoice)
-            .sort((a, b) => a.name.localeCompare(b.name));
-          set({ kind: 'picking', subject, choices });
-        })
-        .catch((cause: unknown) => set({ kind: 'refused', message: message(cause) }));
     },
     pick(keep) {
       const flow = store.getState().merge;
       if (flow?.kind !== 'picking') return;
-      preview({ keep: createVaultPath(keep), merge: [flow.subject] });
+      const kept = createVaultPath(keep);
+      preview({ keep: kept, merge: flow.subjects.filter((path) => path !== kept) });
     },
     mergePair(key) {
       const { duplicates } = store.getState();

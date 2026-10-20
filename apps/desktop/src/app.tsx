@@ -287,6 +287,7 @@ import { browserClipboard } from './settings/clipboard.ts';
 const OPEN_TEMPLATES = 'open-templates';
 const OPEN_TERMS = 'open-terms';
 const FIND_DUPLICATE_PEOPLE = 'find-duplicate-people';
+const MERGE_SELECTED_PEOPLE = 'merge-selected-people';
 /** Why a merge was not worked out: links to the people might be missed. */
 const INDEX_BEHIND_FOR_MERGE =
   'The index could not catch up with the vault, so links to these people could be missed. Try the merge again.';
@@ -305,6 +306,11 @@ const PALETTE_COMMANDS = [
     id: FIND_DUPLICATE_PEOPLE,
     label: 'Possible duplicate people',
     keywords: ['merge', 'people', 'person', 'duplicates', 'same', 'email'],
+  },
+  {
+    id: MERGE_SELECTED_PEOPLE,
+    label: 'Merge selected people…',
+    keywords: ['merge', 'people', 'person', 'selected', 'rows', 'duplicate'],
   },
   {
     id: OPEN_INBOX,
@@ -1529,6 +1535,7 @@ function AppWindow({
       viewPaths,
       viewDrafts,
       archive: archiveCommands,
+      peopleMerge: peopleMerge.commands,
       onLinkProblem: setLinkError,
       templateCommands,
     }),
@@ -1567,6 +1574,7 @@ function AppWindow({
       viewPaths,
       viewDrafts,
       archiveCommands,
+      peopleMerge,
       templateCommands,
     ],
   );
@@ -1706,6 +1714,7 @@ function AppWindow({
     if (id === OPEN_TEMPLATES) openPage({ kind: 'templates' });
     else if (id === OPEN_TERMS) openPage({ kind: 'terms' });
     else if (id === FIND_DUPLICATE_PEOPLE) peopleMerge.commands.findDuplicates();
+    else if (id === MERGE_SELECTED_PEOPLE) peopleMerge.commands.mergeChosen();
     else if (id === OPEN_INBOX) openInbox();
     else if (id === OPEN_REVIEW) openPage({ kind: 'review' });
     else if (id === OPEN_TODAY) openPage({ kind: 'today' });
@@ -2032,6 +2041,7 @@ function AppWindow({
                             : newNoteOfType.create(type),
                         onEditTemplate: (type) => editTypeTemplate(type.name),
                         onFindDuplicates: peopleMerge.commands.findDuplicates,
+                        peopleMerge: peopleMerge.commands,
                       },
                     },
                   }}

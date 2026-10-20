@@ -104,6 +104,35 @@ test('merging a person into another rewrites every link to them, merges them in,
   await expect.poll(() => host.trashed()).toEqual(['Mara.md']);
 });
 
+test('ticking people in the Person table and choosing Merge into… merges them all into the one picked', async ({
+  page,
+}) => {
+  const { vault, host } = await openVault(page);
+  await sidebarSection(page, 'types')
+    .getByRole('button', { name: /^Person/ })
+    .click();
+  const table = page.locator('.table');
+  await table.getByRole('checkbox', { name: 'Select Mara', exact: true }).check();
+  await table.getByRole('checkbox', { name: 'Select Tobias Fenn' }).first().check();
+  const bar = page.getByRole('toolbar', { name: 'Chosen notes' });
+  await bar.getByRole('button', { name: 'Merge 2 people into…' }).click();
+
+  const picker = page.getByRole('dialog', { name: /^Merge Mara and Tobias Fenn into…/ });
+  await picker.getByRole('searchbox', { name: 'Find the person to keep' }).fill('quill');
+  await picker.getByRole('searchbox').press('Enter');
+  const dialog = mergeDialog(page);
+  await expect(
+    dialog.getByRole('heading', { name: /^Merge Mara and Tobias Fenn into Mara Quill\?$/ }),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Merge', exact: true }).click();
+
+  await expect.poll(() => host.trashed().length).toBe(2);
+  await expectFile(vault, 'Kickoff.md').toContain('"[[Mara Quill]]"');
+  await expectFile(vault, 'People/Mara Quill.md').toContain(
+    '## Merged from Mara\n\nMet at the kickoff.\n',
+  );
+});
+
 test('the right sidebar of a person offers Merge into… too', async ({ page }) => {
   await openVault(page);
   await openNote(page, 'Mara');
@@ -170,4 +199,11 @@ test('screenshots: the menu, the merge question and the possible duplicates, lig
   const list = await openDuplicates(page);
   await expect(list.getByRole('listitem')).toHaveCount(2);
   await both('duplicates');
+  await page.keyboard.press('Escape');
+  await sidebarSection(page, 'types')
+    .getByRole('button', { name: /^Person/ })
+    .click();
+  await page.locator('.table').getByRole('checkbox', { name: 'Select Mara', exact: true }).check();
+  await expect(page.getByRole('button', { name: 'Merge into…' })).toBeVisible();
+  await both('table');
 });

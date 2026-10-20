@@ -13,6 +13,8 @@ import { activePlace } from '../workspace/workspace-store.ts';
 import { useWorkspaceStores } from '../workspace/workspace-wiring.tsx';
 import { typeTabsShown } from './type-tabs.ts';
 import { useTypeTable } from './use-type-table.ts';
+import { useChosenPeople } from '../people/use-chosen-people.ts';
+import type { ChosenPeopleMerge } from '../archive/use-view-choosing.ts';
 
 const TypePage = typePage.Component;
 
@@ -31,6 +33,8 @@ export interface TypeWiring {
   readonly onEditTemplate: TypePageProps['onEditTemplate'];
   /** Opens the list of people who may be one (#464), offered on the Person type's page. */
   readonly onFindDuplicates: () => void;
+  /** Merging the people chosen in the Person type's table (#464). */
+  readonly peopleMerge: ChosenPeopleMerge;
 }
 
 /**
@@ -60,7 +64,11 @@ export function TypeContainer({
     scope,
     failed,
   });
-  const { onEditType, onNewNote, onEditTemplate, onFindDuplicates } = pages.type;
+  const { onEditType, onNewNote, onEditTemplate, onFindDuplicates, peopleMerge } = pages.type;
+  const people = useChosenPeople({
+    resetKey: name,
+    merge: isPersonType(name) ? peopleMerge : null,
+  });
   // Pressed while the aside shows this type's editor: on its Type tab, with
   // the focused tab on this type, here or in the other pane.
   const typeTabShown = useStore(aside, typeEditorShown);
@@ -132,6 +140,7 @@ export function TypeContainer({
         onOpenView={pages.openNote}
         onEditTemplate={onEditTemplate}
         {...(isPersonType(name) && { onFindDuplicates })}
+        {...(people !== null && { choosing: people })}
         // The row the table's focus is in, for the aside: held against this type's page.
         onRowFocus={(path) =>
           focusRow(aside, {

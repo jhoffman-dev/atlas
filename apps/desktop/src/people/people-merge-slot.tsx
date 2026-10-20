@@ -28,8 +28,16 @@ function dialogState(flow: MergeFlow): MergeDialogState {
 }
 
 /** Whose merge it is, for the picker's title. */
+/** People's names as a title says them: "Mara", "Mara and Marra Quill", "Mara, Ana and Tobias Fenn". */
+function namesOf(paths: readonly VaultPath[]): string {
+  const names = paths.map(noteTitle);
+  return names.length <= 1
+    ? (names[0] ?? '')
+    : `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`;
+}
+
 function subjectOf(flow: MergeFlow): string {
-  if (flow.kind === 'picking') return noteTitle(flow.subject);
+  if (flow.kind === 'picking') return namesOf(flow.subjects);
   if (flow.kind === 'checking') return flow.request.merge.map(noteTitle).join(', ');
   return '';
 }

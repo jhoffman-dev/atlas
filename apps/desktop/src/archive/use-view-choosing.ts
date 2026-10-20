@@ -16,6 +16,15 @@ export interface ViewChoosing {
 }
 
 const notes = (n: number) => (n === 1 ? 'note' : `${n} notes`);
+const mergeLabel = (n: number) => (n === 1 ? 'Merge into…' : `Merge ${n} people into…`);
+
+/** Merging the people a People view's rows chose (#464). */
+export interface ChosenPeopleMerge {
+  /** Asks who to merge these people into, then shows what the merge does. */
+  readonly mergeMany: (paths: readonly VaultPath[]) => void;
+  /** Says which people are chosen now, for ⌘K's "Merge selected people…". */
+  readonly noteChosen: (paths: readonly VaultPath[]) => void;
+}
 
 /**
  * Choosing a view's rows to archive or unarchive them together (P23-03).
@@ -24,14 +33,23 @@ const notes = (n: number) => (n === 1 ? 'note' : `${n} notes`);
 export function useViewChoosing({
   viewKey,
   commands,
+  people: merging,
 }: {
   viewKey: string;
   commands: ArchiveCommands;
+  /** Given for a view of people: its chosen rows can be merged into another person. */
+  people?: ChosenPeopleMerge;
 }): ViewChoosing {
   const [on, setOn] = useState(false);
   const { selection, chosen, clear, beginBatch } = useRowSelection(`${viewKey}:${String(on)}`);
 
   useEffect(() => setOn(false), [viewKey]);
+  // ⌘K reads the choice of the People view shown last; letting go says none.
+  useEffect(() => {
+    if (merging === undefined) return;
+    merging.noteChosen(chosen as VaultPath[]);
+    return () => merging.noteChosen([]);
+  }, [merging, chosen]);
 
   const actions = useMemo(() => {
     const paths = chosen as VaultPath[];
@@ -56,6 +74,12 @@ export function useViewChoosing({
           .then((outcome) => settle(batchSettled(outcome, given)));
       };
     const offered: BulkAction[] = [];
+    if (merging !== undefined && paths.length > 0) {
+      offered.push({
+        label: mergeLabel(paths.length),
+        onRun: () => merging.mergeMany(paths),
+      });
+    }
     if (archivable.length > 0) {
       offered.push({
         label: `Archive ${notes(archivable.length)}`,
@@ -71,7 +95,7 @@ export function useViewChoosing({
       });
     }
     return offered;
-  }, [chosen, commands, beginBatch]);
+  }, [chosen, commands, beginBatch, merging]);
 
   return { on, setOn, selection, actions, count: chosen.length, clear };
 }

@@ -254,3 +254,35 @@ describe('the list of people who may be one', () => {
     );
   });
 });
+
+describe('merging people chosen in a table (#467)', () => {
+  it('asks who to merge every chosen person into, leaving them out of the choices, then merges them all', async () => {
+    const { store, commands, settle } = setUp();
+    commands.mergeMany([p('Mara.md'), p('Tobias Fenn.md')]);
+    await vi.waitFor(() => expect(store.getState().merge?.kind).toBe('picking'));
+    const picking = store.getState().merge;
+    expect(picking?.kind === 'picking' && picking.choices.map((choice) => choice.path)).toEqual([
+      'People/Mara Quill.md',
+    ]);
+    commands.pick('People/Mara Quill.md');
+    await settle();
+    const flow = store.getState().merge;
+    expect(flow?.kind === 'previewed' && flow.preview.merge).toEqual(['Mara.md', 'Tobias Fenn.md']);
+  });
+
+  it('merges the people a table has chosen from ⌘K, or says none are', async () => {
+    const { store, commands, shown } = setUp();
+    commands.mergeChosen();
+    expect(store.getState().merge).toEqual({
+      kind: 'refused',
+      message:
+        'No people are selected. Tick the people to merge in the Person table, or a People view with Select on, then try again.',
+    });
+    commands.noteChosen([p('Mara.md')]);
+    commands.mergeChosen();
+    await vi.waitFor(() => expect(store.getState().merge?.kind).toBe('picking'));
+    const picking = store.getState().merge;
+    expect(picking?.kind === 'picking' && picking.subjects).toEqual(['Mara.md']);
+    expect(shown).toEqual(['merge-people', 'merge-people']);
+  });
+});
