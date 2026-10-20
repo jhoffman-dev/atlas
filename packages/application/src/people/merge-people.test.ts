@@ -11,6 +11,7 @@ import {
   applyPeopleMerge,
   PeopleMergeChangedError,
   PeopleMergeRefusedError,
+  peopleMergeSummary,
   previewPeopleMerge,
   type MergePanes,
   type MergePorts,
@@ -272,5 +273,55 @@ describe('making a merge of people', () => {
       type: 'person',
       email: 'tobias@fenn.example',
     });
+  });
+});
+
+describe('what a merge says it did', () => {
+  const base = {
+    keep: p(KEPT),
+    written: [p('Kickoff.md'), p(KEPT)],
+    notWritten: [],
+    trashed: [p(SHORT), p(TYPO)],
+    notTrashed: [],
+    failures: [],
+    links: 4,
+  };
+
+  it('names who went into whom and how many links moved', () => {
+    expect(peopleMergeSummary(base)).toBe(
+      'Merged Mara, Marra Quill into Mara Quill: 4 links in 2 notes updated.',
+    );
+  });
+
+  it('says what was and was not written when a write stopped it', () => {
+    expect(
+      peopleMergeSummary({
+        ...base,
+        written: [p('Kickoff.md')],
+        notWritten: [p('Plan.md'), p(KEPT)],
+        trashed: [],
+        notTrashed: [p(SHORT)],
+        failures: [{ path: p('Plan.md'), step: 'write', reason: 'The disk is full.' }],
+      }),
+    ).toBe(
+      'The merge into Mara Quill stopped: Plan.md could not be written (The disk is full.). ' +
+        'Written: Kickoff.md. Not written: Plan.md, People/Mara Quill.md. Nobody went to the Trash.',
+    );
+  });
+
+  it('names a merged person the Trash refused', () => {
+    expect(
+      peopleMergeSummary({
+        ...base,
+        links: 1,
+        written: [p(KEPT)],
+        trashed: [p(TYPO)],
+        notTrashed: [p(SHORT)],
+        failures: [{ path: p(SHORT), step: 'trash', reason: 'The Trash refused it.' }],
+      }),
+    ).toBe(
+      'Merged Marra Quill into Mara Quill: 1 link in 1 note updated. ' +
+        'Still in the vault, as the Trash refused: Mara.md (The Trash refused it.).',
+    );
   });
 });

@@ -381,3 +381,30 @@ async function trashMerged({
   await forgetNotes(ports.index, trashed).catch(() => undefined);
   return trashed;
 }
+
+const many = (count: number, one: string, more: string) => `${count} ${count === 1 ? one : more}`;
+const names = (paths: readonly VaultPath[]) => paths.map(noteTitle).join(', ');
+
+/**
+ * What a merge did, in one line for its toast and the Activity log: who went
+ * into whom and how many links moved — or, when it stopped, what was written,
+ * what was not, and who is still in the vault.
+ */
+export function peopleMergeSummary(report: PeopleMergeReport): string {
+  const kept = noteTitle(report.keep);
+  const failed = report.failures.find((failure) => failure.step === 'write');
+  if (failed !== undefined) {
+    const written =
+      report.written.length === 0 ? 'Nothing was written' : `Written: ${report.written.join(', ')}`;
+    return (
+      `The merge into ${kept} stopped: ${failed.path} could not be written (${failed.reason}). ` +
+      `${written}. Not written: ${report.notWritten.join(', ')}. Nobody went to the Trash.`
+    );
+  }
+  const moved = `${many(report.links, 'link', 'links')} in ${many(report.written.length, 'note', 'notes')} updated`;
+  const merged = `Merged ${names(report.trashed.length > 0 ? report.trashed : report.notTrashed)} into ${kept}: ${moved}.`;
+  const refused = report.failures.filter((failure) => failure.step === 'trash');
+  if (refused.length === 0) return merged;
+  const left = refused.map(({ path, reason }) => `${path} (${reason})`).join(', ');
+  return `${merged} Still in the vault, as the Trash refused: ${left}.`;
+}

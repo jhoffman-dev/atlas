@@ -4,6 +4,7 @@ export {
   applyPeopleMerge,
   PeopleMergeChangedError,
   PeopleMergeRefusedError,
+  peopleMergeSummary,
   previewPeopleMerge,
 } from './merge-people.ts';
 export type {

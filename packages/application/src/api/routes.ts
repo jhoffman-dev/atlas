@@ -13,6 +13,7 @@ import { inboxRoute, processInboxRoute } from './inbox.ts';
 import { clarifyInboxRoute } from './inbox-clarify.ts';
 import { todayRoute, weeklyReviewRoute } from './review.ts';
 import { createNoteRoute } from './notes-create.ts';
+import { duplicatesRoute, mergePeopleRoute } from './people.ts';
 import { exportNoteRoute } from './notes-export.ts';
 import { backlinksRoute, listNotes, readNoteRoute } from './notes-read.ts';
 import { appendRoute, replaceBodyRoute, setPropertiesRoute } from './notes-write.ts';
@@ -67,7 +68,7 @@ const created = (answer: RouteResult) => answer.status === 201;
 /** A card that left a group, not one asked into the group it was already in. */
 const moved = (answer: RouteResult) => 'moved' in answer.body && answer.body.moved;
 
-/** A rename, not the preview a `dryRun` asks for. */
+/** A rename or a merge, not the preview a `dryRun` (or no `confirm`) asks for. */
 const renamed = (answer: RouteResult) => 'report' in answer.body;
 
 /**
@@ -111,6 +112,8 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'GET /v1/tags': vaultRoute(tagsRoute),
   'GET /v1/tags/{tag}/notes': vaultRoute(taggedNotesRoute),
   'POST /v1/tags/{tag}/rename': vaultWrite(renameTagRoute, renamed),
+  'GET /v1/people/duplicates': vaultRoute(duplicatesRoute),
+  'POST /v1/people/merge': vaultWrite(mergePeopleRoute, renamed),
   'GET /v1/archive': vaultRoute(archiveListRoute),
   'POST /v1/archive': vaultWrite(archiveRoute),
   'POST /v1/unarchive': vaultWrite(unarchiveRoute),
