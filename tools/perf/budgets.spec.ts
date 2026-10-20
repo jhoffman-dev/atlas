@@ -453,6 +453,7 @@ async function everyAction(pass: Pass): Promise<void> {
   await searchOverTheTable(pass);
   await dragACard(pass);
   await runALongSqlQuery(pass);
+  await runALongAtlasQuery(pass);
 }
 
 const sidebarButton = (page: Page, name: RegExp) => page.getByRole('button', { name }).first();
@@ -746,6 +747,69 @@ async function runALongSqlQuery(pass: Pass): Promise<void> {
       `${SQL_ROWS} rows`,
     ),
   ]);
+}
+
+const ATLAS_EDITOR = 'textarea[aria-label="Query"]';
+/** Every typed note in the fixture: its areas, projects, people, tasks and meetings. */
+const ATLAS_ROWS = 920;
+/** Far fewer than the result, and more than a tall screen's rows plus overscan. */
+const ATLAS_MOST_DRAWN = 120;
+const ATLAS_EVERY_TYPED = `FROM area, project, person, task, meeting SORT BY title LIMIT 2000`;
+
+/** Opens a new query as text; types in one over every typed note, ready once it has run and counted them (#427). */
+async function runALongAtlasQuery(pass: Pass): Promise<void> {
+  const { page } = pass;
+  // One step at a time: the page runs on the work clock, which moves only between steps.
+  await pass.setUp(
+    phase(
+      () => page.getByRole('button', { name: 'New in Views' }).click(),
+      exists,
+      '[role="menuitem"]',
+    ),
+  );
+  await pass.setUp(
+    phase(
+      () => page.getByRole('menuitem', { name: 'New query' }).click(),
+      exists,
+      '[role="radiogroup"][aria-label="Query language"]',
+    ),
+  );
+  // Atlas, whichever language the query before this one left the page in.
+  await pass.setUp(
+    phase(
+      () =>
+        page
+          .getByRole('radiogroup', { name: 'Query language' })
+          .getByRole('radio', { name: 'Atlas query' })
+          .click(),
+      exists,
+      '[role="radiogroup"][aria-label="Edit the query as"]',
+    ),
+  );
+  await pass.setUp(
+    phase(
+      () =>
+        page
+          .getByRole('radiogroup', { name: 'Edit the query as' })
+          .getByRole('radio', { name: 'Text' })
+          .click(),
+      exists,
+      ATLAS_EDITOR,
+    ),
+  );
+  // The text runs once it settles: typing it is running it.
+  await pass.budgeted('Run a 920-row Atlas query', [
+    phase(
+      () => page.locator(ATLAS_EDITOR).fill(ATLAS_EVERY_TYPED),
+      (text) => document.querySelector('.query__count')?.textContent === text,
+      `${ATLAS_ROWS} notes`,
+    ),
+  ]);
+  // The rows are plain cells, not components, so the counted renders cannot
+  // see them all being drawn: the window is checked here instead.
+  const drawn = await page.locator('.qresult__sheet .qresult__title').count();
+  expect(drawn, `${drawn} of ${ATLAS_ROWS} rows drawn`).toBeGreaterThan(0);
+  expect(drawn, `${drawn} of ${ATLAS_ROWS} rows drawn`).toBeLessThanOrEqual(ATLAS_MOST_DRAWN);
 }
 
 async function centreOf(target: Locator): Promise<{ x: number; y: number }> {
