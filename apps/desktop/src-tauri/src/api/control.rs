@@ -836,26 +836,49 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn the_status_is_answered_while_turning_on_waits_for_the_released_port() {
-        let (_dir, control) = loaded();
+        let held = Arc::new(Mutex::new(None));
+        let answered = Arc::new(Mutex::new(None));
+        let control_for_hook = Arc::new(std::sync::OnceLock::<std::sync::Weak<ApiControl>>::new());
+        let (_dir, control) = waiting(ReleaseWait {
+            within: std::time::Duration::from_secs(60),
+            between_tries: {
+                let (held, answered, control) =
+                    (held.clone(), answered.clone(), control_for_hook.clone());
+                // Mid-wait, with the toggle's lock held: Settings asks for the
+                // status from another thread, then the child execs.
+                Arc::new(move || {
+                    let mut answered = answered.lock().unwrap();
+                    if answered.is_none() {
+                        let control = control.get().and_then(std::sync::Weak::upgrade).unwrap();
+                        let (tell, told) = std::sync::mpsc::channel();
+                        std::thread::spawn(move || {
+                            control.status();
+                            // Gone only if the test already failed: nothing to tell.
+                            let _ = tell.send(());
+                        });
+                        *answered = Some(told.recv_timeout(STATUS_HANG_GUARD).is_ok());
+                    }
+                    held.lock().unwrap().take();
+                })
+            },
+        });
+        control_for_hook.set(Arc::downgrade(&control)).unwrap();
         let port = control.set_enabled(true, echo(&control)).unwrap().port;
-        let held = copy_of_the_listener_on(port.unwrap());
+        *held.lock().unwrap() = Some(copy_of_the_listener_on(port.unwrap()));
+
         control.set_enabled(false, echo(&control)).unwrap();
+        control.set_enabled(true, echo(&control)).unwrap();
 
-        let toggling = control.clone();
-        let forward = echo(&control);
-        let turning_on = std::thread::spawn(move || toggling.set_enabled(true, forward));
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        let asked = std::time::Instant::now();
-        control.status();
-        let waited = asked.elapsed();
-        turning_on.join().unwrap().unwrap();
-        drop(held);
-
-        assert!(
-            waited < std::time::Duration::from_millis(500),
-            "status() was held {waited:?} behind the release wait"
+        assert_eq!(
+            *answered.lock().unwrap(),
+            Some(true),
+            "status() was held behind the release wait (None: never waited)"
         );
     }
+
+    /// Only a hang guard: status() answers in microseconds, so a test that
+    /// reaches it would otherwise wait for ever behind the lock.
+    const STATUS_HANG_GUARD: std::time::Duration = std::time::Duration::from_secs(30);
 
     /// Off, on, off, on in quick succession, a child's copy of the listener
     /// open across the first off and closing during the wait, keeps the port
@@ -888,7 +911,17 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn turning_off_during_the_wait_ends_off() {
-        let (dir, control) = loaded();
+        let (began, waiting_began) = std::sync::mpsc::channel();
+        let began = Mutex::new(Some(began));
+        let (dir, control) = waiting(ReleaseWait {
+            between_tries: Arc::new(move || {
+                if let Some(began) = began.lock().unwrap().take() {
+                    began.send(()).unwrap();
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }),
+            ..ReleaseWait::default()
+        });
         let port = control.set_enabled(true, echo(&control)).unwrap().port;
         let held = copy_of_the_listener_on(port.unwrap());
         control.set_enabled(false, echo(&control)).unwrap();
@@ -896,7 +929,7 @@ mod tests {
         let toggling = control.clone();
         let forward = echo(&control);
         let turning_on = std::thread::spawn(move || toggling.set_enabled(true, forward));
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        waiting_began.recv().unwrap();
         let off = control.set_enabled(false, echo(&control)).unwrap();
         turning_on.join().unwrap().unwrap();
         drop(held);
@@ -1019,11 +1052,18 @@ mod tests {
         drop(control);
         let _squatter = std::net::TcpListener::bind(("127.0.0.1", port)).unwrap();
 
-        let relaunched = Arc::new(ApiControl::load(dir.path().join("app")).unwrap());
-        let started = std::time::Instant::now();
+        let relaunched = Arc::new(
+            ApiControl::load(dir.path().join("app"))
+                .unwrap()
+                .waiting_for_released_ports(ReleaseWait {
+                    within: std::time::Duration::from_secs(60),
+                    between_tries: Arc::new(|| {
+                        panic!("waited for the port the last launch released")
+                    }),
+                }),
+        );
         relaunched.resume(echo(&relaunched)).unwrap();
 
-        assert!(started.elapsed() < std::time::Duration::from_millis(500));
         assert_ne!(relaunched.status().port, Some(port));
         assert_ne!(relaunched.token(), token);
     }
