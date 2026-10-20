@@ -27,7 +27,7 @@ import { Icon } from './icon.tsx';
 import { openHowFrom, type OpenHow } from './open-how.ts';
 import { SelectBox } from './row-selection.tsx';
 import { sameEntries } from './steady-value.ts';
-import { StatusPill } from './status-pill.tsx';
+import { StatusPill, TintedPill } from './status-pill.tsx';
 
 export type { CellEdit, CellValue } from './cells/cell-editing.ts';
 
@@ -387,7 +387,7 @@ function CellFace({
       <span className="table__pills">
         {heldOptions(value).map((option, at) => (
           // A list may hold an option twice; each is drawn where it stands.
-          <StatusPill key={at} value={option} tone={optionColor(colors, option)} />
+          <TintedPill key={at} text={option} color={optionColor(colors, option)} />
         ))}
       </span>
     );

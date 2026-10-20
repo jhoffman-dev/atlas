@@ -117,7 +117,8 @@ describe('a table’s pills', () => {
     const { container } = table();
     const firstRow = container.querySelector('tbody tr');
     const labels = [...(firstRow?.querySelectorAll('.table__pills .status-pill') ?? [])];
-    expect(labels.map((pill) => pill.textContent)).toEqual(['Payroll', 'Renewal']);
+    // Written as the note writes them: a tag such as `launch` is not retitled.
+    expect(labels.map((pill) => pill.textContent)).toEqual(['payroll', 'renewal']);
     expect(labels.map((pill) => pill.getAttribute('data-hue'))).toEqual([
       hueOf('payroll'),
       hueOf('renewal'),

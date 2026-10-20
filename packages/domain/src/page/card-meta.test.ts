@@ -91,15 +91,15 @@ describe('cardMeta', () => {
     expect(items.map((item) => item.color)).toEqual(['green', hueOf('Interview')]);
   });
 
-  it('writes each of a multi-select’s options as its own pill', () => {
+  it('writes each of a multi-select’s options as its own pill, as the note writes it', () => {
     const items = cardMeta({
       fields: ['labels'],
       kinds: { labels: 'multiSelect' },
       values: { labels: ['payroll', 'renewal'] },
     });
     expect(items).toEqual([
-      { key: 'labels', text: 'Payroll', missing: false, color: hueOf('payroll') },
-      { key: 'labels#1', text: 'Renewal', missing: false, color: hueOf('renewal') },
+      { key: 'labels', text: 'payroll', missing: false, color: hueOf('payroll') },
+      { key: 'labels#1', text: 'renewal', missing: false, color: hueOf('renewal') },
     ]);
   });
 

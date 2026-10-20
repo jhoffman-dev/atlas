@@ -14,7 +14,6 @@ import {
   type OptionColor,
   type OptionColors,
 } from './pill-colour.ts';
-import { optionLabel } from './status-tone.ts';
 import { formatPropertyDate } from './property-date.ts';
 import { humanizeKey } from './property-label.ts';
 import { isYou, propertyRole } from './property-role.ts';
@@ -156,7 +155,8 @@ function fieldPills({
     return heldOptions(value).map((option, at) => ({
       key: keyed(at),
       icon: 'tag',
-      text: optionLabel(option),
+      // As the note writes it: a multi-select is often tags, which keep their case.
+      text: option,
       you: false,
       color: optionColor({ key, colors }, option),
     }));
