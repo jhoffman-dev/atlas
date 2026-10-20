@@ -19,12 +19,12 @@ import {
   type GitScript,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { drained, settles } from '@atlas/ui/testing/settles';
 import { useSync, type SyncOptions } from './use-sync.ts';
 import { syncConflictNotice, syncIndicatorBadge, syncSettingsView } from './sync-view.ts';
 import { QUIT_SYNC_WAIT_MS, SYNC_TICK_MS } from './use-sync-schedule.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { toldNews } from '../reads/told-news.test-support.ts';
-import { drained, settles } from '../granola/settles.test-support.ts';
 
 const NOT_A_REPO = failed('fatal: not a git repository', 128);
 /** What a vault Atlas set up for sync says in its settings, beside its `.gitignore` block. */
