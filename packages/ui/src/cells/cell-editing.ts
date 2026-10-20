@@ -7,6 +7,12 @@ export type CellValue = string | number | boolean | readonly string[] | null;
 /** One change to one cell of one note, as the table reports it. */
 export interface CellEdit extends CellAt {
   readonly value: CellValue;
+  /**
+   * What the cell showed when its edit began, for a commit that ends an edit:
+   * a row read again meanwhile with something else in the cell is the app's
+   * to refuse. Left out for a change that needs no editor open.
+   */
+  readonly began?: { readonly value: unknown };
 }
 
 /**
@@ -23,6 +29,8 @@ export interface CellEditing extends CellAt {
    * opened, the row leaving the result, or the table leaving the page.
    */
   readonly pending: { readonly value: CellValue } | null;
+  /** What the cell showed as the edit began, which a commit carries. */
+  readonly began: { readonly value: unknown };
 }
 
 /**

@@ -355,7 +355,8 @@ for (const theme of ['light', 'dark'] as const) {
 test('the input a cell edits in shows its whole ring inside the 34px row', async ({ page }) => {
   await openVault(page);
   const row = rowOf(page, 'Chore 03');
-  await row.locator('td').nth(2).locator('button').click();
+  // A text cell: since #300 a status opens its picker rather than a field.
+  await row.locator('[data-cell-stop="notes"]').click();
   const input = row.locator('input.table__input');
   await expect(input).toBeFocused();
   const fits = await input.evaluate((element) => {

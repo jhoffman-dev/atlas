@@ -147,6 +147,7 @@ export function RelationPickerPopover({
   onOpenNote,
   onCancel,
   onCreateRelated,
+  problem = null,
 }: {
   open: boolean;
   anchor: RefObject<HTMLElement | null>;
@@ -160,6 +161,8 @@ export function RelationPickerPopover({
   onOpenNote: (path: VaultPath) => void;
   onCancel: () => void;
   onCreateRelated?: CreateRelated;
+  /** Why the notes to link could not be read: said in place of the list, rather than "no notes". */
+  problem?: string | null;
 }) {
   const held = useHeldValue(value);
   const write = (next: CellValue) => {
@@ -194,13 +197,19 @@ export function RelationPickerPopover({
               onOpenNote={onOpenNote}
               onRemove={(link) => write(withoutLink(held.value, link))}
             />
-            <LinkPicker
-              def={def}
-              value={held.value}
-              choices={choices}
-              onLink={(link) => write(withLink({ value: held.value, link, many: def.many }))}
-              {...(onCreateRelated !== undefined && { onCreateRelated })}
-            />
+            {problem === null ? (
+              <LinkPicker
+                def={def}
+                value={held.value}
+                choices={choices}
+                onLink={(link) => write(withLink({ value: held.value, link, many: def.many }))}
+                {...(onCreateRelated !== undefined && { onCreateRelated })}
+              />
+            ) : (
+              <p className="cell-picker__none" role="alert">
+                {problem}
+              </p>
+            )}
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>
@@ -214,7 +223,7 @@ export function RelationPickerPopover({
  * the first, not on the value the file still showed — and the value as
  * read again once a write fails.
  */
-function useHeldValue(read: unknown): {
+export function useHeldValue(read: unknown): {
   value: unknown;
   set: (next: unknown) => void;
   reset: () => void;

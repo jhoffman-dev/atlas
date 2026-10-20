@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from 'react';
 import type { OpenHow } from './open-how.ts';
 import {
   countLabel,
@@ -18,6 +18,10 @@ import {
 import type { CellEdit, CellEditing, CellEditorHooks } from './cells/cell-editing.ts';
 import { CellPickers, picksFrom } from './cells/cell-pickers.tsx';
 import { useCellEditing } from './cells/use-cell-editing.ts';
+import { usePickerSlot } from './cells/use-picker-slot.ts';
+import { useAnchorWatch } from './cells/use-anchor-watch.ts';
+import { useHeldCell, type ReadHeldCell } from './cells/use-held-cell.ts';
+import type { OverlaySlot } from './overlay-slot.ts';
 import type { DoneTicks } from './done-checkbox.tsx';
 import { FlatRows } from './flat-rows.tsx';
 import {
@@ -89,6 +93,17 @@ export interface TableViewProps {
   readonly relationChoices?: Readonly<Record<string, readonly RelationChoice[]>>;
   /** Given, a relation's picker offers "New <type>…". */
   readonly onCreateRelated?: CreateRelated;
+  /** Told a relation column's picker has opened, so its notes can be read once wanted. */
+  readonly onWantRelationChoices?: (column: string) => void;
+  /** Why a relation column's notes could not be read, by column: said in its picker. */
+  readonly relationChoiceProblems?: Readonly<Record<string, string>>;
+  /**
+   * Reads what a cell holding several values holds from its note — the row
+   * has them joined into one text, which is never split (#425).
+   */
+  readonly readHeldCell?: ReadHeldCell;
+  /** A cell's picker's open state, held by the app's one-overlay rule. */
+  readonly pickerSlot?: OverlaySlot;
   readonly onToggleSort: (column: string) => void;
   /** Adds a note of the view's type; the footer offers it when given. */
   readonly onNewNote?: () => void;
@@ -124,6 +139,10 @@ export function TableView({
   onEditCell,
   relationChoices,
   onCreateRelated,
+  onWantRelationChoices,
+  relationChoiceProblems,
+  readHeldCell,
+  pickerSlot,
   onToggleSort,
   onNewNote,
   ticks,
@@ -151,6 +170,10 @@ export function TableView({
       {...(onEditCell !== undefined && { onEditCell })}
       {...(relationChoices !== undefined && { relationChoices })}
       {...(onCreateRelated !== undefined && { onCreateRelated })}
+      {...(onWantRelationChoices !== undefined && { onWantRelationChoices })}
+      {...(relationChoiceProblems !== undefined && { relationChoiceProblems })}
+      {...(readHeldCell !== undefined && { readHeldCell })}
+      {...(pickerSlot !== undefined && { pickerSlot })}
       {...(onNewNote !== undefined && { onNewNote })}
       {...(ticks !== undefined && { ticks })}
       {...(selection !== undefined && { selection })}
@@ -169,6 +192,10 @@ function TableSheet({
   onEditCell,
   relationChoices,
   onCreateRelated,
+  onWantRelationChoices,
+  relationChoiceProblems,
+  readHeldCell,
+  pickerSlot,
   onToggleSort,
   onNewNote,
   ticks,
@@ -213,11 +240,12 @@ function TableSheet({
     schema.colors ?? optionColorsByKey(Object.values(properties)),
     sameEntries,
   );
-  const { editing, editor } = useCellEditing({
+  const { editing, editor, dismiss } = useCellEditing({
     onEditCell,
     paths,
     order,
     columns: () => editableColumns({ shown, kinds, properties }),
+    valueAt: (at) => rows.find((row) => row.path === at.path)?.values[at.column],
   });
   const look = useRowLook({
     shown,
@@ -234,6 +262,19 @@ function TableSheet({
   });
   // The property the editing cell is under, when it edits in a picker.
   const picker = editing === null ? undefined : properties[editing.column];
+  const picking = editor !== undefined && picksFrom(picker);
+  usePickerSlot({ picking, slot: pickerSlot, dismiss });
+  useAnchorWatch({ picking, anchor: editorAnchor(editor), scroller: sheet, dismiss });
+  useWantedChoices(picker, onWantRelationChoices);
+  const held = useHeldCell({
+    editing,
+    def: picker,
+    rowValue:
+      editing === null
+        ? undefined
+        : rows.find((row) => row.path === editing.path)?.values[editing.column],
+    read: readHeldCell,
+  });
 
   return (
     <div className="table">
@@ -268,15 +309,16 @@ function TableSheet({
           />
         )}
       </div>
-      {editing !== null && editor !== undefined && picker !== undefined && picksFrom(picker) && (
+      {editing !== null && editor !== undefined && picker !== undefined && picking && (
         <CellPickers
           // One picker per cell: a Tab on to the next cell's picker opens a
           // fresh one, carrying no filter or highlight over from the last.
           key={`${editing.path}\u0000${editing.column}`}
           editing={editing}
           def={picker}
-          value={rows.find((row) => row.path === editing.path)?.values[editing.column]}
+          held={held}
           choices={relationChoices?.[editing.column] ?? NO_CHOICES}
+          choicesProblem={relationChoiceProblems?.[editing.column] ?? null}
           editor={editor}
           onOpenNote={onOpenNote}
           {...(onCreateRelated !== undefined && { onCreateRelated })}
@@ -291,6 +333,25 @@ function TableSheet({
       />
     </div>
   );
+}
+
+const NO_ANCHOR: RefObject<HTMLElement | null> = { current: null };
+
+/** The cell a picker hangs from, or none for a table whose cells are read only. */
+function editorAnchor(editor: CellEditorHooks | undefined): RefObject<HTMLElement | null> {
+  return editor?.anchor ?? NO_ANCHOR;
+}
+
+/** Asks for a relation column's notes as its picker opens: nothing is read for a table no one links from. */
+function useWantedChoices(
+  picker: PropertyDef | undefined,
+  want: ((column: string) => void) | undefined,
+) {
+  const column = picker?.kind === 'relation' ? picker.key : null;
+  const ask = useSteadyCallback((key: string) => want?.(key));
+  useEffect(() => {
+    if (column !== null) ask(column);
+  }, [column, ask]);
 }
 
 /**

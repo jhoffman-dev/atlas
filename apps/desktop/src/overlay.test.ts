@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   NO_INPUT,
   NO_OVERLAY,
+  CELL_PICKER,
   closeOverlay,
   drawnByWindow,
   holdsTheScreen,
   openOverlay,
   pageMenuOverlay,
+  paneOverlayOf,
   panePopupOverlay,
   withArchived,
   withClosed,
@@ -144,6 +146,33 @@ describe('the overlay state', () => {
     expect(drawnByWindow(NO_OVERLAY)).toBeNull();
     expect(drawnByWindow({ ...NO_OVERLAY, overlay: 'settings' })).toBe('settings');
     expect(drawnByWindow({ ...NO_OVERLAY, overlay: pageMenuOverlay(1) })).toBe('page-menu-1');
+  });
+});
+
+describe('a table cell’s picker (#300)', () => {
+  const picker = panePopupOverlay(0, CELL_PICKER);
+  const up: OverlayState = withOpened(NO_OVERLAY, picker);
+
+  it('is a popup of its pane, drawn by that pane alone', () => {
+    expect(up.overlay).toBe('pane-0-cell-picker');
+    expect(paneOverlayOf(up.overlay, 0)).toBe(picker);
+    expect(paneOverlayOf(up.overlay, 1)).toBeNull();
+    expect(holdsTheScreen(up.overlay)).toBe(false);
+  });
+
+  it('gives way to ⌘K, and closing late does not close the palette that replaced it', () => {
+    const searching = withOpened(up, 'search');
+    expect(searching.overlay).toBe('search');
+    expect(withClosed(searching, picker).overlay).toBe('search');
+  });
+
+  it('closes on its own close, and opens over nothing a palette holds', () => {
+    expect(withClosed(up, picker)).toEqual(NO_OVERLAY);
+    expect(withOpened(withOpened(NO_OVERLAY, 'settings'), picker).overlay).toBe('settings');
+  });
+
+  it('gives way to another of the pane’s popups, as a menu does', () => {
+    expect(withOpened(up, panePopupOverlay(0, 'filter')).overlay).toBe('pane-0-filter');
   });
 });
 
