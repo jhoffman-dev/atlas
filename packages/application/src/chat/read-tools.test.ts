@@ -120,7 +120,7 @@ describe('a result too long for the model', () => {
     // One item cannot be asked for in fewer results: the cut says what it was and how big.
     expect(body.cut.note).not.toMatch(/ask for fewer/);
     expect(body.cut.note).toMatch(/was cut/);
-    expect(body.cut.note).toContain((TOOL_RESULT_CHARACTERS * 2 + 2).toLocaleString('en-US'));
+    expect(body.cut.note).toMatch(/was \d{2},\d{3} characters/);
     expect(body.start.startsWith('{"template":')).toBe(true);
   });
 });

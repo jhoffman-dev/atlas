@@ -105,7 +105,8 @@ const READ_TOOLS: readonly ReadTool[] = [
         'A note too long for one answer comes back a page at a time: the answer then has a ' +
         '"page" { offset, shown, of, remaining, next }, and you read on by calling again with ' +
         'offset set to "next" until "next" is null. Read every page before saying what the note ' +
-        'holds; the note on disk is whole.',
+        'holds; the note on disk is whole. If a turn runs out of lookups before the last page, ' +
+        'tell the person how far you read and ask them to say "continue".',
       inputSchema: object(
         {
           path: str('The note\'s vault path, e.g. "Projects/Q3.md".'),

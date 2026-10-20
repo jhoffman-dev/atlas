@@ -43,9 +43,11 @@ export function notePageAnswer(
     return { content: whole, isError: false };
   const paged = (count: number) => JSON.stringify(pageOf(answer, offset, count));
   const most = mostThatFit(body.length - offset, (n) => paged(n).length <= NOTE_READ_CHARACTERS);
-  // Not even an empty page fits: the properties alone are too long, cut and said to be.
-  if (most === null) return { content: cappedJson(answer, NOTE_READ_CHARACTERS), isError: false };
-  return { content: paged(cleanEnd(body, offset, most)), isError: false };
+  const kept = most === null ? 0 : cleanEnd(body, offset, most);
+  // No body fits beside the properties: a page of nothing would point back at itself,
+  // so the answer is cut, and said to be, instead.
+  if (kept === 0) return { content: cappedJson(answer, NOTE_READ_CHARACTERS), isError: false };
+  return { content: paged(kept), isError: false };
 }
 
 function pageOf(
@@ -75,13 +77,15 @@ function pageOf(
  * second half, so a page does not end mid-line, and never between the two
  * halves of a character.
  */
-function cleanEnd(body: string, offset: number, most: number): number {
+export function cleanEnd(body: string, offset: number, most: number): number {
   if (offset + most >= body.length) return most;
   const lineEnd = body.lastIndexOf('\n', offset + most - 1) + 1 - offset;
   if (lineEnd > most / 2) return lineEnd;
-  const code = body.charCodeAt(offset + most - 1);
-  const splitsAPair = code >= 0xd800 && code <= 0xdbff;
-  return splitsAPair && most > 1 ? most - 1 : most;
+  const end = offset + most;
+  const splitsAPair = isHigh(body.charCodeAt(end - 1)) && isLow(body.charCodeAt(end));
+  return splitsAPair ? most - 1 : most;
 }
 
+const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff;
+const isLow = (code: number) => code >= 0xdc00 && code <= 0xdfff;
 const grouped = (count: number) => count.toLocaleString('en-US');

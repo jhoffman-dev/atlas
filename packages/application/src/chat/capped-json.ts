@@ -6,7 +6,7 @@
  * so whole items are dropped from the end of its longest list, and a `cut`
  * says how many were kept of how many. An answer with no list to shorten, or
  * one whose other fields alone are too long, comes back as the start of its
- * text, held in a JSON string beside the same `cut`.
+ * text, held in a JSON string beside a `cut` that says how long it was.
  */
 
 const NOTE = 'The answer was too long and was cut: ask for fewer results.';
@@ -36,8 +36,10 @@ function fewerItems(body: Fields, limit: number): string | null {
 
 /** The start of the text, as a JSON string, as much of it as fits. */
 function startOf(whole: string, limit: number): string {
+  // One value cannot be asked for in fewer results: say it was cut, and how big it was.
+  const note = `The answer was ${whole.length.toLocaleString('en-US')} characters, too long for one answer, and was cut to its start.`;
   const keeping = (count: number) =>
-    JSON.stringify({ cut: { note: NOTE }, start: whole.slice(0, count) });
+    JSON.stringify({ cut: { note }, start: whole.slice(0, count) });
   return keeping(mostThatFit(whole.length, (n) => keeping(n).length <= limit) ?? 0);
 }
 
