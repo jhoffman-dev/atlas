@@ -582,9 +582,11 @@
   position: absolute;
   right: 12px;
   width: max-content;
-  /* Above the peek (40) and the dialogs, so the Undo of a change made in the
-     peek can be pressed; under a link preview (60). */
-  z-index: 50;
+  /* Under every layer a person works in — menus (30), palettes, dialogs and
+     the peek (40) — so a toast hides none of their controls. While the peek
+     is up the toasts are drawn inside it instead (peek.css), in its focus
+     trap, where Tab and the pointer both reach their Undo (#468). */
+  z-index: 21;
 }
 
 /* The window's toasts, one column at the toast's own corner (#320): each
@@ -599,7 +601,7 @@
   pointer-events: none;
   position: absolute;
   right: 12px;
-  z-index: 50;
+  z-index: 21;
 }
 
 .toast-stack > .toast {

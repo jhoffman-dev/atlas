@@ -20,7 +20,9 @@ export type ToastTone = 'change' | 'warning' | 'error';
  * buttons can be reached, and gives its full time again once let go.
  *
  * A button acts once: the first press does its thing and dismisses, and
- * nothing — a second press, the timer — dismisses again. Saying the same
+ * nothing — a second press, the timer — dismisses again. Its buttons say
+ * `tabindex="0"`: WebKit, and so the app's webview, Tabs to no button that
+ * does not, and an Undo must be reachable from the keyboard (#468). Saying the same
  * words a second time is the caller's to mark, with a `key` that changes per
  * showing (use-granola-pull's `toastShown`): to a component, the same props
  * are the same showing.
@@ -62,17 +64,23 @@ export function Toast({
         {message}
       </span>
       {onUndo !== undefined && (
-        <button type="button" className="toast__action" onClick={once(onUndo)}>
+        <button type="button" className="toast__action" tabIndex={0} onClick={once(onUndo)}>
           <Icon name="undo" size={12} />
           Undo
         </button>
       )}
       {action !== undefined && (
-        <button type="button" className="toast__action" onClick={once(action.onClick)}>
+        <button type="button" className="toast__action" tabIndex={0} onClick={once(action.onClick)}>
           {action.label}
         </button>
       )}
-      <button type="button" className="toast__dismiss" aria-label="Dismiss" onClick={once()}>
+      <button
+        type="button"
+        className="toast__dismiss"
+        aria-label="Dismiss"
+        tabIndex={0}
+        onClick={once()}
+      >
         <Icon name="close" size={12} />
       </button>
     </div>

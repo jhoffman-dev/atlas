@@ -136,8 +136,16 @@ recommendation in §4 as the answer):
 
 Slice 15 also moved the proposals notice and the Make-task notice off their
 20-second undo bars and onto the window's toast with Undo, and deleted
-`UNDO_BAR_MS`. A failure with nothing to take back stays where it is shown,
-on its section or under the page bar, until it is dismissed.
+`UNDO_BAR_MS`. An answer's or a promotion's own failure, with nothing to
+take back, stays on its section or under the page bar until it is
+dismissed; a refused Undo is a warning toast, said wherever the person is.
+
+The toasts sit under every layer a person works in — menus (z 30),
+palettes, dialogs and the peek (z 40) — so they never hide one of its
+controls. While the peek is up they are drawn inside it instead, in a place
+it hands over after its header: in its focus trap, so Tab reaches an Undo,
+and still at the window's corner. Their buttons say `tabindex="0"`, since
+WebKit, and so the app's webview, Tabs to no button that does not.
 
 ## Consequences
 

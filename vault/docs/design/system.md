@@ -279,8 +279,11 @@ drawn one way.
 - **ToastStack** — the window's toasts in one column, oldest on top, at most
   three (`MAX_TOASTS`), each with its own time. It sits at the bottom right,
   12px in and 92px up, where the retired add button rested; the top right is
-  the pane's bars and their controls. A failure with nothing to take back
-  stays on its own section or under the page bar instead.
+  the pane's bars and their controls. It sits under menus, palettes, dialogs
+  and the peek (z-index 21), so it hides none of their controls; while the
+  peek is up it is drawn inside the peek (`.peek__toasts`), in its focus
+  trap. A refused Undo is a warning toast; an answer's own failure with
+  nothing to take back stays on its section or under the page bar instead.
 - **Spinner** — `.spinner`: shown only once loading has taken 150 ms
   (`SPINNER_DELAY_MS`), held invisible until then by the stylesheet. No
   words, no skeleton, and its block holds its place from the start.
