@@ -89,7 +89,7 @@ export async function linksToUpdate({
 }
 
 /** Which of `paths` are files in the vault, by listing each folder they are in once. */
-async function filesAmong({
+export async function filesAmong({
   fs,
   paths,
 }: {

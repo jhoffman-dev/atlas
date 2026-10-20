@@ -1,4 +1,5 @@
 import type { MeetingAttendee } from '../meetings/meeting-header.ts';
+import { addressKey, hostKey, untaggedAddressKey } from './address-key.ts';
 import { vocabularyKey } from '../terms/spelling.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 
@@ -288,7 +289,7 @@ const SHARED_HOSTS: readonly string[] = [
 ];
 
 /** Whether a domain is a public mail provider's, in any country. */
-function isPublicMail(domain: string): boolean {
+export function isPublicMail(domain: string): boolean {
   return PUBLIC_MAIL_DOMAINS.has(domain) || PUBLIC_MAIL_LABELS.has(organisationLabel(domain));
 }
 
@@ -327,15 +328,17 @@ interface NamedPerson {
 }
 
 function personFinder(people: readonly DirectoryPerson[]) {
-  const byEmail = new Map<string, DirectoryPerson[]>();
-  for (const person of people) {
-    for (const email of new Set(person.emails.map(emailKey).filter((key) => key !== ''))) {
-      byEmail.set(email, [...(byEmail.get(email) ?? []), person]);
-    }
-  }
+  const byEmail = addressIndex(people, addressKey);
+  // A `+tag` reaches the same mailbox: found by it only when no address is written exactly so.
+  const byMailbox = addressIndex(people, untaggedAddressKey);
   const byName = nameIndex(people);
   return (attendee: MeetingAttendee): PersonFound | null => {
-    const mailed = attendee.email === null ? [] : (byEmail.get(emailKey(attendee.email)) ?? []);
+    const email = attendee.email;
+    const exact = email === null ? [] : (byEmail.get(addressKey(email)) ?? []);
+    const mailed =
+      exact.length > 0 || email === null
+        ? exact
+        : (byMailbox.get(untaggedAddressKey(email) ?? '') ?? []);
     if (mailed.length > 0) return { candidates: mailed, by: 'email' };
     const named = byName.get(vocabularyKey(attendee.name)) ?? [];
     if (named.length === 0) return null;
@@ -344,6 +347,26 @@ function personFinder(people: readonly DirectoryPerson[]) {
       by: named.every(({ by }) => by === 'alias') ? 'alias' : 'name',
     };
   };
+}
+
+/**
+ * Each address — `email`, `other_emails`, and an alias written as one, which
+ * a person may keep an old address in (#464) — by `key`, and the people
+ * holding it, each person once.
+ */
+function addressIndex(
+  people: readonly DirectoryPerson[],
+  key: (written: string) => string | null,
+): Map<string, DirectoryPerson[]> {
+  const index = new Map<string, DirectoryPerson[]>();
+  for (const person of people) {
+    const addresses = [...person.emails, ...person.aliases.filter(isWrittenAddress)];
+    for (const each of new Set(addresses.map(key))) {
+      if (each === null || each === '') continue;
+      index.set(each, [...(index.get(each) ?? []), person]);
+    }
+  }
+  return index;
 }
 
 /** Each spelling — a name or an alias — and the people it names, each person once. */
@@ -459,27 +482,12 @@ function guessedCompanies({
 export function attendeeKey(attendee: MeetingAttendee): string {
   return attendee.email === null
     ? `name:${vocabularyKey(attendee.name)}`
-    : `email:${emailKey(attendee.email)}`;
+    : `email:${addressKey(attendee.email)}`;
 }
 
-/** An address as compared: the part in `<…>` when written as a mail client copies it, case folded. */
-function emailKey(email: string): string {
-  const bracketed = /<([^<>]+)>\s*$/.exec(email)?.[1] ?? email;
-  return bracketed.normalize('NFC').trim().toLowerCase();
-}
-
-/** A domain as written in a note or an address: `@`, `www.`, a scheme, a path and a final dot dropped. */
-function hostKey(written: string): string {
-  return written
-    .normalize('NFC')
-    .trim()
-    .toLowerCase()
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
-    .replace(/[/?#].*$/, '')
-    .replace(/:\d*$/, '')
-    .replace(/^@/, '')
-    .replace(/^www\./, '')
-    .replace(/\.$/, '');
+/** Whether an alias is written as an address: something either side of one `@`, no spaces. */
+function isWrittenAddress(alias: string): boolean {
+  return /^[^\s@]+@[^\s@]+$/u.test(alias.trim());
 }
 
 /** Whether an address's domain is the company's, or one under it (`mail.larkspur.example`). */

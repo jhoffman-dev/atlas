@@ -1,0 +1,122 @@
+/* Merging people (#464): the question before a merge, and the list of people
+   who may be one. Chrome stays neutral; only the reason chips carry a hue. */
+
+.merge {
+  width: min(520px, 100%);
+}
+
+.merge__summary,
+.merge__conflicts ul {
+  color: var(--ink-2);
+  display: grid;
+  font-size: var(--text-ui);
+  gap: var(--space-1);
+  line-height: 1.5;
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.merge__conflicts {
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+}
+
+.merge__key {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.merge__other {
+  color: var(--ink-3);
+}
+
+.duplicates {
+  max-height: min(640px, 90vh);
+  width: min(640px, 100%);
+}
+
+.duplicates__list {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.duplicates__pair {
+  align-items: center;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: var(--space-2) var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--space-3) 0;
+}
+
+.duplicates__people {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.duplicates__and {
+  color: var(--ink-3);
+}
+
+.duplicates__person {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  font: inherit;
+  padding: 2px var(--space-1);
+  text-align: left;
+}
+
+.duplicates__person:hover {
+  background: var(--hover);
+}
+
+.duplicates__name {
+  font-size: var(--text-ui);
+  font-weight: 600;
+}
+
+.duplicates__place {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+.duplicates__reasons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  grid-column: 1;
+}
+
+.duplicates__reason {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.duplicates__detail {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+.duplicates__actions {
+  display: flex;
+  gap: var(--space-2);
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}

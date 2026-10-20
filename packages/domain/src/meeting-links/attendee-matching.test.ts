@@ -68,6 +68,41 @@ describe('matchAttendees', () => {
     expect(matching.linked[0]?.by).toBe('email');
   });
 
+  it('matches an address a person keeps among their aliases, as one of their emails (#464)', () => {
+    const merged = person('Mara Quill', {
+      emails: ['mara.quill@larkspur.example'],
+      aliases: ['Mara', 'Marra.Quill@Larkspur.example'],
+    });
+    const matching = matchAttendees(
+      [attendee('Marra Quill', 'marra.quill@larkspur.example')],
+      [merged, TOBIAS],
+      [],
+    );
+    expect(pathsOf(matching.linked)).toEqual([merged.path]);
+    expect(matching.linked[0]?.by).toBe('email');
+    expect(matching.ambiguous).toEqual([]);
+  });
+
+  it('finds a person by a +tag address, and by the mailbox it reaches when none is written so (#464)', () => {
+    const mara = person('Mara Quill', {
+      emails: ['mara@larkspur.example', 'mara+payroll@larkspur.example'],
+    });
+    const tobias = person('Tobias Fenn', { emails: ['tobias@fenn.example'] });
+    const tagged = matchAttendees(
+      [attendee('Payroll', 'Mara+Payroll@larkspur.example')],
+      [mara, tobias],
+      [],
+    );
+    expect(pathsOf(tagged.linked)).toEqual([mara.path]);
+    const untagged = matchAttendees(
+      [attendee('T', 'tobias+deals@fenn.example')],
+      [mara, tobias],
+      [],
+    );
+    expect(pathsOf(untagged.linked)).toEqual([tobias.path]);
+    expect(untagged.linked[0]?.by).toBe('email');
+  });
+
   it('prefers the email to the name: an address is who they are', () => {
     const matching = matchAttendees(
       [attendee('Tobias Fenn', 'mara@larkspur.example')],

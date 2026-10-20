@@ -361,6 +361,20 @@ export async function forgetNotes(index: IndexPort, paths: readonly VaultPath[])
 }
 
 /**
+ * The indexed notes holding a link — a relation or in the body — that opens
+ * one of `paths`, each once: found by the index's `dst` columns, so the
+ * vault is not read to find them (#439).
+ */
+export async function notesLinkingTo(
+  index: IndexPort,
+  paths: readonly VaultPath[],
+): Promise<VaultPath[]> {
+  if (paths.length === 0) return [];
+  const holders = await linkHolders(index, { made: [], gone: paths });
+  return [...new Set(holders)].sort().map(createVaultPath);
+}
+
+/**
  * The indexed notes holding a link, a relation or in the body, that these
  * notes made or gone could move — asked before those notes' own rows change,
  * so a note that has gone is still there to be pointed at. Every page of each

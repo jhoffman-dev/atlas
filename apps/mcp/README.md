@@ -71,57 +71,59 @@ Normally none. These environment variables override the connection file:
 
 ## Tools
 
-| Tool                       | Route                                                                        | Writes? |
-| -------------------------- | ---------------------------------------------------------------------------- | ------- |
-| `atlas_status`             | `GET /v1/status`                                                             | no      |
-| `atlas_search`             | `GET /v1/search`                                                             | no      |
-| `atlas_list_notes`         | `GET /v1/notes`                                                              | no      |
-| `atlas_read_note`          | `GET /v1/notes/{path}`                                                       | no      |
-| `atlas_create_note`        | `POST /v1/notes`                                                             | yes     |
-| `atlas_update_properties`  | `PATCH /v1/notes/{path}/properties`                                          | yes     |
-| `atlas_append_to_note`     | `POST /v1/notes/{path}/append`                                               | yes     |
-| `atlas_replace_note_body`  | `PUT /v1/notes/{path}/body`                                                  | yes     |
-| `atlas_backlinks`          | `GET /v1/notes/{path}/backlinks`                                             | no      |
-| `atlas_export_note`        | `GET /v1/notes/{path}/export?format=confluence`                              | no      |
-| `atlas_list_types`         | `GET /v1/types`                                                              | no      |
-| `atlas_list_views`         | `GET /v1/views`                                                              | no      |
-| `atlas_list_type_views`    | `GET /v1/types/{name}/views`                                                 | no      |
-| `atlas_list_templates`     | `GET /v1/templates`                                                          | no      |
-| `atlas_read_template`      | `GET /v1/templates/{name}`                                                   | no      |
-| `atlas_terms`              | `GET /v1/terms`                                                              | no      |
-| `atlas_run_view`           | `POST /v1/views/{path}/run`                                                  | no      |
-| `atlas_query`              | `POST /v1/query`                                                             | no      |
-| `atlas_run_query`          | `POST /v1/atlas-query`                                                       | no      |
-| `atlas_sql`                | `POST /v1/sql`                                                               | no      |
-| `atlas_daily_note`         | `POST /v1/daily`                                                             | yes     |
-| `atlas_capture_task`       | `POST /v1/capture`                                                           | yes     |
-| `atlas_save_artifact`      | `POST /v1/artifacts`, then `PUT /v1/artifacts/{path}/files/{name}` per chunk | yes     |
-| `atlas_add_image`          | `PUT /v1/notes/{path}/images/{name}` per chunk, then `.../append`            | yes     |
-| `atlas_quick_add_types`    | `GET /v1/quick-add`                                                          | no      |
-| `atlas_quick_add`          | `POST /v1/quick-add`                                                         | yes     |
-| `atlas_calendar`           | `POST /v1/views/{path}/calendar`                                             | no      |
-| `atlas_move_card`          | `POST /v1/views/{path}/move`                                                 | yes     |
-| `atlas_add_to_view`        | `POST /v1/views/{path}/notes`                                                | yes     |
-| `atlas_refresh_source`     | `POST /v1/sources/{path}/refresh`                                            | yes     |
-| `atlas_tags`               | `GET /v1/tags`                                                               | no      |
-| `atlas_tagged_notes`       | `GET /v1/tags/{tag}/notes`                                                   | no      |
-| `atlas_rename_tag`         | `POST /v1/tags/{tag}/rename`                                                 | yes     |
-| `atlas_archive`            | `POST /v1/archive`                                                           | yes     |
-| `atlas_unarchive`          | `POST /v1/unarchive`                                                         | yes     |
-| `atlas_archived`           | `GET /v1/archive`                                                            | no      |
-| `atlas_inbox`              | `GET /v1/inbox`                                                              | no      |
-| `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
-| `atlas_clarify_inbox_item` | `POST /v1/inbox/clarify`                                                     | yes     |
-| `atlas_schedule_task`      | `POST /v1/tasks/schedule`                                                    | yes     |
-| `atlas_weekly_review`      | `GET /v1/review/weekly`                                                      | no      |
-| `atlas_today`              | `GET /v1/today`                                                              | no      |
-| `atlas_automations`        | `GET /v1/automations`                                                        | no      |
-| `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
-| `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
-| `atlas_meetings`           | `GET /v1/meetings`                                                           | no      |
-| `atlas_proposals`          | `GET /v1/proposals`                                                          | no      |
-| `atlas_accept_proposal`    | `POST /v1/proposals/{path}/accept`                                           | yes     |
-| `atlas_reject_proposal`    | `POST /v1/proposals/{path}/reject`                                           | yes     |
+| Tool                          | Route                                                                        | Writes? |
+| ----------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `atlas_status`                | `GET /v1/status`                                                             | no      |
+| `atlas_search`                | `GET /v1/search`                                                             | no      |
+| `atlas_list_notes`            | `GET /v1/notes`                                                              | no      |
+| `atlas_read_note`             | `GET /v1/notes/{path}`                                                       | no      |
+| `atlas_create_note`           | `POST /v1/notes`                                                             | yes     |
+| `atlas_update_properties`     | `PATCH /v1/notes/{path}/properties`                                          | yes     |
+| `atlas_append_to_note`        | `POST /v1/notes/{path}/append`                                               | yes     |
+| `atlas_replace_note_body`     | `PUT /v1/notes/{path}/body`                                                  | yes     |
+| `atlas_backlinks`             | `GET /v1/notes/{path}/backlinks`                                             | no      |
+| `atlas_export_note`           | `GET /v1/notes/{path}/export?format=confluence`                              | no      |
+| `atlas_list_types`            | `GET /v1/types`                                                              | no      |
+| `atlas_list_views`            | `GET /v1/views`                                                              | no      |
+| `atlas_list_type_views`       | `GET /v1/types/{name}/views`                                                 | no      |
+| `atlas_list_templates`        | `GET /v1/templates`                                                          | no      |
+| `atlas_read_template`         | `GET /v1/templates/{name}`                                                   | no      |
+| `atlas_terms`                 | `GET /v1/terms`                                                              | no      |
+| `atlas_run_view`              | `POST /v1/views/{path}/run`                                                  | no      |
+| `atlas_query`                 | `POST /v1/query`                                                             | no      |
+| `atlas_run_query`             | `POST /v1/atlas-query`                                                       | no      |
+| `atlas_sql`                   | `POST /v1/sql`                                                               | no      |
+| `atlas_daily_note`            | `POST /v1/daily`                                                             | yes     |
+| `atlas_capture_task`          | `POST /v1/capture`                                                           | yes     |
+| `atlas_save_artifact`         | `POST /v1/artifacts`, then `PUT /v1/artifacts/{path}/files/{name}` per chunk | yes     |
+| `atlas_add_image`             | `PUT /v1/notes/{path}/images/{name}` per chunk, then `.../append`            | yes     |
+| `atlas_quick_add_types`       | `GET /v1/quick-add`                                                          | no      |
+| `atlas_quick_add`             | `POST /v1/quick-add`                                                         | yes     |
+| `atlas_calendar`              | `POST /v1/views/{path}/calendar`                                             | no      |
+| `atlas_move_card`             | `POST /v1/views/{path}/move`                                                 | yes     |
+| `atlas_add_to_view`           | `POST /v1/views/{path}/notes`                                                | yes     |
+| `atlas_refresh_source`        | `POST /v1/sources/{path}/refresh`                                            | yes     |
+| `atlas_tags`                  | `GET /v1/tags`                                                               | no      |
+| `atlas_tagged_notes`          | `GET /v1/tags/{tag}/notes`                                                   | no      |
+| `atlas_rename_tag`            | `POST /v1/tags/{tag}/rename`                                                 | yes     |
+| `atlas_find_duplicate_people` | `GET /v1/people/duplicates`                                                  | no      |
+| `atlas_merge_people`          | `POST /v1/people/merge`                                                      | yes     |
+| `atlas_archive`               | `POST /v1/archive`                                                           | yes     |
+| `atlas_unarchive`             | `POST /v1/unarchive`                                                         | yes     |
+| `atlas_archived`              | `GET /v1/archive`                                                            | no      |
+| `atlas_inbox`                 | `GET /v1/inbox`                                                              | no      |
+| `atlas_process_inbox_item`    | `POST /v1/inbox/process`                                                     | yes     |
+| `atlas_clarify_inbox_item`    | `POST /v1/inbox/clarify`                                                     | yes     |
+| `atlas_schedule_task`         | `POST /v1/tasks/schedule`                                                    | yes     |
+| `atlas_weekly_review`         | `GET /v1/review/weekly`                                                      | no      |
+| `atlas_today`                 | `GET /v1/today`                                                              | no      |
+| `atlas_automations`           | `GET /v1/automations`                                                        | no      |
+| `atlas_automation_log`        | `GET /v1/automations/{id}/log`                                               | no      |
+| `atlas_automation_dry_run`    | `POST /v1/automations/{id}/dry-run`                                          | no      |
+| `atlas_meetings`              | `GET /v1/meetings`                                                           | no      |
+| `atlas_proposals`             | `GET /v1/proposals`                                                          | no      |
+| `atlas_accept_proposal`       | `POST /v1/proposals/{path}/accept`                                           | yes     |
+| `atlas_reject_proposal`       | `POST /v1/proposals/{path}/reject`                                           | yes     |
 
 `atlas_archive` and `atlas_unarchive` take up to 100 note paths and move them
 into or out of `Archive/` as the app's Archive command does, rewriting links to
@@ -252,6 +254,13 @@ each at the offset the last one ended at, and the note is read back once the
 files have landed (its `saved` and `cover` are set as they arrive). Files are
 checked before anything is sent, so bad base64 saves nothing; a chunk refused
 after the note was saved says so, naming the note's path.
+
+`atlas_merge_people` rewrites every note linking to the people it merges, so it
+only previews unless called with `confirm: true`: the preview names each note
+written and its links, the values the kept note keeps over a merged one's
+(`conflicts`), and the aliases, emails and bodies it gains. A note being typed
+in refuses it, and a note changed since the preview is `conflict` with nothing
+written. `atlas_find_duplicate_people` lists the pairs worth offering.
 
 `atlas_rename_tag` rewrites every note using a tag, so it only previews unless
 called with `dryRun: false`: the preview names the notes and uses that would

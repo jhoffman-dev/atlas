@@ -62,7 +62,10 @@ function prepare({
     files: syncFiles,
     unsaved: { flushAll: async () => {} },
     activity,
-    settings: { save: async (changes: Record<string, unknown>) => void saved.push(changes) },
+    settings: {
+      save: async (changes: Record<string, unknown>) => void saved.push(changes),
+      update: async () => {},
+    },
     // As the settings note reads after what was saved to it.
     readSettings: async () => Object.assign({}, settingsSay, ...saved),
     // Read only for a settings note a first sync copied aside, which these fakes never make.
@@ -500,7 +503,10 @@ describe('sync settings', () => {
 
   it('writes only what changed, each bound to what it accepts', async () => {
     const saved: unknown[] = [];
-    const settings = { save: async (changes: Record<string, unknown>) => void saved.push(changes) };
+    const settings = {
+      save: async (changes: Record<string, unknown>) => void saved.push(changes),
+      update: async () => {},
+    };
     await saveSyncSettings({ settings, changes: { pullIntervalMinutes: 500 } });
     await saveSyncSettings({ settings, changes: { pushDelaySeconds: 1 } });
     await saveSyncSettings({ settings, changes: { automationsMac: 'mac-laptop' } });
