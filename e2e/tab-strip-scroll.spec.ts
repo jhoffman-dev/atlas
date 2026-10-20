@@ -1,5 +1,5 @@
 import { expect, test, type Page } from './fixtures.ts';
-import { createVault, installHost, sidebarSection } from './host.ts';
+import { createVault, installHost, sidebarSection, splitWindow } from './host.ts';
 
 /*
  * #412: whenever the shown tab changes — opened, switched to from the
@@ -37,7 +37,9 @@ async function openVault(page: Page) {
 
 const row = (page: Page, name: string) =>
   sidebarSection(page, 'userSpace').getByRole('treeitem', { name, exact: true });
-const strip = (page: Page) => page.getByRole('tablist', { name: 'Pane 1 tabs' });
+const strip = (page: Page, which: 1 | 2 = 1) =>
+  page.getByRole('tablist', { name: `Pane ${which} tabs` });
+const pane = (page: Page, which: 1 | 2) => page.getByRole('region', { name: `Pane ${which}` });
 const tab = (page: Page, name: string) => strip(page).getByRole('tab', { name, exact: true });
 
 /** The shown tab, its × and borders included, lies inside the strip's visible part. */
@@ -96,5 +98,27 @@ test('a shown tab already in view does not scroll the strip', async ({ page }) =
   await expectShownTabInView(page, NOTES[0]);
   await page.keyboard.press('Meta+2');
   await expectShownTabInView(page, NOTES[1]);
+  expect(await strip(page).evaluate((list) => list.scrollLeft)).toBe(0);
+});
+
+test('the strip stays where it was scrolled when the other pane takes the focus', async ({
+  page,
+}) => {
+  await openVault(page);
+  await row(page, NOTES[0]).click();
+  for (const name of NOTES.slice(1)) await row(page, name).click({ modifiers: ['Meta'] });
+  await expectShownTabInView(page, NOTES[13]);
+  await splitWindow(page);
+  await expect(strip(page, 2)).toBeVisible();
+  // Pane 1 focused, its shown tab the last, then its strip scrolled back to the start by hand.
+  await pane(page, 1).getByRole('heading', { name: NOTES[13] }).first().click();
+  await expect(pane(page, 1)).toHaveClass(/pane--focused/);
+  await strip(page).evaluate((list) => {
+    list.scrollLeft = 0;
+  });
+  // The other pane takes the focus: pane 1's strip is drawn again, its shown tab unchanged.
+  await pane(page, 2).getByRole('heading', { name: NOTES[13] }).first().click();
+  await expect(pane(page, 2)).toHaveClass(/pane--focused/);
+  await expect(pane(page, 1)).not.toHaveClass(/pane--focused/);
   expect(await strip(page).evaluate((list) => list.scrollLeft)).toBe(0);
 });
