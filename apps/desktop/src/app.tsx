@@ -174,6 +174,7 @@ import {
   useWindowOverlay,
 } from './overlay-store.ts';
 import { PEEK_EDITOR, PeekLayer } from './panes/peek-container.tsx';
+import { leavePeek } from './panes/peek-moves.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
 import { movingEditorsIn, openNotesIn } from './panes/open-notes.ts';
 import { useVaultEntries, type VaultEntryPorts } from './vault/use-vault-entries.ts';
@@ -1076,10 +1077,12 @@ function AppWindow({
   const openCreated = useCallback(
     (path: VaultPath) => {
       void reload();
-      openNote(path);
+      // Made over the peek — a capture, a related note from its strip — it is not
+      // opened in the page hidden under the peek, which nobody would see move.
+      if (peekNow(overlays) === null) openNote(path);
       void refresh();
     },
-    [reload, openNote, refresh],
+    [reload, openNote, refresh, overlays],
   );
   const {
     createNewNote,
@@ -1390,9 +1393,10 @@ function AppWindow({
   const captureTask = useCallback(
     async (name: string) => {
       const path = await captureNote(name, captureTemplate);
-      if (path !== null) openNote(path);
+      // Over the peek, a capture lands without moving the page hidden under it.
+      if (path !== null && peekNow(overlays) === null) openNote(path);
     },
-    [captureNote, captureTemplate, openNote],
+    [captureNote, captureTemplate, openNote, overlays],
   );
 
   /** Today's note, made on demand — where and from what is `ensureDailyNote`'s to say. */
@@ -1638,18 +1642,16 @@ function AppWindow({
       stranded={stranded}
     />
   );
-  // Steady, so the palette is not drawn again with the window while it is shut (#261).
-  const runPaletteCommand = useSteadyCallback((id: string, query: string) => {
-    const pasted = claudeArtifactUrl(query) ?? '';
-    if (
-      runPaletteArchiveCommand(id, {
-        focused: focusedNote(),
-        commands: archiveCommands,
-        openArchive,
-      })
-    ) {
-      return;
-    }
+  /** Writes what was typed in the peek, closes it, then runs `act`; at once with no peek up. */
+  const leavingPeekFor = (act: () => void) =>
+    leavePeek(overlays, {
+      flush: () => {
+        const peek = peekNow(overlays);
+        return peek === null ? Promise.resolve() : editors.flushHolding([peek.path]);
+      },
+      act,
+    });
+  const runPlaceCommand = (id: string, pasted: string) => {
     if (
       runPaletteEditTypeCommand(id, {
         editType: (name) => openType(name, 'edit'),
@@ -1667,6 +1669,22 @@ function AppWindow({
     else if (id === 'new-artifact') startNewArtifact();
     else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);
     else startNewView(null);
+  };
+  // Steady, so the palette is not drawn again with the window while it is shut (#261).
+  const runPaletteCommand = useSteadyCallback((id: string, query: string) => {
+    const pasted = claudeArtifactUrl(query) ?? '';
+    if (
+      runPaletteArchiveCommand(id, {
+        // "This note" is the one on screen: the peeked one while the peek is up.
+        focused: peekNow(overlays)?.path ?? focusedNote(),
+        commands: archiveCommands,
+        openArchive: () => leavingPeekFor(openArchive),
+      })
+    ) {
+      return;
+    }
+    // A command that goes somewhere leaves the peek first, so where it went is on screen.
+    leavingPeekFor(() => runPlaceCommand(id, pasted));
   });
   // Picked over the peek, a result shows in it, in place of its note (Q6).
   const openPaletteHit = useSteadyCallback((path: string) =>

@@ -246,3 +246,84 @@ test('a board’s card peeks, and ↓ steps column by column, as the board shows
   await expect(page.getByRole('dialog', { name: /^(Sweep|Mop)$/ })).toBeVisible();
   await expect(peek(page).locator('.peek__where')).toHaveText('2 of 3 in Chores');
 });
+
+/** Opens row `at`'s peek and types `typed` at the end of its body. */
+async function typeInPeek(page: Page, at: number, typed: string) {
+  await rowName(page, at).click();
+  const dialog = page.getByRole('dialog', { name: title(at) });
+  await dialog.getByText(`Body of errand ${at}.`).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(typed);
+}
+
+/** The file holds `typed` exactly once, read once it has landed. */
+async function holdsOnce(vault: FakeVault, at: number, typed: string) {
+  await expectFile(vault, `Errands/${title(at)}.md`).toContain(typed);
+  expect((await vault.read(`Errands/${title(at)}.md`)).split(typed)).toHaveLength(2);
+}
+
+test.describe('what is typed in the peek lands in its own note, once (review of PR #428)', () => {
+  test('stepping on with the Next row button', async ({ page }) => {
+    const vault = await openVault(page);
+    await openTaskTable(page);
+    await typeInPeek(page, 4, ' Typed before the step.');
+    await peek(page).getByRole('button', { name: 'Next row' }).click();
+    await expect(page.getByRole('dialog', { name: title(5) })).toBeVisible();
+    await holdsOnce(vault, 4, ' Typed before the step.');
+    expect(await vault.read(`Errands/${title(5)}.md`)).not.toContain('Typed before the step.');
+  });
+
+  for (const [how, leave] of [
+    [
+      'expand',
+      (page: Page) => peek(page).getByRole('button', { name: 'Open as full page' }).click(),
+    ],
+    // From the header: in the text, ⌘↵ and ⌘⇧↵ are the editor's own (Q6).
+    [
+      'a new tab',
+      (page: Page) => peek(page).getByRole('button', { name: 'Open in new tab' }).click(),
+    ],
+    ['a split', (page: Page) => peek(page).getByRole('button', { name: 'Open in split' }).click()],
+    [
+      '⌘↵ from the header',
+      async (page: Page) => {
+        await peek(page).getByRole('button', { name: 'Next row' }).focus();
+        await chord(page, 'Enter');
+      },
+    ],
+  ] as const) {
+    test(`leaving with ${how}, and the page that opens shows it`, async ({ page }) => {
+      const vault = await openVault(page);
+      await openTaskTable(page);
+      await typeInPeek(page, 6, ` Typed before ${how}.`);
+      await leave(page);
+      await expect(peek(page)).toHaveCount(0);
+      await holdsOnce(vault, 6, ` Typed before ${how}.`);
+      await expect(page.getByText(`Body of errand 6. Typed before ${how}.`)).toBeVisible();
+    });
+  }
+
+  test('renaming the peeked note from its title: the peek follows it, the typing goes with it', async ({
+    page,
+  }) => {
+    const vault = await openVault(page);
+    await openTaskTable(page);
+    await typeInPeek(page, 8, ' Typed before the rename.');
+    await peek(page)
+      .getByRole('button', { name: title(8), exact: true })
+      .click();
+    const name = page.getByRole('textbox', { name: 'Note name' });
+    await name.fill('Errand renamed');
+    await name.press('Enter');
+
+    await expect(page.getByRole('dialog', { name: 'Errand renamed' })).toBeVisible();
+    await expect.poll(() => vault.exists(`Errands/${title(8)}.md`)).toBe(false);
+    await page.keyboard.press('Escape');
+    await expect(peek(page)).toHaveCount(0);
+    await expectFile(vault, 'Errands/Errand renamed.md').toContain('Typed before the rename.');
+    expect(
+      (await vault.read('Errands/Errand renamed.md')).split('Typed before the rename.'),
+    ).toHaveLength(2);
+    expect(await vault.exists(`Errands/${title(8)}.md`)).toBe(false);
+  });
+});

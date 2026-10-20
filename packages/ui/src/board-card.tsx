@@ -254,6 +254,8 @@ export function AddCard({
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
+          // Answered here: closing the name field must not close a dialog round the board.
+          event.preventDefault();
           onClose();
           return;
         }

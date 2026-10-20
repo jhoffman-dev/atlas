@@ -46,6 +46,8 @@ export function bodyWithoutTitle(doc: EditorDocument, title: string): EditorDocu
 
 function textOf(node: EditorNode): string {
   if (node.type === 'wikiLink') return linkWords(node);
+  // A line broken by hand still parts its words.
+  if (node.type === 'hardBreak') return ' ';
   return (node.text ?? '') + (node.content ?? []).map(textOf).join('');
 }
 
@@ -72,11 +74,16 @@ export function previewLines(doc: EditorDocument, title: string): string | null 
   return lines.length === 0 ? null : lines.join('\n');
 }
 
-/** A block's lines: a list's, item by item; any other block's, as one. */
+/** The blocks that hold blocks: each of theirs is a line of its own. */
+const HOLDERS: ReadonlySet<string> = new Set(['blockquote', 'callout']);
+const LISTS: ReadonlySet<string> = new Set(['bulletList', 'orderedList', 'taskList']);
+
+/** A block's lines: a list's, item by item; a quote's, block by block; any other block's, as one. */
 function linesOf(node: EditorNode): string[] {
-  if (node.type === 'bulletList' || node.type === 'orderedList' || node.type === 'taskList') {
+  if (LISTS.has(node.type)) {
     return (node.content ?? []).flatMap((item) => (item.content ?? []).flatMap(linesOf));
   }
+  if (HOLDERS.has(node.type)) return (node.content ?? []).flatMap(linesOf);
   return [textOf(node).trim()];
 }
 

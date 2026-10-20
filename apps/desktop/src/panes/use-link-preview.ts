@@ -21,8 +21,10 @@ export function useLinkPreview({
   vault: string | null;
   path: string | null;
 }): LinkPreviewRead | null {
+  // The types' names and labels are in the key: a type renamed reads its cards afresh.
+  const labels = types.map((type) => `${type.name}=${type.label}`).join('\u0000');
   const { data } = useQuery({
-    queryKey: scopedReadKey(vault ?? '', 'link-preview', path),
+    queryKey: scopedReadKey(vault ?? '', 'link-preview', path, labels),
     queryFn: () => readLinkPreview({ ...ports, types, path: path ?? '' }),
     meta: scopedReadMeta({ notes: path === null ? [] : [path] }),
     enabled: vault !== null && path !== null,

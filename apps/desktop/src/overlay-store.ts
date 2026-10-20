@@ -75,8 +75,13 @@ export function replacePeek(store: OverlayStore, path: VaultPath): void {
   store.setState((state) => withPeekReplaced(state, path));
 }
 
-export function stepPeek(store: OverlayStore, index: number): void {
-  store.setState((state) => withPeekStepped(state, index));
+/** Steps the peek to row `index`, past rows whose notes are no longer `listed`. */
+export function stepPeek(
+  store: OverlayStore,
+  index: number,
+  listed?: (path: VaultPath) => boolean,
+): void {
+  store.setState((state) => withPeekStepped(state, index, listed));
 }
 
 export function closePeek(store: OverlayStore): void {

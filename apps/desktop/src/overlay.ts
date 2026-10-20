@@ -183,15 +183,29 @@ export function withPeekOpened(state: OverlayState, peek: Peek): OverlayState {
  * while no peek is up.
  */
 export function withPeekReplaced(state: OverlayState, path: VaultPath): OverlayState {
-  return state.peek === null ? state : { ...state, peek: { path, from: null } };
+  // A link to the note already shown keeps its place in the rows it steps through.
+  if (state.peek === null || state.peek.path === path) return state;
+  return { ...state, peek: { path, from: null } };
 }
 
-/** The peek on row `index` of the list it was opened from; nothing past either end. */
-export function withPeekStepped(state: OverlayState, index: number): OverlayState {
+/**
+ * The peek on row `index` of the list it was opened from; nothing past
+ * either end. A row whose note is no longer `listed` — deleted by another
+ * program since the peek opened — is stepped past, on in the same direction.
+ */
+export function withPeekStepped(
+  state: OverlayState,
+  index: number,
+  listed: (path: VaultPath) => boolean = () => true,
+): OverlayState {
   const from = state.peek?.from;
-  const path = from?.order[index];
-  if (from === undefined || from === null || path === undefined) return state;
-  return { ...state, peek: { path, from: { ...from, index } } };
+  if (from === undefined || from === null) return state;
+  const direction = index < from.index ? -1 : 1;
+  let at = index;
+  while (from.order[at] !== undefined && !listed(from.order[at] as VaultPath)) at += direction;
+  const path = from.order[at];
+  if (path === undefined) return state;
+  return { ...state, peek: { path, from: { ...from, index: at } } };
 }
 
 /** The peek closed. Whatever is up above it is the peek's own, and closes with it. */
@@ -201,14 +215,6 @@ export function withPeekClosed(state: OverlayState): OverlayState {
 
 function withClosedAbove(state: OverlayState): OverlayState {
   return state.overlay === null ? state : withClosed(state, state.overlay);
-}
-
-/**
- * Whether Escape is the peek's to answer: only while nothing is up above it,
- * so one press closes the top layer and leaves the peek under it.
- */
-export function takesEscape(state: OverlayState): boolean {
-  return state.peek !== null && state.overlay === null;
 }
 
 /**

@@ -195,7 +195,7 @@ export interface PaneContext {
   /** Opens the tags page on a tag, by its name as written. */
   readonly openTag: (name: string) => void;
   /** The panes' editors, and whether one holds typing in a note not yet saved. */
-  readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf'>;
+  readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf' | 'flushHolding'>;
   /** Work a closed pane could not write, kept until its note is opened again. */
   readonly stranded: StrandedEdits;
   /** Where a save the pane gave up on is said (U-28). */
@@ -518,6 +518,7 @@ export function useNotePane({
     activity: context.activity,
     onChanged,
     editorSlot: arrangement.popups?.('widget-editor'),
+    inPeek: chrome === 'peek',
   });
   const savedView = useSavedView({
     note: note.open,

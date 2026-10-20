@@ -12,7 +12,6 @@ import {
   peekPosition,
   peekWithout,
   rowPeek,
-  takesEscape,
   pageMenuOverlay,
   panePopupOverlay,
   withArchived,
@@ -219,11 +218,11 @@ describe('the peek layer', () => {
 
   it('closes the top layer only: what is above the peek, then the peek', () => {
     const menu = withOpened(peeked, 'new-note-menu');
-    expect(takesEscape(menu)).toBe(false);
     const menuClosed = withClosed(menu, 'new-note-menu');
     expect(menuClosed.peek).toEqual(peeked.peek);
-    expect(takesEscape(menuClosed)).toBe(true);
     expect(withPeekClosed(menuClosed)).toEqual(NO_OVERLAY);
+    // Closing the peek closes what is above it, which was the peek's own.
+    expect(withPeekClosed(menu)).toEqual(NO_OVERLAY);
   });
 
   it('steps through the rows it was opened from, in their order', () => {
@@ -231,6 +230,19 @@ describe('the peek layer', () => {
     expect(next.peek?.path).toBe('Tasks/c.md');
     expect(peekPosition(next.peek)).toEqual({ index: 2, count: 3, within: 'Task table' });
     expect(withPeekStepped(next, 0).peek?.path).toBe('Tasks/a.md');
+  });
+
+  it('steps past a row deleted by another program, in the direction it was going', () => {
+    const listed = (path: string) => path !== 'Tasks/c.md';
+    expect(withPeekStepped(peeked, 2, listed)).toBe(peeked);
+    const atEnd = withPeekStepped(peeked, 2);
+    expect(withPeekStepped(atEnd, 1, (path) => path !== 'Tasks/b.md').peek?.path).toBe(
+      'Tasks/a.md',
+    );
+  });
+
+  it('keeps its rows when a link to the note it shows is followed in it', () => {
+    expect(withPeekReplaced(peeked, ROWS[1]!)).toBe(peeked);
   });
 
   it('steps nowhere past either end, nor for a note opened from no list', () => {

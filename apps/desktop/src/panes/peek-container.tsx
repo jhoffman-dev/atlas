@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { TabId, VaultPath } from '@atlas/domain';
 import { PeekDialog, SaveStatus, useLinkHover, type OpenHow } from '@atlas/ui';
 import { closePeek, openPeek, replacePeek, stepPeek, usePeek } from '../overlay-store.ts';
+import { leavePeek, leavingPeek, useHoldersFlushed } from './peek-moves.ts';
 import { peekPosition, type Peek } from '../overlay.ts';
 import { clickLink, openNote } from '../workspace/open-place.ts';
 import { workspaceNow } from '../workspace/workspace-store.ts';
@@ -39,9 +40,15 @@ function PeekContainer({ peek }: { peek: Peek }) {
   const { store, overlays, reveals, note, pane: context } = wiring;
   const { watch, store: hovered } = useLinkHover();
   const focused = () => workspaceNow(store).focused;
+  const ready = useHoldersFlushed(context.editors, peek.path);
+  // What was typed is on disk before anything else is shown, so what opens reads it.
+  const leave = (act: () => void) => leavePeek(overlays, { flush: () => drawn.flush(), act });
+  // The note is captured as the key is pressed: a step under way does not change what opens.
+  const leaveFor = (path: VaultPath, how: OpenHow) => leave(() => openNote(store, path, how));
   const drawn = useNotePane({
     tabId: PEEK_EDITOR,
-    path: peek.path,
+    // Read once no pane holds it with unsaved typing (`useHoldersFlushed`).
+    path: ready ? peek.path : null,
     context,
     chrome: 'peek',
     aside: { store: wiring.aside, shown: wiring.shown, workspace: store },
@@ -57,6 +64,7 @@ function PeekContainer({ peek }: { peek: Peek }) {
           overlays,
           notePaths: context.notePaths,
           onProblem: context.onLinkProblem,
+          leavePeek: leave,
         },
         {
           pane: focused(),
@@ -73,26 +81,27 @@ function PeekContainer({ peek }: { peek: Peek }) {
     onShowInGraph: note.onShowInGraph,
     arrangement: {},
   });
-  // What was typed is on disk before the page opens the note, so the page reads it.
-  const leaveFor = (path: VaultPath, how: OpenHow) => {
-    void drawn.flush().then(() => {
-      closePeek(overlays);
-      openNote(store, path, how);
-    });
-  };
   return (
     <PeekDialog
       title={drawn.title ?? 'Note'}
       position={peekPosition(peek)}
       status={<SaveStatus state={drawn.state} />}
-      onStep={(index) => stepPeek(overlays, index)}
+      onStep={(index) => {
+        if (!leavingPeek(overlays))
+          stepPeek(overlays, index, (path) => listedOrUnknown(context.notePaths, path));
+      }}
       onClose={() => closePeek(overlays)}
       onExpand={() => leaveFor(peek.path, 'here')}
       onOpenInNewTab={() => leaveFor(peek.path, 'new-tab')}
       onOpenInSplit={() => leaveFor(peek.path, 'split')}
     >
-      <div ref={watch}>{drawn.page}</div>
+      <div ref={watch}>{ready && drawn.page}</div>
       <LinkPreviewLayer store={hovered} />
     </PeekDialog>
   );
+}
+
+/** Whether a row's note is still in the vault's listing; any is, before the listing is in. */
+function listedOrUnknown(notePaths: readonly VaultPath[], path: VaultPath): boolean {
+  return notePaths.length === 0 || notePaths.includes(path);
 }

@@ -62,6 +62,7 @@ export function useDashboardEditing({
   activity,
   onChanged,
   editorSlot,
+  inPeek = false,
 }: {
   note: OpenNote | null;
   isDashboard: boolean;
@@ -77,6 +78,8 @@ export function useDashboardEditing({
   onChanged: () => void;
   /** The sheet's open state, held by the app's one-overlay rule. */
   editorSlot: OverlaySlot | undefined;
+  /** Whether the dashboard is drawn in the center peek rather than a pane. */
+  inPeek?: boolean;
 }) {
   const path = isDashboard ? (note?.path ?? null) : null;
   // Held with the path they belong to, so opening another note leaves them behind.
@@ -95,7 +98,7 @@ export function useDashboardEditing({
     onError: setError,
   });
   const { edit, undo } = useEditHistory({ note, path, changeProperties, onEdit: setError });
-  useUndoKey({ active: arranging, undo });
+  useUndoKey({ active: arranging, undo, inPeek });
 
   const openSheet = useCallback(
     (entry: number | null, draft: WidgetDraft) => {
@@ -207,18 +210,33 @@ function useEditHistory({
  * Cmd+Z (Ctrl+Z elsewhere) while the dashboard is being arranged. A text field
  * keeps the key for its own undo.
  */
-function useUndoKey({ active, undo }: { active: boolean; undo: () => void }) {
+function useUndoKey({
+  active,
+  undo,
+  inPeek,
+}: {
+  active: boolean;
+  undo: () => void;
+  inPeek: boolean;
+}) {
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const chord = (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey;
       if (!chord || event.key.toLowerCase() !== 'z' || takesText(event.target)) return;
+      // Pressed in the other layer — the peek over this dashboard, or the page under it — it is not this one's.
+      if (pressedInPeek(event.target) !== inPeek) return;
       event.preventDefault();
       undo();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [active, undo]);
+  }, [active, undo, inPeek]);
+}
+
+/** Whether a key was pressed in the center peek (`PeekDialog`'s popup is `.peek`). */
+function pressedInPeek(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('.peek') !== null;
 }
 
 function takesText(target: EventTarget | null): boolean {
