@@ -23,6 +23,8 @@ export function useNoteNames(): NoteNames {
 /**
  * One linked note, by name: a button that opens it when there is a note to
  * open, otherwise its bare name, struck through when nothing answers to it.
+ * A note that is there carries its path as `data-link-path`, which is how a
+ * relation value is found for its preview card (`useLinkHover`).
  */
 export function LinkedNote({
   name,
@@ -44,6 +46,7 @@ export function LinkedNote({
       <button
         type="button"
         className={className}
+        data-link-path={path}
         {...tint}
         aria-label={`Open ${name.text}`}
         onClick={(event) => {
@@ -57,7 +60,12 @@ export function LinkedNote({
     );
   }
   return (
-    <span className={className} data-missing={name.missing} {...tint}>
+    <span
+      className={className}
+      data-missing={name.missing}
+      {...(path !== null && { 'data-link-path': path })}
+      {...tint}
+    >
       {name.text}
     </span>
   );

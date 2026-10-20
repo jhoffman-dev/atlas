@@ -1,0 +1,286 @@
+/* ---- The center peek (UI v2 slice 6a, FlowPeek.dc.html) -------------------
+   An 840px dialog over a 30% ink scrim: a 44px header, the note with its
+   title, one-line properties strip and body, and a 34px foot of key hints.
+   The chrome stays neutral; colour belongs to the values in the strip. */
+.peek__scrim {
+  background: var(--scrim-peek);
+  inset: 0;
+  position: fixed;
+  z-index: 40;
+}
+
+.peek__viewport {
+  align-items: flex-start;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 56px var(--space-4) var(--space-4);
+  position: fixed;
+  z-index: 40;
+}
+
+.peek {
+  background: var(--surface);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-peek);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  height: min(788px, 100%);
+  max-width: 100%;
+  /* The peek takes the focus itself on opening, so its arrows step at once;
+     the dialog is its own frame, and a ring round all of it says nothing. */
+  outline: none;
+  width: 840px;
+}
+
+.peek__head {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  height: 44px;
+  padding: 0 10px 0 12px;
+}
+
+.peek__button {
+  color: var(--ink-2);
+  width: 28px;
+}
+
+.peek__button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.peek__button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.peek__button--framed {
+  border: 1px solid var(--line);
+}
+
+.peek__button:disabled {
+  color: var(--sep);
+  cursor: default;
+}
+
+.peek__where {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+
+.peek__gap {
+  flex: 1;
+}
+
+.peek__status {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  margin-right: 6px;
+}
+
+.peek__divider {
+  background: var(--line);
+  height: 16px;
+  margin: 0 var(--space-1);
+  width: 1px;
+}
+
+/* The note scrolls; the header and the foot stay. */
+.peek__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.peek__page {
+  display: flex;
+  flex-direction: column;
+}
+
+.peek__page .page--note {
+  padding: 36px 64px 48px;
+  width: 100%;
+}
+
+.peek__page .page-head__title {
+  font-size: var(--text-note-title);
+  font-weight: 600;
+}
+
+.peek__page .page__body {
+  font-size: var(--text-body-lg);
+  line-height: 1.6;
+}
+
+/* ---- The properties strip --------------------------------------------------
+   One line of label · value pairs under the title, wrapping only when it
+   must, then a hairline before the body. The values keep the page's own
+   editors, set small. */
+.props-strip {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-column);
+  gap: 6px 18px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+}
+
+.props-strip .props,
+.props-strip .props__list {
+  display: contents;
+}
+
+.props-strip .props__row {
+  gap: 6px;
+  margin: 0;
+  min-height: 24px;
+  padding: 0;
+}
+
+.props-strip .props__row:hover {
+  background: transparent;
+}
+
+.props-strip .props__label {
+  font-size: var(--text-column);
+  font-weight: 400;
+  width: auto;
+}
+
+.props-strip .props__label .icon {
+  display: none;
+}
+
+.props-strip .props__value {
+  flex: none;
+}
+
+.props-strip .props__input {
+  field-sizing: content;
+  font-size: var(--text-column);
+  font-weight: 400;
+  margin-left: 0;
+  max-width: 200px;
+  min-width: 3ch;
+}
+
+.props-strip .props__pill-select,
+.props-strip .props__link {
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+
+/* A relation with links shows them alone; "Change…" comes with the pointer
+   or the focus, taking no room until then and still reached by Tab. */
+.props-strip
+  .props__row:not(:hover, :focus-within)
+  .props__links:has(.props__link-list)
+  .props__chip--add {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.props-strip .props__pill {
+  height: 20px;
+}
+
+.props-strip .props__chip {
+  height: 22px;
+}
+
+.props-strip__fold {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--ink-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-meta);
+  padding: 0 2px;
+}
+
+.props-strip__fold:hover {
+  color: var(--ink);
+}
+
+.props-strip__fold:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* ---- The link preview card -------------------------------------------------
+   360px by the link, the popover's shadow, and the pointer passes through. */
+.link-preview {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-popover);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  position: fixed;
+  width: 360px;
+  z-index: 60;
+}
+
+.link-preview__head {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 12px 14px 6px;
+}
+
+.link-preview__icon {
+  color: var(--ink-3);
+  flex: none;
+}
+
+.link-preview__title {
+  font-size: var(--text-emphasis);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-preview__kicker {
+  color: var(--ink-3);
+  flex: none;
+  font-size: var(--text-meta);
+}
+
+.link-preview__excerpt {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--ink-3);
+  display: -webkit-box;
+  font-size: var(--text-code);
+  line-height: var(--leading-body);
+  margin: 0;
+  overflow: hidden;
+  padding: 0 14px 12px 36px;
+}
+
+.link-preview__hints {
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-header);
+  gap: var(--space-3);
+  padding: var(--space-2) 14px;
+}

@@ -881,3 +881,41 @@ describe('NotePane: images', () => {
     expect(written(onChange).some((doc) => doc.includes('photo'))).toBe(false);
   });
 });
+
+describe('NotePane: inside the peek', () => {
+  const peekProps = (): Partial<NotePaneProps> => ({
+    chrome: 'peek',
+    properties: [
+      { def: def('estimate'), value: '3h', error: null },
+      { def: def('phase'), value: null, error: null },
+    ],
+  });
+
+  it('leaves the bar to the peek: no breadcrumb, no menu, no star', () => {
+    show(peekProps());
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /favou?rite/i })).toBeNull();
+  });
+
+  it('keeps the title as the page head, still editable', () => {
+    show(peekProps());
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('A15-03');
+  });
+
+  it('folds the properties into the strip, "+ N empty" for the empty ones', () => {
+    show(peekProps());
+    const properties = screen.getByRole('region', { name: 'Properties' });
+    expect(within(properties).getByLabelText('estimate')).toBeDefined();
+    expect(within(properties).queryByLabelText('phase')).toBeNull();
+    expect(screen.getByRole('button', { name: '+ 1 empty' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Add a property' })).toBeNull();
+  });
+
+  it('heads a page with its bar and its properties block, as before', () => {
+    show({ ...peekProps(), chrome: 'page' });
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: '+ 1 empty' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add a property' })).toBeDefined();
+  });
+});

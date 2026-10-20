@@ -1,13 +1,9 @@
-import { useState } from 'react';
-import { isEmptyProperty, type VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@atlas/domain';
+import { useEmptyFold } from '../empty-fold.ts';
 import { Icon } from '../icon.tsx';
-import { PropertiesPanel, type PropertyRow } from '../properties-panel.tsx';
+import { PropertiesPanel } from '../properties-panel.tsx';
 
 type PanelProps = Parameters<typeof PropertiesPanel>[0];
-
-/** The keys whose rows hold nothing, as a fold decides them once per note. */
-const emptyKeys = (rows: readonly PropertyRow[]): ReadonlySet<string> =>
-  new Set(rows.filter((row) => isEmptyProperty(row.value)).map((row) => row.def.key));
 
 /**
  * The aside's Properties tab (FlowTable.dc.html): a kicker saying what is
@@ -17,12 +13,8 @@ const emptyKeys = (rows: readonly PropertyRow[]): ReadonlySet<string> =>
  *
  * The rows are the page's own `PropertiesPanel`, so every editor keeps its
  * commit rules and writes through the one `onChange` the page's panel uses;
- * two live editors for one note are already handled per pane. Which rows
- * the fold hides is decided when the note changes, not on every render: a
- * row cleared while it is being edited stays on screen with its focus, and a
- * property just added is drawn the moment it arrives, empty as it is. A row
- * decided empty that is then filled shows too — the fold hides nothing with
- * a value in it.
+ * two live editors for one note are already handled per pane. The fold is
+ * `useEmptyFold`'s, as the peek's strip folds them.
  */
 export function PropertiesPane({
   context,
@@ -50,19 +42,8 @@ export function PropertiesPane({
   /** Opens what is shown in a new tab; left out where the app has no tab to give. */
   onOpenInNewTab?: () => void;
 }) {
-  const [unfolded, setUnfolded] = useState(false);
-  const [decided, setDecided] = useState(() => ({ path, keys: emptyKeys(rows) }));
-  if (decided.path !== path) {
-    // Derived from the note: decided again as it changes, during the render
-    // that first sees it (with the rows that came with it), which React
-    // re-runs at once with the new state.
-    setDecided({ path, keys: emptyKeys(rows) });
-    setUnfolded(false);
-  }
-  const folded = rows
-    .filter((row) => decided.keys.has(row.def.key) && isEmptyProperty(row.value))
-    .map((row) => row.def.key);
-  const count = `${folded.length} empty ${folded.length === 1 ? 'property' : 'properties'}`;
+  const fold = useEmptyFold(path, rows);
+  const count = `${fold.count} empty ${fold.count === 1 ? 'property' : 'properties'}`;
 
   return (
     <div className="aside-props">
@@ -71,15 +52,15 @@ export function PropertiesPane({
         <h2 className="aside__title">{title}</h2>
       </header>
       <div className="aside-props__rows">
-        <PropertiesPanel {...panel} rows={rows} folded={unfolded ? [] : folded} />
-        {folded.length > 0 && (
+        <PropertiesPanel {...panel} rows={rows} folded={fold.folded} />
+        {fold.count > 0 && (
           <button
             type="button"
             className="aside-props__fold"
-            aria-expanded={unfolded}
-            onClick={() => setUnfolded((was) => !was)}
+            aria-expanded={fold.unfolded}
+            onClick={fold.toggle}
           >
-            {unfolded ? `Hide ${count}` : count}
+            {fold.unfolded ? `Hide ${count}` : count}
           </button>
         )}
       </div>

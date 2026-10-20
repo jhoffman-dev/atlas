@@ -172,6 +172,20 @@ export type { QuickAddRow } from './quick-add-settings.tsx';
 export { Toast } from './toast.tsx';
 export { StatusPill } from './status-pill.tsx';
 export { Key, KeyHints } from './key-hints.tsx';
+export { PeekDialog } from './peek/peek-dialog.tsx';
+export type { PeekDialogProps, PeekPosition } from './peek/peek-dialog.tsx';
+export { PropertiesStrip } from './peek/properties-strip.tsx';
+export { LinkPreviewCard } from './peek/link-preview-card.tsx';
+export type { LinkPreview } from './peek/link-preview-card.tsx';
+export { previewPlacement } from './peek/preview-placement.ts';
+export type { AnchorRect, PreviewPlacement } from './peek/preview-placement.ts';
+export { useHoveredLink, useLinkHover } from './peek/use-link-hover.ts';
+export type {
+  HoveredLink,
+  HoveredLinkStore,
+  LinkHoverState,
+  PreviewTarget,
+} from './peek/use-link-hover.ts';
 export { sidebarGlyph } from './icon.tsx';
 export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts';
 export type { NotePageRendering } from './note-page-renderer.ts';
