@@ -26,15 +26,20 @@ const TASK = [
   '',
 ].join('\n');
 
-function setup(files: Record<string, string>, { strict = false } = {}) {
+function setup(
+  files: Record<string, string>,
+  { strict = false, held }: { strict?: boolean; held?: Promise<void> } = {},
+) {
   const memory = memoryVault(files);
   const fs = fakeVaultFs({
     ...memory.fs,
-    readNotes: async (paths) =>
-      paths.flatMap((path) => {
+    readNotes: async (paths) => {
+      await held;
+      return paths.flatMap((path) => {
         const text = memory.files.get(path);
         return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
-      }),
+      });
+    },
   });
   const onChanged = vi.fn();
   const activity = recordingActivity();
@@ -87,6 +92,29 @@ const OLDER_MEETING = [
 ].join('\n');
 
 describe('useBuiltInTypes', () => {
+  it('says it is still reading the types until they are read, so the Inbox can wait for its offer (#381)', async () => {
+    let release = () => {};
+    const held = new Promise<void>((done) => (release = done));
+    const { hook } = setup({ '.atlas/types/task.md': TASK }, { held });
+    expect(hook.result.current?.reading).toBe(true);
+    expect(hook.result.current?.lines).toEqual([]);
+
+    await act(async () => release());
+    await waitFor(() => expect(hook.result.current?.reading).toBe(false));
+    expect(hook.result.current?.lines).toContain(
+      'Task gains Project, linking project or area notes.',
+    );
+  });
+
+  it('stops waiting when the types cannot be read, and says why in Activity', async () => {
+    const { hook, activity } = setup(
+      { '.atlas/types/task.md': TASK },
+      { held: Promise.reject(new Error('The disk went away.')) },
+    );
+    await waitFor(() => expect(hook.result.current).toBeNull());
+    expect(activity.reports.map((report) => report.message).join(' ')).toContain('went away');
+  });
+
   it('writes no Area or Resource type into a vault that files by project (#213), and offers PARA instead', async () => {
     const { files, hook, onChanged, activity } = setup({ '.atlas/types/project.md': PROJECT });
     await waitFor(() => expect(hook.result.current?.lines).toContain('Project gains PARA.'));
@@ -125,7 +153,7 @@ describe('useBuiltInTypes', () => {
 
   it('says nothing in Activity when it only offers', async () => {
     const { hook, activity } = setup({ '.atlas/types/task.md': TASK });
-    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    await waitFor(() => expect(hook.result.current?.lines.length).toBeGreaterThan(0));
     expect(activity.reports).toEqual([]);
   });
 
@@ -162,7 +190,7 @@ describe('useBuiltInTypes', () => {
 
   it('accepts against the type as it is now: a property removed since the offer stays removed', async () => {
     const { files, hook } = setup({ '.atlas/types/task.md': TASK });
-    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    await waitFor(() => expect(hook.result.current?.lines.length).toBeGreaterThan(0));
     // While the offer waits, James removes `estimate` in the type editor.
     const edited = TASK.replace('  # James keeps his estimates in words.\n  estimate: text\n', '');
     files.set('.atlas/types/task.md', edited);
@@ -181,7 +209,7 @@ describe('useBuiltInTypes', () => {
 
   it('puts the offer away for now when dismissed, writing nothing', async () => {
     const { files, hook } = setup({ '.atlas/types/task.md': TASK });
-    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    await waitFor(() => expect(hook.result.current?.lines.length).toBeGreaterThan(0));
     act(() => hook.result.current?.dismiss());
     expect(hook.result.current).toBeNull();
     expect([...files.keys()]).toEqual(['.atlas/types/task.md']);
@@ -194,7 +222,7 @@ describe('useBuiltInTypes', () => {
       '.atlas/types/task.md': TASK,
       '.atlas/types/project.md': broken,
     });
-    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    await waitFor(() => expect(hook.result.current?.lines.length).toBeGreaterThan(0));
 
     await act(() => hook.result.current?.accept() ?? Promise.resolve());
 
@@ -211,7 +239,7 @@ describe('useBuiltInTypes', () => {
       '.atlas/types/project.md': PROJECT,
       '.atlas/types/area.md': broken,
     });
-    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    await waitFor(() => expect(hook.result.current?.lines.length).toBeGreaterThan(0));
     expect(files.get('.atlas/types/area.md')).toBe(broken);
     expect(files.has('.atlas/types/resource.md')).toBe(false);
     expect(activity.reports).toEqual([]);
@@ -260,7 +288,7 @@ describe('useBuiltInTypes', () => {
     });
 
     const again = setup(Object.fromEntries(first.files));
-    await waitFor(() => expect(again.hook.result.current).not.toBeNull());
+    await waitFor(() => expect(again.hook.result.current?.lines.length).toBeGreaterThan(0));
     expect(again.files).toEqual(first.files);
     expect(again.activity.reports).toEqual([]);
     expect(again.onChanged).not.toHaveBeenCalled();

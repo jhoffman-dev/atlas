@@ -19,7 +19,7 @@ import {
   type TriageAction,
   type VaultPath,
 } from '@atlas/domain';
-import { clarificationOf, rowAfter, type InboxDraft } from './inbox-triage.ts';
+import { clarificationOf, rowAfter, rowAfterLeaving, type InboxDraft } from './inbox-triage.ts';
 
 /** Clarifies a note; settles true once it is done, false when it was refused. */
 export type ClarifyInboxItem = (args: {
@@ -89,9 +89,6 @@ export function useInboxTriage({
   // Read when a row is acted on, so the actions stay the same from one list to
   // the next and a row that has not changed is not drawn again (#217).
   const listed = useRef(items);
-  useEffect(() => {
-    listed.current = items;
-  }, [items]);
   // The row a key lands on: the one the focus is in, kept where the key
   // handler can read it without being made anew on each render.
   const focusedRow = useRef<VaultPath | null>(null);
@@ -117,6 +114,19 @@ export function useInboxTriage({
     },
     [focusPlaced],
   );
+
+  // The app takes a row off the list as soon as it is acted on and writes it
+  // after (#260): the focus it held goes on to the next row then, not once the
+  // write is done, so the next key lands there and not on the page.
+  useEffect(() => {
+    const before = listed.current;
+    listed.current = items;
+    const path = focusedRow.current;
+    if (path === null || items.some((item) => item.path === path)) return;
+    if (!focusLeftWithRow()) return;
+    const next = rowAfterLeaving(before, items, path);
+    if (next !== null) focusRow(next);
+  }, [items, focusRow]);
 
   const act = useCallback(
     async (path: VaultPath, clarification: Clarification) => {
@@ -331,6 +341,12 @@ export function useInboxTriage({
     ),
     keyAction,
   };
+}
+
+/** Whether the focus went with a row that left the DOM: it falls back to the page then. */
+function focusLeftWithRow(): boolean {
+  const at = document.activeElement;
+  return at === null || at === document.body;
 }
 
 /**

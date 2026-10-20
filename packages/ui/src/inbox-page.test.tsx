@@ -748,6 +748,20 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     expect(firstRow()).not.toBeNull();
   });
 
+  it('holds the rows back while the types offer is still being read, as it does for the others (#381)', () => {
+    const view = page({ typesOffer: { ...TYPES_OFFER, lines: [], reading: true } });
+    expect(firstRow()).toBeNull();
+    expect(screen.queryByRole('complementary', { name: /Set your types up/ })).toBeNull();
+
+    view.rerender({ typesOffer: TYPES_OFFER });
+    const offer = screen.getByRole('complementary', { name: /Set your types up/ });
+    const row = firstRow();
+    expect(row).not.toBeNull();
+    expect((offer.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(
+      true,
+    );
+  });
+
   it('shows an offer that arrives after the rows are drawn, without waiting for the next open', () => {
     const view = page();
     expect(firstRow()).not.toBeNull();
@@ -813,6 +827,58 @@ describe('InboxPage — one-key triage on the focused row (#109, #307)', () => {
     ]);
     // The last row was the only one left to go to: the focus stays on it.
     expect(document.activeElement).toBe(rowOf('Renew the passport'));
+  });
+
+  // The app takes a row off the list as soon as it is asked, and writes it after (#260): the keys must keep up.
+  it('moves the focus on as soon as the row leaves the list, before its write is done, so the next key lands on the next row (#308)', async () => {
+    const writes: Array<(done: boolean) => void> = [];
+    const onClarify = vi.fn(() => new Promise<boolean>((settle) => writes.push(settle)));
+    const all = tasks();
+    const view = page({ contents: all, onClarify });
+    const leaving = (...gone: string[]) =>
+      view.rerender({
+        contents: { ...all, items: all.items.filter((each) => !gone.includes(each.title)) },
+      });
+    focusRow('Call the bank');
+    await userEvent.keyboard('n');
+    leaving('Call the bank');
+    expect(document.activeElement).toBe(rowOf('Chase the quote'));
+
+    await userEvent.keyboard('w');
+    leaving('Call the bank', 'Chase the quote');
+    expect(document.activeElement).toBe(rowOf('Learn the cello'));
+    expect(clarified(onClarify)).toEqual([
+      { path: 'Inbox/Call the bank.md', clarification: { status: 'next-action' } },
+      { path: 'Inbox/Chase the quote.md', clarification: { status: 'waiting' } },
+    ]);
+
+    // Written at last, each says done: the focus has moved on since, and stays where it is.
+    await act(async () => {
+      for (const settle of writes) settle(true);
+    });
+    expect(document.activeElement).toBe(rowOf('Learn the cello'));
+  });
+
+  it('skips a row that left at the same moment, and leaves the focus alone when it was elsewhere (#308)', async () => {
+    const all = tasks();
+    const view = page({ contents: all, onClarify: vi.fn(() => new Promise<boolean>(() => {})) });
+    const without = (...gone: string[]) => ({
+      ...all,
+      items: all.items.filter((each) => !gone.includes(each.title)),
+    });
+    focusRow('Call the bank');
+    await userEvent.keyboard('n');
+    // Synced away with it: the focus goes to the first row still listed after it.
+    view.rerender({ contents: without('Call the bank', 'Chase the quote') });
+    expect(document.activeElement).toBe(rowOf('Learn the cello'));
+
+    // The focus in the page bar, not the row: a row leaving does not take it.
+    const elsewhere = document.createElement('button');
+    document.body.append(elsewhere);
+    act(() => elsewhere.focus());
+    view.rerender({ contents: without('Call the bank', 'Chase the quote', 'Learn the cello') });
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
   });
 
   it('shows the six keys on the focused row only, in the order Next, Waiting, Someday, Schedule, Project, Done', () => {

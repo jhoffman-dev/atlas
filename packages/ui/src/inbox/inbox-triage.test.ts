@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath, type InboxItem, type InboxTask } from '@atlas/domain';
-import { asksWhoItWaitsOn, clarificationOf, rowAfter } from './inbox-triage.ts';
+import { asksWhoItWaitsOn, clarificationOf, rowAfter, rowAfterLeaving } from './inbox-triage.ts';
 
 const TASK: InboxTask = {
   status: 'inbox',
@@ -65,5 +65,23 @@ describe('rowAfter', () => {
   it('is nothing after the only row, and the first row for one not listed', () => {
     expect(rowAfter(items.slice(0, 1), createVaultPath('Inbox/A.md'))).toBeNull();
     expect(after('Inbox/Gone.md')).toBe('Inbox/A.md');
+  });
+});
+
+describe('rowAfterLeaving', () => {
+  const listOf = (...names: string[]) =>
+    names.map((name) => ({ path: createVaultPath(`Inbox/${name}.md`) }) as InboxItem);
+  const before = listOf('A', 'B', 'C', 'D');
+  const left = (after: InboxItem[], name: string) =>
+    rowAfterLeaving(before, after, createVaultPath(`Inbox/${name}.md`));
+
+  it('is the next row still listed, skipping one that left with it', () => {
+    expect(left(listOf('B', 'C', 'D'), 'A')).toBe('Inbox/B.md');
+    expect(left(listOf('C', 'D'), 'A')).toBe('Inbox/C.md');
+  });
+
+  it('is the row above when none below is still listed, and nothing when none is', () => {
+    expect(left(listOf('A', 'B'), 'C')).toBe('Inbox/B.md');
+    expect(left([], 'B')).toBeNull();
   });
 });

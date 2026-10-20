@@ -60,3 +60,19 @@ export function rowAfter(items: readonly InboxItem[], path: VaultPath): VaultPat
   if (at === -1) return items[0]?.path ?? null;
   return (items[at + 1] ?? items[at - 1])?.path ?? null;
 }
+
+/**
+ * The row focus goes to once the one at `path` has left the list — the rows
+ * `before` it left, `after` — passing over any that left with it.
+ */
+export function rowAfterLeaving(
+  before: readonly InboxItem[],
+  after: readonly InboxItem[],
+  path: VaultPath,
+): VaultPath | null {
+  const listed = new Set(after.map((item) => item.path));
+  return rowAfter(
+    before.filter((item) => item.path === path || listed.has(item.path)),
+    path,
+  );
+}
