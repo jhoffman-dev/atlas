@@ -80,6 +80,7 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
     activity: pane.activity,
     closing,
     held: pages.holds.inbox,
+    toasts: pane.toasts,
   });
   const proposals = useProposals({
     ports: pages.ports,
@@ -109,9 +110,6 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
       problem={inbox.problem}
       refusals={inbox.refusals}
       summaryPending={inbox.summaryPending}
-      lastAction={inbox.lastAction}
-      onUndo={() => void inbox.undo()}
-      onDismissLastAction={inbox.dismissLastAction}
       {...offers}
       proposals={{ ...proposals.section, onOpen: pages.openNote, onOpenSource }}
       {...chrome}

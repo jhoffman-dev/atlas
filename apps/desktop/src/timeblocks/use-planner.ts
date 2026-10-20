@@ -167,7 +167,9 @@ export function usePlanner({
   }, [active, index, types, notePaths, indexKey, placedSince]);
 
   const writeProperties = useCallback<WriteNoteProperties>(
-    ({ path, values }) => writeNoteProperties({ editors, fs, markdown, path, values }),
+    async ({ path, values }) => {
+      await writeNoteProperties({ editors, fs, markdown, path, values });
+    },
     [editors, fs, markdown],
   );
 

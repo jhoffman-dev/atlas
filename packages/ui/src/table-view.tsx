@@ -37,6 +37,7 @@ import { useSteadyCallback } from './steady-callback.ts';
 import { sameEntries, sameItems, useSteadyValue } from './steady-value.ts';
 import type { CreateRelated, RelationChoice } from './properties-panel.tsx';
 import { editableColumns, leadCellCount, TableRow, TITLE, type RowLook } from './table-cells.tsx';
+import { delayedSpinner } from './delayed-spinner.tsx';
 
 export interface TableResult {
   readonly columns: readonly string[];
@@ -158,7 +159,7 @@ export function TableView({
       </p>
     );
   }
-  if (result === null) return <p className="table__empty">Running…</p>;
+  if (result === null) return delayedSpinner('Running the view…');
   return (
     <TableSheet
       result={result}

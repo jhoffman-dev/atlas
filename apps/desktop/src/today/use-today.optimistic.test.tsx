@@ -282,7 +282,7 @@ describe('useToday — an action shows at once (#260)', () => {
     await waitFor(() => expect(page.hook.result.current.page.problem).toMatch(/disk is full/));
     expect(page.titlesIn('inProgress')).toEqual(['Ship the page']);
     expect(page.hook.result.current.page.settling.has(SHIP)).toBe(false);
-    expect(page.hook.result.current.page.notice).toBeNull();
+    expect(page.hook.result.current.notice).toBeNull();
   });
 
   it('puts the row back, saying why, when the task changed since the page read it (#121)', async () => {

@@ -113,11 +113,11 @@ describe('useToday', () => {
   it('ticks a task done, dated on the page’s clock, settles, and offers to take it back', async () => {
     const { result, text, onSettled } = setUp();
     await act(async () => result.current.page.onDone(ROW));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     expect(onSettled).toHaveBeenCalledTimes(1);
     expect(text()).toContain('status: archive');
     expect(text()).toContain('completed: 2026-10-13');
-    expect(result.current.page.notice).toMatchObject({
+    expect(result.current.notice).toMatchObject({
       title: 'Ship the page',
       action: { kind: 'done' },
     });
@@ -128,7 +128,7 @@ describe('useToday', () => {
       '---\ntype: task\nstatus: next-action\ndue: 2026-10-13\nrecurrence: every week\n---\n\n# Ship\n';
     const { result, text } = setUp({ taskText });
     await act(async () => result.current.page.onDone(ROW));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     expect(text()).toContain('status: next-action');
     expect(text()).toContain('due: 2026-10-20');
     expect(text()).not.toContain('archive');
@@ -140,27 +140,27 @@ describe('useToday', () => {
   ])('defers a task %i day(s) from the clock’s today', async (days, day) => {
     const { result, text } = setUp();
     await act(async () => result.current.page.onDefer({ ...ROW, days }));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     expect(text()).toContain(`defer: ${day}`);
-    expect(result.current.page.notice?.action).toEqual({ kind: 'defer', days });
+    expect(result.current.notice?.action).toEqual({ kind: 'defer', days });
   });
 
   it('moves a task to another status', async () => {
     const { result, text } = setUp();
     await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'someday' }));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     expect(text()).toContain('status: someday');
-    expect(result.current.page.notice?.action).toEqual({ kind: 'move', status: 'someday' });
+    expect(result.current.notice?.action).toEqual({ kind: 'move', status: 'someday' });
   });
 
   it('moves a task to Waiting with nobody to wait on, asking for no one (#202)', async () => {
     const { result, text, onSettled, activity } = setUp();
     await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'waiting' }));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     expect(text()).toBe(TASK_TEXT.replace('status: next-action', 'status: waiting'));
     expect(result.current.page.problem).toBeNull();
     expect(onSettled).toHaveBeenCalled();
-    expect(result.current.page.notice?.action).toEqual({ kind: 'move', status: 'waiting' });
+    expect(result.current.notice?.action).toEqual({ kind: 'move', status: 'waiting' });
     expect(activity.reports).toEqual([]);
   });
 
@@ -173,28 +173,28 @@ describe('useToday', () => {
     await waitFor(() => expect(result.current.page.problem).toMatch(/changed since/));
     expect(text()).toBe(elsewhere);
     expect(onSettled).not.toHaveBeenCalled();
-    expect(result.current.page.notice).toBeNull();
+    expect(result.current.notice).toBeNull();
     expect(activity.reports).toEqual([]);
   });
 
   it('keeps one notice object across renders, so its bar keeps its time (review)', async () => {
     const { result, rerender } = setUp();
     await act(async () => result.current.page.onDone(ROW));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
-    const shown = result.current.page.notice;
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
+    const shown = result.current.notice;
     rerender();
-    expect(result.current.page.notice).toBe(shown);
+    expect(result.current.notice).toBe(shown);
   });
 
   it('undoes the last action, giving the file back as it was', async () => {
     const { result, text, onSettled } = setUp();
     await act(async () => result.current.page.onDone(ROW));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
 
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await waitFor(() => expect(onSettled).toHaveBeenCalledTimes(2));
     expect(text()).toBe(TASK_TEXT);
-    expect(result.current.page.notice).toBeNull();
+    expect(result.current.notice).toBeNull();
     expect(result.current.page.problem).toBeNull();
   });
 
@@ -203,21 +203,21 @@ describe('useToday', () => {
     const taskText = '---\ntype: task\nstatus: next-action\ndefer: [2026-10-01]\n---\n\n# Ship\n';
     const { result, text } = setUp({ taskText });
     await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     expect(text()).toContain('defer: 2026-10-14');
-    await act(async () => result.current.page.notice?.onUndo());
-    await waitFor(() => expect(result.current.page.notice).toBeNull());
+    await act(async () => result.current.notice?.onUndo());
+    await waitFor(() => expect(result.current.notice).toBeNull());
     expect(text()).toBe(taskText);
   });
 
   it('will not undo over a later edit, says so, and keeps the edit', async () => {
     const { result, text, files } = setUp();
     await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'someday' }));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     const edited = text().replace('status: someday', 'status: backlog');
     files.set(PATH, edited);
 
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await waitFor(() => expect(result.current.page.problem).toMatch(/changed since/));
     expect(text()).toBe(edited);
   });
@@ -225,9 +225,9 @@ describe('useToday', () => {
   it('forgets the last action when it is dismissed', async () => {
     const { result } = setUp();
     await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
-    act(() => result.current.page.notice?.onDismiss());
-    expect(result.current.page.notice).toBeNull();
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
+    act(() => result.current.notice?.onDismiss());
+    expect(result.current.notice).toBeNull();
   });
 
   it('says what the index could not answer', async () => {
@@ -415,7 +415,7 @@ describe('useToday', () => {
       await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
       await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(true));
       expect(memory.files.get(PATH)).toContain('defer: 2026-10-14');
-      expect(result.current.page.notice).toBeNull();
+      expect(result.current.notice).toBeNull();
       expect(result.current.page.problem).toBeNull();
       expect(onSettled).toHaveBeenCalledTimes(1);
     });
@@ -425,7 +425,7 @@ describe('useToday', () => {
       await waitFor(() => expect(result.current.page.today).not.toBeNull());
       await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
       await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(true));
-      await act(async () => result.current.page.notice?.onUndo());
+      await act(async () => result.current.notice?.onUndo());
       await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(false));
     });
 
@@ -511,14 +511,14 @@ describe('useToday', () => {
     it('keeps the page, and its undo, on screen while the index is refreshed, then reads again', async () => {
       const { result, rerender, query } = mounted();
       await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
-      await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+      await waitFor(() => expect(result.current.notice).not.toBeNull());
       const shown = result.current.page.today;
       expect(shown).not.toBeNull();
       const asked = query.mock.calls.length;
 
       rerender({ vaultKey: 'vault-a', indexReady: false, indexKey: '1' });
       expect(result.current.page.today).toBe(shown);
-      expect(result.current.page.notice).not.toBeNull();
+      expect(result.current.notice).not.toBeNull();
       expect(query.mock.calls.length).toBe(asked);
 
       rerender({ vaultKey: 'vault-a', indexReady: true, indexKey: '2' });
@@ -529,11 +529,11 @@ describe('useToday', () => {
     it('shows nothing of one vault, and offers no undo, once another is open', async () => {
       const { result, rerender } = mounted();
       await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
-      await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+      await waitFor(() => expect(result.current.notice).not.toBeNull());
 
       rerender({ vaultKey: 'vault-b', indexReady: false, indexKey: '1' });
       expect(result.current.page.today).toBeNull();
-      expect(result.current.page.notice).toBeNull();
+      expect(result.current.notice).toBeNull();
     });
   });
 
@@ -563,12 +563,12 @@ describe('useToday', () => {
       { initialProps: { ports: first } },
     );
     await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
-    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
     expect(result.current.page.today).not.toBeNull();
 
     rerender({ ports: never });
     expect(result.current.page.today).toBeNull();
-    expect(result.current.page.notice).toBeNull();
+    expect(result.current.notice).toBeNull();
   });
 });
 

@@ -59,32 +59,6 @@
   margin-left: var(--space-2);
 }
 
-/* The last action, on the well between two hairlines, as a notice bar is
-   drawn: the tokens the shared `.notice-bar` of slice 13j (#367) reads, so
-   this becomes that class once it has merged. */
-.today__notice {
-  align-items: center;
-  background: var(--well);
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  color: var(--ink);
-  display: flex;
-  flex-wrap: wrap;
-  /* 12.5px, the size the shared `.notice-bar` says its words at, so the two
-     bars read alike once this becomes it. */
-  font-size: var(--text-column);
-  gap: var(--space-2) 10px;
-  margin-top: var(--space-3);
-  min-height: 40px;
-  padding: 6px 12px;
-}
-
-.today__notice-text {
-  flex: 1;
-  margin: 0;
-  min-width: 20ch;
-}
-
 .today__measure {
   font-size: var(--text-small);
   margin-bottom: var(--space-2);

@@ -44,6 +44,7 @@ export function TodayContainer({ wiring, chrome }: PageContainerProps) {
     onSettled: pages.onSettled,
     activity: pane.activity,
     held: pages.holds.today,
+    toasts: pane.toasts,
   });
   // Set while drawing, as React has a value from the last draw kept: the page
   // is drawn once again before anything is shown, with no commit between.

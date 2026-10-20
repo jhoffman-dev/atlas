@@ -36,6 +36,7 @@ import type { InboxRefusal, RelationChoice } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useAnswersWrittenBeforeClose } from '../proposals/answer-queue.ts';
 import { errorMessage } from '../query/error-message.ts';
+import type { Toasts } from '../toasts/toasts.ts';
 import { withoutLeaving, type LeavingRow } from './leaving-rows.ts';
 import { keptWhereSame } from './kept-where-same.ts';
 import { notesAfterOwnMoves } from './own-moves.ts';
@@ -78,7 +79,19 @@ export interface InboxOptions {
    * handed none.
    */
   readonly held?: InboxWrites;
+  /**
+   * Where each clarification is said once written, with its Undo (#320):
+   * the window's toasts, drawn outside the page so saying it draws no row.
+   * Nothing is said when handed none.
+   */
+  readonly toasts?: Pick<Toasts, 'show'>;
 }
+
+/** The page's one place in the window's toasts: a clarification takes the place of the one before. */
+const INBOX_TOAST = 'inbox';
+
+/** The last clarification, which its toast offers to take back. */
+type LastClarification = NonNullable<InboxSaid['last']>;
 
 /** What the row says once a note is clarified: only what could not be done. */
 function outcomeProblem(outcome: ClarifyOutcome): string | null {
@@ -108,6 +121,7 @@ function outcomeProblem(outcome: ClarifyOutcome): string | null {
  */
 export function useInbox(options: InboxOptions) {
   const { ports, notePaths, vaultKey, types, clock, indexKey, open, onSettled, activity } = options;
+  const { toasts } = options;
   const choicesKey = options.choicesKey ?? indexKey;
   const settled = useIndexMovedOn({ vaultKey, indexKey });
   // Asked only while it is ready; what it last answered for this vault stays up while it re-reads.
@@ -203,6 +217,20 @@ export function useInbox(options: InboxOptions) {
     [setSaid],
   );
 
+  // Said in the window's toasts as the write lands, in its commit, not in an effect after it.
+  const announce = useCallback(
+    (clarified: LastClarification) =>
+      toasts?.show({
+        message: `Clarified “${clarified.title}”.`,
+        tone: 'change',
+        slot: INBOX_TOAST,
+        onUndo: () => void undoNow.current(clarified),
+        onGone: () =>
+          setSaid((before) => (before?.last === clarified ? { ...before, last: null } : before)),
+      }),
+    [toasts, setSaid],
+  );
+
   const clarify = useCallback(
     ({ path, clarification }: { path: VaultPath; clarification: Clarification }) => {
       if (!settled) return Promise.resolve(false);
@@ -227,11 +255,9 @@ export function useInbox(options: InboxOptions) {
           // Clarified but not filed — the move refused, say — the row comes back to say why.
           if (reason === null && leaves) writes.written(asked, path);
           else writes.stay(asked, path);
-          say(asked, {
-            problem: null,
-            row: { path, reason },
-            last: { title: noteTitle(path), undo: outcome.undo },
-          });
+          const clarified = { title: noteTitle(path), undo: outcome.undo };
+          say(asked, { problem: null, row: { path, reason }, last: clarified });
+          announce(clarified);
           return { done: reason === null, wrote: true };
         } catch (cause) {
           writes.stay(asked, path);
@@ -244,53 +270,65 @@ export function useInbox(options: InboxOptions) {
         }
       });
     },
-    [settled, vaultKey, writes, activity, ports, clock, say],
+    [settled, vaultKey, writes, activity, ports, clock, say, announce],
   );
 
   const last = told?.last ?? null;
-  const undo = useCallback(() => {
-    if (!settled || last === null) return Promise.resolve(false);
-    const asked = vaultKey;
-    const path = last.undo.to;
-    const named = { activity: logOfVaultOpenNow(activity), write: 'edit', path } as const;
-    setUndoing((count) => count + 1);
-    return writes
-      .enqueue(ports, asked, async (given) => {
-        // Pressed twice, or for one already taken back: there is nothing left to take back.
-        if (writes.undone(last.undo)) return NOT_WRITTEN;
-        try {
-          await withGiveUpRecorded({ ...named, refusal: ClarifyRefusedError }, () =>
-            undoClarifyInboxItem({
-              ports: given.ports,
-              undo: last.undo,
-              notePaths: given.notePaths,
-            }),
-          );
-          writes.markUndone(last.undo);
-          setSaid((before) =>
-            before?.vaultKey === asked && before.last === last
-              ? {
-                  ...before,
-                  problem: null,
-                  refusals: withRowSaid(before.refusals, { path: last.undo.from, reason: null }),
-                  last: null,
-                }
-              : before,
-          );
-          return { done: true, wrote: true };
-        } catch (cause) {
-          say(asked, { problem: errorMessage(cause), last: 'kept' });
-          return NOT_WRITTEN;
-        }
-      })
-      .finally(() => setUndoing((count) => count - 1));
-  }, [settled, last, vaultKey, activity, writes, ports, say]);
+  /** Takes one clarification back — only while it is still the last one, so an older toast undoes nothing. */
+  const undoClarification = useCallback(
+    (taken: LastClarification) => {
+      if (!settled || held.store.getState().said?.last !== taken) return Promise.resolve(false);
+      const asked = vaultKey;
+      const path = taken.undo.to;
+      const named = { activity: logOfVaultOpenNow(activity), write: 'edit', path } as const;
+      setUndoing((count) => count + 1);
+      return writes
+        .enqueue(ports, asked, async (given) => {
+          // Pressed twice, or for one already taken back: there is nothing left to take back.
+          if (writes.undone(taken.undo)) return NOT_WRITTEN;
+          try {
+            await withGiveUpRecorded({ ...named, refusal: ClarifyRefusedError }, () =>
+              undoClarifyInboxItem({
+                ports: given.ports,
+                undo: taken.undo,
+                notePaths: given.notePaths,
+              }),
+            );
+            writes.markUndone(taken.undo);
+            setSaid((before) =>
+              before?.vaultKey === asked && before.last === taken
+                ? {
+                    ...before,
+                    problem: null,
+                    refusals: withRowSaid(before.refusals, { path: taken.undo.from, reason: null }),
+                    last: null,
+                  }
+                : before,
+            );
+            return { done: true, wrote: true };
+          } catch (cause) {
+            say(asked, { problem: errorMessage(cause), last: 'kept' });
+            return NOT_WRITTEN;
+          }
+        })
+        .finally(() => setUndoing((count) => count - 1));
+    },
+    [settled, held, vaultKey, activity, writes, ports, say, setSaid],
+  );
+  const undo = useCallback(
+    () => (last === null ? Promise.resolve(false) : undoClarification(last)),
+    [last, undoClarification],
+  );
 
-  // The undo lasts as long as the bar offering it (#165): once that has gone, so has the undo.
+  // The undo lasts as long as the toast offering it (#165): once that has gone, so has the undo.
   const dismissLastAction = useCallback(
     () => setSaid((before) => (before === null ? null : { ...before, last: null })),
     [setSaid],
   );
+  const undoNow = useRef(undoClarification);
+  useEffect(() => {
+    undoNow.current = undoClarification;
+  });
 
   const summaryPending = useSummaryPending({
     ports,

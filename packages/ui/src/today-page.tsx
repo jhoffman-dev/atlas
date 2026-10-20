@@ -24,7 +24,6 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import type { TodayReport } from '@atlas/application';
-import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
@@ -35,24 +34,13 @@ import { useSteadyCallback } from './steady-callback.ts';
 import { Spacer } from './grouped-rows.tsx';
 import { useRowFocus, type RowFocus } from './today-row-focus.ts';
 import { useVirtualRows } from './virtual-rows.ts';
+import { delayedSpinner } from './delayed-spinner.tsx';
 
-/** What the page did to a task, for the line that offers to take it back. */
+/** What the page did to a task, for the toast that offers to take it back. */
 export type TodayAction =
   | { readonly kind: 'done' }
   | { readonly kind: 'move'; readonly status: string }
   | { readonly kind: 'defer'; readonly days: number };
-
-/**
- * The last thing done to a task, and the way to undo it. Each action is a new
- * notice object, and one action keeps its object across renders: its bar's
- * time runs from when it was shown, even when the same words are said again.
- */
-export interface TodayNotice {
-  readonly title: string;
-  readonly action: TodayAction;
-  readonly onUndo: () => void;
-  readonly onDismiss: () => void;
-}
 
 /** The row an action is asked of. */
 interface RowTask {
@@ -74,8 +62,6 @@ export interface TodayPageProps {
    * what the row no longer is. None unless given.
    */
   settling?: ReadonlySet<VaultPath>;
-  /** The last action, while it can still be taken back. */
-  notice: TodayNotice | null;
   /** A saved view titled Today, which this page's sidebar row stands in for; null when the vault has none. */
   view: { readonly title: string; readonly onOpen: () => void } | null;
   onOpen: (path: VaultPath) => void;
@@ -137,7 +123,6 @@ export function TodayPage(props: TodayPageProps) {
                 {props.problem}
               </p>
             )}
-            <UndoNotice notice={props.notice} busy={props.busy} />
             <TodayBody {...props} focus={focus} place={{ wanted: focus.wanted }} />
           </article>
         </RowScrollerContext.Provider>
@@ -185,7 +170,17 @@ function describe(today: TodayReport | null): string | null {
   return `${weekdayName(today.today)} · ${counted}`;
 }
 
-function noticeWords({ title, action }: TodayNotice): string {
+/**
+ * What the toast says of an action on a task (#320), in the words its
+ * Undo takes back: "Finished “Water the beds”."
+ */
+export function todayActionWords({
+  title,
+  action,
+}: {
+  title: string;
+  action: TodayAction;
+}): string {
   if (action.kind === 'done') return `Finished “${title}”.`;
   if (action.kind === 'defer') {
     return `Deferred “${title}” by ${action.days === 1 ? '1 day' : `${action.days} days`}.`;
@@ -194,41 +189,6 @@ function noticeWords({ title, action }: TodayNotice): string {
 }
 
 const statusLabel = (status: string) => (isGtdStatus(status) ? GTD_STATUS_LABELS[status] : status);
-
-function UndoNotice({ notice, busy }: { notice: TodayNotice | null; busy: boolean }) {
-  if (notice === null) return null;
-  return <UndoBar notice={notice} busy={busy} />;
-}
-
-/** The last action, for 20 seconds unless held: its Undo lasts as long as it does (#165). */
-function UndoBar({ notice, busy }: { notice: TodayNotice; busy: boolean }) {
-  const hold = useDismissAfter({
-    ms: UNDO_BAR_MS,
-    showing: notice,
-    onDismiss: notice.onDismiss,
-  });
-  return (
-    <div className="today__notice" role="status" {...hold}>
-      <p className="today__notice-text">{noticeWords(notice)}</p>
-      <button
-        type="button"
-        className="btn btn--ghost btn--sm"
-        disabled={busy}
-        onClick={notice.onUndo}
-      >
-        Undo
-      </button>
-      <button
-        type="button"
-        className="btn btn--ghost btn--sm"
-        aria-label="Dismiss"
-        onClick={notice.onDismiss}
-      >
-        ×
-      </button>
-    </div>
-  );
-}
 
 /** Where the page's lists are placed: the row the page is about to focus. */
 interface ListPlace {
@@ -249,7 +209,7 @@ function TodayBody(props: TodayPageProps & PlacedProps) {
       </p>
     );
   }
-  if (today === null) return <p className="table__empty">Reading the day…</p>;
+  if (today === null) return delayedSpinner('Reading the day…');
   return (
     <>
       {today.truncated && (

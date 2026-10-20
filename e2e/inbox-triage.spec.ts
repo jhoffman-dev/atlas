@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { toastSaying } from './toasts.ts';
 
 /**
  * #307 (UI v2 slice 11a): one-key triage on the Inbox — a letter on a
@@ -144,7 +145,6 @@ test('a letter on a focused row writes its status at once, the next row takes th
   const vault = await triageVault();
   await open(page, vault);
   const [first = '', second = ''] = await listedTasks(page);
-  const inbox = inboxPage(page);
 
   await row(page, first).focus();
   await expect(row(page, first).getByRole('button', { name: 'Next, key N' })).toBeVisible();
@@ -157,8 +157,7 @@ test('a letter on a focused row writes its status at once, the next row takes th
   await expectFile(vault, `Inbox/${second}.md`).toContain('status: waiting');
   await expect(row(page, second)).toHaveCount(0);
 
-  const said = inbox.getByRole('status').filter({ hasText: `Clarified “${second}”.` });
-  await said.getByRole('button', { name: 'Undo' }).click();
+  await toastSaying(page, `Clarified “${second}”.`).getByRole('button', { name: 'Undo' }).click();
   await expectFile(vault, `Inbox/${second}.md`).toContain('status: inbox');
   await expect(row(page, second)).toBeVisible();
 });
@@ -337,10 +336,7 @@ test('five rows by key alone: each row leaves and the next has the focus before 
   }
 
   const last = titles[4] ?? '';
-  const said = inboxPage(page)
-    .getByRole('status')
-    .filter({ hasText: `Clarified “${last}”.` });
-  await said.getByRole('button', { name: 'Undo' }).click();
+  await toastSaying(page, `Clarified “${last}”.`).getByRole('button', { name: 'Undo' }).click();
   await expectFile(vault, `Inbox/${last}.md`).toContain('status: inbox');
   await expect(row(page, last)).toBeVisible();
 });

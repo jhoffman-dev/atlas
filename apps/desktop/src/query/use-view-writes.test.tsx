@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, recordingActivity, TaskRuleRefusedError } from '@atlas/application';
+import {
+  fakeVaultFs,
+  memoryVault,
+  recordingActivity,
+  TaskRuleRefusedError,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
-import { useChangeProperties } from './use-view-writes.ts';
+import { createToasts } from '../toasts/toasts.ts';
+import { useChangeProperties, useWriteProperties } from './use-view-writes.ts';
 
 /**
  * The one write behind a view's gestures and a dashboard's edits — a cell, a
@@ -99,5 +105,49 @@ describe('useChangeProperties and the Activity log', () => {
     change();
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     expect(activity.reports).toEqual([]);
+  });
+});
+
+describe('useWriteProperties and the toasts (#320)', () => {
+  function writing({ pane = false }: { pane?: boolean } = {}) {
+    const memory = memoryVault({ [NOTE]: TEXT });
+    const toasts = createToasts();
+    const onUndone = vi.fn();
+    const editors: OpenEditors = { ...NO_PANE, setPropertiesIfOpen: async () => pane };
+    const hook = renderHook(() =>
+      useWriteProperties({
+        editors,
+        fs: fakeVaultFs(memory.fs),
+        markdown: remarkMarkdown,
+        activity: recordingActivity(),
+        undo: { toasts, panes: { state: () => 'closed', reload: vi.fn() }, onUndone },
+      }),
+    );
+    const shown = () => toasts.store.getState().toasts;
+    return { hook, memory, shown, onUndone };
+  }
+
+  it('says a row’s change in the words given, and its Undo puts the exact bytes back', async () => {
+    const view = writing();
+    await act(() =>
+      view.hook.result.current({
+        path: NOTE,
+        values: { status: 'done' },
+        said: 'Moved “Call Mara” to done.',
+      }),
+    );
+    expect(view.shown()).toMatchObject([{ message: 'Moved “Call Mara” to done.', tone: 'change' }]);
+    expect(view.memory.files.get(NOTE)).not.toBe(TEXT);
+
+    act(() => view.shown()[0]?.onUndo?.());
+
+    await waitFor(() => expect(view.onUndone).toHaveBeenCalledTimes(1));
+    expect(view.memory.files.get(NOTE)).toBe(TEXT);
+  });
+
+  it('offers no Undo for a note a pane wrote: the pane holds its own history', async () => {
+    const view = writing({ pane: true });
+    await act(() => view.hook.result.current({ path: NOTE, values: { status: 'done' } }));
+    expect(view.shown()).toEqual([]);
   });
 });

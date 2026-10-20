@@ -97,8 +97,7 @@ function setUp({ taskText = TASK_TEXT }: { taskText?: string } = {}) {
 type Page = ReturnType<typeof setUp>['result'];
 const shown = async (result: Page) =>
   waitFor(() => expect(result.current.page.today).not.toBeNull());
-const offered = async (result: Page) =>
-  waitFor(() => expect(result.current.page.notice).not.toBeNull());
+const offered = async (result: Page) => waitFor(() => expect(result.current.notice).not.toBeNull());
 const settled = async (result: Page) => waitFor(() => expect(result.current.page.busy).toBe(false));
 
 describe('useToday: a row gone stale since the page’s read', () => {
@@ -149,7 +148,7 @@ describe('useToday: a row gone stale since the page’s read', () => {
       }),
     );
     await waitFor(() => expect(result.current.page.problem).not.toBeNull());
-    expect(result.current.page.notice).toBeNull();
+    expect(result.current.notice).toBeNull();
     expect(onSettled).not.toHaveBeenCalled();
   });
 });
@@ -160,7 +159,7 @@ describe('useToday: undo gives the file back exactly', () => {
     const { result, text } = setUp({ taskText });
     await act(async () => result.current.page.onDone(ROW));
     await offered(result);
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await settled(result);
     expect(text()).toBe(taskText);
   });
@@ -195,7 +194,7 @@ describe('useToday: undo gives the file back exactly', () => {
       await act(async () => action());
       await offered(result);
       expect(text()).not.toBe(taskText);
-      await act(async () => result.current.page.notice?.onUndo());
+      await act(async () => result.current.notice?.onUndo());
       await settled(result);
       expect(result.current.page.problem).toBeNull();
       expect(text()).toBe(taskText);
@@ -218,7 +217,7 @@ describe('useToday: undo gives the file back exactly', () => {
     await offered(result);
     expect(text()).toContain('due: 2027-02-28');
     expect(text()).toContain('status: next-action');
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await settled(result);
     expect(text()).toBe(taskText);
   });
@@ -230,7 +229,7 @@ describe('useToday: undo gives the file back exactly', () => {
     await act(async () => result.current.page.onDone(ROW));
     await offered(result);
     expect(text()).toContain('due: 2029-02-28');
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await settled(result);
     expect(text()).toBe(taskText);
   });
@@ -248,7 +247,7 @@ describe('useToday: one level of undo', () => {
     await waitFor(() => expect(result.current.page.problem).toMatch(/changed since/));
 
     expect(text()).toContain('status: archive');
-    expect(result.current.page.notice).toMatchObject({ title: ROW.title });
+    expect(result.current.notice).toMatchObject({ title: ROW.title });
   });
 
   it('still offers the undo when writing it failed for a reason that may pass', async () => {
@@ -257,11 +256,11 @@ describe('useToday: one level of undo', () => {
     await offered(result);
 
     failNextWrite.with = new Error('The disk is busy.');
-    await act(async () => result.current.page.notice?.onUndo());
+    await act(async () => result.current.notice?.onUndo());
     await waitFor(() => expect(result.current.page.problem).toBe('The disk is busy.'));
 
     expect(text()).toContain('defer: 2026-10-14');
-    expect(result.current.page.notice).toMatchObject({ title: ROW.title });
+    expect(result.current.notice).toMatchObject({ title: ROW.title });
   });
 
   it('offers no undo for a write that failed half way, and leaves the file alone', async () => {
@@ -270,7 +269,7 @@ describe('useToday: one level of undo', () => {
     await act(async () => result.current.page.onDone(ROW));
     await waitFor(() => expect(result.current.page.problem).toBe('The disk is full.'));
     expect(text()).toBe(TASK_TEXT);
-    expect(result.current.page.notice).toBeNull();
+    expect(result.current.notice).toBeNull();
     expect(onSettled).not.toHaveBeenCalled();
   });
 
@@ -291,7 +290,7 @@ describe('useToday: one level of undo', () => {
     const { result, text, onSettled } = setUp();
     await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
     await offered(result);
-    const undo = result.current.page.notice?.onUndo;
+    const undo = result.current.notice?.onUndo;
     await act(async () => {
       undo?.();
       undo?.();

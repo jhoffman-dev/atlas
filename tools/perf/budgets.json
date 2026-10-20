@@ -120,7 +120,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 531,
+      "renders": 530,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -133,7 +133,7 @@
     },
     "Tick a task on Today": {
       "commits": 11,
-      "renders": 609,
+      "renders": 607,
       "calls": {
         "index_manifest": 3,
         "index_open": 3,
@@ -164,7 +164,7 @@
     },
     "Decide an Inbox row": {
       "commits": 17,
-      "renders": 724,
+      "renders": 713,
       "calls": {
         "create_folder": 3,
         "index_manifest": 3,

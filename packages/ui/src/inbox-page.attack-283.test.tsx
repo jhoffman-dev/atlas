@@ -97,7 +97,7 @@ const firstRow = () => screen.getByRole('button', { name: 'Idea' });
 let layout: FakeLayout;
 beforeEach(() => {
   layout = installFakeLayout({
-    blocks: '.page-head, .inbox__offer, .proposals, .table__error, .inbox__done, .table',
+    blocks: '.page-head, .inbox__offer, .proposals, .table__error, .table',
     scroller: '.panel__body--rows',
   });
 });

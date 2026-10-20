@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, todayLists, type ReviewTask } from '@atlas/domain';
 import type { TodayReport } from '@atlas/application';
-import { TodayPage, type TodayPageProps } from './today-page.tsx';
+import { TodayPage, todayActionWords, type TodayPageProps } from './today-page.tsx';
 
 /** #111: the Today page, drawn from a report the domain made on a fixed clock. */
 const TODAY = '2026-10-13';
@@ -60,7 +60,6 @@ function props(overrides: Partial<TodayPageProps> = {}): TodayPageProps {
     error: null,
     busy: false,
     problem: null,
-    notice: null,
     view: null,
     onOpen: vi.fn(),
     onOpenInbox: vi.fn(),
@@ -345,64 +344,19 @@ describe('TodayPage', () => {
     [{ kind: 'defer', days: 1 } as const, 'Deferred “Call the bank” by 1 day.'],
     [{ kind: 'defer', days: 7 } as const, 'Deferred “Call the bank” by 7 days.'],
     [{ kind: 'move', status: 'someday' } as const, 'Moved “Call the bank” to Someday.'],
-  ])('says what was last done, and takes it back (%o)', async (action, words) => {
-    const onUndo = vi.fn();
-    const onDismiss = vi.fn();
-    page({ notice: { title: 'Call the bank', action, onUndo, onDismiss } });
-    const notice = within(screen.getByRole('status'));
-    expect(notice.getByText(words)).toBeDefined();
-    await userEvent.click(notice.getByRole('button', { name: 'Undo' }));
-    expect(onUndo).toHaveBeenCalledTimes(1);
-    await userEvent.click(notice.getByRole('button', { name: 'Dismiss' }));
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+  ])('says what was done, in the words its toast offers to take back (%o)', (action, words) => {
+    expect(todayActionWords({ title: 'Call the bank', action })).toBe(words);
   });
 
-  it('lets the last action go by itself after 20 seconds, unless the focus is on it (#165)', () => {
-    vi.useFakeTimers();
-    try {
-      const onDismiss = vi.fn();
-      page({
-        notice: { title: 'Call the bank', action: { kind: 'done' }, onUndo: vi.fn(), onDismiss },
-      });
-      act(() => within(screen.getByRole('status')).getByRole('button', { name: 'Undo' }).focus());
-      act(() => vi.advanceTimersByTime(120_000));
-      expect(onDismiss).not.toHaveBeenCalled();
-
-      fireEvent.blur(within(screen.getByRole('status')).getByRole('button', { name: 'Undo' }));
-      act(() => vi.advanceTimersByTime(19_900));
-      expect(onDismiss).not.toHaveBeenCalled();
-      act(() => vi.advanceTimersByTime(200));
-      expect(onDismiss).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('gives the next action its full 20 seconds, even said in the same words (review)', () => {
-    vi.useFakeTimers();
-    try {
-      const onDismiss = vi.fn();
-      const deferred = {
-        title: 'Call the bank',
-        action: { kind: 'defer', days: 1 } as const,
-        onUndo: vi.fn(),
-        onDismiss,
-      };
-      const view = page({ notice: deferred });
-      act(() => vi.advanceTimersByTime(15_000));
-      view.rerender({ notice: { ...deferred, action: { kind: 'defer', days: 1 } } });
-      act(() => vi.advanceTimersByTime(15_000));
-      expect(onDismiss).not.toHaveBeenCalled();
-      act(() => vi.advanceTimersByTime(5_100));
-      expect(onDismiss).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
+  it('draws no undo bar of its own: a change is said in the window’s toasts (#320)', () => {
+    page({});
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    expect(document.querySelector('.today__notice')).toBeNull();
   });
 
   it('shows the read’s failure in place of the sections, and waits while there is none yet', () => {
     const { rerender } = page({ today: null });
-    expect(screen.getByText('Reading the day…')).toBeDefined();
+    expect(screen.getByRole('status', { name: 'Reading the day…' })).toBeDefined();
     rerender({ today: null, error: 'the index is closed' });
     expect(screen.getByRole('alert').textContent).toBe('the index is closed');
     expect(screen.queryByRole('region')).toBeNull();

@@ -138,6 +138,7 @@ import { pageArchiveItems } from '../archive/archive-menu.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
 import type { TickMemory } from '../query/tick-memory.ts';
+import type { Toasts } from '../toasts/toasts.ts';
 import { createBrowserQueryFoldStore } from '../query/browser-query-fold-store.ts';
 import { useGroupFolds } from '../query/use-group-folds.ts';
 
@@ -193,6 +194,8 @@ export interface PaneContext {
   readonly stranded: StrandedEdits;
   /** Where a save the pane gave up on is said (U-28). */
   readonly activity: ActivityLog;
+  /** The window's toasts, where a change made from a view is said with its Undo (#320). */
+  readonly toasts: Toasts;
   /** Every saved view and the type it lists, for a view's tabs. */
   readonly savedViews: readonly SavedViewSummary[];
   /** What a type's tabs can do, opening what they make where they are (ADR-0023). */
@@ -490,6 +493,8 @@ function useNotePane({
     onChanged,
     editorSlot: arrangement.popups?.('widget-editor'),
   });
+  const { toasts, openNotes } = context;
+  const viewToasts = useMemo(() => ({ toasts, panes: openNotes }), [toasts, openNotes]);
   const savedView = useSavedView({
     note: note.open,
     index,
@@ -504,6 +509,7 @@ function useNotePane({
     drafts: context.viewDrafts,
     viewPaths: context.viewPaths,
     activity: context.activity,
+    toasts: viewToasts,
   });
   const planner = usePlanner({
     active:
