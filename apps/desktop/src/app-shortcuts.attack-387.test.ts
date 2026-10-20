@@ -16,7 +16,6 @@ function listen(overlay: Overlay | null = null): AppShortcuts {
     toggleSidebar: vi.fn(),
     toggleSplit: vi.fn(),
     dailyNote: vi.fn(),
-    quickAdd: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
     show: vi.fn(),

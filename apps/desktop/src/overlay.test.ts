@@ -85,14 +85,6 @@ describe('openOverlay', () => {
     expect(closeOverlay(panePopupOverlay(0, 'sort'), filter)).toBe('pane-0-sort');
   });
 
-  // The add button's dial gives way to its own popover, and both to a palette.
-  it("lets the add button's dial and popover give way, as menus do", () => {
-    expect(openOverlay('quick-add-menu', 'quick-add')).toBe('quick-add');
-    expect(openOverlay('quick-add', 'search')).toBe('search');
-    expect(openOverlay('capture', 'quick-add-menu')).toBe('capture');
-    expect(closeOverlay('quick-add', 'quick-add-menu')).toBe('quick-add');
-  });
-
   it('keeps a palette asked for again as it is', () => {
     expect(openOverlay('search', 'search')).toBe('search');
   });
@@ -123,7 +115,6 @@ describe('holdsTheScreen', () => {
   it('is false with nothing up, or only a menu or popover', () => {
     expect(holdsTheScreen(null)).toBe(false);
     expect(holdsTheScreen('new-note-menu')).toBe(false);
-    expect(holdsTheScreen('quick-add')).toBe(false);
   });
 });
 

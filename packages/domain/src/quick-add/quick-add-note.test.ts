@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PropertyDef } from '../types/property-def.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
-import {
-  quickAddFields,
-  quickAddBeside,
-  quickAddProperties,
-  quickAddStartValues,
-} from './quick-add-note.ts';
+import { quickAddFields, quickAddBeside, quickAddProperties } from './quick-add-note.ts';
 
 const property = (key: string, kind: PropertyDef['kind'], extra: Partial<PropertyDef> = {}) =>
   ({
@@ -57,20 +52,6 @@ describe('quickAddFields', () => {
       property(key, 'relation', { target: 'person' }),
     );
     expect(quickAddFields({ properties: relations })).toHaveLength(3);
-  });
-});
-
-describe('quickAddStartValues', () => {
-  it('starts a choice at its first option and everything else empty', () => {
-    expect(quickAddStartValues([STATUS, PROJECT, DUE])).toEqual({
-      status: 'backlog',
-      project: '',
-      due: '',
-    });
-  });
-
-  it('starts a choice with no options empty', () => {
-    expect(quickAddStartValues([property('mood', 'select')])).toEqual({ mood: '' });
   });
 });
 

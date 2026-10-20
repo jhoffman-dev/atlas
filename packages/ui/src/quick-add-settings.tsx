@@ -3,7 +3,7 @@ import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 import { SortableList } from './sortable-list.tsx';
 
-/** A type the add button is set to offer. */
+/** A type quick add is set to offer. */
 export interface QuickAddRow {
   readonly name: string;
   readonly label: string;
@@ -13,7 +13,8 @@ export interface QuickAddRow {
 }
 
 /**
- * Settings → Quick add: which types the floating add button offers, in its
+ * Settings → Quick add: which types quick add offers through the local API
+ * and MCP (`atlas_quick_add`), in its
  * order — picked from the vault's types, dragged (or Alt+↑/↓) into order,
  * taken away. How many and what is missing are the domain's to say; this
  * only draws the list and reports what was asked.
@@ -42,12 +43,12 @@ export function QuickAddSettings({
   return (
     <SettingsSection section={SETTINGS_SECTIONS.quickAdd}>
       <p className="settings__lede">
-        What the + button in the corner adds, up to {limit}. With one, pressing it asks for that
-        straight away; with more, it opens a list to pick from.
+        The types Claude and your other tools can quick-add through Atlas’s local API and MCP, up to{' '}
+        {limit}, in this order.
       </p>
       {rows.length === 0 ? (
         <p className="settings__lede quick-add-settings__empty">
-          Nothing yet, so the button is hidden.
+          Nothing yet, so quick add offers no type.
         </p>
       ) : (
         <SortableList

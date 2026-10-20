@@ -421,12 +421,16 @@ const FOCUS_TARGETS: Record<string, { open: (page: Page) => Promise<void>; selec
   'a Today row': { open: (page) => PAGES['today']!(page), selector: '.today__link' },
   'a board card': { open: (page) => PAGES['board']!(page), selector: '.board__title' },
   'a table row name': { open: (page) => PAGES['table']!(page), selector: '.table__link' },
-  'the quick-add control': {
+  // A 28px field, as the retired quick-add popover's were (UI v2, Q5): the Terms page's form.
+  'a 28px field': {
     open: async (page) => {
-      await page.keyboard.press('Alt+Meta+n');
-      await expect(page.locator('.quick-add__control').first()).toBeVisible();
+      await page
+        .getByRole('list', { name: 'Go to' })
+        .getByRole('button', { name: 'Terms' })
+        .click();
+      await expect(page.locator('.terms__field input.field').first()).toBeVisible();
     },
-    selector: '.quick-add__control',
+    selector: '.terms__field input.field',
   },
 };
 

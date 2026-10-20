@@ -70,8 +70,8 @@ describe('QuickAddSettings', () => {
     expect(within(add).getByText('5 is the most')).toBeDefined();
   });
 
-  it('says the button is hidden when nothing is listed', () => {
+  it('says quick add offers no type when nothing is listed', () => {
     renderWith([]);
-    expect(screen.getByText(/the button is hidden/)).toBeDefined();
+    expect(screen.getByText(/quick add offers no type/)).toBeDefined();
   });
 });

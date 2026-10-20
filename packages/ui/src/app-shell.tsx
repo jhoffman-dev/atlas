@@ -41,7 +41,7 @@ export function AppShell({
   /** Drawn above everything else — the search palette, for instance. */
   overlay?: ReactNode;
   /**
-   * What floats over the content panel — the add button. Drawn inside the
+   * What floats over the content panel — the index's progress. Drawn inside the
    * panels' area, so it measures itself against them, clear of the sidebar.
    */
   floating?: ReactNode;

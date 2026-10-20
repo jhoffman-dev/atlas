@@ -10,7 +10,7 @@ import { bodyObject, isRecord, requiredText, type Fields } from './fields.ts';
 import { answerWithNote } from './note-io.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
-/** The types the add button offers, as the vault's settings list them, with what each asks for. */
+/** The types quick add offers, as the vault's settings list them, with what each asks for. */
 export async function quickAddTypesRoute(request: VaultRequest): Promise<RouteResult> {
   const [configured, types] = await Promise.all([
     loadQuickAddSetting({ fs: request.fs, markdown: request.markdown }),
@@ -21,11 +21,11 @@ export async function quickAddTypesRoute(request: VaultRequest): Promise<RouteRe
 }
 
 /**
- * Adds a note of a type as the add button does: from the type's template when
+ * Adds a note of a type as quick add does: from the type's template when
  * the vault has one, with the fields written into it as their kinds store
- * them, in the folder the button would put it, numbered if the name is taken.
+ * them, in its type's home folder, numbered if the name is taken.
  * Any type the vault defines may be added, as its table's "New" adds one; the
- * button's list only says which it offers.
+ * quick-add list only says which it offers.
  */
 export async function quickAddRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
@@ -68,7 +68,7 @@ function toQuickAddType(type: ObjectType): ApiQuickAddType {
   };
 }
 
-/** The fields as typed: text by property key, as the add button's inputs hold them. */
+/** The fields as typed: text by property key, as quick add's fields hold them. */
 function valuesOf(fields: Fields): Readonly<Record<string, string>> {
   const values = fields['values'];
   if (values === undefined) return {};

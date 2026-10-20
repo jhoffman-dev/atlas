@@ -8,7 +8,7 @@ import { findTypeTemplate, loadTemplates, readTemplate } from './templates.ts';
 /**
  * "New book" at the foot of a type's table: a note that already says it is
  * one, in its type's home folder or else at the top of the vault (#214), named "New Book" until it is renamed — made
- * from the type's template when it has one, as the add button's notes are, so
+ * from the type's template when it has one, as quick add's notes are, so
  * editing the template changes what every new note of the type starts as.
  */
 export async function createNoteOfType({
