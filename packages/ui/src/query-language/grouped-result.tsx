@@ -9,6 +9,7 @@ import {
   type ViewLayout,
 } from '@atlas/domain';
 import { BoardLanes, ColumnHeading } from '../board-lanes.tsx';
+import { FlatRows } from '../flat-rows.tsx';
 import { ariaRowIndex, GroupedRows, useGroupLines, type LinePlace } from '../grouped-rows.tsx';
 import { ROW_STOP } from '../row-focus.ts';
 import { Icon } from '../icon.tsx';
@@ -137,13 +138,12 @@ function ResultTable(props: GroupedResultProps) {
   };
   const grouped = props.groups.length > 0;
   const lines = useGroupLines(grouped ? grouping : undefined);
-  const row = (found: BoardRow, place?: LinePlace) => (
+  const row = (found: BoardRow, place: LinePlace) => (
     <tr
       key={found.path}
-      {...(place !== undefined && {
-        'data-index': place.index,
-        'aria-rowindex': ariaRowIndex(place.index),
-      })}
+      ref={place.measure}
+      data-index={place.index}
+      aria-rowindex={ariaRowIndex(place.index)}
     >
       <td>
         <button
@@ -181,7 +181,12 @@ function ResultTable(props: GroupedResultProps) {
           </tr>
         </thead>
         {!grouped ? (
-          <tbody>{props.rows.map((found) => row(found))}</tbody>
+          <FlatRows
+            rows={props.rows}
+            width={1 + props.fields.length}
+            renderRow={row}
+            scroller={sheet}
+          />
         ) : (
           <GroupedRows
             grouping={grouping}

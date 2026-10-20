@@ -44,7 +44,7 @@ export function QueryScreen({
         {...(history !== undefined && { history })}
       />
       <div className="panel__body">
-        <article className="page page--wide" aria-label="Query">
+        <article className="page page--wide query-screen" aria-label="Query">
           <HiddenTitle>Query</HiddenTitle>
           <div className="query__language">
             <SegmentedControl
