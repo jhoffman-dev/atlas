@@ -74,6 +74,9 @@ function table() {
         onToggleSort={() => {}}
         onEditCell={onEditCell}
         relationChoices={relationChoices}
+        // Since the fix (#425) the picker reads a many-relation's links from the
+        // note itself, never by splitting the row's joined text: this is the note.
+        readHeldCell={async () => ['[[Ada]]', '[[Mara]]']}
       />
     </NoteNamesProvider>,
   );
@@ -81,14 +84,15 @@ function table() {
 }
 
 const peopleStop = () => document.querySelector('.table [data-cell-stop="people"]') as HTMLElement;
-const popover = () => screen.getByRole('dialog', { name: 'Set People' });
+// Found, not got: the picker opens once the note's links are read.
+const popover = () => screen.findByRole('dialog', { name: 'Set People' });
 const field = () => document.querySelector('.table__input') as HTMLInputElement;
 
 describe('a many-relation cell read from the index (comma-joined)', () => {
   it('adding a link writes each link held as its own item', async () => {
     const onEditCell = table();
     await userEvent.click(peopleStop());
-    await userEvent.selectOptions(within(popover()).getByRole('combobox'), '[[Tobias]]');
+    await userEvent.selectOptions(within(await popover()).getByRole('combobox'), '[[Tobias]]');
     expect(onEditCell).toHaveBeenLastCalledWith({
       path: 'a.md',
       column: 'people',
@@ -100,7 +104,7 @@ describe('a many-relation cell read from the index (comma-joined)', () => {
     const onEditCell = table();
     await userEvent.click(peopleStop());
     await userEvent.click(
-      within(popover()).getByRole('button', { name: 'Remove Ada Lovelace from People' }),
+      within(await popover()).getByRole('button', { name: 'Remove Ada Lovelace from People' }),
     );
     expect(onEditCell).toHaveBeenLastCalledWith({
       path: 'a.md',
@@ -112,7 +116,9 @@ describe('a many-relation cell read from the index (comma-joined)', () => {
   it('shows a chip for each link held', async () => {
     table();
     await userEvent.click(peopleStop());
-    const chips = within(popover()).getAllByRole('button', { name: /^Remove .* from People$/ });
+    const chips = within(await popover()).getAllByRole('button', {
+      name: /^Remove .* from People$/,
+    });
     expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
       'Remove Ada Lovelace from People',
       'Remove Mara Quill from People',
@@ -122,7 +128,7 @@ describe('a many-relation cell read from the index (comma-joined)', () => {
   it('offers only the notes not linked yet', async () => {
     table();
     await userEvent.click(peopleStop());
-    const select = within(popover()).getByRole('combobox');
+    const select = within(await popover()).getByRole('combobox');
     const offered = [...select.querySelectorAll('option')].map((o) => o.textContent);
     expect(offered).not.toContain('Ada Lovelace');
     expect(offered).not.toContain('Mara Quill');

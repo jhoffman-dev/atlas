@@ -78,6 +78,7 @@ async function table() {
   let indexed = indexedNow();
   let held: Promise<void> | null = null;
   let failing: string | null = null;
+  let peopleFailing = false;
   const writes: string[] = [];
   const peopleAsked: string[] = [];
   const fs = fakeVaultFs({
@@ -101,6 +102,7 @@ async function table() {
         : { columns: [], rows: [], truncated: false },
     notesOfType: async (type: string) => {
       peopleAsked.push(type);
+      if (peopleFailing) throw new Error('The index is not open.');
       return [{ path: 'people/Mara Quill.md', title: 'Mara Quill' }];
     },
   });
@@ -156,8 +158,11 @@ async function table() {
         open();
       };
     },
-    fail: (reason: string) => {
+    fail: (reason: string | null) => {
       failing = reason;
+    },
+    failPeople: (failing: boolean) => {
+      peopleFailing = failing;
     },
   };
 }
@@ -267,5 +272,141 @@ describe('useSavedView — a cell edited in place (#300)', () => {
       ]),
     );
     expect(peopleAsked).toEqual(['person']);
+  });
+
+  it('reads a relation’s notes again on the next opening once the index changed, not before', async () => {
+    const { view, peopleAsked, refresh } = await table();
+    act(() => view.result.current.wantRelationChoices('owner'));
+    await waitFor(() => expect(peopleAsked).toEqual(['person']));
+    refresh('ready:2');
+    await waitFor(() => expect(view.result.current.result?.rows).toHaveLength(1));
+    // No picker open: the change is not read.
+    expect(peopleAsked).toEqual(['person']);
+    act(() => view.result.current.wantRelationChoices('owner'));
+    await waitFor(() => expect(peopleAsked).toEqual(['person', 'person']));
+    // Opened again on the same index: what was read stands.
+    act(() => view.result.current.wantRelationChoices('owner'));
+    expect(peopleAsked).toEqual(['person', 'person']);
+  });
+
+  it('says why a relation’s notes could not be read, and tries again on the next opening', async () => {
+    const { view, failPeople } = await table();
+    failPeople(true);
+    act(() => view.result.current.wantRelationChoices('owner'));
+    await waitFor(() =>
+      expect(view.result.current.relationChoiceProblems.owner).toMatch(/could not be read/),
+    );
+    expect(view.result.current.relationChoices.owner).toBeUndefined();
+    failPeople(false);
+    act(() => view.result.current.wantRelationChoices('owner'));
+    await waitFor(() => expect(view.result.current.relationChoices.owner).toHaveLength(1));
+    expect(view.result.current.relationChoiceProblems.owner).toBeUndefined();
+  });
+
+  it('keeps saying why its own write failed when a cell edited meanwhile is refused for it', async () => {
+    const { view, files, fail, hold, cell } = await table();
+    const release = hold();
+    fail('The disk is full.');
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = view.result.current.editCell({
+        path: HALL,
+        column: 'status',
+        value: 'doing',
+        began: { value: 'backlog' },
+      });
+      first.catch(() => undefined);
+    });
+    // Edited again while the first is drawn as pending: the edit begins on 'doing'.
+    expect(cell('status')).toBe('doing');
+    release();
+    await act(() => first.catch(() => undefined));
+    expect(cell('status')).toBe('backlog');
+    fail(null);
+    await act(() =>
+      view.result.current
+        .editCell({ path: HALL, column: 'status', value: 'done', began: { value: 'doing' } })
+        .catch(() => undefined),
+    );
+    expect(view.result.current.shown.failure).toMatch(/The disk is full/);
+    expect(files[HALL]).toContain('status: backlog');
+  });
+
+  it('writes a cell edited again while its own last commit is still pending', async () => {
+    const { view, files, hold, cell, writes } = await table();
+    const release = hold();
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = view.result.current.editCell({
+        path: HALL,
+        column: 'phase',
+        value: 3,
+        began: { value: 2 },
+      });
+    });
+    expect(cell('phase')).toBe(3);
+    let second: Promise<void> = Promise.resolve();
+    act(() => {
+      second = view.result.current.editCell({
+        path: HALL,
+        column: 'phase',
+        value: 4,
+        began: { value: cell('phase') },
+      });
+    });
+    release();
+    await act(() => Promise.all([first, second]));
+    expect(writes).toEqual([HALL, HALL]);
+    expect(field(files[HALL] ?? '', 'phase')).toBe('4');
+    expect(view.result.current.shown.failure).toBeNull();
+  });
+
+  it('Tab along a row writes the next cell over a neighbour still pending, both kept', async () => {
+    const { view, files, hold, cell } = await table();
+    const release = hold();
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = view.result.current.editCell({
+        path: HALL,
+        column: 'status',
+        value: 'doing',
+        began: { value: 'backlog' },
+      });
+    });
+    let second: Promise<void> = Promise.resolve();
+    act(() => {
+      second = view.result.current.editCell({
+        path: HALL,
+        column: 'phase',
+        value: 5,
+        began: { value: cell('phase') },
+      });
+    });
+    release();
+    await act(() => Promise.all([first, second]));
+    expect(field(files[HALL] ?? '', 'status')).toBe('doing');
+    expect(field(files[HALL] ?? '', 'phase')).toBe('5');
+    expect(view.result.current.shown.failure).toBeNull();
+  });
+
+  it('reads a cell holding several values from the note, once its own writes have landed', async () => {
+    const { view, hold } = await table();
+    const release = hold();
+    let write: Promise<void> = Promise.resolve();
+    act(() => {
+      write = view.result.current.editCell({
+        path: HALL,
+        column: 'owner',
+        value: ['[[Mara Quill]]'],
+      });
+    });
+    let read: Promise<unknown> = Promise.resolve();
+    act(() => {
+      read = view.result.current.readHeldCell({ path: HALL, column: 'owner' });
+    });
+    release();
+    await act(() => write);
+    // Read after the write, not from the file as it was before it.
+    expect(await read).toEqual(['[[Mara Quill]]']);
   });
 });

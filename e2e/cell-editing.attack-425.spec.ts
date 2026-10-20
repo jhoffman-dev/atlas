@@ -103,9 +103,13 @@ test('linking a third note to a many-relation keeps the two it held as two links
 test('a multi-select edited in its cell stays a list in the note', async ({ page }) => {
   const vault = await openTable(page);
   await cell(page, 'tags').click();
-  const input = page.locator('.table__input');
-  await input.fill('red, blue, green');
-  await input.press('Enter');
+  // Since the fix (#425) a multi-select edits in a picker like a select's:
+  // green, its third option, toggled on by its number key beside red and blue.
+  await expect(picker(page, 'Tags').getByRole('option', { name: /Red/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.keyboard.press('3');
 
   await expectFile(vault, 'first.md').toContain('green');
   const written = await vault.read('first.md');

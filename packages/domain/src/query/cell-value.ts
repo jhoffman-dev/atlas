@@ -4,10 +4,13 @@
  * A cell is a note's property: what the editor typed or picked is written to
  * the note's frontmatter as it is typed — text, a number, a tick, a day, a
  * link or several — and an emptied cell takes the value out rather than
- * leaving an empty string behind.
+ * leaving an empty string behind. Text is written trimmed, as the index reads
+ * it back (`cellShownValue`), so a cell edited again is judged against what
+ * it was written as rather than refused as changed.
  */
 export function cellWriteValue(value: unknown): unknown {
-  if (value === '' || value === undefined) return null;
+  if (typeof value === 'string') return value.trim() === '' ? null : value.trim();
+  if (value === undefined) return null;
   if (Array.isArray(value) && value.length === 0) return null;
   return value;
 }

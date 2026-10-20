@@ -92,8 +92,15 @@ export function usePendingCards({
   move: MoveProperties;
   /** A row's values as drawn now, its pending changes laid over; null for a row the view does not show. */
   shownOf: (path: string) => Readonly<Record<string, unknown>> | null;
-  /** Says why a change was refused before anything was written, as a failed move is said. */
-  refuse: (message: string) => void;
+  /**
+   * Says why a change to the note at `path` was refused before anything was
+   * written, as a failed move is said — unless that note's own last write
+   * failed and is being said: that failure is why the row moved under the
+   * edit, and it stays the one said (#425).
+   */
+  refuse: (message: string, path: string) => void;
+  /** Settles once every write asked of the note at `path` so far has ended. */
+  settled: (path: string) => Promise<void>;
 } {
   const [store] = useState(() => createStore<MovesState>()(() => NOTHING_MOVING));
   // When each move's write landed. Kept out of state on purpose: a write landing
@@ -107,7 +114,9 @@ export function usePendingCards({
   latest.current = { rows, read, indexKey };
   const [first, second] = scope;
   useEffect(() => () => store.setState(NOTHING_MOVING), [store, first, second]);
-  const inTurn = useCardTurns();
+  const { inTurn, settled } = useCardTurns();
+  // The note whose write failed last, while that failure is the one said.
+  const failedPath = useRef<string | null>(null);
 
   const move = useCallback<MoveProperties>(
     ({ path, values, shown }) => {
@@ -122,6 +131,7 @@ export function usePendingCards({
         moving: [...moving.filter((each) => !readAnswers(landedOf(each), now.read)), card],
         failure: null,
       });
+      failedPath.current = null;
       // As the drop is asked, like Today's rows: only a read of the index since moves on from here.
       const askedAt = now.indexKey;
       const landed = inTurn(path, () => write({ path, values }));
@@ -130,11 +140,13 @@ export function usePendingCards({
           landedAt.current.set(card, { at: runsBegun(), indexKey: askedAt });
           onChanged();
         },
-        (cause: unknown) =>
+        (cause: unknown) => {
+          failedPath.current = path;
           store.setState((was) => ({
             moving: was.moving.filter((each) => each !== card),
             failure: errorMessage(cause),
-          })),
+          }));
+        },
       );
       return landed;
     },
@@ -149,10 +161,16 @@ export function usePendingCards({
     },
     [store, landedOf],
   );
-  const refuse = useCallback((message: string) => store.setState({ failure: message }), [store]);
+  const refuse = useCallback(
+    (message: string, path: string) => {
+      if (failedPath.current === path && store.getState().failure !== null) return;
+      store.setState({ failure: message });
+    },
+    [store],
+  );
 
   const pending = useMemo(() => ({ store, landedOf, rows, read }), [store, landedOf, rows, read]);
-  return { pending, move, shownOf, refuse };
+  return { pending, move, shownOf, refuse, settled };
 }
 
 /**
@@ -160,9 +178,14 @@ export function usePendingCards({
  * left, so the second is not refused as written over by the first. Other
  * cards' moves do not wait.
  */
-function useCardTurns(): (path: string, work: () => Promise<void>) => Promise<void> {
+function useCardTurns(): {
+  inTurn: (path: string, work: () => Promise<void>) => Promise<void>;
+  /** Settles once the note's writes asked so far have ended, landed or not. */
+  settled: (path: string) => Promise<void>;
+} {
   const turns = useRef(new Map<string, Promise<void>>());
-  return useCallback((path, work) => {
+  const settled = useCallback((path: string) => turns.current.get(path) ?? Promise.resolve(), []);
+  const inTurn = useCallback((path: string, work: () => Promise<void>) => {
     const before = turns.current.get(path) ?? Promise.resolve();
     const turn = before.then(work);
     // The next waits for this one to end, not to succeed.
@@ -173,6 +196,7 @@ function useCardTurns(): (path: string, work: () => Promise<void>) => Promise<vo
     });
     return turn;
   }, []);
+  return useMemo(() => ({ inTurn, settled }), [inTurn, settled]);
 }
 
 /** A card's values as the board draws it now: as read, with the moves still pending laid over. */

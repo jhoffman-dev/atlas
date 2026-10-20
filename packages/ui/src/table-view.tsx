@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from 'react';
 import type { OpenHow } from './open-how.ts';
 import {
   countLabel,
@@ -19,6 +19,8 @@ import type { CellEdit, CellEditing, CellEditorHooks } from './cells/cell-editin
 import { CellPickers, picksFrom } from './cells/cell-pickers.tsx';
 import { useCellEditing } from './cells/use-cell-editing.ts';
 import { usePickerSlot } from './cells/use-picker-slot.ts';
+import { useAnchorWatch } from './cells/use-anchor-watch.ts';
+import { useHeldCell, type ReadHeldCell } from './cells/use-held-cell.ts';
 import type { OverlaySlot } from './overlay-slot.ts';
 import type { DoneTicks } from './done-checkbox.tsx';
 import { FlatRows } from './flat-rows.tsx';
@@ -93,6 +95,13 @@ export interface TableViewProps {
   readonly onCreateRelated?: CreateRelated;
   /** Told a relation column's picker has opened, so its notes can be read once wanted. */
   readonly onWantRelationChoices?: (column: string) => void;
+  /** Why a relation column's notes could not be read, by column: said in its picker. */
+  readonly relationChoiceProblems?: Readonly<Record<string, string>>;
+  /**
+   * Reads what a cell holding several values holds from its note — the row
+   * has them joined into one text, which is never split (#425).
+   */
+  readonly readHeldCell?: ReadHeldCell;
   /** A cell's picker's open state, held by the app's one-overlay rule. */
   readonly pickerSlot?: OverlaySlot;
   readonly onToggleSort: (column: string) => void;
@@ -131,6 +140,8 @@ export function TableView({
   relationChoices,
   onCreateRelated,
   onWantRelationChoices,
+  relationChoiceProblems,
+  readHeldCell,
   pickerSlot,
   onToggleSort,
   onNewNote,
@@ -160,6 +171,8 @@ export function TableView({
       {...(relationChoices !== undefined && { relationChoices })}
       {...(onCreateRelated !== undefined && { onCreateRelated })}
       {...(onWantRelationChoices !== undefined && { onWantRelationChoices })}
+      {...(relationChoiceProblems !== undefined && { relationChoiceProblems })}
+      {...(readHeldCell !== undefined && { readHeldCell })}
       {...(pickerSlot !== undefined && { pickerSlot })}
       {...(onNewNote !== undefined && { onNewNote })}
       {...(ticks !== undefined && { ticks })}
@@ -180,6 +193,8 @@ function TableSheet({
   relationChoices,
   onCreateRelated,
   onWantRelationChoices,
+  relationChoiceProblems,
+  readHeldCell,
   pickerSlot,
   onToggleSort,
   onNewNote,
@@ -249,7 +264,17 @@ function TableSheet({
   const picker = editing === null ? undefined : properties[editing.column];
   const picking = editor !== undefined && picksFrom(picker);
   usePickerSlot({ picking, slot: pickerSlot, dismiss });
+  useAnchorWatch({ picking, anchor: editorAnchor(editor), scroller: sheet, dismiss });
   useWantedChoices(picker, onWantRelationChoices);
+  const held = useHeldCell({
+    editing,
+    def: picker,
+    rowValue:
+      editing === null
+        ? undefined
+        : rows.find((row) => row.path === editing.path)?.values[editing.column],
+    read: readHeldCell,
+  });
 
   return (
     <div className="table">
@@ -291,8 +316,9 @@ function TableSheet({
           key={`${editing.path}\u0000${editing.column}`}
           editing={editing}
           def={picker}
-          value={rows.find((row) => row.path === editing.path)?.values[editing.column]}
+          held={held}
           choices={relationChoices?.[editing.column] ?? NO_CHOICES}
+          choicesProblem={relationChoiceProblems?.[editing.column] ?? null}
           editor={editor}
           onOpenNote={onOpenNote}
           {...(onCreateRelated !== undefined && { onCreateRelated })}
@@ -307,6 +333,13 @@ function TableSheet({
       />
     </div>
   );
+}
+
+const NO_ANCHOR: RefObject<HTMLElement | null> = { current: null };
+
+/** The cell a picker hangs from, or none for a table whose cells are read only. */
+function editorAnchor(editor: CellEditorHooks | undefined): RefObject<HTMLElement | null> {
+  return editor?.anchor ?? NO_ANCHOR;
 }
 
 /** Asks for a relation column's notes as its picker opens: nothing is read for a table no one links from. */

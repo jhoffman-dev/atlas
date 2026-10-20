@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import type { StatusProperty } from '@atlas/domain';
 import { ChangedSinceError } from '../today/today-actions.ts';
-import { cellEditChanges } from './cell-edit.ts';
+import { fakeVaultFs } from '../testing/fake-ports.ts';
+import { cellEditChanges, readCellValue } from './cell-edit.ts';
 
 const STATUS: StatusProperty = {
   key: 'status',
@@ -96,5 +97,41 @@ describe('cellEditChanges', () => {
       status: STATUS,
     });
     expect(applied(changes, { status: 'doing' })).toEqual({ status: 'done' });
+  });
+});
+
+describe('readCellValue (#425)', () => {
+  const NOTE = [
+    '---',
+    'type: task',
+    'owners:',
+    '  - "[[Smith, John]]"',
+    '  - "[[Mara Quill]]"',
+    'tags: [red, blue]',
+    '---',
+    '',
+    '# Payroll',
+    '',
+  ].join('\n');
+  const fs = fakeVaultFs({ readTextFile: async () => ({ text: NOTE, modified: 1 }) });
+  // The adapter parses YAML; here, what it hands back for this note's block.
+  const markdown = {
+    frontmatterProperties: (block: string | null) =>
+      block?.includes('owners:') === true
+        ? { type: 'task', owners: ['[[Smith, John]]', '[[Mara Quill]]'], tags: ['red', 'blue'] }
+        : {},
+  };
+  const read = (key: string) => readCellValue({ fs, markdown, path: 'a.md', key });
+
+  it('reads several links as the list the note holds, a comma in a title and all', async () => {
+    expect(await read('owners')).toEqual(['[[Smith, John]]', '[[Mara Quill]]']);
+  });
+
+  it('reads a multi-select as its list', async () => {
+    expect(await read('tags')).toEqual(['red', 'blue']);
+  });
+
+  it('reads a property the note does not have as nothing', async () => {
+    expect(await read('people')).toBeNull();
   });
 });

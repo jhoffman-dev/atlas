@@ -144,8 +144,8 @@ export function useRowWrites({
   moveProperties: MoveProperties;
   /** A row's values as the view draws them now; null for a row it does not show. */
   shownOf: (path: string) => Readonly<Record<string, unknown>> | null;
-  /** Says why a change was refused before anything was written. */
-  refuse: (message: string) => void;
+  /** Says why a change to a note was refused before anything was written. */
+  refuse: (message: string, path: string) => void;
 }) {
   /**
    * A cell committed in the table (#300): one write, drawn as committed at
@@ -161,7 +161,7 @@ export function useRowWrites({
       try {
         values = cellEditChanges({ edit, now: shownOf(edit.path), status });
       } catch (cause) {
-        refuse(errorMessage(cause));
+        refuse(errorMessage(cause), edit.path);
         const refused = Promise.reject(cause instanceof Error ? cause : new Error(String(cause)));
         // Said over the table already: a caller that does not wait on it is not told twice.
         refused.catch(() => undefined);

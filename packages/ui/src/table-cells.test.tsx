@@ -752,3 +752,101 @@ describe('a cell picker’s slot, as the table leaves the page', () => {
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
   });
 });
+
+/** #425: the review and attack round's fixes, as the table sees them. */
+describe('a multi-select cell', () => {
+  const tags = def('tags', 'multiSelect', { options: ['red', 'blue', 'green'] });
+  const tagged: TableResult = {
+    ...result,
+    columns: ['path', 'title', 'tags'],
+    rows: [['a.md', 'Book the hall', 'red, blue']],
+  };
+  function tagTable(read: () => Promise<unknown>) {
+    const onEditCell = vi.fn();
+    render(
+      <NoteNamesProvider value={names}>
+        <TableView
+          result={tagged}
+          sorts={[]}
+          error={null}
+          schema={{
+            kinds: { tags: 'multiSelect' },
+            labels: { tags: 'Tags' },
+            noun: 'task',
+            properties: { tags },
+          }}
+          onOpenNote={() => {}}
+          onToggleSort={() => {}}
+          onEditCell={onEditCell}
+          readHeldCell={read}
+        />
+      </NoteNamesProvider>,
+    );
+    return onEditCell;
+  }
+  const tagsStop = () => document.querySelector('[data-cell-stop="tags"]') as HTMLElement;
+
+  it('opens a picker with every option the note holds ticked, read from the note', async () => {
+    tagTable(async () => ['red', 'blue']);
+    await userEvent.click(tagsStop());
+    const list = await screen.findByRole('listbox', { name: 'Tags' });
+    expect(list.getAttribute('aria-multiselectable')).toBe('true');
+    const selected = within(list)
+      .getAllByRole('option')
+      .map((option) => option.getAttribute('aria-selected'));
+    expect(selected).toEqual(['true', 'true', 'false']);
+  });
+
+  it('toggles an option by its number key, writing the list, and stays open for the next', async () => {
+    const onEditCell = tagTable(async () => ['red', 'blue']);
+    await userEvent.click(tagsStop());
+    await screen.findByRole('listbox', { name: 'Tags' });
+    await userEvent.keyboard('3');
+    expect(onEditCell).toHaveBeenLastCalledWith({
+      path: 'a.md',
+      column: 'tags',
+      value: ['red', 'blue', 'green'],
+    });
+    await userEvent.keyboard('1');
+    expect(onEditCell).toHaveBeenLastCalledWith({
+      path: 'a.md',
+      column: 'tags',
+      value: ['blue', 'green'],
+    });
+    expect(screen.getByRole('listbox', { name: 'Tags' })).toBeDefined();
+  });
+
+  it('says so, and writes nothing, when what the cell holds cannot be read', async () => {
+    const onEditCell = tagTable(() => Promise.reject(new Error('The disk is gone.')));
+    await userEvent.click(tagsStop());
+    const problem = await screen.findByRole('alert');
+    expect(problem.textContent).toMatch(/could not be read.*The disk is gone/);
+    await userEvent.keyboard('3');
+    expect(onEditCell).not.toHaveBeenCalled();
+  });
+});
+
+describe('a relation picker whose notes could not be read', () => {
+  it('says why in place of the list, rather than offering no notes', async () => {
+    table({ relationChoiceProblems: { project: 'The notes to link could not be read.' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Larkspur launch' }));
+    const popover = screen.getByRole('dialog', { name: 'Set Project' });
+    expect(within(popover).getByRole('alert').textContent).toBe(
+      'The notes to link could not be read.',
+    );
+    expect(within(popover).queryByRole('combobox')).toBeNull();
+  });
+});
+
+describe('a picker whose cell leaves the sheet', () => {
+  it('closes, writing nothing, once the sheet scrolls its cell away', async () => {
+    const onEditCell = table();
+    await userEvent.click(cell('Next'));
+    expect(picker()).toBeDefined();
+    // The virtualiser takes the row out of the page; the sheet scrolled to it.
+    cell('Next').remove();
+    fireEvent.scroll(document.querySelector('.table__sheet') as HTMLElement);
+    expect(screen.queryByRole('dialog', { name: 'Set Status' })).toBeNull();
+    expect(onEditCell).not.toHaveBeenCalled();
+  });
+});

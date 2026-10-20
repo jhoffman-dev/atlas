@@ -1,4 +1,12 @@
-import { cellWriteValue, sameCellValue, type StatusProperty } from '@atlas/domain';
+import {
+  cellWriteValue,
+  createVaultPath,
+  sameCellValue,
+  splitFrontmatter,
+  type StatusProperty,
+} from '@atlas/domain';
+import type { MarkdownPort } from '../notes/ports.ts';
+import type { VaultFsPort } from '../vault/ports.ts';
 import { ChangedSinceError } from '../today/today-actions.ts';
 import type { PropertyChanges } from './set-property.ts';
 import { doneChange } from './tick-done.ts';
@@ -50,4 +58,27 @@ export function cellEditChanges({
     return doneChange({ status, done: true, previous: null });
   }
   return { [column]: value };
+}
+
+/**
+ * What a note holds under one property, read from its file (#425): for a
+ * cell holding several values — a relation to many notes, a multi-select —
+ * whose row in the index's view has them joined into one text, which cannot
+ * be split back safely ("Smith, John" is one title). Null when it holds none.
+ */
+export async function readCellValue({
+  fs,
+  markdown,
+  path,
+  key,
+}: {
+  fs: Pick<VaultFsPort, 'readTextFile'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  path: string;
+  key: string;
+}): Promise<unknown> {
+  const { text } = await fs.readTextFile(createVaultPath(path));
+  const { frontmatter } = splitFrontmatter(text);
+  const properties = frontmatter === null ? {} : markdown.frontmatterProperties(frontmatter);
+  return Object.hasOwn(properties, key) ? (properties[key] ?? null) : null;
 }

@@ -6,6 +6,12 @@ describe('cellWriteValue', () => {
     expect(cellWriteValue('')).toBeNull();
     expect(cellWriteValue([])).toBeNull();
     expect(cellWriteValue(null)).toBeNull();
+    expect(cellWriteValue('   ')).toBeNull();
+  });
+
+  it('writes text trimmed, as the view reads it back, so the two agree (#425)', () => {
+    expect(cellWriteValue('  padded  ')).toBe('padded');
+    expect(cellWriteValue('  padded  ')).toBe(cellShownValue('  padded  '));
   });
 
   it('writes what the editor typed or picked, typed as it was', () => {

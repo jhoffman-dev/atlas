@@ -4,7 +4,7 @@ export { cardMoveChanges, movesToDone } from './card-move.ts';
 export type { CardPlacement } from './card-move.ts';
 export { cardAsMoved, resultAsPending, rowsAsPending } from './pending-cards.ts';
 export type { PendingCard, TableRows } from './pending-cards.ts';
-export { cellEditChanges } from './cell-edit.ts';
+export { cellEditChanges, readCellValue } from './cell-edit.ts';
 export type { CellCommit } from './cell-edit.ts';
 export { relationGroupLinks } from './relation-group-links.ts';
 export { loadFilterChoiceSources } from './filter-choice-sources.ts';

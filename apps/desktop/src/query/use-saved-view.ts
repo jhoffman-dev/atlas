@@ -36,6 +36,7 @@ import {
   type ViewQuery,
 } from '@atlas/domain';
 import {
+  readCellValue,
   relationGroupLinks,
   runView,
   type IndexPort,
@@ -52,6 +53,7 @@ import {
   type CardMove,
   type CellEdit,
   type DoneTicks,
+  type ReadHeldCell,
 } from '@atlas/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from './error-message.ts';
@@ -142,8 +144,12 @@ export function useSavedView({
   editCell: (edit: CellEdit) => Promise<void>;
   /** The notes each relation column's picker offers, once wanted. */
   relationChoices: RelationChoicesByKey;
+  /** Why a relation's notes could not be read, by its key. */
+  relationChoiceProblems: Readonly<Record<string, string>>;
   /** Asks for a relation's notes: its cell's picker has opened. */
   wantRelationChoices: (key: string) => void;
+  /** What a cell holding several values holds, read from its note once its writes so far have ended. */
+  readHeldCell: ReadHeldCell;
   toggleSort: (column: string) => void;
   setFilters: (filters: readonly QueryFilter[]) => void;
   setSorts: (sorts: readonly QuerySort[]) => void;
@@ -242,11 +248,22 @@ export function useSavedView({
     names,
   });
 
-  const { choices: relationChoices, want: wantRelationChoices } = useRelationChoices({
+  const {
+    choices: relationChoices,
+    problems: relationChoiceProblems,
+    want: wantRelationChoices,
+  } = useRelationChoices({
     type,
     index,
     indexKey,
   });
+
+  const { settled } = cards;
+  const readHeldCell = useCallback<ReadHeldCell>(
+    ({ path, column }) =>
+      settled(path).then(() => readCellValue({ fs, markdown, path, key: column })),
+    [settled, fs, markdown],
+  );
 
   const changeProperties = useChangeProperties({
     editors,
@@ -315,7 +332,9 @@ export function useSavedView({
     filterChoices,
     wantFilterChoices,
     relationChoices,
+    relationChoiceProblems,
     wantRelationChoices,
+    readHeldCell,
     error,
     ...viewEdits,
     ...rowWrites,

@@ -65,6 +65,8 @@ export function ViewTable({
         onEditCell={view.editCell}
         relationChoices={view.relationChoices}
         onWantRelationChoices={view.wantRelationChoices}
+        relationChoiceProblems={view.relationChoiceProblems}
+        readHeldCell={view.readHeldCell}
         onToggleSort={view.toggleSort}
         onNewNote={onNewNote}
         hiddenColumns={view.hidden}

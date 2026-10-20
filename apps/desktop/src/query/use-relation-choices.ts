@@ -1,25 +1,32 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { relationTypes, type ObjectType } from '@atlas/domain';
 import { notesInUseOfTypes, type IndexPort } from '@atlas/application';
 import type { RelationChoice } from '@atlas/ui';
+import { errorMessage } from './error-message.ts';
 
 /** The notes each relation column may link, by its key. */
 export type RelationChoicesByKey = Readonly<Record<string, readonly RelationChoice[]>>;
 
-const NO_CHOICES: RelationChoicesByKey = {};
-const NONE_WANTED: readonly string[] = [];
+/** One relation's notes as last read, and the index they were read from. */
+type Read =
+  | { readonly indexKey: string; readonly choices: readonly RelationChoice[] }
+  | { readonly indexKey: string; readonly problem: string };
 
-/** The relations whose notes have been asked for, and of which type. */
-interface WantedKeys {
+/** What has been read, and of which type: another type's relations are other relations. */
+interface Reads {
   readonly typeName: string | null;
-  readonly keys: readonly string[];
+  readonly byKey: Readonly<Record<string, Read>>;
 }
+
+const NOT_READ = 'The notes to link could not be read. Close this and try again.';
 
 /**
  * The notes a view's table offers in each relation cell's picker (#300):
- * read once a picker on that relation has opened, and again whenever the
- * index changes — never before, so a table nobody links from costs the index
- * nothing as it opens. The same notes the properties panel offers
+ * read as a picker on that relation opens — never before, so a table nobody
+ * links from costs the index nothing — and read again on the next opening
+ * once the index has changed, not on every change while no picker is up
+ * (#425). A read that fails is said in the picker, and the next opening
+ * tries again. The same notes the properties panel offers
  * (`notesInUseOfTypes`).
  */
 export function useRelationChoices({
@@ -30,48 +37,61 @@ export function useRelationChoices({
   type: ObjectType | null;
   index: IndexPort;
   indexKey: string;
-}): { choices: RelationChoicesByKey; want: (key: string) => void } {
+}): {
+  choices: RelationChoicesByKey;
+  /** Why a relation's notes could not be read, by its key. */
+  problems: Readonly<Record<string, string>>;
+  want: (key: string) => void;
+} {
   const typeName = type?.name ?? null;
-  // Held with the type it was asked of: another type's relations are other relations.
-  const [asked, setAsked] = useState<WantedKeys>({ typeName, keys: NONE_WANTED });
-  const wanted = asked.typeName === typeName ? asked.keys : NONE_WANTED;
-  const [choices, setChoices] = useState<RelationChoicesByKey>(NO_CHOICES);
+  const [reads, setReads] = useState<Reads>({ typeName, byKey: {} });
+  const shown = reads.typeName === typeName ? reads.byKey : {};
+  // Read when a picker opens, not drawn from.
+  const latest = useRef({ type, index, indexKey, shown });
+  useLayoutEffect(() => {
+    latest.current = { type, index, indexKey, shown };
+  });
 
-  const want = useCallback(
-    (key: string) =>
-      setAsked((was) => {
-        const keys = was.typeName === typeName ? was.keys : NONE_WANTED;
-        return keys.includes(key) ? was : { typeName, keys: [...keys, key] };
-      }),
-    [typeName],
-  );
-
-  useEffect(() => {
-    const relations = (type?.properties ?? []).filter(
-      (def) => def.kind === 'relation' && wanted.includes(def.key),
+  const want = useCallback((key: string) => {
+    const now = latest.current;
+    const def = now.type?.properties.find((each) => each.key === key && each.kind === 'relation');
+    const was = now.shown[key];
+    if (def === undefined || (was !== undefined && fresh(was, now.indexKey))) return;
+    const name = now.type?.name ?? null;
+    const settle = (read: Read) =>
+      setReads((before) => ({
+        typeName: name,
+        byKey: { ...(before.typeName === name ? before.byKey : {}), [key]: read },
+      }));
+    notesInUseOfTypes({ index: now.index, types: relationTypes(def) }).then(
+      (choices) => settle({ indexKey: now.indexKey, choices }),
+      (cause: unknown) =>
+        settle({ indexKey: now.indexKey, problem: `${NOT_READ} (${errorMessage(cause)})` }),
     );
-    if (relations.length === 0) {
-      setChoices(NO_CHOICES);
-      return;
-    }
-    let cancelled = false;
-    Promise.all(
-      relations.map(
-        async (def) =>
-          [def.key, await notesInUseOfTypes({ index, types: relationTypes(def) })] as const,
-      ),
-    )
-      .then((pairs) => {
-        if (!cancelled) setChoices(Object.fromEntries(pairs));
-      })
-      .catch(() => {
-        // An index that is not ready yet offers nothing; the picker still opens.
-        if (!cancelled) setChoices(NO_CHOICES);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [type, index, indexKey, wanted]);
+  }, []);
 
-  return { choices, want };
+  const choices = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(shown).flatMap(([key, read]) =>
+          'choices' in read ? [[key, read.choices]] : [],
+        ),
+      ),
+    [shown],
+  );
+  const problems = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(shown).flatMap(([key, read]) =>
+          'problem' in read ? [[key, read.problem]] : [],
+        ),
+      ),
+    [shown],
+  );
+  return { choices, problems, want };
+}
+
+/** Whether a read still stands: it succeeded, from the index as it is now. */
+function fresh(read: Read, indexKey: string): boolean {
+  return 'choices' in read && read.indexKey === indexKey;
 }
