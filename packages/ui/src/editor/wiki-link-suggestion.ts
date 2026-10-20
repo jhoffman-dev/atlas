@@ -3,12 +3,16 @@ import { PluginKey } from '@tiptap/pm/state';
 import {
   anchorsIn,
   blockOutline,
+  linkMatchOf,
   matchingOutline,
+  noteTitle,
   offeredByOwnId,
   type EditorDocument,
   type NoteSuggestion,
   type WikiLinkOrEmbed,
 } from '@atlas/domain';
+import { exitSuggestion } from '@tiptap/suggestion';
+import { linkOnceMade, type MakeLinked } from './pending-mention.ts';
 import { pickerSuggestion, type PickerView } from './picker-suggestion.ts';
 import { showAsBookmark } from './bookmark-commands.ts';
 import { followRange, insertBlockLink } from './block-link-commands.ts';
@@ -26,6 +30,22 @@ export interface WikiLinkSuggestionOptions {
   onView: (view: WikiSuggestionView | null) => void;
   /** A note's headings and blocks after `#`; left out, `#` offers nothing. */
   blocks: BlockPicking | null;
+  /**
+   * Makes a note of a name no note has (#465), and says which names are
+   * taken; null where notes cannot be made from here, and none is offered.
+   */
+  createNote: LinkedNoteMaker | null;
+}
+
+/** What "Create" after `[[` needs from the app (#465). */
+export interface LinkedNoteMaker {
+  /** Makes the note, resolving to what a link to it is written as, as made. */
+  readonly make: MakeLinked;
+  /**
+   * Whether a note — any note, archived ones too — already answers to the
+   * name, or to the name its file would be given, or is being made of it.
+   */
+  readonly named: (name: string) => boolean;
 }
 
 /**
@@ -42,6 +62,7 @@ export const WikiLinkSuggestion = Extension.create<WikiLinkSuggestionOptions>({
       suggest: () => [],
       onView: () => {},
       blocks: null,
+      createNote: null,
     };
   },
 
@@ -62,14 +83,15 @@ function linkPicker({
   editor: Editor;
   embed: boolean;
 }) {
+  // Each suggester needs its own key; two plugins cannot share one.
+  const pluginKey = new PluginKey(embed ? 'embedSuggestion' : 'wikiLinkSuggestion');
   return pickerSuggestion<LinkChoice>({
     editor,
-    // Each suggester needs its own key; two plugins cannot share one.
-    pluginKey: new PluginKey(embed ? 'embedSuggestion' : 'wikiLinkSuggestion'),
+    pluginKey,
     char: embed ? '![[' : '[[',
     startOfLine: false,
     allowSpaces: true,
-    find: (query, current) => choicesFor({ query, editor: current, options }),
+    find: (query, current) => choicesFor({ query, editor: current, options, embed }),
     onView: (view) => options.onView(view === null ? null : { ...view, embed }),
     // Shift+Enter: the link goes in as a card, where a card can go.
     alternate: embed
@@ -86,8 +108,23 @@ function linkPicker({
             .run();
           showAsBookmark(current, range.from);
         },
-    command: ({ editor: current, range, props: item }) =>
-      pick({ editor: current, range, item, embed, blocks: options.blocks }),
+    command: ({ editor: current, range, props: item }) => {
+      if (item.kind === 'create') {
+        const maker = options.createNote;
+        if (maker === null) return;
+        void linkOnceMade(current, {
+          range,
+          name: item.name,
+          sigil: '[[',
+          make: maker.make,
+          // The app says why; the words typed come back either way.
+          notLinked: () => {},
+          closeList: () => exitSuggestion(current.view, pluginKey),
+        });
+        return;
+      }
+      pick({ editor: current, range, item, embed, blocks: options.blocks });
+    },
   });
 }
 
@@ -99,16 +136,42 @@ function choicesFor({
   query,
   editor,
   options,
+  embed,
 }: {
   query: string;
   editor: Editor;
   options: WikiLinkSuggestionOptions;
+  embed: boolean;
 }): LinkChoice[] | Promise<LinkChoice[]> {
   const hash = query.indexOf('#');
   if (hash < 0 || options.blocks === null) {
-    return options.suggest(query).map((note) => ({ kind: 'note', note }));
+    const notes = options.suggest(query);
+    const maker = embed || hash >= 0 ? null : options.createNote;
+    return withCreate(notes, maker === null ? '' : query, maker?.named ?? (() => true));
   }
   return fragmentsFor({ query, hash, editor, blocks: options.blocks });
+}
+
+/** What a name made from `[[` may not hold: a folder, an alias, a heading. */
+const NOT_IN_A_NEW_NAME = /[/|#]/;
+
+/**
+ * The notes offered for what was typed, then "Create '<typed>'" when none of
+ * them is called that and no other note answers to it (`named`: archived
+ * ones too, and any being made) — as a link field offers it (#465). Never
+ * for a name holding `/`, `|` or `#`, which a link would read as a folder,
+ * an alias or a heading. Nothing typed, nothing to make.
+ */
+export function withCreate(
+  notes: readonly NoteSuggestion[],
+  query: string,
+  named: (name: string) => boolean,
+): LinkChoice[] {
+  const choices: LinkChoice[] = notes.map((note) => ({ kind: 'note', note }));
+  const name = query.trim();
+  const listed = notes.some((note) => linkMatchOf(noteTitle(note.path), name) === 'exact');
+  if (name === '' || NOT_IN_A_NEW_NAME.test(name) || listed || named(name)) return choices;
+  return [...choices, { kind: 'create', name }];
 }
 
 async function fragmentsFor({
@@ -152,6 +215,7 @@ function pick({
   embed: boolean;
   blocks: BlockPicking | null;
 }): void {
+  if (item.kind === 'create') return;
   if (item.kind === 'note') {
     pickNote({ editor, range, target: item.note.target, embed: embed && blocks !== null });
     return;

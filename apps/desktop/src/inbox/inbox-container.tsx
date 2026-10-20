@@ -1,4 +1,5 @@
-import { useEffect, type ComponentProps } from 'react';
+import { useCallback, useEffect, type ComponentProps } from 'react';
+import { createVaultPath, type VaultPath } from '@atlas/domain';
 import { INBOX_CHOICES_SCOPE, INBOX_SCOPE, type WindowClosingPort } from '@atlas/application';
 import { InboxPage } from '@atlas/ui';
 import { useProposals } from '../proposals/use-proposals.ts';
@@ -6,6 +7,7 @@ import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import type { PendingWrites } from '../workspace/pending-writes.ts';
+import { useMakeRelated } from '../types/use-create-related.ts';
 import { useInbox } from './use-inbox.ts';
 
 type InboxPageProps = ComponentProps<typeof InboxPage>;
@@ -93,6 +95,21 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
     toasts: pane.toasts,
     onOpen: pages.openNote,
   });
+  // "Create project '…'" in a project picker (#465): made where a new one of its
+  // type goes, and filed under by path as any project picked is.
+  const makeRelated = useMakeRelated({
+    fs: pages.ports.fs,
+    markdown: pages.ports.markdown,
+    types: pane.types,
+    notePaths: pane.notePaths,
+    beside: null,
+    onChanged: pane.onChanged,
+  });
+  const createFiling = useCallback(
+    async (request: { target: string; name: string }): Promise<VaultPath> =>
+      createVaultPath((await makeRelated(request)).path),
+    [makeRelated],
+  );
   const { written: inboxWritten } = inbox;
   const { written: answersWritten } = proposals;
   useEffect(() => pendingWrites.hold(inboxWritten), [pendingWrites, inboxWritten]);
@@ -103,6 +120,7 @@ export function InboxContainer({ wiring, chrome }: PageContainerProps) {
       contents={inbox.contents}
       error={inbox.error}
       filing={inbox.filing}
+      onCreateFiling={createFiling}
       people={inbox.people}
       statuses={inbox.statuses}
       onOpen={pages.openNote}

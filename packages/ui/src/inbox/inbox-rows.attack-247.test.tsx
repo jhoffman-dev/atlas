@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createVaultPath, type InboxItem } from '@atlas/domain';
 import { InboxPage, type InboxPageProps } from '../inbox-page.tsx';
+import { pickTyped } from '../link-suggest/link-suggest.test-support.ts';
 
 const note = (title: string): InboxItem => ({
   path: createVaultPath(`Inbox/${title}.md`),
@@ -71,7 +72,7 @@ describe('InboxRows — deciding a row while the page is scrolled (#247 attack)'
 
     // Filed from the keyboard; the app takes the row out at once (`writes.leave`)
     // and the write runs on. Meanwhile the person scrolls far down the list.
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    pickTyped(picker, 'atlas');
     expect(onClarify).toHaveBeenCalledTimes(1);
     view.rerender(
       <InboxPage
@@ -105,7 +106,7 @@ describe('InboxRows — deciding a row while the page is scrolled (#247 attack)'
     scrollPageTo(200_000);
     expect(screen.getByRole('combobox', { name: 'File Note 3 under' })).toBe(picker);
 
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    pickTyped(picker, 'atlas');
     view.rerender(
       <InboxPage
         {...given(

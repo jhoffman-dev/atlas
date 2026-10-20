@@ -123,6 +123,7 @@ import { clearRow, focusRow, type AsideStore } from '../aside/aside-store.ts';
 import { usePublishShownNote, type ShownNote, type ShownNotes } from '../aside/shown-notes.ts';
 import { usePropertiesInAside } from '../aside/use-properties-in-aside.ts';
 import { useAddProperty } from '../types/use-add-property.ts';
+import { useCreateLinkedNote } from '../notes/use-create-linked-note.ts';
 import { useCreateRelated } from '../types/use-create-related.ts';
 import type { TabLanding } from '../types/use-type-views.ts';
 import { useDashboard } from '../dashboard/use-dashboard.ts';
@@ -528,6 +529,14 @@ export function useNotePane({
     beside: null,
     onChanged,
   });
+  const createLinkedNote = useCreateLinkedNote({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    notePaths,
+    beside: path,
+    onChanged,
+    onProblem: context.onLinkProblem,
+  });
   const dashboard = useDashboard({ note: note.open, index, types, notePaths, indexKey });
   const dashboardEditing = useDashboardEditing({
     note: note.open,
@@ -870,6 +879,7 @@ export function useNotePane({
       onSave={note.save}
       onFollowLink={onFollowLink}
       suggestNotes={context.suggestNotes}
+      onCreateNote={createLinkedNote}
       suggestTags={context.suggestTags}
       people={context.people}
       bookmarks={bookmarks}

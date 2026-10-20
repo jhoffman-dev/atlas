@@ -13,6 +13,7 @@ import { createVaultPath, noteNames, type PropertyDef } from '@atlas/domain';
 import { NoteNamesProvider } from './note-names.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 import { TableView, type TableResult, type TableSchema } from './table-view.tsx';
+import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 
 function def(key: string, kind: PropertyDef['kind'], more: Partial<PropertyDef> = {}): PropertyDef {
   return {
@@ -92,7 +93,7 @@ describe('a many-relation cell read from the index (comma-joined)', () => {
   it('adding a link writes each link held as its own item', async () => {
     const onEditCell = table();
     await userEvent.click(peopleStop());
-    await userEvent.selectOptions(within(await popover()).getByRole('combobox'), '[[Tobias]]');
+    await pickSuggestion(within(await popover()).getByRole('combobox'), 'Tobias Fenn');
     expect(onEditCell).toHaveBeenLastCalledWith({
       path: 'a.md',
       column: 'people',
@@ -128,8 +129,8 @@ describe('a many-relation cell read from the index (comma-joined)', () => {
   it('offers only the notes not linked yet', async () => {
     table();
     await userEvent.click(peopleStop());
-    const select = within(await popover()).getByRole('combobox');
-    const offered = [...select.querySelectorAll('option')].map((o) => o.textContent);
+    await userEvent.click(within(await popover()).getByRole('combobox'));
+    const offered = suggestedTitles();
     expect(offered).not.toContain('Ada Lovelace');
     expect(offered).not.toContain('Mara Quill');
     expect(offered).toContain('Tobias Fenn');

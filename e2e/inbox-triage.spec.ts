@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { suggestion } from './link-suggest.ts';
 import { toastSaying } from './toasts.ts';
 
 /**
@@ -183,7 +184,7 @@ test('a letter typed in one of the row’s fields is a letter, not a triage key'
   expect(await vault.exists('Archive')).toBe(false);
 });
 
-test('P opens the project picker; the project picked is held until Enter, then files the task with its status as it was', async ({
+test('P opens the project picker; typing narrows it, and Enter files the task with its status as it was', async ({
   page,
 }) => {
   const vault = await triageVault();
@@ -193,11 +194,9 @@ test('P opens the project picker; the project picked is held until Enter, then f
   await page.keyboard.press('p');
   const picker = inboxPage(page).getByRole('combobox', { name: 'File Call the bank under' });
   await expect(picker).toBeFocused();
-  // As typeahead on a closed select does: a change with no Enter and no pointer behind it.
-  await picker.selectOption({ label: 'Atlas' });
-  await expect(picker).toHaveValue('Projects/Atlas.md');
-
-  // That nothing was written before Enter is proved by the next test, with a later key landing on the same row.
+  // Typing only narrows the suggestions (#465): the next test proves it writes nothing.
+  await page.keyboard.type('atl');
+  await expect(suggestion(picker, 'Atlas')).toHaveAttribute('aria-selected', 'true');
   await picker.press('Enter');
   await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
   expect(await vault.read(FILED_CALL)).toContain('status: inbox');
@@ -214,7 +213,7 @@ test('typing into the P picker files nothing until Enter, and Escape drops what 
   await page.keyboard.press('p');
   const picker = inboxPage(page).getByRole('combobox', { name: 'File Call the bank under' });
   await expect(picker).toBeFocused();
-  // Typeahead on the picker: each letter may change the selection, and none is a pick.
+  // Typing on the picker narrows its suggestions; none is a pick.
   await page.keyboard.type('al');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');

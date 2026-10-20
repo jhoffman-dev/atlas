@@ -10,7 +10,7 @@
  */
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Page } from '../../e2e/fixtures.ts';
+import { expect, test, type Locator, type Page } from '../../e2e/fixtures.ts';
 import { splitWindow, type FakeVault } from '../../e2e/host.ts';
 import { FIXTURE_SHAPE, noteCount } from './fixture-vault.ts';
 import { measure, percentile, waitForQuiet, type Measured } from './probe.ts';
@@ -76,7 +76,20 @@ test.afterAll(async () => {
 });
 
 /** What a row's picker is called: "File <title> under". */
-const NOTE_PICKERS = 'article[aria-label="Inbox"] div.inbox__clarify select.inbox__file';
+// The note pickers suggest notes as you type (#465): fields, not selects.
+const NOTE_PICKERS = 'article[aria-label="Inbox"] div.inbox__clarify input.inbox__file';
+
+/**
+ * Opens a note picker and makes its first suggestion active (#465): before
+ * the pick, as a select's options were there before its change.
+ */
+async function readyToPick(picker: Locator): Promise<void> {
+  await picker.click();
+  await picker.press('ArrowDown');
+  await expect(
+    page.locator('[role="listbox"][aria-label="Suggested notes"] [aria-selected="true"]'),
+  ).toHaveCount(1);
+}
 
 const inboxRow = () => page.getByRole('button', { name: /^Inbox/ }).first();
 
@@ -95,7 +108,7 @@ test('open the Inbox', async () => {
         arg: NOTE_PICKERS,
         // Seen as well as enabled: the rows are drawn hidden while the Inbox's offers are read (#130).
         ready: (selector) => {
-          const picker = document.querySelector<HTMLSelectElement>(selector);
+          const picker = document.querySelector<HTMLInputElement>(selector);
           return picker?.disabled === false && picker.checkVisibility({ visibilityProperty: true });
         },
       }),
@@ -121,15 +134,16 @@ test(`file ${FILINGS} Inbox items in a row`, async () => {
     const picker = pickers.first();
     await expect(picker).toBeEnabled({ timeout: 60_000 });
     const label = (await picker.getAttribute('aria-label')) ?? '';
+    await readyToPick(picker);
     // Not waiting for the work behind each filing: the next is picked as soon as it can be.
     record(
       'File an Inbox item (next item interactive)',
       await measure(page, {
-        act: () => picker.selectOption({ index: 1 }).then(() => undefined),
+        act: () => picker.press('Enter'),
         arg: { label, selector: NOTE_PICKERS },
         settle: false,
         ready: ({ label: filedLabel, selector }) => {
-          const all = [...document.querySelectorAll<HTMLSelectElement>(selector)];
+          const all = [...document.querySelectorAll<HTMLInputElement>(selector)];
           const next = all[0];
           return (
             next !== undefined &&

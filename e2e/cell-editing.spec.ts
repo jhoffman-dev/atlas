@@ -3,6 +3,7 @@
 // pane's popups under the one-overlay rule.
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
+import { pickSuggestion } from './link-suggest.ts';
 
 const TASK_TYPE = [
   '---',
@@ -91,7 +92,7 @@ test('a relation linked from its picker writes the link into the note', async ({
   await page.locator('.table [data-cell-stop="owner"]').first().click();
   const relation = picker(page, 'Owner');
   await expect(relation).toBeVisible();
-  await relation.getByRole('combobox').selectOption({ label: 'Mara Quill' });
+  await pickSuggestion(relation.getByRole('combobox'), 'Mara Quill');
 
   await expectFile(vault, 'first.md').toMatch(/^owner: .*\[\[Mara Quill\]\]/m);
   const written = await vault.read('first.md');

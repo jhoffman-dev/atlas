@@ -6,6 +6,8 @@ import type { NodePath, NoteSuggestion, OutlineEntry, VaultPath } from '@atlas/d
  */
 export type LinkChoice =
   | { readonly kind: 'note'; readonly note: NoteSuggestion }
+  /** No note is called what was typed: make one of that name, and link it (#465). */
+  | { readonly kind: 'create'; readonly name: string }
   | {
       readonly kind: 'fragment';
       /** The note's name as the link writes it: empty for this note's own. */

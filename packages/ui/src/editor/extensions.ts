@@ -49,7 +49,11 @@ import { PromoteLineButton, type PromoteLine } from './promote-line.ts';
 import { PersonChips, type PersonFor } from './person-chips.ts';
 import { RawBlock } from './raw-block.ts';
 import { WikiLink } from './wiki-link.ts';
-import { WikiLinkSuggestion, type WikiSuggestionView } from './wiki-link-suggestion.ts';
+import {
+  WikiLinkSuggestion,
+  type LinkedNoteMaker,
+  type WikiSuggestionView,
+} from './wiki-link-suggestion.ts';
 import { SlashCommands, type SlashCommandView } from './slash-commands.ts';
 import { TagHighlight } from './tag-highlight.ts';
 import { TagSuggestionExtension, type TagSuggestionView } from './tag-suggestion.ts';
@@ -74,6 +78,7 @@ export function createEditorExtensions({
   queries = null,
   picking = null,
   promoteLine = null,
+  createNote = null,
 }: {
   suggest: (query: string) => NoteSuggestion[];
   onView: (view: WikiSuggestionView | null) => void;
@@ -100,6 +105,8 @@ export function createEditorExtensions({
   picking?: BlockPicking | null;
   /** Makes a checklist line a task; left out, no line offers it. */
   promoteLine?: PromoteLine | null;
+  /** Makes a note of a name typed after `[[` that no note has; left out, none is offered. */
+  createNote?: LinkedNoteMaker | null;
 }) {
   return [
     ...baseExtensions,
@@ -122,7 +129,7 @@ export function createEditorExtensions({
     LinkKeys,
     RevealedBlock,
     ImageUploads.configure({ embed: embedImage }),
-    WikiLinkSuggestion.configure({ suggest, onView, blocks: picking }),
+    WikiLinkSuggestion.configure({ suggest, onView, blocks: picking, createNote }),
     TagSuggestionExtension.configure({ suggest: suggestTags, onView: onTagView }),
     SlashCommands.configure({
       onView: onSlashView,

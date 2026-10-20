@@ -43,6 +43,33 @@ export {
 } from './retarget-links.ts';
 export type { NoteAcrossMove, NotesAcrossMove } from './retarget-links.ts';
 export { rankNoteSuggestions } from './note-suggestions.ts';
+export {
+  ALIAS_KEYS,
+  compileLinkHintsQuery,
+  LINK_HINTS_KIND,
+  LINK_HINTS_PAGE_SIZE,
+  LINK_HINTS_QUERY_COLUMNS,
+  LINK_HINTS_QUERY_MARK,
+} from './link-hints-query.ts';
+export type { LinkHintsPart } from './link-hints-query.ts';
+export {
+  foldedForSuggestion,
+  linkMatchOf,
+  linkMatchStrength,
+  NO_LINK_HINTS,
+  offersLinkCreate,
+  openLinkInText,
+  rankLinkChoices,
+  withLinkInText,
+} from './link-suggestions.ts';
+export type {
+  LinkCandidate,
+  LinkHints,
+  LinkMatch,
+  LinkSuggestion,
+  LinkUse,
+  OpenLinkInText,
+} from './link-suggestions.ts';
 export type { NoteSuggestion } from './note-suggestions.ts';
 export { backlinksFor } from './backlinks.ts';
 export type { NoteLink } from './backlinks.ts';

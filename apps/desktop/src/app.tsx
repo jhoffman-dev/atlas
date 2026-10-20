@@ -108,6 +108,7 @@ import { createReadInvalidator } from './reads/read-invalidator.ts';
 import { tellingOwnWrites } from './reads/telling-own-writes.ts';
 import { useSqlViews } from './reads/use-sql-views.ts';
 import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';
+import { LinkHintsHost } from './linked-pages/link-hints-host.tsx';
 import { useVaultReads } from './reads/use-vault-reads.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
@@ -1810,7 +1811,7 @@ function AppWindow({
       showOverlay,
     ],
   );
-  return (
+  const shell = (
     <NoteNamesProvider value={names}>
       <ChatToggleProvider value={chatToggle}>
         <SyncRunner
@@ -2238,6 +2239,11 @@ function AppWindow({
         />
       </ChatToggleProvider>
     </NoteNamesProvider>
+  );
+  return (
+    <LinkHintsHost index={index.index} status={indexStore} vault={vaultKey}>
+      {shell}
+    </LinkHintsHost>
   );
 }
 

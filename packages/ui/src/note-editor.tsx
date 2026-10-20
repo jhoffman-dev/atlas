@@ -21,7 +21,7 @@ import {
 } from '@atlas/domain';
 import { createEditorExtensions } from './editor/extensions.ts';
 import { showAsRead } from './editor/block-anchor.ts';
-import type { WikiSuggestionView } from './editor/wiki-link-suggestion.ts';
+import type { LinkedNoteMaker, WikiSuggestionView } from './editor/wiki-link-suggestion.ts';
 import { IMAGE_REQUEST, LINK_REQUEST, type SlashCommandView } from './editor/slash-commands.ts';
 import { addImages, type EmbedImage } from './editor/image-uploads.ts';
 import { SuggestionPopup } from './editor/suggestion-popup.tsx';
@@ -103,6 +103,7 @@ export function NoteEditor({
   picking,
   reveal = null,
   onPromoteLine,
+  onCreateNote,
   ref,
 }: {
   doc: EditorDocument;
@@ -137,6 +138,8 @@ export function NoteEditor({
   reveal?: NoteReveal | null;
   /** Makes the checklist line the caret is in a task (P30-03); left out, none is offered. */
   onPromoteLine?: PromoteLine;
+  /** Makes a note of a name typed after `[[` that no note has (#465); left out, `[[` offers none. */
+  onCreateNote?: LinkedNoteMaker;
   ref?: Ref<NoteEditorHandle>;
 }) {
   const [links, setLinks] = useState<WikiSuggestionView | null>(null);
@@ -190,6 +193,17 @@ export function NoteEditor({
   const promoter = useLatest(onPromoteLine);
   const promotes = onPromoteLine !== undefined;
   const stablePromote = useCallback<PromoteLine>((line) => promoter.current?.(line), [promoter]);
+  const creator = useLatest(onCreateNote);
+  const creates = onCreateNote !== undefined;
+  const stableCreate = useMemo<LinkedNoteMaker>(
+    () => ({
+      make: (name) =>
+        creator.current?.make(name) ?? Promise.reject(new Error('Nothing can be made here.')),
+      // Read when asked: the vault's notes change without the editor being built again.
+      named: (name) => creator.current?.named(name) ?? true,
+    }),
+    [creator],
+  );
 
   const bookmarkSource = useBookmarkSource(bookmarks);
   const transclusionSource = useTransclusionSource(transclusions);
@@ -214,10 +228,13 @@ export function NoteEditor({
         queries: queryBlockSource,
         picking: blockPicking,
         promoteLine: promotes ? stablePromote : null,
+        createNote: creates ? stableCreate : null,
       }),
     [
       promotes,
       stablePromote,
+      creates,
+      stableCreate,
       editorPeople,
       bookmarkSource,
       transclusionSource,

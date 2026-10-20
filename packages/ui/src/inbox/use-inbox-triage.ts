@@ -48,10 +48,11 @@ function typesInto(target: Element): boolean {
 }
 
 /**
- * A picker P or T opened. Its picks are held on the row as any pick is; what
- * writes them is an explicit act on the picker — Enter, or a pointer pick from
- * the opened list — never a `change` alone: a closed select changes as typeahead
- * passes over its options, and a date changes with each segment typed or cleared.
+ * A picker P or T opened. What writes its pick is an explicit act on the
+ * picker: for the project, picking a suggestion, which the field hands over
+ * only on ↵, Tab or a click; for the date, Enter or a pointer pick from the
+ * opened picker — never a `change` alone, since a date changes with each
+ * segment typed or cleared. Until then a pick is held on the row as any is.
  */
 interface ArmedPicker {
   readonly path: VaultPath;
@@ -323,7 +324,10 @@ export function useInboxTriage({
     (path: VaultPath, picked: InboxDraft, writeNow: () => void) => {
       const arm = armed.current;
       const fromArmed = arm !== null && arm.path === path && picked[arm.field] !== undefined;
-      if (fromArmed && !(pointed.current && picked[arm.field] !== '')) {
+      // The project field suggests notes (#465) and changes only on a deliberate pick — ↵, Tab or
+      // a click — so its picks are written at once; a date changes with each segment typed.
+      const deliberate = arm?.field === 'project' || pointed.current;
+      if (fromArmed && !(deliberate && picked[arm.field] !== '')) {
         setDrafts((was) => ({ ...was, [path]: { ...was[path], ...picked } }));
         return;
       }

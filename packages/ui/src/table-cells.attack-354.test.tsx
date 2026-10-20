@@ -428,15 +428,16 @@ describe('attack #354 — the relation cell', () => {
     expect(last.value).toBeNull();
   });
 
-  it('Esc in the "New …" name field leaves the picker open', async () => {
+  it('Esc in the field closes its suggestions and leaves the picker open', async () => {
     const onCreateRelated = vi.fn().mockResolvedValue('[[P-09]]');
     table({ onCreateRelated });
     await userEvent.click(cell('Larkspur launch'));
-    await userEvent.selectOptions(within(picker('Project')).getByRole('combobox'), 'New project…');
-    screen.getByRole('textbox', { name: 'Name of the new project' }).focus();
+    await userEvent.type(within(picker('Project')).getByRole('combobox'), 'Fête');
+    expect(screen.getByRole('option', { name: 'Create project ‘Fête’' })).toBeDefined();
     await userEvent.keyboard('{Escape}');
-    expect(screen.queryByRole('textbox', { name: 'Name of the new project' })).toBeNull();
+    expect(screen.queryByRole('listbox', { name: 'Suggested notes' })).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Set Project' })).not.toBeNull();
+    expect(onCreateRelated).not.toHaveBeenCalled();
   });
 });
 

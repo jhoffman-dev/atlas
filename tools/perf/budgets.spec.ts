@@ -367,7 +367,9 @@ const clockAt = ({ virtual }: Pick<WorkClockOptions, 'virtual'>): WorkClockOptio
 const newPage = (browser: Browser) =>
   browser.newPage({ viewport: { width: 1440, height: 900 }, timezoneId: 'UTC', locale: 'en-US' });
 
-const INBOX_PICKERS = 'article[aria-label="Inbox"] div.inbox__clarify select.inbox__file';
+// The note pickers suggest notes as you type (#465): fields, not selects.
+const INBOX_PICKERS = 'article[aria-label="Inbox"] div.inbox__clarify input.inbox__file';
+const SUGGESTIONS = '[role="listbox"][aria-label="Suggested notes"] [role="option"]';
 const TODAY_TICKS = 'article[aria-label="Today"] input.done-check:not([disabled])';
 const SETTINGS = '[role="dialog"][aria-label="Settings"]';
 const SEARCH_BOX = 'input[aria-label="Search the vault"]';
@@ -430,7 +432,7 @@ async function everyAction(pass: Pass): Promise<void> {
   await pass.budgeted('Open the Inbox', [
     phase(
       () => sidebarButton(page, /^Inbox/).click(),
-      (selector) => document.querySelector<HTMLSelectElement>(selector)?.disabled === false,
+      (selector) => document.querySelector<HTMLInputElement>(selector)?.disabled === false,
       INBOX_PICKERS,
     ),
   ]);
@@ -587,14 +589,29 @@ async function tickATask(pass: Pass): Promise<void> {
   ]);
 }
 
+/**
+ * The pick alone is the action, as a select's change was: the picker is
+ * opened and its first suggestion made active beforehand, uncounted —
+ * opening a picker is not deciding a row.
+ */
 async function decideARow(pass: Pass): Promise<void> {
   const picker = pass.page.locator(INBOX_PICKERS).first();
   const label = (await picker.getAttribute('aria-label')) ?? '';
+  await pass.setUp(
+    phase(
+      async () => {
+        await picker.click();
+        await picker.press('ArrowDown');
+      },
+      (selector) => document.querySelector(`${selector}[aria-selected="true"]`) !== null,
+      SUGGESTIONS,
+    ),
+  );
   await pass.budgeted('Decide an Inbox row', [
     phase(
-      () => picker.selectOption({ index: 1 }).then(() => undefined),
+      () => picker.press('Enter'),
       ({ filed, selector }) => {
-        const all = [...document.querySelectorAll<HTMLSelectElement>(selector)];
+        const all = [...document.querySelectorAll<HTMLInputElement>(selector)];
         return (
           all[0]?.disabled === false &&
           all.every((each) => each.getAttribute('aria-label') !== filed)

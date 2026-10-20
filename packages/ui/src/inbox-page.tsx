@@ -1,7 +1,7 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { Icon } from './icon.tsx';
-import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
+import { InboxRows, type CreateFiling, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
 import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
 import { HiddenTitle } from './page-head.tsx';
@@ -76,6 +76,11 @@ export interface InboxPageProps {
   error: string | null;
   /** The projects and areas a note can be filed under. */
   filing: readonly RelationChoice[];
+  /**
+   * Makes a project or an area of a name no note has, resolving to where it
+   * was made (#465); left out, the project picker offers no "Create".
+   */
+  onCreateFiling?: CreateFiling;
   /** The people a task can wait on. */
   people?: readonly RelationChoice[];
   /** The statuses a row may give a task: the ones the vault's Task type declares. GTD's eight unless said. */
@@ -427,6 +432,7 @@ function InboxList({
   contents,
   error,
   filing,
+  onCreateFiling,
   people = [],
   statuses,
   onOpen,
@@ -477,6 +483,7 @@ function InboxList({
           <InboxRows
             items={contents.items}
             filing={filing}
+            {...(onCreateFiling !== undefined && { onCreateFiling })}
             people={people}
             {...(statuses !== undefined && { statuses })}
             onOpen={onOpen}

@@ -165,6 +165,7 @@ export function RelationPickerPopover({
   problem?: string | null;
 }) {
   const held = useHeldValue(value);
+  const popup = useRef<HTMLDivElement>(null);
   const write = (next: CellValue) => {
     held.set(next);
     // A write the note refused was reported by whoever refused it; here the
@@ -187,8 +188,13 @@ export function RelationPickerPopover({
           sideOffset={2}
         >
           <Popover.Popup
+            ref={popup}
             className="cell-picker cell-picker--relation"
             aria-label={`Set ${def.label}`}
+            // The search field takes the focus, so the next note is typed straight away (#465).
+            initialFocus={() =>
+              popup.current?.querySelector<HTMLElement>('input[role="combobox"]') ?? true
+            }
             finalFocus={false}
           >
             <LinkChips

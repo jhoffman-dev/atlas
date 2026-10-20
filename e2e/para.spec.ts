@@ -7,6 +7,7 @@ import {
   sidebarSection,
   type FakeVault,
 } from './host.ts';
+import { pickSuggestion, suggestedTitles, suggestion } from './link-suggest.ts';
 
 /**
  * #213: PARA is a property of one Project type. A new project is a project;
@@ -92,10 +93,11 @@ test('a new project is a project, links an area, and archives and restores by it
 
   // Set Area: its picker offers areas only, and it is optional.
   const area = properties(page).getByRole('combobox', { name: 'Area' });
-  await expect.poll(() => area.locator('option').allTextContents()).toContain('Garden');
-  expect(await area.locator('option').allTextContents()).not.toContain('Atlas');
-  expect(await area.locator('option').allTextContents()).not.toContain('Manual');
-  await area.selectOption({ label: 'Garden' });
+  await area.click();
+  await expect.poll(() => suggestedTitles(area).allTextContents()).toContain('Garden');
+  expect(await suggestedTitles(area).allTextContents()).not.toContain('Atlas');
+  expect(await suggestedTitles(area).allTextContents()).not.toContain('Manual');
+  await pickSuggestion(area, 'Garden');
   await expectFile(vault, 'Projects/New Project.md').toContain('area: "[[Garden]]"');
   await expect(projectType(page)).toHaveAccessibleName('Project, 4 notes');
 
@@ -112,17 +114,15 @@ test('a new project is a project, links an area, and archives and restores by it
   // An archived project is not offered to a task; a resource never is; areas are.
   await page.getByRole('treeitem', { name: 'Call the bank', exact: true }).click();
   const project = properties(page).getByRole('combobox', { name: 'Project' });
-  await expect.poll(() => project.locator('option').allTextContents()).toContain('Atlas');
-  const offered = await project.locator('option').allTextContents();
+  await project.click();
+  await expect.poll(() => suggestedTitles(project).allTextContents()).toContain('Atlas');
+  const offered = await suggestedTitles(project).allTextContents();
   expect(offered).toContain('Garden');
   expect(offered).not.toContain('New Project');
   expect(offered).not.toContain('Manual');
-  await expect(project.locator('optgroup')).toHaveCount(2);
-  expect(
-    await project
-      .locator('optgroup')
-      .evaluateAll((groups) => groups.map((g) => g.getAttribute('label'))),
-  ).toEqual(['Projects', 'Areas']);
+  // Each says which it is, so Garden the area is not taken for a project (#213).
+  await expect(suggestion(project, 'Atlas')).toHaveAttribute('aria-label', /, Projects,/);
+  await expect(suggestion(project, 'Garden')).toHaveAttribute('aria-label', /, Areas,/);
 
   // Restore: Unarchive sets PARA back to project, and it is offered again.
   await page.getByRole('treeitem', { name: 'Projects', exact: true }).click();
@@ -136,14 +136,9 @@ test('a new project is a project, links an area, and archives and restores by it
   await expect(projectType(page)).toHaveAccessibleName('Project, 4 notes');
 
   await page.getByRole('treeitem', { name: 'Call the bank', exact: true }).click();
-  await expect
-    .poll(() =>
-      properties(page)
-        .getByRole('combobox', { name: 'Project' })
-        .locator('option')
-        .allTextContents(),
-    )
-    .toContain('New Project');
+  const again = properties(page).getByRole('combobox', { name: 'Project' });
+  await again.click();
+  await expect.poll(() => suggestedTitles(again).allTextContents()).toContain('New Project');
 });
 
 async function paletteCommand(page: Page, label: string) {
