@@ -106,6 +106,42 @@ describe('saveObjectType', () => {
     expect(writes[0]?.expectedModified).toBe(5);
   });
 
+  // Required on new notes (slice 12, plan question 10): an optional key, written only when set.
+  it('hands the writer required on the one property it was set on, and no other key', async () => {
+    const { fs } = vault();
+    const asked: Record<string, unknown>[] = [];
+    const fake = fakeMarkdown();
+    const markdown: MarkdownPort = {
+      ...fake,
+      updateFrontmatter: (frontmatter, changes) => {
+        asked.push(changes);
+        return fake.updateFrontmatter(frontmatter, changes);
+      },
+    };
+    const before = parseObjectType({ name: 'task', label: 'Task', properties: { due: 'date' } });
+    const due = before.properties[0]!;
+    await saveObjectType({
+      fs,
+      markdown,
+      path: '.atlas/types/task.md' as VaultPath,
+      before,
+      type: { ...before, properties: [{ ...due, required: true }] },
+    });
+    expect(asked).toEqual([{ properties: { due: { kind: 'date', required: true } } }]);
+  });
+
+  it('writes a type that never had the key back without it', async () => {
+    const { fs, writes } = vault();
+    await saveObjectType({
+      fs,
+      markdown: fakeMarkdown(),
+      path: '.atlas/types/task.md' as VaultPath,
+      before: TASK,
+      type: { ...TASK, label: 'Chore' },
+    });
+    expect(writes[0]?.contents).not.toContain('required');
+  });
+
   it('refuses when the file changed since the editor read it', async () => {
     const { fs, writes } = vault();
     await expect(

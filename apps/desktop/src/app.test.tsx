@@ -2258,7 +2258,7 @@ describe('pages as tabs', () => {
     expect(await within(pane(1)).findByRole('article', { name: 'Person' })).toBeDefined();
   });
 
-  it('opens another type to be edited in the same tab, and a plain open after it on its notes', async () => {
+  it('opens another type to be edited in the same tab, its editor in the right sidebar following the tab', async () => {
     const PERSON = '---\nname: person\nlabel: Person\nproperties:\n  email: text\n---\n';
     const BOOK = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';
     renderOn(
@@ -2280,30 +2280,26 @@ describe('pages as tabs', () => {
     );
     await userEvent.click(await screen.findByRole('button', { name: /^Person, / }));
     await screen.findByRole('article', { name: 'Person' });
-    expect(screen.getByRole('radio', { name: 'Notes' }).getAttribute('aria-checked')).toBe('true');
+    const editType = () => screen.getByRole('button', { name: 'Edit type' });
+    expect(editType().getAttribute('aria-pressed')).toBe('false');
 
-    // The palette's "Edit Book type" lands in the same tab, which keeps its container.
+    // The palette's "Edit Book type" lands in the same tab, and the right sidebar edits Book.
     await runCommand('Edit Book type');
     await screen.findByRole('article', { name: 'Book' });
-    await waitFor(() =>
-      expect(screen.getByRole('radio', { name: 'Edit type' }).getAttribute('aria-checked')).toBe(
-        'true',
-      ),
-    );
-
-    // The editor's own Notes switch turns the page back, in this tab.
-    await userEvent.click(screen.getByRole('radio', { name: 'Notes' }));
-    await waitFor(() =>
-      expect(screen.getByRole('radio', { name: 'Notes' }).getAttribute('aria-checked')).toBe(
-        'true',
-      ),
-    );
+    await waitFor(() => expect(editType().getAttribute('aria-pressed')).toBe('true'));
+    const typeName = () =>
+      (screen.getByRole('textbox', { name: 'Name of this type' }) as HTMLInputElement).value;
+    expect(typeName()).toBe('Book');
+    // The page keeps its notes beside the editor.
     expect(await screen.findByRole('button', { name: 'New book' })).toBeDefined();
 
-    // Back to Person by a plain open: on its notes, not on the editor Book was asked for.
+    // The window (jsdom's 1024px) had no room for the 340px editor beside the
+    // left sidebar, so the sidebar made way, as it does for any ask (collapse.ts).
+    await userEvent.click(screen.getByRole('button', { name: 'Show sidebar' }));
+    // Back to Person by a plain open: the aside, still on Type, edits what the tab shows.
     await userEvent.click(screen.getByRole('button', { name: /^Person, / }));
     await screen.findByRole('article', { name: 'Person' });
-    expect(screen.getByRole('radio', { name: 'Notes' }).getAttribute('aria-checked')).toBe('true');
+    await waitFor(() => expect(typeName()).toBe('Person'));
   });
 
   // #130 (#283): another vault opening with the Inbox open starts the page

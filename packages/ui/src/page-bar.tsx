@@ -156,6 +156,8 @@ export function PageAction({
   tone = 'ghost',
   disabled = false,
   expanded,
+  pressed,
+  onPressStart,
   onPress,
   children,
 }: {
@@ -167,6 +169,10 @@ export function PageAction({
   disabled?: boolean;
   /** Given when the button opens a form under the bar. */
   expanded?: boolean;
+  /** Given when the button shows and hides something beside the page: the type editor, say. */
+  pressed?: boolean;
+  /** The pointer coming down, before the press focuses anything. */
+  onPressStart?: () => void;
   onPress: () => void;
   /** After the label: a shortcut hint, say. */
   children?: ReactNode;
@@ -178,6 +184,8 @@ export function PageAction({
       title={title}
       disabled={disabled}
       {...(expanded !== undefined && { 'aria-expanded': expanded })}
+      {...(pressed !== undefined && { 'aria-pressed': pressed })}
+      {...(onPressStart !== undefined && { onPointerDown: onPressStart })}
       onClick={onPress}
     >
       <Icon name={icon} size={15} />

@@ -92,7 +92,10 @@ describe('what a keystroke draws in the aside (#387 review)', () => {
         }}
       >
         <ClaudeSeatProvider value={null}>
-          <AsideContainer rows={{} as RowPorts} />
+          <AsideContainer
+            rows={{ pane: { types: [], savedViews: [] } } as unknown as RowPorts}
+            types={{ onDelete: () => {}, onEditTemplate: () => {}, onOpenType: () => {} }}
+          />
         </ClaudeSeatProvider>
       </WorkspaceStoresProvider>,
       { wrapper: queryWrapper().wrapper },

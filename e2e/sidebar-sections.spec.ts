@@ -151,9 +151,10 @@ test('a type opens on its views, and its own page is a press away (ADR-0023)', a
   await expect(board.getByRole('button', { name: 'Write it' })).toBeVisible();
 
   await tabs.getByRole('button', { name: 'Edit Task type' }).click();
-  await expect(page.getByRole('radio', { name: 'Edit type' })).toBeChecked();
-  // Back to its notes is back to its views.
-  await page.getByRole('radio', { name: 'Notes' }).click();
+  // The editor opens in the right sidebar, beside the view, which stays.
+  const aside = page.getByRole('complementary', { name: 'Right sidebar' });
+  await expect(aside.getByRole('tab', { name: 'Type' })).toHaveAttribute('aria-selected', 'true');
+  await expect(aside.getByRole('textbox', { name: 'Name of this type' })).toHaveValue('Task');
   await expect(board.getByRole('button', { name: 'Ship it' })).toBeVisible();
 });
 

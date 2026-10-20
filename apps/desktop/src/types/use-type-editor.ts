@@ -169,7 +169,14 @@ export function useTypeEditor({
     ): Promise<{ migrate: Migrate | null } | null> => {
       if (type === null) return null;
       const lookup = { fs, markdown, index, typeName: type.name };
-      if (request.kind === 'changeKind') {
+      // A kind asked for, or one Allow many turned into (a select ↔ multi-select).
+      const kindOf = (of: ObjectType, key: string) =>
+        of.properties.find((p) => p.key === key)?.kind;
+      if (
+        request.kind === 'changeKind' ||
+        (request.kind === 'setMany' &&
+          kindOf(before, request.key) !== kindOf(change.type, request.key))
+      ) {
         const def = change.type.properties.find((p) => p.key === request.key);
         const misfits = def === undefined ? 0 : await countValuesThatWontFit({ ...lookup, def });
         if (misfits === 0) return { migrate: null };

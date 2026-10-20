@@ -233,6 +233,7 @@ pnpm tauri:dev</pre>
       <h3 id="right-sidebar">The right sidebar</h3>
       <p>A panel on the right that follows whatever has the focus. Show or hide it with the <b>Right sidebar</b> button in any page's bar or <kbd>⌥⌘\</kbd>; the <b>×</b> at the end of its tab row hides it too. Whether it is open, and which tab, is remembered per vault.</p>
       <ul>
+        <li><b>Type</b> — on a type's page or one of its views, the type's editor, first in the row. See <a href="#edit-type">Edit a type</a>. The sidebar is a little wider (340px) while it shows it.</li>
         <li><b>Properties</b> — the open note's properties, with the same editors as the page: change one here and the file is written. Empty ones fold behind <b>N empty properties</b>. While the sidebar shows them, the note's own properties block leaves the body so there is one place to edit them; hide the sidebar, switch its tab, or work in the other pane and it is back.</li>
         <li><b>Backlinks</b> — what links to the note, what it links to, and its unlinked mentions, as the foot of the page has them.</li>
         <li><b>Outline</b> — the note's headings; click one to scroll to it.</li>
@@ -261,7 +262,7 @@ pnpm tauri:dev</pre>
       <p>Properties sit under the title as rows: a status pill, dates like <i>Tue, Sep 22, 2026</i>, numbers, links to other notes.</p>
       <ul>
         <li><b>+ Add a property</b> asks for a name and a kind (text, number, date, checkbox, select, multi-select, URL, relation, thumbnail). On a typed note choose <b>Add to &lt;Type&gt;</b> to add it to every note of that type, or <b>Only this note</b>.</li>
-        <li>Relations show the linked notes as chips; click one to open it, <b>×</b> to remove it. A relation set to <i>Several notes</i> keeps an <b>Add…</b> button.</li>
+        <li>Relations show the linked notes as chips; click one to open it, <b>×</b> to remove it. A relation that allows many keeps an <b>Add…</b> button.</li>
         <li>A relation's dropdown (<i>— no company —</i> until one is chosen) lists only real notes of the type it points at — never a template, and nothing in <code>.atlas</code>.</li>
         <li><b>New &lt;type&gt;…</b> at the bottom of the dropdown (<b>New company…</b>) makes one on the spot: type a name in <i>Name of the new company</i> and press <kbd>Return</kbd>. Atlas makes a new note of that type from its <a href="#templates">template</a> — the template itself is left untouched — and links it. It goes in its type's <a href="#home-folders">home folder</a> — a company in <code>Companies/</code> — numbered if the name is taken. <kbd>Esc</kbd> cancels.</li>
         <li>A name a link couldn't reach — one holding <code>#</code>, <code>^</code>, <code>[</code> or <code>]</code> — is refused, with the reason: <i>“Acme #1” cannot be linked: a link stops at #</i>. So is a name with nothing left once the characters a file name can't hold (<code>/</code>, <code>:</code>, <code>|</code> and the like) are turned to spaces: <i>Give the new company a name.</i> Nothing is made either way.</li>
@@ -385,7 +386,7 @@ pnpm tauri:dev</pre>
         <li>A <b>Project</b> property on a task or a meeting links a project <i>or</i> an area. Its picker lists both, under a <b>Projects</b> and an <b>Areas</b> heading, with <b>New project…</b> and <b>New area…</b> at the end — <b>New area…</b> makes a project note with PARA = Area. A resource or an archived one is never offered, and nor is a person, a company or any other note.</li>
         <li>A note with no type can be filed too: processing it gives it <code>project</code> all the same.</li>
         <li>Linking the wrong kind of note — a person in a task's <b>Project</b>, typed by hand — shows <i>“Project links to a project or area, not a person”</i> under the property. A link to a note not written yet, or to one with no type, is left alone.</li>
-        <li>Any relation can point at several types this way: in the type's file write <code>target: [project, area]</code>. <b>Edit type</b> shows the first under <b>Points at</b> and the others under <b>And at</b>; switching <b>Several notes</b> keeps them, while choosing another type in <b>Points at</b> points it at that one alone.</li>
+        <li>Any relation can point at several types this way: in the type's file write <code>target: [project, area]</code>. <b>Edit type</b> shows the first under <b>Points at</b> and the others under <b>And at</b>; switching <b>Allow many</b> keeps them, while choosing another type in <b>Points at</b> points it at that one alone.</li>
         <li><code>project</code>, <code>area</code> and <code>resource</code> in a relation's target are PARA values: they point at project notes whose PARA says that. <code>target: [project, area, resource]</code> lists all three groups; <code>target: area</code>, as Project's own <b>Area</b> has, lists only areas.</li>
       </ul>
       <h3>The types are set up for you</h3>
@@ -483,25 +484,33 @@ pnpm tauri:dev</pre>
       <ol class="steps">
         <li>Press <b>+</b> next to <b>Types</b> in the sidebar, give it a name and an icon.</li>
         <li>Open the type's definition with <b>Edit type</b> — see <a href="#edit-type">Edit a type</a> below.</li>
-        <li>Add properties, choose each kind, drag to reorder, mark required ones.</li>
-        <li>For a <b>Relation</b>, choose the type it points at, and <b>One note</b> or <b>Several notes</b>.</li>
+        <li>Add properties, choose each kind, drag to reorder, tick <b>Required on new notes</b> on the ones every note should have.</li>
+        <li>For a <b>Relation</b>, choose the type it points at, and tick <b>Allow many</b> for it to hold several notes.</li>
         <li>For a <b>Thumbnail</b>, nothing more to choose: each note of the type gets a picture of its own page (see <a href="#thumbnails">Thumbnails</a>). A type can have only one.</li>
       </ol>
       <h3 id="edit-type">Edit a type</h3>
-      <p>Clicking a type in the sidebar opens its <a href="#views">views</a>, not its definition. To change the type itself, any of these opens <b>Edit type</b>:</p>
+      <p>Clicking a type in the sidebar opens its <a href="#views">views</a>, not its definition. The type itself is edited in the <a href="#right-sidebar">right sidebar</a>'s <b>Type</b> tab, beside its notes. Any of these opens it:</p>
       <ul>
-        <li>The gear at the end of the type's view tabs (<b>Edit Task type</b>, for Task).</li>
+        <li>The gear at the end of the type's view tabs (<b>Edit Task type</b>, for Task). The view stays where it is, with the editor beside it.</li>
+        <li><b>Edit type</b> in the bar of the type's own page. It stays pressed while the editor is showing; press it again to put the sidebar away.</li>
         <li>Right-click the type in the sidebar (or focus it and press <kbd>⇧F10</kbd>) → <b>Edit type</b>. The same menu has <b>Open</b>.</li>
         <li>Search <kbd>⌘K</kbd>: type <i>edit</i> and pick <b>Edit &lt;type&gt; type</b>, e.g. <b>Edit Task type</b>. These only appear once what you type starts with “edit”, so they never crowd out notes.</li>
       </ul>
       <p>Each of these places also has <b>Edit template</b>, for what new notes of the type start as — see <a href="#edit-template">Templates</a>.</p>
-      <p>On the type's page, the <b>Notes</b> side of the <b>Notes | Edit type</b> switch goes back to its views.</p>
+      <p>The editor shows the type's icon and name at the top — click the icon to choose another, click the name to rename it. Below, its <b>Properties</b>, with how many there are. Each row shows the property's name and kind — a relation by the type it points at, <i>Person, many</i> — and its arrow opens it in place:</p>
+      <ul>
+        <li><b>Name</b> and <b>Kind</b>, and for a relation <b>Points at</b>.</li>
+        <li><b>Allow many</b> — for a select, a relation: several values instead of one. A select that allows many is a multi-select.</li>
+        <li><b>Required on new notes</b> — written as <code>required: true</code> in the type's file. It never stops you saving a note: an empty required property just says <i>“Date is required”</i> under it until it is filled.</li>
+        <li><b>Stored as</b> — the key the value is saved under in each note's file.</li>
+      </ul>
+      <p>At the bottom, <b>Template</b> and <b>Default view</b> open what new notes start as and the type's first view, and the foot says <i>Saved · edits apply to every Session note</i>: every change is written to the type's file straight away, and nothing else in that file is touched. The sidebar follows the page: open another type and it edits that one. In a window too narrow for the sidebar (under about 1060px with the left sidebar open), asking for the editor hides the left sidebar to make room.</p>
       <h3>Options for select properties</h3>
       <p>Rename, reorder, colour and remove options — for example a project's statuses <code>planned, active, paused, done</code>. (A task's eight <a href="#tasks">GTD statuses</a> are moved to all at once, from the Inbox.) Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
       <p><b>Colours.</b> Every option is a muted pastel pill, so a column of them is easy to scan. A status (<i>Doing</i>, <i>Review</i>, <i>Done</i>…) keeps its own colour and dot. Any other option — a meeting's <i>Interview</i> or <i>1on1</i> — gets a colour from its name: the same name is always the same colour, in a table, on a board, in the properties panel and on cards. To choose one yourself, pick it from the option's colour menu: one of the status colours, or gray, brown, orange, yellow, green, blue, purple, pink or red. In the type file it is written as <code>colors: { Interview: blue }</code>. Linked notes (a meeting's <i>Larkspur Payroll</i> or <i>Mara Quill</i>) and #tags are coloured from their names the same way.</p>
       <h3>Built-in types</h3>
-      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b>, <b>Decision</b>, <b>Block</b> and <b>Daily</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
-      <p>A type you made has <b>Delete &lt;Type&gt;…</b> at the foot of <b>Edit type</b>; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
+      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b>, <b>Decision</b>, <b>Block</b> and <b>Daily</b> are marked <b>Built in</b>: Atlas's own features depend on them. In the type's editor their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
+      <p>A type you made has <b>Delete &lt;Type&gt;…</b> under its properties in the type's editor; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
       <h3>Projects</h3>
       <p>Atlas ships a <b>Project</b> type (status: planned, active, paused, done; owner; due; summary). Every task has a <code>project</code> relation — to a project or an area, once your types are set up for <a href="#para">PARA</a> — and the <b>Projects</b> view is a board grouped by project.</p>
     </section>
@@ -540,7 +549,7 @@ pnpm tauri:dev</pre>
       <ul>
         <li>The template button just after the gear on a type's view tabs (<b>Edit Person template</b>, for Person).</li>
         <li>Right-click the type in the sidebar → <b>Edit template</b>.</li>
-        <li><b>Edit template</b> at the top of the type's own page, beside <b>Notes | Edit type</b>.</li>
+        <li><b>Edit template</b> at the top of the type's own page, beside <b>Edit type</b>, and the <b>Template</b> row at the foot of the type's editor.</li>
         <li>Search <kbd>⌘K</kbd>: type <i>edit</i> and pick <b>Edit &lt;type&gt; template</b>, e.g. <b>Edit Person template</b>.</li>
       </ul>
       <p>If the type has no template, Atlas makes one first — named after the type, holding <code>type:</code> and each of its properties with nothing filled in — and opens it.</p>
@@ -621,7 +630,7 @@ pnpm tauri:dev</pre>
       <ul>
         <li><b>Group</b> in the toolbar has <b>Group by</b>, then <b>Then by</b> to split each group again. It works on tables and boards: on a table they're groups and sub-groups, on a board they're columns and lanes.</li>
         <li><b>None</b> turns a grouping off. A board always has columns, so its <b>Group by</b> has no None; its <b>Then by</b> does.</li>
-        <li>A property that can hold several values — a multi-select, a relation set to <i>Several notes</i> — is listed but can't be picked, with the reason: <i>“A note can have several of labels, so it cannot be grouped by it.”</i></li>
+        <li>A property that can hold several values — a multi-select, a relation that allows many — is listed but can't be picked, with the reason: <i>“A note can have several of labels, so it cannot be grouped by it.”</i></li>
         <li>Groups come in order: a select's options as the type orders them, numbers by size, dates by day, the rest by name — reversed when the view sorts that property descending. Notes with no value gather under <b>No value</b>, last.</li>
         <li>A checkbox groups into <i>true</i> (ticked) and <i>false</i>, which holds every note not ticked, including those without the box.</li>
       </ul>

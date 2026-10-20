@@ -279,6 +279,38 @@ export function setRelation(
   });
 }
 
+/**
+ * Whether a property holds several values ("Allow many", slice 12): a
+ * multi-select does, a select does not, a relation as it says. Null for a
+ * kind that holds one value only.
+ */
+export function manyOf(property: PropertyDef): boolean | null {
+  if (property.kind === 'select' || property.kind === 'multiSelect') {
+    return property.kind === 'multiSelect';
+  }
+  return property.kind === 'relation' ? property.many : null;
+}
+
+/**
+ * Lets a property hold several values, or one. No new setting: a select that
+ * allows many is a multi-select, and a relation says `many`. What a relation
+ * points at is left as it is, so one pointing at a type not (yet) in the
+ * vault can still be switched.
+ */
+export function setPropertyMany(
+  type: ObjectType,
+  { key, many }: { key: string; many: boolean },
+): ObjectType {
+  const current = propertyOf(type, key);
+  if (current.kind === 'select' || current.kind === 'multiSelect') {
+    return changePropertyKind(type, { key, kind: many ? 'multiSelect' : 'select' });
+  }
+  if (current.kind !== 'relation') {
+    throw new TypeEditError(`${current.label} holds one value only`);
+  }
+  return withProperty(type, key, (property) => ({ ...property, many }));
+}
+
 function withOptions(
   type: ObjectType,
   key: string,
@@ -431,6 +463,7 @@ export type TypeEdit =
   | { readonly kind: 'moveProperty'; readonly key: string; readonly to: number }
   | { readonly kind: 'changeKind'; readonly key: string; readonly propertyKind: PropertyKind }
   | { readonly kind: 'setRequired'; readonly key: string; readonly required: boolean }
+  | { readonly kind: 'setMany'; readonly key: string; readonly many: boolean }
   | {
       readonly kind: 'setRelation';
       readonly key: string;
@@ -487,6 +520,8 @@ export function applyTypeEdit(
       return unchanged(changePropertyKind(type, { key: edit.key, kind: edit.propertyKind }));
     case 'setRequired':
       return unchanged(setPropertyRequired(type, edit));
+    case 'setMany':
+      return unchanged(setPropertyMany(type, edit));
     case 'setRelation':
       return unchanged(setRelation(type, { ...edit, types }));
     case 'addOption':

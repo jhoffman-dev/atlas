@@ -166,7 +166,8 @@ function activePlaceOf(pane: Pane): NavigationPlace | null {
   return tab === undefined ? null : tabPlace(tab);
 }
 
-function activePlace(workspace: Workspace): NavigationPlace | null {
+/** What the focused pane's shown tab is on, read outside a render or in a selector. */
+export function activePlace(workspace: Workspace): NavigationPlace | null {
   return tabPlace(activeTabOf(workspace));
 }
 

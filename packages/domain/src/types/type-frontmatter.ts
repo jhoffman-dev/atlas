@@ -207,7 +207,10 @@ function mergedSpec({
       merged[key] = value;
     }
   }
-  return merged;
+  // Back to saying only its kind: written as the shorthand again, so a flag
+  // set and cleared leaves `due: date` as it was rather than its long form.
+  const onlyKind = Object.keys(merged).length === 1 && Object.hasOwn(merged, 'kind');
+  return typeof spec === 'string' && onlyKind ? spec : merged;
 }
 
 /**
