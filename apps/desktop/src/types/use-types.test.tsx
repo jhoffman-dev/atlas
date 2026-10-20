@@ -31,7 +31,7 @@ describe('useTypes', () => {
       wrapper,
     });
     await waitFor(() => expect(reads).toHaveLength(1));
-    act(() => hook.result.current.reload());
+    act(() => void hook.result.current.reload());
     await waitFor(() => expect(reads).toHaveLength(2));
 
     await act(async () => reads[1]?.([typeFile('After the save')]));
@@ -42,5 +42,35 @@ describe('useTypes', () => {
 
     expect(hook.result.current.types.map((type) => type.label)).toEqual(['After the save']);
     expect(hook.result.current.types[0]?.path).toBe('.atlas/types/task.md');
+  });
+
+  it('settles a reload with what it read, or null when it failed or was given up', async () => {
+    const reads: { resolve: (files: NoteFile[]) => void; reject: (cause: Error) => void }[] = [];
+    const fs = fakeVaultFs({
+      listDirectory: async () => [
+        { kind: 'file', name: 'task.md', path: createVaultPath('.atlas/types/task.md') },
+      ],
+      readNotes: () => new Promise((resolve, reject) => reads.push({ resolve, reject })),
+    });
+    const { wrapper } = queryWrapper();
+    const hook = renderHook(() => useTypes({ fs, markdown: remarkMarkdown, vaultKey: '/vault' }), {
+      wrapper,
+    });
+    await waitFor(() => expect(reads).toHaveLength(1));
+    await act(async () => reads[0]?.resolve([typeFile('First')]));
+
+    const read = hook.result.current.reload();
+    await waitFor(() => expect(reads).toHaveLength(2));
+    // Given up for a later reload: what the cache holds may be from before.
+    const later = hook.result.current.reload();
+    expect(await read).toBeNull();
+    await waitFor(() => expect(reads).toHaveLength(3));
+    await act(async () => reads[2]?.resolve([typeFile('After the save')]));
+    expect((await later)?.map((type) => type.label)).toEqual(['After the save']);
+
+    const failing = hook.result.current.reload();
+    await waitFor(() => expect(reads).toHaveLength(4));
+    await act(async () => reads[3]?.reject(new Error('the folder is gone')));
+    expect(await failing).toBeNull();
   });
 });
