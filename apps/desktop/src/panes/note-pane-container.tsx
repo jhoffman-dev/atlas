@@ -65,6 +65,7 @@ import {
   useCalendarNav,
   type CalendarNavigation,
   type ChatToggle,
+  type CreateRelated,
   type GroupFolds,
   type GroupFoldStore,
   type NotePeople,
@@ -463,6 +464,16 @@ function useNotePane({
     types,
     notePaths,
     beside: path,
+    onChanged,
+  });
+  // A note made from a table's relation cell goes where a new note of its
+  // type goes: the page beside it is the view, which lives in .atlas/views.
+  const createRelatedFromTable = useCreateRelated({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    types,
+    notePaths,
+    beside: null,
     onChanged,
   });
   const dashboard = useDashboard({ note: note.open, index, types, notePaths, indexKey });
@@ -870,6 +881,7 @@ function useNotePane({
               choosing,
               folds,
               onRowFocus,
+              createRelated: createRelatedFromTable,
             })
       }
       {...(template === null &&
@@ -1100,6 +1112,7 @@ function paneBody({
   choosing,
   folds,
   onRowFocus,
+  createRelated,
 }: {
   source: ReturnType<typeof useSource>;
   dashboard: ReturnType<typeof useDashboard> & ReturnType<typeof useDashboardEditing>;
@@ -1121,6 +1134,8 @@ function paneBody({
   folds: GroupFolds;
   /** Told the row a table's focus landed in, for the aside. */
   onRowFocus: (path: string) => void;
+  /** "New <type>…" in a table's relation cell. */
+  createRelated: CreateRelated;
 }): ReactNode {
   if (source.source !== null) {
     return (
@@ -1180,6 +1195,8 @@ function paneBody({
       choosing={choosing}
       folds={folds}
       onRowFocus={onRowFocus}
+      onCreateRelated={createRelated}
+      {...(arrangement.popups !== undefined && { popups: arrangement.popups })}
     />
   );
 }

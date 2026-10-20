@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import {
   calendarEndKey,
+  cellShownValue,
   createVaultPath,
   type ObjectType,
   type StatusProperty,
@@ -9,6 +10,7 @@ import {
 import {
   cardAsMoved,
   cardMoveChanges,
+  cellEditChanges,
   setNoteProperties,
   TaskRuleRefusedError,
   type ActivityLog,
@@ -17,7 +19,7 @@ import {
   type VaultFsPort,
   FrontmatterRefusedError,
 } from '@atlas/application';
-import type { CardMove } from '@atlas/ui';
+import type { CardMove, CellEdit } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';
@@ -128,6 +130,8 @@ export function useRowWrites({
   status,
   changeProperties,
   moveProperties,
+  shownOf,
+  refuse,
 }: {
   display: ViewDisplay;
   /** The type the view lists, whose property kinds a moved card's values are written as. */
@@ -136,14 +140,40 @@ export function useRowWrites({
   /** The type's status, whose done option finishes work on a board, by column or by lane. */
   status: StatusProperty | null;
   changeProperties: ChangeProperties;
-  /** A card's move, which the board draws at once (#260). */
+  /** A card's move, which the board draws at once (#260) — and a cell's commit, which the table does. */
   moveProperties: MoveProperties;
+  /** A row's values as the view draws them now; null for a row it does not show. */
+  shownOf: (path: string) => Readonly<Record<string, unknown>> | null;
+  /** Says why a change was refused before anything was written. */
+  refuse: (message: string) => void;
 }) {
+  /**
+   * A cell committed in the table (#300): one write, drawn as committed at
+   * once, as a card moved is. What it writes, and whether the row still
+   * shows what the edit began on, is the application's rule
+   * (`cellEditChanges`); a refusal writes nothing and is said over the table.
+   * Settles once the write lands and fails as it does — already said, so a
+   * table that does not wait on it raises nothing.
+   */
   const editCell = useCallback(
-    ({ path, column, value }: { path: string; column: string; value: string }) => {
-      changeProperties({ path, values: { [column]: value === '' ? null : value } });
+    (edit: CellEdit): Promise<void> => {
+      let values: PropertyChanges;
+      try {
+        values = cellEditChanges({ edit, now: shownOf(edit.path), status });
+      } catch (cause) {
+        refuse(errorMessage(cause));
+        const refused = Promise.reject(cause instanceof Error ? cause : new Error(String(cause)));
+        // Said over the table already: a caller that does not wait on it is not told twice.
+        refused.catch(() => undefined);
+        return refused;
+      }
+      return moveProperties({
+        path: edit.path,
+        values,
+        shown: () => ({ [edit.column]: cellShownValue(edit.value) }),
+      });
     },
-    [changeProperties],
+    [status, shownOf, refuse, moveProperties],
   );
 
   /**
@@ -167,7 +197,8 @@ export function useRowWrites({
           : null;
       if (column === null && lane === null) return;
       const moved = { column, lane, status, columnOptions: groupOptions };
-      moveProperties({
+      // A failed move is said on the board by the pending cards themselves.
+      void moveProperties({
         path: move.path,
         values: cardMoveChanges(moved),
         shown: (values) => cardAsMoved({ values, move: moved }),

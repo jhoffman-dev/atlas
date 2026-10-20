@@ -125,6 +125,7 @@ describe('a typed-in cell', () => {
       path: 'a.md',
       column: 'note',
       value: 'changed',
+      began: { value: 'first' },
     });
     // The result is not read again here, so the cell still reads as it did.
     expect(document.activeElement).toBe(cell('first'));
@@ -156,7 +157,12 @@ describe('a typed-in cell', () => {
     await userEvent.click(cell('first'));
     await userEvent.clear(field());
     await userEvent.keyboard('{Enter}');
-    expect(onEditCell).toHaveBeenCalledExactlyOnceWith({ path: 'a.md', column: 'note', value: '' });
+    expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
+      path: 'a.md',
+      column: 'note',
+      value: '',
+      began: { value: 'first' },
+    });
   });
 
   it('Tab commits and opens the next cell; at the row’s end, the next row’s first cell', async () => {
@@ -169,6 +175,7 @@ describe('a typed-in cell', () => {
       path: 'a.md',
       column: 'note',
       value: 'third',
+      began: { value: 'first' },
     });
     // The last column of the first row wraps to the first editable column of the second.
     expect(picker()).toBeDefined();
@@ -196,6 +203,7 @@ describe('a typed-in cell', () => {
       path: 'b.md',
       column: 'note',
       value: 'second!',
+      began: { value: 'second' },
     });
     expect(document.querySelector('.table__input')).toBeNull();
     expect(document.activeElement).toBe(cell('second'));
@@ -230,6 +238,7 @@ describe('a status cell', () => {
       path: 'a.md',
       column: 'status',
       value: 'waiting',
+      began: { value: 'next' },
     });
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(cell('Next'));
@@ -260,6 +269,7 @@ describe('a status cell', () => {
       path: 'a.md',
       column: 'status',
       value: 'someday',
+      began: { value: 'next' },
     });
   });
 
@@ -271,10 +281,16 @@ describe('a status cell', () => {
       path: 'a.md',
       column: 'status',
       value: 'waiting',
+      began: { value: 'next' },
     });
     await userEvent.click(cell('Inbox'));
     await userEvent.click(within(picker()).getByRole('option', { name: /Done/ }));
-    expect(onEditCell).toHaveBeenLastCalledWith({ path: 'b.md', column: 'status', value: 'done' });
+    expect(onEditCell).toHaveBeenLastCalledWith({
+      path: 'b.md',
+      column: 'status',
+      value: 'done',
+      began: { value: 'inbox' },
+    });
   });
 
   /** Status alone, so Tab from one row's picker reaches the next row's. */
@@ -348,6 +364,7 @@ describe('a status cell', () => {
       path: 'a.md',
       column: 'status',
       value: 'done',
+      began: { value: 'next' },
     });
   });
 });
@@ -511,6 +528,7 @@ describe('a date cell', () => {
       path: 'a.md',
       column: 'due',
       value: '2026-04-01',
+      began: { value: '2026-03-01' },
     });
   });
 
@@ -535,6 +553,7 @@ describe('a number cell', () => {
       path: 'a.md',
       column: 'count',
       value: 3.5,
+      began: { value: 3 },
     });
   });
 
@@ -547,6 +566,7 @@ describe('a number cell', () => {
       path: 'a.md',
       column: 'count',
       value: null,
+      began: { value: 3 },
     });
   });
 });
@@ -564,5 +584,171 @@ describe('moving between cells without editing', () => {
     expect(document.activeElement).toBe(cell('Inbox'));
     await userEvent.keyboard('{ArrowUp}');
     expect(document.activeElement).toBe(cell('Next'));
+  });
+});
+
+/**
+ * #300: what the app needs of an edit to wire it — what the cell showed as
+ * the edit began, so a stale row can be refused, and the picker's open state,
+ * so the one-overlay rule holds over it.
+ */
+describe('a cell edit, wired to the app', () => {
+  function wired(slot: { open: boolean }, more: Partial<TableViewProps> = {}) {
+    const onEditCell = vi.fn();
+    const onOpenChange = vi.fn();
+    const onWantRelationChoices = vi.fn();
+    const draw = (rows: TableResult['rows'], open: boolean) => (
+      <NoteNamesProvider value={names}>
+        <TableView
+          result={{ ...result, rows }}
+          sorts={[]}
+          error={null}
+          schema={schema}
+          onOpenNote={() => {}}
+          onToggleSort={() => {}}
+          onEditCell={onEditCell}
+          relationChoices={relationChoices}
+          pickerSlot={{ open, onOpenChange }}
+          onWantRelationChoices={onWantRelationChoices}
+          {...more}
+        />
+      </NoteNamesProvider>
+    );
+    const { rerender } = render(draw(result.rows, slot.open));
+    return {
+      onEditCell,
+      onOpenChange,
+      onWantRelationChoices,
+      redraw: (rows: TableResult['rows'], open: boolean) => rerender(draw(rows, open)),
+    };
+  }
+
+  it('commits with what the cell showed as its edit began', async () => {
+    const { onEditCell } = wired({ open: false });
+    await userEvent.click(cell('first'));
+    await userEvent.clear(field());
+    await userEvent.type(field(), 'changed{Enter}');
+    expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
+      path: 'a.md',
+      column: 'note',
+      value: 'changed',
+      began: { value: 'first' },
+    });
+  });
+
+  it('keeps what the cell showed as the edit began through a read that changed it', async () => {
+    const { onEditCell, redraw } = wired({ open: false });
+    await userEvent.click(cell('first'));
+    const [first, second] = result.rows as [unknown[], unknown[]];
+    redraw([[...first.slice(0, 8), 'edited elsewhere'], second], false);
+    await userEvent.type(field(), '!{Enter}');
+    expect(onEditCell).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ column: 'note', began: { value: 'first' } }),
+    );
+  });
+
+  it('ticks a box with nothing to judge it by: the tick is made on what the box shows', async () => {
+    const { onEditCell } = wired({ open: false });
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Urgent for Book the hall' }));
+    expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
+      path: 'a.md',
+      column: 'urgent',
+      value: true,
+    });
+  });
+
+  it('asks for the picker’s slot as a picker opens, and gives it back on Esc', async () => {
+    const { onOpenChange, redraw } = wired({ open: false });
+    await userEvent.click(cell('Next'));
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+    redraw(result.rows, true);
+    await userEvent.keyboard('{Escape}');
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(onOpenChange).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(cell('Next'));
+  });
+
+  it('gives the slot back once an option is picked', async () => {
+    const { onOpenChange, redraw } = wired({ open: false });
+    await userEvent.click(cell('Next'));
+    redraw(result.rows, true);
+    await userEvent.keyboard('3');
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('closes the picker, writing nothing, when another overlay takes its slot', async () => {
+    const { onEditCell, onOpenChange, redraw } = wired({ open: false });
+    const search = document.body.appendChild(document.createElement('input'));
+    await userEvent.click(cell('Next'));
+    redraw(result.rows, true);
+    expect(picker()).toBeDefined();
+    // ⌘K: the palette is up and has the focus; the slot is someone else's.
+    search.focus();
+    redraw(result.rows, false);
+    expect(screen.queryByRole('dialog', { name: 'Set Status' })).toBeNull();
+    expect(onEditCell).not.toHaveBeenCalled();
+    // Its slot is already gone: nothing is given back, which could close what took it.
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+    // The cell does not take the focus from what took the slot.
+    expect(document.activeElement).toBe(search);
+    search.remove();
+  });
+
+  it('holds the slot from one row’s picker to the next across a Tab', async () => {
+    // Status alone, so Tab from one row's picker reaches the next row's.
+    const statusOnly: TableResult = {
+      ...result,
+      columns: ['path', 'title', 'status'],
+      rows: [
+        ['a.md', 'Book the hall', 'next'],
+        ['b.md', 'Order chairs', 'inbox'],
+      ],
+    };
+    const { onOpenChange, redraw } = wired({ open: false }, { result: statusOnly });
+    await userEvent.click(cell('Next'));
+    redraw(result.rows, true);
+    await userEvent.keyboard('{Tab}');
+    expect(cell('Inbox').getAttribute('data-editing')).toBe('');
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
+  it('asks for no slot for a cell typed into', async () => {
+    const { onOpenChange } = wired({ open: false });
+    await userEvent.click(cell('first'));
+    expect(field()).not.toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('asks for a relation’s notes as its picker opens, and for no status', async () => {
+    const { onWantRelationChoices } = wired({ open: false });
+    await userEvent.click(cell('Next'));
+    expect(onWantRelationChoices).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'Larkspur launch' }));
+    expect(onWantRelationChoices).toHaveBeenCalledExactlyOnceWith('project');
+  });
+});
+
+describe('a cell picker’s slot, as the table leaves the page', () => {
+  it('is given back when the table goes with a picker up', async () => {
+    const onOpenChange = vi.fn();
+    const { unmount } = render(
+      <NoteNamesProvider value={names}>
+        <TableView
+          result={result}
+          sorts={[]}
+          error={null}
+          schema={schema}
+          onOpenNote={() => {}}
+          onToggleSort={() => {}}
+          onEditCell={() => {}}
+          pickerSlot={{ open: false, onOpenChange }}
+        />
+      </NoteNamesProvider>,
+    );
+    await userEvent.click(cell('Next'));
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+    unmount();
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
   });
 });

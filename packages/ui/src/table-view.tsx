@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { OpenHow } from './open-how.ts';
 import {
   countLabel,
@@ -18,6 +18,8 @@ import {
 import type { CellEdit, CellEditing, CellEditorHooks } from './cells/cell-editing.ts';
 import { CellPickers, picksFrom } from './cells/cell-pickers.tsx';
 import { useCellEditing } from './cells/use-cell-editing.ts';
+import { usePickerSlot } from './cells/use-picker-slot.ts';
+import type { OverlaySlot } from './overlay-slot.ts';
 import type { DoneTicks } from './done-checkbox.tsx';
 import { FlatRows } from './flat-rows.tsx';
 import {
@@ -89,6 +91,10 @@ export interface TableViewProps {
   readonly relationChoices?: Readonly<Record<string, readonly RelationChoice[]>>;
   /** Given, a relation's picker offers "New <type>…". */
   readonly onCreateRelated?: CreateRelated;
+  /** Told a relation column's picker has opened, so its notes can be read once wanted. */
+  readonly onWantRelationChoices?: (column: string) => void;
+  /** A cell's picker's open state, held by the app's one-overlay rule. */
+  readonly pickerSlot?: OverlaySlot;
   readonly onToggleSort: (column: string) => void;
   /** Adds a note of the view's type; the footer offers it when given. */
   readonly onNewNote?: () => void;
@@ -124,6 +130,8 @@ export function TableView({
   onEditCell,
   relationChoices,
   onCreateRelated,
+  onWantRelationChoices,
+  pickerSlot,
   onToggleSort,
   onNewNote,
   ticks,
@@ -151,6 +159,8 @@ export function TableView({
       {...(onEditCell !== undefined && { onEditCell })}
       {...(relationChoices !== undefined && { relationChoices })}
       {...(onCreateRelated !== undefined && { onCreateRelated })}
+      {...(onWantRelationChoices !== undefined && { onWantRelationChoices })}
+      {...(pickerSlot !== undefined && { pickerSlot })}
       {...(onNewNote !== undefined && { onNewNote })}
       {...(ticks !== undefined && { ticks })}
       {...(selection !== undefined && { selection })}
@@ -169,6 +179,8 @@ function TableSheet({
   onEditCell,
   relationChoices,
   onCreateRelated,
+  onWantRelationChoices,
+  pickerSlot,
   onToggleSort,
   onNewNote,
   ticks,
@@ -213,11 +225,12 @@ function TableSheet({
     schema.colors ?? optionColorsByKey(Object.values(properties)),
     sameEntries,
   );
-  const { editing, editor } = useCellEditing({
+  const { editing, editor, dismiss } = useCellEditing({
     onEditCell,
     paths,
     order,
     columns: () => editableColumns({ shown, kinds, properties }),
+    valueAt: (at) => rows.find((row) => row.path === at.path)?.values[at.column],
   });
   const look = useRowLook({
     shown,
@@ -234,6 +247,9 @@ function TableSheet({
   });
   // The property the editing cell is under, when it edits in a picker.
   const picker = editing === null ? undefined : properties[editing.column];
+  const picking = editor !== undefined && picksFrom(picker);
+  usePickerSlot({ picking, slot: pickerSlot, dismiss });
+  useWantedChoices(picker, onWantRelationChoices);
 
   return (
     <div className="table">
@@ -268,7 +284,7 @@ function TableSheet({
           />
         )}
       </div>
-      {editing !== null && editor !== undefined && picker !== undefined && picksFrom(picker) && (
+      {editing !== null && editor !== undefined && picker !== undefined && picking && (
         <CellPickers
           // One picker per cell: a Tab on to the next cell's picker opens a
           // fresh one, carrying no filter or highlight over from the last.
@@ -291,6 +307,18 @@ function TableSheet({
       />
     </div>
   );
+}
+
+/** Asks for a relation column's notes as its picker opens: nothing is read for a table no one links from. */
+function useWantedChoices(
+  picker: PropertyDef | undefined,
+  want: ((column: string) => void) | undefined,
+) {
+  const column = picker?.kind === 'relation' ? picker.key : null;
+  const ask = useSteadyCallback((key: string) => want?.(key));
+  useEffect(() => {
+    if (column !== null) ask(column);
+  }, [column, ask]);
 }
 
 /**

@@ -3,10 +3,12 @@ import { createStore, useStore, type StoreApi } from 'zustand';
 import type { BoardLane, BoardRow, RowGroup } from '@atlas/domain';
 import {
   readAnswers,
+  resultAsPending,
   rowsAsPending,
   type PendingCard,
   type PropertyChanges,
   type ReadMoment,
+  type TableRows,
 } from '@atlas/application';
 import { errorMessage } from './error-message.ts';
 
@@ -15,13 +17,14 @@ export type WriteProperties = (args: { path: string; values: PropertyChanges }) 
 
 /**
  * Moves a card: writes `values`, and draws the card meanwhile as `shown`
- * works out from what its row shows.
+ * works out from what its row shows. Settles once the write has landed, and
+ * fails as it does — already reported, so a caller may leave it unawaited.
  */
 export type MoveProperties = (args: {
   path: string;
   values: PropertyChanges;
   shown: (values: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>;
-}) => void;
+}) => Promise<void>;
 
 /** A board's columns and swimlanes. */
 export interface BoardShape {
@@ -84,7 +87,14 @@ export function usePendingCards({
   scope: readonly unknown[];
   write: WriteProperties;
   onChanged: () => void;
-}): { pending: PendingCards; move: MoveProperties } {
+}): {
+  pending: PendingCards;
+  move: MoveProperties;
+  /** A row's values as drawn now, its pending changes laid over; null for a row the view does not show. */
+  shownOf: (path: string) => Readonly<Record<string, unknown>> | null;
+  /** Says why a change was refused before anything was written, as a failed move is said. */
+  refuse: (message: string) => void;
+} {
   const [store] = useState(() => createStore<MovesState>()(() => NOTHING_MOVING));
   // When each move's write landed. Kept out of state on purpose: a write landing
   // changes nothing on screen, only how the next read is judged, and every read
@@ -114,7 +124,8 @@ export function usePendingCards({
       });
       // As the drop is asked, like Today's rows: only a read of the index since moves on from here.
       const askedAt = now.indexKey;
-      inTurn(path, () => write({ path, values })).then(
+      const landed = inTurn(path, () => write({ path, values }));
+      landed.then(
         () => {
           landedAt.current.set(card, { at: runsBegun(), indexKey: askedAt });
           onChanged();
@@ -125,12 +136,23 @@ export function usePendingCards({
             failure: errorMessage(cause),
           })),
       );
+      return landed;
     },
     [store, landedOf, inTurn, runsBegun, write, onChanged],
   );
 
+  const shownOf = useCallback(
+    (path: string) => {
+      const now = latest.current;
+      if (!now.rows.some((row) => row.path === path)) return null;
+      return valuesShown({ ...now, moving: store.getState().moving, landedOf, path });
+    },
+    [store, landedOf],
+  );
+  const refuse = useCallback((message: string) => store.setState({ failure: message }), [store]);
+
   const pending = useMemo(() => ({ store, landedOf, rows, read }), [store, landedOf, rows, read]);
-  return { pending, move };
+  return { pending, move, shownOf, refuse };
 }
 
 /**
@@ -200,4 +222,27 @@ export function useBoardAsPending({
     return shown === pending.rows ? read : regroup(shown);
   }, [moving, pending, read, regroup]);
   return useMemo(() => ({ ...board, failure }), [board, failure]);
+}
+
+/**
+ * A table as it is drawn (#300): each cell committed and not yet read back
+ * drawn as committed (`resultAsPending`), and why the last change that
+ * failed did. Called by the table's body alone, so a commit draws only it.
+ */
+export function useTableAsPending<Result extends TableRows>({
+  pending,
+  result,
+}: {
+  pending: PendingCards;
+  /** The view's result as its last run read it. */
+  result: Result | null;
+}): { readonly result: Result | null; readonly failure: string | null } {
+  const moving = useStore(pending.store, (state) => state.moving);
+  const failure = useStore(pending.store, (state) => state.failure);
+  const shown = useMemo(() => {
+    if (result === null) return null;
+    const cards = moving.map((card) => ({ ...card, landed: pending.landedOf(card) }));
+    return resultAsPending({ result, pending: cards, read: pending.read });
+  }, [moving, pending, result]);
+  return useMemo(() => ({ result: shown, failure }), [shown, failure]);
 }
