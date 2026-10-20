@@ -377,6 +377,23 @@
   min-width: 0;
 }
 
+/* On the Query page the page's height is handed down to the result, as it
+   is to the SQL one (#401), so the result's sheet is the scroller its rows
+   are virtualised in rather than growing to every row (#427). The sheet's
+   basis is 0, so the panel's own height is the composer, the bar and the
+   sheet's floor: in a window too short for those, the panel scrolls the page
+   instead of squeezing the sheet away. A saved query view keeps its own
+   layout. */
+.query-screen > .aquery {
+  --aquery-result-floor: 240px;
+  flex: 1 0 auto;
+}
+
+.query-screen > .aquery > .qresult__sheet {
+  flex: 1 1 0;
+  min-height: var(--aquery-result-floor);
+}
+
 .aquery__bar {
   align-items: center;
   display: flex;
