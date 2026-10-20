@@ -1,5 +1,6 @@
 import {
   ATLAS_DIRECTORY,
+  AUTOMATIONS_DIRECTORY,
   COMPANY_TYPE,
   DASHBOARD_MARKER,
   FILED_UNDER_TYPES,
@@ -85,6 +86,23 @@ export const PERSON_EMAILS_SCOPE: ReadScope = { types: [PERSON_TYPE, COMPANY_TYP
 
 /** A note's unlinked mentions: any note's words can name it. */
 export const MENTIONS_SCOPE: ReadScope = { anyNote: true };
+
+/**
+ * What sync counts as an edit to send (#326): any note changed. A file the
+ * index does not hold is news whose notes are not known, which reaches every
+ * reader, this one too, so no change to the vault goes uncounted.
+ */
+export const SYNC_SCOPE: ReadScope = { anyNote: true };
+
+/**
+ * What the Automations page lists while it is open (`loadAutomations`): the
+ * rule files and their logs, which are read from the files and not the index.
+ * What sets a rule off is not this: that is every sync's `NoteChanges`.
+ */
+export const AUTOMATIONS_SCOPE: ReadScope = { folders: [AUTOMATIONS_DIRECTORY] };
+
+/** The sources that name a secret (`listSecrets`): any note can be one. */
+export const SECRETS_SCOPE: ReadScope = { anyNote: true };
 
 /**
  * What the index had to say when it last had news for its readers: the notes

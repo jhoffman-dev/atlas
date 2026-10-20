@@ -66,7 +66,10 @@ export interface AutomationsOptions {
   readonly clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   /** The open vault's root; null with none open. */
   readonly vaultKey: string | null;
-  /** Changes when the index does: while the page is open, a rule edited by hand is read again. */
+  /**
+   * Moves with the index's news of the rules and their logs (`AUTOMATIONS_SCOPE`,
+   * #326): while the page is open, a rule edited by hand is read again.
+   */
   readonly indexKey: string;
   /** Rules are only run once the index can answer their queries. */
   readonly indexReady: boolean;
@@ -75,8 +78,9 @@ export interface AutomationsOptions {
   /** Re-reads the tree and the index once a run or an edit has written. */
   readonly onSettled: () => void;
   /**
-   * Whether the Automations page is on screen. Only then is every index change
-   * a reason to read the rules and logs again; otherwise the minute's tick is.
+   * Whether the Automations page is on screen. Only then is the index's news
+   * of the rules a reason to read them and their logs again; otherwise the
+   * minute's tick is.
    */
   readonly live?: boolean;
   /**
@@ -469,9 +473,9 @@ function pauseAfter(previous: RulePause | undefined, cause: unknown, now: LocalT
 
 /**
  * Reads the vault's rules when the vault, its rule files, a command or the
- * minute changes them — and, while the page is open, whenever the index
- * does. Not on every note saved elsewhere: a vault with many rules would read
- * every rule and every log each time.
+ * minute changes them — and, while the page is open, whenever the index has
+ * news of them. Not on every note saved elsewhere: a vault with many rules
+ * would read every rule and every log each time.
  */
 function useListing({
   ports,

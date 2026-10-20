@@ -1,6 +1,7 @@
 export { readNoteFacets } from './index-facets.ts';
 export { reportingIndexWrites } from './reporting-index-writes.ts';
 export {
+  AUTOMATIONS_SCOPE,
   INBOX_CHOICES_SCOPE,
   INBOX_SCOPE,
   MENTIONS_SCOPE,
@@ -10,6 +11,8 @@ export {
   PROJECTS_SCOPE,
   scopeTouched,
   REVIEW_SCOPE,
+  SECRETS_SCOPE,
+  SYNC_SCOPE,
   UNKNOWN_NEWS,
 } from './scoped-reads.ts';
 export type { IndexNews, PaneNote, ReadScope } from './scoped-reads.ts';
