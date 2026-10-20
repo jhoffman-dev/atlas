@@ -1,9 +1,10 @@
 import { memo, useMemo } from 'react';
 import type { NavigationPlace, PaletteCommand } from '@atlas/domain';
-import type { IndexPort } from '@atlas/application';
+import { SEARCH_SCOPE, type IndexPort } from '@atlas/application';
 import { SearchPalette } from '@atlas/ui';
 import { useSearch } from './index/use-search.ts';
-import { useIndexKey, type IndexStatusStore } from './index/index-status-store.ts';
+import { useIndexPhase, type IndexStatusStore } from './index/index-status-store.ts';
+import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';
 import { hideOverlay, useOverlayUp, type OverlayStore } from './overlay-store.ts';
 import { useFocusedPlace, type WorkspaceStore } from './workspace/workspace-store.ts';
 
@@ -59,7 +60,7 @@ function OpenSearchPalette({
 }: SearchPaletteSlotProps) {
   const focused = useFocusedPlace(workspace);
   const commands = useMemo(() => commandsFor(focused), [commandsFor, focused]);
-  const changeKey = useIndexKey(indexStatus, vault);
+  const changeKey = usePaletteKey(indexStatus, vault);
   const search = useSearch({ index, commands, offerFor, changeKey, store });
   return (
     <SearchPalette
@@ -83,4 +84,15 @@ function OpenSearchPalette({
       fallbackFocus={fallbackFocus}
     />
   );
+}
+
+/**
+ * What the hits are searched again on: any note's news (#327), and the index
+ * building, which the search waits out rather than answer from a half-written
+ * index. The scoped key does not hear a rebuild begin, so the phase says it.
+ */
+function usePaletteKey(status: IndexStatusStore, vault: string | null): string {
+  const building = useIndexPhase(status, vault) === 'building';
+  const key = useScopedIndexKey({ status, vault, reader: ['search'], scope: SEARCH_SCOPE });
+  return building ? 'building' : key;
 }
