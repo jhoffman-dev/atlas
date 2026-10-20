@@ -117,7 +117,10 @@ describe('a result too long for the model', () => {
     const body = JSON.parse(result.content) as { cut: { note: string }; start: string };
 
     expect(result.content.length).toBeLessThanOrEqual(TOOL_RESULT_CHARACTERS);
-    expect(body.cut.note).toMatch(/ask for fewer/);
+    // One item cannot be asked for in fewer results: the cut says what it was and how big.
+    expect(body.cut.note).not.toMatch(/ask for fewer/);
+    expect(body.cut.note).toMatch(/was cut/);
+    expect(body.cut.note).toContain((TOOL_RESULT_CHARACTERS * 2 + 2).toLocaleString('en-US'));
     expect(body.start.startsWith('{"template":')).toBe(true);
   });
 });
@@ -234,5 +237,7 @@ describe('atlas_read_note on a long note (#415)', () => {
     const spec = READ_TOOL_SPECS.find((each) => each.name === 'atlas_read_note');
     expect(spec?.description).toMatch(/offset/);
     expect(JSON.stringify(spec?.inputSchema)).toContain('"offset"');
+    // A turn has a bounded number of tool rounds: the model says how far it read.
+    expect(spec?.description).toMatch(/how far you read/);
   });
 });
