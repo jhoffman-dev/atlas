@@ -79,6 +79,19 @@ export function TabStrip({
     if (now === null || now === document.body || list.current?.contains(now)) focusTab(stop);
   }, [tabs, stop]);
 
+  // Whenever the shown tab changes, or the tabs around it come or go, scroll
+  // the list the least that shows all of it (#412). Only the list moves:
+  // scrollIntoView would also scroll the pane and window around it. Keyed on
+  // the ids, not the array: the strip is handed a new one on every draw, and
+  // a strip the reader scrolled must not snap back when the focus changes pane.
+  const order = tabs.map((tab) => tab.id).join('\u0000');
+  useLayoutEffect(() => {
+    const view = list.current;
+    const item = view?.querySelector<HTMLElement>('.tab-strip__item--active');
+    if (!view || !item) return;
+    view.scrollLeft += overhang(view.getBoundingClientRect(), item.getBoundingClientRect());
+  }, [active, order]);
+
   const onFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
     holding.current =
       (event.target as HTMLElement).closest<HTMLElement>('[data-tab]')?.dataset['tab'] ?? null;
@@ -173,6 +186,13 @@ export function TabStrip({
       </button>
     </div>
   );
+}
+
+/** How far to scroll a strip showing `view` so `item` lies inside it: 0 when it already does. */
+function overhang(view: DOMRect, item: DOMRect): number {
+  if (item.left < view.left) return item.left - view.left;
+  if (item.right > view.right) return item.right - view.right;
+  return 0;
 }
 
 /** Where each key takes the focus from the tab at `at`, among `count` tabs. */
