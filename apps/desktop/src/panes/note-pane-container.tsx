@@ -17,6 +17,7 @@ import {
   isFavorite,
   deleteRefusal,
   isMovable,
+  isPersonType,
   isTemplateNote,
   messageWithoutPaths,
   PROJECT_STATUS_KEY,
@@ -362,6 +363,7 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
     onToggleFavorite: note.onToggleFavorite,
     onMoveTo: note.onMoveTo,
     onDelete: note.onDelete,
+    onMergeInto: note.onMergeInto,
     onShowInGraph: note.onShowInGraph,
     arrangement: {
       // Which of these a pane offers is the domain's rule; the bar draws a
@@ -427,6 +429,7 @@ export function useNotePane({
   onToggleFavorite,
   onMoveTo,
   onDelete,
+  onMergeInto,
   onShowInGraph,
   arrangement,
   aside,
@@ -458,6 +461,8 @@ export function useNotePane({
   onMoveTo?: (path: VaultPath) => void;
   /** Offered in the page's menu when the page can be deleted. */
   onDelete?: (path: VaultPath) => void;
+  /** Offered in a person's page menu and right sidebar: merge them into another person (#464). */
+  onMergeInto?: (path: VaultPath) => void;
   /** Opens the graph around a note, from its page's menu. */
   onShowInGraph?: (path: VaultPath) => void;
   /** Splitting, closing and the page menu's open state, which the app owns. */
@@ -750,6 +755,14 @@ export function useNotePane({
   const steadyFind = useSteadyCallback(links.mentions.find);
   const steadyLink = useSteadyCallback(links.mentions.link);
   const { typeName, typeLabel, rows, relationChoices, relationTargets, keys } = noteProperties;
+  const steadyMergeInto = useSteadyCallback(() => {
+    if (path !== null) onMergeInto?.(path);
+  });
+  // A person, not a template of one, merges into another from the menu and the aside (#464).
+  const mergeInto =
+    onMergeInto !== undefined && path !== null && template === null && isPersonType(typeName)
+      ? steadyMergeInto
+      : null;
   const shownPath = note.open?.path ?? null;
   const shownTitle = heading?.title.text ?? null;
   usePublishShownNote(aside.shown, tabId, {
@@ -778,6 +791,7 @@ export function useNotePane({
               mentions: links.mentions.state,
               onFindMentions: steadyFind,
               onLinkMention: steadyLink,
+              ...(mergeInto !== null && { onMergeInto: mergeInto }),
             },
       [
         shownPath,
@@ -797,6 +811,7 @@ export function useNotePane({
         links.mentions.state,
         steadyFind,
         steadyLink,
+        mergeInto,
       ],
     ),
     doc: note.open?.doc ?? null,
@@ -886,6 +901,7 @@ export function useNotePane({
         path !== null &&
         template === null &&
         deleteRefusal({ path, kind: 'file' }) === null && { onDelete: () => onDelete(path) })}
+      {...(mergeInto !== null && { onMergeInto: mergeInto })}
       {...pageArchiveItems({
         commands: context.archive,
         path,

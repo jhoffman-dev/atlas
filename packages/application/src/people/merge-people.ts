@@ -401,8 +401,10 @@ export function peopleMergeSummary(report: PeopleMergeReport): string {
       `${written}. Not written: ${report.notWritten.join(', ')}. Nobody went to the Trash.`
     );
   }
-  const moved = `${many(report.links, 'link', 'links')} in ${many(report.written.length, 'note', 'notes')} updated`;
-  const merged = `Merged ${names(report.trashed.length > 0 ? report.trashed : report.notTrashed)} into ${kept}: ${moved}.`;
+  const who = names(report.trashed.length > 0 ? report.trashed : report.notTrashed);
+  const moved =
+    report.links === 0 ? '' : `: ${many(report.links, 'link', 'links')} now open ${kept}`;
+  const merged = `Merged ${who} into ${kept}${moved}.`;
   const refused = report.failures.filter((failure) => failure.step === 'trash');
   if (refused.length === 0) return merged;
   const left = refused.map(({ path, reason }) => `${path} (${reason})`).join(', ');

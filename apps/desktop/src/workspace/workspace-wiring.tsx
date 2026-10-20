@@ -34,6 +34,8 @@ export interface NoteTabCommands {
   readonly onToggleFavorite: (path: VaultPath) => void;
   readonly onMoveTo: (path: VaultPath) => void;
   readonly onDelete: (path: VaultPath) => void;
+  /** "Merge into…" on a person's page (#464). */
+  readonly onMergeInto: (path: VaultPath) => void;
   readonly onShowInGraph: (path: VaultPath) => void;
 }
 

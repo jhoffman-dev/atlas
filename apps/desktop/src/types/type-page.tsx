@@ -52,6 +52,7 @@ export function TypePage({
   tabEditing,
   onOpenView,
   onEditTemplate,
+  onFindDuplicates,
   onRowFocus,
   onShowSidebar,
   history,
@@ -84,6 +85,8 @@ export function TypePage({
   onOpenView: (path: VaultPath) => void;
   /** Opens the template the type's new notes start as, made if it has none. */
   onEditTemplate: (type: ObjectType) => void;
+  /** Given on the Person type's page: opens the list of people who may be one (#464). */
+  onFindDuplicates?: () => void;
   /** Told the row the table's focus landed in, for the right sidebar. */
   onRowFocus?: (path: string) => void;
   onShowSidebar?: () => void;
@@ -110,6 +113,14 @@ export function TypePage({
         name={type.label}
         actions={
           <>
+            {onFindDuplicates !== undefined && (
+              <PageAction
+                icon="person"
+                label="Possible duplicates"
+                tone="secondary"
+                onPress={onFindDuplicates}
+              />
+            )}
             <PageAction
               icon="template"
               label="Edit template"

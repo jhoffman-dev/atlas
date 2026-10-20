@@ -178,6 +178,9 @@ import { leavePeek } from './panes/peek-moves.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
 import { movingEditorsIn, openNotesIn } from './panes/open-notes.ts';
 import { useVaultEntries, type VaultEntryPorts } from './vault/use-vault-entries.ts';
+import { MergePeopleSlot, PossibleDuplicatesSlot } from './people/people-merge-slot.tsx';
+import { usePeopleMerge } from './people/use-people-merge.ts';
+import { vaultSettingsWriter } from './settings/vault-settings-writer.ts';
 import { useLocalApi, type LocalApiPorts } from './api/use-local-api.ts';
 import { useApiHost } from './api/use-api-host.ts';
 import { createAutomationRelay } from './api/automation-relay.ts';
@@ -283,6 +286,7 @@ import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
 const OPEN_TERMS = 'open-terms';
+const FIND_DUPLICATE_PEOPLE = 'find-duplicate-people';
 const OPEN_INBOX = 'open-inbox';
 const OPEN_REVIEW = 'open-review';
 const OPEN_TODAY = 'open-today';
@@ -294,6 +298,11 @@ const PALETTE_COMMANDS = [
   { id: 'new-artifact', label: 'New artifact', keywords: ['claude', 'save', 'link', 'html'] },
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
   { id: OPEN_TERMS, label: 'Terms', keywords: ['glossary', 'spelling', 'vocabulary', 'aliases'] },
+  {
+    id: FIND_DUPLICATE_PEOPLE,
+    label: 'Possible duplicate people',
+    keywords: ['merge', 'people', 'person', 'duplicates', 'same', 'email'],
+  },
   {
     id: OPEN_INBOX,
     label: 'Inbox',
@@ -1157,6 +1166,22 @@ function AppWindow({
     ],
   );
   const entries = useVaultEntries(entryPorts, notePaths);
+  const peopleMerge = usePeopleMerge({
+    ports: {
+      fs: vault.fs,
+      index: index.index,
+      markdown: notes.markdown,
+      editors: entryPorts.editors,
+    },
+    settings: vaultSettingsWriter({ fs: vault.fs, markdown: notes.markdown }),
+    notePaths,
+    overlay: { show: showOverlay, hide: hideOverlay },
+    toasts,
+    activity: activityLog,
+    onChanged: () => void refresh(),
+    closeNotes: closeDeleted,
+    openActivity: () => openPage({ kind: 'activity' }),
+  });
   // Each one function for as long as the entries' ports: the panes are handed them (#325).
   const { rename: renameEntry, askMove: askEntryMove, askDelete: askEntryDelete } = entries;
   const templatesPage = useTemplatesPage({
@@ -1668,6 +1693,7 @@ function AppWindow({
     }
     if (id === OPEN_TEMPLATES) openPage({ kind: 'templates' });
     else if (id === OPEN_TERMS) openPage({ kind: 'terms' });
+    else if (id === FIND_DUPLICATE_PEOPLE) peopleMerge.commands.findDuplicates();
     else if (id === OPEN_INBOX) openInbox();
     else if (id === OPEN_REVIEW) openPage({ kind: 'review' });
     else if (id === OPEN_TODAY) openPage({ kind: 'today' });
@@ -1715,9 +1741,10 @@ function AppWindow({
       onToggleFavorite: toggleFavorite,
       onMoveTo: (target: VaultPath) => askEntryMove({ path: target, kind: 'file' }),
       onDelete: (target: VaultPath) => askEntryDelete({ path: target, kind: 'file' }),
+      onMergeInto: peopleMerge.commands.mergeInto,
       onShowInGraph: (target: VaultPath) => openGraph({ kind: 'note', path: target, depth: 1 }),
     }),
-    [renamePaneNote, toggleFavorite, askEntryMove, askEntryDelete, openGraph],
+    [renamePaneNote, toggleFavorite, askEntryMove, askEntryDelete, peopleMerge, openGraph],
   );
   const todayWiring = useMemo(
     () => ({
@@ -1992,6 +2019,7 @@ function AppWindow({
                             ? startNewArtifact()
                             : newNoteOfType.create(type),
                         onEditTemplate: (type) => editTypeTemplate(type.name),
+                        onFindDuplicates: peopleMerge.commands.findDuplicates,
                       },
                     },
                   }}
@@ -2101,6 +2129,19 @@ function AppWindow({
                 destinations={entries.picker.destinations}
                 onPick={entries.picker.pick}
                 onClose={entries.picker.close}
+                fallbackFocus={focusFallback}
+              />
+            ) : overlay === 'merge-people' ? (
+              <MergePeopleSlot
+                store={peopleMerge.store}
+                commands={peopleMerge.commands}
+                fallbackFocus={focusFallback}
+              />
+            ) : overlay === 'people-duplicates' ? (
+              <PossibleDuplicatesSlot
+                store={peopleMerge.store}
+                commands={peopleMerge.commands}
+                onOpen={openNote}
                 fallbackFocus={focusFallback}
               />
             ) : overlay === 'delete-dialog' && entries.question !== null ? (

@@ -20,6 +20,7 @@ export type Overlay =
   | 'open-from-github'
   | 'template-delete'
   | 'template-to-note'
+  | PeopleOverlay
   | QuickAddOverlay
   | QueryPopupOverlay
   | PagesOverlay
@@ -31,6 +32,9 @@ export type Overlay =
  * move and the question before a delete.
  */
 export type PagesOverlay = 'tree-menu' | 'pages-menu' | 'move-picker' | 'delete-dialog';
+
+/** Merging people (#464): the question before a merge, and the list of people who may be one. */
+export type PeopleOverlay = 'merge-people' | 'people-duplicates';
 
 /**
  * The floating add button's speed dial, and its quick-add popover. Neither is
@@ -73,6 +77,8 @@ const MODAL: ReadonlySet<Overlay> = new Set([
   'delete-dialog',
   'template-delete',
   'template-to-note',
+  'merge-people',
+  'people-duplicates',
 ]);
 
 /**

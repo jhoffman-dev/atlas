@@ -289,7 +289,7 @@ describe('what a merge says it did', () => {
 
   it('names who went into whom and how many links moved', () => {
     expect(peopleMergeSummary(base)).toBe(
-      'Merged Mara, Marra Quill into Mara Quill: 4 links in 2 notes updated.',
+      'Merged Mara, Marra Quill into Mara Quill: 4 links now open Mara Quill.',
     );
   });
 
@@ -320,7 +320,7 @@ describe('what a merge says it did', () => {
         failures: [{ path: p(SHORT), step: 'trash', reason: 'The Trash refused it.' }],
       }),
     ).toBe(
-      'Merged Marra Quill into Mara Quill: 1 link in 1 note updated. ' +
+      'Merged Marra Quill into Mara Quill: 1 link now open Mara Quill. ' +
         'Still in the vault, as the Trash refused: Mara.md (The Trash refused it.).',
     );
   });

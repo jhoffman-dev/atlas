@@ -34,6 +34,20 @@ export type { MenuCommand } from './menu-items.tsx';
 export { MovePicker } from './move-picker.tsx';
 export type { MoveDestination } from './move-picker.tsx';
 export { DeleteDialog } from './delete-dialog.tsx';
+export { MergePeopleDialog } from './merge-people-dialog.tsx';
+export type {
+  MergeConflictView,
+  MergeDialogState,
+  MergePersonChoice,
+  MergePreviewView,
+} from './merge-people-dialog.tsx';
+export { PossibleDuplicatesDialog } from './possible-duplicates-dialog.tsx';
+export type {
+  DuplicatePairView,
+  DuplicatePersonView,
+  DuplicateReasonView,
+  DuplicatesState,
+} from './possible-duplicates-dialog.tsx';
 export type { DeletionSubject } from './delete-dialog.tsx';
 export { SidebarFooter } from './sidebar-footer.tsx';
 export { Icon } from './icon.tsx';

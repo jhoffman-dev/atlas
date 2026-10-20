@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
-import { createVaultPath, typeShownAt } from '@atlas/domain';
+import { createVaultPath, isPersonType, typeShownAt } from '@atlas/domain';
 import { typeTableScope } from '@atlas/application';
 import { clearRow, focusRow, hideAside, typeEditorShown, withinOf } from '../aside/aside-store.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
@@ -29,6 +29,8 @@ export interface TypeWiring {
   readonly onEditType: (name: string) => void;
   readonly onNewNote: TypePageProps['onNewNote'];
   readonly onEditTemplate: TypePageProps['onEditTemplate'];
+  /** Opens the list of people who may be one (#464), offered on the Person type's page. */
+  readonly onFindDuplicates: () => void;
 }
 
 /**
@@ -58,7 +60,7 @@ export function TypeContainer({
     scope,
     failed,
   });
-  const { onEditType, onNewNote, onEditTemplate } = pages.type;
+  const { onEditType, onNewNote, onEditTemplate, onFindDuplicates } = pages.type;
   // Pressed while the aside shows this type's editor: on its Type tab, with
   // the focused tab on this type, here or in the other pane.
   const typeTabShown = useStore(aside, typeEditorShown);
@@ -129,6 +131,7 @@ export function TypeContainer({
         tabEditing={pane.typeTabs({ typeName: name, onOpenView: pages.openNote })}
         onOpenView={pages.openNote}
         onEditTemplate={onEditTemplate}
+        {...(isPersonType(name) && { onFindDuplicates })}
         // The row the table's focus is in, for the aside: held against this type's page.
         onRowFocus={(path) =>
           focusRow(aside, {

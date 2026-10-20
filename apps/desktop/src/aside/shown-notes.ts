@@ -23,6 +23,8 @@ export interface ShownNote {
   readonly mentions: BacklinksProps['mentions'];
   readonly onFindMentions: BacklinksProps['onFindMentions'];
   readonly onLinkMention: BacklinksProps['onLinkMention'];
+  /** Given for a person: "Merge into…" at the foot of their properties (#464). */
+  readonly onMergeInto?: () => void;
 }
 
 interface ShownNotesState {
