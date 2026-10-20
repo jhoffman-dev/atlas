@@ -2,7 +2,6 @@
 // Adversarial probes, round 2, for PR #156 (P28-12) fix commits. Diagnose only: a red test is a defect.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { settles } from './settles.test-support.ts';
 import {
   fakeGranola,
   fakeIndexPort,
@@ -13,6 +12,7 @@ import {
   type GranolaPullRecords,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { settles } from '@atlas/ui/testing/settles';
 import {
   GRANOLA_PULL_INTERVAL_MS,
   useGranolaPull,

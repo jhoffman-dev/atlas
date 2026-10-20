@@ -6,31 +6,49 @@ const pkg = (name: string) =>
 
 export default defineConfig({
   resolve: {
-    alias: {
+    // A list, so one entry can match exactly; string entries also claim every
+    // path below them, so a subpath comes before the package it is under.
+    alias: [
       // Before '@atlas/ui', which would otherwise claim it as a path inside its index file.
       // A second entry point so the graph page, loaded lazily, keeps d3-force out of
       // the main bundle: the barrel is imported eagerly and everything it exports lands there.
-      '@atlas/ui/graph': fileURLToPath(
-        new URL('./packages/ui/src/graph/index.ts', import.meta.url),
-      ),
+      {
+        find: '@atlas/ui/graph',
+        replacement: fileURLToPath(new URL('./packages/ui/src/graph/index.ts', import.meta.url)),
+      },
       // Test support (the render counter), kept out of the barrel the app is built from.
-      '@atlas/ui/testing': fileURLToPath(
-        new URL('./packages/ui/src/testing/index.ts', import.meta.url),
-      ),
+      // Exact, so it does not claim `@atlas/ui/testing/settles` below.
+      {
+        find: /^@atlas\/ui\/testing$/,
+        replacement: fileURLToPath(new URL('./packages/ui/src/testing/index.ts', import.meta.url)),
+      },
+      // Test support of its own entry point (see packages/ui/src/testing/index.ts).
+      {
+        find: '@atlas/ui/testing/settles',
+        replacement: fileURLToPath(
+          new URL('./packages/ui/src/testing/settles.ts', import.meta.url),
+        ),
+      },
       // Before '@atlas/application', for the same reason: test support that needs
       // node:sqlite, kept out of the barrel the app's browser bundle is built from.
-      '@atlas/application/testing/sqlite': fileURLToPath(
-        new URL('./packages/application/src/testing/sqlite.ts', import.meta.url),
-      ),
+      {
+        find: '@atlas/application/testing/sqlite',
+        replacement: fileURLToPath(
+          new URL('./packages/application/src/testing/sqlite.ts', import.meta.url),
+        ),
+      },
       // Test support (work counted rather than timed), kept out of the domain's barrel.
-      '@atlas/domain/testing': fileURLToPath(
-        new URL('./packages/domain/src/testing/index.ts', import.meta.url),
-      ),
-      '@atlas/domain': pkg('domain'),
-      '@atlas/application': pkg('application'),
-      '@atlas/adapters': pkg('adapters'),
-      '@atlas/ui': pkg('ui'),
-    },
+      {
+        find: '@atlas/domain/testing',
+        replacement: fileURLToPath(
+          new URL('./packages/domain/src/testing/index.ts', import.meta.url),
+        ),
+      },
+      { find: '@atlas/domain', replacement: pkg('domain') },
+      { find: '@atlas/application', replacement: pkg('application') },
+      { find: '@atlas/adapters', replacement: pkg('adapters') },
+      { find: '@atlas/ui', replacement: pkg('ui') },
+    ],
   },
   test: {
     globals: true,
