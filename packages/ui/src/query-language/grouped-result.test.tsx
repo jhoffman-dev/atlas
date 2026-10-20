@@ -163,6 +163,20 @@ describe('GroupedResult', () => {
     expect(screen.getAllByRole('row')).toHaveLength(5);
   });
 
+  it('moves between an ungrouped table’s rows’ names with Up, Down, Home and End (#427)', async () => {
+    render(<Harness layout="table" groupBy={[]} />);
+    const name = (title: string) => screen.getByRole('button', { name: title });
+    name('Write').focus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(name('Ship'));
+    await userEvent.keyboard('{End}');
+    expect(document.activeElement).toBe(name('Plan'));
+    await userEvent.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(name('Weed'));
+    await userEvent.keyboard('{Home}');
+    expect(document.activeElement).toBe(name('Write'));
+  });
+
   it('draws only a window of a long ungrouped table, as a view’s table does (#427)', () => {
     const many = Array.from({ length: 2000 }, (_, index) => row(`Row ${index + 1}`, null, 'doing'));
     render(
