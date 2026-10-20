@@ -759,7 +759,7 @@ function valueLines(
   const ownLine =
     (isScalar(value) && value.type !== 'BLOCK_LITERAL' && value.type !== 'BLOCK_FOLDED') ||
     ((isMap(value) || isSeq(value)) && value.flow === true);
-  if (!ownLine || !isNode(value) || value.range === undefined || value.range === null) return null;
+  if (!ownLine || value.range === undefined || value.range === null) return null;
   const cut = value.range[1];
   const lineEnds = Math.min(lineEnd(source, value.range), to);
   const lines = source.slice(from, cut);

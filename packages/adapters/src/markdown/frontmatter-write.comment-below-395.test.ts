@@ -96,60 +96,120 @@ function seeded(seed: number): () => number {
   };
 }
 
+/** How a key's value is written: its lines after `key: `, the later ones at `deeper`. */
+const FORMS = {
+  plain: (v: string) => [v],
+  quotedHash: (v: string) => [`'${v} # not a comment'`],
+  twoLinePlain: (v: string, deeper: string) => [`${v} one`, `${deeper}${v} two`],
+  twoLineQuoted: (v: string, deeper: string) => [`"${v} one`, `${deeper}${v} two"`],
+  flowList: (v: string) => [`[${v}, x]`],
+  block: (v: string, deeper: string) => ['|', `${deeper}${v} one`, `${deeper}${v} two`],
+} satisfies Record<string, (v: string, deeper: string) => string[]>;
+type Form = keyof typeof FORMS;
+
+/** The values a key is changed to: one-line, holding `#`, a list, and two lines. */
+const NEW_VALUES: readonly unknown[] = ['w', 'w # hash', ['w', 'x'], 'w one\nw two'];
+
 interface Case {
   readonly original: string;
   readonly expected: string;
   readonly target: string;
+  readonly value: unknown;
+  /** The target's form, and what it is changed to, for the test's name. */
+  readonly change: string;
+}
+
+/** Whether a value of `form`, or `value` written in its place, is a block scalar, list or map. */
+function writtenInBlocks(form: Form, value: unknown): boolean {
+  if (form === 'block') return true;
+  if (form === 'flowList') return typeof value === 'string' && value.includes('\n');
+  return Array.isArray(value);
 }
 
 /**
- * A block of plain keys with comments above (at or left of the key column),
- * below (deeper than it), inline, and blank lines, at a random indent, with LF
- * or CRLF, the closing line with or without its newline. One key's value
- * changes; the expected block is the original with only that value's bytes
- * swapped.
+ * The target key alone, changed to `value`, as the writer writes it with no
+ * comments or other keys about: what its lines must read in any block.
+ */
+function writtenAlone(pad: string, lines: readonly string[], target: string, value: unknown) {
+  const block = `---\n${pad}${target}: ${lines.join('\n')}\n---\n`;
+  return updateFrontmatter(block, { [target]: value })
+    .slice(4, -5)
+    .split('\n');
+}
+
+/**
+ * A block of keys written in every form, with comments above (at or left of
+ * the key column), below (deeper than it), inline, and blank lines, at a
+ * random indent, with LF or CRLF, the closing line with or without its
+ * newline. One key's value changes, to one of {@link NEW_VALUES}; the expected
+ * block is the original with only that key's lines swapped for the key as
+ * written alone.
  */
 function generated(random: () => number): Case {
   const pick = (n: number) => Math.floor(random() * n);
+  const forms = Object.keys(FORMS) as Form[];
   const eol = random() < 0.3 ? '\r\n' : '\n';
   const indent = pick(4);
   const pad = ' '.repeat(indent);
+  const deeper = ' '.repeat(indent + 2);
   const count = 2 + pick(4);
   const target = pick(count);
+  const value = NEW_VALUES[pick(NEW_VALUES.length)];
   const lines: string[] = [];
-  let targetLine = -1;
+  let targetLines: readonly string[] = [];
+  let targetForm: Form = 'plain';
+  let targetBelow = 0;
+  let targetAt = -1;
   for (let at = 0; at < count; at++) {
     for (let n = pick(3); n > 0; n--) lines.push(`${' '.repeat(pick(indent + 1))}# above k${at}`);
-    const below = pick(3);
-    // An inline comment and comments below it is out of #395's scope.
-    const inline = below === 0 && random() < 0.4 ? ' # inline' : '';
-    if (at === target) targetLine = lines.length;
-    lines.push(`${pad}k${at}: v${at}${inline}`);
-    for (let n = below; n > 0; n--) {
-      if (random() < 0.2) lines.push('');
-      lines.push(`${' '.repeat(indent + 1 + pick(5))}# below k${at}`);
+    const form = forms[pick(forms.length)]!;
+    const block = form === 'block';
+    // Comments under a block value, or under a value changed to one, are still
+    // moved by a change (#430): the target has none there.
+    const below = at === target && writtenInBlocks(form, value) ? 0 : pick(3);
+    // An inline comment and comments below it is out of #395's scope (#430);
+    // a block scalar's header comment is no value's.
+    const inline = below === 0 && !block && random() < 0.4 ? ' # inline' : '';
+    const valueLines = FORMS[form](`v${at}`, deeper);
+    valueLines[valueLines.length - 1] += inline;
+    if (at === target) {
+      targetAt = lines.length;
+      targetLines = valueLines;
+      targetForm = form;
+      targetBelow = below;
     }
-    if (random() < 0.3) lines.push('');
+    lines.push(`${pad}k${at}: ${valueLines[0]}`, ...valueLines.slice(1));
+    for (let n = below; n > 0; n--) {
+      // A blank line, or a line as deep as its text, is a block scalar's own.
+      if (!block && random() < 0.2) lines.push('');
+      lines.push(`${' '.repeat(indent + 1 + (block ? 0 : pick(5)))}# below k${at}`);
+    }
+    if (!block && random() < 0.3) lines.push('');
   }
   if (random() < 0.3) lines.push('# trailing');
-  // Blank lines ending the block are dropped by any change, a separate bug.
+  // Blank lines ending the block are dropped by any change, a separate bug (#430).
   else while (lines.at(-1) === '') lines.pop();
   const closing = random() < 0.3 ? '---' : `---${eol}`;
   const write = (body: string[]) => `---${eol}${body.join(eol)}${eol}${closing}`;
   const changed = [...lines];
-  changed[targetLine] = changed[targetLine]!.replace(`k${target}: v${target}`, `k${target}: w`);
-  return { original: write(lines), expected: write(changed), target: `k${target}` };
+  changed.splice(
+    targetAt,
+    targetLines.length,
+    ...writtenAlone(pad, targetLines, `k${target}`, value),
+  );
+  const change = `${targetForm}, ${targetBelow} below, to ${JSON.stringify(value)}`;
+  return { original: write(lines), expected: write(changed), target: `k${target}`, value, change };
 }
 
 describe('#395 property: a changed value changes that value bytes only', () => {
   const random = seeded(395);
-  const cases = Array.from({ length: 300 }, () => generated(random));
-  it.each(cases.map((one, at) => [at, one] as const))(
-    'case %i',
-    (_, { original, expected, target }) => {
-      const written = updateFrontmatter(original, { [target]: 'w' });
+  const cases = Array.from({ length: 600 }, () => generated(random));
+  it.each(cases.map((one, at) => [at, one.change, one] as const))(
+    'case %i: %s',
+    (_, __, { original, expected, target, value }) => {
+      const written = updateFrontmatter(original, { [target]: value });
       expect(written).toBe(expected);
-      expect(parseFrontmatterProperties(written)).toMatchObject({ [target]: 'w' });
+      expect(parseFrontmatterProperties(written)).toMatchObject({ [target]: value });
     },
   );
 });
