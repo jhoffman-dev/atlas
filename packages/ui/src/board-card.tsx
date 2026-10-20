@@ -92,7 +92,11 @@ export const Card = memo(function Card({
             className="board__title"
             ref={titleRef}
             {...attributes}
-            onClick={(event) => onOpen(row.path, openHowFrom(event))}
+            onClick={(event) => {
+              // WebKit does not focus a clicked button; the peek hands the focus back to it.
+              event.currentTarget.focus();
+              onOpen(row.path, openHowFrom(event));
+            }}
           >
             <TitleText>{row.title}</TitleText>
           </button>

@@ -13,6 +13,8 @@ import type { MarkdownPort } from './ports.ts';
 export interface NotePreview {
   readonly path: string;
   readonly doc: EditorDocument;
+  /** Its frontmatter's properties, as read. */
+  readonly properties: Readonly<Record<string, unknown>>;
   /** What fronts its card, its type's thumbnail property first when it has one (`cardFront`). */
   readonly front: CardFront;
   /** When the file last changed, as the host said: what a picture of its page is compared with. */
@@ -54,6 +56,7 @@ export async function readNotePreviews({
     return {
       path: file.path,
       doc,
+      properties,
       front: cardFront({ properties, doc, thumbnailKey }),
       modified: file.modified,
     };

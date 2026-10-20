@@ -230,6 +230,19 @@ pnpm tauri:dev</pre>
         <li><b>Nothing you type is lost.</b> What you typed in a pane as it closes is saved, and if the other pane shows the same note, it picks the change up.</li>
         <li>Each tab keeps its own Back and Forward, and the split and its tabs are still there after a restart.</li>
       </ul>
+      <h3 id="peek">The peek and link cards</h3>
+      <p>A quick look at a note without leaving where you are: the note opens over the table, board or page you are in, and closes back to it.</p>
+      <ul>
+        <li><b>Open it</b> by clicking a row's name in a table, a card on a board, or a link in a note's text. The table, the board and the page stay as they were under it.</li>
+        <li><b>The header</b> says where the row sits — <i>3 of 186 in Task table</i> — with the arrows to the row before and after, <b>Saved</b>, and three buttons: <b>Open as full page</b> (in place of the tab under it), <b>Open in new tab</b> (<kbd>⌘</kbd> <kbd>Return</kbd>) and <b>Open in split</b> (<kbd>⇧⌘</kbd> <kbd>Return</kbd>). A note peeked from a link has no rows to step through.</li>
+        <li><b>Step through the rows</b> with <kbd>↑</kbd> <kbd>↓</kbd> while the focus is on the header or the properties strip, or <kbd>⌥↑</kbd> <kbd>⌥↓</kbd> from anywhere, the text too. The rows are the ones the table or board showed as you opened the peek, in its order — far down a long table too, past what is on screen. A board goes column by column.</li>
+        <li><b>Edit it as a page.</b> The title, the properties strip (<b>+ N empty</b> shows the rest) and the text edit and save as they do on the note's own page. If the note is open in a pane as well, that pane picks the change up. What you type is saved as the peek closes, steps on, or opens the note elsewhere.</li>
+        <li><b>A link inside the peek</b> shows its note in the peek, in place of the one there. <kbd>⌘K</kbd> opens search above the peek, and the result you pick shows in the peek too.</li>
+        <li><b>Close it</b> with <kbd>Esc</kbd> — from the text too — <b>×</b>, or a click outside it. The focus goes back to the row or the link that opened it. <kbd>Esc</kbd> closes only what is on top: a suggestion list or search above the peek first, then the peek.</li>
+        <li>While the peek is up, the shortcuts that make or arrange notes — <kbd>⌘N</kbd>, <kbd>⇧⌘D</kbd>, <kbd>⌥⌘N</kbd>, <kbd>⇧⌘\</kbd>, the tab keys, Back and Forward — do nothing, and <kbd>⌘W</kbd> closes no tab under it. <kbd>⌘S</kbd> saves the peeked note.</li>
+        <li><b>Link cards.</b> Rest the pointer on a link in a note's text, in a pane or in the peek, or on a relation's value — a task's project in a table, say — and after a moment a card shows the note's title, its type and folder (<i>Project · Projects</i>) and its first lines. Moving off, a key, a click or a scroll hides it. A link to a note that does not exist yet shows no card. Sidebar rows and board cards show none.</li>
+      </ul>
+      <p class="muted">Not yet: the peek's <b>…</b> menu, and peeking a row of a dashboard's table, a query page or a linked page — those still open the note.</p>
       <h3 id="right-sidebar">The right sidebar</h3>
       <p>A panel on the right that follows whatever has the focus. Show or hide it with the <b>Right sidebar</b> button in any page's bar or <kbd>⌥⌘\</kbd>; the <b>×</b> at the end of its tab row hides it too. Whether it is open, and which tab, is remembered per vault.</p>
       <ul>
@@ -636,7 +649,7 @@ pnpm tauri:dev</pre>
       </ul>
       <h3 id="tables">Tables</h3>
       <ul>
-        <li><b>Compact rows.</b> Each note is one short row, named by its title; click the name to open it. Empty cells are left blank, and statuses show as pills.</li>
+        <li><b>Compact rows.</b> Each note is one short row, named by its title; click the name to <a href="#peek">peek</a> it — <kbd>⌘</kbd>-click opens it in a new tab, <kbd>⌘⇧</kbd>-click beside. Empty cells are left blank, and statuses show as pills.</li>
         <li><b>The header stays put.</b> The column names stay at the top as you scroll, as plain words with no icons; an arrow marks the column the table is sorted by.</li>
         <li><b>Long values are cut short</b> with <i>…</i>; hover the cell for the whole value. A relation's names stay on one line the same way, and hovering lists them all.</li>
         <li><b>The footer</b> has <b>New &lt;type&gt;</b>, then how many notes — <i>186 tasks</i>, with <i>(more were left out)</i> past the row limit — then, grouped, how many in each group (<i>174 done</i>, <i>10 backlog</i>, <i>2 Larkspur Payroll</i>), and how the table is arranged: <i>Grouped by status · sorted by phase, then due (descending)</i>.</li>
@@ -1077,6 +1090,7 @@ ORDER BY phase</pre>
     <section id="graph">
       <h2>Links and the graph</h2>
       <ul>
+        <li><b>Click a link</b> to <a href="#peek">peek</a> the note it names, over the page you are reading. <kbd>⌘</kbd>-click opens it in a new tab and <kbd>⌘⇧</kbd>-click beside; a link to a heading or a block opens its note there. Rest the pointer on a link for a moment to see its card.</li>
         <li>Link a note by typing <code>[[</code>, a heading or block with <code>[[Note#</code> (see <a href="#blocks">Blocks and embeds</a>), a person by typing <code>@</code> (see <a href="#people">People and mentions</a>), with <kbd>/</kbd> → <b>Link to note</b>, or <b>…</b> → <b>Link to…</b>. Any link to a note can also show as a card — see <a href="#bookmarks">Bookmarks</a>.</li>
         <li>The <b>Links</b> panel at the foot of a note shows links in and out, including relations like a task's project; on a person's page, the links in are headed <b>Mentioned in</b>. <b>Unlinked mentions</b> finds notes that name this one in plain text; <b>Link</b> turns the mention into a link.</li>
         <li><b>Graph</b> (under Search) draws notes as dots coloured by type, sized by how connected they are; relations are dashed. Pan, zoom, drag; click to open, <kbd>⌘</kbd>-click to open beside.</li>
@@ -1110,7 +1124,7 @@ ORDER BY phase</pre>
       </ul>
       <h3>Use one</h3>
       <ul>
-        <li>Click the card to open its note.</li>
+        <li>Click the card to <a href="#peek">peek</a> its note; <kbd>⌘</kbd>-click opens it in a new tab.</li>
         <li>With a card selected, <kbd>Return</kbd> starts a new line after it and <kbd>⌘</kbd> <kbd>Return</kbd> opens the note.</li>
       </ul>
       <h3>Where cards can go</h3>
@@ -2093,14 +2107,13 @@ pnpm tauri:dev</pre>
             <tr><td><kbd>M</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>D</kbd> <kbd>A</kbd></td><td>Calendar: month, week, 3 days, day, agenda (with the calendar focused)</td></tr>
             <tr><td><kbd>T</kbd> · <kbd>←</kbd> <kbd>→</kbd></td><td>Calendar: today · previous, next</td></tr>
             <tr><td><kbd>⌘Z</kbd></td><td>Undo a dashboard change, while customizing</td></tr>
-            <tr><td><kbd>Esc</kbd></td><td>The peek: close it; the focus goes back to the row that opened it</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>The <a href="#peek">peek</a>: close it, from the text too; the focus goes back to the row or link that opened it</td></tr>
             <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>The peek: previous or next row, with the focus on the peek's header, strip or foot (in the text they move the caret)</td></tr>
             <tr><td><kbd>⌥↑</kbd> <kbd>⌥↓</kbd></td><td>The peek: previous or next row from anywhere in it, the text too</td></tr>
             <tr><td><kbd>⌘</kbd> <kbd>Return</kbd> · <kbd>⇧⌘</kbd> <kbd>Return</kbd></td><td>The peek: open the note in a new tab · in a split (in the text these keep their own meaning)</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="muted">Not yet: opening the peek. It is a note shown over the table or board you are in, with the keys above; <kbd>⌘K</kbd> still opens search above it. Resting the pointer on a link in a note's text, or on a relation's value, for a moment will show a card with that note's title, type and first lines. Both arrive once they are wired to the panes.</p>
     </section>
 
     <section id="files">

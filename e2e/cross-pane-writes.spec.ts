@@ -1,6 +1,7 @@
 import { expect, test, type Page } from './fixtures.ts';
 import {
   createVault,
+  emitVaultChanged,
   expectFile,
   expectSaved,
   installHost,
@@ -241,4 +242,30 @@ test('a save refused because the note moved on keeps what was typed', async ({ p
   const onDisk = await vault.read('note.md');
   expect(onDisk).toContain('favorite: true');
   expect(onDisk).not.toContain('Typed in pane 2.');
+});
+
+test('an edit in the peek reaches a pane holding the same note (slice 6b)', async ({ page }) => {
+  const vault = await openVault(page);
+  await vault.write('links.md', '# Links\n\nRead [[note]] next.\n');
+  await emitVaultChanged(page, ['links.md']);
+  await splitOnNote(page);
+  // Pane 1 shows the note with the link; pane 2 still holds note.md.
+  await pane(page, 1).click();
+  await sidebarSection(page, 'userSpace')
+    .getByRole('treeitem', { name: 'links', exact: true })
+    .click();
+  await expect(pane(page, 1).getByRole('article', { name: 'links' })).toBeVisible();
+  await pane(page, 1).locator('[data-wikilink="note"]').click();
+
+  const peek = page.getByRole('dialog', { name: 'note' });
+  await peek.getByText('Original paragraph.').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Typed in the peek.');
+  await page.keyboard.press('Escape');
+  await expect(peek).toHaveCount(0);
+
+  await expectFile(vault, 'note.md').toContain('Original paragraph. Typed in the peek.');
+  // The pane holding the note had nothing unsaved, so it catches up with the peek's write.
+  await expect(pane(page, 2).getByText('Original paragraph. Typed in the peek.')).toBeVisible();
+  await expectSaved(pane(page, 2));
 });

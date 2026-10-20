@@ -36,6 +36,7 @@ import {
   type ViewField,
   type ViewTabEditing,
   type OpenHow,
+  type PeekRequest,
 } from '@atlas/ui';
 import type { TabLanding } from '../types/use-type-views.ts';
 import { calendarView, feedView, timelineView } from '../pages-on-first-use.ts';
@@ -300,6 +301,7 @@ export function ViewBody({
   choosing,
   folds,
   onRowFocus,
+  onPeek,
 }: {
   view: SavedView;
   /** The tray of tasks to plan, for a calendar of blocks. */
@@ -322,6 +324,8 @@ export function ViewBody({
   choosing: ViewChoosing;
   /** Told the row a table's focus landed in, for the right sidebar; left out, nothing follows it. */
   onRowFocus?: (path: string) => void;
+  /** Given, a table's row or a board's card clicked plainly peeks its note (slice 6b). */
+  onPeek?: (request: PeekRequest) => void;
 }) {
   const schema = schemaOf(view.type, view.query?.type ?? '');
   // Spread rather than passed, so a type with no done option draws no boxes.
@@ -345,6 +349,7 @@ export function ViewBody({
           error={view.error}
           schema={schema}
           onOpenNote={onOpenNote}
+          {...(onPeek !== undefined && { onPeek })}
           onEditCell={view.editCell}
           onToggleSort={view.toggleSort}
           onNewNote={() => addAndOpen(view, onOpenNote)}
@@ -390,6 +395,7 @@ export function ViewBody({
           kinds={schema.kinds}
           {...(schema.colors !== undefined && { colors: schema.colors })}
           onOpenNote={onOpenNote}
+          {...(onPeek !== undefined && { onPeek })}
           onMoveCard={view.moveCard}
           onAddCard={view.addCard}
           {...ticks}

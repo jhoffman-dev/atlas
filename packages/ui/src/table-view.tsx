@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { OpenHow } from './open-how.ts';
+import type { PeekRequest } from './peek/peek-request.ts';
 import {
   countLabel,
   groupTotals,
@@ -77,6 +78,12 @@ export interface TableViewProps {
   /** Opens a row's note; `how` is where the click asked for it, when it said. */
   readonly onOpenNote: (path: string, how?: OpenHow) => void;
   /**
+   * Given, a row's name clicked plainly peeks its note instead of opening it
+   * (slice 6b), handed every row in the order the table shows them. A click
+   * asking for a tab or a split still opens it, through `onOpenNote`.
+   */
+  readonly onPeek?: (request: PeekRequest) => void;
+  /**
    * One write per commit: what a cell's editor typed or picked, typed by the
    * column's kind — text, a number, a tick, a day, a link or links. Left out,
    * the cells are read-only: a SQL result's columns need not be properties.
@@ -121,6 +128,7 @@ export function TableView({
   error,
   schema = NO_SCHEMA,
   onOpenNote,
+  onPeek,
   onEditCell,
   relationChoices,
   onCreateRelated,
@@ -146,6 +154,7 @@ export function TableView({
       sorts={sorts}
       schema={schema}
       onOpenNote={onOpenNote}
+      {...(onPeek !== undefined && { onPeek })}
       onToggleSort={onToggleSort}
       hiddenColumns={hiddenColumns}
       {...(onEditCell !== undefined && { onEditCell })}
@@ -166,6 +175,7 @@ function TableSheet({
   sorts,
   schema,
   onOpenNote,
+  onPeek,
   onEditCell,
   relationChoices,
   onCreateRelated,
@@ -226,6 +236,7 @@ function TableSheet({
     properties,
     colors,
     onOpenNote,
+    onPeek,
     editor,
     ticks,
     selection,
@@ -358,6 +369,7 @@ function useRowLook({
   properties,
   colors,
   onOpenNote,
+  onPeek,
   editor,
   ticks,
   selection,
@@ -370,6 +382,7 @@ function useRowLook({
   properties: RowLook['properties'];
   colors: RowLook['colors'];
   onOpenNote: TableViewProps['onOpenNote'];
+  onPeek: TableViewProps['onPeek'];
   editor: CellEditorHooks | undefined;
   ticks: DoneTicks | undefined;
   selection: RowSelection | undefined;
@@ -378,6 +391,11 @@ function useRowLook({
   onRowFocus: TableViewProps['onRowFocus'];
 }): RowLook {
   const open = useSteadyCallback(onOpenNote);
+  // The order is read as the row is clicked, so the rows are not drawn again for it.
+  const openRow = useSteadyCallback((path: string, how: OpenHow) => {
+    if (how === 'here' && onPeek !== undefined) onPeek({ path, order: order() });
+    else onOpenNote(path, how);
+  });
   const focusRow = useSteadyCallback((path: string) => onRowFocus?.(path));
   const following = onRowFocus !== undefined;
   const tick = useSteadyCallback((args: { path: string; done: boolean }) => ticks?.onToggle(args));
@@ -395,6 +413,7 @@ function useRowLook({
       properties,
       colors,
       onOpenNote: open,
+      onOpenRow: openRow,
       editor,
       onTick: ticked ? tick : undefined,
       onChoose: choosing ? choose : undefined,
@@ -407,6 +426,7 @@ function useRowLook({
       properties,
       colors,
       open,
+      openRow,
       editor,
       tick,
       choose,

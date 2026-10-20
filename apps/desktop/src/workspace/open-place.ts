@@ -6,6 +6,7 @@ import {
 } from '@atlas/domain';
 import type { OpenHow } from '@atlas/ui';
 import { requestReveal, type RevealStore } from '../panes/reveals.ts';
+import { closePeek, openPeek, replacePeek, type OverlayStore } from '../overlay-store.ts';
 import {
   focusPane,
   openInPane,
@@ -51,18 +52,8 @@ export function followLink(
   }: { pane: number; target: string; heading?: string | null; how?: OpenHow },
 ): void {
   const fragment = heading === null ? null : linkFragment({ heading });
-  const here = placeIn(store, pane);
-  const resolved =
-    target.trim() === '' && fragment !== null
-      ? here?.kind === 'note'
-        ? here.path
-        : null
-      : resolveWikiLinkTarget(target, notePaths);
-  if (resolved === null) {
-    onProblem(`No note called "${target}"`);
-    return;
-  }
-  onProblem(null);
+  const resolved = linkedNote({ store, notePaths, onProblem }, { pane, target, fragment });
+  if (resolved === null) return;
   const place: NavigationPlace = { kind: 'note', path: resolved };
   if (how === 'here') openInPane(store, { pane, place });
   else {
@@ -74,6 +65,59 @@ export function followLink(
   const ws = workspaceNow(store);
   const shown = ws.panes[ws.focused];
   if (shown !== undefined) requestReveal(reveals, { tab: shown.active, path: resolved, fragment });
+}
+
+/** The note a link leads to, told to `onProblem` either way; null when it leads nowhere. */
+function linkedNote(
+  { store, notePaths, onProblem }: Omit<LinkFollowing, 'reveals'>,
+  {
+    pane,
+    target,
+    fragment,
+  }: { pane: number; target: string; fragment: ReturnType<typeof linkFragment> | null },
+): VaultPath | null {
+  const here = placeIn(store, pane);
+  const resolved =
+    target.trim() === '' && fragment !== null
+      ? here?.kind === 'note'
+        ? here.path
+        : null
+      : resolveWikiLinkTarget(target, notePaths);
+  onProblem(resolved === null ? `No note called "${target}"` : null);
+  return resolved;
+}
+
+/** What a link clicked in a pane or in the peek needs: following's, and the peek's layer. */
+export interface LinkPeeking extends LinkFollowing {
+  readonly overlays: OverlayStore;
+}
+
+/**
+ * A link clicked in a pane or in the peek (slice 6b). A plain click on a
+ * link to a note peeks it: over the pane, or, inside the peek, in place of
+ * the note it shows. A ⌘-click or ⌘⇧-click, a link to a heading or a block,
+ * and the link menu's Open — which names no `how` — open the note's page in
+ * the pane as `followLink` does; from inside the peek they close it first.
+ */
+export function clickLink(
+  peeking: LinkPeeking,
+  {
+    pane,
+    target,
+    heading = null,
+    how,
+    inPeek,
+  }: { pane: number; target: string; heading?: string | null; how?: OpenHow; inPeek: boolean },
+): void {
+  if (how === 'here' && heading === null) {
+    const path = linkedNote(peeking, { pane, target, fragment: null });
+    if (path === null) return;
+    if (inPeek) replacePeek(peeking.overlays, path);
+    else openPeek(peeking.overlays, { path, from: null });
+    return;
+  }
+  if (inPeek) closePeek(peeking.overlays);
+  followLink(peeking, { pane, target, heading, ...(how !== undefined && { how }) });
 }
 
 function placeIn(store: WorkspaceStore, pane: number): NavigationPlace | null {

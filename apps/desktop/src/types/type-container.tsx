@@ -6,6 +6,8 @@ import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import { useIndexKey } from '../index/index-status-store.ts';
+import { openPeek } from '../overlay-store.ts';
+import { rowPeek } from '../overlay.ts';
 import { activePlace } from '../workspace/workspace-store.ts';
 import { useWorkspaceStores } from '../workspace/workspace-wiring.tsx';
 import { typeTabsShown } from './type-tabs.ts';
@@ -94,6 +96,16 @@ export function TypeContainer({
         }}
         onSaved={pane.onTypeSaved}
         onOpenNote={pages.openNote}
+        onPeek={({ path, order }, within) =>
+          openPeek(
+            wiring.overlays,
+            rowPeek({
+              path: createVaultPath(path),
+              order: order.map(createVaultPath),
+              within,
+            }),
+          )
+        }
         onNewNote={onNewNote}
         tabs={
           table.type === null

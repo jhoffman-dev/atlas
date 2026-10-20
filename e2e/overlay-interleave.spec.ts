@@ -11,6 +11,7 @@ async function openVault(page: Page) {
   const vault = await createVault();
   await vault.write('recipes.md', '# Recipes\n\nSourdough needs a long cold proof.\n');
   await vault.write('shopping.md', '# Shopping\n\nFlour.\n');
+  await vault.write('plan.md', '# Plan\n\nBuy from [[shopping]] first.\n');
   await installHost(page, vault);
 
   await page.goto('/');
@@ -229,4 +230,54 @@ test('Cmd+K opened again after a note was picked from it starts empty', async ({
   await expect(dialog).toBeVisible();
   await expect(page.getByLabel('Search the vault')).toHaveValue('');
   await expect(page.getByRole('option')).toHaveCount(0);
+});
+
+test('Esc closes one layer at a time: the palette over the peek, then the peek (slice 6b)', async ({
+  page,
+}) => {
+  await openVault(page);
+  await page.getByRole('treeitem', { name: 'plan', exact: true }).click();
+  await page.locator('.editor [data-wikilink="shopping"]').click();
+  const peek = page.locator('.peek');
+  await expect(page.getByRole('dialog', { name: 'shopping' })).toBeVisible();
+
+  // Capture is asked for over the peek, and opens above it.
+  await chord(page, 'N', { shift: true });
+  const capture = page.getByRole('dialog', { name: 'Capture a task' });
+  await expect(capture).toBeVisible();
+  await expect.poll(() => focused(page)).toContain('input');
+
+  await page.keyboard.press('Escape');
+  await expect(capture).toHaveCount(0);
+  await expect(peek).toBeVisible();
+  // Focus is back in the peek, not lost behind it.
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.closest('.peek') !== null))
+    .toBe(true);
+
+  await page.keyboard.press('Escape');
+  await expect(peek).toHaveCount(0);
+  await expect(page.getByRole('article', { name: 'plan' })).toBeVisible();
+});
+
+test('a peek is never opened above a menu: the press on a link closes the menu instead', async ({
+  page,
+}) => {
+  await openVault(page);
+  await page.getByRole('treeitem', { name: 'plan', exact: true }).click();
+  const link = page.locator('.editor [data-wikilink="shopping"]');
+  const box = await link.boundingBox();
+  if (box === null) throw new Error('the link was not on screen');
+  const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.getByRole('button', { name: 'New note' }).click();
+  const menu = page.locator('[role="menu"]');
+  await expect(menu).toBeVisible();
+
+  // A raw press at the link's own place, so nothing skips the menu on the test's behalf.
+  await page.mouse.click(centre.x, centre.y);
+  await expect(menu).toHaveCount(0);
+  await expect(page.locator('.peek')).toHaveCount(0);
+  // With nothing up, the same press peeks: the absence above is the menu's doing.
+  await page.mouse.click(centre.x, centre.y);
+  await expect(page.getByRole('dialog', { name: 'shopping' })).toBeVisible();
 });

@@ -48,7 +48,10 @@ export interface RowLook {
   readonly properties: Readonly<Record<string, PropertyDef>>;
   /** The colours the type chose for each select's options, which its pills are drawn in. */
   readonly colors: Readonly<Record<string, OptionColors>>;
+  /** Opens a note a cell links: a relation's value. */
   readonly onOpenNote: (path: string, how?: OpenHow) => void;
+  /** A row's name clicked: peeks or opens its note, as the click and the table say. */
+  readonly onOpenRow: (path: string, how: OpenHow) => void;
   /** Given while cells edit in place; left out, the cells are read only. */
   readonly editor?: CellEditorHooks | undefined;
   /** Given when the view's type can be ticked done: each row leads with a box. */
@@ -118,7 +121,7 @@ export const TableRow = memo(function TableRow({
   index,
   measure,
 }: TableRowProps) {
-  const { onChoose, onTick, onOpenNote, editor, onFocusRow } = look;
+  const { onChoose, onTick, onOpenNote, onOpenRow, editor, onFocusRow } = look;
   const title = String(values[TITLE] ?? path);
   return (
     <tr
@@ -161,7 +164,7 @@ export const TableRow = memo(function TableRow({
             value={values[column]}
             editing={editing?.column === column ? editing : null}
             editor={editor}
-            onOpen={(how) => onOpenNote(path, how)}
+            onOpen={(how) => onOpenRow(path, how)}
             onOpenNote={onOpenNote}
           />
           {column === TITLE && <ChecklistProgress values={values} kinds={look.kinds} />}
@@ -220,7 +223,12 @@ function CellFor({
         {...ROW_STOP}
         type="button"
         className="table__link"
-        onClick={(event) => onOpen(openHowFrom(event))}
+        onClick={(event) => {
+          // WebKit, which the app runs in, does not focus a clicked button; the
+          // peek this opens hands the focus back to what held it as it closes.
+          event.currentTarget.focus();
+          onOpen(openHowFrom(event));
+        }}
       >
         <span className="table__title">{String(value ?? '')}</span>
       </button>

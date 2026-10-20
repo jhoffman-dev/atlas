@@ -45,7 +45,39 @@ export function bodyWithoutTitle(doc: EditorDocument, title: string): EditorDocu
 }
 
 function textOf(node: EditorNode): string {
+  if (node.type === 'wikiLink') return linkWords(node);
   return (node.text ?? '') + (node.content ?? []).map(textOf).join('');
+}
+
+/** A wiki link as it reads: its alias, else its target. */
+function linkWords(node: EditorNode): string {
+  const { alias, target } = node.attrs ?? {};
+  if (typeof alias === 'string' && alias !== '') return alias;
+  return typeof target === 'string' ? target : '';
+}
+
+/** How many lines a link's preview card reads from the top of a note. */
+export const PREVIEW_LINES = 4;
+
+/**
+ * A note's opening lines as plain words, for a link's preview card: one
+ * line per paragraph or list item, the title heading left out when it only
+ * repeats the title, empty blocks skipped. Null when the note has no words.
+ */
+export function previewLines(doc: EditorDocument, title: string): string | null {
+  const lines = bodyWithoutTitle(doc, title)
+    .content.flatMap(linesOf)
+    .filter((line) => line !== '')
+    .slice(0, PREVIEW_LINES);
+  return lines.length === 0 ? null : lines.join('\n');
+}
+
+/** A block's lines: a list's, item by item; any other block's, as one. */
+function linesOf(node: EditorNode): string[] {
+  if (node.type === 'bulletList' || node.type === 'orderedList' || node.type === 'taskList') {
+    return (node.content ?? []).flatMap((item) => (item.content ?? []).flatMap(linesOf));
+  }
+  return [textOf(node).trim()];
 }
 
 /** How many blocks a feed shows of a note before "Show more". */
