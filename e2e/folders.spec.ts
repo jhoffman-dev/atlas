@@ -10,6 +10,7 @@ import {
   type FakeVault,
 } from './host.ts';
 import { dragAnnouncement, dragWithPointer } from './drag.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * P17-01: folders, new notes in them, moving and deleting — from Pages and
@@ -44,8 +45,7 @@ async function rowCommand(page: Page, name: string, command: RegExp) {
 
 /** Types at the end of a line of the open note's body. */
 async function typeAfter(page: Page, line: string, text: string) {
-  await page.getByLabel('Note', { exact: true }).getByText(line).click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByLabel('Note', { exact: true }).getByText(line));
   await page.keyboard.type(text);
 }
 

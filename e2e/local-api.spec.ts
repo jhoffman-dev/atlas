@@ -13,6 +13,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * P15-04: the local API, from the Settings switch to a request answered by the
@@ -213,8 +214,7 @@ test('a body write to a note with unsaved typing is refused, and the typing surv
   // The pane's save is held in flight, so its typing stays unsaved for as long
   // as this test needs rather than for as long as the autosave timer allows.
   const release = host.holdWrites('first.md');
-  await page.getByText('The work.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('The work.'));
   await page.keyboard.type(' Typed in Atlas.');
   await expect(saveStatus(page)).toHaveText('Unsaved');
 
@@ -247,8 +247,7 @@ test('a body write naming the note in another case is refused while it has unsav
   expect(path).toBe('first.md');
 
   const release = host.holdWrites('first.md');
-  await page.getByText('The work.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('The work.'));
   await page.keyboard.type(' Typed in Atlas.');
   await expect(saveStatus(page)).toHaveText('Unsaved');
 
