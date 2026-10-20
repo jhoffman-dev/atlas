@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { peekKeyAction, peekKeyPlace, steppedIndex, type PeekKeyPress } from './peek-keys.ts';
+import {
+  peekKeyAction,
+  peekKeyPlace,
+  peekWhere,
+  steppedIndex,
+  type PeekKeyPress,
+} from './peek-keys.ts';
 
 const press = (key: string, held: Partial<Omit<PeekKeyPress, 'key'>> = {}): PeekKeyPress => ({
   key,
@@ -94,5 +100,27 @@ describe('steppedIndex', () => {
     expect(steppedIndex({ index: 0, count: 186 }, -1)).toBeNull();
     expect(steppedIndex({ index: 185, count: 186 }, 1)).toBeNull();
     expect(steppedIndex({ index: 0, count: 1 }, 1)).toBeNull();
+  });
+});
+
+describe('peekKeyAction: held keys', () => {
+  it('opens once for a held ⌘↵, but keeps stepping for a held ⌥↓', () => {
+    expect(peekKeyAction(press('Enter', { metaKey: true, repeat: true }), 'chrome')).toBeNull();
+    expect(peekKeyAction(press('ArrowDown', { altKey: true, repeat: true }), 'body')).toEqual({
+      kind: 'step',
+      by: 1,
+    });
+  });
+});
+
+describe('peekWhere', () => {
+  it('says which row of how many, in what', () => {
+    expect(peekWhere({ index: 2, count: 186, within: 'Task table' })).toBe(
+      '3 of 186 in Task table',
+    );
+  });
+
+  it('never names a row past the end of a list that shrank', () => {
+    expect(peekWhere({ index: 5, count: 3, within: 'Task table' })).toBe('3 rows in Task table');
   });
 });

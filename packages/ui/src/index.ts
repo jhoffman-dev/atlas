@@ -178,8 +178,13 @@ export { LinkPreviewCard } from './peek/link-preview-card.tsx';
 export type { LinkPreview } from './peek/link-preview-card.tsx';
 export { previewPlacement } from './peek/preview-placement.ts';
 export type { AnchorRect, PreviewPlacement } from './peek/preview-placement.ts';
-export { useLinkHover } from './peek/use-link-hover.ts';
-export type { HoveredLink, LinkHoverState, PreviewTarget } from './peek/use-link-hover.ts';
+export { useHoveredLink, useLinkHover } from './peek/use-link-hover.ts';
+export type {
+  HoveredLink,
+  HoveredLinkStore,
+  LinkHoverState,
+  PreviewTarget,
+} from './peek/use-link-hover.ts';
 export { sidebarGlyph } from './icon.tsx';
 export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts';
 export type { NotePageRendering } from './note-page-renderer.ts';

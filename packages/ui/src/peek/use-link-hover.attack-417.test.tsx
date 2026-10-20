@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { HoverTimer } from './link-hover.ts';
-import { useLinkHover } from './use-link-hover.ts';
+import { useHoveredLink, useLinkHover } from './use-link-hover.ts';
 
 /**
  * Attack on PR #417 (slice 6a): the link preview against a resized window, a
@@ -42,7 +42,8 @@ function manualTimer() {
 const LINKS = Array.from({ length: 40 }, (_, index) => `Seed bed ${index + 1}`);
 
 function Watched({ timer, label = 'hovered' }: { timer: HoverTimer; label?: string }) {
-  const { watch, hovered } = useLinkHover(timer);
+  const { watch, store } = useLinkHover(timer);
+  const hovered = useHoveredLink(store);
   return (
     <>
       <div ref={watch} data-testid={`root-${label}`}>

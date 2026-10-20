@@ -2,7 +2,7 @@
 import { Profiler } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { useLinkHover } from './use-link-hover.ts';
+import { useHoveredLink, useLinkHover, type HoveredLinkStore } from './use-link-hover.ts';
 
 let renders = 0;
 const counted = () => {
@@ -18,7 +18,8 @@ function Host() {
 }
 
 function Hovering() {
-  const { watch, hovered } = useLinkHover();
+  const { watch, store } = useLinkHover();
+  const hovered = useHoveredLink(store);
   return (
     <>
       <div ref={watch}>
@@ -44,7 +45,8 @@ function Hovering() {
 
 /** A watched element that mounts after the hook does, as a peek's body does. */
 function LateHost({ open }: { open: boolean }) {
-  const { watch, hovered } = useLinkHover();
+  const { watch, store } = useLinkHover();
+  const hovered = useHoveredLink(store);
   return (
     <>
       {open && (
@@ -145,5 +147,38 @@ describe('useLinkHover', () => {
     rerender(<LateHost open={false} />);
     expect(hovered()).toBe('');
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('re-renders only the card that reads the hovered link, not the page holding the links', async () => {
+    const pageRenders = vi.fn();
+    const cardRenders = vi.fn();
+    function Card({ store }: { store: HoveredLinkStore }) {
+      const link = useHoveredLink(store);
+      cardRenders();
+      return <output aria-label="card">{link === null ? '' : 'shown'}</output>;
+    }
+    function Page() {
+      const { watch, store } = useLinkHover();
+      pageRenders();
+      return (
+        <>
+          <div ref={watch}>
+            <a className="wikilink" data-wikilink="P16-04" href="#P16-04">
+              P16-04
+            </a>
+          </div>
+          <Card store={store} />
+        </>
+      );
+    }
+    render(<Page />);
+    const [pages, cards] = [pageRenders.mock.calls.length, cardRenders.mock.calls.length];
+    fireEvent.pointerOver(screen.getByText('P16-04'));
+    await wait(400);
+    expect(screen.getByLabelText('card').textContent).toBe('shown');
+    fireEvent.keyDown(document.body, { key: 'a' });
+    expect(screen.getByLabelText('card').textContent).toBe('');
+    expect(pageRenders).toHaveBeenCalledTimes(pages);
+    expect(cardRenders.mock.calls.length).toBe(cards + 2);
   });
 });

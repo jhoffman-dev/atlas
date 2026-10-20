@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { createLinkHover, windowTimer, type HoverTimer } from './link-hover.ts';
 import type { AnchorRect } from './preview-placement.ts';
 
@@ -34,12 +34,36 @@ function targetOf(link: Element): PreviewTarget {
     : { kind: 'link', link: link.getAttribute('data-wikilink') ?? '' };
 }
 
-/** A hovered link, and the ref that names where links are watched for. */
+/** The hovered link, held outside React so only what draws the card re-renders. */
+export interface HoveredLinkStore {
+  readonly subscribe: (onChange: () => void) => () => void;
+  readonly get: () => HoveredLink | null;
+}
+
+function createHoveredLinkStore(): HoveredLinkStore & {
+  set: (hovered: HoveredLink | null) => void;
+} {
+  let hovered: HoveredLink | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    subscribe: (onChange) => {
+      listeners.add(onChange);
+      return () => listeners.delete(onChange);
+    },
+    get: () => hovered,
+    set: (next) => {
+      hovered = next;
+      for (const onChange of listeners) onChange();
+    },
+  };
+}
+
+/** Where links are watched for, and the store of the one hovered. */
 export interface LinkHoverState {
   /** Set as the `ref` of the element whose links preview. */
   readonly watch: (root: HTMLElement | null) => (() => void) | undefined;
-  /** The link the pointer has rested on, else null. */
-  readonly hovered: HoveredLink | null;
+  /** Read with `useHoveredLink`, in the component that draws the card. */
+  readonly store: HoveredLinkStore;
 }
 
 /**
@@ -47,18 +71,26 @@ export interface LinkHoverState {
  *
  * Listens on that element alone, by delegation: no listener per link, and
  * no render until a card is due — a still pointer, or one off every link,
- * costs nothing. A press or a wheel inside it, or a key anywhere, hides the
- * card, so typing and clicking (which peeks) are never covered. `watch`
- * is a callback ref, so an element that mounts later — a peek's body — is
- * watched from the moment it is there, without a render to find it.
+ * costs nothing. A press or a wheel inside it, or a key or a resize anywhere,
+ * hides the card, so typing and clicking (which peeks) are never covered and
+ * a card never floats away from its link. `watch` is a callback ref, so an
+ * element that mounts later — a peek's body — is watched from the moment it
+ * is there. The hovered link goes to a store, not to state: the component
+ * holding the watched element does not re-render when a card comes and goes,
+ * only the one reading it with `useHoveredLink`.
  */
 export function useLinkHover(timer: HoverTimer = windowTimer): LinkHoverState {
-  const [hovered, setHovered] = useState<HoveredLink | null>(null);
+  const [store] = useState(createHoveredLinkStore);
   const watch = useCallback(
-    (root: HTMLElement | null) => (root === null ? undefined : listen(root, timer, setHovered)),
-    [timer],
+    (root: HTMLElement | null) => (root === null ? undefined : listen(root, timer, store.set)),
+    [timer, store],
   );
-  return { watch, hovered };
+  return { watch, store };
+}
+
+/** The link the pointer has rested on, else null; re-renders only its reader. */
+export function useHoveredLink(store: HoveredLinkStore): HoveredLink | null {
+  return useSyncExternalStore(store.subscribe, store.get, store.get);
 }
 
 /** Starts watching `root`'s links; the function it returns stops. */
@@ -78,18 +110,21 @@ function listen(
     },
     onHide: () => setHovered(null),
   });
-  // A key anywhere hides the card, wherever the focus is; listened for only
-  // while a link is hovered, so typing with the pointer elsewhere costs nothing.
-  const keys = root.ownerDocument;
+  // A key or a resize anywhere hides the card; listened for only while a link
+  // is hovered, so typing with the pointer elsewhere costs nothing.
+  const page = root.ownerDocument;
+  const view = page.defaultView;
   const dismiss = () => {
     links.dismiss();
-    keys.removeEventListener('keydown', dismiss, true);
+    page.removeEventListener('keydown', dismiss, true);
+    view?.removeEventListener('resize', dismiss);
   };
   const over = (event: Event) => {
     const link = previewingLinkOf(event.target, root);
     if (link === null) return dismiss();
     links.enter(link);
-    keys.addEventListener('keydown', dismiss, true);
+    page.addEventListener('keydown', dismiss, true);
+    view?.addEventListener('resize', dismiss);
   };
   const out = (event: Event) => {
     const next = (event as PointerEvent).relatedTarget;

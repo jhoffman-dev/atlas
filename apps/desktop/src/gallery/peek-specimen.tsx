@@ -12,7 +12,9 @@ import {
   NotePane,
   PeekDialog,
   previewPlacement,
+  useHoveredLink,
   useLinkHover,
+  type HoveredLinkStore,
   type LinkPreview,
   type PreviewTarget,
   type PropertyRow,
@@ -100,7 +102,7 @@ const previewOf = (target: PreviewTarget): LinkPreview =>
 export function PeekSpecimen() {
   const host = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState<number | null>(null);
-  const { watch, hovered } = useLinkHover();
+  const { watch, store } = useLinkHover();
   const row = at === null ? null : ROWS[at];
 
   return (
@@ -131,18 +133,25 @@ export function PeekSpecimen() {
               <PeekNote title={row.title} rows={rowsOf(row)} />
             </NoteNamesProvider>
           </div>
-          {hovered !== null && (
-            <LinkPreviewCard
-              preview={previewOf(hovered.target)}
-              placement={previewPlacement(hovered.anchor, {
-                width: window.innerWidth,
-                height: window.innerHeight,
-              })}
-            />
-          )}
+          <PreviewCard store={store} />
         </PeekDialog>
       )}
     </div>
+  );
+}
+
+/** The card alone re-renders as links are hovered: the peek holding them does not. */
+function PreviewCard({ store }: { store: HoveredLinkStore }) {
+  const hovered = useHoveredLink(store);
+  if (hovered === null) return null;
+  return (
+    <LinkPreviewCard
+      preview={previewOf(hovered.target)}
+      placement={previewPlacement(hovered.anchor, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })}
+    />
   );
 }
 

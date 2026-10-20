@@ -1,10 +1,17 @@
-import { useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { Icon, type IconName } from '../icon.tsx';
+import { isImeKey } from '../ime.ts';
 import { KeyHints } from '../key-hints.tsx';
 import { PageMenu, type PageMenuItem } from '../page-bar.tsx';
 import { useReturnFocus, type FocusFallback } from '../return-focus.ts';
-import { peekKeyAction, peekKeyPlace, steppedIndex, type PeekRowAt } from './peek-keys.ts';
+import {
+  peekKeyAction,
+  peekKeyPlace,
+  peekWhere,
+  steppedIndex,
+  type PeekRowAt,
+} from './peek-keys.ts';
 
 /** The row the peek shows, in the list it was opened from: "3 of 186 in Task table". */
 export interface PeekPosition extends PeekRowAt {
@@ -45,14 +52,25 @@ export interface PeekDialogProps {
  * Modal, so the focus stays in it; Esc or × closes it and hands the focus
  * back to the row that opened it. Its keys are `peekKeyAction`'s (Q6). It
  * answers nothing else and stops nothing else, so ⌘K still reaches the app.
+ *
+ * Base UI's Esc is refused when something inside — a suggestion list, a
+ * field putting its value back — already took it, which its dismissal does
+ * not check on its own. A step first lets a field being typed in commit to its
+ * own note, then keeps the focus in the peek when what held it is replaced.
  */
 export function PeekDialog(props: PeekDialogProps) {
   const finalFocus = useReturnFocus(props.fallbackFocus);
   const popup = useRef<HTMLDivElement>(null);
+  const shown = props.position?.index;
+  useLayoutEffect(() => keepFocusIn(popup.current), [shown]);
   return (
     <Dialog.Root
       open
-      onOpenChange={(open) => {
+      onOpenChange={(open, details) => {
+        if (details.reason === 'escape-key' && escapeTakenInside(details.event)) {
+          details.cancel();
+          return;
+        }
         if (!open) props.onClose();
       }}
     >
@@ -67,7 +85,7 @@ export function PeekDialog(props: PeekDialogProps) {
             finalFocus={finalFocus}
             onKeyDown={(event) => answerPeekKey(event, props)}
           >
-            <PeekHeader {...props} />
+            <PeekHeader {...props} popup={popup} />
             <div className="peek__body">{props.children}</div>
             <KeyHints hints={hintsOf(props)} />
           </Dialog.Popup>
@@ -77,17 +95,32 @@ export function PeekDialog(props: PeekDialogProps) {
   );
 }
 
+/** An Escape something inside the peek already answered, or an input method's. */
+function escapeTakenInside(event: Event): boolean {
+  if (!(event instanceof globalThis.KeyboardEvent)) return false;
+  return event.defaultPrevented || event.isComposing || event.keyCode === 229;
+}
+
+/** After a step: the focus back on the peek when what held it went or was disabled. */
+function keepFocusIn(popup: HTMLElement | null): void {
+  if (popup === null) return;
+  const held = popup.ownerDocument.activeElement;
+  if (held instanceof HTMLElement && popup.contains(held) && !held.matches(':disabled')) return;
+  popup.focus();
+}
+
 function answerPeekKey(event: KeyboardEvent<HTMLElement>, props: PeekDialogProps): void {
   // Answered inside already — a suggestion list's arrows, the editor's own
-  // keys — or pressed in something open above the peek, through a portal.
-  if (event.defaultPrevented) return;
+  // keys, a field's Escape — or an input method's, or pressed in something
+  // open above the peek, through a portal.
+  if (event.defaultPrevented || isImeKey(event)) return;
   if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
   const action = peekKeyAction(event, peekKeyPlace(event.target));
   if (action === null) return;
   if (action.kind === 'step') {
     if (props.position === null) return;
     event.preventDefault();
-    step(props, action.by);
+    step(props, action.by, event.currentTarget);
     return;
   }
   const open = action.how === 'tab' ? props.onOpenInNewTab : props.onOpenInSplit;
@@ -96,14 +129,27 @@ function answerPeekKey(event: KeyboardEvent<HTMLElement>, props: PeekDialogProps
   open();
 }
 
-function step(props: PeekDialogProps, by: -1 | 1): void {
+function step(props: PeekDialogProps, by: -1 | 1, popup: HTMLElement | null): void {
   if (props.position === null) return;
   const next = steppedIndex(props.position, by);
-  if (next !== null) props.onStep(next);
+  if (next === null) return;
+  commitFocusedField(popup);
+  props.onStep(next);
 }
 
-function PeekHeader(props: PeekDialogProps) {
-  const { position } = props;
+/**
+ * Leaves the field or the text the focus is in, so a draft that commits on
+ * leaving (a date half-typed) is written to the note it belongs to, while
+ * that note is still the one on screen.
+ */
+function commitFocusedField(popup: HTMLElement | null): void {
+  const held = popup?.ownerDocument.activeElement;
+  if (!(held instanceof HTMLElement) || held === popup || popup?.contains(held) !== true) return;
+  if (peekKeyPlace(held) !== 'chrome') held.blur();
+}
+
+function PeekHeader(props: PeekDialogProps & { popup: RefObject<HTMLElement | null> }) {
+  const { position, popup } = props;
   return (
     <header className="peek__head">
       {position !== null && (
@@ -113,18 +159,16 @@ function PeekHeader(props: PeekDialogProps) {
             label="Previous row"
             framed
             disabled={steppedIndex(position, -1) === null}
-            onClick={() => step(props, -1)}
+            onClick={() => step(props, -1, popup.current)}
           />
           <PeekButton
             icon="down"
             label="Next row"
             framed
             disabled={steppedIndex(position, 1) === null}
-            onClick={() => step(props, 1)}
+            onClick={() => step(props, 1, popup.current)}
           />
-          <span className="peek__where">
-            {position.index + 1} of {position.count} in {position.within}
-          </span>
+          <span className="peek__where">{peekWhere(position)}</span>
         </>
       )}
       <span className="peek__gap" />
