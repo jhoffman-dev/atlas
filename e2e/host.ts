@@ -7,7 +7,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { createGitStub, type GitStub } from './git-host.ts';
-import { makeTempFolder } from './temp-folders.ts';
+import { makeTempFolder, removeWithTempFolders } from './temp-folders.ts';
 
 /** The host commands sync runs through (`git_process.rs`), answered by the git stub. */
 /** What a stubbed command answers to reject with a value, as Tauri does for a command's `Err`. */
@@ -907,6 +907,8 @@ export async function installHost(
         // that it went nowhere else. Never a permanent delete.
         const { rename, mkdir: makeDirectory } = await import('node:fs/promises');
         const entry = containedPath(writeRoot(args), path);
+        // Removed with the test's folders, whichever test bins first (#486).
+        removeWithTempFolders(trashRoot);
         await makeDirectory(trashRoot, { recursive: true });
         const binned = join(trashRoot, `${trashed.length}-${path.split('/').at(-1) ?? ''}`);
         await rename(entry, binned);
