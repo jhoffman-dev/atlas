@@ -107,7 +107,7 @@ async function call(name: string, args: Record<string, unknown> = {}) {
 
 describe('initialize', () => {
   it('reports the app version, from the root package.json (#481)', () => {
-    expect(mcp.getServerVersion()).toEqual({ name: 'atlas', version: rootPackage.version });
+    expect(mcp.getServerVersion()).toEqual({ name: 'dfai', version: rootPackage.version });
   });
 });
 
