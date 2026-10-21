@@ -1,5 +1,6 @@
 import { expect, test } from './fixtures.ts';
 import { createVault, expectSaved, installHost, saveNow } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 // U-04: make the sidebar collapsible.
 test('the sidebar hides and comes back', async ({ page }) => {
@@ -48,8 +49,7 @@ test('the note stays open and editable with the sidebar hidden', async ({ page }
   await page.getByRole('treeitem', { name: 'note', exact: true }).click();
   await page.getByRole('button', { name: 'Hide sidebar' }).click();
 
-  await page.getByText('Body.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Body.'));
   await page.keyboard.type(' Edited.');
   await saveNow(page);
   await expectSaved(page);

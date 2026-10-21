@@ -9,6 +9,7 @@ import {
   saveNow,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * #135: indexing a vault must never take the window away. These build a vault
@@ -173,8 +174,7 @@ test('the sidebar, Settings and an open note all answer while the vault is being
   await expect(note.getByText('Pack the tent.')).toBeVisible();
 
   // The note takes typing, and saves.
-  await note.getByText('Pack the tent.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(note.getByText('Pack the tent.'));
   await page.keyboard.type(' And the stove.');
   await expect(note.getByText('Pack the tent. And the stove.')).toBeVisible();
   await saveNow(page);

@@ -8,6 +8,7 @@ import {
   type FakeVault,
   saveNow,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const SOURCE = [
   '---',
@@ -140,8 +141,7 @@ test('a note whose body you edited keeps your text while its properties refresh'
 
   await treeItem(page, 'People').click();
   await treeItem(page, '1').click();
-  await page.getByText('Writes the notes').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Writes the notes'));
   await page.keyboard.type(' — and I added this.');
   await saveNow(page);
   await expectSaved(page);

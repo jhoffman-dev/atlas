@@ -12,6 +12,7 @@ import {
   closePane,
 } from './host.ts';
 import { dragCardTo } from './drag.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * R13-05: a write to a note that is open in a pane, in both directions.
@@ -52,8 +53,7 @@ async function splitOnNote(page: Page): Promise<void> {
 
 /** Types at the end of a pane's paragraph, the way anyone would. */
 async function typeInto(page: Page, which: 1 | 2, existing: string, addition: string) {
-  await pane(page, which).getByText(existing).click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(pane(page, which).getByText(existing));
   await page.keyboard.type(addition);
 }
 
@@ -258,8 +258,7 @@ test('an edit in the peek reaches a pane holding the same note (slice 6b)', asyn
   await pane(page, 1).locator('[data-wikilink="note"]').click();
 
   const peek = page.getByRole('dialog', { name: 'note' });
-  await peek.getByText('Original paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(peek.getByText('Original paragraph.'));
   await page.keyboard.type(' Typed in the peek.');
   await page.keyboard.press('Escape');
   await expect(peek).toHaveCount(0);

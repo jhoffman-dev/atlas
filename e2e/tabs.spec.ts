@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, expectSaved, installHost, sidebarSection } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /*
  * Tabs in panes (docs/design/tab-model.md, UI v2 7b, Performance 8). What
@@ -113,8 +114,7 @@ test('typing in one tab, switching away and back, then ⌘Z undoes in that tab a
   const vault = await openVault(page);
   await alphaThenBetaInTabs(page);
   await tab(page, 1, 'alpha').click();
-  await page.getByText('The first note.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('The first note.'));
   await page.keyboard.type(' Edited.');
   await expect(page.getByText('The first note. Edited.')).toBeVisible();
 
@@ -122,8 +122,7 @@ test('typing in one tab, switching away and back, then ⌘Z undoes in that tab a
   await tab(page, 1, 'beta').click();
   await expect(article(page, 1, 'beta')).toBeVisible();
   await expectFile(vault, 'alpha.md').toBe('# Alpha\n\nThe first note. Edited.\n');
-  await page.getByText('The second note.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('The second note.'));
   await page.keyboard.type(' Also edited.');
   await expect(page.getByText('The second note. Also edited.')).toBeVisible();
 
