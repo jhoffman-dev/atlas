@@ -1,4 +1,4 @@
-# DFAI
+# DFAI - Daily Flow AI
 
 **DFAI** (Daily Flow AI) is a local-first macOS desktop app that replaces Notion and Obsidian: markdown notes, typed
 objects, SQL-backed database views, tasks, calendar, projects and dashboards. Your notes stay
@@ -9,7 +9,7 @@ Tauri v2 · React · TypeScript · TipTap · SQLite.
 - **[PLAN.md](PLAN.md)** — architecture, decisions, phases, risks.
 - **[Field Guide](https://claude.ai/artifact/QXvTge2zPuY5YS5g7QYveH)** — how to use the app
   (James's private guide; the link is not public).
-- **Tasks** — [GitHub Issues](https://github.com/jhoffman-dev/atlas/issues). The in-app
+- **Tasks** — [GitHub Issues](https://github.com/jhoffman-dev/dfai/issues). The in-app
   board in the repo's `vault/` holds the history up to 2026-09-29.
 
 ## Prerequisites (fresh Mac, Apple silicon)
@@ -36,7 +36,7 @@ Node 25+, so install pnpm from Homebrew.
 ## Get the code
 
 ```sh
-git clone https://github.com/jhoffman-dev/atlas.git
+git clone https://github.com/jhoffman-dev/dfai.git
 cd atlas
 pnpm install
 ```

@@ -1,6 +1,6 @@
 {
   "name": "dfai",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -19,7 +19,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "gate": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build && pnpm rust:lint && pnpm rust:test",
+    "version:set": "node tools/release/version.mjs set",
+    "version:check": "node tools/release/version.mjs check",
+    "gate": "pnpm format:check && pnpm version:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build && pnpm rust:lint && pnpm rust:test",
     "rust:test": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "rust:lint": "cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check",
     "e2e": "pnpm build && playwright test",

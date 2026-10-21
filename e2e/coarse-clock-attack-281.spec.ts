@@ -42,12 +42,13 @@ async function openOnACoarseDisk(page: Page): Promise<FakeVault> {
  * a version of another length, and the refresh would re-read it for that.
  */
 async function replaceLastCharacter(page: Page, text: string, typed: string) {
-  await page.getByText(text).click();
   // Selected until it holds: ProseMirror puts its own selection back 20 ms
   // after the editor takes the focus, if it has not read the page's yet, so
   // on a slow runner a selection made in that window is undone (zapg).
-  // Read a frame later, the selection is one ProseMirror has seen.
+  // Read a frame later, the selection is one ProseMirror has seen. The click
+  // is redone too: the caret put back is not on this line (#489).
   await expect(async () => {
+    await page.getByText(text).click();
     // ⌘→, not End: End does not move the caret in WebKit on macOS (#448).
     await page.keyboard.press('Meta+ArrowRight');
     await page.keyboard.press('Shift+ArrowLeft');

@@ -1381,7 +1381,7 @@ ORDER BY phase</pre>
         <li>Gemini's boilerplate — the disclaimer, “Chat with meeting transcript” links, the transcript's date and end lines — is left out.</li>
       </ul>
       <h3>Set it up</h3>
-      <p>The full steps are in <a href="https://github.com/jhoffman-dev/atlas/tree/main/tools/n8n">tools/n8n on GitHub</a> (the README, “API destination”). In short:</p>
+      <p>The full steps are in <a href="https://github.com/jhoffman-dev/dfai/tree/main/tools/n8n">tools/n8n on GitHub</a> (the README, “API destination”). In short:</p>
       <ol class="steps">
         <li><b>Turn on the Local API.</b> Settings (<kbd>⌘,</kbd>) → <b>Connections</b> → <b>Local API</b>. It says <i>“Running on port …”</i>; note the port.</li>
         <li><b>Put the token in n8n.</b> Press <b>Copy token</b>. In n8n, <b>Credentials → Add credential → Bearer Auth</b>, named <code>DFAI local API</code>, with the token as <b>Bearer Token</b>. It lives only in n8n's credential store — never in the workflow, the vault or the DFAI repo. After <b>Rotate token</b>, or if DFAI comes up on another port because its own was taken, update the credential or the node.</li>
@@ -1397,7 +1397,7 @@ ORDER BY phase</pre>
       <p><code>ok</code> (with the number of turns) means DFAI will accept it. <code>FAIL</code> lists each problem with where it is — for example <i>attendees[0] must be a { name, email, group } entry, not a line of text</i>.</p>
       <h3>Built in</h3>
       <p><b>Meeting</b> is a <a href="#edit-type">built-in type</a>: <b>Delete</b> is turned off for it — <i>“Meeting is built in — imported meetings are notes of it — so it cannot be deleted. Its properties are yours to change.”</i></p>
-      <div class="note"><b>What's coming.</b> A meeting shows on the <a href="#para">Inbox page</a> until it's filed, where it can be filed under a project or an area. Misheard names are already <a href="#meeting-corrections">put right</a> as it arrives. Next (phase 29): linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+      <div class="note"><b>What's coming.</b> A meeting shows on the <a href="#para">Inbox page</a> until it's filed, where it can be filed under a project or an area. Misheard names are already <a href="#meeting-corrections">put right</a> as it arrives. Next (phase 29): linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/dfai/issues/41">roadmap issue</a>.</div>
     </section>
 
     <section id="granola">
@@ -1828,7 +1828,7 @@ do: archive</pre>
         <li><b>Set them in Settings → Granola before?</b> Those (<code>granola_self_emails</code>) are still used while <code>selfEmails</code> is empty, and the field shows them with <i>In use from granola_self_emails</i>. Edit them here to move them: the same save writes <code>selfEmails</code> and removes <code>granola_self_emails</code>. Empty the field to remove them both.</li>
         <li><b>An address here is you even if it looks like a group</b> (<code>team@…</code>): DFAI takes your word for it, links you, and never reads that attendee as a group.</li>
         <li><b>With none set</b>, and no Person note of yours, DFAI knows you by your name alone.</li>
-        <li><b>If n8n maps Granola meetings too</b>, change the addresses in both places: here, and <code>selfEmails</code> in the <code>OPTIONS</code> of the n8n Code node that maps them (<a href="https://github.com/jhoffman-dev/atlas/tree/main/tools/n8n">tools/n8n</a>). Both must hold the same addresses, or the same meeting is written two ways and becomes a sync conflict copy. Nothing checks this for you.</li>
+        <li><b>If n8n maps Granola meetings too</b>, change the addresses in both places: here, and <code>selfEmails</code> in the <code>OPTIONS</code> of the n8n Code node that maps them (<a href="https://github.com/jhoffman-dev/dfai/tree/main/tools/n8n">tools/n8n</a>). Both must hold the same addresses, or the same meeting is written two ways and becomes a sync conflict copy. Nothing checks this for you.</li>
       </ul>
       <div class="table-wrap">
         <table>
@@ -2047,11 +2047,11 @@ do: archive</pre>
         <li>Log in to GitHub, which sync uses: <code>gh auth login</code>, then <code>gh auth setup-git</code>.</li>
         <li>Get DFAI and start it. The first build takes a few minutes.</li>
       </ol>
-      <pre>git clone https://github.com/jhoffman-dev/atlas.git ~/Projects/atlas
+      <pre>git clone https://github.com/jhoffman-dev/dfai.git ~/Projects/atlas
 cd ~/Projects/atlas
 pnpm install
 pnpm tauri:dev</pre>
-      <button type="button" class="copy" data-copy="git clone https://github.com/jhoffman-dev/atlas.git ~/Projects/atlas&#10;cd ~/Projects/atlas&#10;pnpm install&#10;pnpm tauri:dev">Copy</button>
+      <button type="button" class="copy" data-copy="git clone https://github.com/jhoffman-dev/dfai.git ~/Projects/atlas&#10;cd ~/Projects/atlas&#10;pnpm install&#10;pnpm tauri:dev">Copy</button>
       <h3>2. Open the same vault</h3>
       <ol class="steps">
         <li>On <b>Open a vault</b>, press <b>Open a vault from GitHub…</b> — or, with a vault already open, the vault's name → <b>Open a vault from GitHub…</b>.</li>

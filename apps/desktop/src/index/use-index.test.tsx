@@ -528,7 +528,6 @@ describe('LiveIndexSettings', () => {
       <LiveIndexSettings
         index={{ kind: 'working', done: 0, total: 0 }}
         progress={{ subscribe: () => () => {}, current: () => reached }}
-        app={{ kind: 'loading' }}
         onRebuild={() => {}}
       />,
     );

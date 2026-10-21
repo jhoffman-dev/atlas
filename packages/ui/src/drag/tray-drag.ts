@@ -137,7 +137,13 @@ export function useTrayDrag({
     const title = (id: UniqueIdentifier) => byId.get(String(id))?.title ?? String(id);
     return {
       onDragStart: ({ active }) => planWords.start(title(active.id)),
-      onDragMove: ({ active }) => planWords.over(title(active.id), landingOf(landing.current)),
+      // dnd-kit reports a move from an effect after the render it caused, so
+      // one can arrive after Escape or a drop; by then there is nothing held to
+      // say anything about, and saying it would hide "Cancelled" (#450).
+      onDragMove: ({ active }) =>
+        pointer.current === null
+          ? undefined
+          : planWords.over(title(active.id), landingOf(landing.current)),
       // Nothing on the clock is a drop target; the move says where the task is.
       onDragOver: () => undefined,
       onDragEnd: ({ active }) => planWords.end(title(active.id), landingOf(landing.current)),

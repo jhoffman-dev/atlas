@@ -9,11 +9,13 @@
  *
  * And the key alone is not enough. For 20 ms after it is focused, ProseMirror
  * puts its own selection back on the page unless it has read the page's by
- * then; under load the caret the key moved is put back at the note's start,
- * and the typing after it lands there. So the editor's own selection is what
- * is waited on, and the key pressed again if it was undone (where it already
- * is, ⌘→ changes nothing). Pressing it also collapses the word or line a
- * quick second or third click on the same spot selects.
+ * then; under load the caret the click or the key moved is put back at the
+ * note's start, and the typing after it lands there. So the editor's own
+ * selection is what is waited on, and the click and the key are both done
+ * again if it was undone: the key alone would only move the put-back caret
+ * along the note's first line, never back to this one (#489). The reset runs
+ * once per focus, so the second click is not undone. Pressing the key also
+ * collapses the word or line a quick second or third click selects.
  *
  * ⌘→ goes to the end of the line as drawn, so on a paragraph that wraps it
  * stops short of the block's end: the check then fails loudly, never passes.
@@ -31,7 +33,6 @@ export async function caretAtLineStart(line: Locator): Promise<void> {
 }
 
 async function caretAt(line: Locator, where: 'start' | 'end'): Promise<void> {
-  await line.click({ position: { x: 1, y: 5 } });
   // Always pressed, never skipped when the editor already says the caret is
   // there: until ProseMirror reads the click, its selection is the one from
   // before, and the typing goes where the click put the page's caret. ⌘← is
@@ -39,6 +40,7 @@ async function caretAt(line: Locator, where: 'start' | 'end'): Promise<void> {
   // takes the caret up to the line above.
   const keys = where === 'end' ? ['Meta+ArrowRight'] : ['Meta+ArrowRight', 'Meta+ArrowLeft'];
   await expect(async () => {
+    await line.click({ position: { x: 1, y: 5 } });
     for (const key of keys) await line.page().keyboard.press(key);
     expect(await editorCaret(line)).toEqual({ inLine: true, at: where });
   }).toPass({ timeout: 5_000 });
@@ -52,6 +54,7 @@ function editorCaret(line: Locator) {
   return line.evaluate((element) => {
     // Tiptap hangs the editor on ProseMirror's element; its selection is not in the DOM.
     interface Head {
+      depth: number;
       parentOffset: number;
       parent: { content: { size: number } };
       before(): number;
@@ -67,6 +70,9 @@ function editorCaret(line: Locator) {
     if (root === null) throw new Error('the line is not in an editor');
     const { selection } = root.editor.state;
     const { $head } = selection;
+    // Depth 0 is between top-level blocks (a selected card, a gap cursor):
+    // no block holds the caret, and before() would throw. A miss to retry.
+    if ($head.depth === 0) return { inLine: false, at: 'neither' };
     const block = root.editor.view.nodeDOM($head.before());
     const at = !selection.empty
       ? 'neither'

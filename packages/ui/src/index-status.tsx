@@ -1,4 +1,3 @@
-import type { AppInfo } from '@dfai/domain';
 import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
@@ -6,11 +5,6 @@ export type IndexSummary =
   | { readonly kind: 'idle' }
   | { readonly kind: 'working'; readonly done: number; readonly total: number }
   | { readonly kind: 'ready'; readonly notes: number }
-  | { readonly kind: 'failed'; readonly message: string };
-
-export type AppInfoState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'ready'; readonly info: AppInfo }
   | { readonly kind: 'failed'; readonly message: string };
 
 /** What the index is doing, in words; empty when there is nothing to say. */
@@ -31,16 +25,14 @@ export function indexStatusText(index: IndexSummary): string {
 
 /**
  * The Index part of Settings: how many notes the search and the views can
- * see, a way to rebuild that from the files, and which build this is.
+ * see, and a way to rebuild that from the files.
  */
 export function IndexSettings({
   index,
-  app,
   onRebuild,
 }: {
   /** `null` with no vault open, when there is no index to speak of. */
   index: IndexSummary | null;
-  app: AppInfoState;
   onRebuild: () => void;
 }) {
   return (
@@ -64,16 +56,6 @@ export function IndexSettings({
             Rebuild
           </button>
         </div>
-      )}
-      {app.kind === 'ready' && (
-        <p className="settings__file">
-          {app.info.name} {app.info.version}
-        </p>
-      )}
-      {app.kind === 'failed' && (
-        <p className="settings__problem" role="alert">
-          {app.message}
-        </p>
       )}
     </SettingsSection>
   );

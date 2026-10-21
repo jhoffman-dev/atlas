@@ -3,7 +3,7 @@
 Local-first desktop app replacing Notion and Obsidian.
 
 **The app is DFAI (Daily Flow AI).** It was called Atlas until 2026-10-20
-(#482, ADR-0042); the repo is still `jhoffman-dev/atlas` until James renames it.
+(#482, ADR-0042); the repo was renamed from `jhoffman-dev/atlas` to `jhoffman-dev/dfai`, and GitHub redirects the old URLs.
 Write "DFAI" in everything a person reads. Some internal names keep "atlas" on
 purpose, because files, other Macs or other tools depend on them: the vault
 folder `.atlas/`, `atlas-query` fences, `atlas_*` frontmatter keys and MCP tool
@@ -133,13 +133,13 @@ machine:
 
 ## Before starting any work, read the issues
 
-Tasks live in **GitHub Issues** on `jhoffman-dev/atlas`, so every machine
+Tasks live in **GitHub Issues** on `jhoffman-dev/dfai`, so every machine
 and every Claude Code account works from the same list:
 
 ```sh
-gh issue list -R jhoffman-dev/atlas                   # open work
-gh issue list -R jhoffman-dev/atlas --label next      # do these first
-gh issue view <n> -R jhoffman-dev/atlas               # the whole card
+gh issue list -R jhoffman-dev/dfai                   # open work
+gh issue list -R jhoffman-dev/dfai --label next      # do these first
+gh issue view <n> -R jhoffman-dev/dfai               # the whole card
 ```
 
 - **`from-james`** — James asked for it; it takes priority over the phase plan.

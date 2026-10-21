@@ -4,7 +4,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IndexSettings, indexStatusText } from './index-status.tsx';
 
-const ready = { kind: 'ready', info: { name: 'DFAI', version: '0.1.0' } } as const;
 const noop = () => {};
 
 describe('indexStatusText', () => {
@@ -32,30 +31,27 @@ describe('indexStatusText', () => {
 });
 
 describe('IndexSettings', () => {
-  it('shows the count and the app version', () => {
-    render(<IndexSettings index={{ kind: 'ready', notes: 208 }} app={ready} onRebuild={noop} />);
+  it('shows the count', () => {
+    render(<IndexSettings index={{ kind: 'ready', notes: 208 }} onRebuild={noop} />);
     expect(screen.getByText('208 notes indexed')).toBeDefined();
-    expect(screen.getByText('DFAI 0.1.0')).toBeDefined();
   });
 
   it('rebuilds on request', async () => {
     const onRebuild = vi.fn();
-    render(<IndexSettings index={{ kind: 'ready', notes: 3 }} app={ready} onRebuild={onRebuild} />);
+    render(<IndexSettings index={{ kind: 'ready', notes: 3 }} onRebuild={onRebuild} />);
     await userEvent.click(screen.getByRole('button', { name: 'Rebuild' }));
     expect(onRebuild).toHaveBeenCalledTimes(1);
   });
 
   it('draws Rebuild as a secondary control, not a row-sized one (#318)', () => {
-    render(<IndexSettings index={{ kind: 'ready', notes: 3 }} app={ready} onRebuild={noop} />);
+    render(<IndexSettings index={{ kind: 'ready', notes: 3 }} onRebuild={noop} />);
     const rebuild = screen.getByRole('button', { name: 'Rebuild' });
     expect(rebuild.classList).toContain('btn--secondary');
     expect(rebuild.classList).not.toContain('btn--sm');
   });
 
   it('disables rebuilding while the index is being built', () => {
-    render(
-      <IndexSettings index={{ kind: 'working', done: 0, total: 0 }} app={ready} onRebuild={noop} />,
-    );
+    render(<IndexSettings index={{ kind: 'working', done: 0, total: 0 }} onRebuild={noop} />);
     expect(screen.getByRole('button', { name: 'Rebuild' }).hasAttribute('disabled')).toBe(true);
   });
 
@@ -63,7 +59,7 @@ describe('IndexSettings', () => {
     render(
       <IndexSettings
         index={{ kind: 'failed', message: 'cannot open index' }}
-        app={ready}
+
         onRebuild={noop}
       />,
     );
@@ -71,24 +67,8 @@ describe('IndexSettings', () => {
   });
 
   it('offers no rebuild when no vault is open', () => {
-    render(<IndexSettings index={null} app={ready} onRebuild={noop} />);
+    render(<IndexSettings index={null} onRebuild={noop} />);
     expect(screen.queryByRole('button', { name: 'Rebuild' })).toBeNull();
     expect(screen.getByText('Open a vault to index it.')).toBeDefined();
-  });
-
-  it('shows nothing about the app while it is still loading', () => {
-    render(<IndexSettings index={null} app={{ kind: 'loading' }} onRebuild={noop} />);
-    expect(screen.queryByText(/DFAI/)).toBeNull();
-  });
-
-  it('announces a failure to read the app identity', () => {
-    render(
-      <IndexSettings
-        index={null}
-        app={{ kind: 'failed', message: 'host unavailable' }}
-        onRebuild={noop}
-      />,
-    );
-    expect(screen.getByRole('alert').textContent).toBe('host unavailable');
   });
 });

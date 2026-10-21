@@ -151,9 +151,10 @@ app's own, so reconnecting never makes a second.
 Earlier ADRs say "Atlas". They are records of decisions made under that name,
 and are left as they were written; read "Atlas" there as DFAI.
 
-**The GitHub repository** (`jhoffman-dev/atlas`) is renamed by the maintainer in
-GitHub's settings. GitHub redirects the old URLs, so links in the repo keep
-working until they are updated.
+**The GitHub repository** was renamed by the maintainer from `jhoffman-dev/atlas`
+to `jhoffman-dev/dfai`; GitHub redirects the old URLs. Links in the repo name
+the new one, except in the records left as written. The private history repo,
+`jhoffman-dev/atlas-archive`, keeps its name.
 
 ## Consequences
 

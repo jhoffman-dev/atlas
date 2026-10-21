@@ -6,6 +6,7 @@ describe('createAppInfo', () => {
     expect(createAppInfo({ name: 'DFAI', version: '0.1.0' })).toEqual({
       name: 'DFAI',
       version: '0.1.0',
+      build: null,
     });
   });
 
@@ -31,4 +32,23 @@ describe('createAppInfo', () => {
   it('names the offending version in the error message', () => {
     expect(() => createAppInfo({ name: 'DFAI', version: 'nightly' })).toThrow(/"nightly"/);
   });
+
+  it('keeps the commit a build was made from, as a short SHA', () => {
+    expect(createAppInfo({ name: 'DFAI', version: '0.1.0', build: '61e907b' }).build).toBe(
+      '61e907b',
+    );
+  });
+
+  it.each([[null], [''], ['  ']])('has no build when none is known (%j)', (build) => {
+    expect(createAppInfo({ name: 'DFAI', version: '0.1.0', build }).build).toBeNull();
+  });
+
+  it.each(['main', '61e9', 'g61e907b', '61E907B', '61e907b-dirty'])(
+    'rejects a build that is not a commit SHA: %j',
+    (build) => {
+      expect(() => createAppInfo({ name: 'DFAI', version: '0.1.0', build })).toThrow(
+        InvalidAppInfoError,
+      );
+    },
+  );
 });

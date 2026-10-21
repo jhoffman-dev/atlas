@@ -15,6 +15,7 @@ describe('settingsSectionLinks', () => {
       'Granola',
       'Claude',
       'Sync',
+      'About',
     ]);
   });
 
@@ -24,6 +25,7 @@ describe('settingsSectionLinks', () => {
       'Images',
       'Quick capture from anywhere',
       'Claude',
+      'About',
     ]);
   });
 

@@ -29,4 +29,5 @@ export const SETTINGS_SECTIONS = {
   granola: { id: 'settings-granola', title: 'Granola', icon: 'event' },
   claude: { id: 'settings-claude', title: 'Claude', icon: 'spark' },
   sync: { id: 'settings-sync', title: 'Sync', icon: 'cloud' },
+  about: { id: 'settings-about', title: 'About', icon: 'id' },
 } as const satisfies Record<string, SettingsSectionLink>;

@@ -6,11 +6,12 @@ import type { RouteResult } from './vault-request.ts';
 
 /** What DFAI has open. The one route that answers with no vault open. */
 export async function statusRoute(deps: ApiRouterDeps): Promise<RouteResult> {
-  const { version } = await getAppInfo({ appInfo: deps.appInfo });
+  const { version, build } = await getAppInfo({ appInfo: deps.appInfo });
   const location = deps.host.currentVault();
   const status: ApiStatus = {
     app: 'atlas',
     version,
+    build,
     vault: location === null ? null : { name: location.name },
     index: location === null ? { ready: false, notes: 0 } : await indexStatus(deps),
     googleCalendar: location === null ? null : await googleCalendarStatus(deps, location),

@@ -148,6 +148,11 @@ pub fn run() {
             for line in &migrated {
                 log::info!("migration from Atlas: {line}");
             }
+            // Off until releases are signed (#481, RELEASING.md): it needs the
+            // public key in tauri.conf.json, and refuses to start without one.
+            #[cfg(feature = "updater")]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             api::restore(app.handle());
             Ok(())
         })

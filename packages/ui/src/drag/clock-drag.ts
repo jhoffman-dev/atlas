@@ -85,6 +85,10 @@ export function useClockDrag({
   // Refs, not state: dnd-kit calls these from its own events, and the
   // announcement for a move is asked for straight after the move is reported.
   const landing = useRef<ClockMove | null>(null);
+  // dnd-kit reports a move from an effect after the render it caused, so one
+  // can arrive after Escape or a drop. Only a move while the note is held
+  // counts, or it would be announced over "Cancelled" (#450).
+  const holding = useRef(false);
 
   const snap = useMemo<KeyboardCoordinateGetter>(
     () =>
@@ -115,10 +119,11 @@ export function useClockDrag({
   };
 
   const onDragMove = ({ active, delta }: DragMoveEvent) => {
-    landing.current = moveOf(active, delta)?.words ?? null;
+    landing.current = holding.current ? (moveOf(active, delta)?.words ?? null) : null;
   };
 
   const onDragEnd = ({ active, delta }: DragEndEvent) => {
+    holding.current = false;
     gestures.onHold(false);
     const move = moveOf(active, delta);
     landing.current = move?.words ?? null;
@@ -153,10 +158,14 @@ export function useClockDrag({
     announcements,
     onDragStart: () => {
       landing.current = null;
+      holding.current = true;
       gestures.onHold(true);
     },
     onDragMove,
     onDragEnd,
-    onDragCancel: () => gestures.onHold(false),
+    onDragCancel: () => {
+      holding.current = false;
+      gestures.onHold(false);
+    },
   };
 }

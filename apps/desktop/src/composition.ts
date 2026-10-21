@@ -1,4 +1,5 @@
 import { isTauri } from '@tauri-apps/api/core';
+import desktopPackage from '../package.json' with { type: 'json' };
 import {
   anthropicApiProvider,
   claudeCodeProvider,
@@ -65,7 +66,15 @@ import {
  * `pnpm dev` opens the UI in a plain browser, where no Tauri runtime answers.
  */
 export function resolveAppInfoPort(): AppInfoPort {
-  return isTauri() ? tauriAppInfo : staticAppInfo({ name: 'DFAI', version: '0.1.0' });
+  const build = builtCommit();
+  return isTauri()
+    ? tauriAppInfo({ build })
+    : staticAppInfo({ name: 'DFAI', version: desktopPackage.version, build });
+}
+
+/** The commit this app was built from, which Vite writes in; absent in the unit tests. */
+function builtCommit(): string | null {
+  return typeof __ATLAS_BUILD__ === 'string' ? __ATLAS_BUILD__ : null;
 }
 
 export function resolveVaultPorts(): OnHost<VaultPorts> {

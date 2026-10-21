@@ -193,6 +193,8 @@ export interface ApiNoteExport {
 export interface ApiStatus {
   readonly app: 'atlas';
   readonly version: string;
+  /** The commit the running app was built from, as a short SHA; null when its build did not know. */
+  readonly build: string | null;
   /** Null when no vault is open; every other route then answers `no_vault`. */
   readonly vault: { readonly name: string } | null;
   readonly index: { readonly ready: boolean; readonly notes: number };
