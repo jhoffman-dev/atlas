@@ -30,9 +30,13 @@ export class InvalidVersionError extends Error {
   }
 }
 
-/** Semver, optionally pre-release; no leading zeros, as the spec requires. */
-const SEMVER =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+/** One pre-release part: a number without leading zeros, or a word with a letter or `-` in it. */
+const PRE_PART = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+
+/** Semver, optionally pre-release; no leading zeros in any number, as the spec requires. */
+const SEMVER = new RegExp(
+  String.raw`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(${PRE_PART}(?:\.${PRE_PART})*))?$`,
+);
 
 const BUMPS = ['major', 'minor', 'patch'] as const;
 type Bump = (typeof BUMPS)[number];

@@ -1,0 +1,10 @@
+# Keeps the workflows' actions, pinned to commit SHAs, up to date (#481).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

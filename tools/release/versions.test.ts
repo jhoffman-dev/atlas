@@ -41,16 +41,29 @@ describe('the next version', () => {
     expect(nextVersion(current, request)).toBe(expected);
   });
 
-  it.each([['0.2.0'], ['1.0.0-beta.1'], ['10.20.30']])('is %s when asked for exactly that', (v) => {
+  it.each([
+    ['0.2.0'],
+    ['1.0.0-beta.1'],
+    ['10.20.30'],
+    ['1.0.0-0'],
+    ['1.0.0-rc.0a'],
+    ['1.0.0-0a.1'],
+  ])('is %s when asked for exactly that', (v) => {
     expect(nextVersion('0.1.0', v)).toBe(v);
   });
 
-  it.each([['v0.2.0'], ['0.2'], ['01.2.3'], ['0.2.0.1'], ['banana'], ['']])(
-    'refuses %j, which is neither semver nor a bump',
-    (request) => {
-      expect(() => nextVersion('0.1.0', request)).toThrow(InvalidVersionError);
-    },
-  );
+  it.each([
+    ['v0.2.0'],
+    ['0.2'],
+    ['01.2.3'],
+    ['0.2.0.1'],
+    ['banana'],
+    [''],
+    ['1.0.0-rc.01'],
+    ['1.0.0-00'],
+  ])('refuses %j, which is neither semver nor a bump', (request) => {
+    expect(() => nextVersion('0.1.0', request)).toThrow(InvalidVersionError);
+  });
 
   it('refuses to bump a pre-release, which has no one obvious next version', () => {
     expect(() => nextVersion('1.0.0-beta.1', 'patch')).toThrow(/pre-release/);

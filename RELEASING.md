@@ -50,15 +50,22 @@ The running app shows its version, and the commit it was built from, in
 4. The **release** workflow (`.github/workflows/release.yml`) then:
    - checks every version file agrees and that the tag names that version;
    - runs the whole gate (it calls `gate.yml`);
-   - builds the `.app` and `.dmg` for Apple silicon with `tauri-action`;
-   - makes a **draft** GitHub Release named after the tag, with notes generated from the
-     pull requests merged since the last release, and attaches the build. A tag with a
-     `-` in it (`v0.2.0-rc.1`) is marked as a pre-release.
+   - builds the `.app` and `.dmg` for Apple silicon with `pnpm tauri build`, in a `build`
+     job that can only read the repository;
+   - in a separate `publish` job — the only one that can write, and it installs and runs
+     nothing from the repository — makes a **draft** GitHub Release named after the tag,
+     with notes generated from the pull requests merged since the last release, and
+     attaches the build. A tag with a `-` in it (`v0.2.0-rc.1`) is marked as a
+     pre-release.
 
 5. Read the draft on GitHub, edit the notes if needed, and publish it.
 
-A rerun of the workflow for the same tag finds the existing draft and uploads to it
-rather than making a second one.
+A rerun of the workflow for the same tag finds the existing draft and replaces its files
+rather than making a second one. If the tag's release is already published, `publish`
+fails instead of touching it.
+
+Every action the workflows use is pinned to a commit SHA, with its version in a comment;
+Dependabot (`.github/dependabot.yml`) proposes updates weekly.
 
 ## Dry run
 
@@ -71,7 +78,8 @@ builds only.
 ## Signing and notarisation
 
 Off until James has an Apple Developer account. The workflow signs and notarises only
-when the `APPLE_CERTIFICATE` and `APPLE_ID` secrets are set. Until then it builds an
+when all six `APPLE_*` secrets below are set; with some but not all of them it fails,
+naming the missing ones. Until then it builds an
 **ad-hoc signed** app (identity `-`), and the release notes say how to open it the first
 time: System Settings → Privacy & Security → **Open Anyway** (right-click → **Open** on
 macOS 14 and earlier), or `xattr -dr com.apple.quarantine "/Applications/<app>.app"`.
@@ -131,9 +139,25 @@ an update to an app macOS will not open is no update.
    "Check for updates" control in Settings → About. That is a feature of its own, with
    its tests, in its own pull request.
 
-From then on the workflow signs the update bundle and attaches a signed `latest.json` to
-each release. The workflow fails if the public key is in `tauri.conf.json` but the
-private key secret is missing. The updater reads `latest.json` from the **latest
+From then on the `build` job signs the update bundle (`<app>.app.tar.gz` and its `.sig`)
+and the `publish` job attaches both to the release. The signing key reaches the build
+only while the updater is on. The workflow fails if the public key is in
+`tauri.conf.json` but `createUpdaterArtifacts` is not `true`, or the private key secret
+is missing.
+
+**`latest.json` is still to add.** The updater reads it to learn of a new version.
+`publish` will write it, before uploading, from what is already in hand — no build, no
+secret:
+
+```sh
+jq -n --arg version "${TAG#v}" --arg sig "$(cat build/*.app.tar.gz.sig)" \
+  --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/<app>.app.tar.gz" \
+  --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{version: $version, pub_date: $date,
+    platforms: {"darwin-aarch64": {signature: $sig, url: $url}}}' > build/latest.json
+```
+
+That lands with the updater's own pull request (step 4), where it can be tried end to end. The updater reads `latest.json` from the **latest
 published** release, so a draft reaches nobody until it is published.
 
 ## Intel Macs
