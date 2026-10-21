@@ -14,6 +14,7 @@ mod model_http;
 mod model_process;
 mod navigation;
 mod opener;
+mod rename_migration;
 mod secrets;
 mod sleep_clock;
 mod sqlite_source;
