@@ -166,6 +166,8 @@ export const VaultTree = memo(function VaultTree({
   const scrollElement = () => (scrollParent === undefined ? scrollRef.current : scrollParent);
   const heldIndex =
     held === null ? -1 : rows.findIndex((row) => row.entry.path === held.entry.path);
+  const tabStopIndex =
+    activePath === null ? -1 : rows.findIndex((row) => row.entry.path === activePath);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: scrollElement,
@@ -182,7 +184,11 @@ export const VaultTree = memo(function VaultTree({
     // The row being carried stays rendered however far it is scrolled away:
     // dnd-kit finds the scroller to scroll at an edge from it (or from the
     // target under the pointer), and with neither the sidebar stops scrolling.
-    rangeExtractor: (range: Range) => withIndex(defaultRangeExtractor(range), heldIndex),
+    // So does the row with the tab stop: rows arriving above it — a folder's
+    // contents, listed after it opens — would otherwise push the focused row
+    // out of the DOM, and the focus with it to the body (#491).
+    rangeExtractor: (range: Range) =>
+      withIndex(withIndex(defaultRangeExtractor(range), heldIndex), tabStopIndex),
     // jsdom reports a zero-height container, which would render no rows at all.
     initialRect: { width: 280, height: 800 },
   });
@@ -391,8 +397,9 @@ export const VaultTree = memo(function VaultTree({
   }
 
   const items = virtualizer.getVirtualItems();
-  // Tab has to land somewhere in the tree, so when the active row has been
-  // scrolled out of the DOM the first rendered row stands in for it.
+  // The row with the tab stop is always rendered (see `rangeExtractor`), so Tab
+  // comes back to it however far it is scrolled away. Only with no tab stop yet,
+  // or once its row has gone from the tree, does the first rendered row stand in.
   const tabbableIndex = items.some((item) => item.index === activeIndex)
     ? activeIndex
     : (items[0]?.index ?? -1);

@@ -78,8 +78,12 @@ async function expandAll(page: Page) {
     await folder.focus();
     await page.keyboard.press('ArrowRight');
     await expect(folder).toHaveAttribute('aria-expanded', 'true');
+    // A folder is marked open before it is listed: until its contents are in,
+    // the row after it is whatever follows the folder, where a down arrow
+    // would land. Its first child is its Deep folder.
+    const at = Number(await folder.getAttribute('data-row'));
+    await expect(pages(page).locator(`[data-row="${at + 1}"]`)).toHaveAccessibleName('Deep');
     await expectPlaced(page, `after opening Area ${area}`);
-    // Its first child is its Deep folder.
     await page.keyboard.press('ArrowDown');
     const deep = pages(page).locator('[role="treeitem"]:focus');
     await expect(deep).toHaveAccessibleName('Deep');
