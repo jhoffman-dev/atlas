@@ -141,6 +141,11 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // Off until releases are signed (#481, RELEASING.md): it needs the
+            // public key in tauri.conf.json, and refuses to start without one.
+            #[cfg(feature = "updater")]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             api::restore(app.handle());
             Ok(())
         })

@@ -8,6 +8,7 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { AtlasClient, NOT_RUNNING } from './client.ts';
 import type { Connection } from './connection.ts';
 import { createAtlasServer } from './server.ts';
+import rootPackage from '../../../package.json' with { type: 'json' };
 import { closedPort, errorBody, startFakeAtlas, type FakeAtlas } from './testing/fake-atlas.ts';
 
 const TOKEN = 'e2e-token';
@@ -103,6 +104,12 @@ async function call(name: string, args: Record<string, unknown> = {}) {
   const [first] = result.content as { type: string; text: string }[];
   return { isError: result.isError === true, text: first?.text ?? '' };
 }
+
+describe('initialize', () => {
+  it('reports the app version, from the root package.json (#481)', () => {
+    expect(mcp.getServerVersion()).toEqual({ name: 'atlas', version: rootPackage.version });
+  });
+});
 
 describe('tools/list', () => {
   it('offers one tool per route, each described', async () => {

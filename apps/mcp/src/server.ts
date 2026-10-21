@@ -1,6 +1,7 @@
 /** The MCP server: every Atlas tool, bound to one client. */
 
 import { McpServer } from '@modelcontextprotocol/server';
+import mcpPackage from '../package.json' with { type: 'json' };
 import type { AtlasClient } from './client.ts';
 import { archiveTools } from './tools/archive.ts';
 import { artifactTools } from './tools/artifacts.ts';
@@ -24,7 +25,8 @@ import { vaultTools } from './tools/vault.ts';
 import { viewTools } from './tools/views.ts';
 
 export const SERVER_NAME = 'atlas';
-export const SERVER_VERSION = '0.1.0';
+/** The app's version: `pnpm version:set` keeps this package's in step with it (#481). */
+export const SERVER_VERSION = mcpPackage.version;
 
 export const ATLAS_TOOLS = [
   ...vaultTools,

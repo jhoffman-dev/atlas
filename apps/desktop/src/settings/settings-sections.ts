@@ -35,6 +35,7 @@ const ORDER: readonly { readonly section: SettingsSectionLink; readonly withVaul
   { section: SETTINGS_SECTIONS.granola, withVault: true },
   { section: SETTINGS_SECTIONS.claude, withVault: false },
   { section: SETTINGS_SECTIONS.sync, withVault: true },
+  { section: SETTINGS_SECTIONS.about, withVault: false },
 ];
 
 const WITH_VAULT: readonly SettingsSectionLink[] = ORDER.map((entry) => entry.section);

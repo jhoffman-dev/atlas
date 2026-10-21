@@ -31,6 +31,7 @@ const ANSWER: ApiResponse = {
   body: {
     app: 'atlas',
     version: '1',
+    build: null,
     vault: null,
     index: { ready: false, notes: 0 },
     googleCalendar: null,
