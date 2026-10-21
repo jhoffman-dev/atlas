@@ -64,6 +64,7 @@ export function recordingExportFiles(picked: { path: string; companion?: string 
     asked: [] as DestinationRequest[],
     written: new Map<string, Uint8Array>(),
     finished: 0,
+    discarded: 0,
     failWrite: null as Error | null,
   };
   const port: ExportFilesPort = {
@@ -78,8 +79,13 @@ export function recordingExportFiles(picked: { path: string; companion?: string 
       if (destination.id !== 'grant-1') throw new Error('not an open destination');
       state.written.set(path, bytes);
     },
-    finish: async () => {
+    finish: async (_destination, { discard }) => {
       state.finished += 1;
+      // As the host takes back what a failed export made.
+      if (discard) {
+        state.discarded += 1;
+        state.written.clear();
+      }
     },
   };
   return { port, state };
@@ -103,6 +109,8 @@ export function fakeGoogleDrive(folders: Record<string, string> = {}) {
   const state = {
     folders: { ...folders },
     uploads: [] as { title: string; html: string; folderId: string }[],
+    /** What each upload in turn throws instead of making its Doc; undefined lets it through. */
+    uploadFailures: [] as (Error | undefined)[],
   };
   const port: GoogleDrivePort = {
     findFolder: async ({ name }) => state.folders[name] ?? null,
@@ -112,6 +120,8 @@ export function fakeGoogleDrive(folders: Record<string, string> = {}) {
       return id;
     },
     uploadDocument: async ({ title, html, folderId }) => {
+      const failure = state.uploadFailures.shift();
+      if (failure !== undefined) throw failure;
       state.uploads.push({ title, html, folderId });
       const id = `doc-${state.uploads.length}`;
       return { id, url: `https://docs.example.com/document/d/${id}/edit` };

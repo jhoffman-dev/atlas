@@ -62,8 +62,8 @@ function linksAsWords(text: string): string {
 }
 
 /**
- * The policy the page is made under: nothing fetched but pictures, nothing
- * run but the page's own script — the one the PDF's pages are laid out
+ * The policy the page is made under: nothing fetched at all — its pictures
+ * are written into it — and nothing run but the page's own script — the one the PDF's pages are laid out
  * with, when it is given one.
  */
 export function exportPagePolicy({ script }: { script: boolean }): string {
@@ -72,7 +72,8 @@ export function exportPagePolicy({ script }: { script: boolean }): string {
     script ? "script-src 'unsafe-inline'" : "script-src 'none'",
     "style-src 'unsafe-inline'",
     'font-src data:',
-    'img-src data: https:',
+    // Only pictures written into the page: an export fetches nothing (#502).
+    'img-src data:',
     "connect-src 'none'",
     "frame-src 'none'",
     "object-src 'none'",

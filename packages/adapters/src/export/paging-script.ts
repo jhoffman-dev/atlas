@@ -43,13 +43,26 @@ export function pagingScript({ height, margin }: ExportPageSize): string {
     if (rect.height <= H - 2 * M && (top + rect.height > foot || keepWithNext)) return next;
     return null;
   };
+  // A header row: the table's <thead>, or — as the editor draws one — a first
+  // row of <th> cells in its body.
+  const headerOf = (table) => {
+    const head = table.querySelector(':scope > thead');
+    if (head !== null) return { head, row: null };
+    const first = table.querySelector(':scope > tbody > tr, :scope > tr');
+    const cells = first === null ? [] : [...first.children];
+    const heading = cells.length > 0 && cells.every((cell) => cell.tagName === 'TH');
+    return { head: null, row: heading ? first : null };
+  };
   const splitTable = (row) => {
     const table = row.closest('table');
     const section = row.parentElement;
     const rest = table.cloneNode(false);
-    const head = table.querySelector('thead');
+    const columns = table.querySelector(':scope > colgroup');
+    if (columns !== null) rest.appendChild(columns.cloneNode(true));
+    const { head, row: headerRow } = headerOf(table);
     if (head !== null && section !== head) rest.appendChild(head.cloneNode(true));
     const body = section.cloneNode(false);
+    if (headerRow !== null && headerRow !== row) body.appendChild(headerRow.cloneNode(true));
     let moving = row;
     while (moving !== null) {
       const after = moving.nextElementSibling;

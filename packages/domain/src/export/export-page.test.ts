@@ -52,12 +52,14 @@ describe('exportPageDocument (#501)', () => {
     expect(html.match(/<\/style>/g)).toHaveLength(1);
   });
 
-  it('runs a script only when given one, and never fetches anything but pictures', () => {
+  it('runs a script only when given one, and never fetches anything', () => {
     expect(page()).toContain(`content="${exportPagePolicy({ script: false })}"`);
     expect(exportPagePolicy({ script: false })).toContain("script-src 'none'");
     expect(exportPagePolicy({ script: true })).toContain("script-src 'unsafe-inline'");
     expect(page()).not.toContain('<script>');
     expect(exportPagePolicy({ script: true })).toContain("connect-src 'none'");
+    expect(exportPagePolicy({ script: false })).toContain('img-src data:;');
+    expect(exportPagePolicy({ script: false })).not.toContain('https:');
   });
 
   it('has no summary when the note has no properties', () => {

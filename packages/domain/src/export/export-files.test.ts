@@ -22,10 +22,22 @@ describe('export file names (#501)', () => {
     expect(exportFileName('Kickoff with Larkspur', 'md')).toBe('Kickoff with Larkspur.md');
   });
 
-  it('cuts a long title to 120 characters, never inside a character', () => {
+  it('cuts a long title by bytes, never inside a character, so every name made from it fits 255', () => {
+    const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
     const stem = exportFileStem('é'.repeat(200));
-    expect([...stem]).toHaveLength(120);
-    expect(exportFileStem(`${'a'.repeat(119)} b`)).toBe('a'.repeat(119));
+    expect(bytes(stem)).toBe(234);
+    expect(bytes(exportFileStem('議事録'.repeat(50)))).toBeLessThanOrEqual(234);
+    expect(bytes(`${exportFileStem('🙂'.repeat(100))} attachments 999`)).toBeLessThanOrEqual(255);
+    expect(exportFileStem(`${'a'.repeat(233)} b`)).toBe('a'.repeat(233));
+  });
+
+  it('composes a title, so one typed two ways is one name (NFC)', () => {
+    expect(exportFileStem('Cafe\u0301')).toBe('Caf\u00e9');
+    expect(uniqueFileNames(['Caf\u00e9', 'Cafe\u0301', 'CAF\u00c9'], 'md')).toEqual([
+      'Caf\u00e9.md',
+      'Caf\u00e9 2.md',
+      'CAF\u00c9 3.md',
+    ]);
   });
 
   it('numbers names that only differ in case, as a Mac’s disk compares them', () => {
@@ -45,6 +57,8 @@ describe('export file names (#501)', () => {
       'Projects/README',
       'archive/Plan.PNG',
       'x/plan.v2.png',
+      'y/Cafe\u0301.png',
+      'z/caf\u00e9.png',
     ] as VaultPath[]);
     expect([...names.values()]).toEqual([
       'plan.png',
@@ -52,6 +66,8 @@ describe('export file names (#501)', () => {
       'README',
       'Plan 3.PNG',
       'plan.v2.png',
+      'Caf\u00e9.png',
+      'caf\u00e9 2.png',
     ]);
   });
 

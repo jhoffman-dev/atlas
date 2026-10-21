@@ -9,7 +9,8 @@ import { fakeGoogleCalendar } from '../testing/fake-google-calendar.ts';
 import { fakeGoogleDrive, readOnlyVault } from '../testing/fake-export.ts';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { blockMarkdown } from '../testing/block-markdown.ts';
-import { ExportError, exportGoogleDocs, exportSummary } from './index.ts';
+import { GoogleCalendarError } from '../google-calendar/ports.ts';
+import { ExportError, exportGoogleDocs, exportSummary, PartlyExportedError } from './index.ts';
 
 const VAULT = '/Users/someone/Vault';
 const CLIENT = '1234-abc.apps.googleusercontent.com';
@@ -31,6 +32,7 @@ function setUp({
 } = {}) {
   const google = fakeGoogleCalendar();
   const drive = fakeGoogleDrive(folders);
+  const waits: number[] = [];
   const ports = {
     fs: readOnlyVault(files),
     markdown: blockMarkdown(),
@@ -38,6 +40,9 @@ function setUp({
     renderer: { bodyHtml, styles: '' },
     google: google.port,
     drive: drive.port,
+    wait: async (milliseconds: number) => {
+      waits.push(milliseconds);
+    },
   };
   const ready = connected
     ? google.port.connect({ vault: VAULT, clientId: CLIENT, scopes })
@@ -57,7 +62,7 @@ function setUp({
       appName: 'Northwind',
     });
   };
-  return { run, drive: drive.state, google, connects };
+  return { run, drive: drive.state, google, connects, waits };
 }
 
 describe('exportGoogleDocs (#501)', () => {
@@ -129,5 +134,46 @@ describe('exportGoogleDocs (#501)', () => {
   it('refuses when no note was chosen', async () => {
     const { run } = setUp();
     await expect(run([])).rejects.toBeInstanceOf(ExportError);
+  });
+
+  const refused = (status: number) =>
+    new GoogleCalendarError({
+      kind: 'api_refused',
+      code: String(status),
+      message: `answered ${status}`,
+    });
+
+  it('tries again while Google says to slow down, waiting longer each time (#502)', async () => {
+    const { run, drive, waits } = setUp();
+    drive.uploadFailures.push(refused(429), refused(503));
+    await expect(run([KICKOFF])).resolves.toMatchObject({ kind: 'uploaded' });
+    expect(waits).toEqual([1_000, 2_000]);
+    expect(drive.uploads).toHaveLength(1);
+  });
+
+  it('gives up after three tries, and never tries again what another try would not change', async () => {
+    const tired = setUp();
+    tired.drive.uploadFailures.push(refused(500), refused(500), refused(500), refused(500));
+    await expect(tired.run([KICKOFF])).rejects.toMatchObject({ failure: { code: '500' } });
+    expect(tired.waits).toEqual([1_000, 2_000, 4_000]);
+    const denied = setUp();
+    denied.drive.uploadFailures.push(refused(403));
+    await expect(denied.run([KICKOFF])).rejects.toMatchObject({ failure: { code: '403' } });
+    expect(denied.waits).toEqual([]);
+  });
+
+  it('says which Docs were made when one after them fails (#502)', async () => {
+    const { run, drive } = setUp();
+    drive.uploadFailures.push(undefined, refused(403));
+    const failed = await run([KICKOFF, RETRO]).catch((cause: unknown) => cause);
+    expect(failed).toBeInstanceOf(PartlyExportedError);
+    const partly = failed as PartlyExportedError;
+    expect(partly.documents).toEqual([
+      { title: 'Kickoff', url: 'https://docs.example.com/document/d/doc-1/edit' },
+    ]);
+    expect(partly.message).toBe(
+      'Made 1 of 2 Google Docs in “Northwind exports” before it stopped: answered 403',
+    );
+    expect(partly.cause).toBeInstanceOf(GoogleCalendarError);
   });
 });

@@ -44,10 +44,12 @@ describe('tauriExportFiles (#501)', () => {
     ).rejects.toThrow('Permission denied');
   });
 
-  it('lets the destination go by its id', async () => {
+  it('lets the destination go by its id, taking back a failed export’s files when asked', async () => {
     invoke.mockResolvedValue(null);
-    await tauriExportFiles.finish(destination);
-    expect(invoke).toHaveBeenCalledWith('export_finish', { id: 'grant-1' });
+    await tauriExportFiles.finish(destination, { discard: false });
+    expect(invoke).toHaveBeenCalledWith('export_finish', { id: 'grant-1', discard: false });
+    await tauriExportFiles.finish(destination, { discard: true });
+    expect(invoke).toHaveBeenLastCalledWith('export_finish', { id: 'grant-1', discard: true });
   });
 });
 

@@ -40,8 +40,11 @@ export interface ExportFilesPort {
    * folder, which a file's other paths start with.
    */
   write(args: { destination: ExportDestination; path: string; bytes: Uint8Array }): Promise<void>;
-  /** Lets go of the destination. */
-  finish(destination: ExportDestination): Promise<void>;
+  /**
+   * Lets go of the destination. With `discard`, an export that failed first
+   * takes back every file and folder it made there — never one that was there before.
+   */
+  finish(destination: ExportDestination, outcome: { readonly discard: boolean }): Promise<void>;
 }
 
 /**
@@ -90,5 +93,39 @@ export class ExportError extends Error {
     super(message);
     this.name = 'ExportError';
     this.kind = kind;
+  }
+}
+
+/**
+ * Some of several Google Docs were made before one failed (#502): which, so
+ * the person can open them, and what stopped the rest.
+ */
+export class PartlyExportedError extends ExportError {
+  readonly documents: readonly { readonly title: string; readonly url: string }[];
+  readonly total: number;
+  readonly folder: string;
+  override readonly cause: unknown;
+
+  constructor({
+    documents,
+    total,
+    folder,
+    cause,
+  }: {
+    documents: readonly { readonly title: string; readonly url: string }[];
+    total: number;
+    folder: string;
+    cause: unknown;
+  }) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    super(
+      'failed',
+      `Made ${documents.length} of ${total} Google Docs in “${folder}” before it stopped: ${reason}`,
+    );
+    this.name = 'PartlyExportedError';
+    this.documents = documents;
+    this.total = total;
+    this.folder = folder;
+    this.cause = cause;
   }
 }

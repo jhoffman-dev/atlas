@@ -13,7 +13,7 @@ use tauri::{AppHandle, Runtime, State};
 use tauri_plugin_dialog::DialogExt;
 use tokio::sync::oneshot;
 
-use crate::vault::off_main;
+use crate::vault::{off_main, VaultState};
 use crate::vault_files::header;
 
 pub mod destinations;
@@ -36,18 +36,21 @@ const TIMEOUT_HEADER: &str = "atlas-timeout-ms";
 pub async fn export_choose_destination(
     app: AppHandle,
     grants: State<'_, ExportGrants>,
+    vaults: State<'_, VaultState>,
     request: DestinationRequest,
 ) -> Result<Option<Granted>, String> {
     request.check()?;
+    let open: Vec<_> = vaults.root().into_iter().collect();
     // Waits on the blocking pool while the dialog is open, as `pick_vault`
     // does; the dialog plugin hops to the main thread on its own.
-    let grant = off_main(move || choose(&app, request)).await?;
+    let grant = off_main(move || choose(&app, request, &open)).await?;
     grant.map(|grant| grants.insert(grant)).transpose()
 }
 
 fn choose(
     app: &AppHandle,
     request: DestinationRequest,
+    vaults: &[std::path::PathBuf],
 ) -> Result<Option<destinations::Grant>, String> {
     let dialog = app.dialog().file();
     match request {
@@ -69,6 +72,8 @@ fn choose(
             let chosen = chosen
                 .into_path()
                 .map_err(|error| format!("unusable file: {error}"))?;
+            let folder = chosen.parent().ok_or("the chosen file has no folder")?;
+            destinations::outside_vaults(folder, vaults)?;
             destinations::grant_file(&chosen, &extension, companion_suffix.as_deref()).map(Some)
         }
         DestinationRequest::Folder { folder_name } => {
@@ -78,6 +83,7 @@ fn choose(
             let picked = picked
                 .into_path()
                 .map_err(|error| format!("unusable folder: {error}"))?;
+            destinations::outside_vaults(&picked, vaults)?;
             destinations::grant_folder(&picked, &folder_name).map(Some)
         }
     }
@@ -103,13 +109,29 @@ pub async fn export_write_file(
     // Copied once to be written on the blocking pool: the body is borrowed
     // from the request, which cannot leave this call.
     let bytes = bytes.clone();
-    off_main(move || destinations::write_into(&grant, &path, &bytes)).await
+    let (written, made) =
+        off_main(move || destinations::write_tracked(&grant, &path, &bytes)).await?;
+    grants.record_made(&id, made);
+    Ok(written)
 }
 
-/// Lets go of an export's destination. One already let go of is fine.
+/// Lets go of an export's destination; with `discard`, an export that failed
+/// first takes back every file and folder it made. One already let go of is fine.
 #[tauri::command]
-pub fn export_finish(grants: State<'_, ExportGrants>, id: String) {
-    grants.remove(&id);
+pub async fn export_finish(
+    grants: State<'_, ExportGrants>,
+    id: String,
+    discard: Option<bool>,
+) -> Result<(), String> {
+    let made = grants.finish(&id);
+    if discard.unwrap_or(false) {
+        off_main(move || {
+            destinations::remove_made(&made);
+            Ok(())
+        })
+        .await?;
+    }
+    Ok(())
 }
 
 /// Makes a PDF of the HTML in the raw body. The page size and the timeout

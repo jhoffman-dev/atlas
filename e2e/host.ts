@@ -676,6 +676,8 @@ export async function installHost(
     string,
     { root: string; file: string | null; companion: string | null }
   >();
+  /** The files each export made that were not there before, for a failed one to take back. */
+  const exportMade = new Map<string, string[]>();
   let cancelExport = false;
   const pdfPages: string[] = [];
   let snapshotFailure: string | null = null;
@@ -1598,12 +1600,25 @@ export async function installHost(
           relative === '' && grant.file !== null ? grant.file : containedPath(grant.root, relative);
         const { mkdir: makeDirectory } = await import('node:fs/promises');
         await makeDirectory(dirname(target), { recursive: true });
+        if (!existsSync(target)) {
+          const id = headers['atlas-export-destination'] ?? '';
+          exportMade.set(id, [...(exportMade.get(id) ?? []), target]);
+        }
         await writeFile(target, Buffer.from(bytes));
         return bytes.length;
       }
-      case 'export_finish':
-        exportGrants.delete((args as { id: string }).id);
+      case 'export_finish': {
+        // As `export.rs`: a failed export takes back the files it made, then the folders.
+        const { id, discard } = args as { id: string; discard?: boolean };
+        const made = exportMade.get(id) ?? [];
+        exportGrants.delete(id);
+        exportMade.delete(id);
+        if (discard === true) {
+          const { rm } = await import('node:fs/promises');
+          for (const path of made.reverse()) await rm(path, { recursive: false, force: true });
+        }
         return null;
+      }
       case 'export_render_pdf': {
         const { bytes } = args as { bytes: number[] };
         const html = Buffer.from(bytes).toString('utf8');

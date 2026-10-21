@@ -372,6 +372,10 @@ const NO_DRIVE: GoogleDrivePort = {
 };
 const NO_RENDERER: NotePageRenderer = { bodyHtml: NOT_OFFERED, styles: '' };
 
+/** A Google Drive retry's wait, on the window's own timer. */
+const waitOnTimer = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
 /** The window, with its one query cache (ADR-0040): every whole-vault read below is kept in it. */
 export function App(props: ComponentProps<typeof AppWindow>) {
   const [client] = useState(createWindowQueryClient);
@@ -1250,6 +1254,7 @@ function AppWindow({
       pdf: exportPorts?.pdf ?? NO_PDF,
       drive: exportPorts?.drive ?? NO_DRIVE,
       renderer: exportPorts?.renderer ?? NO_RENDERER,
+      wait: waitOnTimer,
     },
     vault: vaultKey,
     appName: app.kind === 'ready' ? app.info.name : '',

@@ -6,7 +6,7 @@ export { exportSummary } from './export-summary.ts';
 export type { ExportOutcome } from './export-summary.ts';
 export { notePage, readNoteToExport, standaloneNote } from './note-for-export.ts';
 export type { NoteToExport, StandaloneNote } from './note-for-export.ts';
-export { ExportError } from './ports.ts';
+export { ExportError, PartlyExportedError } from './ports.ts';
 export type {
   DestinationRequest,
   DriveDocument,

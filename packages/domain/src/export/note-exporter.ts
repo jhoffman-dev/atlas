@@ -57,6 +57,11 @@ export interface StandaloneSources extends ExportSources {
   readonly imageSrc: (src: string) => string | null;
   /** The note an embed of a whole note shows; null when it names none the export may read. */
   readonly embedded: (link: WikiLinkOrEmbed) => EmbeddedNote | null;
+  /**
+   * A picture on the web: kept, in Markdown; in a page made into a PDF or a
+   * Doc, which fetches nothing, its words linked to its address (#502).
+   */
+  readonly webPictures?: 'keep' | 'link';
 }
 
 const ITALIC: EditorMark = { type: 'italic' };
@@ -90,6 +95,12 @@ export class Exporter {
   private scope: ExportScope | null = null;
   /** How many notes embedded whole the blocks being exported are inside: one level is opened. */
   private embedDepth = 0;
+  /**
+   * The titles of the notes whose blocks are being exported, innermost last:
+   * a link to a block of "this" note (`[[#^id]]`) inside a shown block or an
+   * embedded note names that note, not the one exported (#502).
+   */
+  private readonly titles: string[] = [];
 
   constructor(
     private readonly context: {
@@ -189,7 +200,7 @@ export class Exporter {
     if (link.alias !== null && link.alias.trim() !== '') return link.alias;
     const fragment = linkFragment(link);
     const heading = fragment?.kind === 'heading' ? fragment.heading : null;
-    if (link.target.trim() === '') return heading ?? this.context.title;
+    if (link.target.trim() === '') return heading ?? this.titles.at(-1) ?? this.context.title;
     const note = this.context.sources.titleOf(link.target) ?? link.target;
     return heading === null ? note : `${note} › ${heading}`;
   }
@@ -205,7 +216,17 @@ export class Exporter {
       this.dropped.add('missing-embed', formatWikiLink(link));
       return [paragraph([text(`[Not found: ${this.wordsOf(link)}]`)])];
     }
-    return this.quotedFrom(shown.title, this.document(shown.content.content, shown.title));
+    return this.quotedFrom(shown.title, this.within(shown.title, shown.content.content));
+  }
+
+  /** Blocks from the note titled `title`, read as that note's own. */
+  private within(title: string, nodes: readonly EditorNode[]): EditorNode[] {
+    this.titles.push(title);
+    try {
+      return this.document(nodes, title);
+    } finally {
+      this.titles.pop();
+    }
   }
 
   private quotedFrom(title: string, content: readonly EditorNode[]): EditorNode[] {
@@ -230,7 +251,7 @@ export class Exporter {
     if (note === null) return null;
     this.embedDepth += 1;
     try {
-      return this.quotedFrom(note.title, this.document(note.doc.content, note.title));
+      return this.quotedFrom(note.title, this.within(note.title, note.doc.content));
     } finally {
       this.embedDepth -= 1;
     }
@@ -286,6 +307,13 @@ export class Exporter {
   private image(node: EditorNode): EditorNode {
     const marks = this.reachableMarks(node.marks ?? []);
     const src = typeof node.attrs?.['src'] === 'string' ? node.attrs['src'] : '';
+    if (ON_THE_WEB.test(src) && this.context.standalone?.webPictures === 'link') {
+      const alt = typeof node.attrs?.['alt'] === 'string' ? node.attrs['alt'].trim() : '';
+      return text(alt === '' ? src : `${alt} (${src})`, [
+        ...marks,
+        { type: 'link', attrs: { href: src, title: null } },
+      ]);
+    }
     if (ON_THE_WEB.test(src)) return withMarks(node, marks);
     const copied = this.context.standalone?.imageSrc(src) ?? null;
     if (copied !== null)

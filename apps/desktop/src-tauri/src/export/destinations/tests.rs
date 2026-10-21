@@ -4,8 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::{
-    filter_label, grant_file, grant_folder, relative_parts, write_into, DestinationRequest,
-    ExportGrants, Grant, MAX_FILE_BYTES,
+    filter_label, grant_file, grant_folder, outside_vaults, relative_parts, remove_made,
+    write_into, write_tracked, DestinationRequest, ExportGrants, Grant, MAX_FILE_BYTES,
 };
 
 /// A temporary folder, resolved: on macOS the temp dir is behind `/var`, a link.
@@ -105,8 +105,8 @@ fn a_chosen_file_keeps_or_gains_its_extension_and_names_its_companion() {
     let companion = companion.as_ref().unwrap();
     assert_eq!(companion.name, "Kickoff attachments");
     assert_eq!(companion.dir, root.join("Kickoff attachments"));
-    // Made only when a file is first written into it.
-    assert!(!companion.dir.exists());
+    // Made with the grant, so a folder of that name already there is never used (#502).
+    assert!(companion.dir.is_dir());
 
     let grant = grant_file(&root.join("Kickoff"), "pdf", None).unwrap();
     assert_eq!(
@@ -196,11 +196,11 @@ fn writes_the_chosen_file_over_what_was_there() {
 }
 
 #[test]
-fn writes_attachments_into_a_companion_made_on_first_use() {
+fn writes_attachments_into_the_companion_made_with_the_grant() {
     let (_dir, root) = place();
     let grant = grant_file(&root.join("Kickoff.md"), "md", Some(" attachments")).unwrap();
     write_into(&grant, "", b"![[deck.png]]").unwrap();
-    assert_eq!(names_in(&root), ["Kickoff.md"]);
+    assert_eq!(names_in(&root), ["Kickoff attachments", "Kickoff.md"]);
     write_into(&grant, "Kickoff attachments/deck.png", b"png").unwrap();
     write_into(&grant, "Kickoff attachments/audio/call.m4a", b"m4a").unwrap();
     let companion = root.join("Kickoff attachments");
@@ -225,7 +225,9 @@ fn a_file_grant_writes_nowhere_but_the_file_and_its_companion() {
         refused
     );
     assert!(write_into(&with, "Kickoff attachments/../x", b"x").is_err());
-    assert_eq!(names_in(&root), Vec::<String>::new());
+    // Only the attachments folder made with the grant, empty.
+    assert_eq!(names_in(&root), ["Kickoff attachments"]);
+    assert!(names_in(&root.join("Kickoff attachments")).is_empty());
 }
 
 #[test]
@@ -272,6 +274,8 @@ fn a_link_in_the_companion_s_place_cannot_lead_a_write_out() {
     let (_dir, root) = place();
     let (_outside_dir, outside) = place();
     let grant = grant_file(&root.join("Kickoff.md"), "md", Some(" attachments")).unwrap();
+    // Swapped for a link after the grant made it.
+    fs::remove_dir(root.join("Kickoff attachments")).unwrap();
     std::os::unix::fs::symlink(&outside, root.join("Kickoff attachments")).unwrap();
     assert!(write_into(&grant, "Kickoff attachments/deck.png", b"x").is_err());
     assert!(names_in(&outside).is_empty());
@@ -319,8 +323,8 @@ fn grants_are_found_by_an_unguessable_id_until_finished() {
     let other = grants.insert(grant).unwrap();
     assert_ne!(other.id, granted.id);
 
-    grants.remove(&granted.id);
-    grants.remove(&granted.id);
+    grants.finish(&granted.id);
+    grants.finish(&granted.id);
     assert_eq!(
         grants.get(&granted.id).unwrap_err(),
         "this export's destination is no longer open; export again"
@@ -359,4 +363,88 @@ fn attack_502_an_existing_attachments_folder_s_files_are_never_overwritten() {
         fs::read(companion.join("deck.png")).unwrap(),
         b"the person's own picture"
     );
+}
+
+#[test]
+fn a_taken_attachments_folder_name_is_numbered_and_the_old_folder_left_alone() {
+    let (_dir, root) = place();
+    fs::create_dir(root.join("Kickoff attachments")).unwrap();
+    fs::create_dir(root.join("Kickoff attachments 2")).unwrap();
+    let grant = grant_file(&root.join("Kickoff.md"), "md", Some(" attachments")).unwrap();
+    let Grant::File { companion, .. } = &grant else {
+        panic!("a file grant");
+    };
+    assert_eq!(companion.as_ref().unwrap().name, "Kickoff attachments 3");
+    write_into(&grant, "Kickoff attachments 3/deck.png", b"png").unwrap();
+    assert!(names_in(&root.join("Kickoff attachments")).is_empty());
+    assert_eq!(
+        fs::read(root.join("Kickoff attachments 3/deck.png")).unwrap(),
+        b"png"
+    );
+}
+
+#[test]
+fn an_extension_the_dialog_did_not_show_never_replaces_a_file_already_there() {
+    let (_dir, root) = place();
+    fs::write(root.join("Kickoff.md"), b"the person's own").unwrap();
+    let refused = grant_file(&root.join("Kickoff"), "md", None).unwrap_err();
+    assert!(
+        refused.contains("\"Kickoff.md\" is already there"),
+        "{refused}"
+    );
+    assert_eq!(
+        fs::read(root.join("Kickoff.md")).unwrap(),
+        b"the person's own"
+    );
+    // Chosen with its extension, the panel asked first: that one may be replaced.
+    assert!(grant_file(&root.join("Kickoff.md"), "md", None).is_ok());
+}
+
+#[test]
+fn a_place_inside_the_open_vault_is_refused() {
+    let (_dir, root) = place();
+    let vault = root.join("Vault");
+    fs::create_dir_all(vault.join("Projects")).unwrap();
+    let refused = outside_vaults(&vault.join("Projects"), std::slice::from_ref(&vault));
+    assert!(refused.unwrap_err().contains("inside the vault"));
+    assert!(outside_vaults(&vault, std::slice::from_ref(&vault)).is_err());
+    assert!(outside_vaults(&root, std::slice::from_ref(&vault)).is_ok());
+    // A sibling whose name starts the same is not inside it.
+    fs::create_dir(root.join("Vault exports")).unwrap();
+    assert!(outside_vaults(&root.join("Vault exports"), &[vault]).is_ok());
+}
+
+#[test]
+fn a_failed_export_takes_back_only_what_it_made() {
+    let (_dir, root) = place();
+    fs::write(root.join("keep.txt"), b"theirs").unwrap();
+    let grants = ExportGrants::default();
+    let granted = grants
+        .insert(grant_folder(&root, "Exported notes").unwrap())
+        .unwrap();
+    let grant = grants.get(&granted.id).unwrap();
+    for path in ["Kickoff.md", "attachments/deck.png"] {
+        let (_, made) = write_tracked(&grant, path, b"x").unwrap();
+        grants.record_made(&granted.id, made);
+    }
+    remove_made(&grants.finish(&granted.id));
+    assert_eq!(names_in(&root), ["keep.txt"]);
+}
+
+#[test]
+fn taking_back_a_file_export_keeps_a_file_that_was_there_before() {
+    let (_dir, root) = place();
+    fs::write(root.join("Kickoff.md"), b"old").unwrap();
+    let grants = ExportGrants::default();
+    let granted = grants
+        .insert(grant_file(&root.join("Kickoff.md"), "md", Some(" attachments")).unwrap())
+        .unwrap();
+    let grant = grants.get(&granted.id).unwrap();
+    for path in ["", "Kickoff attachments/deck.png"] {
+        let (_, made) = write_tracked(&grant, path, b"new").unwrap();
+        grants.record_made(&granted.id, made);
+    }
+    remove_made(&grants.finish(&granted.id));
+    // Replaced, as the dialog asked; the attachments folder it made is gone.
+    assert_eq!(names_in(&root), ["Kickoff.md"]);
 }

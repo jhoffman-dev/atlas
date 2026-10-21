@@ -94,7 +94,7 @@ export async function embeddedNotes(
     holder,
     notePaths,
   }: { doc: EditorDocument; holder: VaultPath; notePaths: readonly VaultPath[] },
-): Promise<Map<string, EmbeddedNote>> {
+): Promise<Map<string, EmbeddedNote & { readonly path: VaultPath }>> {
   const pathOf = new Map(
     embeddedNotesOf(doc).flatMap((link) => {
       const path = resolveWikiLinkTarget(link.target, notePaths);
@@ -105,7 +105,8 @@ export async function embeddedNotes(
   const files = await fs.readNotes([...new Set(pathOf.values())]);
   const noteAt = new Map(
     files.map((file) => {
-      const note: EmbeddedNote = {
+      const note = {
+        path: createVaultPath(file.path),
         title: titleOfFile(markdown, file),
         doc: markdown.parseBody(splitFrontmatter(file.text).body).doc,
       };

@@ -1309,3 +1309,36 @@ async fn attack_502_unticking_drive_never_revokes_the_combined_grant_the_calenda
         setup.google().revoked
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_calendar_still_refreshes_after_the_person_declines_drive() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    let open = setup.fake.browser(Browser::Allows);
+    let sign_in = SignIn {
+        open: &open,
+        timeout: PATIENCE,
+    };
+    let asking = ConnectRequest {
+        scopes: vec![SCOPE.into(), DRIVE.into()],
+        ..request(None)
+    };
+    let declined = setup
+        .session()
+        .connect(&asking, &sign_in)
+        .await
+        .unwrap_err();
+    assert_eq!(declined.kind, FailureKind::ScopeNotGranted);
+    // The hour runs out: the Calendar's kept refresh token must still be live at Google.
+    setup.google().expire_access_tokens();
+    setup.state.held.forget_access(VAULT);
+    setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
+    assert_eq!(
+        setup.session().status().unwrap().scopes,
+        vec![SCOPE.to_string()]
+    );
+}

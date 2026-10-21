@@ -21,8 +21,31 @@ export const COMPANION_SUFFIX = ' attachments';
 /** Where several notes' attachments go, inside the folder they are exported to. */
 export const SHARED_ATTACHMENTS_FOLDER = 'attachments';
 
-/** The longest file name an export writes, before its extension: well under any file system's limit. */
-const MAX_NAME_LENGTH = 120;
+/**
+ * The most UTF-8 bytes a name's stem takes. A Mac's disk holds a name of 255
+ * bytes; the stem leaves room for " attachments", a number (" 999") and an
+ * extension, so every name an export makes from it fits (#502).
+ */
+const MAX_STEM_BYTES = 255 - COMPANION_SUFFIX.length - ' 999'.length - '.jpeg'.length;
+
+const encoder = new TextEncoder();
+const byteLength = (text: string) => encoder.encode(text).byteLength;
+
+/** `text` cut to at most `max` UTF-8 bytes, never inside a character. */
+function cutToBytes(text: string, max: number): string {
+  let cut = '';
+  for (const character of text) {
+    if (byteLength(cut + character) > max) break;
+    cut += character;
+  }
+  return cut;
+}
+
+/**
+ * A name as a Mac's disk compares it: composed (NFC) — "Café" typed two
+ * ways is one name — and without case.
+ */
+const sameNameKey = (name: string) => name.normalize('NFC').toLowerCase();
 
 /** Characters a file name cannot hold on a Mac, in Windows or for a shell, and control characters. */
 // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
@@ -35,10 +58,11 @@ const UNSAFE = /[/\\:*?"<>|\u0000-\u001f\u007f]/g;
  */
 export function exportFileStem(title: string): string {
   const safe = title
+    .normalize('NFC')
     .replace(UNSAFE, '-')
     .replace(/^[.\s]+/, '')
     .replace(/[.\s]+$/, '');
-  const cut = [...safe].slice(0, MAX_NAME_LENGTH).join('').trimEnd();
+  const cut = cutToBytes(safe, MAX_STEM_BYTES).trimEnd();
   return cut === '' ? 'Untitled' : cut;
 }
 
@@ -49,16 +73,17 @@ export function exportFileName(title: string, extension: string): string {
 
 /**
  * Names for several files in one folder, in order, none the same as another
- * when case is ignored — as a Mac's disk compares them: "Notes.md",
+ * as a Mac's disk compares them — composed, without case: "Notes.md",
  * "Notes 2.md".
  */
 export function uniqueFileNames(stems: readonly string[], extension: string): string[] {
   const taken = new Set<string>();
-  return stems.map((stem) => {
+  return stems.map((given) => {
+    const stem = given.normalize('NFC');
     for (let count = 1; ; count += 1) {
       const name = count === 1 ? `${stem}.${extension}` : `${stem} ${count}.${extension}`;
-      if (!taken.has(name.toLowerCase())) {
-        taken.add(name.toLowerCase());
+      if (!taken.has(sameNameKey(name))) {
+        taken.add(sameNameKey(name));
         return name;
       }
     }
@@ -82,13 +107,15 @@ export function attachmentFileNames(paths: readonly VaultPath[]): Map<VaultPath,
   const taken = new Set<string>();
   const names = new Map<VaultPath, string>();
   for (const path of unique) {
-    const file = path.split('/').at(-1) ?? path;
-    const { stem, extension } = splitExtension(file);
+    const file = (path.split('/').at(-1) ?? path).normalize('NFC');
+    const split = splitExtension(file);
+    const extension = split.extension;
+    const stem = cutToBytes(split.stem, MAX_STEM_BYTES);
     for (let count = 1; ; count += 1) {
       const base = count === 1 ? stem : `${stem} ${count}`;
       const name = extension === '' ? base : `${base}.${extension}`;
-      if (!taken.has(name.toLowerCase())) {
-        taken.add(name.toLowerCase());
+      if (!taken.has(sameNameKey(name))) {
+        taken.add(sameNameKey(name));
         names.set(path, name);
         break;
       }

@@ -103,16 +103,16 @@ async function saveOne(
 ): Promise<SavedExport> {
   const { format, note } = request;
   const markdown = format === 'pdf' ? null : await markdownPlan(ports, request);
-  const pictures = markdown?.pictures ?? new Map<string, VaultFile>();
+  const pictures = markdown?.pictures ?? [];
   const destination = await ports.files.choose({
     kind: 'file',
     suggestedName: exportFileName(note.title, extensionOf(format)),
     extension: extensionOf(format),
-    companionSuffix: pictures.size > 0 ? COMPANION_SUFFIX : null,
+    companionSuffix: pictures.length > 0 ? COMPANION_SUFFIX : null,
   });
   if (destination === null) return { kind: 'cancelled' };
   const companion = lastPart(destination.companion);
-  const names = attachmentFileNames([...pictures.values()].map((file) => file.path));
+  const names = attachmentFileNames(pictures.map((file) => file.path));
   const copyAt = (file: VaultFile) => `${companion}/${names.get(file.path) ?? file.name}`;
   let picturesLeftOut = 0;
   const main: Planned = {
@@ -124,7 +124,7 @@ async function saveOne(
       return made.bytes;
     },
   };
-  const copies = uniqueFiles(pictures).map((file) => copyPlan(ports, file, copyAt(file)));
+  const copies = pictures.map((file) => copyPlan(ports, file, copyAt(file)));
   await writeAll(ports.files, destination, [main, ...copies]);
   return {
     kind: 'saved',
@@ -160,8 +160,10 @@ async function saveMany(
     format === 'pdf'
       ? null
       : await Promise.all(notes.map((note) => markdownPlan(ports, { ...request, note, hrefOf })));
-  const pictures = new Map(markdowns?.flatMap((plan) => [...plan.pictures]) ?? []);
-  const names = attachmentFileNames([...pictures.values()].map((file) => file.path));
+  // By the file each is, not by how a note wrote it: two notes' "diagram.png"
+  // may be two pictures, each copied under a name of its own (#502).
+  const pictures = uniqueFiles(markdowns?.flatMap((plan) => plan.pictures) ?? []);
+  const names = attachmentFileNames(pictures.map((file) => file.path));
   const copyAt = (file: VaultFile) =>
     `${SHARED_ATTACHMENTS_FOLDER}/${names.get(file.path) ?? file.name}`;
   const destination = await ports.files.choose({
@@ -180,7 +182,7 @@ async function saveMany(
       return made.bytes;
     },
   }));
-  const copies = uniqueFiles(pictures).map((file) => copyPlan(ports, file, copyAt(file)));
+  const copies = pictures.map((file) => copyPlan(ports, file, copyAt(file)));
   await writeAll(ports.files, destination, [...planned, ...copies]);
   const unlocated = markdowns?.reduce((sum, plan) => sum + plan.unlocated, 0) ?? 0;
   return {
@@ -195,7 +197,8 @@ async function saveMany(
 
 /** A note's Markdown — as it is, or standalone — and the pictures that go with it. */
 interface MarkdownPlan {
-  readonly pictures: ReadonlyMap<string, VaultFile>;
+  /** Each picture file the note shows, once. */
+  readonly pictures: readonly VaultFile[];
   /** Pictures the note names that are not in the vault. */
   readonly unlocated: number;
   readonly bytes: (pictureHref: (file: VaultFile) => string) => Uint8Array;
@@ -220,17 +223,18 @@ async function markdownPlan(
   if (format === 'markdown') {
     // As it is: the file's own bytes, untouched, and the pictures its own blocks name.
     const sources = exportImageSourcesOf([note.parsed.doc]);
-    const pictures = await locatePictures({ fs: ports.fs, notePath: note.path, sources });
-    return { pictures, unlocated: sources.length - pictures.size, bytes: () => note.bytes };
+    const located = await locatePictures({ fs: ports.fs, notePath: note.path, sources });
+    return {
+      pictures: uniqueFiles([...located.values()]),
+      unlocated: sources.length - located.size,
+      bytes: () => note.bytes,
+    };
   }
   const standalone = await standaloneNote(ports, { note, notePaths, hrefOf, keepFrontmatter });
-  const unlocated = (pictureHref: (file: VaultFile) => string) =>
-    standalone.dropped(pictureHref).find((drops) => drops.kind === 'image')?.items.length ?? 0;
-  const anyHref = () => '';
   return {
-    pictures: standalone.pictures,
-    unlocated: unlocated(anyHref),
-    bytes: (pictureHref) => encoder.encode(standalone.markdown(pictureHref)),
+    pictures: uniqueFiles([...standalone.pictures.values()]),
+    unlocated: standalone.unlocated,
+    bytes: (pictureHref) => encoder.encode(standalone.render(pictureHref).markdown),
   };
 }
 
@@ -249,15 +253,19 @@ async function pdfOf(
   return { bytes, picturesLeftOut: page.picturesLeftOut };
 }
 
-function uniqueFiles(pictures: ReadonlyMap<string, VaultFile>): VaultFile[] {
-  return [...new Map([...pictures.values()].map((file) => [file.path, file])).values()];
+function uniqueFiles(pictures: readonly VaultFile[]): VaultFile[] {
+  return [...new Map(pictures.map((file) => [file.path, file])).values()];
 }
 
 function copyPlan(ports: SaveExportPorts, file: VaultFile, path: string): Planned {
   return { path, bytes: async () => new Uint8Array(await ports.fs.readBinaryFile(file.path)) };
 }
 
-/** Writes each file in turn, then lets the destination go — whatever happened on the way. */
+/**
+ * Writes each file in turn, then lets the destination go. An export that
+ * fails on the way takes back what it made — only that — so no half an
+ * export is left where the person picked (#502).
+ */
 async function writeAll(
   files: ExportFilesPort,
   destination: ExportDestination,
@@ -267,9 +275,11 @@ async function writeAll(
     for (const file of planned) {
       await files.write({ destination, path: file.path, bytes: await file.bytes() });
     }
-  } finally {
-    await files.finish(destination);
+  } catch (cause) {
+    await files.finish(destination, { discard: true });
+    throw cause;
   }
+  await files.finish(destination, { discard: false });
 }
 
 /** The last part of a path the host gave, as a relative path inside the export names it. */

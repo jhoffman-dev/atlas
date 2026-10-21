@@ -4,18 +4,23 @@ import {
   exportPageDocument,
   exportStandalone,
   formatWikiLink,
+  retargetPictures,
+  webPictureSourcesOf,
   missingTransclusion,
   noteTitle,
   pageTitle,
   propertySummary,
   splitFrontmatter,
   type EditorDocument,
+  type EmbeddedNote,
   type ExportDrops,
   type ParsedBody,
+  type Transclusion,
   type VaultFile,
   type VaultPath,
 } from '@atlas/domain';
 import type { NotePageRenderer } from '../thumbnails/ports.ts';
+import type { VaultFsPort } from '../vault/ports.ts';
 import { locatePictures, picturesAsDataUrls } from './export-attachments.ts';
 import {
   embeddedNotes,
@@ -74,7 +79,57 @@ interface Gathered {
   readonly read: (args: {
     hrefOf: (target: string) => string | null;
     imageSrc: (src: string) => string | null;
+    webPictures?: 'keep' | 'link';
   }) => { doc: EditorDocument; dropped: readonly ExportDrops[] };
+}
+
+/**
+ * A note's blocks with each picture readdressed from the vault's root, as
+ * its own folder finds it (`/Projects/chart.png`): read as the note it came
+ * from, before its blocks join another note's (#502).
+ */
+async function fromItsFolder(
+  fs: VaultFsPort,
+  { path, doc }: { path: VaultPath; doc: EditorDocument },
+): Promise<EditorDocument> {
+  const sources = exportImageSourcesOf([doc]);
+  if (sources.length === 0) return doc;
+  const located = await locatePictures({ fs, notePath: path, sources });
+  return retargetPictures(doc, (src) => {
+    const file = located.get(src);
+    return file === undefined ? null : `/${file.path}`;
+  });
+}
+
+/**
+ * The blocks a note shows and the notes it embeds, each read as itself: an
+ * embedded note's own shown blocks and pictures are found from it, not from
+ * the note exported (#502).
+ */
+async function readAlong(
+  ports: ExportReadPorts,
+  { note, notePaths }: { note: NoteToExport; notePaths: readonly VaultPath[] },
+): Promise<{ shown: Map<string, Transclusion>; embedded: Map<string, EmbeddedNote> }> {
+  const { doc } = note.parsed;
+  const shown = await shownBlocks(ports, { doc, holder: note.path, notePaths });
+  const embedded = new Map<string, EmbeddedNote>();
+  for (const [written, inner] of await embeddedNotes(ports, {
+    doc,
+    holder: note.path,
+    notePaths,
+  })) {
+    const itsShown = await shownBlocks(ports, { doc: inner.doc, holder: inner.path, notePaths });
+    for (const [link, block] of itsShown) if (!shown.has(link)) shown.set(link, block);
+    embedded.set(written, { title: inner.title, doc: await fromItsFolder(ports.fs, inner) });
+  }
+  for (const [link, block] of shown) {
+    if (block.kind !== 'block') continue;
+    shown.set(link, {
+      ...block,
+      content: await fromItsFolder(ports.fs, { path: block.path, doc: block.content }),
+    });
+  }
+  return { shown, embedded };
 }
 
 async function gather(
@@ -82,9 +137,7 @@ async function gather(
   { note, notePaths }: { note: NoteToExport; notePaths: readonly VaultPath[] },
 ): Promise<Gathered> {
   const { doc } = note.parsed;
-  const holder = { doc, holder: note.path, notePaths };
-  const shown = await shownBlocks(ports, holder);
-  const embedded = await embeddedNotes(ports, holder);
+  const { shown, embedded } = await readAlong(ports, { note, notePaths });
   const docs = [
     doc,
     ...[...shown.values()].flatMap((block) => (block.kind === 'block' ? [block.content] : [])),
@@ -93,7 +146,7 @@ async function gather(
   const titles = await linkTitles(ports, { docs, notePaths });
   return {
     docs,
-    read: ({ hrefOf, imageSrc }) =>
+    read: ({ hrefOf, imageSrc, webPictures }) =>
       exportStandalone({
         doc,
         title: note.title,
@@ -104,6 +157,7 @@ async function gather(
           hrefOf,
           imageSrc,
           embedded: (link) => embedded.get(formatWikiLink(link)) ?? null,
+          ...(webPictures !== undefined && { webPictures }),
         },
       }),
   };
@@ -112,9 +166,13 @@ async function gather(
 /** A note as standalone Markdown, and the pictures in the vault it shows, by their source. */
 export interface StandaloneNote {
   readonly pictures: ReadonlyMap<string, VaultFile>;
-  /** The Markdown, given where each picture is copied to (a relative link), or null if it is not. */
-  readonly markdown: (pictureHref: (file: VaultFile) => string | null) => string;
-  readonly dropped: (pictureHref: (file: VaultFile) => string | null) => readonly ExportDrops[];
+  /** Pictures the note shows that are not in the vault. */
+  readonly unlocated: number;
+  /** The Markdown, given where each picture is copied to, and what it left out: one export pass. */
+  readonly render: (pictureHref: (file: VaultFile) => string | null) => {
+    readonly markdown: string;
+    readonly dropped: readonly ExportDrops[];
+  };
 }
 
 /**
@@ -138,34 +196,35 @@ export async function standaloneNote(
   },
 ): Promise<StandaloneNote> {
   const gathered = await gather(ports, { note, notePaths });
-  const pictures = await locatePictures({
-    fs: ports.fs,
-    notePath: note.path,
-    sources: exportImageSourcesOf(gathered.docs),
-  });
-  const exported = (pictureHref: (file: VaultFile) => string | null) =>
-    gathered.read({
-      hrefOf,
-      imageSrc: (src) => {
-        const file = pictures.get(src);
-        return file === undefined ? null : pictureHref(file);
-      },
-    });
+  const sources = exportImageSourcesOf(gathered.docs);
+  const pictures = await locatePictures({ fs: ports.fs, notePath: note.path, sources });
   return {
     pictures,
-    markdown: (pictureHref) => {
+    unlocated: sources.length - pictures.size,
+    render: (pictureHref) => {
+      const exported = gathered.read({
+        hrefOf,
+        imageSrc: (src) => {
+          const file = pictures.get(src);
+          return file === undefined ? null : pictureHref(file);
+        },
+      });
       const body = ports.markdown.serializeBody({
         originalBody: note.body,
         parsed: note.parsed,
-        doc: exported(pictureHref).doc,
+        doc: exported.doc,
       });
-      return keepFrontmatter ? `${note.frontmatterText}${body}` : body;
+      const markdown = keepFrontmatter ? `${note.frontmatterText}${body}` : body;
+      return { markdown, dropped: exported.dropped };
     },
-    dropped: (pictureHref) => exported(pictureHref).dropped,
   };
 }
 
-/** A note as one page to print or hand to Google Docs, and how many pictures it left out. */
+/**
+ * A note as one page to print or hand to Google Docs, and how many pictures
+ * it left out: those not in the vault, unreadable or too large, and those on
+ * the web, which the page — fetching nothing — names and links instead (#502).
+ */
 export async function notePage(
   ports: ExportReadPorts & { readonly renderer: NotePageRenderer },
   {
@@ -175,13 +234,14 @@ export async function notePage(
   }: { note: NoteToExport; notePaths: readonly VaultPath[]; script: string | null },
 ): Promise<{ html: string; picturesLeftOut: number }> {
   const gathered = await gather(ports, { note, notePaths });
-  const located = await locatePictures({
-    fs: ports.fs,
-    notePath: note.path,
-    sources: exportImageSourcesOf(gathered.docs),
-  });
+  const sources = exportImageSourcesOf(gathered.docs);
+  const located = await locatePictures({ fs: ports.fs, notePath: note.path, sources });
   const { urls, leftOut } = await picturesAsDataUrls({ fs: ports.fs, located });
-  const { doc } = gathered.read({ hrefOf: () => null, imageSrc: (src) => urls.get(src) ?? null });
+  const { doc } = gathered.read({
+    hrefOf: () => null,
+    imageSrc: (src) => urls.get(src) ?? null,
+    webPictures: 'link',
+  });
   const html = exportPageDocument({
     title: note.title,
     properties: propertySummary(note.properties),
@@ -189,5 +249,7 @@ export async function notePage(
     styles: ports.renderer.styles,
     script,
   });
-  return { html, picturesLeftOut: leftOut };
+  const unlocated = sources.length - located.size;
+  const onTheWeb = webPictureSourcesOf(gathered.docs).length;
+  return { html, picturesLeftOut: leftOut + unlocated + onTheWeb };
 }

@@ -3,6 +3,7 @@ import { noteTitle, type VaultPath } from '@atlas/domain';
 import {
   ExportError,
   exportGoogleDocs,
+  PartlyExportedError,
   exportSummary,
   googleProblemOf,
   GoogleCalendarError,
@@ -64,6 +65,9 @@ const subjectOf = (paths: readonly VaultPath[]) =>
 
 /** What went wrong, in the person's words, and what to do about it. */
 function problemOf(cause: unknown): { problem: string; fix: string | null } {
+  if (cause instanceof PartlyExportedError) {
+    return { problem: cause.message, fix: problemOf(cause.cause).fix };
+  }
   if (cause instanceof GoogleCalendarError) return googleProblemOf(cause);
   if (cause instanceof ExportError) return { problem: cause.message, fix: null };
   const message = cause instanceof Error ? cause.message : String(cause);
@@ -108,6 +112,38 @@ export function exportCommands(store: ExportStore, deps: () => ExportDeps): Expo
     store.setState({ flow: null });
     overlay.hide(OVERLAY);
   };
+  /**
+   * An export that failed: said in the dialog, kept in Activity (#502) — and
+   * where some Google Docs were made first, each one there to open, and the
+   * first a click away in a toast.
+   */
+  const failed = (cause: unknown) => {
+    const { activity, toasts, openLink } = deps();
+    const shown = problemOf(cause);
+    const paths = store.getState().flow?.paths ?? [];
+    const [only] = paths.length === 1 ? paths : [];
+    const subject = only === undefined ? null : ({ kind: 'note', path: only } as const);
+    activity.record({ level: 'error', kind: 'export', message: shown.problem, subject });
+    if (cause instanceof PartlyExportedError) {
+      for (const doc of cause.documents) {
+        activity.record({
+          level: 'info',
+          kind: 'export',
+          message: `Made the Google Doc “${doc.title}”: ${doc.url}`,
+          subject: null,
+        });
+      }
+      const [first] = cause.documents;
+      if (first !== undefined) {
+        toasts.show({
+          message: cause.message,
+          tone: 'warning',
+          action: { label: 'Open in Google Docs', onClick: () => openLink(first.url) },
+        });
+      }
+    }
+    setState({ kind: 'failed', ...shown });
+  };
   const exportAs = async (
     paths: readonly VaultPath[],
     choice: ExportChoice,
@@ -145,7 +181,7 @@ export function exportCommands(store: ExportStore, deps: () => ExportDeps): Expo
           if (outcome === null) setState({ kind: 'choosing' });
           else finished(outcome);
         })
-        .catch((cause: unknown) => setState({ kind: 'failed', ...problemOf(cause) }));
+        .catch((cause: unknown) => failed(cause));
     },
     close() {
       if (store.getState().flow?.state.kind === 'working') return;

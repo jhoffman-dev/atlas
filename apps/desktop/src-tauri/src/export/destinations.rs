@@ -94,35 +94,104 @@ pub struct Granted {
     pub companion: Option<String>,
 }
 
+/// A grant, and every file and folder its export made that was not there
+/// before — what a failed export takes back, and nothing else.
+#[derive(Debug, Default)]
+struct Held {
+    grant: Option<Grant>,
+    made: Vec<PathBuf>,
+}
+
 /// The places the person has chosen, by unguessable id. Memory only: an
 /// export that outlives the app run has to be chosen again.
 #[derive(Default)]
-pub struct ExportGrants(Mutex<HashMap<String, Grant>>);
+pub struct ExportGrants(Mutex<HashMap<String, Held>>);
 
 impl ExportGrants {
     pub fn insert(&self, grant: Grant) -> Result<Granted, String> {
         let id = new_id()?;
         let granted = granted(&id, &grant);
-        self.lock().insert(id, grant);
+        let made = grant.made_with_it();
+        self.lock().insert(
+            id,
+            Held {
+                grant: Some(grant),
+                made,
+            },
+        );
         Ok(granted)
     }
 
     pub fn get(&self, id: &str) -> Result<Grant, String> {
         self.lock()
             .get(id)
-            .cloned()
+            .and_then(|held| held.grant.clone())
             .ok_or_else(|| "this export's destination is no longer open; export again".into())
     }
 
-    pub fn remove(&self, id: &str) {
-        self.lock().remove(id);
+    /// Notes what a write made, for `discard`.
+    pub fn record_made(&self, id: &str, made: Vec<PathBuf>) {
+        if let Some(held) = self.lock().get_mut(id) {
+            held.made.extend(made);
+        }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Grant>> {
+    /// Lets the grant go, handing back what its export made, for `remove_made`.
+    pub fn finish(&self, id: &str) -> Vec<PathBuf> {
+        self.lock()
+            .remove(id)
+            .map(|held| held.made)
+            .unwrap_or_default()
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Held>> {
         // A panic while holding it leaves only a map of paths, still whole.
         self.0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
+impl Grant {
+    /// The folders made as the grant was: a folder export's own, a file's attachments folder.
+    fn made_with_it(&self) -> Vec<PathBuf> {
+        match self {
+            Grant::File { companion, .. } => companion
+                .iter()
+                .map(|companion| companion.dir.clone())
+                .collect(),
+            Grant::Folder { root } => vec![root.clone()],
+        }
+    }
+}
+
+/// Removes what an export made, files first, then folders deepest first. A
+/// folder that holds anything else is left (`remove_dir` refuses it), so
+/// nothing that was the person's is ever taken.
+pub fn remove_made(made: &[PathBuf]) {
+    for path in made.iter().filter(|path| !path.is_dir()) {
+        // Gone already, or not removable: nothing more an undo can do with it.
+        let _ = fs::remove_file(path);
+    }
+    let mut folders: Vec<&PathBuf> = made.iter().filter(|path| path.is_dir()).collect();
+    folders.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    for folder in folders {
+        // Not empty means it holds something the export did not make: kept.
+        let _ = fs::remove_dir(folder);
+    }
+}
+
+/// Refuses a place inside an open vault: an export never writes into one.
+pub fn outside_vaults(place: &Path, vaults: &[PathBuf]) -> Result<(), String> {
+    let resolved = place.canonicalize().unwrap_or_else(|_| place.to_path_buf());
+    let inside = vaults.iter().any(|vault| {
+        let vault = vault.canonicalize().unwrap_or_else(|_| vault.clone());
+        resolved.starts_with(&vault)
+    });
+    if inside {
+        Err("that place is inside the vault, and exporting never writes into it: choose a folder outside it".into())
+    } else {
+        Ok(())
     }
 }
 
@@ -211,6 +280,12 @@ pub fn grant_file(
     let parent = parent
         .canonicalize()
         .map_err(|error| format!("cannot use {}: {error}", parent.display()))?;
+    // The save panel asked before replacing the name it showed, not this one.
+    if !has_extension && fs::symlink_metadata(parent.join(&name)).is_ok() {
+        return Err(format!(
+            "\"{name}\" is already there, and the save dialog did not ask to replace it: export again and choose another name"
+        ));
+    }
     let companion = companion_suffix
         .map(|suffix| companion_of(&parent, &name, suffix))
         .transpose()?;
@@ -220,21 +295,52 @@ pub fn grant_file(
     })
 }
 
+/// The attachments folder beside the file, made now: `<stem><suffix>`, or
+/// `<stem><suffix> 2`, … when that name is taken. A folder already there may
+/// hold the person's own files, so it is never written into.
 fn companion_of(parent: &Path, file_name: &str, suffix: &str) -> Result<Companion, String> {
     check_suffix(suffix)?;
     let stem = Path::new(file_name)
         .file_stem()
         .and_then(|stem| stem.to_str())
         .unwrap_or(file_name);
-    let name = format!("{stem}{suffix}");
-    check_name(&name, "folder name")?;
-    if name == file_name {
+    let base = format!("{stem}{suffix}");
+    check_name(&base, "folder name")?;
+    if base == file_name {
         return Err("the attachments folder would have the file's own name".into());
     }
-    Ok(Companion {
-        dir: parent.join(&name),
-        name,
-    })
+    let dir = new_folder(parent, &base)?;
+    let name = dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("the attachments folder has no usable name")?
+        .to_owned();
+    Ok(Companion { dir, name })
+}
+
+/// A new folder `name` in `parent` — `name 2`, `name 3`, … if it is taken —
+/// resolved. `create_dir` either makes the folder or fails, so a name taken
+/// after looking is skipped, never shared.
+fn new_folder(parent: &Path, name: &str) -> Result<PathBuf, String> {
+    for n in 1..=MAX_FOLDER_TRIES {
+        let candidate = if n == 1 {
+            parent.join(name)
+        } else {
+            parent.join(format!("{name} {n}"))
+        };
+        match fs::create_dir(&candidate) {
+            Ok(()) => {
+                return candidate
+                    .canonicalize()
+                    .map_err(|error| format!("cannot use {}: {error}", candidate.display()));
+            }
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(format!("cannot make {}: {error}", candidate.display())),
+        }
+    }
+    Err(format!(
+        "there are already {MAX_FOLDER_TRIES} folders named \"{name}\" there"
+    ))
 }
 
 /// A new folder `name` inside the one picked — `name 2`, `name 3`, … if it is
@@ -242,28 +348,9 @@ fn companion_of(parent: &Path, file_name: &str, suffix: &str) -> Result<Companio
 /// the folder or fails, so a name taken after looking is skipped, not shared.
 pub fn grant_folder(picked: &Path, name: &str) -> Result<Grant, String> {
     check_name(name, "folder name")?;
-    for n in 1..=MAX_FOLDER_TRIES {
-        let candidate = if n == 1 {
-            picked.join(name)
-        } else {
-            picked.join(format!("{name} {n}"))
-        };
-        match fs::create_dir(&candidate) {
-            Ok(()) => {
-                let root = candidate
-                    .canonicalize()
-                    .map_err(|error| format!("cannot use {}: {error}", candidate.display()))?;
-                return Ok(Grant::Folder { root });
-            }
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => {
-                return Err(format!("cannot make {}: {error}", candidate.display()));
-            }
-        }
-    }
-    Err(format!(
-        "there are already {MAX_FOLDER_TRIES} folders named \"{name}\" there"
-    ))
+    Ok(Grant::Folder {
+        root: new_folder(picked, name)?,
+    })
 }
 
 /// A relative path's names, each a single safe component; `""` is none.
@@ -324,18 +411,27 @@ fn target<'a>(grant: &Grant, parts: &[&'a str]) -> Result<Target<'a>, String> {
 /// same folder that then takes the name, so a reader never sees half a file.
 /// Returns how many bytes were written.
 pub fn write_into(grant: &Grant, path: &str, bytes: &[u8]) -> Result<u64, String> {
+    write_tracked(grant, path, bytes).map(|(written, _)| written)
+}
+
+/// As `write_into`, and also every file and folder the write made that was
+/// not there before: what a failed export takes back.
+pub fn write_tracked(
+    grant: &Grant,
+    path: &str,
+    bytes: &[u8],
+) -> Result<(u64, Vec<PathBuf>), String> {
     if bytes.len() > MAX_FILE_BYTES {
         return Err(too_big());
     }
     let parts = relative_parts(path)?;
     let target = target(grant, &parts)?;
-    if let Grant::File {
-        companion: Some(companion),
-        ..
-    } = grant
-    {
-        if target.root == companion.dir {
-            make_folder(&companion.dir)?;
+    let mut made: Vec<PathBuf> = Vec::new();
+    let mut at = target.root.clone();
+    for folder in &target.folders {
+        at.push(folder);
+        if !at.exists() {
+            made.push(at.clone());
         }
     }
     let root = target
@@ -350,8 +446,12 @@ pub fn write_into(grant: &Grant, path: &str, bytes: &[u8]) -> Result<u64, String
         return Err(format!("\"{path}\" leads outside the export"));
     }
     let name = target.file.file_name().ok_or("no file was named")?;
-    write_atomically(&folder, &folder.join(name), bytes)?;
-    Ok(bytes.len() as u64)
+    let file = folder.join(name);
+    if fs::symlink_metadata(&file).is_err() {
+        made.push(file.clone());
+    }
+    write_atomically(&folder, &file, bytes)?;
+    Ok((bytes.len() as u64, made))
 }
 
 pub fn too_big() -> String {

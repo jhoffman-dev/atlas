@@ -1,20 +1,24 @@
 import {
   defaultDriveFolderName,
+  driveRetryDelay,
   MAX_GOOGLE_DOC_HTML_BYTES,
   scopesWithDrive,
   type VaultPath,
 } from '@atlas/domain';
-import type { GoogleCalendarPort } from '../google-calendar/ports.ts';
+import type { Wait } from '../granola/granola-requests.ts';
+import { GoogleCalendarError, type GoogleCalendarPort } from '../google-calendar/ports.ts';
 import type { NotePageRenderer } from '../thumbnails/ports.ts';
 import type { ExportReadPorts } from './export-reading.ts';
 import { notePage, readNoteToExport } from './note-for-export.ts';
-import { ExportError, type GoogleDrivePort } from './ports.ts';
+import { ExportError, PartlyExportedError, type GoogleDrivePort } from './ports.ts';
 
 export interface GoogleDocsPorts extends ExportReadPorts {
   readonly renderer: NotePageRenderer;
   /** The Calendar's sign-in, which the export reuses (ADR-0030). */
   readonly google: GoogleCalendarPort;
   readonly drive: GoogleDrivePort;
+  /** Waits out a retry's delay: a timer in the app, the test's own clock in a test. */
+  readonly wait: Wait;
 }
 
 export interface ExportedDocs {
@@ -78,23 +82,49 @@ export async function exportGoogleDocs(
   }
   await ensureDriveAccess(ports.google, vault);
   const folder = defaultDriveFolderName(appName);
+  const retried = retrying(ports.wait);
   const folderId =
-    (await ports.drive.findFolder({ vault, name: folder })) ??
-    (await ports.drive.createFolder({ vault, name: folder }));
-  const documents = [];
+    (await retried(() => ports.drive.findFolder({ vault, name: folder }))) ??
+    (await retried(() => ports.drive.createFolder({ vault, name: folder })));
+  const documents: { title: string; url: string }[] = [];
   for (const page of pages) {
-    const made = await ports.drive.uploadDocument({
-      vault,
-      title: page.title,
-      html: page.html,
-      folderId,
-    });
-    documents.push({ title: page.title, url: made.url });
+    try {
+      const made = await retried(() =>
+        ports.drive.uploadDocument({ vault, title: page.title, html: page.html, folderId }),
+      );
+      documents.push({ title: page.title, url: made.url });
+    } catch (cause) {
+      // The Docs made so far are in the Drive: what failed says where they are.
+      if (documents.length === 0) throw cause;
+      throw new PartlyExportedError({ documents, total: pages.length, folder, cause });
+    }
   }
   return {
     kind: 'uploaded',
     folder,
     documents,
     picturesLeftOut: pages.reduce((sum, page) => sum + page.picturesLeftOut, 0),
+  };
+}
+
+/** The status a Drive call was answered with, when it was answered at all. */
+function statusOf(cause: unknown): number | null {
+  if (!(cause instanceof GoogleCalendarError) || cause.failure.kind !== 'api_refused') return null;
+  const status = Number(cause.failure.code);
+  return Number.isInteger(status) ? status : null;
+}
+
+/** A Drive call, tried again after the domain's delay while Google says it is only for now. */
+function retrying(wait: Wait) {
+  return async <T>(call: () => Promise<T>): Promise<T> => {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await call();
+      } catch (cause) {
+        const delay = driveRetryDelay({ attempt, status: statusOf(cause) });
+        if (delay === null) throw cause;
+        await wait(delay);
+      }
+    }
   };
 }

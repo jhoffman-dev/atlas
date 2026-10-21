@@ -138,8 +138,31 @@ pub struct Checked {
     content_type: String,
 }
 
+/// The only Drive calls an export makes (#502): list its folder, make the
+/// folder, upload a Doc. Anything else — permissions, a copy, a delete — is
+/// refused, though `drive.file` would let Google allow it on the app's files.
+const DRIVE_CALLS: [(&str, &str); 3] = [
+    ("GET", "/drive/v3/files"),
+    ("POST", "/drive/v3/files"),
+    ("POST", "/upload/drive/v3/files"),
+];
+
+fn check_drive_call(method: &str, url: &Url) -> Result<(), GoogleFailure> {
+    if DRIVE_CALLS.contains(&(method, url.path())) {
+        Ok(())
+    } else {
+        Err(invalid(format!(
+            "{method} {} is not a call an export makes",
+            url.path()
+        )))
+    }
+}
+
 pub fn check(api: &Url, call: &ApiCall, service: Service) -> Result<Checked, GoogleFailure> {
     let url = call_url(api, &call.path, service)?;
+    if service == Service::Drive {
+        check_drive_call(&call.method, &url)?;
+    }
     Ok(Checked {
         method: call_method(&call.method)?,
         content_type: content_type(call, service, &url)?,
@@ -275,5 +298,42 @@ mod tests {
         }
         let long = format!("multipart/related; boundary={}", "a".repeat(71));
         assert!(check(&api(), &call(upload, Some(&long)), Service::Drive).is_err());
+    }
+
+    fn drive(method: &str, path: &str) -> ApiCall {
+        ApiCall {
+            method: method.into(),
+            path: path.into(),
+            body: None,
+            content_type: None,
+        }
+    }
+
+    #[test]
+    fn a_drive_call_is_one_of_the_three_an_export_makes() {
+        for (method, path) in [
+            ("GET", "/drive/v3/files?q=x&fields=files(id)"),
+            ("POST", "/drive/v3/files?fields=id"),
+            ("POST", "/upload/drive/v3/files?uploadType=multipart"),
+        ] {
+            assert!(
+                check(&api(), &drive(method, path), Service::Drive).is_ok(),
+                "{method} {path}"
+            );
+        }
+        for (method, path) in [
+            ("POST", "/drive/v3/files/doc-1/permissions"),
+            ("DELETE", "/drive/v3/files/doc-1"),
+            ("POST", "/drive/v3/files/doc-1/copy"),
+            ("PATCH", "/drive/v3/files/doc-1"),
+            ("GET", "/drive/v3/files/doc-1"),
+            ("DELETE", "/drive/v3/files"),
+            ("PATCH", "/upload/drive/v3/files/doc-1"),
+        ] {
+            assert!(
+                check(&api(), &drive(method, path), Service::Drive).is_err(),
+                "{method} {path} was allowed"
+            );
+        }
     }
 }

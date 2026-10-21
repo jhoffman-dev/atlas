@@ -347,8 +347,13 @@ impl Session<'_> {
         let scopes = match granted_scopes(tokens.scope.as_deref(), &request.scopes) {
             Ok(scopes) => scopes,
             Err(failure) => {
-                // Not kept, so not left live at Google either.
-                token::revoke(&self.endpoints.revoke, &refresh_token).await;
+                // Not kept. Revoking it would end the app's whole grant at
+                // Google — with `include_granted_scopes` that is the Calendar
+                // sign-in kept here or in another vault too — so it is only
+                // revoked when nothing on this Mac rides on that grant (#502).
+                if !self.grant_in_use(&request.client_id)? {
+                    token::revoke(&self.endpoints.revoke, &refresh_token).await;
+                }
                 return Err(failure);
             }
         };
@@ -371,6 +376,25 @@ impl Session<'_> {
         )?;
         log::info!("Google Calendar connected");
         Ok(GoogleConnection::of(Some(&grant)))
+    }
+
+    /// Whether a sign-in with this client is kept for this vault or another:
+    /// one Google grant, which a revocation would end for all of them.
+    fn grant_in_use(&self, client_id: &str) -> Result<bool, GoogleFailure> {
+        let kept = grant::load(self.store, self.scope).ok().flatten();
+        if kept
+            .as_ref()
+            .is_some_and(|kept| kept.client_id == client_id)
+        {
+            return Ok(true);
+        }
+        let probe = Grant {
+            client_id: client_id.to_string(),
+            client_secret: None,
+            refresh_token: String::new(),
+            scopes: Vec::new(),
+        };
+        grant::shared_with_another_vault(self.store, self.scope, &probe)
     }
 
     /// The client secret kept with the last sign-in, when it was for the same

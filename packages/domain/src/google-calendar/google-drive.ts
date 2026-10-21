@@ -29,3 +29,24 @@ export function scopesWithDrive(granted: readonly string[]): string[] | null {
   if (granted.includes(GOOGLE_DRIVE_FILE_SCOPE)) return null;
   return [...granted, GOOGLE_DRIVE_FILE_SCOPE];
 }
+
+/** How long to wait before each try again of a Drive call Google turned away for now: three, then it fails. */
+export const DRIVE_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000];
+
+/**
+ * The wait before trying a Drive call again, after try number `attempt`
+ * (from 1) was answered `status`: only Google's "too many requests" (429)
+ * and its own errors (5xx) are worth a second try. Null when it is not
+ * tried again: any other answer, or the tries are spent.
+ */
+export function driveRetryDelay({
+  attempt,
+  status,
+}: {
+  attempt: number;
+  status: number | null;
+}): number | null {
+  if (status === null) return null;
+  const now = status === 429 || (status >= 500 && status <= 599);
+  return now ? (DRIVE_RETRY_DELAYS_MS[attempt - 1] ?? null) : null;
+}

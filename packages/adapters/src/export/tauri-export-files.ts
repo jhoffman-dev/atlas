@@ -30,7 +30,7 @@ export const tauriExportFiles: ExportFilesPort = {
     };
     await throughHost(invoke<number>('export_write_file', bytes, { headers }), failure);
   },
-  finish({ id }) {
-    return throughHost(invoke<void>('export_finish', { id }), failure);
+  finish({ id }, { discard }) {
+    return throughHost(invoke<void>('export_finish', { id, discard }), failure);
   },
 };

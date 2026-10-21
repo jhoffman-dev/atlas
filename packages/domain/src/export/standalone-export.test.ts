@@ -9,6 +9,8 @@ import {
   embeddedNotesOf,
   exportImageSourcesOf,
   exportStandalone,
+  retargetPictures,
+  webPictureSourcesOf,
   type StandaloneSources,
 } from './index.ts';
 
@@ -203,5 +205,56 @@ describe('exportImageSourcesOf', () => {
     );
     const second = doc(paragraph(image('a.png'), embed('Plans')));
     expect(exportImageSourcesOf([first, second])).toEqual(['a.png', 'c.jpg']);
+  });
+});
+
+describe('notes inside the export read as themselves (#502)', () => {
+  it('names the embedded note, not the exported one, for a link to one of its own blocks', () => {
+    const own = link('', { heading: '#^b1' });
+    const result = exported(doc(paragraph(embed('Plans'))), {
+      embedded: () => ({ title: 'Summer plans', doc: doc(paragraph(text('See '), own)) }),
+    });
+    const quoted = result.doc.content[0]?.content?.[1];
+    expect(quoted).toEqual(paragraph(text('See '), text('Summer plans')));
+    // Outside it, the exported note's own title.
+    expect(exported(doc(paragraph(own))).doc.content[0]?.content).toEqual([text('Notes')]);
+  });
+
+  it('readdresses each picture and picture embed, leaving the rest as written', () => {
+    const body = doc(
+      paragraph(image('chart.png'), embed('plan.png'), embed('Plans'), image('gone.png')),
+    );
+    const moved = retargetPictures(body, (src) => (src === 'gone.png' ? null : `/Projects/${src}`));
+    expect(
+      moved.content[0]?.content?.map((node) => node.attrs?.['src'] ?? node.attrs?.['target']),
+    ).toEqual(['/Projects/chart.png', '/Projects/plan.png', 'Plans', 'gone.png']);
+  });
+});
+
+describe('a picture on the web, in a page that fetches nothing (#502)', () => {
+  it('is its words linked to its address', () => {
+    const web = image('https://example.com/q3.png', 'Q3 chart');
+    const result = exported(
+      doc(paragraph(web), paragraph(image('https://example.com/b.png', ''))),
+      {
+        webPictures: 'link',
+      },
+    );
+    const linked = (href: string) => [{ type: 'link', attrs: { href, title: null } }];
+    expect(result.doc.content[0]?.content).toEqual([
+      text('Q3 chart (https://example.com/q3.png)', linked('https://example.com/q3.png')),
+    ]);
+    expect(result.doc.content[1]?.content).toEqual([
+      text('https://example.com/b.png', linked('https://example.com/b.png')),
+    ]);
+    // In Markdown it stays the picture it is.
+    expect(exported(doc(paragraph(web))).doc.content[0]?.content).toEqual([web]);
+  });
+
+  it('is listed once, to be counted as left out', () => {
+    const web = image('https://example.com/q3.png');
+    expect(webPictureSourcesOf([doc(paragraph(web, image('a.png'))), doc(paragraph(web))])).toEqual(
+      ['https://example.com/q3.png'],
+    );
   });
 });

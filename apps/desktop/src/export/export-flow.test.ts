@@ -30,6 +30,7 @@ function setUp(picked: { path: string } | null = { path: '/Exports/Kickoff.md' }
       clock: { today: () => '2026-10-21', now: () => 0, localNow: () => '2026-10-21T09:00:00' },
       google: google.port,
       drive: drive.port,
+      wait: async () => {},
     },
     vault: VAULT,
     appName: 'Northwind',
@@ -43,7 +44,7 @@ function setUp(picked: { path: string } | null = { path: '/Exports/Kickoff.md' }
   const store = createExportStore();
   const commands = exportCommands(store, () => deps);
   const settled = () => expect.poll(() => store.getState().flow?.state.kind ?? 'closed');
-  return { store, commands, deps, files: files.state, google, settled };
+  return { store, commands, deps, files: files.state, google, drive: drive.state, settled };
 }
 
 describe('the export flow (#501)', () => {
@@ -88,7 +89,7 @@ describe('the export flow (#501)', () => {
   });
 
   it('says what went wrong and keeps the question open', async () => {
-    const { store, commands, files, settled } = setUp();
+    const { store, commands, deps, files, settled } = setUp();
     files.failWrite = new Error('cannot write /Exports/Kickoff.md: Permission denied');
     commands.ask([KICKOFF]);
     commands.run({ format: 'markdown', keepFrontmatter: true });
@@ -98,6 +99,14 @@ describe('the export flow (#501)', () => {
       problem: 'The export could not be made: cannot write /Exports/Kickoff.md: Permission denied',
       fix: null,
     });
+    // Kept in Activity too (#502), and what it made taken back.
+    expect(deps.activity.record).toHaveBeenCalledWith({
+      level: 'error',
+      kind: 'export',
+      message: 'The export could not be made: cannot write /Exports/Kickoff.md: Permission denied',
+      subject: { kind: 'note', path: KICKOFF },
+    });
+    expect(files.discarded).toBe(1);
   });
 
   it('explains a Google sign-in problem in Google’s words, with the fix', async () => {
@@ -147,5 +156,31 @@ describe('the export flow (#501)', () => {
     commands.run({ format: 'pdf', keepFrontmatter: true });
     commands.close();
     expect(store.getState().flow).not.toBeNull();
+  });
+
+  it('lists the Google Docs made before one failed, and offers the first (#502)', async () => {
+    const { commands, deps, google, drive, settled } = setUp();
+    await google.port.connect({
+      vault: VAULT,
+      clientId: '1234-abc.apps.googleusercontent.com',
+      scopes: GOOGLE_CALENDAR_SCOPES,
+    });
+    drive.uploadFailures.push(undefined, new Error('Google is offline'));
+    commands.ask([KICKOFF, RETRO]);
+    commands.run({ format: 'google-doc', keepFrontmatter: true });
+    await settled().toBe('failed');
+    const url = 'https://docs.example.com/document/d/doc-1/edit';
+    expect(deps.activity.record).toHaveBeenCalledWith({
+      level: 'info',
+      kind: 'export',
+      message: `Made the Google Doc “Kickoff”: ${url}`,
+      subject: null,
+    });
+    const shown = vi.mocked(deps.toasts.show).mock.calls[0]?.[0];
+    expect(shown?.message).toBe(
+      'Made 1 of 2 Google Docs in “Northwind exports” before it stopped: Google is offline',
+    );
+    shown?.action?.onClick();
+    expect(deps.openLink).toHaveBeenCalledWith(url);
   });
 });

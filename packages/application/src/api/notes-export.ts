@@ -134,13 +134,14 @@ async function standaloneExport(
     return at === undefined ? null : markdownHref(at);
   };
   const attachments: ApiExportAttachment[] = [...copyAt].map(([from, as]) => ({ path: from, as }));
+  const rendered = standalone.render(pictureHref);
   return {
     path,
     format: 'standalone',
     title: note.title,
-    markdown: standalone.markdown(pictureHref),
+    markdown: rendered.markdown,
     attachments,
-    dropped: standalone.dropped(pictureHref),
+    dropped: rendered.dropped,
   };
 }
 

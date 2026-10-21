@@ -26,5 +26,11 @@ export type { ExportPageSize, PropertyLine } from './export-page.ts';
 export { namesAnImage } from './note-exporter.ts';
 export type { EmbeddedNote, StandaloneSources } from './note-exporter.ts';
 export type { MarkdownSpan, RawPart, RawPartsReader } from './raw-parts.ts';
-export { embeddedNotesOf, exportImageSourcesOf, exportStandalone } from './standalone-export.ts';
+export {
+  embeddedNotesOf,
+  exportImageSourcesOf,
+  exportStandalone,
+  retargetPictures,
+  webPictureSourcesOf,
+} from './standalone-export.ts';
 export type { StandaloneExport } from './standalone-export.ts';

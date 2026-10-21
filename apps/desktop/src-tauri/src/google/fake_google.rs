@@ -213,10 +213,14 @@ fn code_tokens(google: &mut Google) -> Answer {
 
 fn revoke_answer(google: &mut Google, form: &HashMap<String, String>) -> Answer {
     let token = form.get("token").cloned().unwrap_or_default();
-    if !google.refresh_tokens.remove(&token) {
+    if !google.refresh_tokens.contains(&token) {
         return json(400, r#"{"error":"invalid_token"}"#.into());
     }
-    google.access_tokens.retain(|_, refresh| *refresh != token);
+    // As Google does: revoking any token of the app's grant ends all of it —
+    // every refresh token the person's consents gave this client, and every
+    // access token made from them (#502).
+    google.refresh_tokens.clear();
+    google.access_tokens.clear();
     google.revoked.push(token);
     json(200, "{}".into())
 }
