@@ -6,7 +6,8 @@
   "type": "module",
   "description": "MCP server that lets AI tools read and write a DFAI vault through the running app.",
   "bin": {
-    "dfai-mcp": "./dist/main.js"
+    "dfai-mcp": "./dist/main.js",
+    "atlas-mcp": "./dist/main.js"
   },
   "scripts": {
     "build": "esbuild src/main.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/main.js --banner:js=\"#!/usr/bin/env node\"",

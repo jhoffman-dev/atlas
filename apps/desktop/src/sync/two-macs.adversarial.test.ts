@@ -430,7 +430,7 @@ describe('two Macs, one remote: what breaks', () => {
     async () => {
       const world = await twoMacs({ 'A.md': 'a\n' });
       await refuseFilesOverGitHubsLimit(world.bare);
-      // Committed before DFAI kept such files out (or by hand), and never pushed.
+      // Committed before Atlas kept such files out (or by hand), and never pushed.
       await world.studio.write('Attachments/talk.mov', new Uint8Array(101 * 1024 * 1024));
       await world.studio.write('A.md', 'a, written the same day\n');
       await must(world.studio.root, ['add', '--all'], world.env);

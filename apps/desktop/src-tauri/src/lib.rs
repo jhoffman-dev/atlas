@@ -146,7 +146,7 @@ pub fn run() {
                 )?;
             }
             for line in &migrated {
-                log::info!("migration from DFAI: {line}");
+                log::info!("migration from Atlas: {line}");
             }
             api::restore(app.handle());
             Ok(())

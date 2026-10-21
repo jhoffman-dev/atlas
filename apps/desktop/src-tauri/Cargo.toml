@@ -106,6 +106,8 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = [
 objc2-app-kit = { version = "0.3.2", default-features = false, features = [
   "std",
   "objc2-core-foundation",
+  # The alert the first launch shows when it cannot move Atlas's data (#482).
+  "NSAlert",
   "NSApplication",
   "NSBitmapImageRep",
   "NSColor",

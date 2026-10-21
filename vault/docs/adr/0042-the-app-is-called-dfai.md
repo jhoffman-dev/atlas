@@ -47,32 +47,61 @@ the identifier, as before.
 **The first launch copies what Atlas kept** (`src-tauri/src/rename_migration.rs`),
 first thing in `run`, before Tauri makes any folder or webview:
 
-- Application Support and WebKit, `dev.jhoffman.atlas` → `com.dailyflowai.dfai`,
-  and WebKit `atlas` → `dfai` for the unbundled build. A folder is copied whole,
-  into a staging folder beside the new one that is then renamed into place, and
-  only when the new folder does not exist. Nothing is merged into a folder DFAI
-  already has: a folder is one program's state (an index and its write-ahead
-  log, WebKit's salted storage), and half of each would be neither.
-- Keychain items under the old service are copied to the new one, account for
-  account, unless the new service already has that account. This is done in
-  Rust, because values never reach the webview (ADR-0017). Once every item has
-  been copied, a marker file (`migrated-from-atlas`) in the new Application
-  Support folder records it, so the Keychain is read once: a secret removed in
-  DFAI stays removed, and macOS's prompts for the old items are not shown
-  again. An item that could not be read leaves no marker, and is tried again on
-  the next launch.
+- **What is finished is kept outside every folder copied**, in
+  `~/Library/Application Support/.dfai-rename-migration.json`: each folder pair
+  done, and each Keychain account done, still being tried, or given up. It is
+  never judged from whether a new folder exists: WebKit makes its folder as
+  the webview starts, and a launch whose copy failed would otherwise leave a
+  folder that looks finished. A state file that cannot be read is set aside
+  and the migration treated as finished, never as fresh, so DFAI's own data is
+  never set aside for Atlas's again.
+- **Folders:** Application Support and WebKit, `dev.jhoffman.atlas` →
+  `com.dailyflowai.dfai`, and WebKit `atlas` → `dfai` for the unbundled build.
+  A pair not yet done is copied whole, into a staging folder beside the new one
+  that is then renamed into place. Nothing is merged: a folder is one program's
+  state (an index and its write-ahead log, WebKit's salted storage), and half
+  of each would be neither. A new folder already there for a pair not done was
+  made by something else, so it is moved aside to `<folder>.pre-dfai-<n>`, the
+  first number free, and never deleted. An old folder that is itself a link is
+  followed and its contents copied, so the new folder is never a link into
+  Atlas's data. A file that vanishes while the copy walks is skipped and noted.
+  A staging folder left by a crash is made writable and removed first.
+- **A folder that cannot be copied stops the launch.** DFAI shows a native
+  alert ("DFAI couldn't move your Atlas data: … Quit Atlas and open DFAI
+  again.") and quits before Tauri starts, because starting would make the new
+  folders empty. The Keychain step waits for the folders.
+- **Not while Atlas runs.** While a folder is still to be copied, a running
+  Atlas (its bundled executable, or a development build's `target/*/atlas`)
+  stops the launch with "Quit Atlas, then open DFAI again." An exclusive lock
+  beside the state file, held for the whole migration, makes a second DFAI
+  launch wait for the first.
+- **Keychain:** items under the old service are copied to the new one, account
+  for account, unless the new service already has that account. This is done
+  in Rust, because values never reach the webview (ADR-0017). Each account is
+  recorded as done once copied, so a secret removed in DFAI is never copied
+  back. An account that cannot be read — the person denied macOS's prompt — is
+  asked for again on the next launch, at most three launches; then it is given
+  up, and the person is told once, in an alert naming it, to set it again in
+  Settings → Secrets.
+- **A report:** every line the migration wrote, launch after launch, is left in
+  `com.dailyflowai.dfai/migration-from-atlas.log`, so a release build says what
+  moved, what was set aside and what failed. Accounts and paths only, never a
+  value.
 - **Nothing is deleted** in this release. Atlas's folders and Keychain items
   stay as they were, so going back to Atlas still works. Removing them is a
   decision for a later release.
 
-The migration is safe to run any number of times: a copied folder is found and
-left alone, and a copied secret is found and not written over. It is tested
-against temporary folders and in-memory stores only, never a real `~/Library`
-or Keychain.
+The migration is safe to run any number of times. It is tested against
+temporary folders and in-memory stores only, never a real `~/Library` or
+Keychain.
 
 **The MCP server reads `com.dailyflowai.dfai/api.json` first, and falls back to
 `dev.jhoffman.atlas/api.json`** when the new file does not exist, for one
 release. Any other failure to read the new file is reported, not passed over.
+
+The MCP package keeps an **`atlas-mcp` bin** beside `dfai-mcp`, pointing at
+the same file, for one release, so a client configuration that runs it by name
+keeps working.
 
 **Some internal names keep "atlas", on purpose.** Each is read by something
 other than this build — a vault synced to a Mac still running Atlas, another
@@ -124,6 +153,8 @@ working until they are updated.
   launch.
 - A Mac can run Atlas and DFAI side by side. After the first launch their
   per-Mac state is separate: a change made in one is not seen by the other.
-- Running Atlas and DFAI's first launch at the same moment can copy a folder
-  mid-write. Quit Atlas before opening DFAI for the first time.
+- DFAI will not start its first launch while Atlas is running: it asks for
+  Atlas to be quit, so no folder is copied mid-write.
+- A launch that cannot copy a folder does not open; the alert says why, and
+  the next launch tries again.
 - A vault stays readable by both: nothing in it changes name.

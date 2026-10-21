@@ -7,7 +7,7 @@ use std::path::Path;
 
 use super::{
     copy_folder_once, copy_secrets, folders_under, migrate, Copied, FolderPair, Migration,
-    IDENTIFIER, LEGACY_IDENTIFIER, MARKER,
+    IDENTIFIER, LEGACY_IDENTIFIER,
 };
 use crate::secrets::{MemoryStore, SecretStore};
 
@@ -301,7 +301,7 @@ fn support(home: &Path, identifier: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn a_launch_copies_folders_and_secrets_then_marks_it_done() {
+fn a_launch_copies_folders_and_secrets() {
     let home = tempfile::tempdir().unwrap();
     write(
         &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
@@ -335,7 +335,6 @@ fn a_launch_copies_folders_and_secrets_then_marks_it_done() {
         "ls"
     );
     assert_eq!(new.get("v1/github").unwrap().as_deref(), Some("ghp_A"));
-    assert!(support(home.path(), IDENTIFIER).join(MARKER).is_file());
 }
 
 #[test]
@@ -370,7 +369,6 @@ fn a_secret_that_failed_is_tried_again_on_the_next_launch() {
         legacy_secrets: &denied,
         secrets: &new,
     });
-    assert!(!support(home.path(), IDENTIFIER).join(MARKER).exists());
 
     migrate(&Migration {
         home: home.path(),
@@ -378,7 +376,6 @@ fn a_secret_that_failed_is_tried_again_on_the_next_launch() {
         secrets: &new,
     });
     assert_eq!(new.get("v1/github").unwrap().as_deref(), Some("ghp_A"));
-    assert!(support(home.path(), IDENTIFIER).join(MARKER).is_file());
 }
 
 #[test]
@@ -616,4 +613,305 @@ fn attack_485_an_unreadable_old_folder_fails_loudly_and_makes_nothing() {
     assert!(copied.is_err());
     assert!(!folders.to.exists());
     assert!(!root.path().join("new.migrating").exists());
+}
+
+// --- The fix round for PR #485: state outside the folders, set-aside, block, give-up.
+
+fn state_of(home: &Path) -> serde_json::Value {
+    serde_json::from_str(&read(
+        &home.join("Library/Application Support/.dfai-rename-migration.json"),
+    ))
+    .unwrap()
+}
+
+#[test]
+fn what_is_finished_is_kept_outside_every_folder_it_copies() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "v",
+    );
+
+    migrate(&Migration {
+        home: home.path(),
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    });
+
+    let state = home
+        .path()
+        .join("Library/Application Support/.dfai-rename-migration.json");
+    assert!(state.is_file());
+    for pair in folders_under(home.path()) {
+        assert!(!state.starts_with(&pair.to));
+    }
+    assert_eq!(
+        state_of(home.path())["foldersDone"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+}
+
+#[test]
+fn a_new_folder_made_before_the_copy_is_set_aside_never_deleted() {
+    let home = tempfile::tempdir().unwrap();
+    let webkit = home.path().join("Library/WebKit");
+    write(&webkit.join("atlas/LocalStorage/ls.sqlite3"), "sync id");
+    write(
+        &webkit.join("dfai/LocalStorage/ls.sqlite3"),
+        "empty, from WebKit",
+    );
+
+    let outcome = migrate(&Migration {
+        home: home.path(),
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    });
+
+    assert_eq!(
+        read(&webkit.join("dfai/LocalStorage/ls.sqlite3")),
+        "sync id"
+    );
+    assert_eq!(
+        read(&webkit.join("dfai.pre-dfai-1/LocalStorage/ls.sqlite3")),
+        "empty, from WebKit"
+    );
+    assert!(outcome.iter().any(|line| line.contains("aside")));
+}
+
+#[test]
+fn a_folder_finished_once_is_never_set_aside_or_copied_again() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
+    let migration = Migration {
+        home: home.path(),
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    };
+
+    migrate(&migration);
+    write(
+        &support(home.path(), IDENTIFIER).join("vault.json"),
+        "newer",
+    );
+    migrate(&migration);
+
+    assert_eq!(
+        read(&support(home.path(), IDENTIFIER).join("vault.json")),
+        "newer"
+    );
+    assert!(!home
+        .path()
+        .join("Library/Application Support")
+        .join(format!("{IDENTIFIER}.pre-dfai-1"))
+        .exists());
+}
+
+#[test]
+fn a_failed_folder_copy_blocks_the_launch_skips_the_secrets_and_makes_no_new_folder() {
+    let home = tempfile::tempdir().unwrap();
+    let locked = support(home.path(), LEGACY_IDENTIFIER).join("grants.json");
+    write(&locked, "g");
+    let old = store_with(&[("v1/github", "ghp_A")]);
+    let new = MemoryStore::default();
+
+    let outcome = {
+        let _locked = Unreadable::new(&locked, 0o600);
+        migrate(&Migration {
+            home: home.path(),
+            legacy_secrets: &old,
+            secrets: &new,
+        })
+    };
+
+    assert!(outcome.blocked.is_some());
+    assert_eq!(
+        new.get("v1/github").unwrap(),
+        None,
+        "secrets wait for the folders"
+    );
+    assert!(!support(home.path(), IDENTIFIER).exists());
+}
+
+#[test]
+fn a_secret_that_cannot_be_read_is_given_up_after_three_launches_and_told_once() {
+    let home = tempfile::tempdir().unwrap();
+    let denied = DeniesOne {
+        inner: store_with(&[("v1/openai", "sk_B")]),
+        denied: "v1/openai",
+    };
+    let new = MemoryStore::default();
+    let migration = Migration {
+        home: home.path(),
+        legacy_secrets: &denied,
+        secrets: &new,
+    };
+
+    let launches: Vec<_> = (0..4).map(|_| migrate(&migration).gave_up).collect();
+
+    assert_eq!(
+        launches,
+        vec![vec![], vec![], vec!["v1/openai".to_string()], vec![]]
+    );
+    assert_eq!(
+        state_of(home.path())["accounts"]["v1/openai"]["state"],
+        "gaveUp"
+    );
+    // Readable now, but given up: it is not asked for again.
+    migrate(&Migration {
+        home: home.path(),
+        legacy_secrets: &denied.inner,
+        secrets: &new,
+    });
+    assert_eq!(new.get("v1/openai").unwrap(), None);
+}
+
+#[test]
+fn a_state_file_that_cannot_be_read_redoes_nothing() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
+    write(
+        &support(home.path(), IDENTIFIER).join("vault.json"),
+        "newer",
+    );
+    write(
+        &home
+            .path()
+            .join("Library/Application Support/.dfai-rename-migration.json"),
+        "{ not json",
+    );
+    let new = MemoryStore::default();
+
+    migrate(&Migration {
+        home: home.path(),
+        legacy_secrets: &store_with(&[("v1/github", "ghp_A")]),
+        secrets: &new,
+    });
+
+    assert_eq!(
+        read(&support(home.path(), IDENTIFIER).join("vault.json")),
+        "newer"
+    );
+    assert_eq!(new.get("v1/github").unwrap(), None);
+    assert_eq!(state_of(home.path())["keychainClosed"], true);
+    assert!(home
+        .path()
+        .join("Library/Application Support/.dfai-rename-migration.json.pre-dfai-1")
+        .is_file());
+}
+
+#[test]
+fn the_report_in_dfais_folder_says_what_moved_and_never_a_value() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "v",
+    );
+    let denied = DeniesOne {
+        inner: store_with(&[("v1/github", "ghp_SECRET"), ("v1/linear", "lin_SECRET")]),
+        denied: "v1/github",
+    };
+
+    migrate(&Migration {
+        home: home.path(),
+        legacy_secrets: &denied,
+        secrets: &MemoryStore::default(),
+    });
+
+    let report = read(&support(home.path(), IDENTIFIER).join(super::REPORT));
+    assert!(report.contains("copied"));
+    assert!(report.contains("v1/github"));
+    assert!(!report.contains("SECRET"));
+}
+
+#[test]
+fn a_folder_is_pending_only_while_atlas_has_one_not_yet_copied() {
+    let home = tempfile::tempdir().unwrap();
+    let migration = Migration {
+        home: home.path(),
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    };
+    assert!(!super::folders_pending(home.path()));
+
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "v",
+    );
+    assert!(super::folders_pending(home.path()));
+
+    migrate(&migration);
+    assert!(!super::folders_pending(home.path()));
+}
+
+#[test]
+fn atlas_is_known_by_its_executable_not_by_any_tool_called_atlas() {
+    use super::launch::is_atlas_executable;
+
+    for atlas in [
+        "/Applications/Atlas.app/Contents/MacOS/Atlas",
+        "/Applications/Atlas.app/Contents/MacOS/atlas",
+        "/Users/sam/atlas/apps/desktop/src-tauri/target/debug/atlas",
+        "/Users/sam/atlas/apps/desktop/src-tauri/target/release/atlas",
+    ] {
+        assert!(is_atlas_executable(Path::new(atlas)), "{atlas}");
+    }
+    for other in [
+        "/opt/homebrew/bin/atlas",
+        "/Applications/DFAI.app/Contents/MacOS/DFAI",
+        "/Users/sam/atlas/apps/desktop/src-tauri/target/debug/dfai",
+        "/Applications/Atlas.app/Contents/MacOS/atlas-helper",
+    ] {
+        assert!(!is_atlas_executable(Path::new(other)), "{other}");
+    }
+}
+
+#[test]
+fn what_the_person_is_told_names_the_reason_and_what_to_do() {
+    use super::launch::{blocked_message, gave_up_message, ATLAS_RUNNING};
+
+    assert_eq!(
+        blocked_message("could not copy x: Permission denied"),
+        "DFAI couldn't move your Atlas data: could not copy x: Permission denied. Quit Atlas and open DFAI again."
+    );
+    assert_eq!(ATLAS_RUNNING, "Quit Atlas, then open DFAI again.");
+    let gave_up = gave_up_message(&["v1/github".into()]);
+    assert!(gave_up.contains("v1/github") && gave_up.contains("Settings → Secrets"));
+}
+
+#[test]
+fn a_leftover_staging_folder_with_a_read_only_folder_is_cleared_in_a_full_launch() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "v",
+    );
+    let staging = home
+        .path()
+        .join("Library/Application Support")
+        .join(format!("{IDENTIFIER}.migrating"));
+    let read_only = staging.join("model");
+    write(&read_only.join("weights.bin"), "w");
+    fs::set_permissions(&read_only, fs::Permissions::from_mode(0o500)).unwrap();
+
+    let outcome = migrate(&Migration {
+        home: home.path(),
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    });
+
+    assert!(outcome.blocked.is_none());
+    assert!(!staging.exists());
+    assert_eq!(
+        read(&support(home.path(), IDENTIFIER).join("vault.json")),
+        "v"
+    );
 }

@@ -27,7 +27,7 @@ pub use binding::{check_bound, entries_in, remove_secret, write_secret, SecretEn
 pub use keychain::KeychainStore;
 
 /// The Keychain service every DFAI secret is filed under: the bundle
-/// identifier. DFAI filed its secrets under its own, and the first launch
+/// identifier. Atlas filed its secrets under its own, and the first launch
 /// copies them across (`rename_migration`).
 pub const SERVICE: &str = crate::rename_migration::IDENTIFIER;
 
