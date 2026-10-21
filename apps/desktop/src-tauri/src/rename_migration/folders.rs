@@ -63,7 +63,12 @@ pub fn copy_folder_noting(pair: &FolderPair, notes: &mut Vec<String>) -> Result<
 /// Moves a folder that is in the way to `<folder>.pre-dfai-<n>`, the first
 /// number free, and says where. Never deletes it: it may hold work.
 pub fn set_aside(folder: &Path) -> Result<PathBuf, String> {
-    let base = beside(folder, SET_ASIDE_SUFFIX)?;
+    set_aside_as(folder, SET_ASIDE_SUFFIX)
+}
+
+/// Renames `path` to `<path>.<suffix>-<n>`, the first number free.
+pub fn set_aside_as(folder: &Path, suffix: &str) -> Result<PathBuf, String> {
+    let base = beside(folder, suffix)?;
     let free = (1..)
         .map(|at| PathBuf::from(format!("{}-{at}", base.display())))
         .find(|candidate| !matches!(exists(candidate), Ok(true)))

@@ -95,16 +95,64 @@ pub fn folders_under(home: &Path) -> Vec<FolderPair> {
     ]
 }
 
+/// The key a pair is finished under: its new folder's place under
+/// `~/Library`, the same whatever the home folder is called.
+fn pair_key(home: &Path, pair: &FolderPair) -> String {
+    let library = home.join("Library");
+    pair.to
+        .strip_prefix(&library)
+        .unwrap_or(&pair.to)
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// The state this launch works from. A damaged file is kept, renamed aside,
+/// and the launch starts over with `after_damage` set. When it cannot even be
+/// renamed aside, the launch stops rather than write over it.
+fn load_state(file: &Path, outcome: &mut Outcome) -> Option<state::State> {
+    let why = match state::load(file) {
+        state::Loaded::State(state) => return Some(state),
+        state::Loaded::Damaged(why) => why,
+    };
+    match folders::set_aside_as(file, "damaged") {
+        Ok(kept) => {
+            outcome.said.push(format!(
+                "{why}; kept as {}, and only folders DFAI does not have yet are copied",
+                kept.display()
+            ));
+            Some(state::State {
+                after_damage: true,
+                ..state::State::default()
+            })
+        }
+        Err(error) => {
+            let reason = format!("{why}, and it could not be kept aside ({error})");
+            outcome.said.push(reason.clone());
+            outcome.blocked = Some(reason);
+            None
+        }
+    }
+}
+
+/// Whether a pair is finished, or would be taken as finished: after damage,
+/// a new folder already there is DFAI's.
+fn pair_settled(state: &state::State, key: &str, pair: &FolderPair) -> bool {
+    state.folder_done(key) || (state.after_damage && pair.to.exists())
+}
+
 /// Whether a folder still has to be copied from an Atlas folder that exists:
 /// the only case in which a running Atlas matters.
 pub fn folders_pending(home: &Path) -> bool {
     let state = match state::load(&state::state_file(&app_support(home))) {
         state::Loaded::State(state) => state,
-        state::Loaded::Unreadable(_) => return false,
+        state::Loaded::Damaged(_) => state::State {
+            after_damage: true,
+            ..state::State::default()
+        },
     };
     folders_under(home)
         .iter()
-        .any(|pair| !state.folder_done(&pair.to) && pair.from.exists())
+        .any(|pair| !pair_settled(&state, &pair_key(home, pair), pair) && pair.from.exists())
 }
 
 /// Runs the move and says what it did. Safe to run any number of times.
@@ -112,14 +160,8 @@ pub fn migrate(migration: &Migration<'_>) -> Outcome {
     let support = app_support(migration.home);
     let file = state::state_file(&support);
     let mut outcome = Outcome::default();
-    let mut state = match state::load(&file) {
-        state::Loaded::State(state) => state,
-        state::Loaded::Unreadable(why) => {
-            outcome
-                .said
-                .push(format!("{why}; nothing more is migrated"));
-            settled_after_loss(migration.home, &file, &mut outcome)
-        }
+    let Some(mut state) = load_state(&file, &mut outcome) else {
+        return outcome;
     };
     copy_folders(migration.home, &mut state, &mut outcome);
     if outcome.blocked.is_none() {
@@ -132,29 +174,15 @@ pub fn migrate(migration: &Migration<'_>) -> Outcome {
     outcome
 }
 
-/// A state that says everything is finished, after the old one was lost. The
-/// unreadable file is kept beside it, set aside, for whoever looks.
-fn settled_after_loss(home: &Path, file: &Path, outcome: &mut Outcome) -> state::State {
-    if let Err(error) = folders::set_aside(file) {
-        outcome.said.push(error);
-    }
-    let mut state = state::State {
-        keychain_closed: true,
-        ..state::State::default()
-    };
-    for pair in folders_under(home) {
-        state.mark_folder_done(&pair.to);
-    }
-    state
-}
-
 fn copy_folders(home: &Path, state: &mut state::State, outcome: &mut Outcome) {
     for pair in folders_under(home) {
-        if state.folder_done(&pair.to) {
+        let key = pair_key(home, &pair);
+        if pair_settled(state, &key, &pair) {
+            state.mark_folder_done(&key);
             continue;
         }
         match copy_pair(&pair, &mut outcome.said) {
-            Ok(()) => state.mark_folder_done(&pair.to),
+            Ok(()) => state.mark_folder_done(&key),
             Err(error) => {
                 outcome.said.push(error.clone());
                 outcome.blocked.get_or_insert(error);

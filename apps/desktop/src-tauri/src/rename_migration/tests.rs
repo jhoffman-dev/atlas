@@ -772,7 +772,7 @@ fn a_secret_that_cannot_be_read_is_given_up_after_three_launches_and_told_once()
 }
 
 #[test]
-fn a_state_file_that_cannot_be_read_redoes_nothing() {
+fn a_damaged_state_keeps_dfais_folders_and_copies_only_what_dfai_lacks() {
     let home = tempfile::tempdir().unwrap();
     write(
         &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
@@ -783,29 +783,168 @@ fn a_state_file_that_cannot_be_read_redoes_nothing() {
         "newer",
     );
     write(
-        &home
-            .path()
-            .join("Library/Application Support/.dfai-rename-migration.json"),
-        "{ not json",
+        &home.path().join("Library/WebKit/atlas/ls.sqlite3"),
+        "sync id",
     );
-    let new = MemoryStore::default();
+    write(&state_path(home.path()), "{ not json");
+    let new = store_with(&[("v1/github", "newer token")]);
 
-    migrate(&Migration {
+    let outcome = migrate(&Migration {
         home: home.path(),
-        legacy_secrets: &store_with(&[("v1/github", "ghp_A")]),
+        legacy_secrets: &store_with(&[("v1/github", "old"), ("v1/linear", "lin_B")]),
         secrets: &new,
     });
 
+    assert!(outcome.blocked.is_none());
     assert_eq!(
         read(&support(home.path(), IDENTIFIER).join("vault.json")),
         "newer"
     );
-    assert_eq!(new.get("v1/github").unwrap(), None);
-    assert_eq!(state_of(home.path())["keychainClosed"], true);
-    assert!(home
+    assert!(!home
         .path()
-        .join("Library/Application Support/.dfai-rename-migration.json.pre-dfai-1")
-        .is_file());
+        .join("Library/Application Support")
+        .join(format!("{IDENTIFIER}.pre-dfai-1"))
+        .exists());
+    assert_eq!(
+        read(&home.path().join("Library/WebKit/dfai/ls.sqlite3")),
+        "sync id"
+    );
+    assert_eq!(
+        new.get("v1/github").unwrap().as_deref(),
+        Some("newer token")
+    );
+    assert_eq!(new.get("v1/linear").unwrap().as_deref(), Some("lin_B"));
+    assert_eq!(
+        read(
+            &home
+                .path()
+                .join("Library/Application Support/.dfai-rename-migration.json.damaged-1")
+        ),
+        "{ not json"
+    );
+    assert_eq!(
+        state_of(home.path())["accounts"]["v1/linear"]["state"],
+        "done"
+    );
+}
+
+#[test]
+fn a_damaged_state_that_cannot_be_kept_aside_stops_the_launch_and_is_not_written_over() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
+    write(&state_path(home.path()), "{ not json");
+    let folder = home.path().join("Library/Application Support");
+
+    let outcome = {
+        let _locked = ReadOnly::new(&folder);
+        migrate(&Migration {
+            home: home.path(),
+            legacy_secrets: &MemoryStore::default(),
+            secrets: &MemoryStore::default(),
+        })
+    };
+
+    assert!(outcome.blocked.is_some());
+    assert_eq!(read(&state_path(home.path())), "{ not json");
+    assert!(!support(home.path(), IDENTIFIER).exists());
+}
+
+/// Makes a folder read-only for a test, and writable again after.
+struct ReadOnly<'a>(&'a Path);
+
+impl<'a> ReadOnly<'a> {
+    fn new(path: &'a Path) -> Self {
+        fs::set_permissions(path, fs::Permissions::from_mode(0o500)).unwrap();
+        Self(path)
+    }
+}
+
+impl Drop for ReadOnly<'_> {
+    fn drop(&mut self) {
+        let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o700));
+    }
+}
+
+#[test]
+fn after_damage_a_folder_is_pending_only_while_dfai_lacks_it() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
+    write(&state_path(home.path()), "{ not json");
+    assert!(super::folders_pending(home.path()));
+
+    write(
+        &support(home.path(), IDENTIFIER).join("vault.json"),
+        "newer",
+    );
+    assert!(!super::folders_pending(home.path()));
+}
+
+#[test]
+fn pairs_are_finished_under_keys_that_name_no_home_folder() {
+    let home = tempfile::tempdir().unwrap();
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
+
+    migrate(&Migration {
+        home: home.path(),
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    });
+
+    let done: Vec<String> = state_of(home.path())["foldersDone"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|key| key.as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        done,
+        vec![
+            format!("Application Support/{IDENTIFIER}"),
+            format!("WebKit/{IDENTIFIER}"),
+            "WebKit/dfai".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn the_lock_is_beside_the_state_and_a_folder_it_cannot_use_is_an_error() {
+    use super::launch::lock_in;
+
+    let root = tempfile::tempdir().unwrap();
+    let held = lock_in(root.path()).unwrap();
+    assert!(root.path().join(".dfai-rename-migration.lock").is_file());
+    drop(held);
+
+    let blocked = root.path().join("blocked");
+    fs::create_dir(&blocked).unwrap();
+    let refused = {
+        let _locked = ReadOnly::new(&blocked);
+        lock_in(&blocked)
+    };
+    assert!(refused.is_err());
+}
+
+#[test]
+fn only_this_users_atlas_counts_as_running() {
+    use super::launch::is_users_atlas;
+    let atlas = Path::new("/Applications/Atlas.app/Contents/MacOS/Atlas");
+
+    assert!(is_users_atlas(atlas, 501, 501));
+    assert!(!is_users_atlas(atlas, 502, 501));
+    assert!(!is_users_atlas(
+        Path::new("/Applications/DFAI.app/Contents/MacOS/DFAI"),
+        501,
+        501
+    ));
 }
 
 #[test]

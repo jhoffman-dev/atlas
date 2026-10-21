@@ -65,9 +65,6 @@ pub fn copy_unsettled(
     to: &dyn SecretStore,
 ) -> KeychainPass {
     let mut pass = KeychainPass::default();
-    if state.keychain_closed {
-        return pass;
-    }
     let accounts = match from.accounts() {
         Ok(accounts) => accounts,
         Err(error) => {

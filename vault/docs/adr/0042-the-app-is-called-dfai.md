@@ -49,12 +49,23 @@ first thing in `run`, before Tauri makes any folder or webview:
 
 - **What is finished is kept outside every folder copied**, in
   `~/Library/Application Support/.dfai-rename-migration.json`: each folder pair
-  done, and each Keychain account done, still being tried, or given up. It is
-  never judged from whether a new folder exists: WebKit makes its folder as
-  the webview starts, and a launch whose copy failed would otherwise leave a
-  folder that looks finished. A state file that cannot be read is set aside
-  and the migration treated as finished, never as fresh, so DFAI's own data is
-  never set aside for Atlas's again.
+  done, by a key that names its place under `~/Library`
+  (`WebKit/com.dailyflowai.dfai`), never an absolute path, so a renamed home
+  folder finds its pairs finished; and each Keychain account done, still being
+  tried, or given up. It is never judged from whether a new folder exists:
+  WebKit makes its folder as the webview starts, and a launch whose copy
+  failed would otherwise leave a folder that looks finished. It is saved
+  durably: a temporary file flushed with `F_FULLFSYNC`, renamed into place,
+  and the folder flushed.
+- **A damaged state file** (unreadable, or not one this build wrote) is kept,
+  renamed to `.dfai-rename-migration.json.damaged-<n>`, and the launch works
+  from what it can see: a new folder already there is taken as DFAI's own and
+  kept (it cannot be known to be stale, so it is not set aside), and a missing
+  one is copied into. Keychain items are copied where DFAI has none under the
+  account. That can bring back a secret the person removed in DFAI — a risk
+  accepted only in this case, since the record of what was removed is what was
+  lost. When the damaged file cannot even be renamed aside, the launch stops
+  rather than write over it.
 - **Folders:** Application Support and WebKit, `dev.jhoffman.atlas` →
   `com.dailyflowai.dfai`, and WebKit `atlas` → `dfai` for the unbundled build.
   A pair not yet done is copied whole, into a staging folder beside the new one
@@ -74,7 +85,8 @@ first thing in `run`, before Tauri makes any folder or webview:
   Atlas (its bundled executable, or a development build's `target/*/atlas`)
   stops the launch with "Quit Atlas, then open DFAI again." An exclusive lock
   beside the state file, held for the whole migration, makes a second DFAI
-  launch wait for the first.
+  launch wait for the first; a lock that cannot be taken stops the launch like a
+  failed copy. Only the person's own processes count as a running Atlas.
 - **Keychain:** items under the old service are copied to the new one, account
   for account, unless the new service already has that account. This is done
   in Rust, because values never reach the webview (ADR-0017). Each account is

@@ -32,13 +32,16 @@ pub enum AccountState {
 #[serde(rename_all = "camelCase")]
 pub struct State {
     pub version: u32,
-    /// Each folder pair finished, by the path of its new folder.
+    /// Each folder pair finished, by its key: the new folder's place under
+    /// `~/Library` (`WebKit/dfai`), never an absolute path, so a renamed home
+    /// folder still finds its pairs finished.
     pub folders_done: Vec<String>,
     pub accounts: BTreeMap<String, AccountState>,
-    /// No more Keychain items are copied: set when the state was lost, since
-    /// copying again could bring back a secret the person removed in DFAI.
+    /// Set when a state file was found damaged. What was finished is unknown,
+    /// so a new folder already there is taken as DFAI's own and kept, never
+    /// set aside: only a missing one is copied into.
     #[serde(default)]
-    pub keychain_closed: bool,
+    pub after_damage: bool,
     /// Everything the migration did or could not do, launch after launch, for
     /// the report it leaves in DFAI's own folder. Names and paths only.
     pub log: Vec<String>,
@@ -50,20 +53,20 @@ impl Default for State {
             version: FORMAT_VERSION,
             folders_done: Vec::new(),
             accounts: BTreeMap::new(),
-            keychain_closed: false,
+            after_damage: false,
             log: Vec::new(),
         }
     }
 }
 
 impl State {
-    pub fn folder_done(&self, to: &Path) -> bool {
-        self.folders_done.iter().any(|done| Path::new(done) == to)
+    pub fn folder_done(&self, key: &str) -> bool {
+        self.folders_done.iter().any(|done| done == key)
     }
 
-    pub fn mark_folder_done(&mut self, to: &Path) {
-        if !self.folder_done(to) {
-            self.folders_done.push(to.to_string_lossy().into_owned());
+    pub fn mark_folder_done(&mut self, key: &str) {
+        if !self.folder_done(key) {
+            self.folders_done.push(key.to_string());
         }
     }
 }
@@ -77,10 +80,10 @@ pub fn state_file(app_support: &Path) -> PathBuf {
 /// What a load found.
 pub enum Loaded {
     State(State),
-    /// The file is there but is not one this build wrote. A migration has
-    /// run before, so it is treated as finished, never as fresh: fresh would
-    /// set DFAI's own folders aside and copy Atlas's over them again.
-    Unreadable(String),
+    /// The file is there but cannot be read, or is not one this build wrote:
+    /// a power cut mid-save, a disk error, a hand edit. Nothing is known about
+    /// what was finished.
+    Damaged(String),
 }
 
 pub fn load(file: &Path) -> Loaded {
@@ -89,26 +92,46 @@ pub fn load(file: &Path) -> Loaded {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return Loaded::State(State::default())
         }
-        Err(error) => {
-            return Loaded::Unreadable(format!("cannot read {}: {error}", file.display()))
-        }
+        Err(error) => return Loaded::Damaged(format!("cannot read {}: {error}", file.display())),
     };
     match serde_json::from_str::<State>(&text) {
         Ok(state) if state.version == FORMAT_VERSION => Loaded::State(state),
-        _ => Loaded::Unreadable(format!(
-            "{} is not a state this build wrote",
-            file.display()
-        )),
+        _ => Loaded::Damaged(format!("{} is damaged", file.display())),
     }
 }
 
-/// Writes the state whole, through a temporary file renamed over the old.
+/// Writes the state whole and durably: a temporary file, flushed to the disk
+/// itself (`F_FULLFSYNC` on macOS, where `fsync` stops at the drive's cache),
+/// renamed over the old, and the folder flushed so the rename survives too.
 pub fn save(file: &Path, state: &State) -> Result<(), String> {
     let json = serde_json::to_string_pretty(state).map_err(|error| error.to_string())?;
     let staged = file.with_extension("json.new");
-    file.parent()
-        .map_or(Ok(()), fs::create_dir_all)
-        .and_then(|()| fs::write(&staged, json))
+    let folder = file.parent().unwrap_or(Path::new("."));
+    write_durably(folder, &staged, json.as_bytes())
         .and_then(|()| fs::rename(&staged, file))
+        .and_then(|()| flush(&fs::File::open(folder)?))
         .map_err(|error| format!("cannot save {}: {error}", file.display()))
+}
+
+fn write_durably(folder: &Path, staged: &Path, bytes: &[u8]) -> io::Result<()> {
+    use std::io::Write;
+    fs::create_dir_all(folder)?;
+    let mut file = fs::File::create(staged)?;
+    file.write_all(bytes)?;
+    flush(&file)
+}
+
+#[cfg(target_os = "macos")]
+fn flush(file: &fs::File) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    // SAFETY: the descriptor is the open file's, alive for this call.
+    if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_FULLFSYNC) } == -1 {
+        return file.sync_all();
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn flush(file: &fs::File) -> io::Result<()> {
+    file.sync_all()
 }
