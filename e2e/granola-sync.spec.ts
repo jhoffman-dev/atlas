@@ -200,9 +200,15 @@ test('a second Sync now that fails the same way, while its toast still shows, ge
 
   await page.clock.runFor(4000);
   await expect(toast).toBeVisible();
+  // The first toast says the same words, so they cannot show the second has
+  // been drawn: the first is marked, and the second is waited for as a new toast.
+  await toast.evaluate((first) => first.setAttribute('data-e2e-first', ''));
   await card(page).getByRole('button', { name: 'Sync now' }).click();
   await expect.poll(syncNowCount).toBe(2);
-  await expect(toast).toContainText('Granola refused the API key');
+  await expect(page.locator('.toast:not([data-e2e-first])')).toContainText(
+    'Granola refused the API key',
+  );
+  await expect(toast).toHaveCount(1);
 
   // 5.5 s or more after the first showing, 1.5 s after the second: still up —
   // gone, had the second not started the time afresh.
