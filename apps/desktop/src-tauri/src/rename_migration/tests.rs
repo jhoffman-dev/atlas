@@ -403,3 +403,217 @@ fn the_identifier_is_the_one_the_app_is_bundled_with() {
 
     assert_eq!(config["identifier"], IDENTIFIER);
 }
+
+// --- Adversarial tests for PR #485 (attack-485). Each names the invariant it holds the migration to.
+
+/// Makes `path` unreadable for the length of a test, and readable again after,
+/// so the temp folder can always be removed.
+struct Unreadable<'a>(&'a Path, u32);
+
+impl<'a> Unreadable<'a> {
+    fn new(path: &'a Path, restore: u32) -> Self {
+        fs::set_permissions(path, fs::Permissions::from_mode(0o000)).unwrap();
+        Self(path, restore)
+    }
+}
+
+impl Drop for Unreadable<'_> {
+    fn drop(&mut self) {
+        let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(self.1));
+    }
+}
+
+#[test]
+fn attack_485_a_failed_app_support_copy_is_retried_even_though_the_secrets_copied() {
+    let home = tempfile::tempdir().unwrap();
+    let old_support = support(home.path(), LEGACY_IDENTIFIER);
+    write(&old_support.join("vault.json"), r#"{"absolutePath":"/v"}"#);
+    let locked = old_support.join("grants.json");
+    write(&locked, "g");
+    let old = store_with(&[("v1/github", "ghp_A")]);
+    let new = MemoryStore::default();
+    let migration = Migration {
+        home: home.path(),
+        legacy_secrets: &old,
+        secrets: &new,
+    };
+
+    {
+        let _locked = Unreadable::new(&locked, 0o600);
+        migrate(&migration);
+    }
+    // The file is readable again: the next launch should finish the copy.
+    migrate(&migration);
+
+    assert_eq!(
+        fs::read_to_string(support(home.path(), IDENTIFIER).join("vault.json")).ok(),
+        Some(r#"{"absolutePath":"/v"}"#.to_string()),
+        "the secrets' marker made the new app-support folder, so the failed folder copy was never retried"
+    );
+}
+
+#[test]
+fn attack_485_a_failed_folder_copy_is_not_forgotten_once_the_app_has_made_its_folder() {
+    let home = tempfile::tempdir().unwrap();
+    let old_webkit = home.path().join("Library/WebKit").join(LEGACY_IDENTIFIER);
+    let locked = old_webkit.join("WebsiteData/LocalStorage/localstorage.sqlite3");
+    write(&locked, "sync id");
+    let none = MemoryStore::default();
+    let migration = Migration {
+        home: home.path(),
+        legacy_secrets: &none,
+        secrets: &none,
+    };
+
+    let first = {
+        let _locked = Unreadable::new(&locked, 0o600);
+        migrate(&migration)
+    };
+    assert!(
+        !first.is_empty(),
+        "the first launch reports the failed copy"
+    );
+    // The app then starts as usual and WebKit files fresh, empty storage.
+    write(
+        &home
+            .path()
+            .join("Library/WebKit")
+            .join(IDENTIFIER)
+            .join("WebsiteData/LocalStorage/localstorage.sqlite3"),
+        "",
+    );
+    let second = migrate(&migration);
+
+    let copied = fs::read_to_string(
+        home.path()
+            .join("Library/WebKit")
+            .join(IDENTIFIER)
+            .join("WebsiteData/LocalStorage/localstorage.sqlite3"),
+    )
+    .unwrap();
+    assert!(
+        copied == "sync id" || !second.is_empty(),
+        "a copy that failed is neither retried nor reported again: Atlas's storage is silently dropped"
+    );
+}
+
+#[test]
+fn attack_485_a_secret_removed_in_dfai_stays_removed_while_another_is_still_denied() {
+    let home = tempfile::tempdir().unwrap();
+    let denied = DeniesOne {
+        inner: store_with(&[("v1/github", "ghp_A"), ("v1/openai", "sk_B")]),
+        denied: "v1/openai",
+    };
+    let new = MemoryStore::default();
+    let migration = Migration {
+        home: home.path(),
+        legacy_secrets: &denied,
+        secrets: &new,
+    };
+
+    migrate(&migration);
+    assert_eq!(new.get("v1/github").unwrap().as_deref(), Some("ghp_A"));
+    new.delete("v1/github").unwrap();
+    migrate(&migration);
+
+    assert_eq!(
+        new.get("v1/github").unwrap(),
+        None,
+        "the person removed it in DFAI, and the retry for the denied item brought it back"
+    );
+}
+
+#[test]
+fn attack_485_a_leftover_staging_folder_holding_a_read_only_folder_does_not_block_the_copy() {
+    let root = tempfile::tempdir().unwrap();
+    let folders = pair(root.path());
+    write(&folders.from.join("vault.json"), "old");
+    // What a crashed copy leaves when it had finished a read-only folder:
+    // `copy_tree` sets a folder's permissions after filling it.
+    let read_only = root.path().join("new.migrating/model");
+    write(&read_only.join("weights.bin"), "w");
+    fs::set_permissions(&read_only, fs::Permissions::from_mode(0o500)).unwrap();
+
+    let copied = copy_folder_once(&folders);
+    let _ = fs::set_permissions(&read_only, fs::Permissions::from_mode(0o700));
+
+    assert_eq!(
+        copied,
+        Ok(Copied::Folder),
+        "a staging folder the next launch cannot clear blocks the migration on every launch"
+    );
+}
+
+#[test]
+fn attack_485_an_old_folder_that_is_a_link_is_copied_so_dfai_never_writes_into_atlas() {
+    let root = tempfile::tempdir().unwrap();
+    let real = root.path().join("elsewhere");
+    write(&real.join("vault.json"), "old");
+    let folders = pair(root.path());
+    std::os::unix::fs::symlink(&real, &folders.from).unwrap();
+
+    copy_folder_once(&folders).unwrap();
+
+    assert!(
+        !fs::symlink_metadata(&folders.to)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+        "the new folder is a link to Atlas's data, so every DFAI write changes Atlas's copy"
+    );
+}
+
+#[test]
+fn attack_485_a_link_loop_inside_the_old_folder_is_copied_as_links_and_ends() {
+    let root = tempfile::tempdir().unwrap();
+    let folders = pair(root.path());
+    write(&folders.from.join("vault.json"), "old");
+    std::os::unix::fs::symlink("b", folders.from.join("a")).unwrap();
+    std::os::unix::fs::symlink("a", folders.from.join("b")).unwrap();
+    std::os::unix::fs::symlink(".", folders.from.join("self")).unwrap();
+
+    assert_eq!(copy_folder_once(&folders).unwrap(), Copied::Folder);
+    assert_eq!(read(&folders.to.join("vault.json")), "old");
+    assert_eq!(
+        fs::read_link(folders.to.join("self")).unwrap(),
+        Path::new(".")
+    );
+}
+
+#[test]
+fn attack_485_many_files_in_deep_folders_all_arrive() {
+    let root = tempfile::tempdir().unwrap();
+    let folders = pair(root.path());
+    for at in 0..2000 {
+        write(
+            &folders
+                .from
+                .join(format!("d{}/e{}/f{at}.json", at % 7, at % 13)),
+            &at.to_string(),
+        );
+    }
+    let deep = (0..60).fold(folders.from.clone(), |path, at| path.join(format!("n{at}")));
+    write(&deep.join("leaf"), "leaf");
+
+    assert_eq!(copy_folder_once(&folders).unwrap(), Copied::Folder);
+    assert_eq!(read(&folders.to.join("d4/e10/f1999.json")), "1999");
+    let copied_deep = (0..60).fold(folders.to.clone(), |path, at| path.join(format!("n{at}")));
+    assert_eq!(read(&copied_deep.join("leaf")), "leaf");
+}
+
+#[test]
+fn attack_485_an_unreadable_old_folder_fails_loudly_and_makes_nothing() {
+    let root = tempfile::tempdir().unwrap();
+    let folders = pair(root.path());
+    write(&folders.from.join("sub/vault.json"), "old");
+    let sub = folders.from.join("sub");
+
+    let copied = {
+        let _locked = Unreadable::new(&sub, 0o700);
+        copy_folder_once(&folders)
+    };
+
+    assert!(copied.is_err());
+    assert!(!folders.to.exists());
+    assert!(!root.path().join("new.migrating").exists());
+}
