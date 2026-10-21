@@ -9,7 +9,7 @@ import {
   vaultPathName,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { renameEntry } from '../vault/relocate-entry.ts';
 import { unarchiveNotes, type ArchivePorts } from './archive-notes.ts';

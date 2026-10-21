@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { Active, DragMoveEvent, DragStartEvent } from '@dnd-kit/core';
-import type { CalendarEvent, TrayTask } from '@atlas/domain';
+import type { CalendarEvent, TrayTask } from '@dfai/domain';
 import type { CalendarGestures } from '../calendar-gestures.ts';
 import { useClockDrag } from './clock-drag.ts';
 import { trayDragId, useTrayDrag } from './tray-drag.ts';

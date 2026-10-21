@@ -7,7 +7,7 @@ import {
   MAX_PANES,
   type NavigationPlace,
   type Workspace,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   activateNthTab,
   activateTab,

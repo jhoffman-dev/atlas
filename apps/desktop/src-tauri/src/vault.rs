@@ -153,7 +153,7 @@ pub(crate) fn resolve(root: &Path, relative: &str) -> Result<PathBuf, String> {
 /// Refuses any path into a `.git` folder, or at a `.git` file, whatever case
 /// it is spelled in.
 ///
-/// Atlas runs `git` in the vault (U-29), and git trusts what is in `.git`: a
+/// DFAI runs `git` in the vault (U-29), and git trusts what is in `.git`: a
 /// `.git/config` naming `core.sshCommand`, or a `.git` file pointing at another
 /// repository, is a program run the next time the vault syncs. The webview is
 /// the untrusted side (ADR-0017), so no vault read or write may reach there;
@@ -1277,7 +1277,7 @@ mod tests {
         assert!(resolve_new(vault.path(), ".atlas/new.md").is_ok());
     }
 
-    /// Atlas runs `git` in the vault (U-29): a `.git/config` or `.git` file the
+    /// DFAI runs `git` in the vault (U-29): a `.git/config` or `.git` file the
     /// webview could write would be a program git runs. Named or reached, in
     /// any case, for reads and writes alike, it is refused.
     #[test]

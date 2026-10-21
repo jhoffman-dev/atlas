@@ -32,7 +32,7 @@ const bookmark = (target: string): EditorNode => ({
 });
 
 describe('the bookmark marker', () => {
-  it('is the comment Atlas writes', () => {
+  it('is the comment DFAI writes', () => {
     expect(BOOKMARK_MARKER).toBe('<!-- atlas:bookmark -->');
     expect(isBookmarkMarker(BOOKMARK_MARKER)).toBe(true);
   });

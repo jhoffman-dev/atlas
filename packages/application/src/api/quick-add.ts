@@ -1,4 +1,4 @@
-import { quickAddChoice, quickAddFields, type ObjectType } from '@atlas/domain';
+import { quickAddChoice, quickAddFields, type ObjectType } from '@dfai/domain';
 import { quickAddNote } from '../quick-add/quick-add-note.ts';
 import { loadQuickAddSetting } from '../quick-add/vault-settings.ts';
 import { loadObjectTypes } from '../types/load-types.ts';

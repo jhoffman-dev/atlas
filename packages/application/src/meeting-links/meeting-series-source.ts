@@ -16,7 +16,7 @@ import {
   type SeriesMeetingRow,
   type SeriesParticipantRow,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 
 type Index = Pick<IndexPort, 'query'>;

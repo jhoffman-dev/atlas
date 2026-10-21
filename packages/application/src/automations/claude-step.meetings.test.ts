@@ -19,7 +19,7 @@ import {
   type NoteChange,
   type NoteVersion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ModelEvent } from '../chat/ports.ts';
 import { heldEntries } from '../index/refresh-index.ts';
 import { createMeetingLinker } from '../meeting-links/link-imported-meetings.ts';

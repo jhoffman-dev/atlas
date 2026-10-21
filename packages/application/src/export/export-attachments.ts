@@ -8,7 +8,7 @@ import {
   type VaultEntry,
   type VaultFile,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { listedFile } from '../thumbnails/page-thumbnail.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 

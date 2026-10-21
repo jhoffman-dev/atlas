@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ExportDestination, ExportFilesPort } from '@atlas/application';
+import type { ExportDestination, ExportFilesPort } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 /** The headers `export_write_file` reads, as `export.rs` names them. */

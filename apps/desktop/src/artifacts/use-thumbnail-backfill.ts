@@ -5,7 +5,7 @@ import {
   type MarkdownPort,
   type ThumbnailQueue,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /** "Generate missing thumbnails", and how far it has got. */
 export interface ThumbnailBackfill {

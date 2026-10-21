@@ -5,7 +5,7 @@ import {
   SHIPPED_PROPERTIES_RECORD_PATH,
   shippedPropertiesRecordText,
   type GitConflict,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   failed,
   fakeBlob,
@@ -84,7 +84,7 @@ function stoppedOn({
   return { settle, vault };
 }
 
-describe('settleConflicts on a settings file of Atlas’s own (#233)', () => {
+describe('settleConflicts on a settings file of DFAI’s own (#233)', () => {
   it('writes the record both Macs changed as the union of both, with no copy', async () => {
     const { settle, vault } = stoppedOn();
     expect(await settle()).toEqual([]);
@@ -114,7 +114,7 @@ describe('settleConflicts on a settings file of Atlas’s own (#233)', () => {
     ['git fails to read a side', { readBlob: failed('fatal: bad object', 128) }],
     [
       'the host cut a side short',
-      { readBlob: { code: 0, stdout: SIDES.theirs, stderr: 'Atlas cut cat-file’s output.' } },
+      { readBlob: { code: 0, stdout: SIDES.theirs, stderr: 'DFAI cut cat-file’s output.' } },
     ],
     ['a side is not UTF-8', { readBlob: said(`${SIDES.theirs}\uFFFD\n`) }],
   ])('keeps both versions, with a copy, when %s', async (_, script) => {

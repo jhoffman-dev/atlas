@@ -12,8 +12,8 @@ import {
   fakeVaultFs,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath } from '@dfai/domain';
 import { useInbox } from './use-inbox.ts';
 
 const NOTE = createVaultPath('Inbox/Call Mara.md');
@@ -34,7 +34,7 @@ function filing(readProject: () => Promise<{ text: string; modified: number }>) 
     },
   };
   const activity = recordingActivity();
-  const notePaths = [NOTE, createVaultPath('Projects/Atlas.md')];
+  const notePaths = [NOTE, createVaultPath('Projects/DFAI.md')];
   const hook = renderHook(() =>
     useInbox({
       ports,
@@ -53,7 +53,7 @@ function filing(readProject: () => Promise<{ text: string; modified: number }>) 
     act(() =>
       hook.result.current.clarify({
         path: NOTE,
-        clarification: { project: createVaultPath('Projects/Atlas.md') },
+        clarification: { project: createVaultPath('Projects/DFAI.md') },
       }),
     );
   return { hook, activity, file };

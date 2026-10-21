@@ -5,8 +5,8 @@ import {
   pluralOf,
   statusTone,
   type StatusTone,
-} from '@atlas/domain';
-import type { WidgetBar } from '@atlas/application';
+} from '@dfai/domain';
+import type { WidgetBar } from '@dfai/application';
 import { useNoteNames } from '../note-names.tsx';
 
 /**

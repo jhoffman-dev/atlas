@@ -1,6 +1,6 @@
 ---
 atlas: dashboard
-description: Every task on the Atlas board, by phase and status
+description: Every task on the DFAI board, by phase and status
 widgets:
   - title: Tasks
     kind: hero

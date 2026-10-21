@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type ObjectType } from '@atlas/domain';
+import { createVaultPath, type ObjectType } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { createPerson, loadPeople } from './people.ts';
 

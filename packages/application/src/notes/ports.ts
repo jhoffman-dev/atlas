@@ -1,4 +1,4 @@
-import type { BodyRange, EditorDocument, ParsedBody, RawPart } from '@atlas/domain';
+import type { BodyRange, EditorDocument, ParsedBody, RawPart } from '@dfai/domain';
 
 /**
  * Turning markdown into an editable document and back. The implementation is a

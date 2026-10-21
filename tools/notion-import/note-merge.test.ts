@@ -35,7 +35,7 @@ describe('a digest', () => {
 describe('merging a note with Notion, against the last import', () => {
   const last = lastRun({ status: 'next-action', priority: 'H' }, 'Old words');
 
-  it("takes Notion's change where Atlas left the value as imported", () => {
+  it("takes Notion's change where DFAI left the value as imported", () => {
     const merge = mergeNote({
       now: { properties: { status: 'next-action', priority: 'H' }, body: '\nOld words\n' },
       wanted: wanted({ status: 'waiting', priority: 'H' }, '\nNew words\n'),
@@ -46,7 +46,7 @@ describe('merging a note with Notion, against the last import', () => {
     expect(merge.kept).toEqual([]);
   });
 
-  it('leaves an edit made in Atlas when Notion has not changed, and lists nothing', () => {
+  it('leaves an edit made in DFAI when Notion has not changed, and lists nothing', () => {
     const merge = mergeNote({
       now: { properties: { status: 'in-progress', priority: 'H' }, body: 'Edited' },
       wanted: wanted({ status: 'next-action', priority: 'H' }, 'Old words'),
@@ -57,7 +57,7 @@ describe('merging a note with Notion, against the last import', () => {
     expect(merge.kept).toEqual([]);
   });
 
-  it("keeps Atlas's value, and lists it, when both changed", () => {
+  it("keeps DFAI's value, and lists it, when both changed", () => {
     const merge = mergeNote({
       now: { properties: { status: 'in-progress', priority: 'H' }, body: 'Edited' },
       wanted: wanted({ status: 'waiting', priority: 'L' }, 'Rewritten'),
@@ -85,7 +85,7 @@ describe('merging a note with Notion, against the last import', () => {
     expect(second.changes).toEqual({});
   });
 
-  it('takes a value out when Notion cleared it and Atlas still holds what was imported', () => {
+  it('takes a value out when Notion cleared it and DFAI still holds what was imported', () => {
     const merge = mergeNote({
       now: { properties: { status: 'next-action', priority: 'H' }, body: 'Old words' },
       wanted: wanted({ status: 'next-action' }, 'Old words'),

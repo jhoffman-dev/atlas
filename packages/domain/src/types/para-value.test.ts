@@ -21,7 +21,7 @@ import { relationTypeRefusal } from './property-value.ts';
 import { typeFrontmatter } from './type-frontmatter.ts';
 
 /** #213: PARA is a property of the one Project type. */
-describe('the Project type Atlas writes', () => {
+describe('the Project type DFAI writes', () => {
   it('is the only PARA type, and carries PARA and an optional Area', () => {
     expect(PARA_TYPE_FILES).toEqual([PROJECT_TYPE_FILE]);
     const { properties } = PROJECT_TYPE_FILE.type;
@@ -188,7 +188,7 @@ describe('PARA relations', () => {
 
   const notes = [
     { path: 'Home.md', title: 'Home', para: 'area' as const },
-    { path: 'Atlas.md', title: 'Atlas', para: 'project' as const },
+    { path: 'DFAI.md', title: 'DFAI', para: 'project' as const },
     { path: 'Manual.md', title: 'Manual', para: 'resource' as const },
     { path: 'Old.md', title: 'Old', para: 'archive' as const },
     { path: 'Garden.md', title: 'Garden', para: 'area' as const },
@@ -196,7 +196,7 @@ describe('PARA relations', () => {
 
   it('groups a task’s Project picker as projects then areas: no resource, nothing archived', () => {
     expect(paraChoices(notes, ['project', 'area']).map((note) => note.title)).toEqual([
-      'Atlas',
+      'DFAI',
       'Home',
       'Garden',
     ]);
@@ -210,7 +210,7 @@ describe('PARA relations', () => {
     const titles = paraChoices(notes, ['project', 'area', 'resource', 'archive']).map(
       (note) => note.title,
     );
-    expect(titles).toEqual(['Atlas', 'Home', 'Garden', 'Manual']);
+    expect(titles).toEqual(['DFAI', 'Home', 'Garden', 'Manual']);
   });
 
   it('heads PARA’s groups as PARA does, and any other type by its name', () => {

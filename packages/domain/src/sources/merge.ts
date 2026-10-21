@@ -4,7 +4,7 @@
  * A note produced by a source is still your note: you can open it, write under
  * it and link to it. So a refresh never overwrites a body you have changed. It
  * knows the difference because it records a digest of the body it last wrote —
- * if the body still matches, it is Atlas's to replace; if it does not, it is
+ * if the body still matches, it is DFAI's to replace; if it does not, it is
  * yours to keep.
  *
  * The other half of that promise is the path. A record's note is identified by
@@ -30,7 +30,7 @@ export interface ExistingSourceNote {
   readonly path: string;
   /** The record it was made from. */
   readonly key: string;
-  /** The digest of the body Atlas last wrote into it. */
+  /** The digest of the body DFAI last wrote into it. */
   readonly digest: string;
   /** What the body says now. */
   readonly body: string;
@@ -49,7 +49,7 @@ export type SourceWrite =
       readonly properties: Readonly<Record<string, unknown>>;
       readonly body: string;
     }
-  /** The whole note is Atlas's to replace: you have not touched the body. */
+  /** The whole note is DFAI's to replace: you have not touched the body. */
   | {
       readonly kind: 'replace';
       readonly path: string;

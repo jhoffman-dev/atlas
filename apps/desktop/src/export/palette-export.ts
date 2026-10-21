@@ -1,4 +1,4 @@
-import type { PaletteCommand, VaultPath } from '@atlas/domain';
+import type { PaletteCommand, VaultPath } from '@dfai/domain';
 import type { ExportCommands } from './export-flow.ts';
 
 const EXPORT_NOTE = 'export-note';

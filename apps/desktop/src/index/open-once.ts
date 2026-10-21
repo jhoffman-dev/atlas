@@ -1,4 +1,4 @@
-import type { IndexOpening, IndexPort } from '@atlas/application';
+import type { IndexOpening, IndexPort } from '@dfai/application';
 
 /**
  * The index, opened once for the vault it was made for (#238). Every sync

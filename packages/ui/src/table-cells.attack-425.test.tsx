@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, noteNames, type PropertyDef } from '@atlas/domain';
+import { createVaultPath, noteNames, type PropertyDef } from '@dfai/domain';
 import { NoteNamesProvider } from './note-names.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 import { TableView, type TableResult, type TableSchema } from './table-view.tsx';

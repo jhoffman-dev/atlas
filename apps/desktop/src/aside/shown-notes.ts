@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { createStore, useStore, type StoreApi } from 'zustand';
-import type { EditorDocument, TabId, VaultPath } from '@atlas/domain';
-import type { BacklinksPane, PropertiesPanel } from '@atlas/ui';
+import type { EditorDocument, TabId, VaultPath } from '@dfai/domain';
+import type { BacklinksPane, PropertiesPanel } from '@dfai/ui';
 
 type PanelProps = Parameters<typeof PropertiesPanel>[0];
 type BacklinksProps = Parameters<typeof BacklinksPane>[0];

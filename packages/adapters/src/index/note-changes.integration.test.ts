@@ -20,8 +20,8 @@ import {
   fakeVaultFs,
   recordingActivity,
   type NoteChangeNews,
-} from '@atlas/application';
-import { digestOf } from '@atlas/domain';
+} from '@dfai/application';
+import { digestOf } from '@dfai/domain';
 
 /**
  * The change feed end to end on this side of the boundary: notes written to a

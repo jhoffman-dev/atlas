@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkLeaf, type IndexFacet } from '@atlas/domain';
+import { linkLeaf, type IndexFacet } from '@dfai/domain';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { readVaultGraph } from '../graph/load-graph.ts';

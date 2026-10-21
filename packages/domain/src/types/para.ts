@@ -7,7 +7,7 @@ import {
 } from './property-def.ts';
 
 /**
- * PARA in Atlas: Projects and Areas are what everything is filed under,
+ * PARA in DFAI: Projects and Areas are what everything is filed under,
  * Resources are reference kept for them, and the Archive is where finished
  * things go (U-22). One type holds all four (#213, ADR-0037): a Project
  * note's `para` says which it is, so moving one between them — into the
@@ -26,7 +26,7 @@ export const PARA_KEY = 'para';
 
 /**
  * Where archiving a PARA note keeps what its `para` was, for Unarchive to
- * give back (#213). Atlas writes and clears it; nothing requires it.
+ * give back (#213). DFAI writes and clears it; nothing requires it.
  */
 export const PARA_BEFORE_ARCHIVE_KEY = 'para_before_archive';
 
@@ -36,7 +36,7 @@ export type ParaValue = 'project' | 'area' | 'resource' | 'archive';
 /** The four, in the order PARA reads them and pickers group them. */
 export const PARA_VALUES: readonly ParaValue[] = ['project', 'area', 'resource', 'archive'];
 
-/** What a Project note with no `para` — or one Atlas cannot read — is. */
+/** What a Project note with no `para` — or one DFAI cannot read — is. */
 export const DEFAULT_PARA: ParaValue = 'project';
 
 /** The value that puts a Project note away: archived without moving its file. */
@@ -92,7 +92,7 @@ const SUMMARY: PropertyDef = {
   many: false,
 };
 
-/** A built-in type as Atlas writes it into a vault that has none, and what its file says. */
+/** A built-in type as DFAI writes it into a vault that has none, and what its file says. */
 export interface BuiltInTypeFile {
   readonly type: ObjectType;
   /** The body under the frontmatter, so the file reads as what it is anywhere else. */
@@ -141,12 +141,12 @@ export const PARA_TYPE_FILES: readonly BuiltInTypeFile[] = [PROJECT_TYPE_FILE];
 
 /**
  * The built-in types notes are filed by, when the vault has them: each gains
- * `project`, pointing at a project or an area. Atlas does not write these
+ * `project`, pointing at a project or an area. DFAI does not write these
  * types into a vault that lacks them; other features do (U-20).
  */
 const FILED_TYPES: readonly string[] = ['task', MEETING_TYPE, RESOURCE_TYPE];
 
-/** What a vault's own type lacks of what Atlas needs it to have. */
+/** What a vault's own type lacks of what DFAI needs it to have. */
 export interface TypeExtension<Type extends ObjectType = ObjectType> {
   /** The type as the vault has it. */
   readonly before: Type;

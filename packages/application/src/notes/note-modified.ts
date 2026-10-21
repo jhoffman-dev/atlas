@@ -1,4 +1,4 @@
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /**

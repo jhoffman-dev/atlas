@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { shippedPropertiesLine, shippedPropertiesSkippedLine, typeSetupLines } from '@atlas/domain';
+import { shippedPropertiesLine, shippedPropertiesSkippedLine, typeSetupLines } from '@dfai/domain';
 import {
   acceptTypeSetup,
   ensureBuiltInTypes,
@@ -9,7 +9,7 @@ import {
   type TypeSetupFailure,
   type TypeSetupOffer,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 const NOTHING_OFFERED: TypeSetupOffer = { types: [], extensions: [] };
 
@@ -29,7 +29,7 @@ export interface TypesOffer {
 
 /**
  * Makes the vault's types whole when it opens: each built-in type file gains
- * the properties Atlas ships that it predates (#162), and anything else —
+ * the properties DFAI ships that it predates (#162), and anything else —
  * PARA for a vault without it, PARA's change to the vault's own types, its
  * Project type's PARA and Area (#213) — is held as an offer, which the Inbox
  * shows (P30-01). Null once the types are read and nothing is offered.
@@ -94,7 +94,7 @@ export function useBuiltInTypes({
         activity.record({
           level: 'warning',
           kind: 'app',
-          message: `Atlas could not add its built-in properties to ${name}: ${reason}`,
+          message: `DFAI could not add its built-in properties to ${name}: ${reason}`,
           subject: null,
         });
       }

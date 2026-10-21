@@ -1,4 +1,4 @@
-import type { NoteVersion, VaultPath } from '@atlas/domain';
+import type { NoteVersion, VaultPath } from '@dfai/domain';
 
 /** One column of a type's SQL view. */
 export interface ViewColumnSpec {

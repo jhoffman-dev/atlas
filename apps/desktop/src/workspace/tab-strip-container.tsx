@@ -1,5 +1,5 @@
-import { tabPlace, type NavigationPlace, type Tab } from '@atlas/domain';
-import { TabStrip, useNoteNames, type IconName, type TabStripTab } from '@atlas/ui';
+import { tabPlace, type NavigationPlace, type Tab } from '@dfai/domain';
+import { TabStrip, useNoteNames, type IconName, type TabStripTab } from '@dfai/ui';
 import { activateTab, closeTab, newTabIn, useActiveTabId, usePaneTabs } from './workspace-store.ts';
 import { useWorkspaceStores } from './workspace-wiring.tsx';
 

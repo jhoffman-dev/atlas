@@ -88,7 +88,7 @@ impl GoogleConnection {
 }
 
 /// What disconnecting did. The sign-in is always forgotten here; `revoked`
-/// is false when Google was not told, so the person can remove Atlas's access
+/// is false when Google was not told, so the person can remove DFAI's access
 /// from their Google account themselves — and `shared` says it was not told
 /// on purpose, because another vault on this Mac signs in with the same
 /// client and revoking one grant may end the other's (ADR-0030).
@@ -304,7 +304,7 @@ impl Session<'_> {
             }
             Ok(Callback::Refused(code)) => Err(GoogleFailure::new(
                 FailureKind::Refused,
-                "Google did not let Atlas in",
+                "Google did not let DFAI in",
             )
             .with_code(&code)),
             Err(failure) => Err(failure),
@@ -341,7 +341,7 @@ impl Session<'_> {
         let refresh_token = tokens.refresh_token.ok_or_else(|| {
             GoogleFailure::new(
                 FailureKind::Malformed,
-                "Google gave no refresh token, so Atlas could not stay connected",
+                "Google gave no refresh token, so DFAI could not stay connected",
             )
         })?;
         let scopes = match granted_scopes(tokens.scope.as_deref(), &request.scopes) {

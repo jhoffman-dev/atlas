@@ -30,7 +30,7 @@ export interface Chunk<M> {
 const FETCH_FAILED =
   /Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module/i;
 
-const warnUnloaded = (cause: unknown) => console.warn('A part of Atlas could not load:', cause);
+const warnUnloaded = (cause: unknown) => console.warn('A part of DFAI could not load:', cause);
 
 export function chunkOf<M>({
   load,

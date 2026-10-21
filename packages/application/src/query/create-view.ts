@@ -6,7 +6,7 @@ import {
   type NewViewRequest,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 

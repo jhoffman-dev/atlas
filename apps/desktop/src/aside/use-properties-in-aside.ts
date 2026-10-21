@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import { activeTabOf, type TabId, type VaultPath } from '@atlas/domain';
+import { activeTabOf, type TabId, type VaultPath } from '@dfai/domain';
 import type { WorkspaceStore } from '../workspace/workspace-store.ts';
 import { asideShown, focusedRowOf, type AsideStore } from './aside-store.ts';
 

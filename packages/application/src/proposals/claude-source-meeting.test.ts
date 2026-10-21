@@ -13,7 +13,7 @@ import {
   splitFrontmatter,
   type AnsweredNote,
   type ProposalDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { processInboxItems } from '../inbox/process-inbox.ts';
 import { ensureBuiltInTypes } from '../types/ensure-built-in-types.ts';
 import { MEETING_BODY } from '../testing/meeting-files.ts';

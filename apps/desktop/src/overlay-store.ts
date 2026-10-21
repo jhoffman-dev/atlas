@@ -1,5 +1,5 @@
 import { createStore, useStore, type StoreApi } from 'zustand';
-import type { EntryMove, VaultPath } from '@atlas/domain';
+import type { EntryMove, VaultPath } from '@dfai/domain';
 import {
   NO_OVERLAY,
   drawnByWindow,

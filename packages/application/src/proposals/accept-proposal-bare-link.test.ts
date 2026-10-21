@@ -4,7 +4,7 @@
  * must open the task, not the archived proposal.
  */
 import { describe, expect, it } from 'vitest';
-import { resolveWikiLinkTarget, type VaultPath } from '@atlas/domain';
+import { resolveWikiLinkTarget, type VaultPath } from '@dfai/domain';
 import { jsonLinesNote, proposalVault, vaultPath } from '../testing/proposal-vault.ts';
 import { acceptProposalNote } from './accept-proposal.ts';
 

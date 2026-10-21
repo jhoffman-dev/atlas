@@ -53,7 +53,7 @@ function failureMessage(error: unknown): string {
   if (error instanceof AtlasCallError) return error.message;
   // Unexpected: logged in full to stderr for whoever runs the server, never sent as a stack.
   console.error(error);
-  return `Atlas MCP server error: ${error instanceof Error ? error.message : String(error)}`;
+  return `DFAI MCP server error: ${error instanceof Error ? error.message : String(error)}`;
 }
 
 /**

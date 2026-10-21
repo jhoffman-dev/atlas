@@ -29,7 +29,7 @@ const DECISION = parseObjectType({
   },
 });
 const PROPOSAL = parseObjectType({ name: 'proposal', properties: {} });
-/** The Area and Resource types as Atlas wrote them before PARA became a property (#213). */
+/** The Area and Resource types as DFAI wrote them before PARA became a property (#213). */
 const AREA = parseObjectType({ name: 'area', label: 'Area', properties: { description: 'text' } });
 const RESOURCE = parseObjectType({
   name: 'resource',
@@ -47,7 +47,7 @@ const PARA_TYPES: readonly ObjectType[] = [
   RESOURCE,
 ];
 
-/** A vault as Atlas sets one up: GTD tasks, PARA, meetings and decisions. */
+/** A vault as DFAI sets one up: GTD tasks, PARA, meetings and decisions. */
 const TYPES: readonly ObjectType[] = [
   PERSON,
   COMPANY,

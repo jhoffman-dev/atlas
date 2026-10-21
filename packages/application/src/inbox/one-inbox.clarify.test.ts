@@ -4,7 +4,7 @@
  * a real index filled from the notes, so the statement is what is asserted.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, GTD_STATUSES } from '@atlas/domain';
+import { createVaultPath, GTD_STATUSES } from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { acceptProposalNote } from '../proposals/accept-proposal.ts';
 import { readWeeklyReview } from '../review/read-weekly-review.ts';

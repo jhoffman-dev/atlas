@@ -9,7 +9,7 @@ import {
   vaultPathSegments,
   VAULT_ROOT,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { MoveRefusedError } from './relocate-entry.ts';
 import type { VaultFsPort } from './ports.ts';
 
@@ -18,7 +18,7 @@ import type { VaultFsPort } from './ports.ts';
  *
  * Called `New folder` until it is named, and numbered past whatever is already
  * there — a note of the same name included, since the disk refuses both. Only
- * Atlas keeps folders in `.atlas`.
+ * DFAI keeps folders in `.atlas`.
  */
 export async function createFolder({
   fs,

@@ -7,7 +7,7 @@
 import { ARCHIVED_FROM_KEY, ARCHIVED_KEY, ARCHIVED_PRIOR_KEY } from '../archive/archive.ts';
 
 /**
- * Keys a rule may not set: the archive's own stamp, Atlas's markers, and a
+ * Keys a rule may not set: the archive's own stamp, DFAI's markers, and a
  * note's type — changing what a note is is not a property edit.
  */
 const RESERVED_KEYS = new Set(
@@ -26,7 +26,7 @@ export function setKeyProblem(key: string): string | null {
   if (!KEY.test(key) || PROTOTYPE_KEYS.has(key))
     return `“${key}” is not a property a rule can set.`;
   if (RESERVED_KEYS.has(key.toLowerCase()) || key.toLowerCase().startsWith('atlas')) {
-    return `A rule cannot set “${key}”: Atlas keeps that one itself.`;
+    return `A rule cannot set “${key}”: DFAI keeps that one itself.`;
   }
   return null;
 }

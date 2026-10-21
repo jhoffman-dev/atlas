@@ -15,13 +15,8 @@ import {
   recordingActivity,
   type ArchivePorts,
   type WindowClosingPort,
-} from '@atlas/application';
-import {
-  createVaultPath,
-  INBOX_QUERY_COLUMNS,
-  TASK_TYPE_FILE,
-  type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath, INBOX_QUERY_COLUMNS, TASK_TYPE_FILE, type VaultPath } from '@dfai/domain';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 
 const CALL = createVaultPath('Inbox/Call Mara Quill.md');

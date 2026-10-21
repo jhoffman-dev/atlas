@@ -7,8 +7,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, readsTouchedByPaths, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeVaultFs, readsTouchedByPaths, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { createReadInvalidator } from '../reads/read-invalidator.ts';
 import { useProfileSetting } from '../profile/use-profile-setting.ts';
@@ -75,7 +75,7 @@ describe('the settings note, read once', () => {
     const before = settingsReads();
 
     // An autosave: its path, and the index's news once it has taken the note in.
-    reads.invalidate('v', readsTouchedByPaths(['Projects/Atlas.md']));
+    reads.invalidate('v', readsTouchedByPaths(['Projects/DFAI.md']));
     reads.indexMoved('v');
     await settle();
 

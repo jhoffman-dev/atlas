@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from 'react';
-import type { ChipIcon, PropertyIcon, SidebarIcon, WidgetIcon, WidgetKind } from '@atlas/domain';
+import type { ChipIcon, PropertyIcon, SidebarIcon, WidgetIcon, WidgetKind } from '@dfai/domain';
 
 /*
  * The app's glyphs, drawn inline on a 24-unit grid in `currentColor`, so each

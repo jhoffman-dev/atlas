@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type PropertyDef, type PropertyKind } from '@atlas/domain';
+import { createVaultPath, type PropertyDef, type PropertyKind } from '@dfai/domain';
 import type { PropertyRow } from '../properties-panel.tsx';
 import { PropertiesStrip } from './properties-strip.tsx';
 

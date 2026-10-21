@@ -1,4 +1,4 @@
-import type { TemplateUse } from '@atlas/domain';
+import type { TemplateUse } from '@dfai/domain';
 
 /** What each use of a template is called, for a person. Not a hook: a use of a template. */
 function nameOfUse(use: TemplateUse): string {

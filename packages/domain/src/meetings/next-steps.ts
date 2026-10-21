@@ -6,7 +6,7 @@ export type StepConfidence = 'high' | 'medium' | 'low';
 
 /**
  * A next step as the provider wrote it: `- [Owner] Title: description`.
- * The provider's, not Atlas's — what becomes a task is decided later.
+ * The provider's, not DFAI's — what becomes a task is decided later.
  */
 export interface ProviderNextStep {
   /** Who the provider said owns it, as written; null when it named nobody. */

@@ -216,7 +216,7 @@ describe('undoing a Claude step', () => {
     );
     expect(
       loggedActionProblem(declared, { ...filed, path: createVaultPath('.atlas/settings.md') }),
-    ).toBe('Atlas keeps its own files as they are.');
+    ).toBe('DFAI keeps its own files as they are.');
   });
 });
 

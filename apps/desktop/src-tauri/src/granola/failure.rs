@@ -19,7 +19,7 @@ pub enum FailureKind {
     Unreachable,
     /// Granola did not answer within the time a request is given.
     Timeout,
-    /// The answer is larger than Atlas will read.
+    /// The answer is larger than DFAI will read.
     TooLarge,
     /// Granola answered with something that is not text.
     Malformed,

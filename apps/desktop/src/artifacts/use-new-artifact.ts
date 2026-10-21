@@ -5,7 +5,7 @@ import {
   kindFromHtml,
   noteTitle,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   ArtifactRefusedError,
   notesInUseOfType,
@@ -16,8 +16,8 @@ import {
   type MarkdownPort,
   type ThumbnailQueue,
   type VaultFsPort,
-} from '@atlas/application';
-import type { ArtifactChoice, NewArtifactDraft } from '@atlas/ui';
+} from '@dfai/application';
+import type { ArtifactChoice, NewArtifactDraft } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { pageTextOf, pickedFiles, titleFromFiles } from './picked-files.ts';
 

@@ -1,7 +1,7 @@
 /**
  * Attack on PR #454: a broader seeded generator than #395/#430's, and an
  * oracle that needs no expected text. A case is a block of keys in many
- * Obsidian/Atlas forms with comments, blank lines and whitespace-only lines
+ * Obsidian/DFAI forms with comments, blank lines and whitespace-only lines
  * around them, and one or two changes (set, empty, remove, add).
  */
 import { isDeepStrictEqual } from 'node:util';

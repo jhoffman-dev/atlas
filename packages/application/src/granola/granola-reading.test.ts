@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TRANSCRIPT_LIMIT } from '@atlas/domain';
+import { TRANSCRIPT_LIMIT } from '@dfai/domain';
 import { fakeGranola, granolaNote, granolaTurn } from '../testing/fake-granola.ts';
 import { listGranolaNotes, readGranolaNote } from './granola-reading.ts';
 import type { GranolaPort } from './ports.ts';

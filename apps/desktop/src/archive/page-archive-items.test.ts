@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { pageArchiveItems } from './archive-menu.ts';
 import type { ArchiveCommands } from './use-archive.ts';
 
@@ -29,22 +29,22 @@ function items({
 describe('pageArchiveItems', () => {
   it('archives a project through the Archive command, as every way of archiving does', () => {
     const { menu, commands } = items({
-      path: 'Projects/Atlas.md',
+      path: 'Projects/DFAI.md',
       properties: { type: 'project', para: 'area' },
     });
     expect(menu.onUnarchive).toBeUndefined();
     menu.onArchive?.();
-    expect(commands.archive).toHaveBeenCalledWith(['Projects/Atlas.md']);
+    expect(commands.archive).toHaveBeenCalledWith(['Projects/DFAI.md']);
   });
 
   it('offers Unarchive for a project archived by its value, through the Unarchive command', () => {
     const { menu, commands } = items({
-      path: 'Projects/Atlas.md',
+      path: 'Projects/DFAI.md',
       properties: { type: 'Project', para: 'archive', para_before_archive: 'area' },
     });
     expect(menu.onArchive).toBeUndefined();
     menu.onUnarchive?.();
-    expect(commands.unarchive).toHaveBeenCalledWith(['Projects/Atlas.md']);
+    expect(commands.unarchive).toHaveBeenCalledWith(['Projects/DFAI.md']);
   });
 
   it('offers Archive for a PARA note too deep to move: it is archived where it stands', () => {
@@ -64,11 +64,11 @@ describe('pageArchiveItems', () => {
 
   it('takes a project already in the Archive folder out through the Unarchive command', () => {
     const { menu, commands } = items({
-      path: 'Archive/Projects/Atlas.md',
+      path: 'Archive/Projects/DFAI.md',
       properties: { type: 'project', para: 'archive' },
     });
     menu.onUnarchive?.();
-    expect(commands.unarchive).toHaveBeenCalledWith(['Archive/Projects/Atlas.md']);
+    expect(commands.unarchive).toHaveBeenCalledWith(['Archive/Projects/DFAI.md']);
   });
 
   it('never offers a project template Archive or Unarchive', () => {
@@ -82,11 +82,11 @@ describe('pageArchiveItems', () => {
   });
 
   it('offers no Archive while the note is still opening: a project must not be moved', () => {
-    expect(items({ path: 'Projects/Atlas.md', properties: null }).menu).toEqual({});
+    expect(items({ path: 'Projects/DFAI.md', properties: null }).menu).toEqual({});
   });
 
   it('offers nothing while the Archive is busy, or with no note', () => {
-    expect(items({ path: 'Projects/Atlas.md', properties: {}, busy: true }).menu).toEqual({});
+    expect(items({ path: 'Projects/DFAI.md', properties: {}, busy: true }).menu).toEqual({});
     expect(items({ path: null, properties: null }).menu).toEqual({});
   });
 });

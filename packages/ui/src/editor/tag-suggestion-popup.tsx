@@ -1,4 +1,4 @@
-import { formatTag, type TagSuggestion } from '@atlas/domain';
+import { formatTag, type TagSuggestion } from '@dfai/domain';
 import { SuggestionPopup } from './suggestion-popup.tsx';
 import type { TagSuggestionView } from './tag-suggestion.ts';
 

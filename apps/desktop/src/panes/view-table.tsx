@@ -6,7 +6,7 @@ import {
   type OpenHow,
   type OverlaySlot,
   type PeekRequest,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import type { ViewChoosing } from '../archive/use-view-choosing.ts';
 import { useTableAsPending } from '../query/use-pending-cards.ts';
 import type { useSavedView } from '../query/use-saved-view.ts';

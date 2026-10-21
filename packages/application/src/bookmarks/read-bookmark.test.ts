@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, parseObjectType, pageThumbnailSrc, type WikiLink } from '@atlas/domain';
+import { createVaultPath, parseObjectType, pageThumbnailSrc, type WikiLink } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readBookmark } from './read-bookmark.ts';

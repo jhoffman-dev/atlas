@@ -4,7 +4,7 @@ import {
   nextAvailableNotePath,
   splitFrontmatter,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -101,7 +101,7 @@ function startingProperties(
 }
 
 /**
- * {@link createNote} without the task rules: for a note whose text Atlas
+ * {@link createNote} without the task rules: for a note whose text DFAI
  * writes whole and which is never a task — a chat's transcript.
  */
 export async function createNoteFile({

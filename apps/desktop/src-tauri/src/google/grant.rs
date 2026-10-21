@@ -63,7 +63,7 @@ pub fn save(store: &dyn SecretStore, scope: &str, grant: &Grant) -> Result<(), G
 /// Google may revoke a grant — every token one person gave one client —
 /// rather than the one token it is sent, so disconnecting one vault could end
 /// another's sign-in. Which Google account a sign-in is for is not known here
-/// (Atlas asks for no identity scope), so the same client counts as possibly
+/// (DFAI asks for no identity scope), so the same client counts as possibly
 /// the same account. A sign-in another vault keeps that cannot be read is no
 /// sign-in to protect.
 pub fn shared_with_another_vault(

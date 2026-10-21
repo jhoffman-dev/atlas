@@ -1,5 +1,5 @@
-import type { EntryMove } from '@atlas/domain';
-import type { LinkUpdatePanes, OpenEditorsPort, OpenNotes } from '@atlas/application';
+import type { EntryMove } from '@dfai/domain';
+import type { LinkUpdatePanes, OpenEditorsPort, OpenNotes } from '@dfai/application';
 import type { PaneEditors } from './open-editors.ts';
 
 /**

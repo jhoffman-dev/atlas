@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { QueryFilter } from '@atlas/domain';
+import type { QueryFilter } from '@dfai/domain';
 import { FilterPopover, type ViewField } from './view-query-popovers.tsx';
 
 /* #212: the Filter control's value box offers what the property can hold. */

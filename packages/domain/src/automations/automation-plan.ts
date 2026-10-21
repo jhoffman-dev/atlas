@@ -30,7 +30,7 @@ export interface AutomationPlan {
  * What a rule would do to the notes its query matched (P25-01). Pure: the
  * runner is handed this and only carries it out.
  *
- * A note the action cannot apply to — Atlas's own files, a note already
+ * A note the action cannot apply to — DFAI's own files, a note already
  * archived — is passed over and said so. Past the cap, the rest wait.
  */
 export function planAutomation({
@@ -75,7 +75,7 @@ function refusalOf(action: AutomationAction, path: VaultPath): string | null {
   if (action.kind === 'claude' && isProposalPath(path)) {
     return 'A Claude step does not read proposals: it would be answering itself.';
   }
-  return isAtlasNote(path) ? 'Atlas keeps its own files as they are.' : null;
+  return isAtlasNote(path) ? 'DFAI keeps its own files as they are.' : null;
 }
 
 /** The plan in a sentence: "Would archive 12 notes." */

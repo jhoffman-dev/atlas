@@ -21,13 +21,13 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "paths": {
-      "@atlas/domain": ["./packages/domain/src/index.ts"],
-      "@atlas/application": ["./packages/application/src/index.ts"],
-      "@atlas/application/testing/sqlite": ["./packages/application/src/testing/sqlite.ts"],
-      "@atlas/adapters": ["./packages/adapters/src/index.ts"],
-      "@atlas/ui": ["./packages/ui/src/index.ts"],
-      "@atlas/ui/graph": ["./packages/ui/src/graph/index.ts"],
-      "@atlas/ui/testing/settles": ["./packages/ui/src/testing/settles.ts"]
+      "@dfai/domain": ["./packages/domain/src/index.ts"],
+      "@dfai/application": ["./packages/application/src/index.ts"],
+      "@dfai/application/testing/sqlite": ["./packages/application/src/testing/sqlite.ts"],
+      "@dfai/adapters": ["./packages/adapters/src/index.ts"],
+      "@dfai/ui": ["./packages/ui/src/index.ts"],
+      "@dfai/ui/graph": ["./packages/ui/src/graph/index.ts"],
+      "@dfai/ui/testing/settles": ["./packages/ui/src/testing/settles.ts"]
     }
   },
   "include": [

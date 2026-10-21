@@ -1,6 +1,16 @@
-# Atlas — working notes
+# DFAI — working notes
 
 Local-first desktop app replacing Notion and Obsidian.
+
+**The app is DFAI (Daily Flow AI).** It was called Atlas until 2026-10-20
+(#482, ADR-0042); the repo was renamed from `jhoffman-dev/atlas` to `jhoffman-dev/dfai`, and GitHub redirects the old URLs.
+Write "DFAI" in everything a person reads. Some internal names keep "atlas" on
+purpose, because files, other Macs or other tools depend on them: the vault
+folder `.atlas/`, `atlas-query` fences, `atlas_*` frontmatter keys and MCP tool
+names, `ATLAS_*` environment variables, `atlas.*` localStorage keys, the
+`/v1/atlas-query` route, the `Atlas sync` lines in `.gitignore` and commit
+subjects, and code identifiers such as `AtlasQuery`. ADR-0042 says why each one
+stays; don't rename them without a decision that replaces it.
 
 **`ENGINEERING.md` and this file are the authority for this repo.** `ENGINEERING.md`
 holds the engineering rules — Clean Architecture, Clean Code, the testing bar, the
@@ -55,7 +65,7 @@ change is merged. Don't wait to be asked:
 
 | Keeper         | Agent   | Owns                                                                                                       | Done when                                                                                                                                                                        |
 | -------------- | ------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide keeper   | `coder` | The Atlas Field Guide (`docs/guide/index.html`)                                                            | The guide describes what the app now does, in James's words, with nothing stale left in it. The coordinator then republishes it as a claude.ai artifact (see below).             |
+| Guide keeper   | `coder` | The DFAI Field Guide (`docs/guide/index.html`)                                                             | The guide describes what the app now does, in James's words, with nothing stale left in it. The coordinator then republishes it as a claude.ai artifact (see below).             |
 | API/MCP keeper | `coder` | `packages/application/src/api` (routes + contract), `apps/mcp/src/tools`, `vault/docs/api/v1.md`, ADR-0016 | Anything the user can now do in the app can also be done or read through the API and an MCP tool, or the card says why not. Tests are added, and the API doc matches the routes. |
 
 - The API/MCP keeper's work is code: it gets its own `code-reviewer` and
@@ -123,13 +133,13 @@ machine:
 
 ## Before starting any work, read the issues
 
-Tasks live in **GitHub Issues** on `jhoffman-dev/atlas`, so every machine
+Tasks live in **GitHub Issues** on `jhoffman-dev/dfai`, so every machine
 and every Claude Code account works from the same list:
 
 ```sh
-gh issue list -R jhoffman-dev/atlas                   # open work
-gh issue list -R jhoffman-dev/atlas --label next      # do these first
-gh issue view <n> -R jhoffman-dev/atlas               # the whole card
+gh issue list -R jhoffman-dev/dfai                   # open work
+gh issue list -R jhoffman-dev/dfai --label next      # do these first
+gh issue view <n> -R jhoffman-dev/dfai               # the whole card
 ```
 
 - **`from-james`** — James asked for it; it takes priority over the phase plan.

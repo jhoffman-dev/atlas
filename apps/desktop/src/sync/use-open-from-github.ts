@@ -4,7 +4,7 @@ import {
   type GitFoldersPort,
   type VaultLocation,
   type VaultLocationStore,
-} from '@atlas/application';
+} from '@dfai/application';
 import { errorMessage } from '../query/error-message.ts';
 
 /**

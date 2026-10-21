@@ -5,7 +5,7 @@ import {
   type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
 

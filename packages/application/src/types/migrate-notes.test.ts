@@ -5,7 +5,7 @@
  * stops the rest nor goes unreported.
  */
 import { describe, expect, it } from 'vitest';
-import { parseObjectType, type VaultPath } from '@atlas/domain';
+import { parseObjectType, type VaultPath } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeOpenNotes, fakeVaultFs } from '../testing/fake-ports.ts';
 import { countValuesThatWontFit, migrateNotes, notesToMigrate } from './migrate-notes.ts';
 

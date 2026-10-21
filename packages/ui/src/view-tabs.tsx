@@ -18,7 +18,7 @@ import {
   type LayoutChoice,
   type ViewLayout,
   type ViewTab,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { EditableTitle } from './page-head.tsx';

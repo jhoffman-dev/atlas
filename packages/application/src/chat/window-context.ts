@@ -4,7 +4,7 @@ import {
   CONTEXT_ROWS,
   type ChatContext,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   routeApiRequest,
   type ApiRequest,

@@ -6,7 +6,7 @@ import {
   type BoardRow,
   type EditorDocument,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { CoverSource } from './card-cover.tsx';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import { NoteFields } from './note-fields.tsx';

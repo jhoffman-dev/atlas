@@ -15,14 +15,14 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   archiveNotes,
   unarchiveNotes,
   type ArchivePorts,
   type IndexPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { updateFrontmatter } from './frontmatter-write.ts';
 import { remarkMarkdown } from './markdown-port.ts';
 

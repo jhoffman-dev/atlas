@@ -5,8 +5,8 @@ import {
   taskTypeOf,
   type TaskSchedule,
   type VaultPath,
-} from '@atlas/domain';
-import { readTaskSchedules, type DefinedType, type IndexPort } from '@atlas/application';
+} from '@dfai/domain';
+import { readTaskSchedules, type DefinedType, type IndexPort } from '@dfai/application';
 
 /** What a task's page shows of its schedule: it, or why it could not be read. */
 export type TaskScheduleState = { schedule: TaskSchedule } | { problem: string };

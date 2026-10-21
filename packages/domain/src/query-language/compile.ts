@@ -1,5 +1,5 @@
 /**
- * An Atlas query as one parameterised, read-only SQL statement over the
+ * A DFAI query as one parameterised, read-only SQL statement over the
  * index's own tables (ADR-0019).
  *
  * Every name and value from the query is bound; the text of the statement is

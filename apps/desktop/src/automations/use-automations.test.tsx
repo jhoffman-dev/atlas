@@ -10,7 +10,7 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeClaudeStepPorts,
   createNoteChanges,
@@ -18,8 +18,8 @@ import {
   fakeVaultFs,
   type AutomationPorts,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { SCHEDULE_TICK_MS, useAutomations, type AutomationsOptions } from './use-automations.ts';
 
 /**
@@ -217,7 +217,7 @@ describe('useAutomations', () => {
     expect(vault.files['Archive/Tasks/A.md']).toBeDefined();
   });
 
-  it('catches up a daily run missed while Atlas was closed, once', async () => {
+  it('catches up a daily run missed while DFAI was closed, once', async () => {
     const turnedOn = [
       '---\natlas: automation-log\n---\n\n# Sweep — run log\n',
       '## 2026-09-26 14:00:00 · Turned on\n\nIt runs on its schedule from here on.\n',

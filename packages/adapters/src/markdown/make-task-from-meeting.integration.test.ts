@@ -5,8 +5,8 @@
  * and nothing is written. All names are made up.
  */
 import { describe, expect, it } from 'vitest';
-import { apiFixture, makeTaskFromMeeting } from '@atlas/application';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { apiFixture, makeTaskFromMeeting } from '@dfai/application';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const MEETING = 'Projects/Ledger/2026-10-06 Standup.md';

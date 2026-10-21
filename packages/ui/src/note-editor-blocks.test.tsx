@@ -11,7 +11,7 @@ import type {
   Transclusion,
   VaultPath,
   WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { NoteEditor, type NoteTransclusions } from './note-editor.tsx';
 import type { BlockPicking } from './editor/block-picking.ts';
 

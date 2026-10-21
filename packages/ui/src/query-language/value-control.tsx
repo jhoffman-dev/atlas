@@ -6,7 +6,7 @@ import {
   type BuilderOperator,
   type QueryField,
   type QueryValue,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ChoiceSelect, type Choice } from '../choice-select.tsx';
 
 /**

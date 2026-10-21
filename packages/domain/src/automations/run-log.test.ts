@@ -38,7 +38,7 @@ const RUN: LogEntry = {
       after: { value: true },
     },
   ],
-  left: [{ path: p('Tasks/C.md'), reason: 'It is open in Atlas with unsaved typing.' }],
+  left: [{ path: p('Tasks/C.md'), reason: 'It is open in DFAI with unsaved typing.' }],
   capped: false,
 };
 
@@ -61,7 +61,7 @@ describe('formatLogEntry', () => {
         '- archived `"Tasks/A.md"` → `"Archive/Tasks/A.md"`',
         '- set `"Tasks/B.md"` `"status"`: `"todo"` → `"done"`',
         '- set `"Tasks/B.md"` `"flag"`: nothing → `true`',
-        '- left `"Tasks/C.md"`: It is open in Atlas with unsaved typing.',
+        '- left `"Tasks/C.md"`: It is open in DFAI with unsaved typing.',
         '',
       ].join('\n'),
     );

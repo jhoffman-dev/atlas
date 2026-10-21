@@ -1,4 +1,4 @@
-/* Saved views and SQL queries (P17-04); Atlas queries: builder, text, grouped answer (P24).
+/* Saved views and SQL queries (P17-04); DFAI queries: builder, text, grouped answer (P24).
    One of the section files styles/index.css imports in cascade order; the
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
@@ -360,7 +360,7 @@
   }
 }
 
-/* ---- Atlas queries: builder, text, grouped answer (P24; 13g) ---------------
+/* ---- DFAI queries: builder, text, grouped answer (P24; 13g) ---------------
    The builder is a column of hairline groups, one labelled row each, its
    controls the app's 28px radius-6 fields; the text is a field in the
    editor's 12px mono. A group's header is a column label with its count in

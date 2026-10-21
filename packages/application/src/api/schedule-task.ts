@@ -8,7 +8,7 @@ import {
   taskTypeOf,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { NoteNameTakenError } from '../notes/create-note.ts';
 import { BlockTimesError, createBlockForTask } from '../timeblocks/schedule-task.ts';
 import { readTaskSchedules } from '../timeblocks/task-schedules.ts';

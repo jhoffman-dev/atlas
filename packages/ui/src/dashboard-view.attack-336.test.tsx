@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WidgetBar, WidgetData, WidgetResult } from '@atlas/application';
-import { parseDashboard, percentOf, type Widget } from '@atlas/domain';
+import type { WidgetBar, WidgetData, WidgetResult } from '@dfai/application';
+import { parseDashboard, percentOf, type Widget } from '@dfai/domain';
 import { DashboardView } from './dashboard-view.tsx';
 
 /**

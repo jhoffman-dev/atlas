@@ -4,7 +4,7 @@ import {
   isVisibleEntry,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { NoteContents, NoteListing, VaultFsPort } from './ports.ts';
 
 /**

@@ -1,5 +1,5 @@
-import type { ChatWindow } from '@atlas/application';
-import type { VaultPath } from '@atlas/domain';
+import type { ChatWindow } from '@dfai/application';
+import type { VaultPath } from '@dfai/domain';
 
 /**
  * What the chat is opened on: the query being written, the note, view or

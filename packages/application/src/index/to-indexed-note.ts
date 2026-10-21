@@ -20,7 +20,7 @@ import {
   summaryOf,
   TAGS_KEY,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { noteTypeName } from '../types/load-types.ts';
 import type { IndexedNote } from './ports.ts';

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, noteNames, type PropertyDef, type PropertyKind } from '@atlas/domain';
+import { createVaultPath, noteNames, type PropertyDef, type PropertyKind } from '@dfai/domain';
 import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 import { NoteNamesProvider } from './note-names.tsx';
 import { PropertiesPanel, type NewProperty, type PropertyRow } from './properties-panel.tsx';
@@ -389,7 +389,7 @@ describe('adding a property', () => {
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ key: 'due', scope: 'note' }));
   });
 
-  it('refuses a name already there, or one Atlas keeps, and says why', async () => {
+  it('refuses a name already there, or one DFAI keeps, and says why', async () => {
     const { onAdd } = adding();
     await start();
     await userEvent.type(name(), 'Status');
@@ -397,7 +397,7 @@ describe('adding a property', () => {
     expect((submit() as HTMLButtonElement).disabled).toBe(true);
     await userEvent.clear(name());
     await userEvent.type(name(), 'modified{Enter}');
-    expect(within(popover()).getByRole('alert').textContent).toMatch(/kept for Atlas/);
+    expect(within(popover()).getByRole('alert').textContent).toMatch(/kept for DFAI/);
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -578,7 +578,7 @@ describe('two panels on screen at once, as in a split', () => {
 
 describe('a relation read against the vault', () => {
   const names = noteNames([
-    { path: createVaultPath('P-01.md'), title: 'Atlas' },
+    { path: createVaultPath('P-01.md'), title: 'DFAI' },
     { path: createVaultPath('Ada.md'), title: 'Ada Lovelace' },
   ]);
   const relation = (value: unknown, extra: Partial<PropertyDef> = {}) => {
@@ -589,7 +589,7 @@ describe('a relation read against the vault', () => {
         <PropertiesPanel
           typeName="task"
           rows={[row('relation', value, { target: 'project', ...extra })]}
-          relationChoices={{ field: [{ path: 'P-01.md', title: 'Atlas' }] }}
+          relationChoices={{ field: [{ path: 'P-01.md', title: 'DFAI' }] }}
           onChange={onChange}
           onOpenNote={onOpenNote}
         />
@@ -600,7 +600,7 @@ describe('a relation read against the vault', () => {
 
   it('names the linked note by its title, and opens it', async () => {
     const { onOpenNote } = relation('[[P-01]]');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Atlas' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Open DFAI' }));
     expect(onOpenNote).toHaveBeenCalledExactlyOnceWith('P-01.md');
     expect(screen.getByRole('region', { name: 'Properties' }).textContent).not.toContain('[[');
   });
@@ -617,7 +617,7 @@ describe('a relation read against the vault', () => {
 
   it('links a titled note by its filename, which is what finds it', async () => {
     const { onChange } = relation(null);
-    await pickSuggestion(screen.getByRole('combobox', { name: 'Field' }), 'Atlas');
+    await pickSuggestion(screen.getByRole('combobox', { name: 'Field' }), 'DFAI');
     expect(onChange).toHaveBeenLastCalledWith('field', '[[P-01]]');
   });
   it('offers to change the one note, without offering it again', async () => {

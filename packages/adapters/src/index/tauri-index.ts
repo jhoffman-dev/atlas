@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import type {
   IndexedNote,
   IndexEntry,
@@ -11,7 +11,7 @@ import type {
   SearchHit,
   SearchScope,
   ViewTypeSpec,
-} from '@atlas/application';
+} from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 /** The SQLite-backed index living in the vault's cache directory. */

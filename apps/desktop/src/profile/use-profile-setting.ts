@@ -4,7 +4,7 @@ import {
   type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   changeProfile,
   EMPTY_PROFILE,
@@ -12,7 +12,7 @@ import {
   type Profile,
   type ProfileChange,
   type ProfileState,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
 

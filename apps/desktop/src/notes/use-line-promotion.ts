@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { noteTitle, taskTypeOf, type ObjectType, type VaultPath } from '@atlas/domain';
+import { noteTitle, taskTypeOf, type ObjectType, type VaultPath } from '@dfai/domain';
 import {
   promoteChecklistLine,
   PromotionRefused,
@@ -11,8 +11,8 @@ import {
   type OpenNotes,
   type Promotion,
   type VaultFsPort,
-} from '@atlas/application';
-import type { LinePromotion, PromotedLine } from '@atlas/ui';
+} from '@dfai/application';
+import type { LinePromotion, PromotedLine } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { Toasts } from '../toasts/toasts.ts';
 import { errorMessage } from '../query/error-message.ts';

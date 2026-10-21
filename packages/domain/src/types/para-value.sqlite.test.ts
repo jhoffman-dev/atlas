@@ -31,7 +31,7 @@ function indexOf(notes: Notes) {
 const paths = (rows: readonly Record<string, unknown>[]) => rows.map((row) => row['path']).sort();
 
 const NOTES: Notes = {
-  'Atlas.md': { type: 'project' },
+  'DFAI.md': { type: 'project' },
   'Home.md': { type: 'project', para: 'area' },
   'Manual.md': { type: 'project', para: 'resource' },
   'Old.md': { type: 'project', para: 'archive' },
@@ -46,7 +46,7 @@ describe('outsideParaArchiveSql', () => {
     const rows = database
       .prepare(`SELECT path FROM files WHERE ${outsideParaArchiveSql('files.path')}`)
       .all();
-    expect(paths(rows)).toEqual(['Atlas.md', 'Home.md', 'Kept.md', 'Manual.md', 'Someday.md']);
+    expect(paths(rows)).toEqual(['DFAI.md', 'Home.md', 'Kept.md', 'Manual.md', 'Someday.md']);
   });
 });
 
@@ -58,7 +58,7 @@ describe('paraProjectSql', () => {
         `SELECT path FROM files WHERE path IN (SELECT path FROM props WHERE key = 'type' AND lower(value_text) = 'project') AND ${paraProjectSql('files.path')}`,
       )
       .all();
-    expect(paths(rows)).toEqual(['Atlas.md', 'Someday.md']);
+    expect(paths(rows)).toEqual(['DFAI.md', 'Someday.md']);
   });
 });
 
@@ -92,8 +92,8 @@ describe('a view over projects (#213)', () => {
       const { sql, parameters } = compileViewQuery(projects, {}, { includeArchived });
       return paths(database.prepare(sql).all(...parameters));
     };
-    expect(run(false)).toEqual(['Atlas.md', 'Home.md', 'Manual.md', 'Someday.md']);
-    expect(run(true)).toEqual(['Atlas.md', 'Home.md', 'Manual.md', 'Old.md', 'Someday.md']);
+    expect(run(false)).toEqual(['DFAI.md', 'Home.md', 'Manual.md', 'Someday.md']);
+    expect(run(true)).toEqual(['DFAI.md', 'Home.md', 'Manual.md', 'Old.md', 'Someday.md']);
   });
 
   it('counts the same way a dashboard does', () => {
@@ -120,7 +120,7 @@ describe('compileParaCandidatesQuery', () => {
       .prepare(sql)
       .all(...parameters);
     expect(rows.map((row) => row['path'])).toEqual([
-      'Atlas.md',
+      'DFAI.md',
       'Garden.md',
       'Home.md',
       'Manual.md',

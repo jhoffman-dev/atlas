@@ -1,5 +1,5 @@
 import { generateHTML } from '@tiptap/core';
-import type { EditorDocument } from '@atlas/domain';
+import type { EditorDocument } from '@dfai/domain';
 import { createReadingExtensions } from './editor/extensions.ts';
 import type { NotePageRendering } from './note-page-renderer.ts';
 

@@ -55,7 +55,7 @@ async function openParaVault(page: Page): Promise<FakeVault> {
   await vault.mkdir('.atlas/types');
   await vault.write('.atlas/types/project.md', PROJECT_TYPE);
   await vault.write('.atlas/types/task.md', TASK_TYPE);
-  await vault.write('Atlas.md', note(['type: project', 'para: project'], 'The app.'));
+  await vault.write('DFAI.md', note(['type: project', 'para: project'], 'The app.'));
   await vault.write('Garden.md', note(['type: project', 'para: area'], 'Beds and seeds.'));
   await vault.write('Manual.md', note(['type: project', 'para: resource'], 'How the mower works.'));
   await vault.write('Call the bank.md', note(['type: task'], 'About the loan.'));
@@ -95,7 +95,7 @@ test('a new project is a project, links an area, and archives and restores by it
   const area = properties(page).getByRole('combobox', { name: 'Area' });
   await area.click();
   await expect.poll(() => suggestedTitles(area).allTextContents()).toContain('Garden');
-  expect(await suggestedTitles(area).allTextContents()).not.toContain('Atlas');
+  expect(await suggestedTitles(area).allTextContents()).not.toContain('DFAI');
   expect(await suggestedTitles(area).allTextContents()).not.toContain('Manual');
   await pickSuggestion(area, 'Garden');
   await expectFile(vault, 'Projects/New Project.md').toContain('area: "[[Garden]]"');
@@ -115,13 +115,13 @@ test('a new project is a project, links an area, and archives and restores by it
   await page.getByRole('treeitem', { name: 'Call the bank', exact: true }).click();
   const project = properties(page).getByRole('combobox', { name: 'Project' });
   await project.click();
-  await expect.poll(() => suggestedTitles(project).allTextContents()).toContain('Atlas');
+  await expect.poll(() => suggestedTitles(project).allTextContents()).toContain('DFAI');
   const offered = await suggestedTitles(project).allTextContents();
   expect(offered).toContain('Garden');
   expect(offered).not.toContain('New Project');
   expect(offered).not.toContain('Manual');
   // Each says which it is, so Garden the area is not taken for a project (#213).
-  await expect(suggestion(project, 'Atlas')).toHaveAttribute('aria-label', /, Projects,/);
+  await expect(suggestion(project, 'DFAI')).toHaveAttribute('aria-label', /, Projects,/);
   await expect(suggestion(project, 'Garden')).toHaveAttribute('aria-label', /, Areas,/);
 
   // Restore: Unarchive sets PARA back to project, and it is offered again.

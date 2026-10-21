@@ -7,7 +7,7 @@ import {
   type PropertyKind,
   type RowGroup,
   type ViewLayout,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { BoardLanes, ColumnHeading } from '../board-lanes.tsx';
 import { FlatRows } from '../flat-rows.tsx';
 import { ariaRowIndex, GroupedRows, useGroupLines, type LinePlace } from '../grouped-rows.tsx';

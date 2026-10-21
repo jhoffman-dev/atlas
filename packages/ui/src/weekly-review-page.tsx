@@ -9,8 +9,8 @@ import {
   type ReviewProject,
   type ReviewTask,
   type VaultPath,
-} from '@atlas/domain';
-import type { WeeklyReviewReport } from '@atlas/application';
+} from '@dfai/domain';
+import type { WeeklyReviewReport } from '@dfai/application';
 import { Icon } from './icon.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
 import { HiddenTitle } from './page-head.tsx';

@@ -9,7 +9,7 @@ import {
   QUERY_BLOCK_NODE,
   type EditorMark,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { BlockContent, Nodes as MdastNode, PhrasingContent } from 'mdast';
 import './mdast-custom-nodes.ts';
 import { bookmarkToMdast } from './bookmark-block.ts';

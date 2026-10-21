@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
-import { fakeIndexPort } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { fakeIndexPort } from '@dfai/application';
 import { openOnce } from './open-once.ts';
 
 /** An index that counts its openings, and fails the calls a test says to. */

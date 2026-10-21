@@ -42,7 +42,7 @@ export interface EmbeddedNote {
 }
 
 /**
- * What an export that leaves Atlas whole (#501) adds to those: where a link
+ * What an export that leaves DFAI whole (#501) adds to those: where a link
  * goes in it, the address each image is copied to, and the notes embedded
  * whole. Left out, the export reads as one for a page elsewhere (P32-07).
  */
@@ -82,11 +82,11 @@ export function namesAnImage(target: string): boolean {
 }
 
 /**
- * The blocks of a note, made ready to leave Atlas: links as words (or, for a
+ * The blocks of a note, made ready to leave DFAI: links as words (or, for a
  * standalone export, links to the notes exported beside it), shown blocks
  * as quotes from their notes, and anything left out named in `dropped`.
  * A callout becomes a quote for a page elsewhere, and stays one for an
- * export that leaves Atlas whole, which other tools read as it is.
+ * export that leaves DFAI whole, which other tools read as it is.
  */
 export class Exporter {
   readonly dropped = new DroppedContent();
@@ -237,7 +237,7 @@ export class Exporter {
 
   /**
    * A paragraph that is one embed of a whole note and nothing else, in an
-   * export that leaves Atlas whole: that note's blocks, quoted under its
+   * export that leaves DFAI whole: that note's blocks, quoted under its
    * title, as a shown block is. One level is opened — an embed inside it is
    * its words — so two notes embedding each other end. Null for any other
    * paragraph, which is exported as it stands.
@@ -259,7 +259,7 @@ export class Exporter {
 
   /**
    * A callout as a quote that opens with its name in bold, then its title —
-   * or, in an export that leaves Atlas whole, the callout it is, which
+   * or, in an export that leaves DFAI whole, the callout it is, which
    * other markdown tools draw as one.
    */
   private callout(node: EditorNode): EditorNode {
@@ -337,7 +337,7 @@ export class Exporter {
 
   /**
    * The marks, less a link the page cannot follow, which is listed. An
-   * export that leaves Atlas whole keeps every link as it was written.
+   * export that leaves DFAI whole keeps every link as it was written.
    */
   private reachableMarks(marks: readonly EditorMark[]): readonly EditorMark[] {
     if (this.context.standalone !== undefined) return marks;

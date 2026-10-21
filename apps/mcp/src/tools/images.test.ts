@@ -1,6 +1,6 @@
 /**
  * `atlas_add_image` end to end over MCP: the image goes up whole, or as an
- * upload in chunks that Atlas puts in place with the last, then its markdown
+ * upload in chunks that DFAI puts in place with the last, then its markdown
  * is appended to the note.
  */
 
@@ -35,7 +35,7 @@ let mcp: Client;
 let folder: string;
 
 /**
- * As Atlas answers: an upload's size so far until its last chunk, then the
+ * As DFAI answers: an upload's size so far until its last chunk, then the
  * image saved as "<name> 2" (the name was taken).
  */
 function atlasAnswer(request: RecordedRequest) {
@@ -188,7 +188,7 @@ describe('atlas_add_image', () => {
     );
   });
 
-  it('passes on why Atlas refused the image, adding nothing to the note', async () => {
+  it('passes on why DFAI refused the image, adding nothing to the note', async () => {
     atlas.respondWith(() => ({
       status: 400,
       body: errorBody('invalid', '“a.png” does not start the way a PNG image does.'),

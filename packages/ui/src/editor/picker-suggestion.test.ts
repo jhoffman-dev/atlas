@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor } from '@tiptap/core';
-import type { TagSuggestion } from '@atlas/domain';
+import type { TagSuggestion } from '@dfai/domain';
 import { createEditorExtensions } from './extensions.ts';
 import type { TagSuggestionView } from './tag-suggestion.ts';
 

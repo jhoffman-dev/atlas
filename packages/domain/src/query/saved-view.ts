@@ -63,14 +63,14 @@ export function parseSavedView(frontmatter: Readonly<Record<string, unknown>>): 
   return asQuery(frontmatter);
 }
 
-/** The key a query view keeps its Atlas query under (ADR-0019). */
+/** The key a query view keeps its DFAI query under (ADR-0019). */
 export const QUERY_VIEW_KEY = 'query';
 
 /** How a query's rows can be drawn: each of these can show groups and sub-groups. */
 export const QUERY_VIEW_LAYOUTS: readonly ViewLayout[] = ['table', 'board', 'list'];
 
 /**
- * The Atlas query a view runs, exactly as written, or null when the note is
+ * The DFAI query a view runs, exactly as written, or null when the note is
  * not a query view. `sql:` wins over `query:`, and `query:` over `type:`, so
  * a note that says several of them is read one way.
  */

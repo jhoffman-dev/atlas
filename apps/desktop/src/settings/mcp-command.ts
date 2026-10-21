@@ -1,7 +1,7 @@
 /** What `apps/mcp/README.md` shows, for a build that does not know where it was made. */
 export const MCP_ENTRY_PLACEHOLDER = '/abs/path/to/atlas/apps/mcp/dist/main.js';
 
-/** The Claude Code command that adds the Atlas MCP server, ready to paste into a terminal. */
+/** The Claude Code command that adds the DFAI MCP server, ready to paste into a terminal. */
 export interface McpCommand {
   readonly command: string;
   /** True when the path is the README's placeholder and has to be replaced by hand. */

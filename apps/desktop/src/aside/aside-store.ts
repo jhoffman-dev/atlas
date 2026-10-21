@@ -1,6 +1,6 @@
 import { createStore, useStore, type StoreApi } from 'zustand';
-import type { NavigationPlace, TabId, VaultPath } from '@atlas/domain';
-import type { AsideTab } from '@atlas/ui';
+import type { NavigationPlace, TabId, VaultPath } from '@dfai/domain';
+import type { AsideTab } from '@dfai/ui';
 
 /** What a viewer last left the right sidebar as, for one vault. */
 export interface RememberedAside {

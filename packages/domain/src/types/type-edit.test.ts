@@ -46,7 +46,7 @@ describe('newObjectType', () => {
 
   it('refuses a name that collides, is reserved, or is empty', () => {
     expect(() => newObjectType({ label: 'Task', existing: ['task'] })).toThrow(/already a type/);
-    expect(() => newObjectType({ label: 'View', existing: [] })).toThrow(/Atlas uses itself/);
+    expect(() => newObjectType({ label: 'View', existing: [] })).toThrow(/DFAI uses itself/);
     expect(() => newObjectType({ label: '  ', existing: [] })).toThrow(TypeEditError);
     expect(() => newObjectType({ label: '!!', existing: [] })).toThrow(/needs a name/);
   });

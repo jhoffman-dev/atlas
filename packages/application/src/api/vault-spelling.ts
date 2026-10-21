@@ -1,4 +1,4 @@
-import { joinVaultPath, VAULT_ROOT, vaultSpellingOf, type VaultPath } from '@atlas/domain';
+import { joinVaultPath, VAULT_ROOT, vaultSpellingOf, type VaultPath } from '@dfai/domain';
 import { VaultAccessError, type VaultFsPort } from '../vault/ports.ts';
 
 /**

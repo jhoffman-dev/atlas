@@ -75,7 +75,7 @@ describe('meetingReview', () => {
       },
     });
     expect(review.payload.body.split('\n')).toEqual([
-      'Atlas was not sure enough to make these tasks. Make a task of each that is yours, and delete the rest.',
+      'DFAI was not sure enough to make these tasks. Make a task of each that is yours, and delete the rest.',
       '',
       '- [ ] Send the renewal contract (due 2026-10-16) [[2026-10-14 Renewal review#^t0001]]',
       '- [ ] Waiting on [[Tobias Fenn]]: Flag the new cache [[2026-10-14 Renewal review#^t0002]]',

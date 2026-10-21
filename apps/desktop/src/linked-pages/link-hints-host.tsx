@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { NO_LINK_HINTS } from '@atlas/domain';
-import { readLinkHints, type IndexPort, type LinkHintsRead } from '@atlas/application';
-import { LinkHintsProvider, type LinkHintsSource } from '@atlas/ui';
+import { NO_LINK_HINTS } from '@dfai/domain';
+import { readLinkHints, type IndexPort, type LinkHintsRead } from '@dfai/application';
+import { LinkHintsProvider, type LinkHintsSource } from '@dfai/ui';
 import { indexKeyOf, type IndexStatusStore } from '../index/index-status-store.ts';
 import { errorMessage } from '../query/error-message.ts';
 

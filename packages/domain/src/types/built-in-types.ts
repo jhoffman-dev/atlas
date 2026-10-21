@@ -10,7 +10,7 @@ import { vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { TYPES_DIRECTORY } from '../vault/vault-visibility.ts';
 
 /**
- * The types a feature of Atlas is built on, and what would stop working
+ * The types a feature of DFAI is built on, and what would stop working
  * without each. Their properties are the vault's to change; the type itself
  * stays, or the feature would be left pointing at nothing (U-20).
  *
@@ -24,14 +24,14 @@ const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   [ARTIFACT_TYPE, 'saved artifacts are notes of it'],
   [MEETING_TYPE, 'imported meetings are notes of it'],
   [COMPANY_TYPE, 'meetings and terms point at companies'],
-  [TERM_TYPE, 'the Terms page lists its notes, and Atlas spells names by them'],
+  [TERM_TYPE, 'the Terms page lists its notes, and DFAI spells names by them'],
   [PROPOSAL_TYPE, 'what Claude proposes waits in the Inbox as notes of it'],
   [DECISION_TYPE, 'accepted decision proposals are notes of it'],
   [BLOCK_TYPE, 'timeblocks on the calendar are notes of it'],
   [DAILY_TYPE, "today's note is a note of it"],
 ]);
 
-/** Whether a type is one Atlas's own features depend on. */
+/** Whether a type is one DFAI's own features depend on. */
 export function isBuiltInType(name: string): boolean {
   return BUILT_IN_TYPES.has(name.trim().toLowerCase());
 }
@@ -53,10 +53,10 @@ export function typeDeleteRefusal(type: {
  * Whether `path` is the file of a built-in type, `.atlas/types/person.md` —
  * by its file name, or by the `name:` it declares, when that has been read.
  *
- * The file's name is the type's name for every type Atlas writes
+ * The file's name is the type's name for every type DFAI writes
  * (`createObjectType`) and ships, and the path is all a menu knows; a type
  * written by hand or synced from elsewhere is known by its `name:`, which a
- * delete or rename reads first (A21-02). Case is folded, as the disks Atlas
+ * delete or rename reads first (A21-02). Case is folded, as the disks DFAI
  * runs on fold it.
  */
 export function isBuiltInTypeFile(path: VaultPath, declaredName: string | null = null): boolean {

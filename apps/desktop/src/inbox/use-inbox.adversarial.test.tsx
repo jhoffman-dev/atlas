@@ -12,7 +12,7 @@ import {
   fakeVaultFs,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useInbox } from './use-inbox.ts';
 
 function ports(): ArchivePorts {

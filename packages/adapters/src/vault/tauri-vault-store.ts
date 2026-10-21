@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { VaultLocation, VaultLocationStore } from '@atlas/application';
+import type { VaultLocation, VaultLocationStore } from '@dfai/application';
 import { throughHost } from './host-error.ts';
 
 /**

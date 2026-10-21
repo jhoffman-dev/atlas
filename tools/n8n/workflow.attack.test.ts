@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { NODES } from './workflow.ts';
 
 /*
- * PR #86 (issue #80): the failure notification. The README wires the Atlas
- * branch beside the Notion branch and above it, so n8n's v1 order runs Atlas
+ * PR #86 (issue #80): the failure notification. The README wires the DFAI
+ * branch beside the Notion branch and above it, so n8n's v1 order runs DFAI
  * — and its notification — before Notion writes anything.
  */
 

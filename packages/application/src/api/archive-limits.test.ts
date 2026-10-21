@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
-import { VAULT_WALK_DEPTH } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
+import { VAULT_WALK_DEPTH } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf, encoded } from '../testing/api-fixture.ts';
 
 const post = (route: string, paths: unknown) => ({

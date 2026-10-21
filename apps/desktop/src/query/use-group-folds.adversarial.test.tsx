@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import type { GroupFoldStore } from '@atlas/ui';
+import type { GroupFoldStore } from '@dfai/ui';
 import { useGroupFolds } from './use-group-folds.ts';
 
 function memoryStore() {

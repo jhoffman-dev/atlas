@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, digestOf, type NoteChange } from '@atlas/domain';
+import { createVaultPath, digestOf, type NoteChange } from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { createNoteChanges, type NoteChangeNews } from './note-changes.ts';

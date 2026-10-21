@@ -13,7 +13,7 @@ import {
   queryFromBuilder,
   type BuilderQuery,
   type QueryField,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { QueryBuilder } from './query-builder.tsx';
 
 const TYPES = [
@@ -41,7 +41,7 @@ const CHOICES = TYPES.map((type) => ({ value: type.name, label: type.label }));
 const valueChoices = (field: QueryField): readonly string[] => {
   if (field.kind === 'tag') return ['q3', 'writing'];
   if (field.target === 'person') return ['Julie', 'Sam'];
-  if (field.target === 'project') return ['Atlas', 'Garden'];
+  if (field.target === 'project') return ['DFAI', 'Garden'];
   return [];
 };
 

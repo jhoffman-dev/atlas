@@ -8,7 +8,7 @@ import {
   type LinkDirectoryRow,
   type ProjectTie,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 
 /**

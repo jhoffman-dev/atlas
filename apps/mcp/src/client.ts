@@ -73,14 +73,14 @@ import type {
   ApiType,
   ApiTypeView,
   ApiView,
-} from '@atlas/application';
+} from '@dfai/application';
 import { ConnectionError, type Connection } from './connection.ts';
 
 /** Past the host's own 30 s `timeout`, so its clearer answer normally arrives first. */
 export const DEFAULT_TIMEOUT_MS = 35_000;
 
 export const NOT_RUNNING =
-  'Atlas is not running — open the app, and turn on the API in Settings → Connections.';
+  'DFAI is not running — open the app, and turn on the API in Settings → Connections.';
 
 /** A timeout is no answer, not a refusal: the write may be on disk already. */
 const MAY_HAVE_LANDED =
@@ -546,7 +546,7 @@ function settle(answer: Answer): Answer {
     const { code, message } = answer.body.error;
     throw new AtlasCallError(`${code}: ${message}${hintFor(code)}`);
   }
-  throw new AtlasCallError(`Atlas answered ${answer.status} with a body this server cannot read.`);
+  throw new AtlasCallError(`DFAI answered ${answer.status} with a body this server cannot read.`);
 }
 
 function hintFor(code: string): string {
@@ -572,11 +572,11 @@ function isErrorBody(body: unknown): body is ApiErrorBody {
 
 function networkFailure(error: unknown, connection: Connection, timeoutMs: number): string {
   if (error instanceof DOMException && error.name === 'TimeoutError') {
-    return `Atlas did not answer within ${timeoutMs / 1000} s. ${MAY_HAVE_LANDED}`;
+    return `DFAI did not answer within ${timeoutMs / 1000} s. ${MAY_HAVE_LANDED}`;
   }
   const code = causeCode(error);
   if (code === 'ECONNREFUSED') return NOT_RUNNING;
-  return `Could not reach Atlas at ${connection.baseUrl} (${code ?? 'network error'}).`;
+  return `Could not reach DFAI at ${connection.baseUrl} (${code ?? 'network error'}).`;
 }
 
 /** Undici puts the socket error's code on `cause`. */

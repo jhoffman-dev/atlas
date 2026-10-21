@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import type { ThumbnailQueue } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import type { ThumbnailQueue } from '@dfai/application';
 import { useThumbnailsNow } from './use-thumbnails.ts';
 
 const JOB = { path: createVaultPath('artifacts/Q3.md'), asked: false };

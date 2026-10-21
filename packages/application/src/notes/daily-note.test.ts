@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, DAILY_NOTE_CONTENTS, type VaultPath } from '@atlas/domain';
+import { createVaultPath, DAILY_NOTE_CONTENTS, type VaultPath } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { dailyNotePath, ensureDailyNote } from './daily-note.ts';
 

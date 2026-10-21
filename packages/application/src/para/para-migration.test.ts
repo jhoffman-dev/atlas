@@ -5,7 +5,7 @@
  * every byte of YAML is the adapters' integration test.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, PARA_CANDIDATES_QUERY_MARK, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, PARA_CANDIDATES_QUERY_MARK, splitFrontmatter } from '@dfai/domain';
 import type { MigrationPanes } from '../gtd/run-task-migration.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
@@ -64,7 +64,7 @@ const FILES: Record<string, string> = {
   'Archive/Areas/Old Club.md': note({ type: 'area', archived: '2026-01-02' }),
   'Archive/Projects/Launch.md': note({ type: 'project', status: 'done' }),
   'Archive/Projects/Done.md': note({ type: 'project', para: 'archive' }),
-  'Projects/Atlas.md': note({ type: 'project', status: 'active' }),
+  'Projects/DFAI.md': note({ type: 'project', status: 'active' }),
   'Tasks/Call the bank.md': note({ type: 'task', project: '[[Garden]]' }),
 };
 
@@ -139,7 +139,7 @@ describe('previewParaMigration', () => {
   it('has nothing to do in a vault whose PARA is already one type', async () => {
     const { ports } = vault({
       '.atlas/types/project.md': PROJECT_TYPE,
-      'Projects/Atlas.md': note({ type: 'project' }),
+      'Projects/DFAI.md': note({ type: 'project' }),
       'Garden.md': note({ type: 'project', para: 'area' }),
     });
     expect(hasParaMigrationWork(await previewParaMigration(ports))).toBe(false);
@@ -192,7 +192,7 @@ describe('runParaMigration', () => {
   it('leaves alone every note it did not list: a project in use, a task, a template', async () => {
     const { files } = await run();
     for (const path of [
-      'Projects/Atlas.md',
+      'Projects/DFAI.md',
       'Tasks/Call the bank.md',
       '.atlas/templates/Area.md',
       'Archive/Projects/Done.md',
@@ -256,7 +256,7 @@ describe('runParaMigration', () => {
     expect(report.left).toEqual([
       {
         path: 'Areas/Garden.md',
-        reason: 'It is open in Atlas with unsaved typing, so it was left as it is.',
+        reason: 'It is open in DFAI with unsaved typing, so it was left as it is.',
       },
     ]);
     expect(files.get('Areas/Garden.md')).toBe(FILES['Areas/Garden.md']);
@@ -306,7 +306,7 @@ describe('notes archived by the Archive command, by their value', () => {
   it('are never offered the move again, archived or brought back', async () => {
     const v = vault({
       '.atlas/types/project.md': PROJECT_TYPE,
-      'Projects/Atlas.md': note({ type: 'project', para: 'area' }),
+      'Projects/DFAI.md': note({ type: 'project', para: 'area' }),
       'Areas/Garden.md': note({ type: 'area' }),
     });
     const batch = (paths: string[]) => ({
@@ -328,10 +328,10 @@ describe('notes archived by the Archive command, by their value', () => {
     expect(before.notes.map((line) => line.path)).toEqual(['Areas/Garden.md']);
 
     const archived = await archiveNotesWithPara({
-      ...batch(['Projects/Atlas.md', 'Areas/Garden.md']),
+      ...batch(['Projects/DFAI.md', 'Areas/Garden.md']),
       today: '2026-10-14',
     });
-    expect(archived.valued).toEqual(['Projects/Atlas.md', 'Areas/Garden.md']);
+    expect(archived.valued).toEqual(['Projects/DFAI.md', 'Areas/Garden.md']);
     expect(frontmatterOf(v.files.get('Areas/Garden.md'))).toEqual({
       type: 'project',
       para: 'archive',
@@ -339,12 +339,12 @@ describe('notes archived by the Archive command, by their value', () => {
     });
     expect((await previewParaMigration(v.ports)).notes).toEqual([]);
 
-    await unarchiveNotesWithPara(batch(['Projects/Atlas.md', 'Areas/Garden.md']));
+    await unarchiveNotesWithPara(batch(['Projects/DFAI.md', 'Areas/Garden.md']));
     expect(frontmatterOf(v.files.get('Areas/Garden.md'))).toEqual({
       type: 'project',
       para: 'area',
     });
-    expect(frontmatterOf(v.files.get('Projects/Atlas.md'))).toEqual({
+    expect(frontmatterOf(v.files.get('Projects/DFAI.md'))).toEqual({
       type: 'project',
       para: 'area',
     });

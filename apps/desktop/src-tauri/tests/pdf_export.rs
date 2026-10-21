@@ -8,8 +8,8 @@ mod macos {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    use atlas_lib::export::pdf::{pdf_spec, PdfArgs};
-    use atlas_lib::export::pdf_macos;
+    use dfai_lib::export::pdf::{pdf_spec, PdfArgs};
+    use dfai_lib::export::pdf_macos;
     use objc2::rc::Retained;
     use objc2::{AllocAnyThread, MainThreadMarker};
     use objc2_app_kit::NSApplication;

@@ -10,7 +10,7 @@ export const addImage = defineTool({
   title: 'Add an image to a note',
   description:
     'Save an image into the vault for a note and show it at the end of the note, as pasting one ' +
-    'into Atlas does. Atlas puts it where Settings → Images says (the "attachments" folder, or ' +
+    'into DFAI does. DFAI puts it where Settings → Images says (the "attachments" folder, or ' +
     'beside the note), numbers the name if it is taken, and never overwrites a file. PNG, JPEG, ' +
     'GIF, WebP, SVG or HEIC, up to 20 MB; the bytes must really be that kind of image. Give ' +
     'either "file", an image on this computer, or "base64" with a "name". A "file" is read only ' +

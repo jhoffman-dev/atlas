@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { rankTagSuggestions, type TagCount, type TagSuggestion } from '@atlas/domain';
-import { loadTagCounts, type IndexPort } from '@atlas/application';
+import { rankTagSuggestions, type TagCount, type TagSuggestion } from '@dfai/domain';
+import { loadTagCounts, type IndexPort } from '@dfai/application';
 import { vaultReadKey } from '../reads/query-client.ts';
 import { readState, type ReadState } from '../reads/read-state.ts';
 

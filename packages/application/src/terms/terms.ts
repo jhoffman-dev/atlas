@@ -31,7 +31,7 @@ import {
   type Vocabulary,
   type VocabularyRow,
   type VocabularySource,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { OpenNotes } from '../api/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';
@@ -200,7 +200,7 @@ async function namedNoteOpenedBy({
   // Whatever its type: a block that cannot be read may well say person or company.
   const problem = markdown.frontmatterProblem(frontmatter);
   if (problem !== null) {
-    throw new TermRefusedError(`${path} has properties Atlas can't change safely: ${problem}`);
+    throw new TermRefusedError(`${path} has properties DFAI can't change safely: ${problem}`);
   }
   const into = vocabularySourceOf(properties['type']);
   if (into !== 'person' && into !== 'company') return null;

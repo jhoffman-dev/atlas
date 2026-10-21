@@ -1,6 +1,6 @@
 import { memo, useMemo, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import { activeTabOf, outlineOf, typeShownAt, type TabId, type VaultPath } from '@atlas/domain';
+import { activeTabOf, outlineOf, typeShownAt, type TabId, type VaultPath } from '@dfai/domain';
 import {
   BacklinksPane,
   OutlinePane,
@@ -8,7 +8,7 @@ import {
   RightSidebar,
   shownAsideTab,
   type AsideTab,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { requestReveal } from '../panes/reveals.ts';
 import { openNote } from '../workspace/open-place.ts';
 import { useFocusedPlace } from '../workspace/workspace-store.ts';

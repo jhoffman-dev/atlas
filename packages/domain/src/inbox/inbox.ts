@@ -444,7 +444,7 @@ export function processRefusal({
  * Why a note cannot be what Inbox notes are filed under, or null when it can:
  * it has to be a project or an area, and one still in use — not waiting in
  * the Inbox itself, not archived (moved to the Archive, or a Project set to
- * PARA archive where it stands), not one of Atlas's own files. Filing only
+ * PARA archive where it stands), not one of DFAI's own files. Filing only
  * links it (#214), so where its own folder is does not matter. A Project is
  * judged as the PARA value it holds (#213): a resource is refused as a note
  * of the Resource type was.
@@ -461,7 +461,7 @@ export function filingRefusal({
   para?: unknown;
 }): string | null {
   if (isAtlasNote(path))
-    return 'Notes are filed under a project or an area, not under Atlas’s own files.';
+    return 'Notes are filed under a project or an area, not under DFAI’s own files.';
   if (isInInbox(path)) return 'That is still in the Inbox: process it first.';
   if (isArchivedPath(path)) return ARCHIVED_TARGET;
   if (type === null) return 'Notes are filed under a project or an area, and that note is neither.';

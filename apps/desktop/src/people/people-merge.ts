@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from 'zustand';
-import { createVaultPath, type DuplicatePair, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type DuplicatePair, type VaultPath } from '@dfai/domain';
 import {
   applyPeopleMerge,
   dismissPossibleDuplicate,
@@ -12,8 +12,8 @@ import {
   type PeopleMergePreview,
   type PeopleMergeRequest,
   type SettingsWriter,
-} from '@atlas/application';
-import type { MergePersonChoice } from '@atlas/ui';
+} from '@dfai/application';
+import type { MergePersonChoice } from '@dfai/ui';
 import type { BatchAnswer } from '../archive/use-row-selection.ts';
 import type { Overlay } from '../overlay.ts';
 import type { Toasts } from '../toasts/toasts.ts';

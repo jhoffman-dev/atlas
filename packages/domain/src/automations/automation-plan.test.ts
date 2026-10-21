@@ -22,11 +22,11 @@ describe('planAutomation', () => {
     expect(plan.paths).toEqual(['a.md']);
     expect(plan.passedOver).toEqual([
       { path: 'Archive/b.md', reason: 'It is already archived.' },
-      { path: '.atlas/templates/Task.md', reason: 'Atlas keeps its own files where they are.' },
+      { path: '.atlas/templates/Task.md', reason: 'DFAI keeps its own files where they are.' },
     ]);
   });
 
-  it('never sets a property on Atlas’s own files, but may on an archived note', () => {
+  it('never sets a property on DFAI’s own files, but may on an archived note', () => {
     const plan = planAutomation({
       action: SET,
       matched: paths('.atlas/types/task.md', 'Archive/b.md'),

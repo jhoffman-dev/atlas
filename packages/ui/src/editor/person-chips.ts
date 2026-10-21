@@ -2,7 +2,7 @@ import { Extension, type Editor } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import type { PersonChip } from '@atlas/domain';
+import type { PersonChip } from '@dfai/domain';
 
 /** The chip for a link's target when it opens a person, or null. */
 export type PersonFor = (target: string) => PersonChip | null;

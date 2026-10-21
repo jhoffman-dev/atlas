@@ -1,4 +1,4 @@
-import { KeyAsWritten } from '@atlas/domain';
+import { KeyAsWritten } from '@dfai/domain';
 import type { OpenNotes } from '../api/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

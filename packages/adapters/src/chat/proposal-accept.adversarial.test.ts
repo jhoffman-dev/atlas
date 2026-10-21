@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptProposal, fakeVaultFs, proposeEdit } from '@atlas/application';
+import { acceptProposal, fakeVaultFs, proposeEdit } from '@dfai/application';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 
 /**

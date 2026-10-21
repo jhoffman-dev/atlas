@@ -87,19 +87,19 @@ describe('GlobalCaptureSettings', () => {
     expect(onChange).toHaveBeenLastCalledWith('Control+Alt+KeyN');
   });
 
-  it('says when the system would not give Atlas the shortcut, and why', () => {
+  it('says when the system would not give DFAI the shortcut, and why', () => {
     render(
       <GlobalCaptureSettings
         view={{
           shortcut: 'Control+Super+KeyK',
           registered: false,
-          problem: 'macOS would not give Atlas this shortcut. Choose another.',
+          problem: 'macOS would not give DFAI this shortcut. Choose another.',
         }}
         onChange={vi.fn()}
       />,
     );
     expect(screen.getByText('⌃⌘K — not working')).toBeDefined();
-    expect(screen.getByRole('alert').textContent).toMatch(/would not give Atlas this shortcut/);
+    expect(screen.getByRole('alert').textContent).toMatch(/would not give DFAI this shortcut/);
   });
 
   it('says it is checking until the host has answered', () => {

@@ -12,8 +12,8 @@ import {
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useParaMigration } from './use-para-migration.ts';
 
 const FILES: Record<string, string> = {

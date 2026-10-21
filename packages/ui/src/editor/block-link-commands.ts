@@ -8,7 +8,7 @@ import {
   type EditorNode,
   type NodePath,
   type WikiLinkOrEmbed,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /*
  * The editor's side of linking a block (P26-02): put in the link or the

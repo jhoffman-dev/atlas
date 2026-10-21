@@ -1,5 +1,5 @@
-import { parseCollapsedSections, type SidebarSectionId } from '@atlas/domain';
-import type { SectionStore } from '@atlas/ui';
+import { parseCollapsedSections, type SidebarSectionId } from '@dfai/domain';
+import type { SectionStore } from '@dfai/ui';
 
 const KEY = 'atlas.sidebar.collapsed';
 

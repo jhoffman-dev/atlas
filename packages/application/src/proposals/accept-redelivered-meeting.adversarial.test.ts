@@ -14,7 +14,7 @@ import {
   noteChangesBetween,
   type NoteVersion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { heldEntries } from '../index/refresh-index.ts';
 import { createMeetingLinker } from '../meeting-links/link-imported-meetings.ts';
 import { createMeetingImporter } from '../meetings/meeting-importer.ts';

@@ -6,7 +6,7 @@ import {
   type PassedOver,
   type PriorValue,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { setNoteProperties } from '../query/set-property.ts';
 import { VaultChangedError } from './vault-guard.ts';
@@ -26,7 +26,7 @@ export interface PropertyChange {
   readonly to: PriorValue;
 }
 
-export const UNSAVED_TYPING = 'It is open in Atlas with unsaved typing, so it was left as it is.';
+export const UNSAVED_TYPING = 'It is open in DFAI with unsaved typing, so it was left as it is.';
 
 /**
  * Changes properties note by note, recording exactly what each held before so

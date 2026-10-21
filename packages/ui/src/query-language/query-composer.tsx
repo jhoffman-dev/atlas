@@ -1,4 +1,4 @@
-import type { BuilderQuery, QueryProblem } from '@atlas/domain';
+import type { BuilderQuery, QueryProblem } from '@dfai/domain';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { QueryBuilder, type QueryBuilderProps } from './query-builder.tsx';
 import { QueryText } from './query-text.tsx';

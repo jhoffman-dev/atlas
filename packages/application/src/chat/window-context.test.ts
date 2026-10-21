@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { apiFixture } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { captureWindowContext } from './window-context.ts';

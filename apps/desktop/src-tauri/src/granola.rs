@@ -108,13 +108,13 @@ fn no_key() -> GranolaFailure {
     )
 }
 
-/// A key kept before `key::save` refused one Atlas could not strike from an
+/// A key kept before `key::save` refused one DFAI could not strike from an
 /// answer: sending it and then withholding the answer would already have
 /// given it away, so it is not sent.
 fn too_long_to_protect() -> GranolaFailure {
     GranolaFailure::new(
         FailureKind::Invalid,
-        "the Granola API key kept is too long for Atlas to protect, so nothing was sent — replace it in Settings",
+        "the Granola API key kept is too long for DFAI to protect, so nothing was sent — replace it in Settings",
     )
 }
 

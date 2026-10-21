@@ -8,7 +8,7 @@
  * were.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, parseObjectType, TASK_TYPE_FILE } from '@atlas/domain';
+import { createVaultPath, parseObjectType, TASK_TYPE_FILE } from '@dfai/domain';
 import {
   fakeVaultFs,
   promoteChecklistLine,
@@ -19,7 +19,7 @@ import {
   type ChecklistLineChoice,
   type PromotionPanes,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const PLAN = [

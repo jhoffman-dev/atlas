@@ -1,5 +1,5 @@
 import { Menu } from '@base-ui/react/menu';
-import { typeIcon } from '@atlas/domain';
+import { typeIcon } from '@dfai/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 
 export interface TemplateChoice {

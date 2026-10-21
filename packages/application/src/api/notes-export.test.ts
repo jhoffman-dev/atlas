@@ -5,7 +5,7 @@ import {
   trailingBlockAnchor,
   type EditorNode,
   type ParsedBody,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { apiFixture, bodyOf, codeOf, encoded, type ApiFixture } from '../testing/api-fixture.ts';
@@ -53,7 +53,7 @@ function lineMarkdown(): MarkdownPort {
 const FILES = {
   'Meetings/Weekly sync.md': '---\ntype: meeting\n---\nAsk [[Mara Quill]] about [[task]].',
   'People/Mara Quill.md': '---\ntitle: Mara Q.\n---\nBlock. ^m1',
-  '.atlas/types/task.md': '---\nname: task\ntitle: Atlas task type\n---\nSettings. ^s1',
+  '.atlas/types/task.md': '---\nname: task\ntitle: DFAI task type\n---\nSettings. ^s1',
   '.obsidian/secret.md': '---\ntitle: Hidden title\n---\nHidden. ^h1',
 };
 

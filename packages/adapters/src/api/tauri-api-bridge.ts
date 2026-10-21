@@ -5,7 +5,7 @@ import {
   type ApiBridgePort,
   type ApiRequest,
   type ApiResponse,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /**
  * The local API's requests, as the Rust host forwards them: one event per

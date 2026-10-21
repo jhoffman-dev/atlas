@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
-import { activeSidebarPageOf, type VaultPath } from '@atlas/domain';
-import { Sidebar } from '@atlas/ui';
+import { activeSidebarPageOf, type VaultPath } from '@dfai/domain';
+import { Sidebar } from '@dfai/ui';
 import { useFocusedPlace, type WorkspaceStore } from './workspace-store.ts';
 
 /**

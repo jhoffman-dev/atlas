@@ -11,7 +11,7 @@ import {
   type EditorDocument,
   type NoteSuggestion,
   type WikiLinkOrEmbed,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { exitSuggestion } from '@tiptap/suggestion';
 import { linkOnceMade, type MakeLinked } from './pending-mention.ts';
 import { pickerSuggestion, type PickerView } from './picker-suggestion.ts';

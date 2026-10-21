@@ -10,7 +10,7 @@ import {
   queryableFields,
   type BoardRow,
   type ViewLayout,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { GroupedResult } from './grouped-result.tsx';
 
 const TYPES = [

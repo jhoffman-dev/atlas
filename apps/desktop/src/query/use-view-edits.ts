@@ -15,7 +15,7 @@ import {
   type QuerySort,
   type VaultPath,
   type ViewEdits,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   writeViewNote,
   ViewRefusedError,
@@ -23,7 +23,7 @@ import {
   type MarkdownPort,
   type OpenNote,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import type { ViewDrafts } from './use-view-drafts.ts';

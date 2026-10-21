@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   createNoteChanges,
   fakeIndexPort,
@@ -9,7 +9,7 @@ import {
   fakeVaultFs,
   INDEX_BATCH_SIZE,
   recordingActivity,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useIndex, type IndexPorts } from './use-index.ts';
 
 const LARKSPUR = '/vaults/Larkspur';

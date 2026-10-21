@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { EXPORT_PAGE } from '@atlas/domain';
+import { EXPORT_PAGE } from '@dfai/domain';
 import { pagingScript } from './paging-script.ts';
 
 /*

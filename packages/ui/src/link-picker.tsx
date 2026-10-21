@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import { placeCrumb, type NoteSuggestion } from '@atlas/domain';
+import { placeCrumb, type NoteSuggestion } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { Key, KeyHints } from './key-hints.tsx';

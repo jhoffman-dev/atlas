@@ -65,7 +65,7 @@ test('About names the version and the commit the build was made from (#481)', as
 
   await list(page).getByRole('button', { name: 'About', exact: true }).click();
   const about = settings(page).getByRole('region', { name: 'About' });
-  await expect(about.getByText('Atlas 0.1.0')).toBeVisible();
+  await expect(about.getByText('DFAI 0.1.0')).toBeVisible();
   await expect(about.getByText(/^Build [0-9a-f]{7}$/)).toBeVisible();
 });
 

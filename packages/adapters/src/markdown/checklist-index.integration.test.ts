@@ -5,14 +5,14 @@
  * rebuilt from the files.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   refreshIndex,
   type IndexedNote,
   type IndexPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const FILES: Record<string, string> = {

@@ -15,9 +15,9 @@ import {
   parseObjectType,
   splitFrontmatter,
   type NavigationPlace,
-} from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type DefinedType } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type DefinedType } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardColumn, BoardRow } from '@atlas/domain';
+import type { BoardColumn, BoardRow } from '@dfai/domain';
 import { ArtifactCardFace } from './artifact-card-face.tsx';
 import { ARTIFACT_SANDBOX, ArtifactViewer, type ArtifactViewerCopy } from './artifact-viewer.tsx';
 import { GalleryView } from './list-view.tsx';
@@ -30,7 +30,7 @@ function dialog(
     <NewArtifactDialog
       draft={{ ...DRAFT, ...draft }}
       kinds={KINDS}
-      projects={[{ value: 'Atlas', label: 'Atlas' }]}
+      projects={[{ value: 'DFAI', label: 'DFAI' }]}
       error={extra.error ?? null}
       saving={extra.saving ?? false}
       onChange={onChange}
@@ -56,8 +56,8 @@ describe('NewArtifactDialog', () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, url: 'https://claude.ai/artifact/a' });
     await userEvent.click(screen.getByRole('button', { name: 'Deck' }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, kind: 'deck' });
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'Atlas');
-    expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, project: 'Atlas' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'DFAI');
+    expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, project: 'DFAI' });
   });
 
   it('takes a dropped page, and a picked one', async () => {

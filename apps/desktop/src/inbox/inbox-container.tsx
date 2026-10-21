@@ -1,7 +1,7 @@
 import { useCallback, useEffect, type ComponentProps } from 'react';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
-import { INBOX_CHOICES_SCOPE, INBOX_SCOPE, type WindowClosingPort } from '@atlas/application';
-import { InboxPage } from '@atlas/ui';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
+import { INBOX_CHOICES_SCOPE, INBOX_SCOPE, type WindowClosingPort } from '@dfai/application';
+import { InboxPage } from '@dfai/ui';
 import { useProposals } from '../proposals/use-proposals.ts';
 import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { localClock } from '../today.ts';

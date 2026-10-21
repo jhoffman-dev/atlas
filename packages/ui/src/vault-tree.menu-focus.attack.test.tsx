@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type SidebarTreeRow, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type SidebarTreeRow, type VaultEntry } from '@dfai/domain';
 import { VaultTree, type TreeEditing } from './vault-tree.tsx';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';
 import type { MenuCommand } from './menu-items.tsx';
@@ -29,7 +29,7 @@ const noteRow = (name: string): SidebarTreeRow => ({
   opensArchive: false,
 });
 
-const ROWS = ['Atlas', 'Budget', 'Garden', 'Ledger'].map(noteRow);
+const ROWS = ['DFAI', 'Budget', 'Garden', 'Ledger'].map(noteRow);
 
 const twoItems = (entry: VaultEntry): MenuCommand[] => [
   { label: 'Rename', onSelect: () => {} },

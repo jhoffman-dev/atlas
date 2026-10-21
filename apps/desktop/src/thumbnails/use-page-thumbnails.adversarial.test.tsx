@@ -9,8 +9,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createVaultPath, pageThumbnailPath } from '@atlas/domain';
-import { createThumbnailQueue, type ThumbnailJob } from '@atlas/application';
+import { createVaultPath, pageThumbnailPath } from '@dfai/domain';
+import { createThumbnailQueue, type ThumbnailJob } from '@dfai/application';
 import { usePageThumbnailRefresh, type PageToPicture } from './use-page-thumbnails.ts';
 
 const DUNE = createVaultPath('Books/Dune.md');

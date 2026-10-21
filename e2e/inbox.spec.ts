@@ -20,7 +20,7 @@ const TASK_TYPE = [
   '',
 ].join('\n');
 
-/** James's own project type, with a property Atlas never wrote. */
+/** James's own project type, with a property DFAI never wrote. */
 const PROJECT_TYPE = [
   '---',
   'name: project',
@@ -56,7 +56,7 @@ async function openParaVault(page: Page): Promise<FakeVault> {
   await vault.write('.atlas/types/task.md', TASK_TYPE);
   await vault.write('.atlas/types/project.md', PROJECT_TYPE);
   await vault.write('.atlas/templates/Task.md', TASK_TEMPLATE);
-  await vault.write('Projects/Atlas.md', note(['type: project', 'budget: 10'], 'The app.'));
+  await vault.write('Projects/DFAI.md', note(['type: project', 'budget: 10'], 'The app.'));
   await vault.write('Areas/Garden.md', note(['type: area'], 'Beds and seeds.'));
   await vault.write('People/Mara Quill.md', note(['type: person'], 'A neighbour.'));
   await vault.write(
@@ -145,23 +145,23 @@ test('a captured task waits in the Inbox, and Process files it under its project
   const fileUnder = inbox.getByRole('combobox', { name: 'File Renew the passport under' });
   // Projects and areas are offered; a person is not something to file under.
   await fileUnder.click();
-  await expect(suggestion(fileUnder, 'Atlas')).toHaveCount(1);
+  await expect(suggestion(fileUnder, 'DFAI')).toHaveCount(1);
   await expect(suggestion(fileUnder, 'Garden')).toHaveCount(1);
   await expect(suggestion(fileUnder, 'Mara Quill')).toHaveCount(0);
 
   // A task's row holds what is picked until Done (#112).
-  await pickSuggestion(fileUnder, 'Atlas');
+  await pickSuggestion(fileUnder, 'DFAI');
   await inbox
     .getByRole('form', { name: 'Clarify Renew the passport' })
     .getByRole('button', { name: 'Save', exact: true })
     .click();
 
-  await expectFile(vault, FILED_TASK).toContain('[[Atlas]]');
+  await expectFile(vault, FILED_TASK).toContain('[[DFAI]]');
   const filed = await vault.read(FILED_TASK);
-  expect(filed).toMatch(/^project: "?\[\[Atlas\]\]"?$/m);
+  expect(filed).toMatch(/^project: "?\[\[DFAI\]\]"?$/m);
   expect(filed).toContain('type: task');
   expect(await vault.exists('Inbox/Renew the passport.md')).toBe(false);
-  expect(await vault.exists('Projects/Atlas/Renew the passport.md')).toBe(false);
+  expect(await vault.exists('Projects/DFAI/Renew the passport.md')).toBe(false);
   await expect(inbox.getByRole('button', { name: 'Renew the passport' })).toHaveCount(0);
   await expect(inbox.getByRole('button', { name: '2026-10-01 Seed swap' })).toBeVisible();
 });
@@ -209,7 +209,7 @@ test('a task’s project, once its type is extended, offers projects and areas a
   await expectFile(vault, 'Inbox/Order seeds.md').toContain('type: task');
   const picker = page.getByRole('region', { name: 'Properties' }).getByLabel('Project');
   await picker.click();
-  await expect(suggestion(picker, 'Atlas')).toHaveAttribute('aria-label', /, Projects,/);
+  await expect(suggestion(picker, 'DFAI')).toHaveAttribute('aria-label', /, Projects,/);
   await expect(suggestion(picker, 'Garden')).toHaveAttribute('aria-label', /, Areas,/);
   await expect(suggestion(picker, 'Mara Quill')).toHaveCount(0);
 });

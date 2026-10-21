@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { fakeIndexPort, fakeVaultFs, type IndexPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import type { ObjectType } from '@atlas/domain';
+import { fakeIndexPort, fakeVaultFs, type IndexPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import type { ObjectType } from '@dfai/domain';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { readAgain, vaultReadKey } from '../reads/query-client.ts';
 import { useInboxWaiting } from './use-inbox-waiting.ts';

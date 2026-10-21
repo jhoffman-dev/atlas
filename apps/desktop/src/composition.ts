@@ -35,7 +35,7 @@ import {
   tauriMacName,
   tauriSleepClock,
   tauriSyncFiles,
-} from '@atlas/adapters';
+} from '@dfai/adapters';
 import type {
   ActivityStore,
   WindowClosingPort,
@@ -50,8 +50,8 @@ import type {
   GoogleDrivePort,
   NotePageRenderer,
   PdfRendererPort,
-} from '@atlas/application';
-import { createExportPageRenderer } from '@atlas/ui';
+} from '@dfai/application';
+import { createExportPageRenderer } from '@dfai/ui';
 import type { VaultPorts } from './vault/use-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import type { IndexPorts } from './index/use-index.ts';
@@ -77,7 +77,7 @@ export function resolveAppInfoPort(): AppInfoPort {
   const build = builtCommit();
   return isTauri()
     ? tauriAppInfo({ build })
-    : staticAppInfo({ name: 'Atlas', version: desktopPackage.version, build });
+    : staticAppInfo({ name: 'DFAI', version: desktopPackage.version, build });
 }
 
 /** The commit this app was built from, which Vite writes in; absent in the unit tests. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseObjectType } from '@atlas/domain';
+import { parseObjectType } from '@dfai/domain';
 import { viewSpecsFor } from './run-view.ts';
 
 describe('viewSpecsFor', () => {

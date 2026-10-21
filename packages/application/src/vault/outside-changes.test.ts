@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, parentVaultPath, vaultPathName, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, parentVaultPath, vaultPathName, type VaultEntry } from '@dfai/domain';
 import { fakeVaultFs } from '../testing/fake-ports.ts';
 import { createOwnWrites, OWN_WRITE_KEPT_MS } from './own-writes.ts';
 import { awaitsOwnRefresh, outsideChanges } from './outside-changes.ts';

@@ -1,4 +1,4 @@
-import type { EntryMove } from '@atlas/domain';
+import type { EntryMove } from '@dfai/domain';
 
 /**
  * Where a move made through the local API is passed on to: one object for the

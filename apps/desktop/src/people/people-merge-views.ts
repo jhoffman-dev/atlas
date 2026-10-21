@@ -5,14 +5,14 @@ import {
   type DuplicatePair,
   type DuplicateReason,
   type VaultPath,
-} from '@atlas/domain';
-import type { PeopleMergePreview } from '@atlas/application';
+} from '@dfai/domain';
+import type { PeopleMergePreview } from '@dfai/application';
 import type {
   DuplicatePairView,
   DuplicateReasonView,
   MergePersonChoice,
   MergePreviewView,
-} from '@atlas/ui';
+} from '@dfai/ui';
 
 /** A person as a picker or the list names them: their title, and the folder they are in. */
 export function personChoice(path: VaultPath): MergePersonChoice {

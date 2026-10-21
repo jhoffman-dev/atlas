@@ -7,7 +7,7 @@ import type { VaultPath } from '../vault/vault-path.ts';
  * in one `attachments` folder inside it.
  */
 
-/** The formats a note leaves Atlas in. */
+/** The formats a note leaves DFAI in. */
 export const EXPORT_FORMATS = ['markdown', 'standalone', 'pdf', 'google-doc'] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 

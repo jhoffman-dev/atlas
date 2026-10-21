@@ -1,4 +1,4 @@
-import { defaultViewTab, typeViews, type ObjectType } from '@atlas/domain';
+import { defaultViewTab, typeViews, type ObjectType } from '@dfai/domain';
 import { loadSidebarCatalog } from '../sidebar/load-catalog.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { ApiError } from './api-error.ts';

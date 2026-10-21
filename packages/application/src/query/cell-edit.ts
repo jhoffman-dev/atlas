@@ -4,7 +4,7 @@ import {
   sameCellValue,
   splitFrontmatter,
   type StatusProperty,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { ChangedSinceError } from '../today/today-actions.ts';

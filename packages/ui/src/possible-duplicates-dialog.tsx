@@ -1,5 +1,5 @@
 import { Dialog } from '@base-ui/react/dialog';
-import type { PillHue } from '@atlas/domain';
+import type { PillHue } from '@dfai/domain';
 import { delayedSpinner } from './delayed-spinner.tsx';
 import { useReturnFocus, type FocusFallback } from './return-focus.ts';
 import { TintedPill } from './status-pill.tsx';

@@ -11,7 +11,7 @@ const TODAY = '2026-10-11';
 const NOTES = [
   'Inbox/Call the bank.md',
   'Tasks/Imported.md',
-  'Projects/Atlas.md',
+  'Projects/DFAI.md',
   'People/Mara Quill.md',
 ].map(path);
 const TASK = { type: 'task', status: 'inbox' };
@@ -89,19 +89,19 @@ describe('clarifyPlan — a task', () => {
   });
 
   it('files a task in the Inbox folder under its project, leaving the link to the filing', () => {
-    expect(plan({ status: 'next-action', project: path('Projects/Atlas.md') })).toEqual({
+    expect(plan({ status: 'next-action', project: path('Projects/DFAI.md') })).toEqual({
       changes: { status: 'next-action' },
-      fileUnder: 'Projects/Atlas.md',
+      fileUnder: 'Projects/DFAI.md',
     });
-    expect(plan({ project: path('Projects/Atlas.md') })).toEqual({
+    expect(plan({ project: path('Projects/DFAI.md') })).toEqual({
       changes: {},
-      fileUnder: 'Projects/Atlas.md',
+      fileUnder: 'Projects/DFAI.md',
     });
   });
 
   it('links a task that lives elsewhere to its project, and leaves it where it is', () => {
-    expect(plan({ project: path('Projects/Atlas.md') }, { at: 'Tasks/Imported.md' })).toEqual({
-      changes: { project: '[[Atlas]]' },
+    expect(plan({ project: path('Projects/DFAI.md') }, { at: 'Tasks/Imported.md' })).toEqual({
+      changes: { project: '[[DFAI]]' },
       fileUnder: null,
     });
   });
@@ -115,9 +115,9 @@ describe('clarifyPlan — a note that is not a task', () => {
   const MEETING = { type: 'meeting' };
 
   it('files it, writing nothing of its own', () => {
-    expect(plan({ project: path('Projects/Atlas.md') }, { properties: MEETING })).toEqual({
+    expect(plan({ project: path('Projects/DFAI.md') }, { properties: MEETING })).toEqual({
       changes: {},
-      fileUnder: 'Projects/Atlas.md',
+      fileUnder: 'Projects/DFAI.md',
     });
   });
 
@@ -135,7 +135,7 @@ describe('clarifyPlan — a note that is not a task', () => {
 
   it('refuses a proposal, which is answered', () => {
     expect(
-      plan({ project: path('Projects/Atlas.md') }, { properties: { type: 'Proposal' } }),
+      plan({ project: path('Projects/DFAI.md') }, { properties: { type: 'Proposal' } }),
     ).toEqual({
       refused: 'A proposal is answered, not clarified: accept or reject it.',
     });
@@ -143,7 +143,7 @@ describe('clarifyPlan — a note that is not a task', () => {
 
   it('refuses linking one outside the Inbox folder: only a task waits there', () => {
     expect(
-      plan({ project: path('Projects/Atlas.md') }, { at: 'Tasks/Imported.md', properties: {} }),
+      plan({ project: path('Projects/DFAI.md') }, { at: 'Tasks/Imported.md', properties: {} }),
     ).toEqual({ refused: 'It is not in the Inbox.' });
   });
 
@@ -190,7 +190,7 @@ describe('waitingOnRefusal', () => {
   });
 
   it('refuses a note of another type, or of none', () => {
-    expect(waitingOnRefusal({ path: path('Projects/Atlas.md'), type: 'project' })).toBe(
+    expect(waitingOnRefusal({ path: path('Projects/DFAI.md'), type: 'project' })).toBe(
       'Waiting on links to a person, not a project',
     );
     expect(waitingOnRefusal({ path: path('Notes/Idea.md'), type: null })).toBe(
@@ -198,12 +198,12 @@ describe('waitingOnRefusal', () => {
     );
   });
 
-  it('refuses an archived person, and one of Atlas’s own files', () => {
+  it('refuses an archived person, and one of DFAI’s own files', () => {
     expect(
       waitingOnRefusal({ path: path('Archive/People/Tobias Fenn.md'), type: 'person' }),
     ).toMatch(/archived/);
     expect(waitingOnRefusal({ path: path('.atlas/types/person.md'), type: 'person' })).toMatch(
-      /Atlas’s own files/,
+      /DFAI’s own files/,
     );
   });
 });

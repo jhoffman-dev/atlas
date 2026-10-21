@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { TaggedNote } from '@atlas/application';
-import { formatTag, tagHue, type TagSort, type TagTreeNode, type VaultPath } from '@atlas/domain';
+import type { TaggedNote } from '@dfai/application';
+import { formatTag, tagHue, type TagSort, type TagTreeNode, type VaultPath } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { SegmentedControl } from './segmented-control.tsx';
 import { TagRenameForm, type TagRenameControls } from './tag-rename-form.tsx';

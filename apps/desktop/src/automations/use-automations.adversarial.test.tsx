@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Adversarial pass on the scheduler (P25-02/03): a rule that has never run, whose
- * time only ever falls while Atlas is closed. The vault is held in memory; the clock is the test's.
+ * time only ever falls while DFAI is closed. The vault is held in memory; the clock is the test's.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
@@ -12,15 +12,15 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeClaudeStepPorts,
   fakeIndexPort,
   fakeVaultFs,
   type AutomationPorts,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { SCHEDULE_TICK_MS, useAutomations, type AutomationsOptions } from './use-automations.ts';
 
 const RULE = '.atlas/automations/Sweep.md';
@@ -162,7 +162,7 @@ afterEach(() => {
 });
 
 describe('a rule written by hand, never run', () => {
-  it('runs by the second day even when Atlas is only ever open outside its time', async () => {
+  it('runs by the second day even when DFAI is only ever open outside its time', async () => {
     const vault = memoryVault({
       [RULE]: rule('daily at 03:00'),
       'Tasks/A.md': '---\ntype: task\n---\n',
@@ -178,7 +178,7 @@ describe('a rule written by hand, never run', () => {
     await settle();
     dayOne.unmount();
 
-    // Day two: 03:00 came and went while Atlas was closed — a run missed, to catch up.
+    // Day two: 03:00 came and went while DFAI was closed — a run missed, to catch up.
     now = '2026-09-28T09:00:00';
     mount(vault);
     await settle();

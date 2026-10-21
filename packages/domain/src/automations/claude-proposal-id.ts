@@ -1,6 +1,6 @@
 /**
  * A Claude step's proposal (P29-03) as the proposals writer takes it
- * (`NewProposal`, P29-04): one writer makes every proposal Atlas proposes,
+ * (`NewProposal`, P29-04): one writer makes every proposal DFAI proposes,
  * and its `proposal_id` is what keeps a proposal from being made twice.
  *
  * The id is the same for the same proposal however often its step runs, so a

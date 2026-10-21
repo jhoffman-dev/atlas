@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { PropertyKind } from '@atlas/domain';
+import type { PropertyKind } from '@dfai/domain';
 import type { CellEdit } from './cells/cell-editing.ts';
 import { TableView, type TableResult, type TableViewProps } from './table-view.tsx';
 import { ROW_ESTIMATE } from './grouped-rows.tsx';

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { createVaultPath } from '@atlas/domain';
-import type { ThumbnailQueue, VaultFsPort } from '@atlas/application';
-import { GalleryView, type CoverSource } from '@atlas/ui';
+import { createVaultPath } from '@dfai/domain';
+import type { ThumbnailQueue, VaultFsPort } from '@dfai/application';
+import { GalleryView, type CoverSource } from '@dfai/ui';
 import { useThumbnailSnapshot } from '../artifacts/use-thumbnails.ts';
 import { epochNow } from '../today.ts';
 import {

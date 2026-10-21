@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { EXPORT_PAGE } from '@atlas/domain';
-import type { PdfRendererPort } from '@atlas/application';
+import { EXPORT_PAGE } from '@dfai/domain';
+import type { PdfRendererPort } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 import { pagingScript } from './paging-script.ts';
 

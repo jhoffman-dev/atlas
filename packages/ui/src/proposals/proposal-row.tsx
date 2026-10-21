@@ -9,7 +9,7 @@ import {
   type ProposalConfidence,
   type ProposalKind,
   type ProposalNote,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { SelectBox } from '../row-selection.tsx';
 

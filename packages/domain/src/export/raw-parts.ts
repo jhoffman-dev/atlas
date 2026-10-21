@@ -9,7 +9,7 @@ export interface MarkdownSpan {
 /**
  * Something in markdown the editor does not model that an export has a rule
  * for (P32-07), found by the markdown reader itself — the one that decided
- * the block was not modelled — so the export reads it as Atlas does. Code is
+ * the block was not modelled — so the export reads it as DFAI does. Code is
  * never a part: what is in it stays as it is.
  */
 export type RawPart = MarkdownSpan &

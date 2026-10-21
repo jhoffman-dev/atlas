@@ -6,15 +6,15 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, digestOf, type NoteChange, type PullStanding } from '@atlas/domain';
+import { createVaultPath, digestOf, type NoteChange, type PullStanding } from '@dfai/domain';
 import {
   createNoteChanges,
   fakeIndexPort,
   fakeVaultFs,
   recordingActivity,
   type MeetingImportPorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useIndexReady } from '../index/index-status-store.ts';
 import { useIndex } from '../index/use-index.ts';
 import { useMeetingImport } from './use-meeting-import.ts';

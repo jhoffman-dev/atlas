@@ -13,8 +13,8 @@ import {
   runAutomation,
   runOnNoteChanges,
   type FreshPullCheck,
-} from '@atlas/application';
-import { automationVault } from '@atlas/application/testing/sqlite';
+} from '@dfai/application';
+import { automationVault } from '@dfai/application/testing/sqlite';
 import {
   AFTER_A_MEETING_PROMPT,
   builtInPromptAt,
@@ -25,7 +25,7 @@ import {
   parseRunLog,
   type AutomationRule,
   type NoteChange,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TODAY = '2026-10-14';
@@ -489,7 +489,7 @@ describe('a meeting whose items stay proposals', () => {
     expect(vault.properties(MEETING)['tasks']).toBeUndefined();
     const warned = () =>
       activity.reports.filter((report) =>
-        report.message.includes('Atlas can’t tell which action items are yours'),
+        report.message.includes('DFAI can’t tell which action items are yours'),
       ).length;
     expect(warned()).toBe(1);
 

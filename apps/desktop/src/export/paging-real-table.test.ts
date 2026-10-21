@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { EXPORT_PAGE } from '@atlas/domain';
-import { remarkMarkdown, tauriPdfRenderer } from '@atlas/adapters';
-import { createExportPageRenderer } from '@atlas/ui';
+import { EXPORT_PAGE } from '@dfai/domain';
+import { remarkMarkdown, tauriPdfRenderer } from '@dfai/adapters';
+import { createExportPageRenderer } from '@dfai/ui';
 
 /*
  * #502: the paging script against a table as the export renderer really

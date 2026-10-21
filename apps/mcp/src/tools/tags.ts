@@ -50,10 +50,10 @@ export const renameTag = defineTool({
   title: 'Rename a tag',
   description:
     'Rename a tag in every note using it — in the "tags" property and the body, and every tag ' +
-    'nested under it (#para/x becomes #area/x) — as the tags page in Atlas does. It only ' +
+    'nested under it (#para/x becomes #area/x) — as the tags page in DFAI does. It only ' +
     'previews unless dryRun is false: { rename: { from, to, files, uses, mergesInto, notes, ' +
     'skipped } }, writing nothing. Show that to the user, then call again with dryRun false to ' +
-    'write; that also answers { report: { updated, failed } }. A note open in Atlas with unsaved ' +
+    'write; that also answers { report: { updated, failed } }. A note open in DFAI with unsaved ' +
     'typing is left alone and listed in "failed"; notes in .atlas (templates), and notes where ' +
     'the new name could not be written so it reads back, are listed in "skipped". When ' +
     '"mergesInto" is not null the new name is a tag in use already (or the parent of one), the ' +

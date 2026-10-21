@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type ParsedBody } from '@atlas/domain';
+import { createVaultPath, type ParsedBody } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { searchNotes } from '../index/search-notes.ts';
 import { findUnlinkedMentions, linkUnlinkedMention } from './unlinked-mentions.ts';

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, digestOf, IMPORT_OUTCOME_KEY, IMPORT_OUTCOMES_PAGE } from '@atlas/domain';
+import { createVaultPath, digestOf, IMPORT_OUTCOME_KEY, IMPORT_OUTCOMES_PAGE } from '@dfai/domain';
 import {
   heldEntries,
   INDEX_BATCH_SIZE,

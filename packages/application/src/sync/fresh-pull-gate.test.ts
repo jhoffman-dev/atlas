@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PullStanding } from '@atlas/domain';
+import type { PullStanding } from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeSleepClock } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

@@ -59,13 +59,13 @@ describe('the graph queries, run against the index’s tables', () => {
 
   it('lists every property written as a wiki link, but not a note’s type', () => {
     const { database, prop } = index();
-    prop.run('a.md', 'project', 0, '[[Atlas]]');
+    prop.run('a.md', 'project', 0, '[[DFAI]]');
     prop.run('a.md', 'related', 1, '[[Two]]');
     prop.run('a.md', 'status', 0, 'done');
     prop.run('a.md', 'type', 0, '[[task]]');
-    prop.run('a.md', 'note', 0, 'see [[Atlas]]');
+    prop.run('a.md', 'note', 0, 'see [[DFAI]]');
     expect(run(database, 'relations')).toEqual([
-      { source: 'a.md', key: 'project', value: '[[Atlas]]' },
+      { source: 'a.md', key: 'project', value: '[[DFAI]]' },
       { source: 'a.md', key: 'related', value: '[[Two]]' },
     ]);
   });

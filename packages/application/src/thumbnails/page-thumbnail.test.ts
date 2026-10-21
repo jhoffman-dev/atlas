@@ -9,7 +9,7 @@ import {
   parseObjectType,
   THUMBNAIL_SHOT,
   type EditorDocument,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { PageSnapshotPort } from '../artifacts/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';

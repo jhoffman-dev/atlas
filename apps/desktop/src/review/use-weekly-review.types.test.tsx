@@ -6,9 +6,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { INBOX_QUERY_MARK, TASK_TYPE_FILE, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { INBOX_QUERY_MARK, TASK_TYPE_FILE, type ObjectType } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useWeeklyReview } from './use-weekly-review.ts';
 

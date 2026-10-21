@@ -1,6 +1,6 @@
-/** Tools that return rows from the index: saved views, structured queries, Atlas queries, SQL. */
+/** Tools that return rows from the index: saved views, structured queries, DFAI queries, SQL. */
 
-import type { ApiQueryBody } from '@atlas/application';
+import type { ApiQueryBody } from '@dfai/application';
 import { z } from 'zod';
 import { defineTool, definedOnly } from './define.ts';
 import { includeArchived, limit, notePath } from './inputs.ts';
@@ -97,7 +97,7 @@ export const sql = defineTool({
   name: 'atlas_sql',
   title: 'Read-only SQL',
   description:
-    "Run one read-only SQL SELECT against Atlas's index (SQLite), for questions atlas_query " +
+    "Run one read-only SQL SELECT against DFAI's index (SQLite), for questions atlas_query " +
     'cannot express. Tables: files(path, title, summary, modified, size); ' +
     'props(path, key, idx, value_text, value_num, value_date, value_json), one row per ' +
     'property value, idx ordering a list; links(src, dst, target, kind), dst null when the ' +
@@ -118,9 +118,9 @@ export const sql = defineTool({
 
 export const runQuery = defineTool({
   name: 'atlas_run_query',
-  title: 'Run an Atlas query',
+  title: 'Run a DFAI query',
   description:
-    "Run an Atlas query, the text the app's query builder writes, across one or more types, e.g. " +
+    "Run a DFAI query, the text the app's query builder writes, across one or more types, e.g. " +
     '"FROM task, project WHERE status != done AND project.owner = [[Julie]] AND tag = #q3 ' +
     'SORT BY due GROUP BY project THEN status". Clauses: FROM type, …; WHERE with AND, OR, NOT, ' +
     'brackets, = != < <= > >=, CONTAINS, STARTS WITH, IS [NOT] EMPTY, LINKS TO this, CONNECTED TO this; SORT BY ' +
@@ -144,7 +144,7 @@ export const runQuery = defineTool({
     '"invalid" with its line and column; fix it there and run again. Read-only; saving a query ' +
     'as a view stays in the app.',
   inputSchema: z.object({
-    query: z.string().min(1).describe('The Atlas query text.'),
+    query: z.string().min(1).describe('The DFAI query text.'),
     limit: limit
       .max(5000)
       .optional()

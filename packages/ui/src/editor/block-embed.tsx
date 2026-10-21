@@ -13,7 +13,7 @@ import {
   type EditorDocument,
   type Transclusion,
   type WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { linkAttributes } from './link-attributes.ts';
 import { showAsRead } from './block-anchor.ts';

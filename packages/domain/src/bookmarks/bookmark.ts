@@ -16,7 +16,7 @@ import type { VaultPath } from '../vault/vault-path.ts';
  * is a link, as it always was.
  */
 
-/** The comment that turns the link before it into a bookmark, as Atlas writes it. */
+/** The comment that turns the link before it into a bookmark, as DFAI writes it. */
 export const BOOKMARK_MARKER = '<!-- atlas:bookmark -->';
 
 /** The editor node a bookmark is: a block of its own, holding the link. */

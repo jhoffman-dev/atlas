@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import type { PageOutcome, WorkspaceOutcome } from './import-notion-workspace.ts';
 import { workspaceImported, workspaceReportLines } from './workspace-report.ts';
 
@@ -61,12 +61,12 @@ describe('the workspace report', () => {
       'created   Tasks/A.md',
       'note      Tasks/A.md: Waiting with nobody in People: held in the Inbox',
       'updated   Tasks/B.md: priority, body',
-      "kept      Tasks/B.md: status changed in Atlas and in Notion since the last import; Atlas's kept",
+      "kept      Tasks/B.md: status changed in DFAI and in Notion since the last import; DFAI's kept",
       'note      Tasks/D.md: status "Blocked" is not one this import maps: put in the Inbox',
       'refused   People "Untitled": no page in the export has its title',
-      'deleted   Tasks Tracker "Ship it": imported before and deleted in Atlas, so not made again (--recreate-deleted brings it back)',
+      'deleted   Tasks Tracker "Ship it": imported before and deleted in DFAI, so not made again (--recreate-deleted brings it back)',
       'skipped   Teams: left out by --only',
-      "6 pages: 1 created, 1 updated, 2 unchanged, 1 refused, 1 with Atlas's edits kept, 1 deleted in Atlas, 1 skipped, 2 attachments not brought in",
+      "6 pages: 1 created, 1 updated, 2 unchanged, 1 refused, 1 with DFAI's edits kept, 1 deleted in DFAI, 1 skipped, 2 attachments not brought in",
     ]);
   });
 
@@ -98,7 +98,7 @@ describe('the workspace report', () => {
       'Meeting notes:',
       'would write Inbox/Meetings/x.md',
       '1 rows: 0 written, 1 would be written, 0 already in the vault, 0 without a Source ID, 0 left out, 0 held, 0 refused',
-      "2 pages: 1 to create, 1 to update, 0 unchanged, 0 refused, 0 with Atlas's edits kept, 0 deleted in Atlas, 1 skipped, 2 attachments not brought in",
+      "2 pages: 1 to create, 1 to update, 0 unchanged, 0 refused, 0 with DFAI's edits kept, 0 deleted in DFAI, 1 skipped, 2 attachments not brought in",
     ]);
   });
 });
@@ -115,7 +115,7 @@ describe('a note no run recorded importing', () => {
     };
     expect(workspaceReportLines(outcome([filled])).slice(0, 2)).toEqual([
       'filled    People/mara.md: role, slack (no record of an earlier import, so only what it lacked)',
-      "kept      People/mara.md: email changed in Atlas and in Notion since the last import; Atlas's kept",
+      "kept      People/mara.md: email changed in DFAI and in Notion since the last import; DFAI's kept",
     ]);
   });
 });

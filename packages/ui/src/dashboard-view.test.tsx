@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WidgetBar, WidgetData, WidgetResult } from '@atlas/application';
-import { parseDashboard, type Widget } from '@atlas/domain';
+import type { WidgetBar, WidgetData, WidgetResult } from '@dfai/application';
+import { parseDashboard, type Widget } from '@dfai/domain';
 import { DashboardView } from './dashboard-view.tsx';
 
 const widgetFor = (source: Record<string, unknown>): Widget => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compileSidebarQuery, createVaultPath, type VaultEntry } from '@atlas/domain';
+import { compileSidebarQuery, createVaultPath, type VaultEntry } from '@dfai/domain';
 import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { QueryResult } from '../index/ports.ts';
@@ -92,7 +92,7 @@ describe('loadSidebarCatalog', () => {
     expect(catalog.dashboards.map((one) => one.path)).toEqual(['.atlas/dashboards/Progress.md']);
   });
 
-  it('lists a saved Atlas query as a view, and among the queries its tabs offer', async () => {
+  it('lists a saved DFAI query as a view, and among the queries its tabs offer', async () => {
     const { index } = indexWith([]);
     const fs = atlasVault({
       '.atlas/views/Open work.md': noteWith({

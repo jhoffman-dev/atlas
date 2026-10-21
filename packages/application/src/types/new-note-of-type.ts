@@ -1,4 +1,4 @@
-import { createVaultPath, type ObjectType, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type ObjectType, type VaultPath } from '@dfai/domain';
 import { createNote } from '../notes/create-note.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { quickAddContents } from '../quick-add/quick-add-note.ts';

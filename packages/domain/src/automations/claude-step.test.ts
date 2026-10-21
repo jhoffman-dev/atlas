@@ -178,7 +178,7 @@ describe('planning a Claude step', () => {
     expect(planAutomation({ action: { kind: 'archive' }, matched: paths(11) }).capped).toBe(false);
   });
 
-  it('passes over proposals, which it would answer with more proposals, and Atlas’s own files', () => {
+  it('passes over proposals, which it would answer with more proposals, and DFAI’s own files', () => {
     const plan = planAutomation({
       action,
       matched: [
@@ -190,7 +190,7 @@ describe('planning a Claude step', () => {
     expect(plan.paths).toEqual(['Meetings/Standup.md']);
     expect(plan.passedOver.map((over) => over.reason)).toEqual([
       'A Claude step does not read proposals: it would be answering itself.',
-      'Atlas keeps its own files as they are.',
+      'DFAI keeps its own files as they are.',
     ]);
   });
 

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardRow } from '@atlas/domain';
+import type { BoardRow } from '@dfai/domain';
 import { TimelineView } from './timeline-view.tsx';
 import { announced, dragByKeyboard, layOut } from './drag/test-layout.ts';
 

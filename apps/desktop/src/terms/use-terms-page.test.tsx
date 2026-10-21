@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, recordingActivity, type IndexPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, recordingActivity, type IndexPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useTermsPage, type TermsPagePorts } from './use-terms-page.ts';
 
 const LARKSPUR = createVaultPath('Terms/Larkspur.md');

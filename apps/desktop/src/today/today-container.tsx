@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { REVIEW_SCOPE, todayScope, type ReadScope } from '@atlas/application';
-import { TodayPage } from '@atlas/ui';
+import { REVIEW_SCOPE, todayScope, type ReadScope } from '@dfai/application';
+import { TodayPage } from '@dfai/ui';
 import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import { localClock } from '../today.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';

@@ -8,12 +8,12 @@ import {
   splitFrontmatter,
   splitWikiLinks,
   TAGS_KEY,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 
 /**
- * The index tables an Atlas query reads — `files`, `props`, `relations`,
+ * The index tables a DFAI query reads — `files`, `props`, `relations`,
  * `tags`, and `links` from the body's wiki links — filled from notes the way
  * refreshing the index fills them, so a
  * compiled query runs for real. Titles are the note's name without its folder

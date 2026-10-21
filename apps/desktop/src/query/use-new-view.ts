@@ -6,14 +6,14 @@ import {
   type NewViewRequest,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createView,
   ViewRefusedError,
   type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 

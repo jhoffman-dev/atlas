@@ -1,4 +1,4 @@
-import { TERMS_SCOPE, type NoteTemplate } from '@atlas/application';
+import { TERMS_SCOPE, type NoteTemplate } from '@dfai/application';
 import { useNoticeActivity } from '../activity/use-activity-log.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { termsPage } from '../pages-on-first-use.ts';

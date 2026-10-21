@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   createOwnWrites,
   fakeHostVaultFs,
   type HostVaultFsPort,
   type VaultWatchPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { boundToVault } from './bound-to-vault.ts';
 import { useOutsideChanges } from './use-outside-changes.ts';
 

@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, resolveWikiLinkTarget, type VaultPath } from '@atlas/domain';
+import { createVaultPath, resolveWikiLinkTarget, type VaultPath } from '@dfai/domain';
 import { deleteEntry } from '../vault/delete-entry.ts';
 import { renameEntry } from '../vault/relocate-entry.ts';
 import type { OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';
@@ -131,11 +131,11 @@ const editors: OpenEditorsPort = {
 
 describe('relations after a note is deleted in the app (adversarial)', () => {
   it('re-resolves a relation to the note of the same name that is left', async () => {
-    const both = ['projects/Atlas.md', 'work/Atlas.md'].map(createVaultPath);
-    const first = resolveWikiLinkTarget('Atlas', both) as VaultPath;
+    const both = ['projects/DFAI.md', 'work/DFAI.md'].map(createVaultPath);
+    const first = resolveWikiLinkTarget('DFAI', both) as VaultPath;
     const other = both.find((path) => path !== first) as VaultPath;
     const files = new Map([
-      ['tasks/Write.md', '---\nproject: [[Atlas]]\n---\nbody'],
+      ['tasks/Write.md', '---\nproject: [[DFAI]]\n---\nbody'],
       [first as string, 'one'],
       [other as string, 'two'],
     ]);
@@ -156,8 +156,8 @@ describe('relations after a note is deleted in the app (adversarial)', () => {
 
     // Why: delete-entry.ts removes the note from the index itself, so the refresh
     // finds nothing removed, never asks which relations named "atlas", and
-    // Write.md keeps pointing at a note that is gone — "project = [[Atlas]]"
-    // (resolved now to the other Atlas) no longer finds it, and project.status is empty.
+    // Write.md keeps pointing at a note that is gone — "project = [[DFAI]]"
+    // (resolved now to the other DFAI) no longer finds it, and project.status is empty.
     expect(index.relationOf('tasks/Write.md')).toBe(other);
   });
 
@@ -165,11 +165,11 @@ describe('relations after a note is deleted in the app (adversarial)', () => {
     // Why: renaming moves the note and takes its old path out of the index at
     // once (relocate-entry.ts), so, as with a delete, the refresh never sees the
     // old name go and never asks which relations named it.
-    const both = ['projects/Atlas.md', 'work/Atlas.md'].map(createVaultPath);
-    const first = resolveWikiLinkTarget('Atlas', both) as VaultPath;
+    const both = ['projects/DFAI.md', 'work/DFAI.md'].map(createVaultPath);
+    const first = resolveWikiLinkTarget('DFAI', both) as VaultPath;
     const other = both.find((path) => path !== first) as VaultPath;
     const files = new Map([
-      ['tasks/Write.md', '---\nproject: [[Atlas]]\n---\nbody'],
+      ['tasks/Write.md', '---\nproject: [[DFAI]]\n---\nbody'],
       [first as string, 'one'],
       [other as string, 'two'],
     ]);

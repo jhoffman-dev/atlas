@@ -56,7 +56,7 @@ describe('atlas_export_note', () => {
   });
 
   it.each([{ format: 'pdf' }, { format: 'google-doc' }, { frontmatter: 'remove' }])(
-    'refuses %j before asking Atlas anything',
+    'refuses %j before asking DFAI anything',
     async (args) => {
       const result = await mcp.callTool({
         name: 'atlas_export_note',

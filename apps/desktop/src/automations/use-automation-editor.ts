@@ -7,7 +7,7 @@ import {
   setValueFromInput,
   type AutomationDraft,
   type AutomationRule,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   AtlasQueryError,
   createAutomation,
@@ -17,8 +17,8 @@ import {
   type AutomationPorts,
   type RuleQueryPorts,
   type Clock,
-} from '@atlas/application';
-import type { DryRunView, QueryComposerProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { DryRunView, QueryComposerProps } from '@dfai/ui';
 import { errorMessage } from '../query/error-message.ts';
 import { useAtlasQuery } from '../query/use-atlas-query.ts';
 import { useQueryChoices } from '../query/use-query-choices.ts';

@@ -27,6 +27,6 @@ describe('transcriptOverLimit', () => {
   });
 
   it('says why in words a refusal carries', () => {
-    expect(TRANSCRIPT_TOO_LONG).toMatch(/transcript is longer than Atlas takes/);
+    expect(TRANSCRIPT_TOO_LONG).toMatch(/transcript is longer than DFAI takes/);
   });
 });

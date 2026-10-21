@@ -1,4 +1,4 @@
-/** Tools that create notes the way Atlas's own shortcuts do: the daily note, quick capture. */
+/** Tools that create notes the way DFAI's own shortcuts do: the daily note, quick capture. */
 
 import { z } from 'zod';
 import { defineTool, definedOnly } from './define.ts';
@@ -20,7 +20,7 @@ export const captureTask = defineTool({
   name: 'atlas_capture_task',
   title: 'Capture a task',
   description:
-    "Capture a task exactly as Atlas's quick capture does: a new Task note named by the text, " +
+    "Capture a task exactly as DFAI's quick capture does: a new Task note named by the text, " +
     'from the Task template when there is one, waiting in Inbox/ (numbered if the name is ' +
     'taken), with status "inbox" when the vault\'s Task type has it. Returns the created note. ' +
     'To set more properties, follow up with atlas_update_properties on its path; to file it ' +
@@ -40,7 +40,7 @@ export const quickAddTypes = defineTool({
   name: 'atlas_quick_add_types',
   title: "The add button's types",
   description:
-    "List the types Atlas's floating add button offers, as the person chose them in Settings, " +
+    "List the types DFAI's floating add button offers, as the person chose them in Settings, " +
     'and the property keys it asks for beside the name. Returns { types: [{ name, label, fields }] }. ' +
     'Pass one to atlas_quick_add.',
   inputSchema: noInput,
@@ -52,7 +52,7 @@ export const quickAdd = defineTool({
   name: 'atlas_quick_add',
   title: 'Quick-add a note of a type',
   description:
-    "Add a note of a type exactly as Atlas's add button does: from the type's template when there " +
+    "Add a note of a type exactly as DFAI's add button does: from the type's template when there " +
     'is one, with "values" written as each property\'s kind stores them (a number as a number, a ' +
     'comma list for a multi-select), in the folder the button uses, numbered if the name is taken. ' +
     'Any type from atlas_list_types works; atlas_quick_add_types lists the ones the button offers ' +

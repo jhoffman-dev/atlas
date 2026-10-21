@@ -7,7 +7,7 @@ import {
   type DoneAction,
   type NoteAnswer,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

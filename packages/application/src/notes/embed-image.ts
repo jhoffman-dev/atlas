@@ -13,7 +13,7 @@ import {
   type ImagePlacement,
   type IncomingImage,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /**
@@ -34,7 +34,7 @@ export class ImageEmbedError extends Error {
 }
 
 /**
- * The image itself was refused — too large, of a kind Atlas does not take, or
+ * The image itself was refused — too large, of a kind DFAI does not take, or
  * one this Mac cannot draw — before anything was written: the person's to act
  * on, and no fault of the vault's.
  */

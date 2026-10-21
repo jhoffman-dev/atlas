@@ -8,7 +8,7 @@ import {
   type NoteDeriver,
   type OwnWrites,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   createIndexStatusStore,
   useIndexStatus,

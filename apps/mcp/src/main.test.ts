@@ -1,6 +1,6 @@
 /**
  * The real process, over real stdio: `node src/main.ts` started by the SDK's
- * stdio client, finding a fake Atlas through a connection file on disk. This is
+ * stdio client, finding a fake DFAI through a connection file on disk. This is
  * what Claude Code and Claude Desktop do; if anything but protocol reached
  * stdout, the client would fail to parse it.
  */
@@ -53,7 +53,7 @@ const search = async () => {
   return { isError: result.isError === true, content: result.content };
 };
 
-describe('atlas-mcp over stdio', () => {
+describe('dfai-mcp over stdio', () => {
   it('lists every tool', async () => {
     const { tools } = await mcp.listTools();
     expect(tools).toHaveLength(53);

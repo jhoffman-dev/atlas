@@ -1,4 +1,4 @@
-import type { ActivityEvent, ActivityQuery, ActivityReport } from '@atlas/domain';
+import type { ActivityEvent, ActivityQuery, ActivityReport } from '@dfai/domain';
 
 /**
  * Where the use-cases say what happened (U-28). Recording never waits and

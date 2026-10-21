@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { boardGroups, parseObjectType, viewGroupLevels, type BoardRow } from '@atlas/domain';
+import { boardGroups, parseObjectType, viewGroupLevels, type BoardRow } from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 
 const TASK = parseObjectType({

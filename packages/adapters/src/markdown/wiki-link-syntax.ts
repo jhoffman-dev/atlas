@@ -1,4 +1,4 @@
-import { WikiLinkReader } from '@atlas/domain';
+import { WikiLinkReader } from '@dfai/domain';
 import type { Code, Construct, Extension, State, TokenizeContext } from 'micromark-util-types';
 import type {
   CompileContext,

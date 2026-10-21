@@ -10,12 +10,12 @@ export const meetings = defineTool({
   description:
     'List meetings, newest first by date and start time: { meetings: [{ path, title, date, ' +
     'start, end, kind, provider, externalId, importOutcome, importError, duplicateOf, summary }], ' +
-    'truncated, next }. Meetings arrive as files in Inbox/Meetings/ and Atlas imports each, ' +
+    'truncated, next }. Meetings arrive as files in Inbox/Meetings/ and DFAI imports each, ' +
     'stamping "importOutcome": imported, duplicate or error; "pending" while a file waits in ' +
-    'Inbox/Meetings/ to be imported, null for a meeting elsewhere Atlas never imported. ' +
+    'Inbox/Meetings/ to be imported, null for a meeting elsewhere DFAI never imported. ' +
     '"importError" is non-null for a file that broke the meeting import contract: it says why, ' +
     'the file stays where it landed, and fixing the file (atlas_update_properties or ' +
-    'atlas_replace_note_body) makes Atlas import it and clear the error. A second copy of a ' +
+    'atlas_replace_note_body) makes DFAI import it and clear the error. A second copy of a ' +
     'meeting is archived with "duplicateOf" linking the first, so it is listed only with ' +
     'includeArchived. "summary" says where the summary Claude writes at the top of a meeting ' +
     'stands: "written" (the block is Claude\'s, as written), "edited" (the person changed or ' +

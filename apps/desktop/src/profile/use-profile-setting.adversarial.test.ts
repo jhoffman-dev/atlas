@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, type VaultFsPort, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { chatSystemPrompt, type ProfileState } from '@atlas/domain';
+import { fakeVaultFs, type VaultFsPort, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { chatSystemPrompt, type ProfileState } from '@dfai/domain';
 import { useProfileSetting } from './use-profile-setting.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 
@@ -66,7 +66,7 @@ describe('the profile the chat is handed, before and between reads', () => {
 
     // The app hands this profile to the chat whether or not it has been read.
     const prompt = promptFor(hook.result.current.profile);
-    expect(prompt).not.toContain('has not told Atlas their name');
+    expect(prompt).not.toContain('has not told DFAI their name');
 
     release();
     await waitFor(() => expect(hook.result.current.loaded).toBe(true));

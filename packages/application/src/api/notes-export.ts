@@ -5,7 +5,7 @@ import {
   SHARED_ATTACHMENTS_FOLDER,
   type VaultFile,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { locatePictures } from '../export/export-attachments.ts';
 import type { ExportReadPorts } from '../export/export-reading.ts';
 import { readNoteToExport, standaloneNote } from '../export/note-for-export.ts';
@@ -24,9 +24,9 @@ import { isApiFilePath, isApiNotePath } from './paths.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /*
- * A note made ready to leave Atlas: as markdown for a Confluence page
+ * A note made ready to leave DFAI: as markdown for a Confluence page
  * (P32-07), for Claude's Atlassian connector to write, or as Markdown (#501),
- * as it is or standalone. Atlas writes nothing, here or anywhere else — a PDF
+ * as it is or standalone. DFAI writes nothing, here or anywhere else — a PDF
  * or a Google Doc is made in the app alone (ADR-0016). Links, shown blocks,
  * embeds and pictures are read from user space alone, so nothing in `.atlas`
  * or a hidden folder reaches the export.

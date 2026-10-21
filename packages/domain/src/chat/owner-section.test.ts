@@ -9,7 +9,7 @@ describe('ownerSection', () => {
     expect(section).not.toContain('Goes by:');
     expect(section).toMatch(/owner, author, assignee, attendee/);
     expect(section).toContain('never another spelling');
-    expect(section).not.toContain('has not told Atlas');
+    expect(section).not.toContain('has not told DFAI');
   });
 
   it('adds what the person goes by', () => {
@@ -19,7 +19,7 @@ describe('ownerSection', () => {
 
   it('with no name, forbids guessing one and gives the placeholder', () => {
     const section = ownerSection(EMPTY_PROFILE);
-    expect(section).toContain('The person has not told Atlas their name.');
+    expect(section).toContain('The person has not told DFAI their name.');
     expect(section).toContain('write\n[Your name] exactly, or ask them for it.');
     expect(section).toContain('not from a username, an email address');
     expect(section).not.toContain('Full name:');
@@ -27,16 +27,16 @@ describe('ownerSection', () => {
 
   it('with only a preferred name, still gives the placeholder for the full name', () => {
     const section = ownerSection({ name: null, preferredName: 'James' });
-    expect(section).toContain('has not told Atlas their full name');
+    expect(section).toContain('has not told DFAI their full name');
     expect(section).toContain('\nGoes by: James\n');
     expect(section).toContain('[Your name]');
   });
 
   it('when the name could not be read, says to ask rather than write a placeholder or guess', () => {
     const section = ownerSection('unknown');
-    expect(section).toContain("Atlas couldn't read the person's name");
+    expect(section).toContain("DFAI couldn't read the person's name");
     expect(section).toContain('ask them for it rather than writing a placeholder or guessing');
-    expect(section).not.toContain('has not told Atlas');
+    expect(section).not.toContain('has not told DFAI');
     expect(section).not.toContain('write\n[Your name]');
     expect(section).toContain('not from a username, an email address');
   });

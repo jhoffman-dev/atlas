@@ -22,24 +22,24 @@ describe('granolaPullReport', () => {
     expect(pulled({ written: 2, held: 2 })).toEqual({
       level: 'info',
       kind: 'meeting',
-      message: 'Granola: 2 new, 2 already in Atlas.',
+      message: 'Granola: 2 new, 2 already in DFAI.',
       subject: null,
     });
-    expect(pulled({ held: 12 })?.message).toBe('Granola: nothing new, 12 already in Atlas.');
+    expect(pulled({ held: 12 })?.message).toBe('Granola: nothing new, 12 already in DFAI.');
   });
 
   it('warns of notes refused or skipped, and is an error when one is left to try again', () => {
     expect(pulled({ written: 1, refused: 1 })).toMatchObject({
       level: 'warning',
-      message: 'Granola: 1 new, 0 already in Atlas, 1 refused.',
+      message: 'Granola: 1 new, 0 already in DFAI, 1 refused.',
     });
     expect(pulled({ skipped: 2 })).toMatchObject({
       level: 'warning',
-      message: 'Granola: nothing new, 0 already in Atlas, 2 skipped.',
+      message: 'Granola: nothing new, 0 already in DFAI, 2 skipped.',
     });
     expect(pulled({ written: 1, refused: 1, failed: 1 })).toMatchObject({
       level: 'error',
-      message: 'Granola: 1 new, 0 already in Atlas, 1 refused, 1 to try again.',
+      message: 'Granola: 1 new, 0 already in DFAI, 1 refused, 1 to try again.',
     });
   });
 
@@ -53,7 +53,7 @@ describe('granolaPullReport', () => {
       });
     expect(tick({})).toBeNull();
     expect(tick({ held: 12 })).toBeNull();
-    expect(tick({ written: 1 })?.message).toBe('Granola: 1 new, 0 already in Atlas.');
+    expect(tick({ written: 1 })?.message).toBe('Granola: 1 new, 0 already in DFAI.');
     expect(tick({ refused: 1 })?.level).toBe('warning');
     expect(tick({ skipped: 1 })?.level).toBe('warning');
     expect(tick({ failed: 1 })?.level).toBe('error');
@@ -70,10 +70,10 @@ describe('granolaPullReport', () => {
       });
     expect(tick({ skipped: 2, held: 4 }, 2)).toBeNull();
     expect(tick({ skipped: 2 }, 1)?.message).toBe(
-      'Granola: nothing new, 0 already in Atlas, 2 skipped.',
+      'Granola: nothing new, 0 already in DFAI, 2 skipped.',
     );
     expect(tick({ skipped: 1, written: 1 }, 1)?.message).toBe(
-      'Granola: 1 new, 0 already in Atlas, 1 skipped.',
+      'Granola: 1 new, 0 already in DFAI, 1 skipped.',
     );
     // A pull asked for always gets its line.
     expect(
@@ -84,7 +84,7 @@ describe('granolaPullReport', () => {
         problem: null,
         skippedBefore: 1,
       })?.message,
-    ).toBe('Granola: nothing new, 0 already in Atlas, 1 skipped.');
+    ).toBe('Granola: nothing new, 0 already in DFAI, 1 skipped.');
   });
 
   it('counts a pull asked for, or at startup, even when it found nothing new', () => {
@@ -92,7 +92,7 @@ describe('granolaPullReport', () => {
       expect(
         granolaPullReport({ mode, ended: 'pulled', counts: counted({ held: 3 }), problem: null })
           ?.message,
-      ).toBe('Granola: nothing new, 3 already in Atlas.');
+      ).toBe('Granola: nothing new, 3 already in DFAI.');
     }
   });
 
@@ -115,7 +115,7 @@ describe('granolaPullReport', () => {
         problem: GRANOLA_KEPT_SLOWING_DOWN,
       })?.message,
     ).toBe(
-      'Granola: the pull failed. Granola asked Atlas to slow down for 3 notes in a row, so Atlas stopped this pull. The next pull tries those notes again.',
+      'Granola: the pull failed. Granola asked DFAI to slow down for 3 notes in a row, so DFAI stopped this pull. The next pull tries those notes again.',
     );
   });
 
@@ -151,7 +151,7 @@ describe('granolaPullReport', () => {
         problem: granolaFailureWords({ kind: 'invalid', message: 'no vault is open' }),
       })?.message,
     ).toBe(
-      'Granola: the pull failed. Atlas could not ask Granola: no vault is open. Atlas stops pulling; the next pull asks again.',
+      'Granola: the pull failed. DFAI could not ask Granola: no vault is open. DFAI stops pulling; the next pull asks again.',
     );
     expect(
       granolaPullReport({
@@ -215,11 +215,11 @@ describe('granolaNoteReport', () => {
 
   it('is an error for a note left to try again', () => {
     expect(
-      granolaNoteReport('failed', { ...NOTE, problem: 'Granola asked Atlas to slow down.' }),
+      granolaNoteReport('failed', { ...NOTE, problem: 'Granola asked DFAI to slow down.' }),
     ).toMatchObject({
       level: 'error',
       message:
-        'Granola: “Larkspur Payroll renewal” could not be read; the next pull tries it again. Granola asked Atlas to slow down.',
+        'Granola: “Larkspur Payroll renewal” could not be read; the next pull tries it again. Granola asked DFAI to slow down.',
     });
   });
 });
@@ -233,7 +233,7 @@ describe('unreadableSummaryProblem', () => {
       title: null,
       url: null,
       problem:
-        'Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.',
+        'Granola listed a note DFAI cannot read (its updated_at is not text); it was left out of this pull.',
     });
   });
 

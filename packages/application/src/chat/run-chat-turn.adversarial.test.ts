@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FULL_TOOL_RESULTS, SUMMARY_CHARACTERS, type ModelMessage } from '@atlas/domain';
+import { FULL_TOOL_RESULTS, SUMMARY_CHARACTERS, type ModelMessage } from '@dfai/domain';
 import { fakeModel } from '../testing/fake-model.ts';
 import { runChatTurn } from './run-chat-turn.ts';
 

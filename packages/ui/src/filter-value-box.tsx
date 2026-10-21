@@ -1,5 +1,5 @@
 import { useId, useState, type KeyboardEvent } from 'react';
-import { matchingChoices, type FilterChoice, type PropertyKind } from '@atlas/domain';
+import { matchingChoices, type FilterChoice, type PropertyKind } from '@dfai/domain';
 import { isImeKey } from './ime.ts';
 
 /** How many choices the list shows at once: a relation can point at hundreds of notes. */

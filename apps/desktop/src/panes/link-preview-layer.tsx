@@ -1,12 +1,12 @@
 import { memo } from 'react';
-import { createVaultPath, noteTitle, resolveWikiLinkTarget } from '@atlas/domain';
+import { createVaultPath, noteTitle, resolveWikiLinkTarget } from '@dfai/domain';
 import {
   LinkPreviewCard,
   previewPlacement,
   useHoveredLink,
   type HoveredLink,
   type HoveredLinkStore,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { useWorkspaceWiring } from '../workspace/workspace-wiring.tsx';
 import { useLinkPreview } from './use-link-preview.ts';
 

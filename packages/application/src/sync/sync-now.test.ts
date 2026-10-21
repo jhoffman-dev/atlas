@@ -211,7 +211,7 @@ describe('syncNow', () => {
     });
     await run();
     expect(called('commit')[0]?.args).toMatchObject({
-      identity: { name: 'Atlas on Studio', email: 'atlas@studio.local' },
+      identity: { name: 'DFAI on Studio', email: 'dfai@studio.local' },
     });
   });
 
@@ -226,7 +226,7 @@ describe('syncNow', () => {
     await run();
     expect(called('merge')[0]?.args).toEqual({
       branch: 'main',
-      identity: { name: 'Atlas on Studio', email: 'atlas@studio.local' },
+      identity: { name: 'DFAI on Studio', email: 'dfai@studio.local' },
     });
   });
 

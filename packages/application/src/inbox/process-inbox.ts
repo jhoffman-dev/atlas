@@ -13,7 +13,7 @@ import {
   vaultSpellingOf,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   moveAndStampNotes,
   stampNotes,

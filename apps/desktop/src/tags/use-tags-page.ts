@@ -7,7 +7,7 @@ import {
   tagRenameProblem,
   type TagCount,
   type TagSort,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   loadTaggedNotes,
   type IndexPort,
@@ -16,8 +16,8 @@ import {
   type TagRenameReport,
   type VaultFsPort,
   type VaultTagRenames,
-} from '@atlas/application';
-import type { TaggedNotesState, TagRenameState } from '@atlas/ui';
+} from '@dfai/application';
+import type { TaggedNotesState, TagRenameState } from '@dfai/ui';
 
 const IDLE: TagRenameState = { kind: 'idle' };
 const LOADING: TaggedNotesState = { kind: 'loading' };

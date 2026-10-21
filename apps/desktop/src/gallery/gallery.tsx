@@ -10,7 +10,7 @@ import {
   type OutlineHeading,
   type PropertyDef,
   type SidebarSectionId,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   BacklinksPane,
   Icon,
@@ -34,7 +34,7 @@ import {
   type TableSchema,
   type TabStripTab,
   type ToastShown,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { PeekSpecimen } from './peek-specimen.tsx';
 
 /**

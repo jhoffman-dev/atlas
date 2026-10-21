@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { noticeReport, newlyShownNotices, type ActivityLevel } from '@atlas/domain';
+import { noticeReport, newlyShownNotices, type ActivityLevel } from '@dfai/domain';
 import {
   createActivityLog,
   type ActivityLog,
   type ActivityStore,
   type WindowClosingPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { localClock } from '../today.ts';
 
 /** How long lines wait to be written together: long enough to batch a burst, short enough to read back at once. */

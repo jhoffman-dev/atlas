@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { noteTags, splitFrontmatter, TAGS_KEY, type EditorDocument } from '@atlas/domain';
+import { noteTags, splitFrontmatter, TAGS_KEY, type EditorDocument } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 import {
   parseMarkdownBody,

@@ -43,15 +43,15 @@ const EXPLAINED: readonly {
   },
   {
     test: /exceeds GitHub's file size limit|GH001: Large files detected/i,
-    say: 'GitHub refused a file over its 100 MB size limit. Atlas keeps such files out of sync; make the file smaller or move it out of the vault, then sync again.',
+    say: 'GitHub refused a file over its 100 MB size limit. DFAI keeps such files out of sync; make the file smaller or move it out of the vault, then sync again.',
   },
   {
     test: /Could not resolve host|Network is unreachable|Connection timed out|Operation timed out|unable to access/i,
-    say: 'GitHub couldn’t be reached. Atlas will try again on the next sync.',
+    say: 'GitHub couldn’t be reached. DFAI will try again on the next sync.',
   },
   {
     test: /ran longer than/i,
-    say: 'Git took too long and was stopped. Atlas will try again on the next sync.',
+    say: 'Git took too long and was stopped. DFAI will try again on the next sync.',
   },
 ];
 

@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import type { CalendarRange } from '@atlas/domain';
+import type { CalendarRange } from '@dfai/domain';
 import type { CalendarNavigation } from './calendar-nav.tsx';
 
 /** The keys a focused calendar answers to, and what each one does. */

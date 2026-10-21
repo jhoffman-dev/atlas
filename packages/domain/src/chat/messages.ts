@@ -1,9 +1,9 @@
 /**
- * A conversation with a model, as Atlas keeps it: its own shape, not any
+ * A conversation with a model, as DFAI keeps it: its own shape, not any
  * vendor's. Each provider translates this into what it sends (ADR-0021).
  */
 
-/** The model asking for one of Atlas's tools to be run. */
+/** The model asking for one of DFAI's tools to be run. */
 export interface ToolCall {
   /** Pairs the call with its result; chosen by the provider, unique in a turn. */
   readonly id: string;

@@ -6,7 +6,7 @@ import {
   type ChecklistLine,
   type EditorDocument,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   LineAlreadyPromotedError,
   lineMarkdown,
@@ -30,14 +30,14 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
  * `createNote` and the line rewritten through `saveNote`, byte-preserving and
  * held to the task rules (ADR-0029). Answers both notes as they now are.
  *
- * The line is named by `text`: its words as Atlas shows them (`Ring Mara
+ * The line is named by `text`: its words as DFAI shows them (`Ring Mara
  * Quill`), or its markdown (`Ring [[Mara Quill]]`) as the note's writer
  * writes it — the note's own spelling for links, tags and code.
  *
  * Refused, writing nothing: `not_found` when no line says `text`; `exists`
  * when the line is a task already (it starts with a link to one); `invalid`
  * when two do and `line` does not say which, or `line` is not one that says
- * it; `unsaved_in_app` when Atlas holds unsaved typing in the note; `conflict`
+ * it; `unsaved_in_app` when DFAI holds unsaved typing in the note; `conflict`
  * when the note changed while the task was being made — then the task this
  * request made is taken back to the Trash, so nothing is left half done.
  * There is no undo here: taking the task away is a delete, which stays in the
@@ -129,7 +129,7 @@ function lineAsked(fields: Fields, saying: readonly number[]): number {
 
 function refusalOf(error: unknown, source: VaultPath): unknown {
   if (error instanceof UnsavedTypingError) {
-    return new ApiError('unsaved_in_app', `${source} is open in Atlas with unsaved edits`);
+    return new ApiError('unsaved_in_app', `${source} is open in DFAI with unsaved edits`);
   }
   if (error instanceof LineAlreadyPromotedError) return new ApiError('exists', error.message);
   if (error instanceof PromotionRefused || error instanceof NoteNameTakenError) {

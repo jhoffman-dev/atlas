@@ -7,7 +7,7 @@ import {
   type ImagePlacement,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ApiRequest, ApiResponse } from '../api/contract.ts';
 import type { ApiRouterDeps, AutomationClockState } from '../api/ports.ts';
 import { createRefreshSpacing } from '../api/refresh-spacing.ts';
@@ -309,7 +309,7 @@ export function apiFixture({
   });
   const deps: ApiRouterDeps = {
     host: { currentVault: () => state.open, indexReady: () => state.indexReady },
-    appInfo: { read: async () => ({ name: 'Atlas', version: '1.4.0', build: '0a1b2c3' }) },
+    appInfo: { read: async () => ({ name: 'DFAI', version: '1.4.0', build: '0a1b2c3' }) },
     clock: { today: () => TODAY, now: () => state.now, localNow: () => `${TODAY}T09:00:00` },
     fs,
     markdown,

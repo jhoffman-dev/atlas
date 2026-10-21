@@ -1,5 +1,5 @@
 import { getName, getVersion } from '@tauri-apps/api/app';
-import type { AppInfoPort } from '@atlas/application';
+import type { AppInfoPort } from '@dfai/application';
 
 /**
  * Reads identity from the Tauri runtime, which sources it from tauri.conf.json.

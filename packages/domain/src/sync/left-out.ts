@@ -13,7 +13,7 @@
 
 /**
  * GitHub refuses a file of 100 MiB or more; a little under that is where
- * Atlas stops, so what it sends is never refused.
+ * DFAI stops, so what it sends is never refused.
  */
 export const LARGE_FILE_BYTES = 95 * 1024 * 1024;
 
@@ -47,7 +47,7 @@ function exactPattern(path: string): string {
 }
 
 const HEADER =
-  '# Kept out of sync on this Mac by Atlas: files over GitHub’s size limit, and folders that are repositories of their own.';
+  '# Kept out of sync on this Mac by DFAI: files over GitHub’s size limit, and folders that are repositories of their own.';
 
 /** The excludes file for what is left out. */
 export function excludesText(leftOut: LeftOut): string {
@@ -55,7 +55,7 @@ export function excludesText(leftOut: LeftOut): string {
   return [HEADER, ...paths.map(exactPattern), ''].join('\n');
 }
 
-/** What an excludes file Atlas wrote says is left out. */
+/** What an excludes file DFAI wrote says is left out. */
 export function parseExcludes(text: string | null): LeftOut {
   if (text === null) return NOTHING_LEFT_OUT;
   const paths = text

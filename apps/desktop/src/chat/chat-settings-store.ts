@@ -1,4 +1,4 @@
-import type { ChatProviderId } from '@atlas/application';
+import type { ChatProviderId } from '@dfai/application';
 
 const KEY = 'atlas.chat';
 

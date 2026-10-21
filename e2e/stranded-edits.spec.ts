@@ -105,7 +105,7 @@ test('a note changed while the app was closed asks before its kept edit is writt
 }) => {
   const vault = await openVault(page);
   await strandAnEdit(page, vault);
-  const WRITTEN_WHILE_CLOSED = '# Note\n\nWritten while Atlas was closed.\n';
+  const WRITTEN_WHILE_CLOSED = '# Note\n\nWritten while DFAI was closed.\n';
   await vault.write('note.md', WRITTEN_WHILE_CLOSED);
 
   await restart(page);
@@ -127,7 +127,7 @@ test('kept work is still offered after a restart at the overwrite question (R14-
 }) => {
   const vault = await openVault(page);
   await strandAnEdit(page, vault);
-  await vault.write('note.md', '# Note\n\nWritten while Atlas was closed.\n');
+  await vault.write('note.md', '# Note\n\nWritten while DFAI was closed.\n');
   await restart(page);
   await openFromSidebar(page, 'note');
   await expect(pane(page, 1).getByRole('button', { name: 'Overwrite the file' })).toBeVisible();

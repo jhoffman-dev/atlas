@@ -4,9 +4,9 @@
  * through the real YAML adapter over a vault held in memory. Names are made up.
  */
 import { describe, expect, it } from 'vitest';
-import { addTerm, loadTerms, TermRefusedError } from '@atlas/application';
-import { automationVault } from '@atlas/application/testing/sqlite';
-import { createVaultPath, type ObjectType } from '@atlas/domain';
+import { addTerm, loadTerms, TermRefusedError } from '@dfai/application';
+import { automationVault } from '@dfai/application/testing/sqlite';
+import { createVaultPath, type ObjectType } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TODAY = '2026-10-19';
@@ -84,7 +84,7 @@ describe('a note whose properties cannot be read (#404)', () => {
     const refusal = await refusalOf('Larkspur Payroll');
 
     expect(refusal).toMatch(
-      new RegExp(`^${COMPANY_PATH} has properties Atlas can't change safely: `),
+      new RegExp(`^${COMPANY_PATH} has properties DFAI can't change safely: `),
     );
     expect(vault.files.get(COMPANY_PATH)).toBe(broken);
     expect(terms()).toEqual([]);

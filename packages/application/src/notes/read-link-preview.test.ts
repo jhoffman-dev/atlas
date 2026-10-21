@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseObjectType, type EditorDocument } from '@atlas/domain';
+import { parseObjectType, type EditorDocument } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from './ports.ts';
 import { readLinkPreview } from './read-link-preview.ts';

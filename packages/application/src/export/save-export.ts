@@ -13,7 +13,7 @@ import {
   type ExportFormat,
   type VaultFile,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import type { NotePageRenderer } from '../thumbnails/ports.ts';
 import { locatePictures } from './export-attachments.ts';

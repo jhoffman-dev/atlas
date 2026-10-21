@@ -99,7 +99,7 @@ describe('readProposal', () => {
   });
 
   it.each([
-    [{ ...TASK, kind: 'meeting' }, /no kind Atlas knows: task, decision, follow-up/],
+    [{ ...TASK, kind: 'meeting' }, /no kind DFAI knows: task, decision, follow-up/],
     [{ ...TASK, kind: undefined }, /no kind/],
     [{ ...TASK, state: 'pending' }, /state is not one of open, accepted, rejected/],
     [{ ...TASK, payload: 'Send it' }, /payload does not say what to write/],

@@ -8,9 +8,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, type ObjectType, type PropertyDef } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, type ObjectType, type PropertyDef } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory } from './tick-memory.ts';
 import { useBoardAsPending } from './use-pending-cards.ts';

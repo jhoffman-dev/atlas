@@ -33,8 +33,8 @@ import {
   type TabId,
   type VaultPath,
   type Workspace,
-} from '@atlas/domain';
-import type { OpenHow } from '@atlas/ui';
+} from '@dfai/domain';
+import type { OpenHow } from '@dfai/ui';
 
 /**
  * Where a viewer's tabs are remembered, per vault.

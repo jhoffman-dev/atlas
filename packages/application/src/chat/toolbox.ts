@@ -1,4 +1,4 @@
-import type { ModelToolSpec, ToolCall, ToolResult } from '@atlas/domain';
+import type { ModelToolSpec, ToolCall, ToolResult } from '@dfai/domain';
 import type { ApiRouterDeps } from '../api/index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
@@ -66,7 +66,7 @@ const PROPOSAL_SPECS: readonly ModelToolSpec[] = [
 ];
 
 /**
- * The two toolboxes Atlas hands a model (P29-03), built once at the
+ * The two toolboxes DFAI hands a model (P29-03), built once at the
  * composition root from the same API: the chat's, and a rule's Claude step's.
  */
 export interface Toolboxes {

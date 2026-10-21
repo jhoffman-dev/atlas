@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { StatusProperty } from '@atlas/domain';
+import type { StatusProperty } from '@dfai/domain';
 import { cardMoveChanges, movesToDone } from './card-move.ts';
 
 type Rule = (properties: Record<string, unknown>) => Record<string, unknown>;

@@ -7,8 +7,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import { fakeIndexPort, type SearchHit } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { fakeIndexPort, type SearchHit } from '@dfai/application';
 import { createOverlayStore } from '../overlay-store.ts';
 import { useSearch } from './use-search.ts';
 

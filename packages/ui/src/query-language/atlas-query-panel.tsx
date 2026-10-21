@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { ViewLayout } from '@atlas/domain';
+import type { ViewLayout } from '@dfai/domain';
 import type { Choice } from '../choice-select.tsx';
 import type { OverlaySlots } from '../overlay-slot.ts';
 import type { QueryPanelFold } from '../query-panel-fold.ts';
@@ -36,7 +36,7 @@ export interface AtlasQueryPanelProps {
 }
 
 /**
- * An Atlas query and its answer: the builder or the text, the layout, the ways
+ * A DFAI query and its answer: the builder or the text, the layout, the ways
  * to keep it, and the rows in their groups. The query page and a saved query
  * view both draw this; only what "keep" means differs.
  */

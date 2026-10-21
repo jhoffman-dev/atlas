@@ -1,5 +1,5 @@
-import { withNoteNames, type NoteNames } from '@atlas/domain';
-import type { WidgetRow } from '@atlas/application';
+import { withNoteNames, type NoteNames } from '@dfai/domain';
+import type { WidgetRow } from '@dfai/application';
 import { useNoteNames } from '../note-names.tsx';
 
 /** path identifies a row and the title opens it; neither is a column to show. */

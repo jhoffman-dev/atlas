@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, noteNames, type ObjectType, type PropertyDef } from '@atlas/domain';
-import { countedWorkAsync } from '@atlas/domain/testing';
+import { createVaultPath, noteNames, type ObjectType, type PropertyDef } from '@dfai/domain';
+import { countedWorkAsync } from '@dfai/domain/testing';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { loadFilterChoiceSources } from './filter-choice-sources.ts';
 

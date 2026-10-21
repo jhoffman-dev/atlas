@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AcceptedProposal, ProposalArchived } from '@atlas/application';
+import type { AcceptedProposal, ProposalArchived } from '@dfai/application';
 import { answeredNotice, undoneNotice } from './answer-many.ts';
 
 /** Which of a batch's notices stay until dismissed (review): only those saying something failed. */

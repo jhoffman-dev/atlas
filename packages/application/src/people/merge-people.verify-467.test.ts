@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { refreshIndex } from '../index/refresh-index.ts';
 import {
   jsonFrontmatterMarkdown as markdown,
@@ -11,7 +11,7 @@ import { applyPeopleMerge, previewPeopleMerge, type MergePorts } from './merge-p
 
 /*
  * Verification of PR #467's fix round (merge duplicate people, #464): the
- * typing saved before a preview, and Atlas's own files linking to a merged
+ * typing saved before a preview, and DFAI's own files linking to a merged
  * person. Fictional names only.
  */
 
@@ -62,7 +62,7 @@ describe('saving every pane before a merge preview (verify-467)', () => {
   });
 });
 
-describe("Atlas's own files linking to a merged person (verify-467)", () => {
+describe("DFAI's own files linking to a merged person (verify-467)", () => {
   it('does not leave a saved view filtered by a merged person silently matching nothing', async () => {
     const VIEW = '.atlas/views/Mara’s work.md';
     const { vault, index, notePaths } = await setUp({

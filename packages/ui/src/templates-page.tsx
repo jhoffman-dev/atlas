@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { TEMPLATES_LABEL, type TemplateUse } from '@atlas/domain';
+import { TEMPLATES_LABEL, type TemplateUse } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';

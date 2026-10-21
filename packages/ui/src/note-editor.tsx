@@ -18,7 +18,7 @@ import {
   type NoteSuggestion,
   type PersonChip,
   type TagSuggestion,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createEditorExtensions } from './editor/extensions.ts';
 import { showAsRead } from './editor/block-anchor.ts';
 import type { LinkedNoteMaker, WikiSuggestionView } from './editor/wiki-link-suggestion.ts';

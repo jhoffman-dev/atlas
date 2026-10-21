@@ -34,7 +34,7 @@ export function OpenFromGitHubDialog({
           <Dialog.Popup className="palette confirm" finalFocus={finalFocus}>
             <Dialog.Title className="confirm__title">Open a vault from GitHub</Dialog.Title>
             <Dialog.Description className="confirm__body">
-              Paste the repository’s address, then choose the folder to put the vault in. Atlas
+              Paste the repository’s address, then choose the folder to put the vault in. DFAI
               copies it there and opens it, using the GitHub login already on this Mac.
             </Dialog.Description>
             <form

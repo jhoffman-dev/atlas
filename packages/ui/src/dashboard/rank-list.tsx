@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
-import { groupName, humanizeKey, pluralOf } from '@atlas/domain';
-import type { RankData } from '@atlas/application';
+import { groupName, humanizeKey, pluralOf } from '@dfai/domain';
+import type { RankData } from '@dfai/application';
 import { useNoteNames } from '../note-names.tsx';
 
 /**

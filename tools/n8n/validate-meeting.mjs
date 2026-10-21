@@ -1,5 +1,5 @@
 // Checks meeting files against the meeting import contract v1, with the
-// validator Atlas runs and the YAML reader it reads every note with:
+// validator DFAI runs and the YAML reader it reads every note with:
 //
 //   node tools/n8n/validate-meeting.mjs <file.md> [more.md …]
 //

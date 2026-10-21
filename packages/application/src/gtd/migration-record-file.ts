@@ -1,4 +1,4 @@
-import { MIGRATION_RECORD_PATH, parseMigrationRecord, type MigrationRecord } from '@atlas/domain';
+import { MIGRATION_RECORD_PATH, parseMigrationRecord, type MigrationRecord } from '@dfai/domain';
 import { findVaultEntry } from '../vault/find-entry.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 

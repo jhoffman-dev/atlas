@@ -447,7 +447,7 @@ describe('the ready-made "After a meeting" rule', () => {
 });
 
 describe('the prompt "After a meeting" asks', () => {
-  it('is one Atlas ships, at .atlas/prompts/after-a-meeting.md', () => {
+  it('is one DFAI ships, at .atlas/prompts/after-a-meeting.md', () => {
     expect(AFTER_A_MEETING_PROMPT).toBe('.atlas/prompts/after-a-meeting.md');
     expect(builtInPromptAt(AFTER_A_MEETING_PROMPT)?.path).toBe(AFTER_A_MEETING_PROMPT);
   });
@@ -460,7 +460,7 @@ describe('the prompt "After a meeting" asks', () => {
       'One owner per item.',
       '"we"',
       'Do not guess a person.',
-      'Atlas decides',
+      'DFAI decides',
     ]) {
       expect(contents).toContain(rule);
     }

@@ -5,7 +5,7 @@ import {
   type AutomationRule,
   type LocalTime,
   type LogEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

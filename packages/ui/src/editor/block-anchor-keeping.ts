@@ -1,7 +1,7 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { Transaction } from '@tiptap/pm/state';
 import { AttrStep, Mapping, type StepMap } from '@tiptap/pm/transform';
-import { BLOCK_ANCHOR_ATTR, isAnchorPlace, type EditorNode } from '@atlas/domain';
+import { BLOCK_ANCHOR_ATTR, isAnchorPlace, type EditorNode } from '@dfai/domain';
 
 /*
  * What a change does to the block ids in it (P26-01, A26-01). Each id stays

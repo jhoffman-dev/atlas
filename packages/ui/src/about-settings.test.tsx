@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { AboutSettings } from './about-settings.tsx';
 
 const info = (build: string | null) =>
-  ({ kind: 'ready', info: { name: 'Atlas', version: '0.1.0', build } }) as const;
+  ({ kind: 'ready', info: { name: 'DFAI', version: '0.1.0', build } }) as const;
 
 describe('AboutSettings', () => {
   it('names the section About', () => {
@@ -14,7 +14,7 @@ describe('AboutSettings', () => {
 
   it('shows the app and its version', () => {
     render(<AboutSettings app={info('61e907b')} />);
-    expect(screen.getByText('Atlas 0.1.0')).toBeDefined();
+    expect(screen.getByText('DFAI 0.1.0')).toBeDefined();
   });
 
   it('shows the commit the build was made from', () => {
@@ -24,14 +24,14 @@ describe('AboutSettings', () => {
 
   it('says nothing about a build it does not know', () => {
     render(<AboutSettings app={info(null)} />);
-    expect(screen.getByText('Atlas 0.1.0')).toBeDefined();
+    expect(screen.getByText('DFAI 0.1.0')).toBeDefined();
     expect(screen.queryByText(/Build/)).toBeNull();
   });
 
   it('shows nothing about the app while it is still loading', () => {
     render(<AboutSettings app={{ kind: 'loading' }} />);
     expect(screen.getByRole('heading', { name: 'About' })).toBeDefined();
-    expect(screen.queryByText(/Atlas/)).toBeNull();
+    expect(screen.queryByText(/DFAI/)).toBeNull();
   });
 
   it('announces a failure to read the app identity', () => {

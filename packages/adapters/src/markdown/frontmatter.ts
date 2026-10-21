@@ -1,5 +1,5 @@
 import { parse, parseDocument } from 'yaml';
-import { FrontmatterRefusedError, type WritingRead } from '@atlas/application';
+import { FrontmatterRefusedError, type WritingRead } from '@dfai/application';
 import { duplicatedProperties, problemLine } from './frontmatter-write.ts';
 
 /** The YAML between the delimiters. */

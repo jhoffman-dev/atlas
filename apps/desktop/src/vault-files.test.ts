@@ -1,5 +1,5 @@
 /**
- * Atlas's own vault, checked by Atlas's own parsers.
+ * DFAI's own vault, checked by DFAI's own parsers.
  *
  * The views, dashboards and sources in `vault/.atlas` are what this project
  * uses to run itself, and they are hand-edited markdown. A mistyped key does
@@ -12,7 +12,7 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { remarkMarkdown } from '@atlas/adapters';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   compileAtlasQuery,
   isDashboard,
@@ -26,7 +26,7 @@ import {
   isDatasource,
   parseDatasource,
   splitFrontmatter,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /** Read the way the app reads it: the same split and the same parser. */
 const frontmatterOf = (path: string): Record<string, unknown> => {
@@ -44,7 +44,7 @@ const filesIn = (dir: string): string[] => {
   }
 };
 
-/** Why an Atlas query view's text does not read against this vault's types, or null. */
+/** Why a DFAI query view's text does not read against this vault's types, or null. */
 function atlasQueryProblem(text: string): string | null {
   const types = filesIn('vault/.atlas/types').map((path) => parseObjectType(frontmatterOf(path)));
   try {
@@ -55,7 +55,7 @@ function atlasQueryProblem(text: string): string | null {
   }
 }
 
-describe("Atlas's own vault", () => {
+describe("DFAI's own vault", () => {
   /**
    * Everything below asks "is anything here broken?", which an empty list
    * answers just as well as a healthy one. This is the test that makes the

@@ -27,7 +27,7 @@ export const mergePeople = defineTool({
   name: 'atlas_merge_people',
   title: 'Merge people',
   description:
-    "Merge Person notes into one, as Atlas's People page does. It only previews unless " +
+    "Merge Person notes into one, as DFAI's People page does. It only previews unless " +
     'confirm is true: { merge: { keep, merge, refusal, notes, links, conflicts, aliasesAdded, ' +
     'emailsAdded, appended, version } }, writing nothing. Show that to the user — above all ' +
     '"conflicts", the values the kept note keeps over a merged one\'s — then call again with ' +
@@ -35,7 +35,7 @@ export const mergePeople = defineTool({
     'notTrashed, failures, links } }. Merging joins lists, adds the merged emails and titles ' +
     'to the kept note, appends each merged body under a heading, re-points every link to the ' +
     'merged people at the kept one, and puts the merged notes in the Trash. A note open in ' +
-    "Atlas with unsaved typing refuses it, and a confirm whose version is not the preview's " +
+    "DFAI with unsaved typing refuses it, and a confirm whose version is not the preview's " +
     'now — a note changed since — fails with "conflict" and nothing written: preview again.',
   inputSchema: z.object({
     keep: notePath.describe('The person to keep: "People/Mara Quill.md".'),

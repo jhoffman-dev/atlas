@@ -4,12 +4,12 @@ import { createVault, installHost } from './host.ts';
 
 /*
  * A page whose chunk will not load in place, however often Reload asks: the
- * window can be loaded again, and Atlas starts afresh with its vault (#262).
+ * window can be loaded again, and DFAI starts afresh with its vault (#262).
  */
 
 const GRAPH_PAGE = /\/assets\/graph-page-[^/]+\.js/;
 
-test('offers to reload the window once Reload has failed too, and reloading starts Atlas again on its vault', async ({
+test('offers to reload the window once Reload has failed too, and reloading starts DFAI again on its vault', async ({
   page,
 }) => {
   const vault = await createVault();
@@ -41,7 +41,7 @@ test('offers to reload the window once Reload has failed too, and reloading star
   await expect
     .poll(() => page.evaluate(() => 'beforeReload' in window).catch(() => true))
     .toBe(false);
-  // Atlas starts again and opens the vault it had open, with nothing failed.
+  // DFAI starts again and opens the vault it had open, with nothing failed.
   await expect(
     page
       .getByRole('navigation', { name: 'Vault' })

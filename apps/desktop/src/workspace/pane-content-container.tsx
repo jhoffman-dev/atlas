@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
-import { keepMounted, tabPlace, type Tab, type TabId } from '@atlas/domain';
-import { useChatToggle, useNoteNames } from '@atlas/ui';
+import { keepMounted, tabPlace, type Tab, type TabId } from '@dfai/domain';
+import { useChatToggle, useNoteNames } from '@dfai/ui';
 import { NotePaneContainer } from '../panes/note-pane-container.tsx';
 import { PageTab } from './page-tab.tsx';
 import { useActiveTabId, usePaneTabs } from './workspace-store.ts';

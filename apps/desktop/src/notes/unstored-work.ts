@@ -1,4 +1,4 @@
-import type { StrandedEdit, VaultPath } from '@atlas/domain';
+import type { StrandedEdit, VaultPath } from '@dfai/domain';
 
 /**
  * Kept work the store refused, by the vault it belongs to. Memory is its only

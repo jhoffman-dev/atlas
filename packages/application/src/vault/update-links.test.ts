@@ -5,7 +5,7 @@
  * that does, and each note that cannot be rewritten reported.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { fakeVaultFs } from '../testing/fake-ports.ts';
 import { linksToUpdate, updateLinks } from './update-links.ts';
 

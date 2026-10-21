@@ -171,7 +171,7 @@ fn check_readable(path: &Path) -> Result<(), String> {
     let wal = header[18] == WAL_VERSION || header[19] == WAL_VERSION;
     if wal && holds_bytes(&sidecar(path, "-wal")) {
         return Err(
-            "this database has changes waiting in its write-ahead log, which Atlas would \
+            "this database has changes waiting in its write-ahead log, which DFAI would \
                     have to write beside it to read. Quit the app that owns it, then refresh."
                 .into(),
         );

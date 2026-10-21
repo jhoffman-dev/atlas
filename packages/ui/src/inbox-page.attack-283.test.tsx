@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { createVaultPath, readProposal, type InboxItem } from '@atlas/domain';
+import { createVaultPath, readProposal, type InboxItem } from '@dfai/domain';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
 import { installFakeLayout, type FakeLayout } from './testing/fake-layout.ts';
 
@@ -150,7 +150,7 @@ describe('InboxPage — what arrives after the rows are drawn does not go in abo
 
     rerender({ ownerUnknown: { onOpenSettings: vi.fn() } });
     expect(
-      screen.getByRole('alert', { name: 'Atlas can’t tell which action items are yours' }),
+      screen.getByRole('alert', { name: 'DFAI can’t tell which action items are yours' }),
     ).toBeDefined();
     expect(rowStayedAt(before)).toBe(true);
   });

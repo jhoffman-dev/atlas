@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type ViewTab } from '@atlas/domain';
+import { createVaultPath, type ViewTab } from '@dfai/domain';
 import { ViewTabs, type ViewTabEditing } from './view-tabs.tsx';
 
 /**

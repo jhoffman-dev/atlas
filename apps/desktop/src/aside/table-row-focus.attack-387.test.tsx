@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import { TableView, type TableResult } from '@atlas/ui';
-import { startCountingRenders, stopCountingRenders, tableRowsMeasured } from '@atlas/ui/testing';
+import { createVaultPath } from '@dfai/domain';
+import { TableView, type TableResult } from '@dfai/ui';
+import { startCountingRenders, stopCountingRenders, tableRowsMeasured } from '@dfai/ui/testing';
 import {
   createAsideStore,
   focusRow,
@@ -14,7 +14,7 @@ import {
 } from './aside-store.ts';
 
 await vi.hoisted(async () => {
-  const { installRenderCounter } = await import('@atlas/ui/testing');
+  const { installRenderCounter } = await import('@dfai/ui/testing');
   installRenderCounter();
 });
 

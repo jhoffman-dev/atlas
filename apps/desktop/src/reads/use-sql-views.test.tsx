@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import type { DefinedType } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import type { DefinedType } from '@dfai/application';
 import { useSqlViews } from './use-sql-views.ts';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 

@@ -1,4 +1,4 @@
-import type { ExportPageSize } from '@atlas/domain';
+import type { ExportPageSize } from '@dfai/domain';
 
 /** Where the person asked an export to go: one file, or a folder of files. */
 export type DestinationRequest =

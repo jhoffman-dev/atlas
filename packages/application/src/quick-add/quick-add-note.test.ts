@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, PROJECT_TYPE_FILE, type PropertyDef } from '@atlas/domain';
+import { createVaultPath, PROJECT_TYPE_FILE, type PropertyDef } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { quickAddNote } from './quick-add-note.ts';
 

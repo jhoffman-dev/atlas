@@ -3,7 +3,7 @@ import {
   type ActivityKind,
   type ActivityLevel,
   type ActivityLevelFilter,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
 import { HiddenTitle } from '../page-head.tsx';
@@ -69,7 +69,7 @@ const LEVEL_LABELS: Readonly<Record<ActivityLevel, string>> = {
 };
 
 /**
- * The Activity page (U-28): what Atlas has been doing and what went wrong,
+ * The Activity page (U-28): what DFAI has been doing and what went wrong,
  * one line each, newest first — narrowed by level, by kind and by words, and
  * each line a click from the note, rule or source it is about.
  */

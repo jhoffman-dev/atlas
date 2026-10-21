@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { parseDatasource, type Datasource } from '@atlas/domain';
-import type { SourceReport } from '@atlas/application';
+import { parseDatasource, type Datasource } from '@dfai/domain';
+import type { SourceReport } from '@dfai/application';
 import { SourcePanel } from './source-panel.tsx';
 
 const sourceFor = (frontmatter: Record<string, unknown>): Datasource => {

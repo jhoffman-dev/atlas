@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { HttpRequest } from '@atlas/domain';
+import type { HttpRequest } from '@dfai/domain';
 import {
   apiFixture,
   bodyOf,

@@ -4,8 +4,8 @@ import {
   type ObjectType,
   type SavedViewSummary,
   type WidgetDraft,
-} from '@atlas/domain';
-import type { EditorChoice, ViewField } from '@atlas/ui';
+} from '@dfai/domain';
+import type { EditorChoice, ViewField } from '@dfai/ui';
 
 /**
  * What the widget editor's lists offer, read from the vault's types: the types

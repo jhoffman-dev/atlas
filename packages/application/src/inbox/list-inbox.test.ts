@@ -11,7 +11,7 @@ describe('listInbox', () => {
         'Inbox/Call the bank.md': '---\ntype: task\n---\n',
         'Inbox/Meetings/Standup.md': '---\ntype: meeting\n---\n',
         'Inbox/Idea.md': 'A thought.\n',
-        'Projects/Atlas.md': '---\ntype: project\n---\n',
+        'Projects/DFAI.md': '---\ntype: project\n---\n',
       },
     });
     const { items, truncated } = await listInbox({ index: fakeIndexPort({ query }) });

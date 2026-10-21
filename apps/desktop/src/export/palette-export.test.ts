@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { paletteExportCommands, runPaletteExportCommand } from './palette-export.ts';
 
 const NOTE = 'Kickoff.md' as VaultPath;

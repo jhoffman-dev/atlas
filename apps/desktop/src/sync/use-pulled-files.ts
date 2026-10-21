@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import type { PullStanding } from '@atlas/domain';
+import type { PullStanding } from '@dfai/domain';
 import {
   createFreshPullGate,
   type ActivityLog,
@@ -9,7 +9,7 @@ import {
   type MarkdownPort,
   type SleepClockPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /**
  * The gates of ADR-0035 part 4 for the open vault, as the meeting import and

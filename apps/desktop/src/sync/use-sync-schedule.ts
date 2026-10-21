@@ -5,8 +5,8 @@ import {
   syncAfterLook,
   dueSync,
   firstUnsyncedAfterEdit,
-} from '@atlas/domain';
-import type { Clock, WindowClosingPort } from '@atlas/application';
+} from '@dfai/domain';
+import type { Clock, WindowClosingPort } from '@dfai/application';
 import type { IndexNewsFeed } from '../reads/use-scoped-index-news.ts';
 
 /** How often the clock is checked for a sync, or a look at GitHub, that has come due. */

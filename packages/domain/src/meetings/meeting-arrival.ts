@@ -39,10 +39,10 @@ export const IMPORT_OUTCOME_KEY = 'atlas_import_outcome';
 export const IMPORT_OUTCOMES = ['imported', 'duplicate', 'error'] as const;
 export type ImportOutcome = (typeof IMPORT_OUTCOMES)[number];
 
-/** What Atlas writes into a meeting file that breaks the contract: why, in one line. */
+/** What DFAI writes into a meeting file that breaks the contract: why, in one line. */
 export const IMPORT_ERROR_KEY = 'atlas_import_error';
 
-/** What Atlas writes into a second copy of a meeting: a link to the first. */
+/** What DFAI writes into a second copy of a meeting: a link to the first. */
 export const DUPLICATE_OF_KEY = 'atlas_duplicate_of';
 
 /**
@@ -131,7 +131,7 @@ export function isInPlay(
  * Where a meeting file stands with the import, as a listing says it: its
  * outcome when it is stamped — read as the import reads it, a cleared one as
  * `imported` — `pending` when it is the import's and not settled yet, and
- * null when it was never the import's (a meeting filed before Atlas
+ * null when it was never the import's (a meeting filed before DFAI
  * imported, or made by hand).
  */
 export function importStanding({

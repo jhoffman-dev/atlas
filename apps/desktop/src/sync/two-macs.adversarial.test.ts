@@ -18,8 +18,8 @@ import {
   readVaultSettings,
   setUpSync,
   type GitFoldersPort,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   bothChange,
   clock,
@@ -540,7 +540,7 @@ describe('two Macs, one remote: what breaks', () => {
   );
 
   it(
-    'merges the other Mac’s changes as Atlas on a Mac whose git has no identity and cannot guess one (#87)',
+    'merges the other Mac’s changes as DFAI on a Mac whose git has no identity and cannot guess one (#87)',
     async () => {
       // A Mac's hostname makes git's guess work; `useConfigOnly` stands in for
       // a domainless host, where git refuses to guess, without leaning on this one's.
@@ -557,7 +557,7 @@ describe('two Macs, one remote: what breaks', () => {
         ['log', '-1', '--merges', '--format=%an <%ae>%x00%cn <%ce>'],
         world.env,
       );
-      const atlas = 'Atlas on Laptop <atlas@laptop.local>';
+      const atlas = 'DFAI on Laptop <dfai@laptop.local>';
       expect(merge.trim().split('\0')).toEqual([atlas, atlas]);
     },
     TIMEOUT,
@@ -585,7 +585,7 @@ describe('setting up and inspecting sync against real repositories', () => {
       const old = join(base, 'Old Mac', 'vault');
       await mkdir(old, { recursive: true });
       await must(old, ['init', '--quiet', '--initial-branch=master'], env);
-      await writeFile(join(old, 'Kept for years.md'), 'notes from before Atlas\n');
+      await writeFile(join(old, 'Kept for years.md'), 'notes from before DFAI\n');
       await must(old, ['add', '--all'], env);
       await must(
         old,
@@ -622,7 +622,7 @@ describe('setting up and inspecting sync against real repositories', () => {
       const paths = [...(await studio.files()).keys()];
       expect(paths).toContain('Kept for years.md');
       expect(await must(root, ['symbolic-ref', '--short', 'HEAD'], env)).toBe('master\n');
-      // Set up by Atlas, it reads as set up, and the next sync still works.
+      // Set up by DFAI, it reads as set up, and the next sync still works.
       const setup = await inspectSync({
         git: studio.git,
         folders: folders(env),
@@ -639,10 +639,10 @@ describe('setting up and inspecting sync against real repositories', () => {
   );
 
   it(
-    'does not take a repository Atlas never set up for a synced vault just because it has an origin',
+    'does not take a repository DFAI never set up for a synced vault just because it has an origin',
     async () => {
       // A code project, or an Obsidian vault kept with obsidian-git, opened as a
-      // vault. Saying it is set up makes Atlas commit everything in it and push,
+      // vault. Saying it is set up makes DFAI commit everything in it and push,
       // on open, with nobody having asked.
       const { base, env, bare } = await isolatedWorld();
       await must(base, ['init', '--quiet', '--bare', '--initial-branch=main', bare], env);
@@ -664,7 +664,7 @@ describe('setting up and inspecting sync against real repositories', () => {
   );
 
   it(
-    'does not take an obsidian-git vault with its own .gitignore and settings for one Atlas set up',
+    'does not take an obsidian-git vault with its own .gitignore and settings for one DFAI set up',
     async () => {
       const { base, env, bare } = await isolatedWorld();
       await must(base, ['init', '--quiet', '--bare', '--initial-branch=main', bare], env);

@@ -1,19 +1,15 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import {
-  createVaultPath,
-  REVIEW_PROJECTS_QUERY_MARK,
-  REVIEW_TASKS_QUERY_MARK,
-} from '@atlas/domain';
+import { createVaultPath, REVIEW_PROJECTS_QUERY_MARK, REVIEW_TASKS_QUERY_MARK } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   memoryVault,
   recordingActivity,
   type QueryResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useWeeklyReview, type WeeklyReviewOptions } from './use-weekly-review.ts';
 

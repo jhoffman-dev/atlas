@@ -214,8 +214,8 @@ describe('the builder’s controls', () => {
     expect(value('estimate', 'three')).toEqual({ kind: 'text', text: 'three' });
     expect(value('flagged', 'TRUE')).toEqual({ kind: 'boolean', value: true });
     expect(value('flagged', 'false')).toEqual({ kind: 'boolean', value: false });
-    expect(value('project', '[[Atlas]]')).toEqual({ kind: 'link', target: 'Atlas' });
-    expect(value('project', 'Atlas')).toEqual({ kind: 'link', target: 'Atlas' });
+    expect(value('project', '[[DFAI]]')).toEqual({ kind: 'link', target: 'DFAI' });
+    expect(value('project', 'DFAI')).toEqual({ kind: 'link', target: 'DFAI' });
     expect(value('project', 'atl', 'contains')).toEqual({ kind: 'text', text: 'atl' });
     expect(value('tag', '#q3')).toEqual({ kind: 'tag', name: 'q3' });
     expect(value('due', '@today')).toEqual({ kind: 'relativeDate', name: 'today' });
@@ -238,7 +238,7 @@ describe('the builder’s controls', () => {
       valueInputText(valueFromInput(field(text), '=', input));
     expect(shown('estimate', '3')).toBe('3');
     expect(shown('flagged', 'true')).toBe('true');
-    expect(shown('project', '[[Atlas]]')).toBe('Atlas');
+    expect(shown('project', '[[DFAI]]')).toBe('DFAI');
     expect(shown('tag', '#q3')).toBe('q3');
     expect(shown('due', '@today')).toBe('@today');
     expect(shown('status', 'done')).toBe('done');

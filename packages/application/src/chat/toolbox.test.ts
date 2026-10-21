@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHAT_READ_TOOLS } from '@atlas/domain';
+import { CHAT_READ_TOOLS } from '@dfai/domain';
 import { apiFixture, VAULT } from '../testing/api-fixture.ts';
 import { blockMarkdown } from '../testing/block-markdown.ts';
 import { NOTE_READ_CHARACTERS } from './note-page.ts';

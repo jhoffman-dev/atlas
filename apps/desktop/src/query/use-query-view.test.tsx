@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, parseObjectType, type ObjectType } from '@atlas/domain';
+import { createVaultPath, parseObjectType, type ObjectType } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   openNote,
   type OpenNote,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import type { QueryPanelFoldStore } from '@atlas/ui';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import type { QueryPanelFoldStore } from '@dfai/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useQueryView } from './use-query-view.ts';
 
@@ -30,7 +30,7 @@ function queryFoldStore() {
 }
 
 /**
- * P24-04: a saved Atlas query, opened as a page. Its query is edited in the
+ * P24-04: a saved DFAI query, opened as a page. Its query is edited in the
  * builder or as text; Save writes `query` and `layout` and leaves every other
  * byte of the file as it was written.
  */
@@ -66,7 +66,7 @@ const NO_PANE: OpenEditors = {
   reloadOthers: () => {},
 };
 
-/** An index that answers every Atlas query with two tasks, and records what it was asked. */
+/** An index that answers every DFAI query with two tasks, and records what it was asked. */
 function taskIndex() {
   const asked: string[] = [];
   const index = fakeIndexPort({

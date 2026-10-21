@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '@atlas/domain';
+import type { CalendarEvent } from '@dfai/domain';
 
 /**
  * What a calendar's layouts can do with a note, worked out once by

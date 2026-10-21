@@ -1,6 +1,6 @@
 /**
  * End to end over MCP: the SDK's own client talks to the server through an
- * in-memory transport, and the server talks HTTP to a fake Atlas. Each test
+ * in-memory transport, and the server talks HTTP to a fake DFAI. Each test
  * checks the exact REST request a tool call became.
  */
 
@@ -107,7 +107,7 @@ async function call(name: string, args: Record<string, unknown> = {}) {
 
 describe('initialize', () => {
   it('reports the app version, from the root package.json (#481)', () => {
-    expect(mcp.getServerVersion()).toEqual({ name: 'atlas', version: rootPackage.version });
+    expect(mcp.getServerVersion()).toEqual({ name: 'dfai', version: rootPackage.version });
   });
 });
 
@@ -297,10 +297,10 @@ describe('tools/list', () => {
     expect(review).toContain('for a repeating one (with "recurrence"), ends its series');
   });
 
-  it('tells the model that Atlas only exports, and the connector writes the page (P32-07)', async () => {
+  it('tells the model that DFAI only exports, and the connector writes the page (P32-07)', async () => {
     const { tools } = await mcp.listTools();
     const described = tools.find((t) => t.name === 'atlas_export_note')?.description ?? '';
-    expect(described).toContain('Atlas writes nothing');
+    expect(described).toContain('DFAI writes nothing');
     expect(described).toContain('Atlassian connector');
     expect(described).toContain('tell the user what "dropped" lists');
     expect(described).toContain('passed verbatim: add, reword or reformat nothing');
@@ -581,10 +581,10 @@ describe('tools/call → REST', () => {
     ['atlas_meetings', { includeArchived: false }, 'GET', '/v1/meetings', null],
     [
       'atlas_process_inbox_item',
-      { path: 'Inbox/Call Sam.md', project: 'Projects/Atlas.md' },
+      { path: 'Inbox/Call Sam.md', project: 'Projects/DFAI.md' },
       'POST',
       '/v1/inbox/process',
-      { paths: ['Inbox/Call Sam.md'], project: 'Projects/Atlas.md' },
+      { paths: ['Inbox/Call Sam.md'], project: 'Projects/DFAI.md' },
     ],
     [
       'atlas_clarify_inbox_item',
@@ -592,7 +592,7 @@ describe('tools/call → REST', () => {
         path: 'Inbox/Call Sam.md',
         status: 'waiting',
         waitingOn: 'People/Mara Quill.md',
-        project: 'Projects/Atlas.md',
+        project: 'Projects/DFAI.md',
         due: null,
       },
       'POST',
@@ -601,7 +601,7 @@ describe('tools/call → REST', () => {
         path: 'Inbox/Call Sam.md',
         status: 'waiting',
         waitingOn: 'People/Mara Quill.md',
-        project: 'Projects/Atlas.md',
+        project: 'Projects/DFAI.md',
         due: null,
       },
     ],
@@ -721,7 +721,7 @@ describe('tools/call → REST', () => {
     const outcome = {
       moves: [{ from: 'Call.md', to: 'Archive/Call.md' }],
       failed: [
-        { path: '.atlas/types/Task.md', reason: 'Atlas keeps its own files where they are.' },
+        { path: '.atlas/types/Task.md', reason: 'DFAI keeps its own files where they are.' },
       ],
       linksUpdated: 2,
     };
@@ -774,7 +774,7 @@ describe('tools/call → REST', () => {
     ['atlas_unarchive', { paths: [''] }],
     ['atlas_archived', { offset: -1 }],
     ['atlas_process_inbox_item', { path: 'Inbox/Call.md' }],
-    ['atlas_process_inbox_item', { path: '', project: 'Projects/Atlas.md' }],
+    ['atlas_process_inbox_item', { path: '', project: 'Projects/DFAI.md' }],
     ['atlas_process_inbox_item', { path: 'Inbox/Call.md', project: '' }],
     ['atlas_clarify_inbox_item', { status: 'next-action' }],
     ['atlas_clarify_inbox_item', { path: 'Inbox/Call.md', status: 'done' }],
@@ -923,7 +923,7 @@ describe('tools/call errors', () => {
     expect(result).toEqual({ isError: true, text: `${code}: ${message}` });
   });
 
-  it('says Atlas is not running when nothing listens, with no stack trace', async () => {
+  it('says DFAI is not running when nothing listens, with no stack trace', async () => {
     const port = await closedPort();
     const closed = await connectMcp(async () => ({
       baseUrl: `http://127.0.0.1:${port}`,
@@ -943,7 +943,7 @@ describe('tools/call errors', () => {
     const result = await broken.callTool({ name: 'atlas_status', arguments: {} });
     await broken.close();
     expect(result.content).toEqual([
-      { type: 'text', text: 'Atlas MCP server error: something odd' },
+      { type: 'text', text: 'DFAI MCP server error: something odd' },
     ]);
     expect(result.isError).toBe(true);
     expect(errors).toHaveBeenCalled();

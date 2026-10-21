@@ -3,7 +3,7 @@ import {
   type MarkdownPort,
   type SettingsWriter,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 // Keyed by the vault's file port, which the app makes once for each vault it
 // opens: every setting in one vault then shares a writer, and a vault that is

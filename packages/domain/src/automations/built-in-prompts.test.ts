@@ -17,8 +17,8 @@ import { isPromptPath } from './claude-step.ts';
 import { AUTOMATION_PRESETS } from './presets.ts';
 import { proposalSchemaNamed } from './proposal-schemas.ts';
 
-/** P29-05: the prompt Atlas ships for meeting extraction, and the ready-made rule that names it. */
-describe('the prompts Atlas ships', () => {
+/** P29-05: the prompt DFAI ships for meeting extraction, and the ready-made rule that names it. */
+describe('the prompts DFAI ships', () => {
   it('are prompt notes a rule can name, each with words to ask', () => {
     expect(BUILT_IN_PROMPTS.map((prompt) => prompt.path)).toEqual([
       '.atlas/prompts/meeting-extraction.md',
@@ -118,6 +118,14 @@ describe('bringing an untouched prompt up to date (#226)', () => {
     [AFTER_A_MEETING_PROMPT, EARLIER_AFTER_A_MEETING],
   ])('knows the words %s shipped with before', (path, earlier) => {
     expect(outdatedBuiltInPrompt(path, earlier)).toBe(builtInPromptAt(path));
+  });
+
+  it('knows the words each shipped with while the app was called Atlas (ADR-0042)', () => {
+    for (const prompt of BUILT_IN_PROMPTS) {
+      expect(prompt.contents).toContain('DFAI');
+      const asAtlasWroteIt = prompt.contents.replaceAll('DFAI', 'Atlas');
+      expect(outdatedBuiltInPrompt(prompt.path, asAtlasWroteIt)).toBe(prompt);
+    }
   });
 
   it('leaves the words it ships now, and any edit, as they are', () => {

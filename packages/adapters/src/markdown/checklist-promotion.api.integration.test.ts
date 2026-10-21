@@ -5,7 +5,7 @@
  * checklist progress.
  */
 import { describe, expect, it } from 'vitest';
-import { apiFixture, bodyOf, codeOf, encoded, type ApiResponse } from '@atlas/application';
+import { apiFixture, bodyOf, codeOf, encoded, type ApiResponse } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TASK_TYPE = [
@@ -117,7 +117,7 @@ describe('POST /v1/notes/{path}/promote', () => {
     expect(words.status).toBe(201);
   });
 
-  it('refuses a note Atlas holds unsaved typing in', async () => {
+  it('refuses a note DFAI holds unsaved typing in', async () => {
     const api = vault();
     api.deps = { ...api.deps, openNotes: { ...api.deps.openNotes, state: () => 'dirty' } };
     expect(codeOf(await api.send(promote({ text: 'Ring Mara Quill' })))).toBe('unsaved_in_app');

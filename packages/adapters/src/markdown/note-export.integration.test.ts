@@ -1,10 +1,10 @@
 /**
- * Exporting notes out of Atlas (#501) through the real markdown reader and
+ * Exporting notes out of DFAI (#501) through the real markdown reader and
  * writer: "as is" byte for byte, standalone with its links and pictures
  * rewritten, and the page a PDF is made from — never writing to the vault.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakePdfRenderer,
@@ -12,7 +12,7 @@ import {
   recordingExportFiles,
   saveExport,
   type FileFormat,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const PICTURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);

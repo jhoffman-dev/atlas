@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EditorMark, EditorNode } from '@atlas/domain';
+import type { EditorMark, EditorNode } from '@dfai/domain';
 import { parseMarkdownBody } from './markdown-blocks.ts';
 import { readingOf, readsAs } from './reading.ts';
 

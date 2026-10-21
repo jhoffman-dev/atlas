@@ -13,7 +13,7 @@ import {
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   createVaultPath,
   INBOX_LIST_LIMIT,
@@ -21,14 +21,14 @@ import {
   PARA_VALUES_QUERY_MARK,
   TASK_TYPE_FILE,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createToasts } from '../toasts/toasts.ts';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 
 const CALL = createVaultPath('Inbox/Call the bank.md');
 const CAPTURED = '---\ntype: task\nstatus: inbox\n---\n\nAbout the loan.\n';
 const FILES = {
-  'Projects/Atlas.md': '---\ntype: project\n---\n',
+  'Projects/DFAI.md': '---\ntype: project\n---\n',
   'People/Mara Quill.md': '---\ntype: person\n---\n',
   [CALL]: CAPTURED,
 };
@@ -241,14 +241,14 @@ describe('useInbox — clarifying a row', () => {
         clarification: {
           status: 'waiting',
           waitingOn: createVaultPath('People/Mara Quill.md'),
-          project: createVaultPath('Projects/Atlas.md'),
+          project: createVaultPath('Projects/DFAI.md'),
         },
       });
     });
 
     expect(done).toBe(true);
     expect(files.get('Tasks/2026/10/Call the bank.md')).toBe(
-      '---\ntype: task\nstatus: waiting\nwaiting_on: [[Mara Quill]]\nproject: [[Atlas]]\n---\n\nAbout the loan.\n',
+      '---\ntype: task\nstatus: waiting\nwaiting_on: [[Mara Quill]]\nproject: [[DFAI]]\n---\n\nAbout the loan.\n',
     );
     expect(onSettled).toHaveBeenCalledOnce();
     expect(hook.result.current.refusals).toEqual([]);
@@ -542,7 +542,7 @@ describe('useInbox — undo', () => {
     await act(() =>
       hook.result.current.clarify({
         path: CALL,
-        clarification: { status: 'next-action', project: createVaultPath('Projects/Atlas.md') },
+        clarification: { status: 'next-action', project: createVaultPath('Projects/DFAI.md') },
       }),
     );
     expect(files.has(CALL)).toBe(false);
@@ -632,7 +632,7 @@ describe('useInbox — said in the window’s toasts (#320)', () => {
     await act(() =>
       hook.result.current.clarify({
         path: CALL,
-        clarification: { status: 'next-action', project: createVaultPath('Projects/Atlas.md') },
+        clarification: { status: 'next-action', project: createVaultPath('Projects/DFAI.md') },
       }),
     );
     expect(toasts.store.getState().toasts).toMatchObject([
@@ -676,7 +676,7 @@ describe('useInbox — said in the window’s toasts (#320)', () => {
     await act(() =>
       hook.result.current.clarify({
         path: CALL,
-        clarification: { status: 'next-action', project: createVaultPath('Projects/Atlas.md') },
+        clarification: { status: 'next-action', project: createVaultPath('Projects/DFAI.md') },
       }),
     );
     expect(hook.result.current.refusals.map((refusal) => refusal.path)).toEqual([CALL]);

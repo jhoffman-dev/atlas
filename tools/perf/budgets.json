@@ -229,7 +229,7 @@
         "index_query": 3
       }
     },
-    "Run a 920-row Atlas query": {
+    "Run a 920-row DFAI query": {
       "commits": 6,
       "renders": 136,
       "calls": {

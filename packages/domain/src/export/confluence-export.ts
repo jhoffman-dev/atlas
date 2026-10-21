@@ -11,7 +11,7 @@ export type { ExportSources } from './note-exporter.ts';
 
 /*
  * A note made ready for a Confluence page (P32-07): the same blocks, with
- * what only Atlas can draw turned into what a page can hold. A wiki link is
+ * what only DFAI can draw turned into what a page can hold. A wiki link is
  * its words — its alias, or the title of the note it names; a shown block is
  * that block, quoted, with the note it came from; a callout is a quote that
  * opens with its name in bold. Every `^id` and comment is left out, and so
@@ -35,7 +35,7 @@ export function exportForConfluence({
   doc: EditorDocument;
   /** The note's own title: what a link to one of its own blocks is shared as. */
   title: string;
-  /** Its frontmatter's keys, as written: properties stay in Atlas. */
+  /** Its frontmatter's keys, as written: properties stay in DFAI. */
   propertyKeys: readonly string[];
   sources: ExportSources;
 }): ConfluenceExport {

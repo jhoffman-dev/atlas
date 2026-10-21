@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { SqliteRows } from '@atlas/domain';
-import { SqliteSourceError, type SqliteSourcePort } from '@atlas/application';
+import type { SqliteRows } from '@dfai/domain';
+import { SqliteSourceError, type SqliteSourcePort } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 const refused = (message: string) => new SqliteSourceError(message);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath as p, NOT_DUPLICATE_PEOPLE_KEY } from '@atlas/domain';
+import { createVaultPath as p, NOT_DUPLICATE_PEOPLE_KEY } from '@dfai/domain';
 import { refreshIndex } from '../index/refresh-index.ts';
 import { createSettingsWriter } from '../settings/index.ts';
 import {

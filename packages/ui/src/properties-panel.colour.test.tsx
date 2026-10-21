@@ -13,7 +13,7 @@ import {
   relationHue,
   type PropertyDef,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { NoteNamesProvider } from './note-names.tsx';
 import { PropertiesPanel, type PropertyRow } from './properties-panel.tsx';
 

@@ -17,7 +17,7 @@ const id = z
 
 const IN_THE_APP =
   'Running a rule, undoing its last run, and making, editing or turning one on or off are done ' +
-  'in Atlas, on the Automations page, not through these tools.';
+  'in DFAI, on the Automations page, not through these tools.';
 
 export const automations = defineTool({
   name: 'atlas_automations',
@@ -31,7 +31,7 @@ export const automations = defineTool({
     'is as the rule\'s file writes it ("daily at 03:00", "a meeting is created or changed"); ' +
     '"note" is { type, on: ["created" and/or "changed"] } for a rule a note sets off, which runs ' +
     'once per version of each note of that type its query matches, or null. "which" is the ' +
-    'Atlas query naming its notes; "do" is "archive", "set" or "claude", with "set" the values ' +
+    'DFAI query naming its notes; "do" is "archive", "set" or "claude", with "set" the values ' +
     'it writes, and "claude" { prompt, tools, output, folder }: the prompt note, the read tools ' +
     'Claude may call, and what it writes — "proposals" or "meeting-items" (a meeting\'s action ' +
     'items, decisions and follow-ups, each citing a transcript turn) waiting in the Inbox, or ' +

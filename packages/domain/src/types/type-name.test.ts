@@ -39,9 +39,9 @@ describe('typeNameProblem', () => {
   );
 
   it.each(['view', 'Dashboard', 'source', 'atlas', 'type'])(
-    'refuses %j, which Atlas already means something by',
+    'refuses %j, which DFAI already means something by',
     (name) => {
-      expect(typeNameProblem({ name, existing })).toMatch(/Atlas uses itself/);
+      expect(typeNameProblem({ name, existing })).toMatch(/DFAI uses itself/);
     },
   );
 

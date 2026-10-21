@@ -5,9 +5,9 @@
  * merge, every line either side wrote must survive, and it must never throw.
  */
 import { describe, expect, it } from 'vitest';
-import { mergeSettings } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { shippedPropertiesRecordText } from '@atlas/domain';
+import { mergeSettings } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { shippedPropertiesRecordText } from '@dfai/domain';
 
 const TYPE = '.atlas/types/meeting.md';
 

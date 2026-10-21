@@ -1,4 +1,4 @@
-import { archiveRefusal, isArchivedPath, type PaletteCommand, type VaultPath } from '@atlas/domain';
+import { archiveRefusal, isArchivedPath, type PaletteCommand, type VaultPath } from '@dfai/domain';
 import type { ArchiveCommands } from './use-archive.ts';
 
 const ARCHIVE_NOTE = 'archive-note';

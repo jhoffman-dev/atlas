@@ -67,8 +67,8 @@ describe('printAtlasQuery → parseAtlasQuery round trip (adversarial)', () => {
   });
 
   it('reads back a builder link typed with an alias as the same link', () => {
-    // Why: valueFromInput keeps "Atlas|the app" as the target; printed as [[Atlas|the app]] it reads back as Atlas.
-    const value = valueFromInput(field('project'), '=', '[[Atlas|the app]]') as QueryValue;
+    // Why: valueFromInput keeps "DFAI|the app" as the target; printed as [[DFAI|the app]] it reads back as DFAI.
+    const value = valueFromInput(field('project'), '=', '[[DFAI|the app]]') as QueryValue;
     const query = whereValue('project', value);
     expect(reparsedValue(query)).toEqual({ ...value, span: undefined });
   });

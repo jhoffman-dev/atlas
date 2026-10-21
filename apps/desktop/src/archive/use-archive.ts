@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { noteLabelForNotice, type MovableEntry, type VaultPath } from '@atlas/domain';
+import { noteLabelForNotice, type MovableEntry, type VaultPath } from '@dfai/domain';
 import {
   archiveNotesWithPara,
   listArchive,
@@ -8,8 +8,8 @@ import {
   type ArchivePorts,
   type Clock,
   type Relocation,
-} from '@atlas/application';
-import type { ArchiveContents } from '@atlas/ui';
+} from '@dfai/application';
+import type { ArchiveContents } from '@dfai/ui';
 import { batchSettled, useRowSelection } from './use-row-selection.ts';
 
 /**

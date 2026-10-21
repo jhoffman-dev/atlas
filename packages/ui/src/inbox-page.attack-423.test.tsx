@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type InboxItem, type InboxTask } from '@atlas/domain';
+import { createVaultPath, type InboxItem, type InboxTask } from '@dfai/domain';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
 
 const CAPTURED: InboxTask = {

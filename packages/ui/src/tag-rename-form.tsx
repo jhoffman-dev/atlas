@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react';
-import type { TagRenamePlan } from '@atlas/application';
-import { formatTag, tagKey } from '@atlas/domain';
+import type { TagRenamePlan } from '@dfai/application';
+import { formatTag, tagKey } from '@dfai/domain';
 
 /** Where renaming the chosen tag has got to. */
 export type TagRenameState =

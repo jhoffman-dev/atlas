@@ -10,7 +10,7 @@ import {
   readProposalPayload,
   splitFrontmatter,
   type ProposalNote,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /**

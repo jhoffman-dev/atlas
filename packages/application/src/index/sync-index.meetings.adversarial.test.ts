@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, digestOf, triggeringVersions } from '@atlas/domain';
+import { createVaultPath, digestOf, triggeringVersions } from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { syncIndex } from './sync-index.ts';

@@ -6,9 +6,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, readsTouchedByPaths } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, readsTouchedByPaths } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { createReadInvalidator } from '../reads/read-invalidator.ts';
 import { useSidebarCatalog } from './use-sidebar-catalog.ts';
@@ -95,7 +95,7 @@ describe('useSidebarCatalog: what is read again', () => {
     const { catalog, sidebarTypes } = hook.result.current;
 
     // An autosave or a tick: its path, and the index's news once it has taken the note in.
-    reads.invalidate('v', readsTouchedByPaths(['Projects/Atlas.md']));
+    reads.invalidate('v', readsTouchedByPaths(['Projects/DFAI.md']));
     reads.indexMoved('v');
     await settle();
 

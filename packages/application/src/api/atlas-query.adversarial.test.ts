@@ -28,7 +28,7 @@ const TYPES: Record<string, string> = {
 
 const FILES: Record<string, string> = {
   ...TYPES,
-  // Notes the API may not read: Atlas's own, and another tool's hidden folder.
+  // Notes the API may not read: DFAI's own, and another tool's hidden folder.
   '.atlas/templates/Project.md': jsonNote({ type: 'project', secret: 'atlas-secret' }),
   '.trash/0.md': jsonNote({ type: 'task', status: 'todo' }),
   '.trash/1.md': jsonNote({ type: 'task', status: 'todo' }),
@@ -151,7 +151,7 @@ describe('POST /v1/atlas-query: error bodies (adversarial)', () => {
   });
 });
 
-describe('POST /v1/views/{path}/run with an Atlas query view (adversarial)', () => {
+describe('POST /v1/views/{path}/run with a DFAI query view (adversarial)', () => {
   it('lists no note from a hidden folder, as /v1/atlas-query does not', async () => {
     // Why: runQueryView returns answer.result as it came from the index; only
     // the atlas-query route drops rows the API may not read.
@@ -190,7 +190,7 @@ describe('POST /v1/views/{path}/run with a dashboard (adversarial)', () => {
 
   it('puts no path on this machine in a failed widget’s message', async () => {
     // Why: runWidget hands a failed type-widget's index error back verbatim;
-    // only the SQL and Atlas-query widgets pass it through messageWithoutPaths.
+    // only the SQL and DFAI-query widgets pass it through messageWithoutPaths.
     const api = failingVault('unable to open /Users/j/Vault/.atlas-cache/index.sqlite', DASHBOARD);
     const response = await runView(api, '.atlas/dashboards/Home.md');
     expect(response.status).toBe(200);

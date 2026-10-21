@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { readsTouchedByNoteChanges, type NoteChanges } from '@atlas/application';
+import { readsTouchedByNoteChanges, type NoteChanges } from '@dfai/application';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
 import type { ReadInvalidator } from './read-invalidator.ts';
 

@@ -8,7 +8,7 @@ import {
   relativeImageSource,
   type IncomingImage,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   ImageEmbedError,
   placeImageUnderFreeName,

@@ -15,7 +15,7 @@ import {
   toBoardRows,
   viewGroupLevels,
   type RowGroup,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { TableView, type TableResult } from './table-view.tsx';
 import { ROW_ESTIMATE } from './grouped-rows.tsx';
 import { scrollableSheet } from './testing/scrollable-sheet.ts';

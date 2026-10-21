@@ -4,7 +4,7 @@
 //! with arguments in one of the shapes `shapes.rs` holds, in the open vault's
 //! folder, with no shell, a minimal environment and a time limit, and hands
 //! back what it printed. What the output means — status, conflicts, what to
-//! do next — is decided in TypeScript (ADR-0005). Atlas keeps no GitHub
+//! do next — is decided in TypeScript (ADR-0005). DFAI keeps no GitHub
 //! credentials: `git` and `gh` use the login already on the Mac.
 //!
 //! The webview is the untrusted side (ADR-0017), so, as with Claude Code
@@ -118,7 +118,7 @@ const DECLINED: &str = "declined:";
 /// write over changed since the sync looked at it: the person saved it.
 const CHANGED: &str = "changed:";
 /// How the webview is told a folder outside the vault was not one the person picked.
-const NOT_CHOSEN: &str = "that folder was not chosen in Atlas";
+const NOT_CHOSEN: &str = "that folder was not chosen in DFAI";
 /// The most of a run's output the host keeps; `status` of a very large vault fits.
 const MAX_STDOUT: u64 = 32 * 1024 * 1024;
 /// Only the end of stderr is kept, to say why a run failed.
@@ -176,7 +176,7 @@ impl Confirm for DialogConfirm {
         self.0
             .dialog()
             .message(question)
-            .title("Atlas sync")
+            .title("DFAI sync")
             .buttons(MessageDialogButtons::OkCancelCustom(
                 yes.to_string(),
                 "Cancel".to_string(),
@@ -648,7 +648,7 @@ fn is_real_folder(path: &Path) -> bool {
 
 /// Removes `index.lock` when a stopped run left it: only a lock made since
 /// the run began can be its. An older one is another run's — git in
-/// Terminal, say — and is not Atlas's to take away.
+/// Terminal, say — and is not DFAI's to take away.
 fn remove_lock_made_since(root: &Path, started: SystemTime) {
     let lock = root.join(".git").join("index.lock");
     let made = lock
@@ -663,7 +663,7 @@ fn remove_lock_made_since(root: &Path, started: SystemTime) {
 
 /// The folder above the vault, where git stops looking for a repository: a
 /// vault that is not a repository of its own is never taken for part of one
-/// around it (the Atlas code repository, say), whatever the webview asks.
+/// around it (the DFAI code repository, say), whatever the webview asks.
 fn ceiling_of(root: &Path) -> PathBuf {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     root.parent()
@@ -708,12 +708,12 @@ fn collect(mut child: Child, name: &str, limit: Duration) -> (GitOutput, bool) {
         .and_then(|handle| handle.join().ok())
         .unwrap_or_default();
     if truncated {
-        stderr.push_str(&format!("Atlas cut {name}'s output at {MAX_STDOUT} bytes."));
+        stderr.push_str(&format!("DFAI cut {name}'s output at {MAX_STDOUT} bytes."));
     }
     let stopped = timed_out.recv().unwrap_or(false);
     if stopped {
         stderr.push_str(&format!(
-            "Atlas stopped {name}: it ran longer than {limit:?}."
+            "DFAI stopped {name}: it ran longer than {limit:?}."
         ));
     }
     let output = GitOutput {

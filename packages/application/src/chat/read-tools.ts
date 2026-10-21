@@ -1,4 +1,4 @@
-import type { ModelToolSpec, ToolCall, ToolResult } from '@atlas/domain';
+import type { ModelToolSpec, ToolCall, ToolResult } from '@dfai/domain';
 import { routeApiRequest, type ApiRequest, type ApiRouterDeps } from '../api/index.ts';
 import { cappedJson } from './capped-json.ts';
 import { notePageAnswer } from './note-page.ts';
@@ -245,11 +245,11 @@ const READ_TOOLS: readonly ReadTool[] = [
     spec: {
       name: 'atlas_run_query',
       description:
-        'Run an Atlas query, e.g. "FROM task WHERE status != done SORT BY due". Clauses: FROM, WHERE ' +
+        'Run a DFAI query, e.g. "FROM task WHERE status != done SORT BY due". Clauses: FROM, WHERE ' +
         '(AND, OR, NOT, = != < > CONTAINS, IS EMPTY), SORT BY, GROUP BY, SHOW, INCLUDE ARCHIVED, LIMIT. ' +
         'Returns { columns, rows, truncated }.',
       inputSchema: object(
-        { query: str('The Atlas query text.'), limit: int('At most this many rows.') },
+        { query: str('The DFAI query text.'), limit: int('At most this many rows.') },
         ['query'],
       ),
     },

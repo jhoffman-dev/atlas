@@ -10,13 +10,13 @@ import {
   type MappingOptions,
   type MeetingFields,
   type MeetingImport,
-} from '@atlas/domain';
-import { countedWork } from '@atlas/domain/testing';
+} from '@dfai/domain';
+import { countedWork } from '@dfai/domain/testing';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*
  * Adversarial cases for the mapper (issue #8, P28-02). Each test names one
- * promise the mapper makes — "a file Atlas accepts, or a MeetingMappingError",
+ * promise the mapper makes — "a file DFAI accepts, or a MeetingMappingError",
  * "content lands with the person who said or owns it", "the collision path is
  * this meeting's alone" — and an input that breaks it. All names are made up.
  */
@@ -56,7 +56,7 @@ const BASE: MeetingFields = {
 const meetingOf = (fields: MeetingFields, options?: MappingOptions) =>
   accepted(mapMeeting({ ...BASE, ...fields }, options).content);
 
-/** The mapper's promise: a file Atlas accepts, or a MeetingMappingError — never a refused file. */
+/** The mapper's promise: a file DFAI accepts, or a MeetingMappingError — never a refused file. */
 function acceptedOrMappingError(fields: MeetingFields): void {
   let content: string;
   try {

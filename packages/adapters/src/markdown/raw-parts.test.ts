@@ -1,4 +1,4 @@
-import type { RawPart } from '@atlas/domain';
+import type { RawPart } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { readRawParts } from './raw-parts.ts';
 

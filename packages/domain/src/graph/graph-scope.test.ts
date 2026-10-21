@@ -15,7 +15,7 @@ import { buildVaultGraph, type VaultGraph } from './vault-graph.ts';
 
 /**
  * A chain a — b — c — d, a hub h linked from a and b, an orphan o, and
- * Atlas's own type note t linked to a.
+ * DFAI's own type note t linked to a.
  */
 const graph: VaultGraph = buildVaultGraph({
   notes: [
@@ -67,7 +67,7 @@ describe('scopeGraph over the whole vault', () => {
     ).toEqual(['a.md', 'Archive/old.md']);
   });
 
-  it('hides Atlas’s own notes by default, and the edges that reached them', () => {
+  it('hides DFAI’s own notes by default, and the edges that reached them', () => {
     const shown = scopeGraph(graph, { scope: vault, filter: DEFAULT_GRAPH_FILTER });
     expect(paths(shown)).not.toContain('.atlas/types/task.md');
     expect(shown.edges.some((edge) => edge.source.startsWith('.atlas'))).toBe(false);

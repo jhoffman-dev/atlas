@@ -4,7 +4,7 @@ import {
   isViewColumn,
   type ObjectType,
   type ViewQuery,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort, QueryResult, ViewTypeSpec } from '../index/ports.ts';
 
 export interface ViewResult extends QueryResult {

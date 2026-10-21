@@ -243,7 +243,7 @@ function runArchiveQuery(
 }
 
 /**
- * An Atlas query the app compiled (`/* atlas-query *\/`), run for real by
+ * A DFAI query the app compiled (`/* atlas-query *\/`), run for real by
  * SQLite over the tables `src-tauri/src/index.rs` makes — files, props,
  * relations, links and tags — filled from what the app indexed.
  */
@@ -691,7 +691,7 @@ export async function installHost(
   const bindings = new Map<string, readonly string[]>();
   const answers: string[] = [];
   const requests: unknown[] = [];
-  /** Google sign-ins by vault root, and the calendars Atlas made on the account. */
+  /** Google sign-ins by vault root, and the calendars DFAI made on the account. */
   const googleSignIns = new Map<string, { clientId: string; scopes: string[] }>();
   const googleCalendars: { id: string; summary: string }[] = [];
   let googleRefusal: { kind: string; code?: string; message: string } | null = null;
@@ -879,7 +879,7 @@ export async function installHost(
       // What @tauri-apps/api/app asks for; without these the status bar reports
       // a failure on every page, which shows up as an alert in every test.
       case 'plugin:app|name':
-        return 'Atlas';
+        return 'DFAI';
       case 'plugin:app|version':
         return '0.1.0';
       case 'create_note': {
@@ -1392,7 +1392,7 @@ export async function installHost(
         }
         const { call } = args as { call: { method: string; path: string } };
         if (call.method === 'POST' && call.path === '/calendar/v3/calendars') {
-          const made = { id: 'atlas-blocks@group.calendar.example.com', summary: 'Atlas blocks' };
+          const made = { id: 'atlas-blocks@group.calendar.example.com', summary: 'DFAI blocks' };
           googleCalendars.push(made);
           return { status: 200, body: JSON.stringify(made) };
         }
@@ -1894,10 +1894,10 @@ export async function installHost(
     api: {
       async send(call) {
         if (!api.enabled) throw new Error('the local API is off, so nothing is listening');
-        // The real host answers "Atlas is still starting" until a router listens.
+        // The real host answers "DFAI is still starting" until a router listens.
         await expect
           .poll(() => routerListeners.size, {
-            message: 'Atlas is still starting: no router said it listens',
+            message: 'DFAI is still starting: no router said it listens',
           })
           .toBeGreaterThan(0);
         nextRequest += 1;

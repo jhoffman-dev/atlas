@@ -10,7 +10,7 @@ import {
   type ConflictCopy,
   type LeftOut,
   type SyncReport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityRecorder } from '../activity/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
@@ -209,7 +209,7 @@ async function mergeFromOrigin(step: SyncStep): Promise<boolean> {
 }
 
 /**
- * A file over GitHub's limit in commits not pushed yet — made before Atlas
+ * A file over GitHub's limit in commits not pushed yet — made before DFAI
  * kept such files out, or by hand — would have every push refused. Those
  * commits are folded into one without it; nothing that reached GitHub is
  * touched, and the file stays on this Mac (A29-01). Says which files.
@@ -241,7 +241,7 @@ const settingsOf = ({ fs, markdown }: SyncStep) => ({ vault: fs, markdown });
 
 /**
  * The Mac the other side of a merge came from, which a conflict copy is named
- * for: read from its last commit, or "another Mac" when Atlas did not make it.
+ * for: read from its last commit, or "another Mac" when DFAI did not make it.
  */
 async function otherMac(git: GitPort, branch: string): Promise<string> {
   const subject = await git.remoteSubject(branch);

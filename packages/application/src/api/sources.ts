@@ -7,7 +7,7 @@ import {
   splitFrontmatter,
   type Datasource,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ApiError } from './api-error.ts';
 import { readNote } from './note-io.ts';
 import { isApiFilePath, isApiFolderPath, isApiViewPath, viewPathFromUrl } from './paths.ts';

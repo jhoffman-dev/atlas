@@ -55,7 +55,7 @@ describe('describeSchedule', () => {
     expect(describeSchedule(DAILY_3AM)).toBe('Every day at 03:00');
     expect(describeSchedule({ kind: 'hourly', every: 1 })).toBe('Every hour');
     expect(describeSchedule({ kind: 'hourly', every: 6 })).toBe('Every 6 hours');
-    expect(describeSchedule({ kind: 'open' })).toBe('When Atlas opens');
+    expect(describeSchedule({ kind: 'open' })).toBe('When DFAI opens');
     expect(describeSchedule({ kind: 'manual' })).toBe('Only when run by hand');
   });
 });

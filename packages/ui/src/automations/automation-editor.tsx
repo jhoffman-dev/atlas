@@ -8,7 +8,7 @@ import {
   type ClaudeAction,
   type NoteEvent,
   type Schedule,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { Toggle } from '../toggle.tsx';
 import type { DryRunView, LogEntryView } from './automation-views.ts';
@@ -46,7 +46,7 @@ type ScheduleKind = Schedule['kind'];
 const SCHEDULES = [
   { value: 'daily' as const, label: 'Daily' },
   { value: 'hourly' as const, label: 'Every few hours' },
-  { value: 'open' as const, label: 'When Atlas opens' },
+  { value: 'open' as const, label: 'When DFAI opens' },
   { value: 'manual' as const, label: 'By hand' },
   { value: 'note' as const, label: 'When a note appears' },
 ];

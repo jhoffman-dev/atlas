@@ -11,10 +11,10 @@ import {
 } from './versions.ts';
 
 const packageJson = (version: string) =>
-  `{\n  "name": "@atlas/domain",\n  "version": "${version}",\n  "private": true,\n  "dependencies": {\n    "left-pad": "1.3.0"\n  }\n}\n`;
+  `{\n  "name": "@dfai/domain",\n  "version": "${version}",\n  "private": true,\n  "dependencies": {\n    "left-pad": "1.3.0"\n  }\n}\n`;
 
 const tauriConf = (version: string) =>
-  `{\n  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",\n  "productName": "Atlas",\n  "version": "${version}",\n  "identifier": "dev.example.atlas"\n}\n`;
+  `{\n  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",\n  "productName": "DFAI",\n  "version": "${version}",\n  "identifier": "dev.example.atlas"\n}\n`;
 
 const cargoToml = (version: string) =>
   `[package]\nname = "atlas"\nversion = "${version}"\nrust-version = "1.77.2"\n\n[dependencies]\ntauri = { version = "2.11.3", features = [] }\n`;

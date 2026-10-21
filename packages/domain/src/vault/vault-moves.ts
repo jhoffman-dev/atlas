@@ -50,7 +50,7 @@ export function pathAfterMoves(path: VaultPath, moves: readonly EntryMove[]): Va
   return now;
 }
 
-/** Whether a path is Atlas's own folder or anything kept in it. */
+/** Whether a path is DFAI's own folder or anything kept in it. */
 function isAtlasPath(path: VaultPath): boolean {
   return isWithin(path, ATLAS_DIRECTORY as VaultPath);
 }
@@ -58,7 +58,7 @@ function isAtlasPath(path: VaultPath): boolean {
 /**
  * Why an entry cannot go into `folder`, or null when it can.
  *
- * `.atlas` is Atlas's own: its views, dashboards and templates are listed by
+ * `.atlas` is DFAI's own: its views, dashboards and templates are listed by
  * where they are, so moving one out would take it from its section, and moving
  * a note in would hide it among the machinery. A folder cannot go inside
  * itself, and a move to where the entry already is would be nothing at all.
@@ -66,8 +66,8 @@ function isAtlasPath(path: VaultPath): boolean {
  * for certain, and it refuses rather than overwriting.
  */
 export function moveRefusal(entry: MovableEntry, folder: VaultPath): string | null {
-  if (isAtlasPath(entry.path)) return 'Atlas keeps its own files where they are.';
-  if (isAtlasPath(folder)) return 'Only Atlas keeps files in its own folder.';
+  if (isAtlasPath(entry.path)) return 'DFAI keeps its own files where they are.';
+  if (isAtlasPath(folder)) return 'Only DFAI keeps files in its own folder.';
   // Into or out of the Archive only by archiving, which records where a note
   // was so it can go back there; a plain move would lose that (U-22).
   if (isArchiveEntry(entry)) return 'Unarchive it to put it back.';
@@ -93,7 +93,7 @@ export function landingRefusal(to: VaultPath): string | null {
     : null;
 }
 
-/** Whether an entry can be moved anywhere at all — nothing of Atlas's own, nor the Archive's, can. */
+/** Whether an entry can be moved anywhere at all — nothing of DFAI's own, nor the Archive's, can. */
 export function isMovable(entry: MovableEntry): boolean {
   return !isAtlasPath(entry.path) && !isArchiveEntry(entry);
 }
@@ -105,9 +105,9 @@ function isArchiveEntry(entry: MovableEntry): boolean {
   );
 }
 
-/** Why a folder cannot be made in `parent`, or null when it can: only Atlas makes folders in `.atlas`. */
+/** Why a folder cannot be made in `parent`, or null when it can: only DFAI makes folders in `.atlas`. */
 export function newFolderRefusal(parent: VaultPath): string | null {
-  return isAtlasPath(parent) ? 'Only Atlas keeps folders in its own folder.' : null;
+  return isAtlasPath(parent) ? 'Only DFAI keeps folders in its own folder.' : null;
 }
 
 /** Where an entry lands when it is moved into `folder`, keeping its name. */
@@ -120,18 +120,18 @@ export function moveDestination(entry: MovableEntry, folder: VaultPath): VaultPa
  * where it is under its name: features depend on the type (U-20). A rename
  * would not change the type, but it would carry the file past this rule.
  */
-const BUILT_IN_TYPE = 'Atlas’s built-in types stay — its features depend on them.';
+const BUILT_IN_TYPE = 'DFAI’s built-in types stay — its features depend on them.';
 
 /**
  * Why an entry cannot go to the Trash, or null when it can.
  *
- * `.atlas` and the folders in it are Atlas's structure — without them there
+ * `.atlas` and the folders in it are DFAI's structure — without them there
  * are no types, views or templates. What they hold — a view, a dashboard, a
  * template, a type of your own — can go, as any note can; a built-in type
  * cannot.
  */
 export function deleteRefusal(entry: MovableEntry): string | null {
-  if (isAtlasStructure(entry)) return 'Atlas needs its own folders.';
+  if (isAtlasStructure(entry)) return 'DFAI needs its own folders.';
   if (isBuiltInTypeFile(entry.path, entry.definesType ?? null)) return BUILT_IN_TYPE;
   // Every archived note at once is too much to lose to one slip; delete them from the Archive.
   if (isArchiveFolder({ ...entry, name: vaultPathName(entry.path) })) {
@@ -148,7 +148,7 @@ export function deleteRefusal(entry: MovableEntry): string | null {
  * since each section finds what it lists by them.
  */
 export function renameRefusal(entry: MovableEntry): string | null {
-  if (isAtlasStructure(entry)) return 'Atlas needs its own folders.';
+  if (isAtlasStructure(entry)) return 'DFAI needs its own folders.';
   if (isBuiltInTypeFile(entry.path, entry.definesType ?? null)) return BUILT_IN_TYPE;
   return isArchiveEntry(entry) ? 'Unarchive it to rename it.' : null;
 }
@@ -210,7 +210,7 @@ export function nameClashes(move: EntryMove, notePaths: readonly VaultPath[]): N
  * The folders an entry can be moved into, the vault's top level first.
  *
  * `folders` is every folder in the vault; the ones a move would be refused
- * into — itself, under itself, where it already is, Atlas's own — are left out
+ * into — itself, under itself, where it already is, DFAI's own — are left out
  * rather than offered and then refused.
  */
 export function moveTargets(entry: MovableEntry, folders: readonly VaultPath[]): VaultPath[] {

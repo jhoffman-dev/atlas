@@ -6,10 +6,10 @@ mod support;
 
 use std::sync::OnceLock;
 
-use atlas_lib::embeddings::fetch::ensure_model;
-use atlas_lib::embeddings::model::{Embedder, Purpose, MAX_UNREADABLE_CHARS};
-use atlas_lib::embeddings::refusal::{EmbedFailure, RefusalReason};
-use atlas_lib::embeddings::{model_folder, MODEL};
+use dfai_lib::embeddings::fetch::ensure_model;
+use dfai_lib::embeddings::model::{Embedder, Purpose, MAX_UNREADABLE_CHARS};
+use dfai_lib::embeddings::refusal::{EmbedFailure, RefusalReason};
+use dfai_lib::embeddings::{model_folder, MODEL};
 
 const DIMENSIONS: usize = 384;
 

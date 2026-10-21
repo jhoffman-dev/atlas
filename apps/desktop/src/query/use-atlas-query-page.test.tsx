@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { parseObjectType, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { parseObjectType, type ObjectType } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useAtlasQueryPage } from './use-atlas-query-page.ts';
 

@@ -47,11 +47,11 @@ const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 /// idle one ends at the header timeout.
 const MAX_CONNECTIONS: usize = 16;
 
-const SIGNED_IN: &str = "Atlas is connected to Google Calendar. You can close this tab.";
+const SIGNED_IN: &str = "DFAI is connected to Google Calendar. You can close this tab.";
 const NOT_SIGNED_IN: &str =
-    "Atlas was not connected to Google Calendar. You can close this tab; Atlas says why in Settings.";
-const RETURN_TO_ATLAS: &str = "You can close this tab and return to Atlas.";
-const NOT_THIS_SIGN_IN: &str = "This is not the sign-in Atlas is waiting for.";
+    "DFAI was not connected to Google Calendar. You can close this tab; DFAI says why in Settings.";
+const RETURN_TO_ATLAS: &str = "You can close this tab and return to DFAI.";
+const NOT_THIS_SIGN_IN: &str = "This is not the sign-in DFAI is waiting for.";
 const NOTHING_HERE: &str = "Nothing here.";
 
 /// What Google sent the browser back with.
@@ -224,7 +224,7 @@ async fn serve(stream: TcpStream, state: Arc<String>, sender: mpsc::Sender<Redir
 
 fn page_response(status: StatusCode, text: &'static str) -> Response<Full<Bytes>> {
     let page = format!(
-        "<!doctype html><meta charset=\"utf-8\"><title>Atlas</title>\
+        "<!doctype html><meta charset=\"utf-8\"><title>DFAI</title>\
          <body style=\"font:16px system-ui;margin:3em\"><p>{text}</p>"
     );
     let mut response = Response::new(Full::new(Bytes::from(page)));

@@ -32,7 +32,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/automations`   | Runs rules: archives or rewrites notes, writes Claude's proposals, logs it.                  | 25, 29  |
 | `application/sync`          | Merges other Macs' changes into notes; settles conflicts; never loses a side.                | U-29    |
 | `application/meetings`      | Marks, archives and corrects meeting files that arrived, by itself; undoes corrections.      | 28      |
-| `tools/n8n/*.ts`            | The n8n meeting mapper: commits files into your vault from outside Atlas.                    | 28      |
+| `tools/n8n/*.ts`            | The n8n meeting mapper: commits files into your vault from outside DFAI.                     | 28      |
 | `domain/terms`              | The vocabulary: decides how every name in a transcript is spelt.                             | 28      |
 | `application/terms`         | Adds terms as notes and rewrites their variants in the frontmatter.                          | 28      |
 | `tools/notion-import/*.ts`  | The Notion imports: meetings and a whole workspace into a vault, re-runnable.                | 28, #79 |

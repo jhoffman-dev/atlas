@@ -8,7 +8,7 @@ import {
   sidebarEntry,
   sidebarTreeRows,
   type SidebarSectionId,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Sidebar, type SidebarQuickView, type SidebarType } from './sidebar.tsx';
 import type { SectionStore } from './sidebar-sections.ts';
 

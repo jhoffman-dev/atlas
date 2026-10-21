@@ -1,4 +1,4 @@
-import type { Rng } from '@atlas/application';
+import type { Rng } from '@dfai/application';
 
 /**
  * The chance a new block id is drawn from: the platform's cryptographic

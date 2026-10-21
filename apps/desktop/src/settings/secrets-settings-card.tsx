@@ -1,4 +1,4 @@
-import { SecretsSettings } from '@atlas/ui';
+import { SecretsSettings } from '@dfai/ui';
 import type { SecretsSetting } from './use-secrets.ts';
 
 /** Settings → Secrets, wired to the Keychain through the host. */

@@ -1,4 +1,4 @@
-import { countOf } from '@atlas/domain';
+import { countOf } from '@dfai/domain';
 
 /**
  * A count with the noun the widget counts — "3 tasks" — or the bare count for

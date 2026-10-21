@@ -1,4 +1,4 @@
-import type { HttpPort, SecretStorePort, SqliteSourcePort } from '@atlas/application';
+import type { HttpPort, SecretStorePort, SqliteSourcePort } from '@dfai/application';
 
 /** What sources reach outside the vault through: feeds, SQLite files, and the secrets feeds send. */
 export interface SourcePorts {

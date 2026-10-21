@@ -1,4 +1,4 @@
-import { splitFrontmatter, withLinesAfterContract, type VaultPath } from '@atlas/domain';
+import { splitFrontmatter, withLinesAfterContract, type VaultPath } from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -8,7 +8,7 @@ export type StampPorts = Pick<ArchivePorts, 'fs' | 'markdown'> & {
   readonly editors: Pick<ArchivePorts['editors'], 'state' | 'reload'>;
 };
 
-export const UNSAVED = 'It is open in Atlas with unsaved typing, so the import left it as it is.';
+export const UNSAVED = 'It is open in DFAI with unsaved typing, so the import left it as it is.';
 
 /**
  * Writes the import's keys into a note as it was read — refused if it changed

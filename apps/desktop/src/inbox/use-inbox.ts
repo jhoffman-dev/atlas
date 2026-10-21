@@ -15,7 +15,7 @@ import {
   type InboxKey,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   clarifyInboxItem,
   ClarifyRefusedError,
@@ -31,8 +31,8 @@ import {
   type InboxListing,
   type ReadMoment,
   type WindowClosingPort,
-} from '@atlas/application';
-import type { InboxRefusal, RelationChoice } from '@atlas/ui';
+} from '@dfai/application';
+import type { InboxRefusal, RelationChoice } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useAnswersWrittenBeforeClose } from '../proposals/answer-queue.ts';
 import { errorMessage } from '../query/error-message.ts';

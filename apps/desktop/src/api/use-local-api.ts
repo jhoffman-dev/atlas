@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { serveApi, type ApiBridgePort, type ApiRouterDeps } from '@atlas/application';
+import { serveApi, type ApiBridgePort, type ApiRouterDeps } from '@dfai/application';
 import type { SettingsPorts } from '../settings/settings-panel.tsx';
 
 /** The local API as the app is given it: the bridge it answers on, and what Settings needs. */

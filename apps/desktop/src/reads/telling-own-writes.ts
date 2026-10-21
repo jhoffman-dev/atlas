@@ -1,4 +1,4 @@
-import type { OwnWrites } from '@atlas/application';
+import type { OwnWrites } from '@dfai/application';
 
 /**
  * The same record of the app's own writes, also saying where each landed.

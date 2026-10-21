@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Atlas",
+  "productName": "DFAI",
   "version": "0.1.0",
-  "identifier": "dev.jhoffman.atlas",
+  "identifier": "com.dailyflowai.dfai",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Atlas",
+        "title": "DFAI",
         "width": 1180,
         "height": 780,
         "resizable": true,

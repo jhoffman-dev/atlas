@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NewProposal, VaultPath } from '@atlas/domain';
+import type { NewProposal, VaultPath } from '@dfai/domain';
 import { jsonLinesMarkdown, jsonLinesNote, proposalVault } from '../testing/proposal-vault.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { planProposals, writeProposals } from './write-proposals.ts';

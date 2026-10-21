@@ -8,7 +8,7 @@ import {
   type ObjectType,
   type TemplateUse,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createTemplate,
   deleteTemplate,
@@ -20,8 +20,8 @@ import {
   type OpenEditorsPort,
   templateCatalogOf,
   type VaultFsPort,
-} from '@atlas/application';
-import type { TemplatesPageProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { TemplatesPageProps } from '@dfai/ui';
 import type { TemplatesState } from '../types/use-templates.ts';
 
 /** The ports the templates' use-cases reach: the files, and the panes that may show one. */

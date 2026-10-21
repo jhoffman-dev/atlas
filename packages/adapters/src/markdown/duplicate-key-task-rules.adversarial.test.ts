@@ -18,8 +18,8 @@ import {
   proposeEdit,
   saveNote,
   setNoteProperty,
-} from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath } from '@dfai/domain';
 import { remarkMarkdown as markdown } from './markdown-port.ts';
 
 const TODAY = '2026-10-18';

@@ -1,4 +1,4 @@
-import type { ExportPageSize } from '@atlas/domain';
+import type { ExportPageSize } from '@dfai/domain';
 
 /**
  * The script a page is laid out on sheets with before WebKit prints it

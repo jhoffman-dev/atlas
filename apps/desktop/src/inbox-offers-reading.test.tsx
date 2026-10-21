@@ -15,9 +15,9 @@ import {
   recordingActivity,
   type ActivityRecorder,
   type ArchivePorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import type { InboxOfferReading } from '@atlas/ui';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import type { InboxOfferReading } from '@dfai/ui';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useMeetingCleanup } from './meetings/use-meeting-cleanup.ts';
 import { useMeetingProjects } from './meetings/use-meeting-projects.ts';

@@ -93,7 +93,7 @@ export function automationFailedReport({
 
 /**
  * A rule's list of what it has handled did not add up — a line lost or
- * unreadable, two lists, a format this Atlas does not know — and was rebuilt
+ * unreadable, two lists, a format this DFAI does not know — and was rebuilt
  * from the entries its log still holds. Said once, when it is rebuilt.
  */
 export function ledgerRepairedReport(rule: RuleNamed): ActivityReport {
@@ -170,7 +170,7 @@ export function sourceRefreshReport(sourcePath: VaultPath, outcome: SourceOutcom
 /**
  * A write through the local API or MCP: the route as the contract names it,
  * and the note it wrote — never what it wrote. A refused one is a warning:
- * the tool asked for something Atlas would not do.
+ * the tool asked for something DFAI would not do.
  */
 export function apiWriteReport({
   route,

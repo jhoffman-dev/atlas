@@ -7,9 +7,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, parseObjectType, splitFrontmatter } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type DefinedType } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, parseObjectType, splitFrontmatter } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type DefinedType } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useTypeEditor } from './use-type-editor.ts';
 
 const TYPE_PATH = '.atlas/types/task.md';

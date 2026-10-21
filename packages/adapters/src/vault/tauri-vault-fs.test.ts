@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { VaultAccessError } from '@atlas/application';
-import { InvalidVaultPathError, VAULT_ROOT, createVaultPath } from '@atlas/domain';
+import { VaultAccessError } from '@dfai/application';
+import { InvalidVaultPathError, VAULT_ROOT, createVaultPath } from '@dfai/domain';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));

@@ -13,8 +13,8 @@ import {
   type BoardRow,
   type SavedViewSummary,
   type VaultPath,
-} from '@atlas/domain';
-import type { OpenNote, ThumbnailQueue, VaultFsPort } from '@atlas/application';
+} from '@dfai/domain';
+import type { OpenNote, ThumbnailQueue, VaultFsPort } from '@dfai/application';
 import {
   ArtifactCardFace,
   BoardView,
@@ -37,7 +37,7 @@ import {
   type ViewTabEditing,
   type OpenHow,
   type PeekRequest,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import type { TabLanding } from '../types/use-type-views.ts';
 import { calendarView, feedView, timelineView } from '../pages-on-first-use.ts';
 import { remadeCover, useThumbnailSnapshot } from '../artifacts/use-thumbnails.ts';

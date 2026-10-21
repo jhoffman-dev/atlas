@@ -24,7 +24,7 @@ import {
   type VaultPath,
   type ViewLayout,
   type ViewOrderWrite,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { ViewRefusedError, writeViewNote } from './create-view.ts';

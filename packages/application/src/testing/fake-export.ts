@@ -1,4 +1,4 @@
-import { createVaultPath, parentVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
+import { createVaultPath, parentVaultPath, type VaultEntry, type VaultPath } from '@dfai/domain';
 import type {
   DestinationRequest,
   ExportFilesPort,

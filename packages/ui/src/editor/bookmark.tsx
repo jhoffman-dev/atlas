@@ -12,7 +12,7 @@ import {
   wikiLinkLabel,
   type EditorNode,
   type WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   BookmarkCard,
   bookmarkClass,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ModelProvider } from '@atlas/application';
-import { DEFAULT_CHAT_MODEL } from '@atlas/domain';
+import type { ModelProvider } from '@dfai/application';
+import { DEFAULT_CHAT_MODEL } from '@dfai/domain';
 import type { ChatSettings, ChatSettingsStore } from './chat-settings-store.ts';
 import { claudeStepPorts } from './claude-step-ports.ts';
 import type { ChatPorts } from './use-chat.ts';

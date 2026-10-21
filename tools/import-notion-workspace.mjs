@@ -7,7 +7,7 @@
 //     [--time-zone <IANA zone>]
 //
 // Prints what became of every page; exits 1 when a page was refused, an edit
-// made in Atlas was kept over Notion's, or a meeting was held or refused, and
+// made in DFAI was kept over Notion's, or a meeting was held or refused, and
 // 2 when it could not run at all.
 import './n8n/ts-hooks.mjs';
 import { parseArgs } from 'node:util';

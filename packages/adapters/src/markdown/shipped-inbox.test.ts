@@ -12,9 +12,9 @@ import {
   sidebarEntry,
   splitFrontmatter,
   statusMappingFor,
-} from '@atlas/domain';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import { countQuickViews, fakeIndexPort, fakeVaultFs, runAtlasQuery } from '@atlas/application';
+} from '@dfai/domain';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
+import { countQuickViews, fakeIndexPort, fakeVaultFs, runAtlasQuery } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*
@@ -110,7 +110,7 @@ describe('the Inbox this vault ships', () => {
     });
   });
 
-  it('declares what Atlas offers another vault, so the two never drift apart', () => {
+  it('declares what DFAI offers another vault, so the two never drift apart', () => {
     for (const { type } of PROPOSAL_TYPE_FILES) {
       expect(parseObjectType(frontmatterOf(shipped(`.atlas/types/${type.name}.md`)))).toEqual(type);
     }

@@ -1,6 +1,6 @@
 /**
  * P28-05 through the local API: the vocabulary, read-only. `GET /v1/terms`
- * answers what the Terms page reads — every term, every spelling Atlas puts
+ * answers what the Terms page reads — every term, every spelling DFAI puts
  * right, and the spellings two notes disagree about — and writes nothing.
  * Terms are written as notes are (`POST /v1/notes` with `type: term`).
  */

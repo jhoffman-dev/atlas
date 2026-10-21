@@ -25,7 +25,7 @@ export const BUDGETED_ACTIONS = [
   '⌘K + 5 keys over the table',
   'Drag a board card',
   'Run a 2,000-row SQL query',
-  'Run a 920-row Atlas query',
+  'Run a 920-row DFAI query',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];

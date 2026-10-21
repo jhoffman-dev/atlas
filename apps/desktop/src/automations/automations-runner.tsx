@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect } from 'react';
-import { AUTOMATIONS_SCOPE } from '@atlas/application';
+import { AUTOMATIONS_SCOPE } from '@dfai/application';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
 import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 import type { AutomationRelay } from '../api/automation-relay.ts';

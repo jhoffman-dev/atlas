@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { NewViewRequest } from '@atlas/domain';
+import type { NewViewRequest } from '@dfai/domain';
 import { NewViewDialog } from './new-view-dialog.tsx';
 import { SearchPalette } from './search-palette.tsx';
 import { ViewSaveControls } from './view-save-controls.tsx';

@@ -1,4 +1,4 @@
-import type { QueryPanelFoldStore } from '@atlas/ui';
+import type { QueryPanelFoldStore } from '@dfai/ui';
 
 const KEY = 'atlas.query-folds';
 

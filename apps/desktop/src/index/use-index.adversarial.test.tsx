@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   createNoteChanges,
   fakeIndexPort,
@@ -10,7 +10,7 @@ import {
   recordingActivity,
   type IndexPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useHeldIndexKey } from './index-key.test-support.ts';
 import { openOnce } from './open-once.ts';
 import { createSyncQueue } from './sync-queue.ts';

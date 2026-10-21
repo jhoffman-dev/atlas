@@ -25,7 +25,7 @@ import {
   type TranscriptTurn,
   type VaultPath,
   type Vocabulary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { changeProperties, type PropertyChange } from '../automations/apply-changes.ts';
 import { meetingTextAsCorrected } from '../meetings/meeting-corrections.ts';

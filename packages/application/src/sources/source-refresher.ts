@@ -1,4 +1,4 @@
-import { insideVault, sourceRefreshReport, sourceTrustRefusal } from '@atlas/domain';
+import { insideVault, sourceRefreshReport, sourceTrustRefusal } from '@dfai/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import { refreshSource, type SourceReport } from './refresh-source.ts';
 

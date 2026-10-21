@@ -43,7 +43,7 @@ fn the_shapes_atlas_uses_are_accepted() {
 
 #[test]
 fn auth_status_is_the_only_shape_but_a_turn() {
-    // `--version` is nothing Atlas asks, so it is not a shape the host runs.
+    // `--version` is nothing DFAI asks, so it is not a shape the host runs.
     assert!(vet_args(&args(&["--version"])).is_err());
     assert!(vet_args(&args(&["auth", "status", "--json"])).is_err());
 }

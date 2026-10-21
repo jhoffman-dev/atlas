@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { QueryFilter, QuerySort, ViewTab } from '@atlas/domain';
+import type { QueryFilter, QuerySort, ViewTab } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import {
   FilterPopover,

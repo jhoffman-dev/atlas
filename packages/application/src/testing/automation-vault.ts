@@ -13,7 +13,7 @@ import {
   type ObjectType,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import type { RuleQueryPorts } from '../automations/plan-run.ts';
 import type { ClaudeStepPorts } from '../automations/claude-step.ts';

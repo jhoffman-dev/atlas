@@ -1,4 +1,4 @@
-import type { ProfileState } from '@atlas/domain';
+import type { ProfileState } from '@dfai/domain';
 
 /** The profile the chat is handed, kept current by the app and asked for with each question. */
 export interface ProfileSource {

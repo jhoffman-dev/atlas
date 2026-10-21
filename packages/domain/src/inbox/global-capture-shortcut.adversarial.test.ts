@@ -4,7 +4,7 @@ import { globalShortcutFromKeys, type ShortcutKeys } from './global-capture-shor
 /**
  * #81 adversarial: the rule says a shortcut is refused when it "would take a
  * key from every app". A Carbon hot key (what the host registers) is handed to
- * Atlas before any other app sees the press, so these are taken from every
+ * DFAI before any other app sees the press, so these are taken from every
  * app as surely as a bare letter is.
  */
 const press = (code: string, held: Partial<Omit<ShortcutKeys, 'code'>> = {}): ShortcutKeys => ({

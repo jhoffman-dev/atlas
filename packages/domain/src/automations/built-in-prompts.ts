@@ -1,7 +1,7 @@
 /**
- * The prompt notes Atlas ships (P29-05, #179): what a ready-made rule's Claude step
+ * The prompt notes DFAI ships (P29-05, #179): what a ready-made rule's Claude step
  * is asked. A prompt is a note in `.atlas/prompts/`, the person's to edit, so
- * Atlas writes one only where there is none — when a rule that names it is
+ * DFAI writes one only where there is none — when a rule that names it is
  * saved — and never over one the person has changed. One that still holds an
  * earlier version's words exactly, untouched, is brought up to date (#226).
  *
@@ -17,14 +17,14 @@ export interface BuiltInPrompt {
   readonly path: VaultPath;
   /** The note as written: a heading for whoever opens it, then what Claude is asked. */
   readonly contents: string;
-  /** The {@link promptDigest}s of the versions Atlas shipped before this one. */
+  /** The {@link promptDigest}s of the versions DFAI shipped before this one. */
   readonly earlier: readonly string[];
 }
 
 /**
  * What a prompt's words are known by, to tell an untouched earlier version
  * from one the person edited: two digests and the length, so an edit is
- * never taken for Atlas's own words.
+ * never taken for DFAI's own words.
  */
 export function promptDigest(text: string): string {
   return `${digestOf(`a${text}`)}${digestOf(`b${text}`)}-${text.length}`;
@@ -44,14 +44,14 @@ of a meeting is talk, not commitments: a meeting with nothing in it to do gets
 an empty list, and that is a good answer.
 
 This note is yours to edit: it is what a rule with \`output: meeting-items\` asks
-Claude. Atlas adds who was in the meeting, the provider's own next steps and the
+Claude. DFAI adds who was in the meeting, the provider's own next steps and the
 vocabulary as data beside the meeting, and checks every answer itself.
 
 ## What to pull out
 
 - **task** — something a person said they will do, or was asked to do and agreed to.
 - **waiting** — the same, when it is somebody else's to do and the owner is waiting
-  on it. Atlas decides "mine" or "waiting for" from the owner you name, so name
+  on it. DFAI decides "mine" or "waiting for" from the owner you name, so name
   the owner with care. Write "asked_by_owner": true only when the owner asked
   that person for it in the meeting.
 - **decision** — something the meeting settled in a turn of agreement: a choice
@@ -116,7 +116,7 @@ These are the kinds of things to leave out (the names are made up):
  * The prompt of the "After a meeting" rule (#179, ADR-0036): the action items
  * and who owns each. Its rule may make the owner's own into tasks, so the
  * rules about who owns an item are stricter than extraction's; who the owner
- * is, and so what becomes a task, Atlas still decides from the cited turn.
+ * is, and so what becomes a task, DFAI still decides from the cited turn.
  */
 export const AFTER_A_MEETING_PROMPT = createVaultPath(`${PROMPTS_DIRECTORY}/after-a-meeting.md`);
 
@@ -129,9 +129,9 @@ talk, and a meeting with nothing for them gets an empty list. Leaving out a
 passing remark costs them nothing; listing one costs them time.
 
 This note is yours to edit: it is what the "After a meeting" rule asks Claude.
-Atlas adds who was in the meeting, the provider's own next steps and the
+DFAI adds who was in the meeting, the provider's own next steps and the
 vocabulary as data beside the meeting, and checks every answer itself.
-Atlas decides who an item belongs to from the turn you cite and the owner you
+DFAI decides who an item belongs to from the turn you cite and the owner you
 name, and leaves out other people's items; you never decide what becomes a task.
 
 ## What to list
@@ -150,7 +150,7 @@ name, and leaves out other people's items; you never decide what becomes a task.
 1. **Cite the turn of the person who takes it on.** "source_block" is the id of
    the single turn where they said they will do it, or agreed when asked: their
    own words, not the question before them. For a decision, cite the turn of
-   the agreement. Atlas reads the owner from that turn's speaker. A provider
+   the agreement. DFAI reads the owner from that turn's speaker. A provider
    may split one sentence over several turns of the same speaker: read them
    together, and cite the one holding the commitment's words.
 2. **Name the owner as the transcript does.** The vault's owner is
@@ -215,25 +215,25 @@ export const BUILT_IN_PROMPTS: readonly BuiltInPrompt[] = [
   {
     path: MEETING_EXTRACTION_PROMPT,
     contents: MEETING_EXTRACTION,
-    // P29-05's.
-    earlier: ['8d498b991dc81d80-3232'],
+    // P29-05's, then the one that still called the app Atlas (#482).
+    earlier: ['8d498b991dc81d80-3232', '232a1cff0581db08-4461'],
   },
   {
     path: AFTER_A_MEETING_PROMPT,
     contents: AFTER_A_MEETING,
-    // #179's.
-    earlier: ['6e894bcafa0d09b9-3665'],
+    // #179's, then the one that still called the app Atlas (#482).
+    earlier: ['6e894bcafa0d09b9-3665', '4be4543b9c77ec18-5365'],
   },
 ];
 
-/** The prompt Atlas ships at `path`, or null when it ships none there. */
+/** The prompt DFAI ships at `path`, or null when it ships none there. */
 export function builtInPromptAt(path: string): BuiltInPrompt | null {
   return BUILT_IN_PROMPTS.find((prompt) => prompt.path === path) ?? null;
 }
 
 /**
- * The prompt Atlas now ships at `path`, when the note there holds the words
- * of an earlier one exactly — never edited, so Atlas's to bring up to date;
+ * The prompt DFAI now ships at `path`, when the note there holds the words
+ * of an earlier one exactly — never edited, so DFAI's to bring up to date;
  * null for any other note, which is the person's.
  */
 export function outdatedBuiltInPrompt(path: string, text: string): BuiltInPrompt | null {

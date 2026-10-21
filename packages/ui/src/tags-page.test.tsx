@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { TagRenamePlan } from '@atlas/application';
-import { buildTagTree, createVaultPath, type TagTreeNode } from '@atlas/domain';
+import type { TagRenamePlan } from '@dfai/application';
+import { buildTagTree, createVaultPath, type TagTreeNode } from '@dfai/domain';
 import { TagsPage, type TaggedNotesState, type TagTreeState } from './tags-page.tsx';
 import type { TagRenameState } from './tag-rename-form.tsx';
 

@@ -13,14 +13,14 @@ const DAY = 86_400_000;
 const note = (frontmatter: readonly string[]) => ['---', ...frontmatter, '---', ''].join('\n');
 
 const FILES = {
-  'Projects/Atlas.md': note(['type: project', 'status: active']),
+  'Projects/DFAI.md': note(['type: project', 'status: active']),
   'Projects/Garden.md': note(['type: project', 'status: active']),
   'People/Mara Quill.md': note(['type: person']),
   'Tasks/Quote.md': note(['type: task', 'status: waiting', 'waiting_on: [[Mara Quill]]']),
   'Tasks/Ship.md': note([
     'type: task',
     'status: next-action',
-    'project: "[[Atlas]]"',
+    'project: "[[DFAI]]"',
     'due: 2026-09-20',
   ]),
   'Tasks/Cello.md': note(['type: task', 'status: someday']),

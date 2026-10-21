@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from 'zustand';
-import { noteTitle, type VaultPath } from '@atlas/domain';
+import { noteTitle, type VaultPath } from '@dfai/domain';
 import {
   ExportError,
   exportGoogleDocs,
@@ -12,8 +12,8 @@ import {
   type ExportOutcome,
   type GoogleDocsPorts,
   type SaveExportPorts,
-} from '@atlas/application';
-import type { ExportChoice, ExportDialogState } from '@atlas/ui';
+} from '@dfai/application';
+import type { ExportChoice, ExportDialogState } from '@dfai/ui';
 import type { BatchAnswer } from '../archive/use-row-selection.ts';
 import type { Overlay } from '../overlay.ts';
 import type { Toasts } from '../toasts/toasts.ts';

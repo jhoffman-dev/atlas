@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { applyTypeEdit, parseObjectType, TYPE_ICONS, type ObjectType } from '@atlas/domain';
+import { applyTypeEdit, parseObjectType, TYPE_ICONS, type ObjectType } from '@dfai/domain';
 import { TypeEditor } from './type-editor.tsx';
 
 const MEETING = parseObjectType({

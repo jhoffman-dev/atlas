@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type VaultEntry } from '@dfai/domain';
 import {
   createThumbnailQueue,
   fakeIndexPort,
@@ -11,8 +11,8 @@ import {
   type ThumbnailJob,
   type VaultFsPort,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useArtifactCopy } from './use-artifact-copy.ts';
 import { useNewArtifact } from './use-new-artifact.ts';
 
@@ -232,7 +232,7 @@ describe('useNewArtifact', () => {
     const onCreated = vi.fn();
     const thumbnails = { request: vi.fn(async () => null) };
     const index = fakeIndexPort({
-      notesOfType: async () => [{ path: 'Projects/Atlas.md', title: 'Atlas' }],
+      notesOfType: async () => [{ path: 'Projects/DFAI.md', title: 'DFAI' }],
     });
     const activity = recordingActivity();
     const hook = renderHook(() =>
@@ -253,7 +253,7 @@ describe('useNewArtifact', () => {
   it('guesses the kind from a pasted link, until one is chosen', async () => {
     const { hook } = newArtifact(memoryVault({}).fs);
     await waitFor(() =>
-      expect(hook.result.current.projects).toEqual([{ value: 'Atlas', label: 'Atlas' }]),
+      expect(hook.result.current.projects).toEqual([{ value: 'DFAI', label: 'DFAI' }]),
     );
 
     act(() => hook.result.current.start('https://claude.ai/artifact/launch-deck'));
@@ -283,7 +283,7 @@ describe('useNewArtifact', () => {
       hook.result.current.change({
         ...hook.result.current.draft,
         title: 'Q3',
-        project: 'Atlas',
+        project: 'DFAI',
         files: [new File(['<p>hi</p>'], 'index.html')],
       }),
     );
@@ -292,7 +292,7 @@ describe('useNewArtifact', () => {
 
     expect(onCreated).toHaveBeenCalledWith('artifacts/Q3.md');
     expect(vault.text.get('artifacts/Q3.md')).toContain(`url: ${LINK}`);
-    expect(vault.text.get('artifacts/Q3.md')).toContain('[[Atlas]]');
+    expect(vault.text.get('artifacts/Q3.md')).toContain('[[DFAI]]');
     expect(vault.bytes.has('artifacts/q3/index.html')).toBe(true);
     expect(hook.result.current.error).toBeNull();
     expect(thumbnails.request).toHaveBeenCalledWith({ path: 'artifacts/Q3.md', asked: false });

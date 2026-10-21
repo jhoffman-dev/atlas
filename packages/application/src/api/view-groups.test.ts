@@ -32,9 +32,9 @@ const VIEWS = {
 
 /** Rows as the index answers whichever columns were asked for. */
 const ROWS: Record<string, unknown>[] = [
-  { path: 'A.md', title: 'A', status: 'todo', area: 'home', project: '[[Atlas]]' },
+  { path: 'A.md', title: 'A', status: 'todo', area: 'home', project: '[[DFAI]]' },
   { path: 'B.md', title: 'B', status: 'done', area: 'work', project: null },
-  { path: 'C.md', title: 'C', status: 'todo', area: 'work', project: '[[Atlas]]' },
+  { path: 'C.md', title: 'C', status: 'todo', area: 'work', project: '[[DFAI]]' },
 ];
 
 function vault() {
@@ -44,7 +44,7 @@ function vault() {
       if (text.includes('graph:namedNotes')) {
         return {
           columns: ['path', 'title'],
-          rows: [['Projects/Atlas.md', 'Atlas']],
+          rows: [['Projects/DFAI.md', 'DFAI']],
           truncated: false,
         };
       }
@@ -63,7 +63,7 @@ function vault() {
     notesOfType: async (type: string) =>
       type === 'project'
         ? [
-            { path: 'Projects/Atlas.md', title: 'Atlas' },
+            { path: 'Projects/DFAI.md', title: 'DFAI' },
             { path: 'Projects/Garden.md', title: 'Garden' },
             { path: '.atlas/templates/Project.md', title: 'Project' },
           ]
@@ -193,6 +193,6 @@ describe('POST /v1/views/{path}/run: groups', () => {
     const body = await run(api, '.atlas/views/Projects.md');
 
     // The template is not a project, so it has no column.
-    expect(outline(body)).toEqual([{ Atlas: ['A', 'C'] }, { Garden: [] }, { 'No value': ['B'] }]);
+    expect(outline(body)).toEqual([{ DFAI: ['A', 'C'] }, { Garden: [] }, { 'No value': ['B'] }]);
   });
 });

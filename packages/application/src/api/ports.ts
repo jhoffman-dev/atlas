@@ -1,5 +1,5 @@
 import type { ActivityLog } from '../activity/ports.ts';
-import type { ImagePlacement, LocalTime, VaultPath } from '@atlas/domain';
+import type { ImagePlacement, LocalTime, VaultPath } from '@dfai/domain';
 import type { HttpPort, SqliteSourcePort } from '../sources/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

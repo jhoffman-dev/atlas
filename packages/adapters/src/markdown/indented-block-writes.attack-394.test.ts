@@ -30,8 +30,8 @@ import {
   writeFrontmatterChanges,
   type ArchivePorts,
   type PropertyChanges,
-} from '@atlas/application';
-import { createVaultPath, splitFrontmatter, TASK_KEYS } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath, splitFrontmatter, TASK_KEYS } from '@dfai/domain';
 import { addToFrontmatterMap } from './frontmatter-add.ts';
 import { frontmatterProblem } from './frontmatter.ts';
 import { remarkMarkdown } from './markdown-port.ts';

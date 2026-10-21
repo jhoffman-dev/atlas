@@ -43,7 +43,7 @@ export function QuickAddSettings({
   return (
     <SettingsSection section={SETTINGS_SECTIONS.quickAdd}>
       <p className="settings__lede">
-        The types Claude and your other tools can quick-add through Atlas’s local API and MCP, up to{' '}
+        The types Claude and your other tools can quick-add through DFAI’s local API and MCP, up to{' '}
         {limit}, in this order.
       </p>
       {rows.length === 0 ? (

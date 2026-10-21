@@ -15,7 +15,7 @@ export const listNotes = defineTool({
   name: 'atlas_list_notes',
   title: 'List notes',
   description:
-    'List notes in the Atlas vault, optionally only those in a folder, of a type, or about a ' +
+    'List notes in the DFAI vault, optionally only those in a folder, of a type, or about a ' +
     'day ("date": named for it, or with that "date" property, as a meeting is), a page at a time ' +
     '(at most 500). Returns { notes: [{ path, title, type, modified }], next, total }: total is ' +
     'how many match in all. When "next" is not null, call again with it as "cursor" for the next ' +
@@ -57,7 +57,7 @@ export const createNote = defineTool({
       .string()
       .optional()
       .describe(
-        'Vault-relative folder, which must already exist: Atlas does not create folders, and a missing one fails with "not_found". Omit for the vault root.',
+        'Vault-relative folder, which must already exist: DFAI does not create folders, and a missing one fails with "not_found". Omit for the vault root.',
       ),
     name: z
       .string()
@@ -79,7 +79,7 @@ export const updateProperties = defineTool({
   title: "Set a note's properties",
   description:
     'Set or remove frontmatter properties on a note, e.g. { "status": "done" }. Keys not named are ' +
-    'left alone; a null value removes the key. Safe on a note open in Atlas: the change goes ' +
+    'left alone; a null value removes the key. Safe on a note open in DFAI: the change goes ' +
     'through its pane. Pass "ifModified" from your last read to refuse the write if the note ' +
     'changed since. Returns the updated note. ' +
     TASK_STATUSES_DESCRIBED,
@@ -97,7 +97,7 @@ export const appendToNote = defineTool({
   title: 'Append to a note',
   description:
     "Add markdown to the end of a note's body, after a blank line. Nothing already there is " +
-    'changed. Refused with "unsaved_in_app" if the note has unsaved edits open in Atlas. Pass ' +
+    'changed. Refused with "unsaved_in_app" if the note has unsaved edits open in DFAI. Pass ' +
     '"ifModified" from your last read to refuse the write if the note changed since.',
   inputSchema: z.object({
     path: notePath,
@@ -115,7 +115,7 @@ export const replaceNoteBody = defineTool({
     'Replace everything after the frontmatter with new markdown; properties are kept. "ifModified" ' +
     'is required: call atlas_read_note first and pass its "modified", so edits made since cannot be ' +
     'lost. On "conflict", read the note again and redo the change. Refused with "unsaved_in_app" ' +
-    'if the note has unsaved edits open in Atlas. To add to a note, prefer atlas_append_to_note.',
+    'if the note has unsaved edits open in DFAI. To add to a note, prefer atlas_append_to_note.',
   inputSchema: z.object({
     path: notePath,
     markdown: z.string().describe('The whole new body, as markdown.'),
@@ -145,7 +145,7 @@ export const exportNote = defineTool({
   name: 'atlas_export_note',
   title: 'Export a note',
   description:
-    'A note made ready to leave Atlas, by "format" (default "confluence"). Returns { export: ' +
+    'A note made ready to leave DFAI, by "format" (default "confluence"). Returns { export: ' +
     '{ path, format, title, markdown, ... } }. "confluence": markdown for a Confluence page, ' +
     'with "dropped". In "markdown", each [[wiki link]] is its words (its alias, or the ' +
     "linked note's title), a block shown in place is quoted under the note it came from, and a " +
@@ -153,7 +153,7 @@ export const exportNote = defineTool({
     'Properties, block ids, comments and images in the vault are left out, and "dropped" lists ' +
     'everything left out, by kind: property, link, embed, missing-embed, image, block-id, ' +
     'comment, callout-fold, formatting (a block shared as plain words, named by its first ' +
-    'line, because its rewrite would have read differently). Atlas writes nothing: to share ' +
+    'line, because its rewrite would have read differently). DFAI writes nothing: to share ' +
     'the note, create the page with the ' +
     'Atlassian connector — "title" as its title, "markdown" as its body, in markdown format, ' +
     'passed verbatim: add, reword or reformat nothing, or "dropped" is no longer the whole ' +
@@ -163,7 +163,7 @@ export const exportNote = defineTool({
     '"standalone": Markdown that reads without the vault — links as words, embedded notes ' +
     'inlined, each picture linked at "attachments/<name>" (each listed in "attachments" with ' +
     'that "as"), frontmatter kept unless "frontmatter" is "drop" — with "dropped". Pictures are ' +
-    'listed, not sent: no Atlas tool reads a picture, so copy them some other way if needed. ' +
+    'listed, not sent: no DFAI tool reads a picture, so copy them some other way if needed. ' +
     'There is no PDF or Google Doc here: the API writes no file anywhere, a PDF is made by the ' +
     "app's own window, and a Google Doc needs the user's consent in their browser — ask the " +
     'user to export from the note\'s "⋯" menu, or ⌘K "Export…".',

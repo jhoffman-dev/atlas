@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type InboxItem } from '@atlas/domain';
+import { createVaultPath, type InboxItem } from '@dfai/domain';
 import { InboxPage, type InboxPageProps } from '../inbox-page.tsx';
 import { startCountingRenders, stopCountingRenders } from '../testing/render-counter.ts';
 
@@ -32,7 +32,7 @@ const note = (title: string): InboxItem => ({
 const notes = (count: number, prefix = 'Note') =>
   Array.from({ length: count }, (_, at) => note(`${prefix} ${at}`));
 // Kept the same lists while they say the same, as the app keeps them.
-const FILING = [{ path: 'Projects/Atlas.md', title: 'Atlas' }];
+const FILING = [{ path: 'Projects/DFAI.md', title: 'DFAI' }];
 const PEOPLE = [{ path: 'People/Mara Quill.md', title: 'Mara Quill' }];
 
 function given(
@@ -110,7 +110,7 @@ describe('InboxRows — an Inbox of hundreds (#238)', () => {
     const view = render(<InboxPage {...given(items)} />);
     startCountingRenders();
     fireEvent.change(screen.getByRole('combobox', { name: 'File Note 0 under' }), {
-      target: { value: 'Projects/Atlas.md' },
+      target: { value: 'Projects/DFAI.md' },
     });
     await act(async () => {});
     view.rerender(<InboxPage {...given(items.slice(1))} />);

@@ -1,6 +1,6 @@
 import { Extension, type Editor } from '@tiptap/core';
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
-import { BOOKMARK_NODE } from '@atlas/domain';
+import { BOOKMARK_NODE } from '@dfai/domain';
 
 /**
  * Raised on the editor's element to open a link's menu: `detail` says which

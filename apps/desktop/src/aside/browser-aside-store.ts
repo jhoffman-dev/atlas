@@ -1,4 +1,4 @@
-import { ASIDE_TABS, type AsideTab } from '@atlas/ui';
+import { ASIDE_TABS, type AsideTab } from '@dfai/ui';
 import type { RememberedAside, RememberedAsides } from './aside-store.ts';
 
 /** One key per vault, so one vault's aside never reads as another's. */

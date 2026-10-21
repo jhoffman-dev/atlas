@@ -5,7 +5,7 @@
  */
 import { parseDocument } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { FrontmatterRefusedError } from '@atlas/application';
+import { FrontmatterRefusedError } from '@dfai/application';
 import { checkedBody, updateFrontmatter, type Edit } from './frontmatter-write.ts';
 import { parseFrontmatterProperties } from './frontmatter.ts';
 

@@ -4,7 +4,7 @@ import {
   splitFrontmatter,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   generateArtifactThumbnail,
   type ThumbnailResult,

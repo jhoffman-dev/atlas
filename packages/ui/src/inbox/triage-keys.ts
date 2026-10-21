@@ -5,7 +5,7 @@ import {
   type GtdStatus,
   type TriageAction,
   type TriageKey,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /** A key as the focused row draws it: its letter, its action and the word beside the letter. */
 export interface TriageKeyShown extends TriageKey {

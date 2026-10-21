@@ -1,4 +1,4 @@
-import { parseRepositoryList, type GitHubRepository } from '@atlas/domain';
+import { parseRepositoryList, type GitHubRepository } from '@dfai/domain';
 import { expectOk, withPrograms } from './git-steps.ts';
 import type { GitHubPort } from './ports.ts';
 

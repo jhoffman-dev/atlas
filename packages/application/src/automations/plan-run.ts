@@ -15,7 +15,7 @@ import {
   type AutomationRule,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { AtlasQueryError, runAtlasQuery } from '../query/run-atlas-query.ts';

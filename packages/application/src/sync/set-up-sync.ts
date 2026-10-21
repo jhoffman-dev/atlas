@@ -19,7 +19,7 @@ import {
   withManagedIgnores,
   type SyncReport,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import type { SettingsWriter } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -67,7 +67,7 @@ export interface SetUpMac {
  * sync. Refused for a vault inside another repository's work tree, before
  * anything is written.
  *
- * Atlas's mark (`sync: github` in the settings) goes in once the vault is
+ * DFAI's mark (`sync: github` in the settings) goes in once the vault is
  * connected — for a new repository, only once GitHub has it (issue #8), so a
  * repository that could not be made leaves nothing that reads as set up —
  * and the automations are given to this Mac only when no Mac has them: a
@@ -127,7 +127,7 @@ export async function setUpSync({
 }
 
 /**
- * Atlas's mark in the settings, and — once `automations` is asked for —
+ * DFAI's mark in the settings, and — once `automations` is asked for —
  * who runs the automations, when this vault's settings name no Mac yet.
  */
 async function markSetUp({
@@ -164,7 +164,7 @@ async function settingsCopiedAside({
   return copied === undefined ? null : ports.readSettingsCopy(createVaultPath(copied.copy));
 }
 
-/** Says, once at set-up, what of Atlas's own the vault's `.gitignore` keeps out (issue #8). */
+/** Says, once at set-up, what of DFAI's own the vault's `.gitignore` keeps out (issue #8). */
 function warnIgnored(activity: SetUpSyncPorts['activity'], report: SyncReport): void {
   for (const path of report.ignored) {
     activity.record({

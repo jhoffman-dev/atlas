@@ -1,5 +1,5 @@
 /**
- * What a model needs to know to write a task's status as Atlas does
+ * What a model needs to know to write a task's status as DFAI does
  * (ADR-0029). Said once, and read by every tool that writes one.
  */
 export const TASK_STATUSES_DESCRIBED =

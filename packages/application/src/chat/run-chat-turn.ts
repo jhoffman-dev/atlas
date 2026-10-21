@@ -1,4 +1,4 @@
-import { trimTranscript, type ModelMessage, type ToolCall, type ToolResult } from '@atlas/domain';
+import { trimTranscript, type ModelMessage, type ToolCall, type ToolResult } from '@dfai/domain';
 import { ChatCancelled, type ModelProvider } from './ports.ts';
 import type { Proposal } from './proposals.ts';
 import type { ChatToolbox } from './toolbox.ts';

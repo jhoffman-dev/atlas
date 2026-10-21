@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import type { QueryPanelFoldStore } from '@atlas/ui';
+import type { QueryPanelFoldStore } from '@dfai/ui';
 import { useQueryPanelFold } from './use-query-panel-fold.ts';
 
 /** A store held in a map, as localStorage would hold it. */

@@ -8,9 +8,9 @@ import {
   type ObjectType,
   type PropertyDef,
   type VaultEntry,
-} from '@atlas/domain';
-import { fakeVaultFs, type OpenEditorsPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/domain';
+import { fakeVaultFs, type OpenEditorsPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { useTemplates } from '../types/use-templates.ts';
 import { useTemplatesPage } from './use-templates-page.ts';

@@ -3,7 +3,7 @@ import type {
   GranolaNote,
   GranolaNoteSummary,
   GranolaUnreadableSummary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * Whether this vault has a Granola API key on this Mac, and 401 when

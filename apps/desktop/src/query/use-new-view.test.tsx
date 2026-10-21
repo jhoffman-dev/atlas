@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { parseObjectType } from '@atlas/domain';
-import { fakeVaultFs, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { parseObjectType } from '@dfai/domain';
+import { fakeVaultFs, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useNewView } from './use-new-view.ts';
 
 /** The New view dialog, and where it gives up on writing the view. */

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { remarkMarkdown } from '@atlas/adapters';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   activeTabOf,
   createVaultPath,
@@ -11,7 +11,7 @@ import {
   openInActiveTab,
   type NavigationPlace,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';

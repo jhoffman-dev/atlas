@@ -9,7 +9,7 @@ import {
   type OptionColors,
   type PropertyDef,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { CellEditing, CellEditorHooks } from './cells/cell-editing.ts';
 import { useAnchoring, usePressOnOpenCell, useReturningFocus } from './cells/cell-focus.ts';
 import { CellInput } from './cells/cell-input.tsx';

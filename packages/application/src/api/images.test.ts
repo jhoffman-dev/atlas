@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodeBase64, MAX_IMAGE_BYTES } from '@atlas/domain';
+import { encodeBase64, MAX_IMAGE_BYTES } from '@dfai/domain';
 import {
   apiFixture,
   bodyOf,

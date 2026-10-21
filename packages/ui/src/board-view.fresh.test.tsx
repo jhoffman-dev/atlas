@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardColumn, BoardRow, PropertyKind } from '@atlas/domain';
+import type { BoardColumn, BoardRow, PropertyKind } from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 import { dragByKeyboard, layOut, type Box } from './drag/test-layout.ts';
 

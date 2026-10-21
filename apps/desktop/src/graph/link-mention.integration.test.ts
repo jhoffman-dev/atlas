@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { remarkMarkdown } from '@atlas/adapters';
-import { createVaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, linkUnlinkedMention } from '@atlas/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { createVaultPath } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, linkUnlinkedMention } from '@dfai/application';
 
 /**
  * Linking a mention through the real markdown parser: the block ranges it

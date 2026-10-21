@@ -6,8 +6,8 @@ import {
   fakeVaultFs,
   type ThumbnailJob,
   type ThumbnailResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useThumbnailBackfill } from './use-thumbnail-backfill.ts';
 
 const ARTIFACTS = ['Chart.md', 'Deck.md', 'Map.md'];

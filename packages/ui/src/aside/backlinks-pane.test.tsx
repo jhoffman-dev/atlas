@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, NO_LINKS, type NoteLinks } from '@atlas/domain';
+import { createVaultPath, NO_LINKS, type NoteLinks } from '@dfai/domain';
 import { BacklinksPane } from './backlinks-pane.tsx';
 
 const LINKS: NoteLinks = {

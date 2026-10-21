@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { ArchiveOutcome } from '@atlas/application';
-import type { VaultPath } from '@atlas/domain';
+import type { ArchiveOutcome } from '@dfai/application';
+import type { VaultPath } from '@dfai/domain';
 import type { ArchiveCommands } from './use-archive.ts';
 import { useViewChoosing } from './use-view-choosing.ts';
 

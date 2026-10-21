@@ -17,7 +17,7 @@ import {
   type ObjectType,
   type TemplateUse,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';

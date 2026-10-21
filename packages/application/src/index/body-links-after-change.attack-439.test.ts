@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, LINK_NAMES_PER_QUERY } from '@atlas/domain';
+import { createVaultPath, LINK_NAMES_PER_QUERY } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import { deleteEntry } from '../vault/delete-entry.ts';

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SPINNER_DELAY_MS } from '@atlas/ui';
+import { SPINNER_DELAY_MS } from '@dfai/ui';
 
 /**
  * The window's toasts (#320): a dark surface in both themes whose words

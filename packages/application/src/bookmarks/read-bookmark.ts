@@ -8,7 +8,7 @@ import {
   type ObjectType,
   type VaultPath,
   type WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { modifiedTimes } from '../index/modified-times.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

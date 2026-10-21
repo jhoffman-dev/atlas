@@ -2,8 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WidgetResult } from '@atlas/application';
-import { parseDashboard } from '@atlas/domain';
+import type { WidgetResult } from '@dfai/application';
+import { parseDashboard } from '@dfai/domain';
 import { DashboardView, type DashboardEditing } from './dashboard-view.tsx';
 import { announced, dragByKeyboard, layOut } from './drag/test-layout.ts';
 

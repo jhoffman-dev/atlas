@@ -10,7 +10,7 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from 'd3-force';
-import { nodeRadius, type VaultGraph } from '@atlas/domain';
+import { nodeRadius, type VaultGraph } from '@dfai/domain';
 
 interface LaidNode extends SimulationNodeDatum {
   readonly id: string;

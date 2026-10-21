@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import { fakeVaultFs, recordingActivity } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { fakeVaultFs, recordingActivity } from '@dfai/application';
 import { useEmbedImage } from './use-embed-image.ts';
 
 /** An image pasted into a note, and where saving it gives up. */

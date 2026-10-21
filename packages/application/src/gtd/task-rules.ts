@@ -1,4 +1,4 @@
-import { splitFrontmatter, TASK_RULE_KEYS, taskRuleChanges } from '@atlas/domain';
+import { splitFrontmatter, TASK_RULE_KEYS, taskRuleChanges } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 

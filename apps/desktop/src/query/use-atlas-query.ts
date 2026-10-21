@@ -15,14 +15,14 @@ import {
   type ObjectType,
   type QueryProblem,
   type ViewLayout,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   AtlasQueryError,
   runAtlasQuery,
   type AtlasQueryAnswer,
   type IndexPort,
-} from '@atlas/application';
-import type { ComposerMode, GroupedResultProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { ComposerMode, GroupedResultProps } from '@dfai/ui';
 import { errorMessage } from './error-message.ts';
 
 /** How the query was last opened in the editor: as dropdowns, or as text and why. */
@@ -34,7 +34,7 @@ interface Editing {
 }
 
 /**
- * The editor for one Atlas query (ADR-0019): its text, the builder's view of
+ * The editor for one DFAI query (ADR-0019): its text, the builder's view of
  * it, and its answer, re-asked whenever the text or the index changes.
  *
  * While the builder is open it holds the query — a condition still waiting

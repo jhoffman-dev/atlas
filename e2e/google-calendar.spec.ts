@@ -33,9 +33,9 @@ test('Google Calendar is connected, given its calendar, and disconnected from Se
   expect(host.google.connected()).toBe(true);
   await expectFile(vault, '.atlas/settings.md').toContain(`google_client_id: ${CLIENT_ID}`);
 
-  await card(page).getByRole('button', { name: 'Create “Atlas blocks”' }).click();
-  await expect(card(page).getByText('Connected. Blocks go to Atlas blocks.')).toBeVisible();
-  expect(host.google.calendars()).toEqual(['Atlas blocks']);
+  await card(page).getByRole('button', { name: 'Create “DFAI blocks”' }).click();
+  await expect(card(page).getByText('Connected. Blocks go to DFAI blocks.')).toBeVisible();
+  expect(host.google.calendars()).toEqual(['DFAI blocks']);
   await expectFile(vault, '.atlas/settings.md').toContain(
     'google_calendar: atlas-blocks@group.calendar.example.com',
   );
@@ -52,7 +52,7 @@ test('a refused consent says what to do about it', async ({ page }) => {
   host.google.refuseNext({
     kind: 'refused',
     code: 'access_denied',
-    message: 'Google did not let Atlas in',
+    message: 'Google did not let DFAI in',
   });
 
   await card(page).getByRole('textbox', { name: 'OAuth client ID' }).fill(CLIENT_ID);

@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import type { GraphScope } from '@atlas/domain';
+import type { GraphScope } from '@dfai/domain';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { graphPage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';

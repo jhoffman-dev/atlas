@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
-import type { MenuCommand } from '@atlas/ui';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
+import type { MenuCommand } from '@dfai/ui';
 import { archiveCommand, withCommandBeforeDelete } from './archive-menu.ts';
 import { paletteArchiveCommands, runPaletteArchiveCommand } from './palette-archive.ts';
 import type { ArchiveCommands } from './use-archive.ts';

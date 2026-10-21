@@ -109,8 +109,8 @@ describe('viewGroupLevels', () => {
   });
 
   it('offers a relation’s notes as its groups', () => {
-    const [first] = levels({ groupBy: 'project', related: { project: ['[[Atlas]]'] } });
-    expect(first?.options).toEqual(['[[Atlas]]']);
+    const [first] = levels({ groupBy: 'project', related: { project: ['[[DFAI]]'] } });
+    expect(first?.options).toEqual(['[[DFAI]]']);
     expect(levels({ groupBy: 'project' })[0]?.options).toEqual([]);
   });
 
@@ -229,9 +229,9 @@ describe('groupPrefill', () => {
   });
 
   it('gives a note each level’s value', () => {
-    expect(groupPrefill([group('status', 'doing'), group('project', '[[Atlas]]')])).toEqual({
+    expect(groupPrefill([group('status', 'doing'), group('project', '[[DFAI]]')])).toEqual({
       status: 'doing',
-      project: '[[Atlas]]',
+      project: '[[DFAI]]',
     });
   });
 
@@ -392,9 +392,9 @@ describe('drawnLevels', () => {
       display: { layout: 'board', groupBy: 'project', subGroupBy: null },
       type: TASK,
       sorts: [],
-      related: { project: ['[[Atlas]]'] },
+      related: { project: ['[[DFAI]]'] },
     });
-    expect(level?.options).toEqual(['[[Atlas]]']);
+    expect(level?.options).toEqual(['[[DFAI]]']);
   });
 });
 
@@ -407,7 +407,7 @@ describe('movedValue', () => {
 
   it('writes any other group as its value, and "No value" as nothing', () => {
     expect(movedValue('select', 'done')).toBe('done');
-    expect(movedValue('relation', '[[Atlas]]')).toBe('[[Atlas]]');
+    expect(movedValue('relation', '[[DFAI]]')).toBe('[[DFAI]]');
     expect(movedValue('select', null)).toBeNull();
     expect(movedValue(undefined, 'x')).toBe('x');
   });

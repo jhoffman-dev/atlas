@@ -5,7 +5,7 @@ import {
   secretsUsedBy,
   sqliteFileReference,
   type Datasource,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type {
   IndexPort,
   MarkdownPort,
@@ -13,7 +13,7 @@ import type {
   SourceRefresher,
   SourceReport,
   VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import type { SourcePorts } from './source-ports.ts';
 
 const MINUTE_MS = 60_000;

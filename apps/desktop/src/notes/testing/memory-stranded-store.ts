@@ -1,4 +1,4 @@
-import type { StrandedEdit } from '@atlas/domain';
+import type { StrandedEdit } from '@dfai/domain';
 import type { StrandedEditStore } from '../stranded-edits.ts';
 
 /**

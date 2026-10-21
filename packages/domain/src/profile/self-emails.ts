@@ -4,7 +4,7 @@ import { addressesOf, readAddresses, type AddressesReading } from './email-addre
  * The vault owner's own email addresses (ADR-0024 amendment, ADR-0036): one
  * setting beside the profile's names, kept in the vault so it syncs. Linking,
  * whose an action item is, Granola's `me` and the duplicate rule all read it.
- * Atlas ships no address and guesses none: the person types them.
+ * DFAI ships no address and guesses none: the person types them.
  */
 export const SELF_EMAILS_KEY = 'selfEmails';
 

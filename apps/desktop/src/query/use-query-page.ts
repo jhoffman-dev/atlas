@@ -17,7 +17,7 @@ import {
   type SqlShow,
   type VaultPath,
   type ViewLayout,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   dashboardChange,
   loadSchema,
@@ -29,7 +29,7 @@ import {
   type MarkdownPort,
   type VaultFsPort,
   type ViewResult,
-} from '@atlas/application';
+} from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from './error-message.ts';
@@ -53,11 +53,11 @@ export interface QueryPagePorts {
   readonly activity: Pick<ActivityLog, 'inOpenVault'>;
 }
 
-/** Which language the query page is asking in: an Atlas query, or SQL by hand. */
+/** Which language the query page is asking in: a DFAI query, or SQL by hand. */
 export type QueryLanguage = 'atlas' | 'sql';
 
 /**
- * The query page: an Atlas query built or written (ADR-0019), or a SQL
+ * The query page: a DFAI query built or written (ADR-0019), or a SQL
  * statement; the last result; the index's schema; and the two ways to keep a
  * query — as a view, or as a widget on a dashboard.
  */

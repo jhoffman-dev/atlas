@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AUTOMATION_PRESETS, BLANK_AUTOMATION, type AutomationDraft } from '@atlas/domain';
+import { AUTOMATION_PRESETS, BLANK_AUTOMATION, type AutomationDraft } from '@dfai/domain';
 import { AutomationEditor, type AutomationEditorProps } from './automation-editor.tsx';
 import { AutomationsPage, type AutomationsPageProps } from './automations-page.tsx';
 import type { AutomationRow, LogEntryView } from './automation-views.ts';
@@ -155,7 +155,7 @@ const LOG: LogEntryView[] = [
     summary: 'Archived 1 note. Left 1 alone.',
     lines: [
       { kind: 'done', text: 'Archived Old (Tasks/Old.md)' },
-      { kind: 'left', text: 'Left Busy: It is open in Atlas with unsaved typing.' },
+      { kind: 'left', text: 'Left Busy: It is open in DFAI with unsaved typing.' },
     ],
   },
 ];
@@ -206,7 +206,7 @@ describe('AutomationEditor', () => {
     );
     expect(screen.queryByLabelText('Time of day')).toBeNull();
     expect(screen.getByLabelText('Hours between runs')).toBeTruthy();
-    await userEvent.click(screen.getByRole('radio', { name: 'When Atlas opens' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'When DFAI opens' }));
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ when: { kind: 'open' } }));
   });
 
@@ -425,7 +425,7 @@ describe('AutomationEditor', () => {
       '27 Sep 2026, 03:00:00 · Ran on schedule',
     ]);
     expect(
-      within(log).getByText('Left Busy: It is open in Atlas with unsaved typing.').className,
+      within(log).getByText('Left Busy: It is open in DFAI with unsaved typing.').className,
     ).toContain('automation-log__line--left');
   });
 

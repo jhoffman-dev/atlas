@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor, type JSONContent } from '@tiptap/core';
-import { findTags } from '@atlas/domain';
+import { findTags } from '@dfai/domain';
 import { createEditorExtensions } from './extensions.ts';
 
 let editor: Editor | null = null;

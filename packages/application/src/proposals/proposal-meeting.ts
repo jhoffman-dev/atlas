@@ -11,7 +11,7 @@ import {
   type MeetingIdentity,
   type ProposalNote,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { holdingAt } from '../meetings/meeting-files.ts';
 import { ProposalRefused } from '../chat/proposals.ts';
 import type { ProposalPorts } from './proposal-file.ts';

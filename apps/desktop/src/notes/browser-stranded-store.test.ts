@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type StrandedEdit } from '@atlas/domain';
+import { createVaultPath, type StrandedEdit } from '@dfai/domain';
 import { browserStrandedStore } from './browser-stranded-store.ts';
 
 const VAULT = '/Users/someone/Vault';

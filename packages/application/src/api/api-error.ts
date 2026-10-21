@@ -6,7 +6,7 @@ import {
   type ApiTextPosition,
 } from './contract.ts';
 
-export { messageOf, messageWithoutPaths } from '@atlas/domain';
+export { messageOf, messageWithoutPaths } from '@dfai/domain';
 
 /**
  * A request refused for a reason the caller can act on.
@@ -35,7 +35,7 @@ export class ApiError extends Error {
 }
 
 /** What the caller is told when something failed that it cannot act on. */
-export const INTERNAL_MESSAGE = 'Atlas could not answer this request';
+export const INTERNAL_MESSAGE = 'DFAI could not answer this request';
 
 /** The status and body for anything a handler threw. */
 export function failureOf(error: unknown): { status: number; body: ApiErrorBody } {

@@ -146,7 +146,7 @@ export function isProposalNote(properties: Readonly<Record<string, unknown>>): b
 
 /**
  * A proposal note read from its frontmatter, or why it cannot be: a kind
- * Atlas does not know, a state it does not know, or a payload that does not
+ * DFAI does not know, a state it does not know, or a payload that does not
  * say what to write. A confidence it does not know reads as none, since it
  * changes nothing Accept does.
  */
@@ -158,7 +158,7 @@ export function readProposal({
   properties: Readonly<Record<string, unknown>>;
 }): ProposalReading {
   const kind = oneOf(PROPOSAL_KINDS, properties['kind']);
-  if (kind === null) return refused(`It has no kind Atlas knows: ${known(PROPOSAL_KINDS)}.`);
+  if (kind === null) return refused(`It has no kind DFAI knows: ${known(PROPOSAL_KINDS)}.`);
   const state =
     properties['state'] === undefined ? 'open' : oneOf(PROPOSAL_STATES, properties['state']);
   if (state === null) return refused(`Its state is not one of ${known(PROPOSAL_STATES)}.`);

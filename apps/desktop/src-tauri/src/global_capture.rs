@@ -1,12 +1,12 @@
 //! The global capture shortcut (#81, ADR-0033): one system-wide key that
-//! brings Atlas forward with quick capture open, whatever app has the keyboard.
+//! brings DFAI forward with quick capture open, whatever app has the keyboard.
 //!
 //! The host registers it and, when it is pressed, raises the window and emits
 //! `global-capture` — nothing more. What capture then does, and what happens
 //! with no vault open, is the webview's to say. Which shortcut, and its
 //! default, are the webview's too: it keeps the choice for this Mac and hands
 //! it here when it starts. The one thing checked here is the backstop for an
-//! untrusted caller (ADR-0017): a hot key reaches Atlas before any other app,
+//! untrusted caller (ADR-0017): a hot key reaches DFAI before any other app,
 //! so one without two of ⌘, ⌥ and ⌃, or one macOS uses itself, would take a
 //! key from every app or from macOS. It is refused, as the domain refuses it.
 
@@ -141,7 +141,7 @@ fn activate_app() {}
 /// (`globalShortcutFromKeys`) is the one the person meets; this is the backstop.
 fn vetted(text: &str) -> Result<Shortcut, String> {
     let shortcut = Shortcut::from_str(text)
-        .map_err(|error| format!("{text} is not a shortcut Atlas can register: {error}"))?;
+        .map_err(|error| format!("{text} is not a shortcut DFAI can register: {error}"))?;
     let claiming = [Modifiers::SUPER, Modifiers::CONTROL, Modifiers::ALT]
         .into_iter()
         .filter(|modifier| shortcut.mods.contains(*modifier))
@@ -240,7 +240,7 @@ fn change(
 fn release(registry: &impl Registry, previous: Option<Shortcut>) {
     if let Some(previous) = previous {
         if let Err(error) = registry.unregister(previous) {
-            // Nothing to undo: Atlas no longer listens for it either way.
+            // Nothing to undo: DFAI no longer listens for it either way.
             log::warn!("the previous global capture shortcut could not be released: {error}");
         }
     }
@@ -264,7 +264,7 @@ fn taken(shortcut: Option<String>, error: &str, previous_kept: bool) -> GlobalCa
         shortcut,
         registered: false,
         problem: Some(format!(
-            "macOS would not give Atlas this shortcut. Choose another.{kept} ({error})"
+            "macOS would not give DFAI this shortcut. Choose another.{kept} ({error})"
         )),
     }
 }
@@ -482,7 +482,7 @@ mod tests {
         assert!(!status.registered);
         let problem = status.problem.unwrap();
         assert!(
-            problem.contains("would not give Atlas this shortcut"),
+            problem.contains("would not give DFAI this shortcut"),
             "{problem}"
         );
         assert!(problem.contains("had before still works"), "{problem}");

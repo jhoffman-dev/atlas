@@ -1,4 +1,4 @@
-import { decodeBase64, parentVaultPath, type VaultPath } from '@atlas/domain';
+import { decodeBase64, parentVaultPath, type VaultPath } from '@dfai/domain';
 import { VaultAccessError } from '../vault/ports.ts';
 import { ApiError } from './api-error.ts';
 import { optionalString, type Fields } from './fields.ts';

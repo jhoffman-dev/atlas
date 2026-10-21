@@ -2,7 +2,7 @@
  * A favourite is a property of the note, not app state in a database.
  *
  * Same reason a view is a note: it diffs, it survives a sync, and it is still
- * there without Atlas. So the whole of the feature is one frontmatter key.
+ * there without DFAI. So the whole of the feature is one frontmatter key.
  */
 
 /** The frontmatter key that marks a note as a favourite. */
@@ -39,7 +39,7 @@ function declaresFavorite(declared: unknown): boolean {
  * Unfavouriting clears the key rather than writing `favorite: false`: a note
  * that was never a favourite and one that no longer is should be the same file,
  * or every note anyone ever starred would carry a tombstone for it. Null is how
- * a property is removed everywhere else in Atlas.
+ * a property is removed everywhere else in DFAI.
  */
 export function favoriteValue(favorite: boolean): true | null {
   return favorite ? true : null;

@@ -1,4 +1,4 @@
-import type { NodePath, OutlineHeading } from '@atlas/domain';
+import type { NodePath, OutlineHeading } from '@dfai/domain';
 
 /**
  * The aside's Outline tab: the note's headings in order (`outlineOf`), each

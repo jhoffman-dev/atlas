@@ -17,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { remarkMarkdown } from '@atlas/adapters';
-import { splitFrontmatter, validateMeetingImport, type MeetingImport } from '@atlas/domain';
+import { remarkMarkdown } from '@dfai/adapters';
+import { splitFrontmatter, validateMeetingImport, type MeetingImport } from '@dfai/domain';
 import {
   ImportSetupError,
   importNotionMeetings,
@@ -31,7 +31,7 @@ import { NotionExportError } from './notion-meetings.ts';
 /*
  * The importer over a small Notion export (fixtures/export, every name in it
  * made up) and a real folder standing in for a vault copy: what it writes is
- * held to the contract by the validator Atlas runs and by the JSON Schema.
+ * held to the contract by the validator DFAI runs and by the JSON Schema.
  */
 
 const FIXTURE = fileURLToPath(new URL('fixtures/export/', import.meta.url));
@@ -53,7 +53,7 @@ const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 const schemaAccepts = ajv.compile(JSON.parse(readFileSync(schemaFile, 'utf8')) as object);
 
-/** The meeting as Atlas reads it; fails the test with every problem when the file breaks the contract. */
+/** The meeting as DFAI reads it; fails the test with every problem when the file breaks the contract. */
 function accepted(content: string): MeetingImport {
   const result = validateMeetingImport({
     text: content,
@@ -118,7 +118,7 @@ async function addPage(name: string, text: string | Buffer) {
 }
 
 describe('importing a Notion Meeting Notes export', () => {
-  it('writes one contract file per row with a Source ID, each one Atlas lets in', async () => {
+  it('writes one contract file per row with a Source ID, each one DFAI lets in', async () => {
     const outcomes = await run();
 
     expect(kinds(outcomes)).toEqual(['written', 'written', 'written', 'written', 'no-source-id']);
@@ -273,7 +273,7 @@ describe('running the import again', () => {
     );
   });
 
-  it('writes nothing for a meeting Atlas has since stamped, filed elsewhere or archived', async () => {
+  it('writes nothing for a meeting DFAI has since stamped, filed elsewhere or archived', async () => {
     await run();
     const stamp = (text: string) =>
       text.replace(/^(atlas_import: .*\n)/m, '$1atlas_import_outcome: imported\n');
@@ -498,7 +498,7 @@ describe('where the import may write', () => {
   );
 
   it.each(['.imported', 'Meetings/.from-notion'])(
-    'refuses a hidden folder, which Atlas and the next run would not look in: %s',
+    'refuses a hidden folder, which DFAI and the next run would not look in: %s',
     async (folder) => {
       await expect(run({ folder })).rejects.toThrow(/is hidden/);
       expect(await readdir(vault)).toEqual([]);

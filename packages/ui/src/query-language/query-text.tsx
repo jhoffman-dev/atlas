@@ -1,4 +1,4 @@
-import type { QueryProblem } from '@atlas/domain';
+import type { QueryProblem } from '@dfai/domain';
 import { isImeKey } from '../ime.ts';
 
 /**

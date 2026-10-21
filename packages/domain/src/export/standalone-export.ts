@@ -7,7 +7,7 @@ import { Exporter, namesAnImage, type StandaloneSources } from './note-exporter.
 import { ON_THE_WEB } from './raw-markdown.ts';
 
 /*
- * A note made to leave Atlas whole (#501): Markdown any other tool reads,
+ * A note made to leave DFAI whole (#501): Markdown any other tool reads,
  * and the page a PDF or a Google Doc is made from. A wiki link becomes a
  * link to the note's file where that note is exported beside it, else its
  * words; a block shown in place, or a whole note embedded, is quoted under
@@ -22,7 +22,7 @@ export interface StandaloneExport {
   readonly dropped: readonly ExportDrops[];
 }
 
-/** A note, read as `doc`, made to leave Atlas whole. */
+/** A note, read as `doc`, made to leave DFAI whole. */
 export function exportStandalone({
   doc,
   title,

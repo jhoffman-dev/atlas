@@ -5,7 +5,7 @@ import {
   noteThumbnailKey,
   thumbnailValue,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   embedImage,
   type ImageProbePort,
@@ -13,7 +13,7 @@ import {
   type PropertyChanges,
   type ThumbnailQueue,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useThumbnailSnapshot } from '../artifacts/use-thumbnails.ts';
 import type { ImagePlacementStore } from '../notes/browser-image-placement-store.ts';
 import { epochNow } from '../today.ts';

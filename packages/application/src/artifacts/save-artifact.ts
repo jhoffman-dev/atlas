@@ -12,7 +12,7 @@ import {
   VAULT_ROOT,
   type ArtifactFileInput,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
 import { findTemplateNamed, loadTemplates, readTemplate } from '../types/templates.ts';

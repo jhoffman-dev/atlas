@@ -394,7 +394,7 @@ describe('readNoteAnswer', () => {
       'Its properties are not keys and values.',
     );
     expect(problem({ title: 'A', properties: { atlas: 'automation' } })).toMatch(
-      /Atlas keeps that one/,
+      /DFAI keeps that one/,
     );
     expect(problem({ title: 'A', properties: { due: { at: 1 } } })).toBe(
       '“due” is not text, a number, true or false, or a list of text.',

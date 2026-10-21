@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import type { ApiHost, VaultLocation } from '@atlas/application';
+import type { ApiHost, VaultLocation } from '@dfai/application';
 
 /**
  * The app as the local API asks about it: one object for the life of the app,

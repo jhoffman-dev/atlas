@@ -4,7 +4,7 @@
  * for real against SQLite.
  */
 import { describe, expect, it } from 'vitest';
-import { GTD_STATUS_PROPERTY, type ObjectType } from '@atlas/domain';
+import { GTD_STATUS_PROPERTY, type ObjectType } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
@@ -79,11 +79,11 @@ describe('readTaskSchedules', () => {
   });
 
   it('reads a task in no block as scheduled for nothing, and leaves out what is not a task', async () => {
-    const index = indexOf({ 'tasks/Later.md': task('1h30m'), 'Atlas.md': { type: 'project' } });
+    const index = indexOf({ 'tasks/Later.md': task('1h30m'), 'DFAI.md': { type: 'project' } });
 
     const schedules = await readTaskSchedules({
       index,
-      paths: ['tasks/Later.md', 'Atlas.md'],
+      paths: ['tasks/Later.md', 'DFAI.md'],
       taskType: GTD_TASK,
     });
 

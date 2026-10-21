@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitWikiLinksAndEmbeds } from '@atlas/domain';
+import { splitWikiLinksAndEmbeds } from '@dfai/domain';
 import type { Nodes } from 'mdast';
 import { parseBodyToMdast } from './markdown-blocks.ts';
 import { textRangesOf } from './text-ranges.ts';

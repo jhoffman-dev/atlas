@@ -7,7 +7,7 @@ export const PROGRESS_FIELD = 'progress';
 /**
  * Whether a type's notes are read with their checklist progress. A type that
  * declares a property of that name keeps its own: the vault's word for it
- * wins over the one Atlas works out. SQLite reads column names regardless of
+ * wins over the one DFAI works out. SQLite reads column names regardless of
  * case, so `Progress` is that name too.
  */
 export function carriesChecklistProgress(type: Pick<ObjectType, 'properties'>): boolean {

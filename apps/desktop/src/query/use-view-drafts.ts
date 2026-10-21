@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { createVaultPath, movedPath, type EntryMove, type ViewEdits } from '@atlas/domain';
+import { createVaultPath, movedPath, type EntryMove, type ViewEdits } from '@dfai/domain';
 
 /** Unsaved toolbar changes, by view path, held above the panes. */
 export interface ViewDrafts {

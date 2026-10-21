@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { readEventTime } from '@atlas/domain';
+import { readEventTime } from '@dfai/domain';
 import { localNow } from '../today.ts';
 
 /** How often the clock's now line moves: once a minute is all it can show. */

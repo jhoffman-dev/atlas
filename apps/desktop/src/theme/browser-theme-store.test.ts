@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ThemeStore } from '@atlas/ui';
+import type { ThemeStore } from '@dfai/ui';
 import { browserThemeStore, createBrowserThemeStore } from './browser-theme-store.ts';
 
 const KEY = 'atlas.theme';

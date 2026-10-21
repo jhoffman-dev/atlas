@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { GOOGLE_DOC_MIME_TYPE, GOOGLE_FOLDER_MIME_TYPE } from '@atlas/domain';
-import { GoogleCalendarError, type GoogleDrivePort } from '@atlas/application';
+import { GOOGLE_DOC_MIME_TYPE, GOOGLE_FOLDER_MIME_TYPE } from '@dfai/domain';
+import { GoogleCalendarError, type GoogleDrivePort } from '@dfai/application';
 import { googleErrorOf } from './tauri-google-calendar.ts';
 
 /** A Drive API answer as the host hands it back, with every token struck from it. */

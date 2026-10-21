@@ -27,8 +27,8 @@ describe('newNoteFolder', () => {
     expect(newNoteFolder({ beside: null, properties: {} })).toBe(VAULT_ROOT);
   });
 
-  // Beside a view it would be an Atlas note, which nothing lists.
-  it('never puts an ordinary note among the ones Atlas keeps for itself', () => {
+  // Beside a view it would be a DFAI note, which nothing lists.
+  it('never puts an ordinary note among the ones DFAI keeps for itself', () => {
     expect(newNoteFolder({ beside: board, properties: { type: 'task' } })).toBe(VAULT_ROOT);
     const template = createVaultPath('.atlas/templates/Task.md');
     expect(newNoteFolder({ beside: template, properties: {} })).toBe(VAULT_ROOT);

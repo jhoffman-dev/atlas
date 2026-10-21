@@ -149,13 +149,13 @@ describe('POST /v1/views/{path}/move: a card already in its group is not written
 
   it("leaves a relation alone when the card is already in that note's column, however the link is spelled", async () => {
     // group-rows.ts keys a relation by the note's name, so [[atlas]] and
-    // [[Projects/Atlas]] sit in the [[Atlas]] column; the move compares text.
-    const linked = '---\ntype: task\nproject: [[Projects/Atlas]]\n---\n';
+    // [[Projects/DFAI]] sit in the [[DFAI]] column; the move compares text.
+    const linked = '---\ntype: task\nproject: [[Projects/DFAI]]\n---\n';
     const { api } = vault({ 'Linked.md': linked });
 
     const response = await move(api, '.atlas/views/Projects.md', {
       note: 'Linked.md',
-      group: '[[Atlas]]',
+      group: '[[DFAI]]',
     });
 
     expect(bodyOf(response)['moved']).toBe(false);

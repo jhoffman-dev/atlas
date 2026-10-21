@@ -14,7 +14,7 @@ import {
   type VaultPath,
   type WidgetDraft,
   type WidgetKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   dashboardChange,
   previewWidget,
@@ -23,13 +23,13 @@ import {
   type IndexPort,
   type OpenNote,
   type WidgetResult,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   useNoteNames,
   type DashboardEditing,
   type OverlaySlot,
   type WidgetEditorProps,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import type { NotePorts } from '../notes/use-note.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useChangeProperties } from '../query/use-view-writes.ts';

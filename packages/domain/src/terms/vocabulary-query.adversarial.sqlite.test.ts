@@ -9,7 +9,7 @@ import { vocabulary } from './vocabulary.ts';
 
 /*
  * Adversarial (P28-05): the vocabulary's notes against the index's own tables,
- * where the rest of Atlas already disagrees with them about what a note's type is.
+ * where the rest of DFAI already disagrees with them about what a note's type is.
  */
 
 /** The index's `files` and `props`, as `apps/desktop/src-tauri/src/index.rs` creates them. */

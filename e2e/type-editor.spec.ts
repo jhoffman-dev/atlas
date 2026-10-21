@@ -195,12 +195,12 @@ test('a board grouped by project has a column per project', async ({ page }) => 
     '.atlas/types/task.md': TASK_TYPE,
     '.atlas/types/project.md': PROJECT_TYPE,
     '.atlas/views/Projects.md': board('Projects', 'project'),
-    'Atlas.md': '---\ntype: project\nstatus: active\n---\n\n# Atlas\n',
+    'DFAI.md': '---\ntype: project\nstatus: active\n---\n\n# DFAI\n',
     'Garden.md': '---\ntype: project\nstatus: planned\n---\n\n# Garden\n',
     'Taxes.md': '---\ntype: project\nstatus: paused\n---\n\n# Taxes\n',
     '.atlas/templates/Project.md': '---\ntype: project\nstatus: planned\n---\n\n# \n',
-    'first.md': task('First', ['status: next', 'project: "[[Atlas]]"']),
-    'second.md': task('Second', ['status: doing', 'project: "[[Atlas]]"']),
+    'first.md': task('First', ['status: next', 'project: "[[DFAI]]"']),
+    'second.md': task('Second', ['status: doing', 'project: "[[DFAI]]"']),
     'third.md': task('Third', ['status: next', 'project: "[[Garden]]"']),
     'fourth.md': task('Fourth', ['status: next']),
   });
@@ -209,7 +209,7 @@ test('a board grouped by project has a column per project', async ({ page }) => 
     .getByRole('button', { name: 'Projects', exact: true })
     .click();
 
-  const atlas = page.getByRole('region', { name: 'Atlas', exact: true });
+  const atlas = page.getByRole('region', { name: 'DFAI', exact: true });
   await expect(atlas.getByRole('button', { name: 'first', exact: true })).toBeVisible();
   await expect(atlas.getByRole('button', { name: 'second', exact: true })).toBeVisible();
   await expect(atlas.getByLabel('2 cards')).toBeVisible();
@@ -224,7 +224,7 @@ test('a board grouped by project has a column per project', async ({ page }) => 
     page.getByRole('region', { name: 'No value' }).getByRole('button', { name: 'Fourth' }),
   ).toBeVisible();
   // Named for the project, never shown as a link.
-  await expect(page.getByText('[[Atlas]]')).toHaveCount(0);
+  await expect(page.getByText('[[DFAI]]')).toHaveCount(0);
 
   // A card added to a project's column is filed under that project.
   await taxes.getByRole('button', { name: 'Add to Taxes' }).click();

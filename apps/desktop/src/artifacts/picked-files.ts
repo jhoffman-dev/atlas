@@ -1,4 +1,4 @@
-import type { ArtifactFileInput } from '@atlas/domain';
+import type { ArtifactFileInput } from '@dfai/domain';
 
 /**
  * Files the webview handed over — dropped, or picked one by one or as a

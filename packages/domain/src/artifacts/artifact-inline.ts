@@ -16,7 +16,7 @@ import { artifactFileRefusal } from './artifact-files.ts';
 export type InlineFile = { readonly text: string } | { readonly dataUrl: string };
 
 /**
- * The policy the page is shown under, set by a `<meta>` Atlas puts first in
+ * The policy the page is shown under, set by a `<meta>` DFAI puts first in
  * its head: a page's own policy can only narrow this, never widen it.
  *
  * Nothing is fetched but scripts, styles and fonts from the two CDNs and the
@@ -215,7 +215,7 @@ function escapeClosing(text: string, element: 'script' | 'style'): string {
 }
 
 /**
- * The page with Atlas's policy as the first thing the parser meets after the
+ * The page with DFAI's policy as the first thing the parser meets after the
  * doctype. Searching the page for its `<head>` is unsafe — a `<head>` in a
  * comment or an attribute, or a script or text before the real one, puts the
  * meta where it governs nothing — so the meta goes first and the parser opens

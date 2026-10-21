@@ -1,5 +1,5 @@
 /**
- * An Atlas query, as data (ADR-0019).
+ * A DFAI query, as data (ADR-0019).
  *
  * The text a person writes and the builder's dropdowns both edit this: the
  * parser reads text into it, the printer writes it back, and the compiler

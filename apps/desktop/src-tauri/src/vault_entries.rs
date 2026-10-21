@@ -197,8 +197,8 @@ mod folder_tests {
     fn creates_a_folder_inside_a_folder() {
         let vault = tempdir().unwrap();
         fs::create_dir(vault.path().join("Projects")).unwrap();
-        create_folder_at(vault.path(), "Projects/Atlas").unwrap();
-        assert!(vault.path().join("Projects/Atlas").is_dir());
+        create_folder_at(vault.path(), "Projects/DFAI").unwrap();
+        assert!(vault.path().join("Projects/DFAI").is_dir());
     }
 
     #[test]
@@ -324,14 +324,14 @@ mod move_tests {
     #[test]
     fn moves_a_folder_with_everything_in_it() {
         let vault = tempdir().unwrap();
-        fs::create_dir_all(vault.path().join("Projects/Atlas")).unwrap();
-        fs::write(vault.path().join("Projects/Atlas/plan.md"), "plan").unwrap();
+        fs::create_dir_all(vault.path().join("Projects/DFAI")).unwrap();
+        fs::write(vault.path().join("Projects/DFAI/plan.md"), "plan").unwrap();
         fs::create_dir(vault.path().join("Archive")).unwrap();
 
         move_entry_at(vault.path(), "Projects", "Archive/Projects").unwrap();
 
         assert_eq!(
-            fs::read_to_string(vault.path().join("Archive/Projects/Atlas/plan.md")).unwrap(),
+            fs::read_to_string(vault.path().join("Archive/Projects/DFAI/plan.md")).unwrap(),
             "plan"
         );
         assert!(!vault.path().join("Projects").exists());
@@ -369,15 +369,15 @@ mod move_tests {
     #[test]
     fn refuses_to_move_a_folder_into_itself() {
         let vault = tempdir().unwrap();
-        fs::create_dir_all(vault.path().join("Projects/Atlas")).unwrap();
+        fs::create_dir_all(vault.path().join("Projects/DFAI")).unwrap();
 
-        for inside in ["Projects/Projects", "Projects/Atlas/Projects"] {
+        for inside in ["Projects/Projects", "Projects/DFAI/Projects"] {
             assert_eq!(
                 move_entry_at(vault.path(), "Projects", inside).unwrap_err(),
                 "a folder cannot be moved into itself"
             );
         }
-        assert!(vault.path().join("Projects/Atlas").is_dir());
+        assert!(vault.path().join("Projects/DFAI").is_dir());
     }
 
     /// A folder whose name only starts the same is not inside it.

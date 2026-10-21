@@ -4,7 +4,7 @@ import {
   InvalidVaultPathError,
   vaultSpellingOf,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   archiveNotes,
   listArchive,

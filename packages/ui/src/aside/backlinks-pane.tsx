@@ -1,4 +1,4 @@
-import type { NoteLinks, VaultPath } from '@atlas/domain';
+import type { NoteLinks, VaultPath } from '@dfai/domain';
 import { LinkGroup, UnlinkedMentions, type MentionsState } from '../note-links.tsx';
 
 /**

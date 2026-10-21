@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { useStore } from 'zustand';
-import { ExportDialog } from '@atlas/ui';
+import { ExportDialog } from '@dfai/ui';
 import type { ExportCommands, ExportStore } from './export-flow.ts';
 
 /**

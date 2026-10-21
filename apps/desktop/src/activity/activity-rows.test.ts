@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type ActivityEvent } from '@atlas/domain';
+import { createVaultPath, type ActivityEvent } from '@dfai/domain';
 import { activityRows, shownTime, subjectOf } from './activity-rows.ts';
 
 // Built from local parts, so the test reads the same in any timezone.

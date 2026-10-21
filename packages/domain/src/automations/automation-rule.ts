@@ -1,6 +1,6 @@
 /**
  * An automation, as a note (P25-01): when it runs, which notes it takes — an
- * Atlas query — and what it does to them. The rule is the file's frontmatter
+ * DFAI query — and what it does to them. The rule is the file's frontmatter
  * and the file's body is the person's own notes about it, so a vault's
  * automations can be read, diffed and edited anywhere.
  *
@@ -51,7 +51,7 @@ export interface AutomationDraft {
   readonly name: string;
   readonly enabled: boolean;
   readonly when: Schedule;
-  /** The Atlas query naming the notes. */
+  /** The DFAI query naming the notes. */
   readonly which: string;
   /** Only notes not modified in this many days; null for any. */
   readonly olderThanDays: number | null;
@@ -98,7 +98,7 @@ export function automationIdProblem(id: string): string | null {
 }
 
 /**
- * What an id is compared by. An id names its log's file, and the disks Atlas
+ * What an id is compared by. An id names its log's file, and the disks DFAI
  * runs on may treat names differing only in case, or in Unicode form (`é` as
  * one character or as `e` and an accent), as the same file.
  */

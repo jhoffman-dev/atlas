@@ -8,15 +8,15 @@ import {
   type RowGroup,
   type VaultPath,
   type ViewQuery,
-} from '@atlas/domain';
-import type { CardAdd } from '@atlas/ui';
+} from '@dfai/domain';
+import type { CardAdd } from '@dfai/ui';
 import {
   createNote as makeNote,
   TaskRuleRefusedError,
   type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { localToday } from '../today.ts';
 import { errorMessage } from './error-message.ts';

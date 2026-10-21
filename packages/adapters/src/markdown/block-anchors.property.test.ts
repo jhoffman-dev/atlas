@@ -5,7 +5,7 @@ import {
   locateFragment,
   withAnchorAt,
   type EditorDocument,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 import { generatedDocument } from './writer-fuzz.test-support.ts';
 

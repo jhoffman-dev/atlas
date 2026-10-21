@@ -123,7 +123,7 @@ test('the "archive done tasks after 30 days" automation: made, dry-run, run and 
   await expect(editor.getByRole('button', { name: 'Undo last run' })).toBeDisabled();
 });
 
-test('a rule that runs when Atlas opens runs once, on opening, and logs it', async ({ page }) => {
+test('a rule that runs when DFAI opens runs once, on opening, and logs it', async ({ page }) => {
   const sweep = [
     '---',
     'atlas: automation',
@@ -143,7 +143,7 @@ test('a rule that runs when Atlas opens runs once, on opening, and logs it', asy
   await expect.poll(() => vault.exists('Archive/Tasks/Old done.md')).toBe(true);
   await expect.poll(() => vault.exists('Archive/Tasks/Also done.md')).toBe(true);
   expect(await vault.exists('Tasks/Fresh done.md')).toBe(true);
-  await expectFile(vault, '.atlas/automations/log/Sweep.md').toContain('· Ran when Atlas opened');
+  await expectFile(vault, '.atlas/automations/log/Sweep.md').toContain('· Ran when DFAI opened');
 
   // Once: opening the page, and the index settling after the run, start no other.
   await page.getByRole('button', { name: 'Automations', exact: true }).click();
@@ -154,7 +154,7 @@ test('a rule that runs when Atlas opens runs once, on opening, and logs it', asy
     .poll(async () => (await list.getByRole('listitem').first().boundingBox())?.height)
     .toBe(34);
   const logText = await vault.read('.atlas/automations/log/Sweep.md');
-  expect(logText.match(/· Ran when Atlas opened/g)).toHaveLength(1);
+  expect(logText.match(/· Ran when DFAI opened/g)).toHaveLength(1);
   // A rule written without an id is given the one its log is under (A25-01); nothing else changes.
   await expectFile(vault, '.atlas/automations/Sweep.md').toBe(
     sweep.replace('do: archive\n---', 'do: archive\nid: Sweep\n---'),

@@ -18,7 +18,7 @@ import {
   type EditorNode,
   type IndexFacet,
   type NoteChange,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * What a reader is made from (ADR-0040, #325), so the index's news reads it
@@ -249,7 +249,7 @@ function linkedNamesIn(text: string): string[] {
 
 /**
  * What a note's pane is made from. A plain note — no type, no view or
- * dashboard, none of Atlas's own, no query block — shows itself, the notes it
+ * dashboard, none of DFAI's own, no query block — shows itself, the notes it
  * links to or embeds (their cards and blocks), and its links both ways (the
  * graph). Anything else shows answers about other notes — a type's linked
  * sections, a view's rows, a dashboard's widgets, a task's time blocks, a

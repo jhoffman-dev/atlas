@@ -1,4 +1,4 @@
-import type { TodayReport } from '@atlas/application';
+import type { TodayReport } from '@dfai/application';
 import { keptWhereSame } from '../inbox/kept-where-same.ts';
 
 const byPath = (task: { readonly path: string }) => task.path;

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ExternalLinkPort } from '@atlas/application';
+import type { ExternalLinkPort } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 /** Hands a link to the host, which opens web links in the default browser (`opener.rs`). */

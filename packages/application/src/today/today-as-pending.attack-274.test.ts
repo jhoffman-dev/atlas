@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, todayLists, TASK_KEYS, type ReviewTask } from '@atlas/domain';
+import { createVaultPath, todayLists, TASK_KEYS, type ReviewTask } from '@dfai/domain';
 import type { TodayReport } from './read-today.ts';
 import { todayAsPending } from './today-as-pending.ts';
 

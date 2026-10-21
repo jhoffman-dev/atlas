@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PropertyDef } from '@atlas/domain';
+import type { PropertyDef } from '@dfai/domain';
 import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 import { PropertiesPanel, type PropertyRow, type RelationChoice } from './properties-panel.tsx';
 
@@ -28,7 +28,7 @@ const SINGLE: PropertyDef = {
 };
 
 const CHOICES: readonly RelationChoice[] = [
-  { path: 'Projects/Atlas.md', title: 'Atlas', type: 'project' },
+  { path: 'Projects/DFAI.md', title: 'DFAI', type: 'project' },
   { path: 'Areas/Garden.md', title: 'Garden', type: 'area' },
   { path: 'Areas/Health.md', title: 'Health', type: 'area' },
 ];
@@ -53,7 +53,7 @@ describe('a relation that points at a project or an area', () => {
   it('offers the notes of both types, each named by its type', async () => {
     const { select } = picker();
     await userEvent.click(select);
-    expect(suggestedTitles()).toEqual(['Atlas', 'Garden', 'Health']);
+    expect(suggestedTitles()).toEqual(['DFAI', 'Garden', 'Health']);
     const types = screen
       .getAllByRole('option')
       .map((option) => option.querySelector('.link-suggest__type')?.textContent);
@@ -90,6 +90,6 @@ describe('a relation that points at a project or an area', () => {
       />,
     );
     await userEvent.click(screen.getByLabelText('Project'));
-    expect(suggestedTitles()).toEqual(['Atlas']);
+    expect(suggestedTitles()).toEqual(['DFAI']);
   });
 });

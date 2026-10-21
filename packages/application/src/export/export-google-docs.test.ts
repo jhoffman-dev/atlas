@@ -4,7 +4,7 @@ import {
   GOOGLE_DRIVE_FILE_SCOPE,
   MAX_GOOGLE_DOC_HTML_BYTES,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeGoogleCalendar } from '../testing/fake-google-calendar.ts';
 import { fakeGoogleDrive, readOnlyVault } from '../testing/fake-export.ts';
 import { fakeIndexPort } from '../testing/fake-ports.ts';

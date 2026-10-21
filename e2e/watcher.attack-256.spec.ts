@@ -212,7 +212,7 @@ async function gtdVaultWithAnInbox(): Promise<FakeVault> {
   for (const folder of ['.atlas/types', 'Projects', 'Inbox']) await vault.mkdir(folder);
   await vault.write('.atlas/types/task.md', GTD_TASK_TYPE);
   await vault.write('.atlas/types/project.md', PROJECT_TYPE);
-  await vault.write('Projects/Atlas.md', note(['type: project', 'status: active'], 'The app.'));
+  await vault.write('Projects/DFAI.md', note(['type: project', 'status: active'], 'The app.'));
   await vault.write('Inbox/Renew the passport.md', note(['type: task', 'status: inbox'], 'Card.'));
   return vault;
 }
@@ -239,7 +239,7 @@ test('the watcher’s echo of deciding an Inbox row is not refreshed for again (
   const walks = await walksAfterTheEcho(page, host, async () => {
     await pickSuggestion(
       inbox.getByRole('combobox', { name: 'File Renew the passport under' }),
-      'Atlas',
+      'DFAI',
     );
     await inbox
       .getByRole('form', { name: 'Clarify Renew the passport' })

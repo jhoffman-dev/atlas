@@ -1,4 +1,4 @@
-import { noteLinks, type VaultGraph, type VaultPath } from '@atlas/domain';
+import { noteLinks, type VaultGraph, type VaultPath } from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import type { OpenRequest } from './graph-canvas.tsx';
 

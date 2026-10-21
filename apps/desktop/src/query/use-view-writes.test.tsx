@@ -6,8 +6,8 @@ import {
   memoryVault,
   recordingActivity,
   TaskRuleRefusedError,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createToasts } from '../toasts/toasts.ts';
 import { useChangeProperties, useWriteProperties } from './use-view-writes.ts';

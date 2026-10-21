@@ -79,17 +79,17 @@ describe('countOf', () => {
 });
 
 describe('a group named for what it counts', () => {
-  const names = noteNames([{ path: 'P-01.md' as VaultPath, title: 'Atlas' }]);
+  const names = noteNames([{ path: 'P-01.md' as VaultPath, title: 'DFAI' }]);
 
   it("names a relation's group by the note it links, never the link", () => {
-    expect(groupName('[[P-01]]', names)).toBe('Atlas');
+    expect(groupName('[[P-01]]', names)).toBe('DFAI');
     expect(groupName('[[Gone]]', names)).toBe('Gone');
     expect(groupName('doing', names)).toBe('doing');
   });
 
   it('humanises a legend entry that is a value, but not one that is a note', () => {
     expect(legendName('in_review', names)).toBe('In review');
-    expect(legendName('[[P-01]]', names)).toBe('Atlas');
+    expect(legendName('[[P-01]]', names)).toBe('DFAI');
     expect(legendName('', names)).toBe('No value');
   });
 });

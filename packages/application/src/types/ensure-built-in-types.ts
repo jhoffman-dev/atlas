@@ -11,7 +11,7 @@ import {
   type ShippedCatalogue,
   type TypeExtension,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -46,7 +46,7 @@ export interface TypeSetupFailure {
 
 /** What opening a vault did to its types, and what it leaves to be asked. */
 export interface BuiltInTypesEnsured {
-  /** The built-in type files given the properties Atlas ships that they predate (#162). */
+  /** The built-in type files given the properties DFAI ships that they predate (#162). */
   readonly properties: ShippedPropertiesAdded;
   /**
    * What is offered rather than done: anything else that would change a file
@@ -65,7 +65,7 @@ interface TypePorts {
  * done without asking, and works out what PARA (P30-01, #213) and the Inbox
  * (P29-02, P28-04) would have the vault's types hold.
  *
- * First each built-in type file the vault has gains the properties Atlas
+ * First each built-in type file the vault has gains the properties DFAI
  * ships on it and the file predates, once (#162, {@link addShippedProperties}):
  * a feature built on one, such as Accept linking a meeting's task through
  * `tasks`, would otherwise fail. A key the file has is never changed.
@@ -218,7 +218,7 @@ export async function writeTypeFiles(
   return { created, failed };
 }
 
-/** A built-in type's file as Atlas writes it: its definition, then a body saying what it is. */
+/** A built-in type's file as DFAI writes it: its definition, then a body saying what it is. */
 export function builtInTypeContents(
   markdown: MarkdownPort,
   { type, body }: BuiltInTypeFile,

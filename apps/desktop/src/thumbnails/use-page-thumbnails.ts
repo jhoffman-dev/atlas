@@ -5,13 +5,13 @@ import {
   pageThumbnailSrc,
   pageThumbnailWait,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   picturedPages,
   type ThumbnailQueue,
   type ThumbnailSnapshot,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remadeCover, useThumbnailSnapshot } from '../artifacts/use-thumbnails.ts';
 
 /** A note whose card is fronted by a picture of its page, and when it last changed. */

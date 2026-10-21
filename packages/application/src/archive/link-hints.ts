@@ -6,7 +6,7 @@ import {
   type LinkHints,
   type LinkHintsPart,
   type LinkUse,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 
 const MARKDOWN = /\.(md|markdown)$/i;

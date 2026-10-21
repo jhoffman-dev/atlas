@@ -19,7 +19,7 @@ import {
   type NoteTrigger,
   type NoteVersionRef,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { heldEntries } from '../index/refresh-index.ts';
 import type { IndexEntry, IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

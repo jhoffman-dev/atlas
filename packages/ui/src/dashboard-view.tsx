@@ -1,5 +1,5 @@
-import type { Widget } from '@atlas/domain';
-import type { WidgetResult } from '@atlas/application';
+import type { Widget } from '@dfai/domain';
+import type { WidgetResult } from '@dfai/application';
 import { ArrangeGrid } from './dashboard/arrange-grid.tsx';
 import type { WidgetActions } from './dashboard/widget-frame.tsx';
 import { WidgetTile, onStrip } from './dashboard/widget-tile.tsx';

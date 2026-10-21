@@ -21,5 +21,5 @@ The first versioned release.
 - A release workflow that builds a downloadable `.dmg` for Apple silicon and attaches it
   to a draft GitHub Release.
 
-[Unreleased]: https://github.com/jhoffman-dev/atlas/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jhoffman-dev/atlas/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jhoffman-dev/dfai/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jhoffman-dev/dfai/releases/tag/v0.1.0

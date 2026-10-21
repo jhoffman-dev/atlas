@@ -7,12 +7,12 @@ describe('calendarOf', () => {
       calendarOf({
         kind: 'calendar#calendarListEntry',
         id: 'atlas-blocks@group.calendar.example.com',
-        summary: 'Atlas blocks',
+        summary: 'DFAI blocks',
         accessRole: 'owner',
       }),
     ).toEqual({
       id: 'atlas-blocks@group.calendar.example.com',
-      name: 'Atlas blocks',
+      name: 'DFAI blocks',
       primary: false,
       owned: true,
     });
@@ -54,12 +54,12 @@ describe('calendarListPage', () => {
 
 describe('createdCalendarOf', () => {
   it('is the person’s own and never their main calendar', () => {
-    expect(createdCalendarOf({ id: 'c', summary: 'Atlas blocks', primary: true })).toEqual({
+    expect(createdCalendarOf({ id: 'c', summary: 'DFAI blocks', primary: true })).toEqual({
       id: 'c',
-      name: 'Atlas blocks',
+      name: 'DFAI blocks',
       primary: false,
       owned: true,
     });
-    expect(createdCalendarOf({ summary: 'Atlas blocks' })).toBeNull();
+    expect(createdCalendarOf({ summary: 'DFAI blocks' })).toBeNull();
   });
 });

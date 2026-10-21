@@ -6,7 +6,7 @@ import {
   splitWikiLinks,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { deleteEntry } from '../vault/delete-entry.ts';
 import { renameEntry } from '../vault/relocate-entry.ts';

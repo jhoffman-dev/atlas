@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { HttpRequest } from '@atlas/domain';
-import { HttpFetchError } from '@atlas/application';
+import type { HttpRequest } from '@dfai/domain';
+import { HttpFetchError } from '@dfai/application';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));

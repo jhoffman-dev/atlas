@@ -3,7 +3,7 @@ import {
   INBOX_LIST_LIMIT,
   InvalidVaultPathError,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { listVaultInbox } from '../inbox/list-inbox.ts';
 import { FilingRefusedError, processInboxItems } from '../inbox/process-inbox.ts';
 import { ApiError } from './api-error.ts';

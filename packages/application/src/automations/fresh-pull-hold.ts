@@ -1,4 +1,4 @@
-import { gatedByFreshPull, type AutomationRule, type RunTrigger } from '@atlas/domain';
+import { gatedByFreshPull, type AutomationRule, type RunTrigger } from '@dfai/domain';
 
 /**
  * Whether this Mac may act on the notes now (ADR-0035 part 4): the gates of

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { closePeek, peekNow, type OverlayStore } from '../overlay-store.ts';
 import type { PaneEditors } from './open-editors.ts';
 

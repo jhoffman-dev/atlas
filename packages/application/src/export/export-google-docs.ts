@@ -4,7 +4,7 @@ import {
   MAX_GOOGLE_DOC_HTML_BYTES,
   scopesWithDrive,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Wait } from '../granola/granola-requests.ts';
 import { GoogleCalendarError, type GoogleCalendarPort } from '../google-calendar/ports.ts';
 import type { NotePageRenderer } from '../thumbnails/ports.ts';

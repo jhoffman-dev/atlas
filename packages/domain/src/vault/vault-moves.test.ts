@@ -75,18 +75,18 @@ describe('which folder an entry may be moved into', () => {
   });
 
   it('keeps views, dashboards and templates in their sections', () => {
-    expect(moveRefusal(note('.atlas/dashboards/Home.md'), VAULT_ROOT)).toMatch(/Atlas keeps/);
+    expect(moveRefusal(note('.atlas/dashboards/Home.md'), VAULT_ROOT)).toMatch(/DFAI keeps/);
     expect(moveRefusal(note('.atlas/views/Board.md'), path('.atlas/dashboards'))).toMatch(
-      /Atlas keeps/,
+      /DFAI keeps/,
     );
   });
 
   it('never moves .atlas itself', () => {
-    expect(moveRefusal(folder('.atlas'), path('Projects'))).toMatch(/Atlas keeps/);
+    expect(moveRefusal(folder('.atlas'), path('Projects'))).toMatch(/DFAI keeps/);
   });
 
   it('keeps notes out of .atlas', () => {
-    expect(moveRefusal(note('a.md'), path('.atlas/views'))).toMatch(/Only Atlas/);
+    expect(moveRefusal(note('a.md'), path('.atlas/views'))).toMatch(/Only DFAI/);
   });
 
   it('allows a folder that is merely called .atlas further down', () => {
@@ -105,8 +105,8 @@ describe('what can be moved, and where folders can be made', () => {
   it('makes folders anywhere but inside .atlas', () => {
     expect(newFolderRefusal(VAULT_ROOT)).toBeNull();
     expect(newFolderRefusal(path('Projects/.atlas'))).toBeNull();
-    expect(newFolderRefusal(path('.atlas'))).toMatch(/Only Atlas/);
-    expect(newFolderRefusal(path('.atlas/templates'))).toMatch(/Only Atlas/);
+    expect(newFolderRefusal(path('.atlas'))).toMatch(/Only DFAI/);
+    expect(newFolderRefusal(path('.atlas/templates'))).toMatch(/Only DFAI/);
   });
 });
 
@@ -230,8 +230,8 @@ describe('what may go to the Trash, or be renamed', () => {
 
   it('keeps .atlas and its own folders', () => {
     for (const each of ['.atlas', '.atlas/views', '.atlas/types']) {
-      expect(deleteRefusal(folder(each))).toMatch(/Atlas needs/);
-      expect(renameRefusal(folder(each))).toMatch(/Atlas needs/);
+      expect(deleteRefusal(folder(each))).toMatch(/DFAI needs/);
+      expect(renameRefusal(folder(each))).toMatch(/DFAI needs/);
     }
   });
 });

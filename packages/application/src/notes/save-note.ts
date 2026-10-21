@@ -1,4 +1,4 @@
-import { joinFrontmatter, type EditorDocument } from '@atlas/domain';
+import { joinFrontmatter, type EditorDocument } from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from './ports.ts';
 import type { OpenNote } from './open-note.ts';

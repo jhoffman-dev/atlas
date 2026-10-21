@@ -5,7 +5,7 @@ import {
   type CardFront,
   type EditorDocument,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from './ports.ts';
 

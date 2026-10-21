@@ -1,4 +1,4 @@
-import { createVaultPath, isTemplateNote, type NoteNames } from '@atlas/domain';
+import { createVaultPath, isTemplateNote, type NoteNames } from '@dfai/domain';
 import { notesInUseOfTypes } from '../archive/notes-in-use.ts';
 import type { IndexPort } from '../index/ports.ts';
 

@@ -15,16 +15,16 @@ const appStateOnly = ['zustand', 'zustand/*', '@tanstack/react-query'];
 /** Every layer that must stay out of a given layer's imports. */
 const forbidden = {
   domain: [
-    '@atlas/application',
-    '@atlas/adapters',
-    '@atlas/ui',
+    '@dfai/application',
+    '@dfai/adapters',
+    '@dfai/ui',
     'react*',
     '@tauri-apps/*',
     ...appStateOnly,
   ],
-  application: ['@atlas/adapters', '@atlas/ui', 'react*', '@tauri-apps/*', ...appStateOnly],
-  adapters: ['@atlas/ui', 'react*', ...appStateOnly],
-  ui: ['@atlas/adapters', ...appStateOnly],
+  application: ['@dfai/adapters', '@dfai/ui', 'react*', '@tauri-apps/*', ...appStateOnly],
+  adapters: ['@dfai/ui', 'react*', ...appStateOnly],
+  ui: ['@dfai/adapters', ...appStateOnly],
 };
 
 const architecture = Object.entries(forbidden).map(([layer, patterns]) => ({
@@ -84,7 +84,7 @@ export default tseslint.config(
   },
   ...architecture,
   {
-    // Test support (`@atlas/<package>/testing…`) wraps built-ins, fakes the
+    // Test support (`@dfai/<package>/testing…`) wraps built-ins, fakes the
     // clock and opens SQLite: it is for tests and test tooling, never for the
     // app. Its own rule name, so the architecture rule above is not replaced.
     files: ['**/*.{ts,tsx,mjs}'],
@@ -103,7 +103,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@atlas/*/testing', '@atlas/*/testing/*'],
+              group: ['@dfai/*/testing', '@dfai/*/testing/*'],
               message: 'Test support is for tests: import it only from a test or test tooling.',
             },
           ],
@@ -122,11 +122,11 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@atlas/application'],
+              group: ['@dfai/application'],
               allowTypeImports: true,
-              message: 'apps/mcp may import only types from @atlas/application — the API contract.',
+              message: 'apps/mcp may import only types from @dfai/application — the API contract.',
             },
-            ...['@atlas/domain', '@atlas/adapters', '@atlas/ui', 'react*', '@tauri-apps/*'].map(
+            ...['@dfai/domain', '@dfai/adapters', '@dfai/ui', 'react*', '@tauri-apps/*'].map(
               (group) => ({
                 group: [group],
                 message: `apps/mcp must not import ${group} — it speaks the API, not the app.`,

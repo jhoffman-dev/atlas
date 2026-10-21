@@ -14,7 +14,7 @@ import {
   type CleanupCandidate,
   type MadeMeetingTask,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   archiveNotes,
   type ArchiveFailure,

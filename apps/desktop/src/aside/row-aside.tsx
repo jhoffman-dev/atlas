@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { noteTitle, pageTitle, type TabId, type VaultPath } from '@atlas/domain';
+import { noteTitle, pageTitle, type TabId, type VaultPath } from '@dfai/domain';
 import {
   openNote,
   TaskRuleRefusedError,
   type OpenNote,
   type PropertyChanges,
-} from '@atlas/application';
-import { PropertiesPane, type OpenHow } from '@atlas/ui';
+} from '@dfai/application';
+import { PropertiesPane, type OpenHow } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { PaneContext } from '../panes/note-pane-container.tsx';
 import { writeNoteProperties } from '../query/use-view-writes.ts';

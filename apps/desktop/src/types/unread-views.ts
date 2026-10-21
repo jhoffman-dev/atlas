@@ -1,4 +1,4 @@
-import { TITLE_KEY, VIEW_ORDER_KEY, viewOrderOf, type SavedViewSummary } from '@atlas/domain';
+import { TITLE_KEY, VIEW_ORDER_KEY, viewOrderOf, type SavedViewSummary } from '@dfai/domain';
 
 /**
  * Views this window has written that the catalogue has not read back yet, by

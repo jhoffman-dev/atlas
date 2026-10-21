@@ -2,8 +2,8 @@ import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
 
 /**
  * Merging a settings file both Macs changed by its keys rather than its lines
- * (#233). The files in `.atlas/` are Atlas's own: types, views, settings and
- * the records of what it did. Atlas writes many of them by itself as a vault
+ * (#233). The files in `.atlas/` are DFAI's own: types, views, settings and
+ * the records of what it did. DFAI writes many of them by itself as a vault
  * opens — a built-in type gaining the properties a newer build ships, say — so
  * two Macs that opened the vault before syncing, or on different builds, have
  * each changed it. Their lines then clash though their keys do not, and a
@@ -18,7 +18,7 @@ import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
  * versions, with a copy, as it does for any note.
  */
 
-/** Whether `path` is a markdown file of Atlas's own, merged by its keys when both Macs changed it. */
+/** Whether `path` is a markdown file of DFAI's own, merged by its keys when both Macs changed it. */
 export function isSettingsFile(path: string): boolean {
   return path.startsWith(`${ATLAS_DIRECTORY}/`) && path.toLowerCase().endsWith('.md');
 }

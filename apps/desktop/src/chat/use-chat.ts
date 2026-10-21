@@ -16,14 +16,14 @@ import {
   type ProviderStatus,
   type Toolboxes,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   chatModelOrDefault,
   createVaultPath,
   type ProfileState,
   type VaultPath,
-} from '@atlas/domain';
-import type { ChatDraft, ChatProblemView } from '@atlas/ui';
+} from '@dfai/domain';
+import type { ChatDraft, ChatProblemView } from '@dfai/ui';
 import { localClock } from '../today.ts';
 import type { ClipboardWriter } from '../settings/clipboard.ts';
 import type { ChatSettings, ChatSettingsStore } from './chat-settings-store.ts';

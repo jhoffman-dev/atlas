@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, type ReactNode } from 'react';
-import { SyncIndicator } from '@atlas/ui';
+import { SyncIndicator } from '@dfai/ui';
 import { useSync, type SyncController, type SyncOptions } from './use-sync.ts';
 import { publishSync, useSyncBadge, useSyncController, type SyncStore } from './sync-store.ts';
 

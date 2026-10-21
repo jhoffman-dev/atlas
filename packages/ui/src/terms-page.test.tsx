@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type ListedTerm, type VocabularyConflict } from '@atlas/domain';
+import { createVaultPath, type ListedTerm, type VocabularyConflict } from '@dfai/domain';
 import { TermsPage, type TermsContents } from './terms-page.tsx';
 
 const term = (path: string, canonical: string, variants: string[], kind: ListedTerm['kind']) =>
@@ -53,7 +53,7 @@ const rowOf = (name: string) => {
 };
 
 describe('the Terms page', () => {
-  it('lists each term with its kind and the ways it is misheard, and says how many spellings Atlas knows', () => {
+  it('lists each term with its kind and the ways it is misheard, and says how many spellings DFAI knows', () => {
     renderPage();
     expect(screen.queryByText(/capitals included/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'New term' }));

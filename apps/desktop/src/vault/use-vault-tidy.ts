@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createVaultPath, noteTitle, type TidyPlan } from '@atlas/domain';
+import { createVaultPath, noteTitle, type TidyPlan } from '@dfai/domain';
 import {
   applyVaultTidy,
   previewVaultTidy,
   type ActivityRecorder,
   type ArchivePorts,
-} from '@atlas/application';
-import type { VaultTidyProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { VaultTidyProps } from '@dfai/ui';
 import { localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
 

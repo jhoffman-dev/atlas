@@ -96,7 +96,7 @@ function level({
   return columns
     .filter((column) => keepEmpty || column.rows.length > 0)
     .map((column) => {
-      // Named, not spelled: [[Atlas]] and [[atlas]] are one group whichever came first.
+      // Named, not spelled: [[DFAI]] and [[atlas]] are one group whichever came first.
       // Quoted, so a value holding `/` can never read as a group and its sub-group.
       const id = `${parent}/${JSON.stringify([field.text, column.value === null ? null : groupName(field, column.label)])}`;
       return {

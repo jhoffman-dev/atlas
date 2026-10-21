@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from 'zustand';
-import type { TabId } from '@atlas/domain';
+import type { TabId } from '@dfai/domain';
 
 /** The query being written in each tab that shows the query page. */
 interface QueryTextState {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createStore, useStore, type StoreApi } from 'zustand';
-import type { BoardLane, BoardRow, RowGroup } from '@atlas/domain';
+import type { BoardLane, BoardRow, RowGroup } from '@dfai/domain';
 import {
   readAnswers,
   resultAsPending,
@@ -9,7 +9,7 @@ import {
   type PropertyChanges,
   type ReadMoment,
   type TableRows,
-} from '@atlas/application';
+} from '@dfai/application';
 import { errorMessage } from './error-message.ts';
 
 /** Writes a note's properties, settling once the write has landed. */

@@ -1,4 +1,4 @@
-import { parseStrandedEdit, type StrandedEdit, type VaultPath } from '@atlas/domain';
+import { parseStrandedEdit, type StrandedEdit, type VaultPath } from '@dfai/domain';
 import type { StrandedEditStore } from './stranded-edits.ts';
 
 const PREFIX = 'atlas.stranded:';

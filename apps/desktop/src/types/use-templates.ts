@@ -5,7 +5,7 @@ import {
   readTemplate,
   type NoteTemplate,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { vaultReadKey } from '../reads/query-client.ts';
 import { readState, type ReadState } from '../reads/read-state.ts';
 

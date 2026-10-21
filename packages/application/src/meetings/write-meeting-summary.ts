@@ -14,7 +14,7 @@ import {
   type ReplacedSummary,
   type SummaryRefusal,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { priorOf, restoredValue, type PropertyChange } from '../automations/apply-changes.ts';
 import { ProposalRefused } from '../chat/proposals.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';

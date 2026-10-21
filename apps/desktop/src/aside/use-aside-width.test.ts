@@ -6,8 +6,8 @@ import {
   EMPTY_WORKSPACE,
   openInActiveTab,
   type NavigationPlace,
-} from '@atlas/domain';
-import { ASIDE_WIDTH, ASIDE_WIDTH_TYPE } from '@atlas/ui';
+} from '@dfai/domain';
+import { ASIDE_WIDTH, ASIDE_WIDTH_TYPE } from '@dfai/ui';
 import { createWorkspaceStore, loadVault, openPlace } from '../workspace/workspace-store.ts';
 import { createAsideStore, selectAsideTab } from './aside-store.ts';
 import { useAsideWidth } from './use-aside-width.ts';

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createNoteChanges, type VaultRead } from '@atlas/application';
+import { createNoteChanges, type VaultRead } from '@dfai/application';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import type { ReadInvalidator } from './read-invalidator.ts';
 import { useVaultReads } from './use-vault-reads.ts';

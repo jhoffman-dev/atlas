@@ -5,7 +5,7 @@ import {
   parseSecretOrigins,
   secretsUsedBy,
   splitFrontmatter,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { atlasNotes } from '../sidebar/load-catalog.ts';

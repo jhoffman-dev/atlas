@@ -1,4 +1,4 @@
-import type { ConflictSide, GitIdentity, GitPort, GitResult, TreeRev } from '@atlas/application';
+import type { ConflictSide, GitIdentity, GitPort, GitResult, TreeRev } from '@dfai/application';
 
 /** Runs git with these arguments, in the vault, as the host does. */
 export type RunGit = (...args: string[]) => Promise<GitResult>;

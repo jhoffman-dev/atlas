@@ -1,4 +1,4 @@
-import type { Clock } from '@atlas/application';
+import type { Clock } from '@dfai/application';
 
 /**
  * Today, as `2026-09-20`, in the timezone the person is in.

@@ -15,9 +15,9 @@ import {
   type LogEntry,
   type PriorValue,
   type VaultPath,
-} from '@atlas/domain';
-import type { AutomationListing, LoadedAutomation } from '@atlas/application';
-import type { AutomationRow, DryRunView, LogEntryView, LogLineView } from '@atlas/ui';
+} from '@dfai/domain';
+import type { AutomationListing, LoadedAutomation } from '@dfai/application';
+import type { AutomationRow, DryRunView, LogEntryView, LogLineView } from '@dfai/ui';
 import type { RulePause } from './use-automations.ts';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

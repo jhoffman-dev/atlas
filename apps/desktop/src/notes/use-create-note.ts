@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { DEFAULT_NOTE_NAME, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import { DEFAULT_NOTE_NAME, splitFrontmatter, type VaultPath } from '@dfai/domain';
 import {
   captureToInbox,
   createNote,
@@ -8,7 +8,7 @@ import {
   type MarkdownPort,
   type NoteTemplate,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { localToday } from '../today.ts';
 
 /**

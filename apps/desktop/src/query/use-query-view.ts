@@ -11,14 +11,14 @@ import {
   type SidebarEntry,
   type ViewLayout,
   type ViewTab,
-} from '@atlas/domain';
-import type { OpenNote } from '@atlas/application';
+} from '@dfai/domain';
+import type { OpenNote } from '@dfai/application';
 import {
   useNoteNames,
   type AtlasQueryPanelProps,
   type GroupFolds,
   type QueryPanelFoldStore,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import { resultFor, useAtlasQuery } from './use-atlas-query.ts';
@@ -44,7 +44,7 @@ export interface QueryViewState {
 }
 
 /**
- * The open note when it is a saved Atlas query (P24-04): its query, edited in
+ * The open note when it is a saved DFAI query (P24-04): its query, edited in
  * the builder or as text, and its answer in the layout it keeps. Edits are
  * the view's until saved; Save writes the `query` and `layout` keys and
  * nothing else, so the rest of the file is left as it was written.

@@ -15,7 +15,7 @@ import {
   vaultProjectTypeName,
   type TypeExtension,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { UNSAVED_TYPING } from '../automations/apply-changes.ts';
 import type { LeftFile, MigrationPanes } from '../gtd/run-task-migration.ts';
 import type { IndexPort } from '../index/ports.ts';

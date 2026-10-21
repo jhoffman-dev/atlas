@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GOOGLE_CALENDAR_SCOPES, type VaultPath } from '@atlas/domain';
+import { GOOGLE_CALENDAR_SCOPES, type VaultPath } from '@dfai/domain';
 import {
   fakeGoogleCalendar,
   fakeGoogleDrive,
@@ -7,8 +7,8 @@ import {
   fakePdfRenderer,
   readOnlyVault,
   recordingExportFiles,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { createExportStore, exportCommands, type ExportDeps } from './export-flow.ts';
 
 const KICKOFF = 'Kickoff.md' as VaultPath;

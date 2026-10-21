@@ -32,7 +32,7 @@ export function isParaNote(properties: Properties): boolean {
 
 /**
  * Where a note stands in PARA, from its `type` and its `para`: a Project's
- * `para`, or the default when it has none Atlas can read; a note of the
+ * `para`, or the default when it has none DFAI can read; a note of the
  * Area or Resource type from before #213 as the value its type names. Null
  * for a note of any other type.
  */
@@ -57,7 +57,7 @@ function heldPara(value: unknown): ParaValue | 'none' | 'own' {
 
 /**
  * Whether a note's `para` is the person's own — a value that is none of
- * PARA's four, or a list or a map — which Atlas never writes over.
+ * PARA's four, or a list or a map — which DFAI never writes over.
  */
 export function holdsOwnPara(properties: Properties): boolean {
   return heldPara(properties[PARA_KEY]) === 'own';
@@ -280,7 +280,7 @@ function paraNoneOfSql(column: string, values: readonly ParaValue[]): string {
 /**
  * A SQL condition that keeps, of the Project notes at `column`, the projects:
  * those whose `para` names no other PARA value — none, `project`, or one
- * Atlas cannot read, which is the default. Constants only, nothing bound.
+ * DFAI cannot read, which is the default. Constants only, nothing bound.
  */
 export function paraProjectSql(column: string): string {
   return paraNoneOfSql(
@@ -292,7 +292,7 @@ export function paraProjectSql(column: string): string {
 /**
  * A SQL condition that keeps, of the Project notes at `column`, what notes
  * are filed under: projects and areas — never a resource or an archived
- * one. A `para` Atlas cannot read is the default, a project.
+ * one. A `para` DFAI cannot read is the default, a project.
  */
 export function paraFiledUnderSql(column: string): string {
   return paraNoneOfSql(column, [RESOURCE_TYPE, ARCHIVED_PARA]);

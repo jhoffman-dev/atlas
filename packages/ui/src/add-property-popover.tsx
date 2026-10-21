@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { newPropertyKey, PROPERTY_KINDS, type PropertyKind } from '@atlas/domain';
+import { newPropertyKey, PROPERTY_KINDS, type PropertyKind } from '@dfai/domain';
 import { KIND_LABELS, type RelationTarget } from './type-editor.tsx';
 
 /** A property to add, as the person described it. */

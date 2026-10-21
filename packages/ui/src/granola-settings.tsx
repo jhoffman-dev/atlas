@@ -20,7 +20,7 @@ export interface GranolaNoteLine {
 /** Settings → Granola as the card draws it. There is no key here to show. */
 export interface GranolaView {
   readonly keyState: GranolaKeyState;
-  /** True until the vault has synced this session: Atlas does not pull before then. */
+  /** True until the vault has synced this session: DFAI does not pull before then. */
   readonly waiting: boolean;
   readonly pulling: boolean;
   /** What the last pull did, in a few words; null before one has finished this session. */
@@ -52,7 +52,7 @@ function pullStatus(view: GranolaView): string {
 }
 
 /**
- * Settings → Granola: the API key Atlas asks Granola with, and Sync now.
+ * Settings → Granola: the API key DFAI asks Granola with, and Sync now.
  * The key is typed into a masked field and handed on; the field is emptied
  * as it goes, and nothing on this card ever holds a key to show.
  */
@@ -100,7 +100,7 @@ export function GranolaSettings({
       )}
       <KeyForm hasKey={hasKey} pending={view.pending} onSave={onSaveKey} />
       <p className="settings__lede">
-        In a meeting you own, Granola calls you “me”; Atlas writes that as <b>You</b> when the
+        In a meeting you own, Granola calls you “me”; DFAI writes that as <b>You</b> when the
         meeting’s owner is one of <i>Your emails</i> in Settings → Profile, and as the owner’s name
         otherwise.
       </p>
@@ -114,7 +114,7 @@ export function GranolaSettings({
         </p>
       )}
       {hasKey && view.waiting && (
-        <p className="settings__lede">Atlas pulls from Granola once this vault has synced.</p>
+        <p className="settings__lede">DFAI pulls from Granola once this vault has synced.</p>
       )}
       <div className="settings__row">
         <span className="settings__row-text">
@@ -216,7 +216,7 @@ function ForgetKey({ pending, onForget }: { pending: boolean; onForget: () => vo
   return (
     <div className="settings__confirm" role="group" aria-label="Forget the Granola key?">
       <p className="settings__lede">
-        Atlas stops pulling from Granola on this Mac. Meetings already in the vault stay. Granola
+        DFAI stops pulling from Granola on this Mac. Meetings already in the vault stay. Granola
         does not show a key again, so you would make a new one to start again.
       </p>
       <div className="settings__actions">

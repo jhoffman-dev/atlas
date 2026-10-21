@@ -6,7 +6,7 @@ import {
   type HandledLedger,
   type LogEntry,
   type RuleNamed,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import { planRuleNow } from './note-runs.ts';
 import type { RuleQueryPorts } from './plan-run.ts';

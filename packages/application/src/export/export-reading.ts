@@ -14,7 +14,7 @@ import {
   type RawPartsReader,
   type Transclusion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { createTransclusionReader } from '../transclusion/read-transclusions.ts';
@@ -23,7 +23,7 @@ import type { VaultFsPort } from '../vault/ports.ts';
 /*
  * What an export reads besides the note itself: the blocks it shows, the
  * notes it embeds whole, and the title of every note its links name. Shared
- * by every export — to Confluence (P32-07) and out of Atlas (#501) — so each
+ * by every export — to Confluence (P32-07) and out of DFAI (#501) — so each
  * reads them the same way. None of it writes anything.
  */
 

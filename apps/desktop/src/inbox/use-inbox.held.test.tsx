@@ -6,7 +6,7 @@ import {
   INBOX_QUERY_COLUMNS,
   PARA_VALUES_QUERY_MARK,
   TASK_TYPE_FILE,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeMarkdown,
@@ -14,7 +14,7 @@ import {
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import { createInboxWrites } from './inbox-writes.ts';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 
@@ -27,7 +27,7 @@ import { useInbox, type InboxOptions } from './use-inbox.ts';
 const CALL = createVaultPath('Inbox/Call the bank.md');
 const QUOTE = createVaultPath('Inbox/Chase the quote.md');
 const FILES = {
-  'Projects/Atlas.md': '---\ntype: project\n---\n',
+  'Projects/DFAI.md': '---\ntype: project\n---\n',
   [CALL]: '---\ntype: task\nstatus: inbox\n---\n\nAbout the loan.\n',
   [QUOTE]: '---\ntype: task\nstatus: inbox\n---\n\nSoon.\n',
 };

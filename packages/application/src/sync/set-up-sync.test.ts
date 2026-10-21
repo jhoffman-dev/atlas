@@ -6,7 +6,7 @@ import {
   SYNC_KEY_VALUE,
   VAULT_SETTINGS_PATH,
   withManagedIgnores,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import {
   failed,

@@ -6,7 +6,7 @@ import {
   type ModelMessage,
   type ProfileState,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityLog, ActivityRecorder } from '../activity/ports.ts';
 import type { Clock } from '../ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

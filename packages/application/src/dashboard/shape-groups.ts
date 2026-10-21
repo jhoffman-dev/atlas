@@ -11,7 +11,7 @@ import {
   type ObjectType,
   type RankedGroup,
   type Widget,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /** One group of a chart: a property value, how many notes have it, and its share of them. */
 export interface WidgetBar extends GroupCount {

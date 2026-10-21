@@ -1,6 +1,6 @@
 import { MAP_MEETING_NODE } from './code-node.ts';
 
-/** The vault's sync repository, which Atlas pulls every minute (ADR-0025). */
+/** The vault's sync repository, which DFAI pulls every minute (ADR-0025). */
 export const VAULT_REPO = { owner: 'jhoffman-dev', repository: 'pkm-space' } as const;
 
 /**
@@ -10,7 +10,7 @@ export const VAULT_REPO = { owner: 'jhoffman-dev', repository: 'pkm-space' } as 
 export const GITHUB_CREDENTIAL = 'GitHub pkm-space (contents)';
 
 export const NODES = {
-  fields: 'Meeting fields for Atlas',
+  fields: 'Meeting fields for DFAI',
   map: MAP_MEETING_NODE,
   getPath: 'Is the path taken?',
   same: 'Same meeting?',
@@ -20,12 +20,12 @@ export const NODES = {
   create: 'Commit meeting file',
   createCollision: 'Commit meeting file (other path)',
   skip: 'Skip: already in the vault',
-  failed: 'Atlas commit failed',
-  notify: 'Email me: meeting not in Atlas',
+  failed: 'DFAI commit failed',
+  notify: 'Email me: meeting not in DFAI',
 } as const;
 
 /**
- * Where the Atlas branch reads a meeting in your workflow, by node name, so
+ * Where the DFAI branch reads a meeting in your workflow, by node name, so
  * a field reads the same whichever node's output the branch hangs off
  * (paired items carry each meeting through).
  */
@@ -55,7 +55,7 @@ export const EXAMPLE_SOURCES: MeetingSources = {
   arrivedField: 'date',
 };
 
-/** Where "Atlas commit failed" sends its email. A placeholder: put your own address in. */
+/** Where "DFAI commit failed" sends its email. A placeholder: put your own address in. */
 export const NOTIFY_TO = 'you@example.com';
 
 /** The n8n Gmail credential the notification sends with, by name. */
@@ -89,7 +89,7 @@ export function fieldRows(sources: MeetingSources): readonly FieldRow[] {
   ];
 }
 
-/** Failures leave by the node's second output (to "Atlas commit failed") instead of stopping the run. */
+/** Failures leave by the node's second output (to "DFAI commit failed") instead of stopping the run. */
 const ERROR_OUTPUT = { onError: 'continueErrorOutput' } as const;
 
 const locator = (value: string) => ({ __rl: true, value, mode: 'name' });
@@ -130,7 +130,7 @@ const fileLookup = (name: string, id: string, path: string, position: [number, n
   onError: 'continueErrorOutput',
 });
 
-/** Commit a new file at `path` on the default branch. A failure goes to "Atlas commit failed". */
+/** Commit a new file at `path` on the default branch. A failure goes to "DFAI commit failed". */
 const fileCreate = (name: string, id: string, path: string, position: [number, number]) => ({
   ...githubNode(name, {
     id,
@@ -192,8 +192,8 @@ const WHY =
   '{{ typeof $json.error === "string" ? $json.error : JSON.stringify($json.error ?? $json) }}';
 
 /**
- * An email to you when a meeting did not reach Atlas. It says nothing of
- * Notion: Atlas runs first, so Notion may not have the meeting yet. A
+ * An email to you when a meeting did not reach DFAI. It says nothing of
+ * Notion: DFAI runs first, so Notion may not have the meeting yet. A
  * notification that cannot be sent stops nothing.
  */
 function notifyNode(sources: MeetingSources) {
@@ -208,10 +208,10 @@ function notifyNode(sources: MeetingSources) {
       resource: 'message',
       operation: 'send',
       sendTo: NOTIFY_TO,
-      subject: `=Atlas did not get a meeting: ${meeting('title')}`,
+      subject: `=DFAI did not get a meeting: ${meeting('title')}`,
       emailType: 'text',
       message: [
-        `=This meeting did not reach Atlas: ${WHY}`,
+        `=This meeting did not reach DFAI: ${WHY}`,
         '',
         `Meeting: ${meeting('title')}`,
         `Source ID: ${meeting('sourceId')}`,
@@ -257,14 +257,14 @@ const to = (...names: string[]) => names.map((node) => ({ node, type: 'main', in
  * path, is skipped; a different meeting at its path sends it to the
  * collision path; only a free path is written. Nothing in it stops the run:
  * every failure — a refused meeting, a file it cannot read, both paths taken
- * by others, a failed commit — goes to "Atlas commit failed", which emails you.
+ * by others, a failed commit — goes to "DFAI commit failed", which emails you.
  */
 export function meetingWorkflow(
   scripts: { map: string; same: string; sameOther: string },
   sources: MeetingSources = EXAMPLE_SOURCES,
 ) {
   return {
-    name: 'Meeting to Atlas (commit to pkm-space)',
+    name: 'Meeting to DFAI (commit to pkm-space)',
     nodes: [
       fieldsNode(sources),
       codeNode(NODES.map, 'a7c0e5b1-0002-4c1d-9e57-5f1b2c3d4e01', scripts.map, [220, 0]),

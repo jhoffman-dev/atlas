@@ -6,14 +6,14 @@
  * around what it adds (ADR-0003). Fictional names only.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import { createVaultPath, splitFrontmatter, type VaultPath } from '@dfai/domain';
 import {
   applyPeopleMerge,
   previewPeopleMerge,
   type IndexPort,
   type MergePorts,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const p = createVaultPath;

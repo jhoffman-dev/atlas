@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { encodeBase64 } from '@atlas/domain';
+import { encodeBase64 } from '@dfai/domain';
 import { apiFixture, bodyOf, encoded, FAKE_PNG } from '../testing/api-fixture.ts';
 
 const NOTE = 'Work/Plan.md';

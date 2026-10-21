@@ -60,7 +60,7 @@ const run = () =>
   });
 
 describe('a new note the disk refused, then a run cut off', () => {
-  it('is made by the next run, not taken for one deleted in Atlas', async () => {
+  it('is made by the next run, not taken for one deleted in DFAI', async () => {
     Object.assign(script, { refuseFirst: true, dieOnSecond: true });
     await expect(run()).rejects.toThrow('the power went');
     Object.assign(script, { calls: 0, refuseFirst: false, dieOnSecond: false });

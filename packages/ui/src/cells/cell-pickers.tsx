@@ -1,6 +1,6 @@
 import { Popover } from '@base-ui/react/popover';
 import type { RefObject } from 'react';
-import type { PropertyDef } from '@atlas/domain';
+import type { PropertyDef } from '@dfai/domain';
 import type { CreateRelated, RelationChoice } from '../properties-panel.tsx';
 import type { CellEditing, CellEditorHooks } from './cell-editing.ts';
 import { RelationPickerPopover, useHeldValue } from './relation-cell.tsx';

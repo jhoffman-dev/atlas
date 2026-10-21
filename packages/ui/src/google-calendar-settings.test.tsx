@@ -6,7 +6,7 @@ import { GoogleCalendarSettings, type GoogleCalendarView } from './google-calend
 
 const CLIENT_ID = '1234-fictional.apps.googleusercontent.com';
 
-const BLOCKS = { id: 'atlas-blocks@group.calendar.example.com', name: 'Atlas blocks' };
+const BLOCKS = { id: 'atlas-blocks@group.calendar.example.com', name: 'DFAI blocks' };
 
 function renderWith(overrides: Partial<GoogleCalendarView> = {}) {
   const view: GoogleCalendarView = {
@@ -15,7 +15,7 @@ function renderWith(overrides: Partial<GoogleCalendarView> = {}) {
     calendars: [],
     chosen: null,
     canCreate: true,
-    calendarName: 'Atlas blocks',
+    calendarName: 'DFAI blocks',
     problem: null,
     pending: false,
     ...overrides,
@@ -85,7 +85,7 @@ describe('GoogleCalendarSettings', () => {
       canCreate: false,
     });
 
-    expect(within(card()).getByText('Connected. Blocks go to Atlas blocks.')).not.toBeNull();
+    expect(within(card()).getByText('Connected. Blocks go to DFAI blocks.')).not.toBeNull();
     expect(queryButton(/Create/)).toBeNull();
     await userEvent.selectOptions(
       within(card()).getByRole('combobox', { name: 'Calendar for blocks' }),
@@ -95,12 +95,12 @@ describe('GoogleCalendarSettings', () => {
     expect(onChoose).toHaveBeenCalledWith(other.id);
   });
 
-  it('offers to make Atlas’s calendar when there is none to choose', async () => {
+  it('offers to make DFAI’s calendar when there is none to choose', async () => {
     const { onCreate } = renderWith({ phase: 'connected', calendars: [], canCreate: true });
 
     expect(within(card()).getByText('Connected. Choose the calendar blocks go to.')).not.toBeNull();
     expect(within(card()).queryByRole('combobox')).toBeNull();
-    await userEvent.click(button('Create “Atlas blocks”'));
+    await userEvent.click(button('Create “DFAI blocks”'));
 
     expect(onCreate).toHaveBeenCalled();
   });
@@ -120,7 +120,7 @@ describe('GoogleCalendarSettings', () => {
   it('shows a problem with its fix', () => {
     renderWith({
       problem: {
-        problem: 'Google no longer accepts Atlas’s sign-in: it expired or was revoked.',
+        problem: 'Google no longer accepts DFAI’s sign-in: it expired or was revoked.',
         fix: 'Connect again in Settings → Google Calendar.',
       },
     });
@@ -134,7 +134,7 @@ describe('GoogleCalendarSettings', () => {
     renderWith({ phase: 'connected', calendars: [BLOCKS], pending: true });
     expect(within(card()).queryByRole('alert')).toBeNull();
     expect(button('Disconnect…')).toHaveProperty('disabled', true);
-    expect(button('Create “Atlas blocks”')).toHaveProperty('disabled', true);
+    expect(button('Create “DFAI blocks”')).toHaveProperty('disabled', true);
   });
 
   it('says it is checking before the host has answered', () => {

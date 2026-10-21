@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { groupResultRows, parseObjectType, toBoardRows, viewGroupLevels } from '@atlas/domain';
+import { groupResultRows, parseObjectType, toBoardRows, viewGroupLevels } from '@dfai/domain';
 import { TableView, type TableResult, type TableViewProps } from './table-view.tsx';
 import { tableRowsMeasured } from './testing/table-rows-measured.ts';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';

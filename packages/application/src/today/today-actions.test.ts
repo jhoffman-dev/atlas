@@ -1,4 +1,4 @@
-import { splitFrontmatter, taskDeferral, TASK_KEYS } from '@atlas/domain';
+import { splitFrontmatter, taskDeferral, TASK_KEYS } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';

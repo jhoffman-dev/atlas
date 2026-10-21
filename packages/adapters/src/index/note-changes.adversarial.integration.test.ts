@@ -20,7 +20,7 @@ import {
   fakeVaultFs,
   recordingActivity,
   type NoteChangeNews,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /**
  * Adversarial pass (P28-03). The change feed end to end on this side of the boundary: notes written to a

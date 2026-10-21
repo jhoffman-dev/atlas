@@ -22,7 +22,7 @@ import {
   type MeetingImportHappening,
   type NoteChange,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityRecorder } from '../activity/ports.ts';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -103,7 +103,7 @@ export interface MeetingImportOutcome {
 }
 
 /** Why the problem was not written into a file, as a clause the Activity line ends a sentence with. */
-const UNSAVED_CLAUSE = 'it is open in Atlas with unsaved typing';
+const UNSAVED_CLAUSE = 'it is open in DFAI with unsaved typing';
 const UNREADABLE_FRONTMATTER = 'its frontmatter cannot be read, so nothing could be added to it';
 
 /**

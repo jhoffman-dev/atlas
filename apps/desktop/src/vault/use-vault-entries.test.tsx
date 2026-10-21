@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type VaultFsPort } from '@atlas/application';
+import type { VaultPath } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type VaultFsPort } from '@dfai/application';
 import { useVaultEntries, type VaultEntryPorts } from './use-vault-entries.ts';
 
 const NOTE = 'Notes/Plan.md' as VaultPath;

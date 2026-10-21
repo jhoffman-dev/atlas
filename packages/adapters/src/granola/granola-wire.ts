@@ -1,5 +1,5 @@
-import type { GranolaNote, GranolaNoteSummary, GranolaUnreadableSummary } from '@atlas/domain';
-import type { GranolaKeyStatus, GranolaNotesPage, GranolaTranscriptPage } from '@atlas/application';
+import type { GranolaNote, GranolaNoteSummary, GranolaUnreadableSummary } from '@dfai/domain';
+import type { GranolaKeyStatus, GranolaNotesPage, GranolaTranscriptPage } from '@dfai/application';
 
 /*
  * Granola's answers (OpenAPI: `ListNotesOutput`, `Note`,

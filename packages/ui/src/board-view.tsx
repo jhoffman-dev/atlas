@@ -17,7 +17,7 @@ import {
   type BoardRow,
   type OptionColors,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { AddCard, Card, LiftedCard, type CardLook } from './board-card.tsx';
 import { BoardLanes, ColumnHeading, columnName, keyOf, laneCellLabel } from './board-lanes.tsx';
 import type { DoneTicks } from './done-checkbox.tsx';
@@ -51,7 +51,7 @@ export interface CardAdd {
 /** Somewhere a card can be dropped: a column, or one column's cell in a lane. */
 interface DropTarget {
   readonly id: string;
-  /** What a screen reader calls it: "doing", or "doing, in Atlas". */
+  /** What a screen reader calls it: "doing", or "doing, in DFAI". */
   readonly label: string;
   readonly column: BoardColumn;
   readonly lane: BoardColumn | null;

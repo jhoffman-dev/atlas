@@ -17,7 +17,7 @@ import {
   type NoteVersion,
   type VaultPath,
   type Vocabulary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { heldEntries } from '../index/refresh-index.ts';
 import { createMeetingLinker } from '../meeting-links/link-imported-meetings.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';

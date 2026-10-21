@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { rowToFocusAfter, type VaultPath } from '@atlas/domain';
+import { rowToFocusAfter, type VaultPath } from '@dfai/domain';
 import { CONTROLS, useRowHandles } from './row-handles.ts';
 
 /**

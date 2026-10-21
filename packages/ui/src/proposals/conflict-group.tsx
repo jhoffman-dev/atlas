@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { noteTitle, type ConflictGroup, type VaultPath } from '@atlas/domain';
+import { noteTitle, type ConflictGroup, type VaultPath } from '@dfai/domain';
 import { ConfidencePill, KIND_LABEL } from './proposal-row.tsx';
 
 export interface ConflictGroupProps {

@@ -1,11 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { INDEX_FACETS, type IndexFacet, type NoteChange } from '@atlas/domain';
+import { INDEX_FACETS, type IndexFacet, type NoteChange } from '@dfai/domain';
 import {
   READS_ON_INDEX_NEWS,
   scopeTouched,
   type IndexNews,
   type VaultRead,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   scopedQueries,
   readAgain,
@@ -17,7 +17,7 @@ import {
 
 /**
  * Where the window says which whole-vault reads a change made stale.
- * Rules about which change touches which read are `@atlas/application`'s
+ * Rules about which change touches which read are `@dfai/application`'s
  * (`readsTouchedByPaths`, `reportingIndexWrites`); this only applies them.
  */
 export interface ReadInvalidator {

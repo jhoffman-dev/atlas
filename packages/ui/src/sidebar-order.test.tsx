@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, sidebarEntry, type SidebarSectionId } from '@atlas/domain';
+import { createVaultPath, sidebarEntry, type SidebarSectionId } from '@dfai/domain';
 import { Sidebar } from './sidebar.tsx';
 import type { SectionStore } from './sidebar-sections.ts';
 

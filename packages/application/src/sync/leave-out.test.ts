@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, LARGE_FILE_BYTES } from '@atlas/domain';
+import { createVaultPath, LARGE_FILE_BYTES } from '@dfai/domain';
 import { memorySyncFiles, said, scriptedGit, statusText } from '../testing/fake-git.ts';
 import { leaveOut } from './leave-out.ts';
 
@@ -104,7 +104,7 @@ describe('leaveOut', () => {
 
   // Issue #8: a line of the person's .gitignore leaving out `.atlas` kept the
   // types, views and settings off GitHub without a word.
-  it('names Atlas’s own files that git neither tracks nor lists as untracked', async () => {
+  it('names DFAI’s own files that git neither tracks nor lists as untracked', async () => {
     const { git } = scriptedGit({
       script: { status: said(statusText({ untracked: ['.atlas/types/task.md'] })) },
       vault: new Map([['.atlas/settings.md', '---\n---\n']]),

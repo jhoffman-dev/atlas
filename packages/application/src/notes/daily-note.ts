@@ -6,7 +6,7 @@ import {
   noteFileName,
   VAULT_ROOT,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { newNoteTaskRules } from '../gtd/task-rules.ts';
 import { findDailyTemplate, readTemplate, type NoteTemplate } from '../types/templates.ts';
 import { ensureFolder } from '../vault/create-folder.ts';

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PropertyDef } from '@atlas/domain';
+import type { PropertyDef } from '@dfai/domain';
 import { PropertiesPanel, type PropertyRow } from './properties-panel.tsx';
 
 const relation = (extra: Partial<PropertyDef> = {}): PropertyRow => ({

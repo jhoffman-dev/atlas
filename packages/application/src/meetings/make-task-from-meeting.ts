@@ -12,7 +12,7 @@ import {
   type MeetingIdentity,
   type ProposedNote,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ProposalRefused, type AppliedProposal } from '../chat/proposals.ts';
 import {
   carryOut,

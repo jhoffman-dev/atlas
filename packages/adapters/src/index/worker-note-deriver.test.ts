@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
-import { inThreadNoteDeriver, type MarkdownPort, type NoteFile } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { inThreadNoteDeriver, type MarkdownPort, type NoteFile } from '@dfai/application';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 import { ROUND_TRIP_CORPUS } from '../markdown/round-trip-corpus.ts';
 import {

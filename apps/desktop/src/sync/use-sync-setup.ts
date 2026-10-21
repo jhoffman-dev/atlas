@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { GitHubRepository, SyncPhase, VaultPath } from '@atlas/domain';
+import type { GitHubRepository, SyncPhase, VaultPath } from '@dfai/domain';
 import {
   inspectSync,
   listGitHubRepositories,
@@ -15,7 +15,7 @@ import {
   type SyncRemoteChoice,
   type SyncSetup,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { errorMessage } from '../query/error-message.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
 import type { PullRecorder } from './use-pulled-files.ts';

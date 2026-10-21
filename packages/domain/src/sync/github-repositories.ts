@@ -3,7 +3,7 @@
  * name,nameWithOwner,defaultBranchRef,visibility,url` prints them (A29-01),
  * for Settings → Sync's picker. The host hands the JSON back untouched;
  * what it holds is read here, and anything unexpected — an entry without a
- * name, or with an address Atlas would not connect to — is left out rather
+ * name, or with an address DFAI would not connect to — is left out rather
  * than guessed at.
  */
 

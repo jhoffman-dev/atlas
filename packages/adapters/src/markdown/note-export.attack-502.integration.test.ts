@@ -3,7 +3,7 @@
  * and writer, with notes shaped the way a real vault holds them.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakePdfRenderer,
@@ -11,7 +11,7 @@ import {
   recordingExportFiles,
   saveExport,
   type FileFormat,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const picture = (marker: number) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, marker]);

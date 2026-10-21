@@ -5,7 +5,7 @@ import {
   digestOf,
   splitFrontmatter,
   type NoteChange,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { MEETING_HEADER } from '../testing/meeting-files.ts';

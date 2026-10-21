@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { placeSummary, renderSummaryBlock, type EditorDocument } from '@atlas/domain';
+import { placeSummary, renderSummaryBlock, type EditorDocument } from '@dfai/domain';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /**

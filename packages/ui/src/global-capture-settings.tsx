@@ -3,7 +3,7 @@ import {
   DEFAULT_GLOBAL_CAPTURE_SHORTCUT,
   globalShortcutFromKeys,
   globalShortcutLabel,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
@@ -16,9 +16,9 @@ export interface GlobalCaptureView {
 
 /**
  * Settings → Quick capture from anywhere: the system-wide shortcut that brings
- * Atlas forward with quick capture open (#81). A new one is recorded by
+ * DFAI forward with quick capture open (#81). A new one is recorded by
  * pressing it; what counts as a shortcut is the domain's to say, and whether
- * the system gave it to Atlas is the host's.
+ * the system gave it to DFAI is the host's.
  */
 export function GlobalCaptureSettings({
   view,
@@ -69,7 +69,7 @@ export function GlobalCaptureSettings({
   return (
     <SettingsSection section={SETTINGS_SECTIONS.globalCapture}>
       <p className="settings__lede">
-        Press it in any app: Atlas comes forward with quick capture open, and what you type lands in
+        Press it in any app: DFAI comes forward with quick capture open, and what you type lands in
         the Inbox. It is set for this Mac only.
       </p>
       <div className="settings__row">

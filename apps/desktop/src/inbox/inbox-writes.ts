@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from 'zustand';
-import type { EntryMove, VaultPath } from '@atlas/domain';
-import type { ClarifyUndo } from '@atlas/application';
-import type { InboxRefusal } from '@atlas/ui';
+import type { EntryMove, VaultPath } from '@dfai/domain';
+import type { ClarifyUndo } from '@dfai/application';
+import type { InboxRefusal } from '@dfai/ui';
 import { createAnswerQueue, type AnswerQueue } from '../proposals/answer-queue.ts';
 import type { LeavingRow } from './leaving-rows.ts';
 

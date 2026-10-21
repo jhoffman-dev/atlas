@@ -65,16 +65,16 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@atlas/adapters':
+      '@dfai/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
-      '@atlas/application':
+      '@dfai/application':
         specifier: workspace:*
         version: link:../../packages/application
-      '@atlas/domain':
+      '@dfai/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@atlas/ui':
+      '@dfai/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@fontsource-variable/manrope':
@@ -121,7 +121,7 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@atlas/application':
+      '@dfai/application':
         specifier: workspace:*
         version: link:../../packages/application
       '@modelcontextprotocol/client':
@@ -133,10 +133,10 @@ importers:
 
   packages/adapters:
     dependencies:
-      '@atlas/application':
+      '@dfai/application':
         specifier: workspace:*
         version: link:../application
-      '@atlas/domain':
+      '@dfai/domain':
         specifier: workspace:*
         version: link:../domain
       '@tauri-apps/api':
@@ -188,7 +188,7 @@ importers:
 
   packages/application:
     dependencies:
-      '@atlas/domain':
+      '@dfai/domain':
         specifier: workspace:*
         version: link:../domain
 
@@ -196,7 +196,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@atlas/domain':
+      '@dfai/domain':
         specifier: workspace:*
         version: link:../domain
       '@base-ui/react':

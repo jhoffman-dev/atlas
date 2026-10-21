@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { canMoveSection, movedSection, sectionOrder, type SidebarSectionId } from '@atlas/domain';
+import { canMoveSection, movedSection, sectionOrder, type SidebarSectionId } from '@dfai/domain';
 
 /**
  * Where a viewer's collapsed sections are remembered.

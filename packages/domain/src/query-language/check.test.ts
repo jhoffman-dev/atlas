@@ -21,7 +21,7 @@ describe('checkAtlasQuery: what passes', () => {
     'FROM task, project WHERE status != done AND project.owner = [[Julie]] AND tag = #q3 SORT BY due GROUP BY project THEN status',
     'FROM task WHERE due < @today AND estimate >= 2 AND flagged = true AND labels = red',
     'FROM task WHERE title CONTAINS plan AND path STARTS WITH tasks AND type = task',
-    'FROM task WHERE project = Atlas AND project CONTAINS atl AND project.due > 2026-09-01',
+    'FROM task WHERE project = DFAI AND project CONTAINS atl AND project.due > 2026-09-01',
     'FROM task WHERE modified >= @weekAgo AND project.tag = #q3 AND tag != q3',
     'FROM task WHERE estimate IS EMPTY OR NOT (notes = 12)',
     'FROM task SHOW tag, project.owner, project.title SORT BY project.due DESC',
