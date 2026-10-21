@@ -3,7 +3,11 @@ import { InvalidAppInfoError } from '@atlas/domain';
 import { getAppInfo } from './get-app-info.ts';
 import type { AppInfoPort } from './ports.ts';
 
-const portReturning = (value: { name: string; version: string }): AppInfoPort => ({
+const portReturning = (value: {
+  name: string;
+  version: string;
+  build?: string | null;
+}): AppInfoPort => ({
   read: () => Promise.resolve(value),
 });
 
@@ -12,7 +16,12 @@ describe('getAppInfo', () => {
     const result = await getAppInfo({
       appInfo: portReturning({ name: 'Atlas', version: '0.1.0' }),
     });
-    expect(result).toEqual({ name: 'Atlas', version: '0.1.0' });
+    expect(result).toEqual({ name: 'Atlas', version: '0.1.0', build: null });
+  });
+
+  it('passes on the commit the build was made from', async () => {
+    const appInfo = portReturning({ name: 'Atlas', version: '0.1.0', build: '61e907b' });
+    expect((await getAppInfo({ appInfo })).build).toBe('61e907b');
   });
 
   it('rejects host values that break the domain rules', async () => {

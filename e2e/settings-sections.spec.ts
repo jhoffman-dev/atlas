@@ -58,6 +58,17 @@ test('the list leaves out the sections that want a vault, before one is open', a
   expect(await listed(page)).toEqual(sections);
 });
 
+test('About names the version and the commit the build was made from (#481)', async ({ page }) => {
+  await installHost(page, await createVault());
+  await page.goto('/');
+  await openSettings(page);
+
+  await list(page).getByRole('button', { name: 'About', exact: true }).click();
+  const about = settings(page).getByRole('region', { name: 'About' });
+  await expect(about.getByText('Atlas 0.1.0')).toBeVisible();
+  await expect(about.getByText(/^Build [0-9a-f]{7}$/)).toBeVisible();
+});
+
 test('a row brings its section into view and hands it the focus', async ({ page }) => {
   const vault = await createVault();
   await vault.write('note.md', '# Note\n\nBody.\n');

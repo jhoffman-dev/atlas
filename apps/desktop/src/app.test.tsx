@@ -499,11 +499,12 @@ describe('App', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('permission denied');
   });
 
-  it('shows the app version in Settings once the host answers', async () => {
+  it('shows the app version in Settings → About once the host answers', async () => {
     renderApp(fakeVault());
     await userEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     const dialog = await screen.findByRole('dialog', { name: 'Settings' });
-    expect(await within(dialog).findByText('Atlas 0.1.0')).toBeDefined();
+    const about = within(dialog).getByRole('region', { name: 'About' });
+    expect(await within(about).findByText('Atlas 0.1.0')).toBeDefined();
   });
 });
 

@@ -78,6 +78,7 @@ describe('with no vault open', () => {
     expect(bodyOf(response)).toEqual({
       app: 'atlas',
       version: '1.4.0',
+      build: '0a1b2c3',
       vault: null,
       index: { ready: false, notes: 0 },
       googleCalendar: null,
@@ -86,6 +87,12 @@ describe('with no vault open', () => {
 });
 
 describe('status', () => {
+  it('reports the app version and the commit it was built from (#481)', async () => {
+    const response = await apiFixture().send({ method: 'GET', path: '/v1/status' });
+
+    expect(bodyOf(response)).toMatchObject({ app: 'atlas', version: '1.4.0', build: '0a1b2c3' });
+  });
+
   it('names the open vault and counts the notes the index holds', async () => {
     const api = apiFixture({
       index: { stats: async () => ({ notes: 42, properties: 0, links: 0 }) },
