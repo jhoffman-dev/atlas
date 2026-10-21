@@ -397,8 +397,9 @@ export const VaultTree = memo(function VaultTree({
   }
 
   const items = virtualizer.getVirtualItems();
-  // Tab has to land somewhere in the tree, so when the active row has been
-  // scrolled out of the DOM the first rendered row stands in for it.
+  // The row with the tab stop is always rendered (see `rangeExtractor`), so Tab
+  // comes back to it however far it is scrolled away. Only with no tab stop yet,
+  // or once its row has gone from the tree, does the first rendered row stand in.
   const tabbableIndex = items.some((item) => item.index === activeIndex)
     ? activeIndex
     : (items[0]?.index ?? -1);
