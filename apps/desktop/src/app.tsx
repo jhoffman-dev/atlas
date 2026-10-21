@@ -83,6 +83,7 @@ import {
   lostUsesText,
   TemplateToNoteDialog,
   MovePicker,
+  AboutSettings,
   IndexSettings,
   indexStatusText,
   SidebarFooter,
@@ -2095,12 +2096,11 @@ function AppWindow({
                   <ProfileSettingsCard setting={profileSetting} emails={selfEmailsSetting} />
                 )}
                 {location === null ? (
-                  <IndexSettings index={null} app={app} onRebuild={() => void rebuild()} />
+                  <IndexSettings index={null} onRebuild={() => void rebuild()} />
                 ) : (
                   <LiveIndexSettings
                     index={indexStatus}
                     progress={indexProgress}
-                    app={app}
                     onRebuild={() => void rebuild()}
                   />
                 )}
@@ -2123,6 +2123,7 @@ function AppWindow({
                     {(syncNow) => <SyncSettingsCard sync={syncNow} vaultName={location.name} />}
                   </SyncSettingsSlot>
                 )}
+                <AboutSettings app={app} />
               </SettingsPanel>
             ) : overlay === 'move-picker' && entries.picker !== null ? (
               <MovePicker

@@ -36,6 +36,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `domain/terms`              | The vocabulary: decides how every name in a transcript is spelt.                             | 28      |
 | `application/terms`         | Adds terms as notes and rewrites their variants in the frontmatter.                          | 28      |
 | `tools/notion-import/*.ts`  | The Notion imports: meetings and a whole workspace into a vault, re-runnable.                | 28, #79 |
+| `tools/release/versions.ts` | Writes the version into every manifest, and the check CI and a release trust.                | #481    |
 | `application/proposals`     | Accepting a proposal writes notes, archives it, and undo takes them back.                    | 29      |
 | `application/meeting-links` | Writes a meeting's people and companies, and proposals, by itself; undone.                   | 29      |
 | `application/profile`       | Reads who the vault's owner is, by name and address: whose a meeting's tasks are.            | #173    |
