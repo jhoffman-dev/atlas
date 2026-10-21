@@ -20,6 +20,7 @@ import { pillPaint } from './pill-paint.ts';
 import { AddPropertyPopover, type NewProperty } from './add-property-popover.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { LinkedNote, useNoteNames } from './note-names.tsx';
+import { useLinkInText } from './link-suggest/use-link-in-text.tsx';
 import { linksTo, RelationPicker } from './relation-options.tsx';
 import type { RelationTarget } from './type-editor.tsx';
 
@@ -450,14 +451,28 @@ function RelationEditor({
 
 function TextEditor({ id, row, text, onChange }: EditorProps) {
   const typing = useTyping(text, (typed) => onChange(typed === '' ? null : typed));
+  // `[[` in a text field suggests notes, as a link field does (#465); never in a url.
+  const links = useLinkInText({
+    value: typing.value,
+    onText: (typed) => typing.onChange({ target: { value: typed } }),
+    onBlur: typing.onBlur,
+  });
+  if (row.def.kind === 'url') {
+    return <input id={id} className="props__input" type="url" placeholder="Empty" {...typing} />;
+  }
   return (
-    <input
-      id={id}
-      className="props__input"
-      type={row.def.kind === 'url' ? 'url' : 'text'}
-      placeholder="Empty"
-      {...typing}
-    />
+    <span className="link-combo">
+      <input
+        id={id}
+        className="props__input"
+        type="text"
+        placeholder="Empty"
+        value={typing.value}
+        onFocus={typing.onFocus}
+        {...links.field}
+      />
+      {links.list}
+    </span>
   );
 }
 

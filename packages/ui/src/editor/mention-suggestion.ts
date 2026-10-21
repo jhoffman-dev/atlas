@@ -1,14 +1,14 @@
-import { Extension, type Editor, type Range } from '@tiptap/core';
+import { Extension } from '@tiptap/core';
 import { PluginKey, type EditorState } from '@tiptap/pm/state';
 import type { MentionSuggestion } from '@atlas/domain';
 import { exitSuggestion } from '@tiptap/suggestion';
-import { pendingMentionContent, settlePendingMention } from './pending-mention.ts';
+import { linkOnceMade, type MakeLinked } from './pending-mention.ts';
 import { pickerSuggestion, type PickerView } from './picker-suggestion.ts';
 
 export type MentionSuggestionView = PickerView<MentionSuggestion>;
 
 /** Makes a person of a name typed after `@`, resolving to what a link to them is written as. */
-export type CreatePerson = (name: string) => Promise<string>;
+export type CreatePerson = MakeLinked;
 
 export interface MentionSuggestionOptions {
   /** People for what has been typed after `@`, and the offer to add one. */
@@ -44,43 +44,6 @@ const linkTo = (target: string) => [
   { type: 'wikiLink', attrs: { target, heading: null, alias: null } },
   { type: 'text', text: ' ' },
 ];
-
-/**
- * Makes a new person, then links to them where the `@` was. A placeholder
- * takes the typed words' place at once, so the popup closes and typing goes
- * on after it; once the note exists the placeholder becomes the link. If the
- * person cannot be made, the typed words come back in its place — with the
- * list left closed, as it was answered. If the placeholder has gone by then,
- * nothing is written, and `notLinked` says so.
- */
-async function mentionNewPerson(
-  editor: Editor,
-  {
-    range,
-    name,
-    create,
-    notLinked,
-  }: { range: Range; name: string; create: CreatePerson; notLinked: (name: string) => void },
-): Promise<void> {
-  const typed = editor.state.doc.textBetween(range.from, range.to);
-  const { id, content } = pendingMentionContent(name);
-  editor
-    .chain()
-    .focus()
-    .insertContentAt(range, [content, { type: 'text', text: ' ' }])
-    .run();
-  let target: string;
-  try {
-    target = await create(name);
-  } catch {
-    // The app says why where it made the attempt; here the words come back.
-    if (settlePendingMention(editor, { id, outcome: { kind: 'failed', typed } })) {
-      exitSuggestion(editor.view, mentionKey);
-    }
-    return;
-  }
-  if (!settlePendingMention(editor, { id, outcome: { kind: 'linked', target } })) notLinked(name);
-}
 
 /**
  * Offers people after `@`; picking one writes an ordinary `[[Name]]` link,
@@ -127,11 +90,13 @@ export const MentionSuggestionExtension = Extension.create<MentionSuggestionOpti
           if (item.kind === 'unlinkable') return;
           const create = options.createPerson;
           if (create === null) return;
-          void mentionNewPerson(editor, {
+          void linkOnceMade(editor, {
             range,
             name: item.name,
-            create,
+            sigil: '@',
+            make: create,
             notLinked: options.notLinked,
+            closeList: () => exitSuggestion(editor.view, mentionKey),
           });
         },
       }),

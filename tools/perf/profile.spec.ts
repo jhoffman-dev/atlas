@@ -49,7 +49,8 @@ async function profiled(name: string, action: () => Promise<void>): Promise<void
 }
 
 test('opening the Inbox', async () => {
-  const pickers = page.locator('article[aria-label="Inbox"] div.inbox__clarify select.inbox__file');
+  // The note pickers suggest notes as you type (#465): fields, not selects.
+  const pickers = page.locator('article[aria-label="Inbox"] div.inbox__clarify input.inbox__file');
   await profiled('open-inbox', async () => {
     for (let turn = 0; turn < 3; turn += 1) {
       await page
@@ -72,13 +73,16 @@ test('filing five Inbox items', async () => {
     .getByRole('button', { name: /^Inbox/ })
     .first()
     .click();
-  const pickers = page.locator('article[aria-label="Inbox"] div.inbox__clarify select.inbox__file');
+  // The note pickers suggest notes as you type (#465): fields, not selects.
+  const pickers = page.locator('article[aria-label="Inbox"] div.inbox__clarify input.inbox__file');
   await expect(pickers.first()).toBeEnabled({ timeout: 30_000 });
   await profiled('filing', async () => {
     for (let filed = 0; filed < 5; filed += 1) {
       const label = (await pickers.first().getAttribute('aria-label')) ?? '';
-      await pickers.first().selectOption({ index: 1 });
-      await expect(page.locator(`select[aria-label="${label}"]`)).toHaveCount(0, {
+      await pickers.first().click();
+      await pickers.first().press('ArrowDown');
+      await pickers.first().press('Enter');
+      await expect(page.locator(`input[aria-label="${label}"]`)).toHaveCount(0, {
         timeout: 60_000,
       });
       await expect(pickers.first()).toBeEnabled({ timeout: 60_000 });

@@ -1,0 +1,172 @@
+/* link fields that suggest notes as you type (#465).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- the field ----
+   The list hangs from the field it belongs to. An open field sits above the
+   rows after it (an Inbox row, a property), so its list is not drawn under
+   them. Chrome stays neutral; only a note's type wears a hue. */
+
+.link-combo {
+  display: inline-flex;
+  min-width: 0;
+  position: relative;
+}
+
+.link-combo[data-open] {
+  z-index: 5;
+}
+
+.link-combo > input {
+  min-width: 0;
+  width: 100%;
+}
+
+.props__chip--add .link-combo {
+  height: 100%;
+}
+
+.props__chip-select[role='combobox'] {
+  cursor: text;
+}
+
+.props__chip-select::placeholder {
+  color: var(--pill-ink);
+  opacity: 0.85;
+}
+
+.inbox__file[role='combobox'] {
+  cursor: text;
+  /* The select it replaces was drawn 18px tall whatever its padding; a row's
+     height is placed by that (INBOX_ROW_HEIGHT), so the field keeps to it. */
+  height: 18px;
+  padding-block: 0;
+}
+
+/* In an Inbox row the field is as wide as its prompt (its size), as the
+   select was, and gives way when the row is narrow rather than push the
+   Inbox sideways. */
+.inbox__clarify .link-combo {
+  flex: 0 1 auto;
+  max-width: 220px;
+  min-width: 0;
+}
+
+.inbox__clarify .link-combo > input {
+  max-width: 100%;
+  min-width: 0;
+  width: auto;
+}
+
+/* In a narrow list the row's controls wrap, and the field takes the room its
+   line has: its prompt's width alone pushed the Inbox 44px sideways at 720px. */
+.inbox__list[data-narrow] .inbox__clarify .link-combo {
+  flex: 1 1 8em;
+  min-width: 6em;
+}
+
+.inbox__list[data-narrow] .inbox__clarify .link-combo > input {
+  width: 100%;
+}
+
+.inbox__file::placeholder {
+  color: var(--ink-3);
+}
+
+/* ---- the list ---- */
+
+.link-suggest {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-popover);
+  left: 0;
+  list-style: none;
+  margin: 0;
+  max-height: 280px;
+  max-width: 380px;
+  min-width: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 30;
+}
+
+.link-suggest__row {
+  align-items: center;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-small);
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+}
+
+.link-suggest__row:hover {
+  background: var(--hover);
+}
+
+.link-suggest__row--on,
+.link-suggest__row--on:hover {
+  background: var(--selected);
+}
+
+.link-suggest__row[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.link-suggest__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The alias the note matched by, quieter than its title. */
+.link-suggest__alias {
+  color: var(--ink-3);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.link-suggest__where {
+  align-items: center;
+  color: var(--ink-3);
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 6px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.link-suggest__type[data-hue] {
+  background: var(--pill);
+  border-radius: var(--radius-chip);
+  color: var(--pill-ink);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+}
+
+.link-suggest__folder {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-suggest__create {
+  align-items: center;
+  color: var(--ink-2);
+  display: inline-flex;
+  gap: 6px;
+}
+
+.link-suggest__problem {
+  color: var(--danger);
+  font-size: 11.5px;
+  padding: 5px 8px;
+}

@@ -5,6 +5,7 @@
  */
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { pickSuggestion, suggestedTitles } from './link-suggest.ts';
 
 const BOOK_TYPE = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';
 
@@ -145,10 +146,11 @@ test('a relation to several tasks, set up in the type editor, links two and keep
   await page.getByRole('button', { name: 'Hide right sidebar' }).click();
   await page.getByRole('button', { name: 'New meeting' }).click();
   const tasks = properties(page).getByRole('combobox', { name: 'Tasks' });
-  await expect.poll(() => tasks.locator('option').allTextContents()).toContain('Book flights');
-  await tasks.selectOption({ label: 'Write report' });
+  await tasks.click();
+  await expect.poll(() => suggestedTitles(tasks).allTextContents()).toContain('Book flights');
+  await pickSuggestion(tasks, 'Write report');
   // The add control stays, and offers what is not linked yet.
-  await tasks.selectOption({ label: 'Book flights' });
+  await pickSuggestion(tasks, 'Book flights');
   await expectFile(vault, NEW_MEETING).toMatch(
     /\ntasks:\n {2}- "\[\[Write report\]\]"\n {2}- "\[\[Book flights\]\]"\n/,
   );

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { pickSuggestion } from './link-suggest.ts';
 
 /**
  * #214: every type has a home folder. A meeting waits in the Inbox in its
@@ -67,9 +68,10 @@ test('a meeting waits in the Inbox in its month’s folder, and filing it links 
   const inbox = await openInbox(page);
 
   await expect(inbox.getByRole('button', { name: '2026-10-06 Larkspur sync' })).toBeVisible();
-  await inbox
-    .getByRole('combobox', { name: 'File 2026-10-06 Larkspur sync under' })
-    .selectOption({ label: 'Atlas' });
+  await pickSuggestion(
+    inbox.getByRole('combobox', { name: 'File 2026-10-06 Larkspur sync under' }),
+    'Atlas',
+  );
 
   await expectFile(vault, MEETING).toMatch(/^project: "?\[\[Atlas\]\]"?$/m);
   expect(await vault.exists('Projects/Atlas/2026-10-06 Larkspur sync.md')).toBe(false);

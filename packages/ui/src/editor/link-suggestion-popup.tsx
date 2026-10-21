@@ -46,10 +46,14 @@ export function LinkSuggestionPopup({ view }: { view: WikiSuggestionView }) {
 }
 
 function idOf(item: LinkChoice): string {
+  if (item.kind === 'create') return `create:${item.name}`;
   return item.kind === 'note' ? item.note.path : `${item.entry.kind}:${item.entry.at.join('.')}`;
 }
 
 function popupItemOf(item: LinkChoice): PopupItem {
+  if (item.kind === 'create') {
+    return { id: idOf(item), label: `Create ‘${item.name}’`, hint: 'New note' };
+  }
   if (item.kind === 'note') {
     return { id: idOf(item), label: item.note.target, hint: placeCrumb(item.note.path).parent };
   }

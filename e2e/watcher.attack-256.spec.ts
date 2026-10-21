@@ -9,6 +9,7 @@ import {
   type FakeVault,
 } from './host.ts';
 import { dragCardTo } from './drag.ts';
+import { pickSuggestion } from './link-suggest.ts';
 
 /**
  * Attacks on PR #256 (#254): with the host echoing the app's own writes, as
@@ -236,9 +237,10 @@ test('the watcher’s echo of deciding an Inbox row is not refreshed for again (
   await expect(inbox.getByRole('button', { name: 'Renew the passport' })).toBeVisible();
 
   const walks = await walksAfterTheEcho(page, host, async () => {
-    await inbox
-      .getByRole('combobox', { name: 'File Renew the passport under' })
-      .selectOption({ label: 'Atlas' });
+    await pickSuggestion(
+      inbox.getByRole('combobox', { name: 'File Renew the passport under' }),
+      'Atlas',
+    );
     await inbox
       .getByRole('form', { name: 'Clarify Renew the passport' })
       .getByRole('button', { name: 'Save', exact: true })

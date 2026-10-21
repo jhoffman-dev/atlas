@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 /** Adversarial pass on #236: the Inbox rows' steady callbacks and memo, over every row. */
 import { describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { createVaultPath, type InboxItem } from '@atlas/domain';
 import { InboxPage, type InboxPageProps } from '../inbox-page.tsx';
+import { pickTyped } from '../link-suggest/link-suggest.test-support.ts';
 import { startCountingRenders, stopCountingRenders } from '../testing/render-counter.ts';
 
 // Before React loads, so every commit is handed to the counter.
@@ -49,9 +50,7 @@ function given(
 }
 
 const fileUnderAtlas = (title: string) =>
-  fireEvent.change(screen.getByRole('combobox', { name: `File ${title} under` }), {
-    target: { value: 'Projects/Atlas.md' },
-  });
+  pickTyped(screen.getByRole('combobox', { name: `File ${title} under` }), 'atlas');
 
 describe('InboxRows — deciding any one row (#236)', () => {
   it('draws no row’s cells again, whichever row of N is decided', async () => {

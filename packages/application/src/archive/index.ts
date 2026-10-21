@@ -4,5 +4,7 @@ export { listArchive } from './list-archive.ts';
 export { archiveNotesWithPara, unarchiveNotesWithPara } from './para-archive.ts';
 export type { ParaArchiveOutcome } from './para-archive.ts';
 export type { ArchiveListing } from './list-archive.ts';
+export { readLinkHints } from './link-hints.ts';
+export type { LinkHintsRead } from './link-hints.ts';
 export { notesInUseOfType, notesInUseOfTypes } from './notes-in-use.ts';
 export type { NoteOfType } from './notes-in-use.ts';
