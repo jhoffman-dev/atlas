@@ -166,6 +166,8 @@ export const VaultTree = memo(function VaultTree({
   const scrollElement = () => (scrollParent === undefined ? scrollRef.current : scrollParent);
   const heldIndex =
     held === null ? -1 : rows.findIndex((row) => row.entry.path === held.entry.path);
+  const tabStopIndex =
+    activePath === null ? -1 : rows.findIndex((row) => row.entry.path === activePath);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: scrollElement,
@@ -182,7 +184,11 @@ export const VaultTree = memo(function VaultTree({
     // The row being carried stays rendered however far it is scrolled away:
     // dnd-kit finds the scroller to scroll at an edge from it (or from the
     // target under the pointer), and with neither the sidebar stops scrolling.
-    rangeExtractor: (range: Range) => withIndex(defaultRangeExtractor(range), heldIndex),
+    // So does the row with the tab stop: rows arriving above it — a folder's
+    // contents, listed after it opens — would otherwise push the focused row
+    // out of the DOM, and the focus with it to the body (#491).
+    rangeExtractor: (range: Range) =>
+      withIndex(withIndex(defaultRangeExtractor(range), heldIndex), tabStopIndex),
     // jsdom reports a zero-height container, which would render no rows at all.
     initialRect: { width: 280, height: 800 },
   });
