@@ -54,6 +54,7 @@ function editorCaret(line: Locator) {
   return line.evaluate((element) => {
     // Tiptap hangs the editor on ProseMirror's element; its selection is not in the DOM.
     interface Head {
+      depth: number;
       parentOffset: number;
       parent: { content: { size: number } };
       before(): number;
@@ -69,6 +70,9 @@ function editorCaret(line: Locator) {
     if (root === null) throw new Error('the line is not in an editor');
     const { selection } = root.editor.state;
     const { $head } = selection;
+    // Depth 0 is between top-level blocks (a selected card, a gap cursor):
+    // no block holds the caret, and before() would throw. A miss to retry.
+    if ($head.depth === 0) return { inLine: false, at: 'neither' };
     const block = root.editor.view.nodeDOM($head.before());
     const at = !selection.empty
       ? 'neither'
