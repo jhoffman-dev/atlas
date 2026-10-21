@@ -968,7 +968,10 @@ fn verify_485_a_damaged_state_after_a_blocked_launch_still_copies_into_a_missing
 fn verify_485_a_renamed_home_folder_never_sets_dfais_own_folder_aside() {
     let root = tempfile::tempdir().unwrap();
     let before = root.path().join("olduser");
-    write(&support(&before, LEGACY_IDENTIFIER).join("vault.json"), "old");
+    write(
+        &support(&before, LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
     migrate(&Migration {
         home: &before,
         legacy_secrets: &MemoryStore::default(),
@@ -984,7 +987,10 @@ fn verify_485_a_renamed_home_folder_never_sets_dfais_own_folder_aside() {
         secrets: &MemoryStore::default(),
     });
 
-    assert_eq!(read(&support(&after, IDENTIFIER).join("vault.json")), "newer");
+    assert_eq!(
+        read(&support(&after, IDENTIFIER).join("vault.json")),
+        "newer"
+    );
     assert!(!after
         .join("Library/Application Support")
         .join(format!("{IDENTIFIER}.pre-dfai-1"))
