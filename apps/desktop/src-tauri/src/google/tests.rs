@@ -1277,3 +1277,35 @@ async fn a_drive_sign_in_the_person_unticked_is_not_kept() {
         .unwrap_err();
     assert_eq!(failure.kind, FailureKind::ScopeNotGranted);
 }
+
+/// Attack on PR #502: asking for Drive uses `include_granted_scopes=true`, so
+/// the refresh token Google hands back carries the Calendar's scope as well.
+/// Google ends the app's whole combined grant when any token of it is
+/// revoked, so revoking the new token when the person unticks Drive also ends
+/// the Calendar sign-in still kept in the Keychain. The unticked sign-in must
+/// be dropped without revoking it.
+#[tokio::test(flavor = "multi_thread")]
+async fn attack_502_unticking_drive_never_revokes_the_combined_grant_the_calendar_rides_on() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    let open = setup.fake.browser(Browser::Allows);
+    let sign_in = SignIn {
+        open: &open,
+        timeout: PATIENCE,
+    };
+    let asking = ConnectRequest {
+        scopes: vec![SCOPE.into(), DRIVE.into()],
+        ..request(None)
+    };
+    let failure = setup
+        .session()
+        .connect(&asking, &sign_in)
+        .await
+        .unwrap_err();
+    assert_eq!(failure.kind, FailureKind::ScopeNotGranted);
+    assert!(
+        setup.google().revoked.is_empty(),
+        "revoked {:?}: at Google that ends the Calendar's grant too",
+        setup.google().revoked
+    );
+}

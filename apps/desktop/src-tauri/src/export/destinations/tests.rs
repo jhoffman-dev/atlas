@@ -342,3 +342,21 @@ fn a_folder_grant_is_reported_without_a_companion() {
     assert!(json.get("companion").unwrap().is_null());
     assert!(json.get("path").is_some() && json.get("id").is_some());
 }
+
+// Attack on PR #502: a single-note export's attachments folder may already
+// exist beside the chosen file, holding the person's own files. The save
+// dialog only asked to replace the note's file, never anything in that folder.
+#[test]
+fn attack_502_an_existing_attachments_folder_s_files_are_never_overwritten() {
+    let (_dir, root) = place();
+    let companion = root.join("Kickoff attachments");
+    fs::create_dir(&companion).unwrap();
+    fs::write(companion.join("deck.png"), b"the person's own picture").unwrap();
+    let grant = grant_file(&root.join("Kickoff.md"), "md", Some(" attachments")).unwrap();
+    // Either refused or written under another name; never in place of theirs.
+    let _ = write_into(&grant, "Kickoff attachments/deck.png", b"exported");
+    assert_eq!(
+        fs::read(companion.join("deck.png")).unwrap(),
+        b"the person's own picture"
+    );
+}
