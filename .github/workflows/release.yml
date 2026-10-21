@@ -1,0 +1,255 @@
+name: release
+
+# Builds the macOS app and, for a pushed `v*` tag, attaches it to a draft
+# GitHub Release (issue #481). James cuts releases: RELEASING.md says how.
+#
+# `workflow_dispatch` is the dry run. It runs the gate and builds the .dmg as
+# a run artifact; it makes a release only when run on a tag with `dry_run`
+# unticked, which is the same as pushing that tag.
+#
+# Two jobs, so the one that can write to the repository runs no build: `build`
+# reads the code and holds the signing secrets; `publish` installs nothing,
+# takes the build's artifact and makes the draft.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build the app as a run artifact only; make no release
+        type: boolean
+        default: true
+
+concurrency:
+  # Never cancelled: a half-made release is worse than a queued one.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TARGET: aarch64-apple-darwin
+  ARTIFACT: macos-aarch64-apple-darwin
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.mode.outputs.publish }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Every version file says the same version
+        run: node tools/release/version.mjs check
+
+      - name: The tag names that version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node tools/release/version.mjs check --tag "$GITHUB_REF"
+
+      - name: Release, or build only?
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          publish=false
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [ "$EVENT" = push ] || [ "$DRY_RUN" = false ]; then publish=true; fi
+          fi
+          echo "publish=$publish" | tee -a "$GITHUB_OUTPUT"
+
+  gate:
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/gate.yml
+
+  build:
+    needs: [version, gate]
+    # Apple silicon only. A universal build compiles the Rust twice, the
+    # embedding model's crates included; RELEASING.md says how to add Intel.
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      signed: ${{ steps.signing.outputs.signed }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # Nothing here pushes; the build has no use for a token on disk.
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The `stable` branch, pinned; the toolchain itself is named below.
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: ${{ env.TARGET }}
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # All six secrets or none: some of them would sign without notarising,
+      # or fail half way through the build, so a partial set stops here.
+      - name: Is signing on?
+        id: signing
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD != '' }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          names=(APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID)
+          missing=()
+          for name in "${names[@]}"; do
+            if [ "${!name}" != true ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "signed=true" | tee -a "$GITHUB_OUTPUT"
+          elif [ "${#missing[@]}" -eq "${#names[@]}" ]; then
+            echo "signed=false" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "::error::Signing needs all six APPLE_* secrets; missing: ${missing[*]}"
+            exit 1
+          fi
+
+      # The updater is on once tauri.conf.json carries its public key, which
+      # James commits with the key (RELEASING.md). Half of it on would ship an
+      # update nobody can install, so that fails here.
+      - name: Is the updater on?
+        id: updater
+        env:
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          conf=apps/desktop/src-tauri/tauri.conf.json
+          if ! jq -e '.plugins.updater.pubkey // empty' "$conf" > /dev/null; then
+            echo "enabled=false" | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! jq -e '.bundle.createUpdaterArtifacts == true' "$conf" > /dev/null; then
+            echo "::error::tauri.conf.json has an updater key but not bundle.createUpdaterArtifacts: true"
+            exit 1
+          fi
+          if [ "$HAS_UPDATER_KEY" != true ]; then
+            echo "::error::tauri.conf.json has an updater key but TAURI_SIGNING_PRIVATE_KEY is not set"
+            exit 1
+          fi
+          echo "enabled=true" | tee -a "$GITHUB_OUTPUT"
+
+      # Tauri reads APPLE_CERTIFICATE as soon as it is set, even empty, so the
+      # signed build is a step of its own rather than one with blank secrets.
+      - name: Build, signed and notarised
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.updater.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.updater.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          UPDATER: ${{ steps.updater.outputs.enabled }}
+        run: |
+          features=()
+          if [ "$UPDATER" = true ]; then features=(--features updater); fi
+          pnpm --dir apps/desktop tauri build --target "$TARGET" "${features[@]}"
+
+      # Ad-hoc signed (`-`): macOS runs it once the quarantine flag is cleared,
+      # which the release notes explain. Unsigned outright, Apple silicon would
+      # call the app damaged.
+      - name: Build, ad-hoc signed
+        if: steps.signing.outputs.signed != 'true'
+        env:
+          APPLE_SIGNING_IDENTITY: '-'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.updater.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.updater.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          UPDATER: ${{ steps.updater.outputs.enabled }}
+        run: |
+          features=()
+          if [ "$UPDATER" = true ]; then features=(--features updater); fi
+          pnpm --dir apps/desktop tauri build --target "$TARGET" "${features[@]}"
+
+      # The .dmg, and with the updater on its signed update bundle too.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: |
+            apps/desktop/src-tauri/target/${{ env.TARGET }}/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/${{ env.TARGET }}/release/bundle/macos/*.app.tar.gz
+            apps/desktop/src-tauri/target/${{ env.TARGET }}/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [version, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # To make the draft release and upload to it.
+      contents: write
+    steps:
+      # For the install notes and the app's name only; nothing is installed or run.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: build
+
+      # Notes from the pull requests merged since the last release, after the
+      # install notes for how this build is signed. A rerun finds the draft it
+      # made before and replaces its files rather than making a second.
+      - name: Draft the release and attach the build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SIGNED: ${{ needs.build.outputs.signed }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          app=$(jq -r .productName apps/desktop/src-tauri/tauri.conf.json)
+          if [ "$SIGNED" = true ]; then notes=signed; else notes=unsigned; fi
+          jq -Rrs --arg app "$app" 'gsub("\\{app\\}"; $app)' \
+            ".github/release/install-$notes.md" > "$RUNNER_TEMP/notes.md"
+          if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2> /dev/null); then
+            if [ "$draft" != true ]; then
+              echo "::error::$TAG is already published; this workflow only makes drafts"
+              exit 1
+            fi
+          else
+            prerelease=()
+            if [[ "$TAG" == *-* ]]; then prerelease=(--prerelease); fi
+            gh release create "$TAG" --draft --verify-tag "${prerelease[@]}" \
+              --title "$app $TAG" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes
+          fi
+          find build -type f -print0 | xargs -0 gh release upload "$TAG" --clobber
