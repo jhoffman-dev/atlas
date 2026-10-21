@@ -379,10 +379,21 @@ export async function isolatedWorld() {
   const trash = join(base, 'trash');
   await mkdir(home);
   await mkdir(trash);
+  // The machine's git settings (in place of the real Mac's): git's housekeeping
+  // after a push, fetch or commit runs inside that command rather than in a
+  // detached process left writing into the world as it is removed (#477). It
+  // goes here, not in `env`, because git drops config from the environment when
+  // it starts the remote's side of a push to a path; and not in `home`, which
+  // is the person's own `.gitconfig`, for the tests to write.
+  const machineConfig = join(base, 'gitconfig');
+  await writeFile(
+    machineConfig,
+    '[maintenance]\n\tautoDetach = false\n[gc]\n\tautoDetach = false\n',
+  );
   const env: Env = {
     PATH: process.env['PATH'] ?? '/usr/bin:/bin',
     HOME: home,
-    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_SYSTEM: machineConfig,
     GIT_TERMINAL_PROMPT: '0',
     LANG: 'C',
   };
