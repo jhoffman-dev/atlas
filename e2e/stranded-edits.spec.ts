@@ -10,6 +10,7 @@ import {
   splitWindow,
   closePane,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * R13-11: work a closing pane could not save survives quitting the app.
@@ -52,8 +53,7 @@ async function strandAnEdit(page: Page, vault: FakeVault): Promise<void> {
   await expect(pane(page, 2).getByRole('article', { name: 'note' })).toBeVisible();
 
   await vault.write('note.md', STARRED);
-  await pane(page, 2).getByText('Original paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(pane(page, 2).getByText('Original paragraph.'));
   await page.keyboard.type(' Typed before quitting.');
   await expect(pane(page, 2).getByRole('alert')).toContainText('changed on disk');
 

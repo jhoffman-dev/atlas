@@ -11,6 +11,7 @@ import {
   sidebarSection,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * A real PNG, `width` by `height`, drawn as a soft diagonal gradient, so the
@@ -68,8 +69,7 @@ async function openNote(page: Page, name: string) {
 
 /** Clicks at the end of `text`, then onto a fresh line after it. */
 async function newLineAfter(page: Page, text: string) {
-  await page.getByText(text).click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText(text));
   await page.keyboard.press('Enter');
 }
 
@@ -276,8 +276,7 @@ test('a note with images written elsewhere shows them, and saves them byte-ident
   await openNote(page, 'photos');
   await expectDrawnImage(page, 2);
 
-  await page.getByText('Some text after.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Some text after.'));
   await page.keyboard.type(' Edited.');
   await saveNow(page);
   await expectSaved(page);

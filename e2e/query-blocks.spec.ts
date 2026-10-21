@@ -17,6 +17,7 @@ import {
   sidebarSection,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const front = (lines: string[], body: string) => ['---', ...lines, '---', '', body, ''].join('\n');
 
@@ -82,8 +83,7 @@ test('a query block added to a page shows its meetings, follows its text and the
   await openPerson(page, 'Mara Quill');
 
   // `/query` on a new line makes the block, open at its text.
-  await page.getByLabel('Note', { exact: true }).getByText('Meets weekly.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByLabel('Note', { exact: true }).getByText('Meets weekly.'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('/query');
   const commands = page.getByRole('listbox', { name: 'Insert block' });
@@ -143,8 +143,7 @@ test('a query block from another app is shown for its own page and kept byte for
   await expect(block(page).getByRole('textbox', { name: 'Query text' })).toHaveCount(0);
 
   // The page's other words change; the fence, tildes and all, does not.
-  await page.getByLabel('Note', { exact: true }).getByText('Prefers mornings.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByLabel('Note', { exact: true }).getByText('Prefers mornings.'));
   await page.keyboard.type(' And tea.');
   await saveNow(page);
   await expectSaved(page);

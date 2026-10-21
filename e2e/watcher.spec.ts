@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, emitVaultChanged, expectSaved, installHost, saveNow } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 async function openNote(page: Page) {
   const vault = await createVault();
@@ -17,8 +18,7 @@ async function openNote(page: Page) {
 test('an edit still saves after the vault changes underneath', async ({ page }) => {
   const vault = await openNote(page);
 
-  await page.getByText('Original paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Original paragraph.'));
   await page.keyboard.type(' Edited.');
   await expect(page.getByText('Unsaved')).toBeVisible();
 
@@ -39,8 +39,7 @@ test('typing after the vault changes underneath still marks the note unsaved', a
   await emitVaultChanged(page, ['other.md']);
   await page.waitForTimeout(300);
 
-  await page.getByText('Original paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Original paragraph.'));
   await page.keyboard.type(' Typed later.');
 
   await expect(page.getByText('Unsaved')).toBeVisible();
@@ -62,8 +61,7 @@ test('the watcher’s echo of an autosave still puts the save in the index (#254
   await expect(page.getByText(/^1 notes? indexed/)).toBeVisible();
 
   // A save refreshes nothing itself: the watcher's report of it is what the index hears.
-  await page.getByText('Original paragraph.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Original paragraph.'));
   await page.keyboard.type(' Marmalade.');
   await saveNow(page);
   await expectSaved(page);

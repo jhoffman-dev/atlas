@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /*
  * Attack on #346: the tab shortcuts and the click routes against the text
@@ -117,8 +118,7 @@ test('⌘1 in the search palette leaves the palette, its query and the tabs as t
 test('⌃T in the editor is the Mac’s transpose, not a new tab', async ({ page }) => {
   const vault = await openVault(page);
   await row(page, 'beta').click();
-  await article(page, 1, 'beta').getByText('Line of beta.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(article(page, 1, 'beta').getByText('Line of beta.'));
   await page.keyboard.type(' ab');
   await page.keyboard.press('Control+t');
   await expect(tabsOf(page, 1)).toHaveText(['beta']);

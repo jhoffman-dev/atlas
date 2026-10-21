@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectSaved, installHost, saveNow } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const NOTE = [
   '# Today',
@@ -113,8 +114,7 @@ test('typing [[ offers notes and inserts a link', async ({ page }) => {
   const vault = await openVaultWith(page);
   await page.getByRole('treeitem', { name: 'today', exact: true }).click();
 
-  await page.getByText('A link to').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('A link to'));
   await page.keyboard.type(' [[Anot');
 
   const popup = page.getByRole('listbox', { name: 'Link to note' });
@@ -137,8 +137,7 @@ test('typing / offers blocks to insert', async ({ page }) => {
   await openVaultWith(page);
   await page.getByRole('treeitem', { name: 'today', exact: true }).click();
 
-  await page.getByText('A link to').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('A link to'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('/quote');
 
@@ -159,8 +158,7 @@ test('editing leaves the table and callout byte-identical', async ({ page }) => 
   const vault = await openVaultWith(page);
   await page.getByRole('treeitem', { name: 'today', exact: true }).click();
 
-  await page.getByText('A link to').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('A link to'));
   await page.keyboard.type(' Edited.');
   await saveNow(page);
   await expectSaved(page);
