@@ -60,6 +60,10 @@ describe('a note saved while a person is being made from @', () => {
     );
     const instance = await editorIn(container);
     instance.commands.focus('end');
+    // TipTap takes focus, and scrolls the caret into view, on the next frame. Once
+    // the placeholder is in, jsdom cannot measure that caret (#462), so the test
+    // goes on only once the editor holds focus and that scroll is behind it.
+    await waitFor(() => expect(instance.view.hasFocus()).toBe(true));
     typeInto(instance, 'With @Ann Lee');
     fireEvent.mouseDown(await screen.findByRole('option', { name: /Create person/ }));
     typeInto(instance, 'will call');
