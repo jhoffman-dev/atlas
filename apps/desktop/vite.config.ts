@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -48,6 +49,24 @@ function chunkFilesMeta(): Plugin {
   };
 }
 
+/**
+ * The commit this build is made from, short, for Settings → About and the
+ * API's status (#481). Null outside a git checkout — a build from a source
+ * archive — which the app shows as no build rather than failing to build.
+ */
+function buildCommit(): string | null {
+  try {
+    return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], {
+      cwd: fileURLToPath(new URL('.', import.meta.url)),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    // No git, or not a checkout: the build simply does not know its commit.
+    return null;
+  }
+}
+
 export default defineConfig({
   plugins: [react(), chunkFilesMeta()],
   // The MCP server's path in this checkout, so Settings can offer a command that
@@ -56,6 +75,7 @@ export default defineConfig({
     __ATLAS_MCP_ENTRY__: JSON.stringify(
       fileURLToPath(new URL('../mcp/dist/main.js', import.meta.url)),
     ),
+    __ATLAS_BUILD__: JSON.stringify(buildCommit()),
   },
   resolve: {
     alias: {
