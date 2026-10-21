@@ -24,9 +24,12 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use crate::vault::{root_for_write, VaultState};
 
 pub use binding::{check_bound, entries_in, remove_secret, write_secret, SecretEntry, SecretWrite};
+pub use keychain::KeychainStore;
 
-/// The Keychain service every Atlas secret is filed under.
-pub const SERVICE: &str = "dev.jhoffman.atlas";
+/// The Keychain service every DFAI secret is filed under: the bundle
+/// identifier. Atlas filed its secrets under its own, and the first launch
+/// copies them across (`rename_migration`).
+pub const SERVICE: &str = crate::rename_migration::IDENTIFIER;
 
 /// Where values live. A trait so that tests run against memory, never the
 /// Keychain of the machine running them.
@@ -59,7 +62,7 @@ impl SecretState {
 
 impl Default for SecretState {
     fn default() -> Self {
-        Self::new(Box::new(keychain::KeychainStore))
+        Self::new(Box::new(KeychainStore::for_service(SERVICE)))
     }
 }
 

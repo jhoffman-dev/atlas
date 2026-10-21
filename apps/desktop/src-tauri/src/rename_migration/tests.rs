@@ -75,7 +75,10 @@ fn copies_the_old_folder_when_the_new_one_is_missing() {
 
     assert_eq!(copy_folder_once(&folders).unwrap(), Copied::Folder);
 
-    assert_eq!(read(&folders.to.join("vault.json")), r#"{"absolutePath":"/v"}"#);
+    assert_eq!(
+        read(&folders.to.join("vault.json")),
+        r#"{"absolutePath":"/v"}"#
+    );
     assert_eq!(read(&folders.to.join("activity/2026-10.jsonl")), "line\n");
     let mode = fs::metadata(folders.to.join("api.json"))
         .unwrap()
@@ -131,7 +134,10 @@ fn a_second_run_changes_nothing() {
 
     copy_folder_once(&folders).unwrap();
     write(&folders.to.join("vault.json"), "newer");
-    write(&folders.from.join("vault.json"), "old, changed by the old app");
+    write(
+        &folders.from.join("vault.json"),
+        "old, changed by the old app",
+    );
 
     assert_eq!(copy_folder_once(&folders).unwrap(), Copied::AlreadyThere);
     assert_eq!(read(&folders.to.join("vault.json")), "newer");
@@ -226,7 +232,10 @@ fn copies_every_old_secret_to_the_new_service() {
 
     assert_eq!(copied.copied, 2);
     assert_eq!(new.get("v1/github").unwrap().as_deref(), Some("ghp_A"));
-    assert_eq!(new.get("v1:oauth/google").unwrap().as_deref(), Some("refresh"));
+    assert_eq!(
+        new.get("v1:oauth/google").unwrap().as_deref(),
+        Some("refresh")
+    );
 }
 
 #[test]
@@ -238,7 +247,10 @@ fn never_overwrites_a_secret_the_new_service_already_has() {
 
     assert_eq!(copied.copied, 0);
     assert_eq!(copied.already_there, 1);
-    assert_eq!(new.get("v1/github").unwrap().as_deref(), Some("newer token"));
+    assert_eq!(
+        new.get("v1/github").unwrap().as_deref(),
+        Some("newer token")
+    );
 }
 
 #[test]
@@ -291,7 +303,10 @@ fn support(home: &Path, identifier: &str) -> std::path::PathBuf {
 #[test]
 fn a_launch_copies_folders_and_secrets_then_marks_it_done() {
     let home = tempfile::tempdir().unwrap();
-    write(&support(home.path(), LEGACY_IDENTIFIER).join("vault.json"), "v");
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "v",
+    );
     write(
         &home
             .path()
@@ -307,7 +322,10 @@ fn a_launch_copies_folders_and_secrets_then_marks_it_done() {
         secrets: &new,
     });
 
-    assert_eq!(read(&support(home.path(), IDENTIFIER).join("vault.json")), "v");
+    assert_eq!(
+        read(&support(home.path(), IDENTIFIER).join("vault.json")),
+        "v"
+    );
     assert_eq!(
         read(
             &home
@@ -376,4 +394,12 @@ fn a_first_install_with_nothing_old_copies_nothing() {
 
     assert!(new.accounts().unwrap().is_empty());
     assert!(!home.path().join("Library/WebKit/dfai").exists());
+}
+
+#[test]
+fn the_identifier_is_the_one_the_app_is_bundled_with() {
+    let config: serde_json::Value =
+        serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+
+    assert_eq!(config["identifier"], IDENTIFIER);
 }

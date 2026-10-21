@@ -20,7 +20,7 @@ beforeAll(() => settingsDialog.preload(), 30_000);
  * token, and what the panel says after each.
  */
 
-const FILE = '/Users/j/Library/Application Support/dev.jhoffman.atlas/api.json';
+const FILE = '/Users/j/Library/Application Support/com.dailyflowai.dfai/api.json';
 
 function fakeHost({ failToStart = null }: { failToStart?: string | null } = {}) {
   let status: ApiConnectionStatus = { enabled: false, port: null, running: false, file: FILE };

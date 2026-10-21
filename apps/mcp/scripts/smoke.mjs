@@ -23,7 +23,7 @@ const DEFAULT_CONNECTION = join(
   homedir(),
   'Library',
   'Application Support',
-  'dev.jhoffman.atlas',
+  'com.dailyflowai.dfai',
   'api.json',
 );
 

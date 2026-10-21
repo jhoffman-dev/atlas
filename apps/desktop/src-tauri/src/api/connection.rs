@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn the_file_is_readable_only_by_its_owner() {
         let dir = tempfile::tempdir().unwrap();
-        let nested = dir.path().join("dev.jhoffman.atlas");
+        let nested = dir.path().join("com.dailyflowai.dfai");
         save(&nested, &ConnectionFile::fresh().unwrap()).unwrap();
         assert_eq!(mode_of(&path_in(&nested)), 0o600);
         assert_eq!(mode_of(&nested), 0o700);

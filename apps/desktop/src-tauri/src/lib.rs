@@ -35,6 +35,9 @@ fn report_error(message: String) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Before the builder: Tauri makes the app's folders and the webview its
+    // storage as it starts, and the copy must find the new ones missing.
+    let migrated = rename_migration::on_launch();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(global_capture::plugin())
@@ -124,7 +127,7 @@ pub fn run() {
             api::api_router_ready,
         ])
         .on_page_load(api::forget_router_on_page_load)
-        .setup(|app| {
+        .setup(move |app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -141,6 +144,9 @@ pub fn run() {
                         ))
                         .build(),
                 )?;
+            }
+            for line in &migrated {
+                log::info!("migration from Atlas: {line}");
             }
             api::restore(app.handle());
             Ok(())

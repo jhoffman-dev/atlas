@@ -1,5 +1,5 @@
 //! Two fetches of the same model file at once, as two Atlas processes on one
-//! Mac (they share `~/Library/Application Support/dev.jhoffman.atlas`, and the
+//! Mac (they share `~/Library/Application Support/com.dailyflowai.dfai`, and the
 //! in-process lock does not reach across processes) make on a first use.
 //!
 //! Needs the network: the 711 KB tokenizer is fetched through a local CONNECT

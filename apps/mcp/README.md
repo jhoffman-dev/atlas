@@ -12,7 +12,7 @@ types, the byte-preserving save, and the panes you have open.
 
 1. Open Atlas.
 2. Turn on the API in **Settings → Connections**. Atlas writes the port and
-   token to `~/Library/Application Support/dev.jhoffman.atlas/api.json`, which
+   token to `~/Library/Application Support/com.dailyflowai.dfai/api.json`, which
    this server reads on every call — rotating the token or restarting Atlas
    needs no restart here.
 

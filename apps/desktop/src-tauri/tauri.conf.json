@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Atlas",
   "version": "0.1.0",
-  "identifier": "dev.jhoffman.atlas",
+  "identifier": "com.dailyflowai.dfai",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
