@@ -32,10 +32,17 @@ function nextPlaceholderId(): string {
   return `pending-${made}`;
 }
 
-/** The placeholder for `name`, as content to insert where the `@` was. */
-export function pendingMentionContent(name: string): { id: string; content: JSONContent } {
+/**
+ * The placeholder for `name`, as content to insert where it was typed: after
+ * `@` for a person, or after `[[` for a note made from the link list (#465) —
+ * drawn as typed, `@Name` or `[[Name`, until the link takes its place.
+ */
+export function pendingMentionContent(
+  name: string,
+  sigil: '@' | '[[' = '@',
+): { id: string; content: JSONContent } {
   const id = nextPlaceholderId();
-  return { id, content: { type: PENDING_MENTION, attrs: { id, name } } };
+  return { id, content: { type: PENDING_MENTION, attrs: { id, name, sigil } } };
 }
 
 /**
@@ -61,7 +68,7 @@ export const PendingMention = Node.create<Record<string, never>, PendingMentionS
   },
 
   addAttributes() {
-    return { id: { default: '' }, name: { default: '' } };
+    return { id: { default: '' }, name: { default: '' }, sigil: { default: '@' } };
   },
 
   parseHTML() {
@@ -72,7 +79,7 @@ export const PendingMention = Node.create<Record<string, never>, PendingMentionS
     return [
       'span',
       { class: 'mention-pending', 'aria-busy': 'true' },
-      `@${String(node.attrs['name'])}`,
+      `${String(node.attrs['sigil'])}${String(node.attrs['name'])}`,
     ];
   },
 
@@ -169,4 +176,52 @@ function joinText(nodes: readonly JSONContent[]): JSONContent[] {
 
 function sameMarks(left: JSONContent, right: JSONContent): boolean {
   return JSON.stringify(left.marks ?? []) === JSON.stringify(right.marks ?? []);
+}
+
+/** Makes a note of a name, resolving to what a link to it is written as. */
+export type MakeLinked = (name: string) => Promise<string>;
+
+/**
+ * Makes a note of `name`, then links it where it was typed. A placeholder
+ * takes the typed words' place at once, so the list closes and typing goes
+ * on after it; once the note exists the placeholder becomes the link to the
+ * note as it was made — its name cleaned or numbered, whatever was typed. If
+ * the note cannot be made, the typed words come back in its place, the list
+ * left closed (`closeList`), as it was answered. If the placeholder has gone
+ * by then, nothing is written, and `notLinked` says so.
+ */
+export async function linkOnceMade(
+  editor: Editor,
+  {
+    range,
+    name,
+    sigil,
+    make,
+    notLinked,
+    closeList,
+  }: {
+    range: { from: number; to: number };
+    name: string;
+    sigil: '@' | '[[';
+    make: MakeLinked;
+    notLinked: (name: string) => void;
+    closeList: () => void;
+  },
+): Promise<void> {
+  const typed = editor.state.doc.textBetween(range.from, range.to);
+  const { id, content } = pendingMentionContent(name, sigil);
+  editor
+    .chain()
+    .focus()
+    .insertContentAt(range, [content, { type: 'text', text: ' ' }])
+    .run();
+  let target: string;
+  try {
+    target = await make(name);
+  } catch {
+    // The app says why where it made the attempt; here the words come back.
+    if (settlePendingMention(editor, { id, outcome: { kind: 'failed', typed } })) closeList();
+    return;
+  }
+  if (!settlePendingMention(editor, { id, outcome: { kind: 'linked', target } })) notLinked(name);
 }

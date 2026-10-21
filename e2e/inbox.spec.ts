@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { pickSuggestion, suggestion } from './link-suggest.ts';
 
 /**
  * P30-01: PARA, as #213 has it — one Project type, offered, never written
@@ -143,12 +144,13 @@ test('a captured task waits in the Inbox, and Process files it under its project
 
   const fileUnder = inbox.getByRole('combobox', { name: 'File Renew the passport under' });
   // Projects and areas are offered; a person is not something to file under.
-  await expect(fileUnder.getByRole('option', { name: 'Atlas' })).toHaveCount(1);
-  await expect(fileUnder.getByRole('option', { name: 'Garden' })).toHaveCount(1);
-  await expect(fileUnder.getByRole('option', { name: 'Mara Quill' })).toHaveCount(0);
+  await fileUnder.click();
+  await expect(suggestion(fileUnder, 'Atlas')).toHaveCount(1);
+  await expect(suggestion(fileUnder, 'Garden')).toHaveCount(1);
+  await expect(suggestion(fileUnder, 'Mara Quill')).toHaveCount(0);
 
   // A task's row holds what is picked until Done (#112).
-  await fileUnder.selectOption({ label: 'Atlas' });
+  await pickSuggestion(fileUnder, 'Atlas');
   await inbox
     .getByRole('form', { name: 'Clarify Renew the passport' })
     .getByRole('button', { name: 'Save', exact: true })
@@ -170,9 +172,10 @@ test('the Inbox files a meeting under an area, linked, into its home folder', as
     .getByRole('button', { name: /^Inbox/ })
     .click();
 
-  await inboxPage(page)
-    .getByRole('combobox', { name: 'File 2026-10-01 Seed swap under' })
-    .selectOption({ label: 'Garden' });
+  await pickSuggestion(
+    inboxPage(page).getByRole('combobox', { name: 'File 2026-10-01 Seed swap under' }),
+    'Garden',
+  );
 
   // Its home is the month its name starts with.
   const filed = 'Meetings/2026/10/2026-10-01 Seed swap.md';
@@ -205,8 +208,8 @@ test('a task’s project, once its type is extended, offers projects and areas a
   await capture(page, 'Order seeds');
   await expectFile(vault, 'Inbox/Order seeds.md').toContain('type: task');
   const picker = page.getByRole('region', { name: 'Properties' }).getByLabel('Project');
-  await expect(picker.locator('optgroup')).toHaveCount(2);
-  await expect(picker.getByRole('option', { name: 'Atlas' })).toHaveCount(1);
-  await expect(picker.getByRole('option', { name: 'Garden' })).toHaveCount(1);
-  await expect(picker.getByRole('option', { name: 'Mara Quill' })).toHaveCount(0);
+  await picker.click();
+  await expect(suggestion(picker, 'Atlas')).toHaveAttribute('aria-label', /, Projects,/);
+  await expect(suggestion(picker, 'Garden')).toHaveAttribute('aria-label', /, Areas,/);
+  await expect(suggestion(picker, 'Mara Quill')).toHaveCount(0);
 });

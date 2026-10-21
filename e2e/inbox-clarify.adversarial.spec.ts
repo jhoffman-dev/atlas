@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { pickSuggestion } from './link-suggest.ts';
 
 /**
  * Adversarial pass on #112: the Inbox row worked the way a person changes
@@ -66,7 +67,7 @@ test('a change of mind away from Waiting does not write the person picked while 
   const who = inbox.getByRole('combobox', { name: 'Who Call Tobias Fenn waits on' });
 
   await status.selectOption({ label: 'Waiting' });
-  await who.selectOption({ label: 'Mara Quill' });
+  await pickSuggestion(who, 'Mara Quill');
   await status.selectOption({ label: 'Next Action' });
   // The row no longer asks who it waits on, so nothing on it says Mara Quill.
   await expect(who).toHaveCount(0);

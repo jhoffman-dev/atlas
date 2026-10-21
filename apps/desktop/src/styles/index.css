@@ -13,6 +13,7 @@
 @import './overlays.css';
 @import './page.css';
 @import './properties.css';
+@import './link-suggest.css';
 @import './mentions.css';
 @import './menus.css';
 @import './peek.css';

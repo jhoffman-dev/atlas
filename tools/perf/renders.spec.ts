@@ -12,7 +12,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Page } from '../../e2e/fixtures.ts';
+import { expect, test, type Locator, type Page } from '../../e2e/fixtures.ts';
 import { sidebarSection } from '../../e2e/host.ts';
 import {
   installRenderCounter,
@@ -85,7 +85,21 @@ async function observe<Arg>(action: string, setUp: () => Promise<Step<Arg>>): Pr
   observed.push({ action, timed, counts });
 }
 
-const INBOX_PICKERS = 'article[aria-label="Inbox"] div.inbox__clarify select.inbox__file';
+// The note pickers suggest notes as you type (#465): fields, not selects.
+const INBOX_PICKERS = 'article[aria-label="Inbox"] div.inbox__clarify input.inbox__file';
+
+/**
+ * Opens a note picker and makes its first suggestion active (#465): before
+ * the pick, as a select's options were there before its change.
+ */
+async function readyToPick(picker: Locator): Promise<void> {
+  await picker.click();
+  await picker.press('ArrowDown');
+  await expect(
+    page.locator('[role="listbox"][aria-label="Suggested notes"] [aria-selected="true"]'),
+  ).toHaveCount(1);
+}
+
 const TODAY_TICKS = 'article[aria-label="Today"] input.done-check:not([disabled])';
 const TASK_TABLE = /^Task, \d+ notes?$/;
 
@@ -117,7 +131,7 @@ test('open the Inbox', async () => {
     return {
       act: () => sidebarButton(/^Inbox/).click(),
       arg: INBOX_PICKERS,
-      ready: (selector) => document.querySelector<HTMLSelectElement>(selector)?.disabled === false,
+      ready: (selector) => document.querySelector<HTMLInputElement>(selector)?.disabled === false,
     };
   });
 });
@@ -127,11 +141,12 @@ test('decide one Inbox row', async () => {
     await showInbox();
     const picker = page.locator(INBOX_PICKERS).first();
     const label = (await picker.getAttribute('aria-label')) ?? '';
+    await readyToPick(picker);
     return {
-      act: () => picker.selectOption({ index: 1 }).then(() => undefined),
+      act: () => picker.press('Enter'),
       arg: { label, selector: INBOX_PICKERS },
       ready: ({ label: filed, selector }) => {
-        const all = [...document.querySelectorAll<HTMLSelectElement>(selector)];
+        const all = [...document.querySelectorAll<HTMLInputElement>(selector)];
         return (
           all[0]?.disabled === false &&
           all.every((each) => each.getAttribute('aria-label') !== filed)

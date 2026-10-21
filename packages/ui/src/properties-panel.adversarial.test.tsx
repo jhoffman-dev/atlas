@@ -32,11 +32,7 @@ describe('"New company…" in a relation picker — attacks (issue #15)', () => 
         onCreateRelated={async () => '[[Globex]]'}
       />,
     );
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Field' }), 'New company…');
-    await userEvent.type(
-      screen.getByRole('textbox', { name: 'Name of the new company' }),
-      'Globex{Enter}',
-    );
+    await userEvent.type(screen.getByRole('combobox', { name: 'Field' }), 'Globex{Enter}');
 
     const [, update] = onChange.mock.lastCall as [string, (current: unknown) => unknown];
     // Applied to what the file holds when the write lands, typed since included.
@@ -56,8 +52,7 @@ describe('"New company…" in a relation picker — attacks (issue #15)', () => 
       />,
     );
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Field' }), 'New company…');
-    const name = screen.getByRole('textbox', { name: 'Name of the new company' });
+    const name = screen.getByRole('combobox', { name: 'Field' });
     await userEvent.type(name, 'Acme');
     fireEvent.keyDown(name, { key: 'Enter' });
     fireEvent.keyDown(name, { key: 'Enter' });

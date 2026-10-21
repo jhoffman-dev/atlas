@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
+import { pickSuggestion, suggestedTitles } from './link-suggest.ts';
 
 const COMPANY_TYPE = [
   '---',
@@ -72,9 +73,10 @@ test('a relation offers only notes of the type it points at', async ({ page }) =
 
   // The choices arrive from the index, so wait for them rather than reading the
   // list the moment the note opens.
-  await expect.poll(() => ceo.locator('option').allTextContents()).toContain('Ada Lovelace');
+  await ceo.click();
+  await expect.poll(() => suggestedTitles(ceo).allTextContents()).toContain('Ada Lovelace');
 
-  const offered = await ceo.locator('option').allTextContents();
+  const offered = await suggestedTitles(ceo).allTextContents();
   expect(offered).toContain('Grace Hopper');
   // Not Acme: it is a company, and this relation points at people.
   expect(offered.join(' ')).not.toContain('Acme');
@@ -84,10 +86,10 @@ test('choosing a relation writes a wiki link into the frontmatter', async ({ pag
   const vault = await openTypedVault(page);
   await page.getByRole('treeitem', { name: 'Acme', exact: true }).click();
 
-  await page
-    .getByRole('region', { name: 'Properties' })
-    .getByLabel('ceo')
-    .selectOption({ label: 'Ada Lovelace' });
+  await pickSuggestion(
+    page.getByRole('region', { name: 'Properties' }).getByLabel('ceo'),
+    'Ada Lovelace',
+  );
 
   // Quoted, and it has to be: unquoted, `[[Ada Lovelace]]` is a nested YAML
   // array rather than a link. Obsidian writes it the same way.

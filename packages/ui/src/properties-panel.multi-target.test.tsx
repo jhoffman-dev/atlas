@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PropertyDef } from '@atlas/domain';
+import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 import { PropertiesPanel, type PropertyRow, type RelationChoice } from './properties-panel.tsx';
 
 const PROJECT: PropertyDef = {
@@ -49,43 +50,37 @@ function picker(onCreateRelated?: (args: { target: string; name: string }) => Pr
 }
 
 describe('a relation that points at a project or an area', () => {
-  it('offers the notes of both types, each under its own', () => {
+  it('offers the notes of both types, each named by its type', async () => {
     const { select } = picker();
-    const groups = [...select.querySelectorAll('optgroup')];
-    expect(groups.map((group) => group.label)).toEqual(['Projects', 'Areas']);
-    expect(groups.map((group) => [...group.children].map((option) => option.textContent))).toEqual([
-      ['Atlas'],
-      ['Garden', 'Health'],
-    ]);
+    await userEvent.click(select);
+    expect(suggestedTitles()).toEqual(['Atlas', 'Garden', 'Health']);
+    const types = screen
+      .getAllByRole('option')
+      .map((option) => option.querySelector('.link-suggest__type')?.textContent);
+    expect(types).toEqual(['Projects', 'Areas', 'Areas']);
   });
-
   it('names both types in its prompt', () => {
     const { select } = picker();
-    expect(select.querySelector('option')?.textContent).toBe('— no project or area —');
+    expect(select.getAttribute('placeholder')).toBe('— no project or area —');
   });
-
   it('links an area as readily as a project', async () => {
     const { onChange, select } = picker();
-    await userEvent.selectOptions(select, 'Garden');
+    await pickSuggestion(select, 'Garden');
     expect(onChange).toHaveBeenLastCalledWith('project', '[[Areas/Garden]]');
   });
 
   it('offers a new note of each type, and makes the one picked', async () => {
     const onCreateRelated = vi.fn(async () => '[[Kitchen]]');
     const { onChange, select } = picker(onCreateRelated);
-    const offered = [...select.querySelectorAll(':scope > option')].map((o) => o.textContent);
-    expect(offered.slice(-2)).toEqual(['New project…', 'New area…']);
+    await userEvent.type(select, 'Kitchen');
+    const offered = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(offered).toEqual(['Create project ‘Kitchen’', 'Create area ‘Kitchen’']);
 
-    await userEvent.selectOptions(select, 'New area…');
-    await userEvent.type(
-      screen.getByRole('textbox', { name: 'Name of the new area' }),
-      'Kitchen{Enter}',
-    );
+    await userEvent.click(screen.getByRole('option', { name: 'Create area ‘Kitchen’' }));
     expect(onCreateRelated).toHaveBeenCalledWith({ target: 'area', name: 'Kitchen' });
     expect(onChange).toHaveBeenLastCalledWith('project', '[[Kitchen]]');
   });
-
-  it('draws one type plainly, with no group around it', () => {
+  it('offers the one note of a single type', async () => {
     render(
       <PropertiesPanel
         typeName="task"
@@ -94,8 +89,7 @@ describe('a relation that points at a project or an area', () => {
         onChange={vi.fn()}
       />,
     );
-    const select = screen.getByLabelText('Project');
-    expect(select.querySelectorAll('option')).toHaveLength(2);
-    expect(select.querySelectorAll('optgroup')).toHaveLength(0);
+    await userEvent.click(screen.getByLabelText('Project'));
+    expect(suggestedTitles()).toEqual(['Atlas']);
   });
 });

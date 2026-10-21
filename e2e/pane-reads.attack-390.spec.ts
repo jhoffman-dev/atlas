@@ -9,6 +9,7 @@ import {
   splitWindow,
   type FakeVault,
 } from './host.ts';
+import { suggestion } from './link-suggest.ts';
 
 /**
  * Attack on PR #390 (Performance 9, #325): each pane reads again only for
@@ -155,14 +156,16 @@ test.describe('attack-390: stale panes (failing on the PR head)', () => {
       .click();
     const inbox = page.getByRole('article', { name: 'Inbox' });
     const fileUnder = inbox.getByRole('combobox', { name: 'File Call the bank under' });
-    await expect(fileUnder).toHaveValue('Projects/Atlas.md');
+    // The field shows the project the row holds by its title (#465).
+    await expect(fileUnder).toHaveValue('Atlas');
 
     await moveOutside(page, vault, 'Projects/Atlas.md', 'Projects/Active/Atlas.md');
     // The choices heard it (INBOX_CHOICES_SCOPE holds project): Atlas is offered where it is now.
-    await expect(fileUnder.locator('option[value="Projects/Active/Atlas.md"]')).toHaveCount(1);
-    // `[[Atlas]]` now resolves there, but the list (INBOX_SCOPE: Inbox/, task, meeting,
-    // imports) was not read again, so the row still holds the path the project left.
-    await expect(fileUnder).toHaveValue('Projects/Active/Atlas.md');
+    await fileUnder.click();
+    await expect(suggestion(fileUnder, 'Atlas')).toHaveAttribute('aria-label', /Active/);
+    await fileUnder.press('Escape');
+    // `[[Atlas]]` now resolves there, and the row holds the project where it is.
+    await expect(fileUnder).toHaveValue('Atlas');
   });
 
   test('Today drops a next action’s area group when another program deletes the area', async ({

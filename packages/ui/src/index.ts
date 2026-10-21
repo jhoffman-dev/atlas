@@ -62,6 +62,7 @@ export type { OpenHow } from './open-how.ts';
 export { TabStrip } from './tab-strip.tsx';
 export type { TabStripTab } from './tab-strip.tsx';
 export type { NotePaneState, PageHeading, PaneArrangement } from './note-pane.tsx';
+export type { LinkedNoteMaker } from './editor/wiki-link-suggestion.ts';
 export type { OverlaySlot, OverlaySlots } from './overlay-slot.ts';
 export { NoteEditor } from './note-editor.tsx';
 export type {
@@ -169,6 +170,8 @@ export type { GroupOption } from './view-settings-popovers.tsx';
 export { QueryPage } from './query-page.tsx';
 export type { AddToDashboard, QueryChoice, QueryPageProps, SaveAsView } from './query-page.tsx';
 export { LinkedNote, NoteNamesProvider, useNoteNames } from './note-names.tsx';
+export { LinkHintsProvider, useLinkHints } from './link-suggest/link-hints.tsx';
+export type { LinkHintsSource } from './link-suggest/link-hints.tsx';
 export { ArtifactViewer, ARTIFACT_SANDBOX } from './artifact-viewer.tsx';
 export type { ArtifactViewerCopy } from './artifact-viewer.tsx';
 export { ArtifactCardFace } from './artifact-card-face.tsx';

@@ -13,6 +13,7 @@ import {
   sidebarSection,
   type FakeVault,
 } from './host.ts';
+import { pickSuggestion, suggestedTitles } from './link-suggest.ts';
 
 const TASK_TYPE = [
   '---',
@@ -109,15 +110,17 @@ test('a relation set through the note reads as the note it names, everywhere it 
 
   await addRelation(page, { name: 'Project', target: 'Project', many: false });
   const project = properties(page).getByRole('combobox', { name: 'Project' });
-  await expect.poll(() => project.locator('option').allTextContents()).toContain('Atlas');
-  await project.selectOption({ label: 'Atlas' });
+  await project.click();
+  await expect.poll(() => suggestedTitles(project).allTextContents()).toContain('Atlas');
+  await pickSuggestion(project, 'Atlas');
   await expectFile(vault, 'Write docs.md').toContain('project: "[[Atlas]]"');
 
   await addRelation(page, { name: 'People', target: 'Person', many: true });
   const people = properties(page).getByRole('combobox', { name: 'People' });
-  await expect.poll(() => people.locator('option').allTextContents()).toContain('Grace Hopper');
-  await people.selectOption({ label: 'Ada Lovelace' });
-  await people.selectOption({ label: 'Grace Hopper' });
+  await people.click();
+  await expect.poll(() => suggestedTitles(people).allTextContents()).toContain('Grace Hopper');
+  await pickSuggestion(people, 'Ada Lovelace');
+  await pickSuggestion(people, 'Grace Hopper');
   await expectFile(vault, 'Write docs.md').toMatch(
     /\npeople:\n {2}- "\[\[Ada Lovelace\]\]"\n {2}- "\[\[Grace Hopper\]\]"\n/,
   );
