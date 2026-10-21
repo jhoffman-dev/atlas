@@ -24,7 +24,13 @@ function move(active: Active, delta = { x: 0, y: 48 }): DragMoveEvent {
 describe('a task from the tray, moved once the drag is over', () => {
   const setup = () => {
     const { result } = renderHook(() =>
-      useTrayDrag({ tasks: [call], onPlace: vi.fn(), within: () => document.body }),
+      useTrayDrag({
+        tasks: [call],
+        onPlace: vi.fn(),
+        within: () => document.body,
+        // jsdom lays nothing out, so nothing is under the pointer.
+        elementsAt: () => [],
+      }),
     );
     const active = { id: trayDragId(call) } as Active;
     result.current.onDragStart({
