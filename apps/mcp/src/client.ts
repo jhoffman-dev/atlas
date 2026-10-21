@@ -9,6 +9,10 @@
 
 import type {
   ApiAcceptedProposal,
+  ApiDuplicatePair,
+  ApiMergePeopleBody,
+  ApiPeopleMergePreview,
+  ApiPeopleMergeReport,
   ApiAddViewNoteBody,
   ApiAppendBody,
   ApiArchiveBody,
@@ -360,6 +364,19 @@ export class AtlasClient {
     this.json<{ rename: ApiTagRenamePreview; report?: ApiTagRenameReport }>({
       method: 'POST',
       path: `/v1/tags/${tagSegment(tag)}/rename`,
+      body,
+    });
+
+  duplicatePeople = () =>
+    this.json<{ pairs: readonly ApiDuplicatePair[] }>({
+      method: 'GET',
+      path: '/v1/people/duplicates',
+    });
+
+  mergePeople = (body: ApiMergePeopleBody) =>
+    this.json<{ merge: ApiPeopleMergePreview; report?: ApiPeopleMergeReport }>({
+      method: 'POST',
+      path: '/v1/people/merge',
       body,
     });
 

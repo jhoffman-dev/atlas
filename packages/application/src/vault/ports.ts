@@ -150,6 +150,11 @@ export interface OpenEditorsPort {
   follow(move: EntryMove): void;
   /** Lets go of the unsaved edits of panes holding notes that are gone, so nothing tries to save them. */
   abandon(paths: readonly VaultPath[]): void;
+  /**
+   * Every note a pane holds unsaved typing in. Optional: only the app has
+   * panes to list; a port without it is read as having none to save.
+   */
+  dirtyPaths?(): readonly VaultPath[];
 }
 
 /** Asking the user which folder is their vault, via the host's native picker. */

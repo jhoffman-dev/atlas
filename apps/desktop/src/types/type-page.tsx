@@ -18,6 +18,7 @@ import {
   PageAction,
   PageBar,
   PageHead,
+  SelectionBar,
   TableView,
   ViewTabs,
   type PageHistory,
@@ -29,6 +30,7 @@ import { PageFrameFallback } from '../page-frame-fallback.tsx';
 import { schemaOf } from '../panes/table-schema.ts';
 import type { useTypeTable } from './use-type-table.ts';
 import { useTypeEditor } from './use-type-editor.ts';
+import type { ChosenRows } from '../people/use-chosen-people.ts';
 import type { ReadTypesAgain } from './use-types.ts';
 
 /**
@@ -53,6 +55,8 @@ export function TypePage({
   tabEditing,
   onOpenView,
   onEditTemplate,
+  onFindDuplicates,
+  choosing,
   onRowFocus,
   onShowSidebar,
   history,
@@ -85,6 +89,10 @@ export function TypePage({
   onOpenView: (path: VaultPath) => void;
   /** Opens the template the type's new notes start as, made if it has none. */
   onEditTemplate: (type: ObjectType) => void;
+  /** Given on the Person type's page: opens the list of people who may be one (#464). */
+  onFindDuplicates?: () => void;
+  /** Given on the Person type's page: rows chosen, and what can be done to them — Merge into… */
+  choosing?: ChosenRows;
   /** Told the row the table's focus landed in, for the right sidebar. */
   onRowFocus?: (path: string) => void;
   onShowSidebar?: () => void;
@@ -111,6 +119,14 @@ export function TypePage({
         name={type.label}
         actions={
           <>
+            {onFindDuplicates !== undefined && (
+              <PageAction
+                icon="person"
+                label="Possible duplicates"
+                tone="secondary"
+                onPress={onFindDuplicates}
+              />
+            )}
             <PageAction
               icon="template"
               label="Edit template"
@@ -157,6 +173,13 @@ export function TypePage({
               }
             />
           </div>
+          {choosing !== undefined && choosing.count > 0 && (
+            <SelectionBar
+              count={choosing.count}
+              actions={choosing.actions}
+              onClear={choosing.clear}
+            />
+          )}
           <TableView
             result={table.result}
             sorts={table.sorts}
@@ -169,6 +192,7 @@ export function TypePage({
             onEditCell={table.editCell}
             onToggleSort={table.toggleSort}
             onNewNote={() => onNewNote(type)}
+            {...(choosing !== undefined && { selection: choosing.selection })}
             {...(onRowFocus !== undefined && { onRowFocus })}
           />
         </article>

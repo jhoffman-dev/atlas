@@ -3,6 +3,7 @@ import { archiveRefusal, isArchivedPath, type VaultPath } from '@atlas/domain';
 import type { ArchiveOutcome } from '@atlas/application';
 import type { BulkAction, RowSelection } from '@atlas/ui';
 import type { ArchiveCommands } from './use-archive.ts';
+import { usePeopleChoice, type ChosenPeopleMerge } from '../people/use-chosen-people.ts';
 import { batchSettled, useRowSelection } from './use-row-selection.ts';
 
 /** A view's select mode: whether rows can be chosen, which are, and what can be done to them. */
@@ -24,14 +25,26 @@ const notes = (n: number) => (n === 1 ? 'note' : `${n} notes`);
 export function useViewChoosing({
   viewKey,
   commands,
+  tab = '',
+  people = null,
+  present = null,
 }: {
   viewKey: string;
   commands: ArchiveCommands;
+  /** The tab the view is in: its choice is the one ⌘K merges while it is focused. */
+  tab?: string;
+  /** Given for a view of people: its chosen rows can be merged into another person. */
+  people?: ChosenPeopleMerge | null;
+  /** The rows the view shows now: a chosen row no longer among them is let go of. */
+  present?: readonly string[] | null;
 }): ViewChoosing {
   const [on, setOn] = useState(false);
-  const { selection, chosen, clear, beginBatch } = useRowSelection(`${viewKey}:${String(on)}`);
+  const { selection, chosen, clear, afterBatch, beginBatch } = useRowSelection(
+    `${viewKey}:${String(on)}`,
+  );
 
   useEffect(() => setOn(false), [viewKey]);
+  const merging = usePeopleChoice({ tab, merge: people, chosen, present, afterBatch, beginBatch });
 
   const actions = useMemo(() => {
     const paths = chosen as VaultPath[];
@@ -55,7 +68,7 @@ export function useViewChoosing({
           })
           .then((outcome) => settle(batchSettled(outcome, given)));
       };
-    const offered: BulkAction[] = [];
+    const offered: BulkAction[] = [...merging];
     if (archivable.length > 0) {
       offered.push({
         label: `Archive ${notes(archivable.length)}`,
@@ -71,7 +84,7 @@ export function useViewChoosing({
       });
     }
     return offered;
-  }, [chosen, commands, beginBatch]);
+  }, [chosen, commands, beginBatch, merging]);
 
   return { on, setOn, selection, actions, count: chosen.length, clear };
 }

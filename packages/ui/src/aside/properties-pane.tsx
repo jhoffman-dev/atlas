@@ -23,6 +23,7 @@ export function PropertiesPane({
   summary = null,
   onOpen,
   onOpenInNewTab,
+  onMergeInto,
   rows,
   ...panel
 }: PanelProps & {
@@ -41,6 +42,8 @@ export function PropertiesPane({
   onOpen?: () => void;
   /** Opens what is shown in a new tab; left out where the app has no tab to give. */
   onOpenInNewTab?: () => void;
+  /** Given for a person: asks which person to merge them into (#464). */
+  onMergeInto?: () => void;
 }) {
   const fold = useEmptyFold(path, rows);
   const count = `${fold.count} empty ${fold.count === 1 ? 'property' : 'properties'}`;
@@ -70,7 +73,7 @@ export function PropertiesPane({
           <p className="aside__summary">{summary}</p>
         </section>
       )}
-      {(onOpen !== undefined || onOpenInNewTab !== undefined) && (
+      {(onOpen !== undefined || onOpenInNewTab !== undefined || onMergeInto !== undefined) && (
         <footer className="aside__foot">
           {onOpen !== undefined && (
             <button
@@ -89,6 +92,15 @@ export function PropertiesPane({
               onClick={onOpenInNewTab}
             >
               New tab
+            </button>
+          )}
+          {onMergeInto !== undefined && (
+            <button
+              type="button"
+              className="btn btn--secondary aside__foot-button"
+              onClick={onMergeInto}
+            >
+              Merge into…
             </button>
           )}
         </footer>

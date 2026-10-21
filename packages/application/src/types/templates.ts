@@ -37,7 +37,7 @@ export interface NoteTemplate {
  * no separate format to learn.
  */
 export async function loadTemplates({ fs }: { fs: VaultFsPort }): Promise<NoteTemplate[]> {
-  const paths = await templatePathsIn(fs, createVaultPath(TEMPLATES_FOLDER));
+  const paths = await markdownPathsIn(fs, createVaultPath(TEMPLATES_FOLDER));
   return paths
     .map((path) => ({ path, name: templateNameOf(path) }))
     .sort((left, right) =>
@@ -55,13 +55,13 @@ const SKIPPED_FOLDERS = new Set(HIDDEN_DIRECTORY_NAMES.map((name) => name.toLowe
  * `.markdown`: the templates folder leaves the vault's notes whole (ADR-0026),
  * so a template kept in a subfolder has nowhere else to be reached.
  */
-async function templatePathsIn(fs: VaultFsPort, folder: VaultPath): Promise<VaultPath[]> {
+export async function markdownPathsIn(fs: VaultFsPort, folder: VaultPath): Promise<VaultPath[]> {
   let entries;
   try {
     entries = await fs.listDirectory(folder);
   } catch {
-    // A vault with no templates folder simply offers none, and a subfolder
-    // that cannot be read offers none while the rest still do.
+    // A vault with no such folder simply has none in it, and a subfolder
+    // that cannot be read has none while the rest still do.
     return [];
   }
   const files = entries.filter((entry) => entry.kind === 'file' && isMarkdownFile(entry));
@@ -72,7 +72,7 @@ async function templatePathsIn(fs: VaultFsPort, folder: VaultPath): Promise<Vaul
       // No deeper than the vault's own walk reads, whatever a link loops back to.
       isWithinWalk(joinVaultPath(entry.path, 'note.md')),
   );
-  const nested = await Promise.all(folders.map((entry) => templatePathsIn(fs, entry.path)));
+  const nested = await Promise.all(folders.map((entry) => markdownPathsIn(fs, entry.path)));
   return [...files.map((entry) => entry.path), ...nested.flat()];
 }
 
