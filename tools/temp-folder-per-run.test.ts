@@ -16,6 +16,14 @@ const TMPDIR = process.env['TMPDIR'];
 let scratch: string;
 
 afterEach(() => {
+  // Ends a run a failing test left started, so it cannot hand its folder to the
+  // next test. Safe to ignore a throw: it is the guard objecting to leftovers in
+  // a scratch run, which the test that started it already passed or failed on.
+  try {
+    endTemporaryFolderPerRun();
+  } catch {
+    // See above.
+  }
   process.env['TMPDIR'] = TMPDIR;
   rmSync(scratch, { recursive: true, force: true });
 });
@@ -98,6 +106,15 @@ describe("a run's folder", () => {
 
     expect(() => endTemporaryFolderPerRun()).toThrow(/2 temp folder\(s\).*atlas-left-.*dfai-left-/);
     expect(readdirSync(scratch)).toEqual([]);
+  });
+
+  it('ends quietly when its folder is already gone', () => {
+    scratch = makeScratch();
+    process.env['TMPDIR'] = scratch;
+    rmSync(startTemporaryFolderPerRun(), { recursive: true });
+
+    expect(() => endTemporaryFolderPerRun()).not.toThrow();
+    expect(process.env['TMPDIR']).toBe(scratch);
   });
 
   it("reports a folder made in the user's temp folder while it ran, and leaves it there", () => {

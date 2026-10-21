@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -74,6 +74,10 @@ export function removeFoldersOfEndedRuns(base: string): void {
   }
 }
 
+/**
+ * Assumes one process-id space per temp folder: true on macOS and on GitHub's
+ * runners, not for containers that share a temp folder across pid namespaces.
+ */
 function isRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -99,7 +103,8 @@ export function endTemporaryFolderPerRun(): void {
   delete shared[RUN];
   if (run.previous === undefined) delete process.env['TMPDIR'];
   else process.env['TMPDIR'] = run.previous;
-  const leftInRun = [...testFoldersIn(run.folder)];
+  // Already gone (removed by hand mid-run): nothing left in it to report.
+  const leftInRun = existsSync(run.folder) ? [...testFoldersIn(run.folder)] : [];
   rmSync(run.folder, { recursive: true, force: true });
   reportMadeOutside(run);
   if (leftInRun.length > 0) {
