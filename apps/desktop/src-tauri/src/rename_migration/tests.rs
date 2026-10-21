@@ -915,3 +915,84 @@ fn a_leftover_staging_folder_with_a_read_only_folder_is_cleared_in_a_full_launch
         "v"
     );
 }
+
+// --- Verification tests for PR #485 (verify-485).
+
+fn state_path(home: &Path) -> std::path::PathBuf {
+    home.join("Library/Application Support/.dfai-rename-migration.json")
+}
+
+/// A launch blocked by a failed copy saves a state with that pair not done.
+/// If that file is then damaged (a power cut before an unsynced save reached
+/// the disk), the next launch must still copy Atlas's folder into a DFAI
+/// folder that does not exist yet: there is nothing of DFAI's to protect, and
+/// "finished" leaves the person with an empty app for good.
+#[test]
+fn verify_485_a_damaged_state_after_a_blocked_launch_still_copies_into_a_missing_folder() {
+    let home = tempfile::tempdir().unwrap();
+    let grants = support(home.path(), LEGACY_IDENTIFIER).join("grants.json");
+    write(&grants, "g");
+    write(
+        &support(home.path(), LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
+    let migration = Migration {
+        home: home.path(),
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    };
+    let blocked = {
+        let _locked = Unreadable::new(&grants, 0o600);
+        migrate(&migration)
+    };
+    assert!(blocked.blocked.is_some());
+    let saved = read(&state_path(home.path()));
+    fs::write(state_path(home.path()), &saved[..saved.len() / 2]).unwrap();
+
+    let next = migrate(&migration);
+
+    assert!(next.blocked.is_none());
+    assert_eq!(
+        fs::read_to_string(support(home.path(), IDENTIFIER).join("vault.json")).ok(),
+        Some("old".to_string()),
+        "Atlas's folder was never copied; said: {:?}",
+        next.said
+    );
+}
+
+/// The state names finished folders by absolute path. Renaming the home
+/// folder (System Settings → Users, or Migration Assistant under a new short
+/// name) must not make a finished folder look unfinished: DFAI's own data
+/// would be set aside and Atlas's older copy put in its place.
+#[test]
+fn verify_485_a_renamed_home_folder_never_sets_dfais_own_folder_aside() {
+    let root = tempfile::tempdir().unwrap();
+    let before = root.path().join("olduser");
+    write(
+        &support(&before, LEGACY_IDENTIFIER).join("vault.json"),
+        "old",
+    );
+    migrate(&Migration {
+        home: &before,
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    });
+    write(&support(&before, IDENTIFIER).join("vault.json"), "newer");
+    let after = root.path().join("newuser");
+    fs::rename(&before, &after).unwrap();
+
+    migrate(&Migration {
+        home: &after,
+        legacy_secrets: &MemoryStore::default(),
+        secrets: &MemoryStore::default(),
+    });
+
+    assert_eq!(
+        read(&support(&after, IDENTIFIER).join("vault.json")),
+        "newer"
+    );
+    assert!(!after
+        .join("Library/Application Support")
+        .join(format!("{IDENTIFIER}.pre-dfai-1"))
+        .exists());
+}
