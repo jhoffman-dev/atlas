@@ -74,5 +74,7 @@ test('the caret still reaches the line when the editor puts its old caret back a
 
   expect(await page.evaluate(() => (window as { caretPutBack?: boolean }).caretPutBack)).toBe(true);
   await expect(above).toHaveText('Above the table.!');
-  await expect(page.getByRole('heading', { name: 'Tables', level: 1 })).toBeVisible();
+  await expect(
+    page.getByLabel('Note', { exact: true }).getByRole('heading', { level: 1 }),
+  ).toHaveText('Tables');
 });
