@@ -1,0 +1,192 @@
+name: release
+
+# Builds the macOS app and, for a pushed `v*` tag, attaches it to a draft
+# GitHub Release (issue #481). James cuts releases: RELEASING.md says how.
+#
+# `workflow_dispatch` is the dry run. It runs the gate and builds the .dmg as
+# a run artifact; it makes a release only when run on a tag with `dry_run`
+# unticked, which is the same as pushing that tag.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build the app as a run artifact only; make no release
+        type: boolean
+        default: true
+
+concurrency:
+  # Never cancelled: a half-made release is worse than a queued one.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.mode.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Every version file says the same version
+        run: node tools/release/version.mjs check
+
+      - name: The tag names that version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node tools/release/version.mjs check --tag "$GITHUB_REF"
+
+      - name: Release, or build only?
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          publish=false
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [ "$EVENT" = push ] || [ "$DRY_RUN" = false ]; then publish=true; fi
+          fi
+          echo "publish=$publish" | tee -a "$GITHUB_OUTPUT"
+
+  gate:
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/gate.yml
+
+  build:
+    needs: [version, gate]
+    # Apple silicon only. A universal build compiles the Rust twice, the
+    # embedding model's crates included; RELEASING.md says how to add Intel.
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      # To make the draft release and upload to it.
+      contents: write
+    env:
+      PUBLISH: ${{ needs.version.outputs.publish }}
+      # A secret cannot be read in `if:`, but whether it is set can, from here.
+      SIGNED: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_ID != '' }}
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+      TARGET: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # The updater is on once tauri.conf.json carries its public key, which
+      # James commits with the key (RELEASING.md). A key there with no secret to
+      # sign with would ship an update nobody can install, so that fails here.
+      - name: Is the updater on?
+        id: updater
+        run: |
+          if jq -e '.plugins.updater.pubkey // empty' apps/desktop/src-tauri/tauri.conf.json > /dev/null; then
+            if [ "$HAS_UPDATER_KEY" != true ]; then
+              echo "::error::tauri.conf.json has an updater key but TAURI_SIGNING_PRIVATE_KEY is not set"
+              exit 1
+            fi
+            echo "args=--features updater" | tee -a "$GITHUB_OUTPUT"
+            echo "enabled=true" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+      # Notes from the pull requests merged since the last release, after the
+      # install notes for how this build is signed. Made before the build so a
+      # rerun finds the same draft rather than making a second.
+      - name: Draft the release
+        id: release
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          app=$(jq -r .productName apps/desktop/src-tauri/tauri.conf.json)
+          tag=$GITHUB_REF_NAME
+          if [ "$SIGNED" = true ]; then notes=signed; else notes=unsigned; fi
+          body=$(sed "s/{app}/$app/g" ".github/release/install-$notes.md")
+          prerelease=false
+          if [[ "$tag" == *-* ]]; then prerelease=true; fi
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+            --jq ".[] | select(.draft and .tag_name == \"$tag\") | .id" | sed -n 1p)
+          if [ -z "$id" ]; then
+            id=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$tag" -f name="$app $tag" -f body="$body" \
+              -F draft=true -F prerelease="$prerelease" -F generate_release_notes=true \
+              --jq .id)
+          fi
+          echo "id=$id" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Build, signed and notarised
+        if: env.SIGNED == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          projectPath: apps/desktop
+          tauriScript: pnpm tauri
+          args: --target ${{ env.TARGET }} ${{ steps.updater.outputs.args }}
+          releaseId: ${{ steps.release.outputs.id }}
+          includeUpdaterJson: ${{ steps.updater.outputs.enabled == 'true' }}
+
+      # Ad-hoc signed (`-`): macOS runs it once the quarantine flag is cleared,
+      # which the release notes explain. Unsigned outright, Apple silicon would
+      # call the app damaged.
+      - name: Build, ad-hoc signed
+        if: env.SIGNED != 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          APPLE_SIGNING_IDENTITY: '-'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          projectPath: apps/desktop
+          tauriScript: pnpm tauri
+          args: --target ${{ env.TARGET }} ${{ steps.updater.outputs.args }}
+          releaseId: ${{ steps.release.outputs.id }}
+          includeUpdaterJson: ${{ steps.updater.outputs.enabled == 'true' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ env.TARGET }}
+          path: apps/desktop/src-tauri/target/${{ env.TARGET }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14

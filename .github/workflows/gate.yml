@@ -4,9 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release workflow runs the whole gate before it builds (#481).
+  workflow_call:
 
 concurrency:
-  group: gate-${{ github.ref }}
+  # By workflow too, so a release's run of the gate on `main` cannot cancel,
+  # or be cancelled by, the gate a push to `main` started.
+  group: gate-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -74,6 +78,9 @@ jobs:
 
       - name: Format
         run: pnpm format:check
+
+      - name: Every version file says the same version
+        run: pnpm version:check
 
       - name: Typecheck
         run: pnpm typecheck

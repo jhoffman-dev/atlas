@@ -70,6 +70,7 @@ export default defineConfig({
         'apps/*/src/**/*.{ts,tsx}',
         'tools/n8n/*.ts',
         'tools/notion-import/*.ts',
+        'tools/release/*.ts',
       ],
       exclude: ['**/*.test.{ts,tsx}', '**/index.ts', '**/*.d.ts'],
       // Repo-wide floor. The high-impact slice named in COVERAGE.md is held higher,
@@ -126,6 +127,8 @@ export default defineConfig({
         'packages/application/src/terms/**': { lines: 90, functions: 90, branches: 85 },
         // The Notion meeting import writes a history of meetings into a vault (P28-07).
         'tools/notion-import/*.ts': { lines: 90, functions: 90, branches: 85 },
+        // Writes the version into every manifest, and is the check a release trusts (#481).
+        'tools/release/*.ts': { lines: 90, functions: 90, branches: 85 },
         // Connects Google Calendar and reads Google's answers (P31-03). The tokens
         // themselves never reach TypeScript; their handling is the host's, tested in Rust.
         'packages/{application,adapters}/src/google-calendar/**': {

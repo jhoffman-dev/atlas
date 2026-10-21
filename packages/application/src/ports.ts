@@ -1,6 +1,7 @@
 /** Where raw application identity comes from — the Tauri runtime, or a static value in a browser. */
 export interface AppInfoPort {
-  read(): Promise<{ name: string; version: string }>;
+  /** `build` is the commit the build was made from, when the build knows it. */
+  read(): Promise<{ name: string; version: string; build?: string | null }>;
 }
 
 /**
