@@ -17,6 +17,14 @@ export async function makeTempFolder(prefix: string): Promise<string> {
   return folder;
 }
 
+/**
+ * A folder a helper makes later beside one `makeTempFolder` made, such as the
+ * fake Trash beside a vault, to be removed with the folders the test made.
+ */
+export function removeWithTempFolders(folder: string): void {
+  made.add(folder);
+}
+
 /** The folders made so far, to tell a test's own from those made before it. */
 export function tempFoldersMade(): ReadonlySet<string> {
   return new Set(made);

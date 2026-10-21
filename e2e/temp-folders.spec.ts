@@ -14,10 +14,27 @@ test.describe.serial('the temp folders the host makes', () => {
 
   async function makeEveryKind(page: Page): Promise<string[]> {
     const vault = await createVault();
+    await vault.write('Binned.md', '# Binned\n');
     const host = await installHost(page, vault);
     const bare = await host.git.bareRepository('vault');
     const mac = await otherMac(host.git, bare, 'Laptop');
-    return [vault.root, host.git.env['HOME'] ?? '', dirname(bare), dirname(mac.root)];
+    // The fake Trash beside the vault (#486: a full run left one per test that binned a note).
+    await page.goto('/');
+    await page.evaluate(async (root) => {
+      const invoke = (
+        window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
+      ).__atlasInvoke;
+      await invoke('open_vault', { location: { absolutePath: root } });
+      await invoke('trash_entry', { path: 'Binned.md' });
+    }, vault.root);
+    expect(host.trashed()).toEqual(['Binned.md']);
+    return [
+      vault.root,
+      `${vault.root}.trash`,
+      host.git.env['HOME'] ?? '',
+      dirname(bare),
+      dirname(mac.root),
+    ];
   }
 
   test('are made for a test', async ({ page }) => {
