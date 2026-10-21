@@ -220,6 +220,30 @@ describe('VaultTree keyboard navigation', () => {
     expect(document.activeElement).toBe(row('a.md'));
   });
 
+  it('keeps the focus on its row when rows arriving above push it far down (#491)', async () => {
+    // A folder opened from the keyboard is listed after it is marked open, so
+    // a quick down arrow lands on the row after it, and the folder's contents
+    // then arrive between the two — far more rows than are drawn.
+    const before = [directoryRow('Area', true), fileRow('Loose.md')];
+    const { rerender } = show({ rows: before });
+    row('Area').focus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(row('Loose.md'));
+
+    const listed = Array.from({ length: 200 }, (_, at) => fileRow(`Area/Note ${at}.md`));
+    rerender(
+      <VaultTree
+        rows={[before[0]!, ...listed, before[1]!]}
+        open={new Set()}
+        starred={new Set()}
+        onToggleDirectory={noop}
+        onSelectFile={noop}
+        onToggleFavorite={noop}
+      />,
+    );
+    expect(document.activeElement).toBe(row('Loose.md'));
+  });
+
   it('moves the tab stop with the focus, so the tree is re-entered where it was left', async () => {
     show({ rows: threeNotes });
     row('a.md').focus();
