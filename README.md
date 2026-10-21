@@ -1,4 +1,4 @@
-# Atlas
+# DFAI - Daily Flow AI
 
 A local-first macOS desktop app that replaces Notion and Obsidian: markdown notes, typed
 objects, SQL-backed database views, tasks, calendar, projects and dashboards. Your notes stay
