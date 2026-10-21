@@ -333,6 +333,57 @@ test('a task dropped on a block joins its tasks, the rest of the block kept as w
   expect(await vault.exists('Call Mara block.md')).toBe(false);
 });
 
+test('Escape that lands before a move has been announced is still heard as a cancel (#450)', async ({
+  page,
+}) => {
+  await openPlanner(page);
+  await showHour(page, 8);
+  const to = await onTheClock(page, '2026-10-13', 10 * 60);
+  const call = trayTask(page, 'Call Mara');
+  const from = await call.boundingBox();
+  if (from === null) throw new Error('the tray is not on screen');
+  await page.mouse.move(from.x + 20, from.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 28, from.y + 18, { steps: 4 });
+  await page.mouse.move(to.x, to.y, { steps: 20 });
+  await expect(dragAnnouncement(page)).toContainText(/Call Mara would go on Tuesday/);
+
+  // dnd-kit reports a move from an effect after the render the move caused.
+  // Escape is pressed the moment that render reaches the page — its DOM
+  // changes are observed — so the move is reported after the cancel, as on a
+  // slow runner when the key lands between the two.
+  await page.evaluate(
+    ({ x, y }) =>
+      new Promise<void>((done) => {
+        const drawn = new MutationObserver(() => {
+          drawn.disconnect();
+          document.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
+          );
+          done();
+        });
+        drawn.observe(document.body, { subtree: true, attributes: true, childList: true });
+        const held = document.querySelector('.plan-tray__task[data-path="Call Mara.md"] button');
+        if (held === null) throw new Error('the held task is not on the page');
+        held.dispatchEvent(
+          new PointerEvent('pointermove', {
+            clientX: x + 3,
+            clientY: y + 2,
+            bubbles: true,
+            isPrimary: true,
+            pointerId: 1,
+          }),
+        );
+      }),
+    to,
+  );
+  // React runs the move's pending effect before it draws the cancel, so once
+  // the lifted task is gone the late move has been reported too.
+  await expect(page.locator('.plan-tray__task--lifted')).toHaveCount(0);
+  await expect(dragAnnouncement(page)).toHaveText('Cancelled. Call Mara is not planned.');
+  await page.mouse.up();
+});
+
 test('the keyboard plans a task: choose it, go to the hour, Enter', async ({ page }) => {
   const vault = await openPlanner(page);
 
