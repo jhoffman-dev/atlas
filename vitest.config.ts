@@ -1,5 +1,10 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
+import { startTemporaryFolderPerRun } from './tools/temp-folder-per-run.ts';
+
+// Vitest makes a folder of its own in the temp folder as it starts, before any
+// global set-up runs, and never removes it (#486), so the run's folder starts here.
+startTemporaryFolderPerRun();
 
 const pkg = (name: string) =>
   fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url));
