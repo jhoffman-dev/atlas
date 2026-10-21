@@ -7,6 +7,7 @@ import {
   saveNow,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 import { createFromSuggestion, suggestion } from './link-suggest.ts';
 
 /**
@@ -158,8 +159,7 @@ test('[[ in a note offers to make a note no note is called yet, writes the link 
   await page.getByRole('treeitem', { name: 'Plans', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Plans' })).toBeVisible();
 
-  await page.getByText('Packing list.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Packing list.'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('[[Mara Quill');
   const list = page.getByRole('listbox', { name: 'Link to note' });
@@ -182,8 +182,7 @@ test('a name a file cannot hold is made cleaned, and linked as made', async ({ p
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 20_000 });
   await page.getByRole('treeitem', { name: 'Plans', exact: true }).click();
-  await page.getByText('Packing list.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Packing list.'));
   await page.keyboard.press('Enter');
   const list = page.getByRole('listbox', { name: 'Link to note' });
 
