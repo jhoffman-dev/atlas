@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, expectSaved, installHost, saveNow } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 async function openVault(page: Page) {
   const vault = await createVault();
@@ -17,8 +18,7 @@ test('switching notes keeps the edit rather than discarding it', async ({ page }
   const vault = await openVault(page);
 
   await page.getByRole('treeitem', { name: 'one', exact: true }).click();
-  await page.getByText('First note.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('First note.'));
   await page.keyboard.type(' Edited.');
   await expect(page.getByText('Unsaved')).toBeVisible();
 
@@ -39,8 +39,7 @@ test('an edit is written shortly after typing stops, without pressing anything',
   const vault = await openVault(page);
 
   await page.getByRole('treeitem', { name: 'one', exact: true }).click();
-  await page.getByText('First note.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('First note.'));
   await page.keyboard.type(' Typed and left alone.');
 
   await expect
@@ -59,8 +58,7 @@ test('the blank line after frontmatter survives an edit', async ({ page }) => {
   await page.getByRole('treeitem', { name: 'note', exact: true }).click();
   await expect(page.getByRole('article', { name: 'note' })).toBeVisible();
 
-  await page.getByText('Body text.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Body text.'));
   await page.keyboard.type(' More.');
   await saveNow(page);
   await expectSaved(page);
@@ -73,8 +71,7 @@ test('Save now once the autosave has written the edit leaves the note saved', as
   // there is then nothing to save, and the item is disabled, rightly.
   const vault = await openVault(page);
   await page.getByRole('treeitem', { name: 'one', exact: true }).click();
-  await page.getByText('First note.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('First note.'));
   await page.keyboard.type(' Autosaved.');
   await expectFile(vault, 'one.md').toBe('# One\n\nFirst note. Autosaved.\n');
   await expectSaved(page);

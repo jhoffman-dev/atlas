@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * Attack on UI v2 slice 13h (#317): the note table's card is now the
@@ -98,8 +99,7 @@ test('inline code inside bold text stays bold', async ({ page }) => {
 
 test('the selected slash command is scrolled into the popup', async ({ page }) => {
   await open(page, 'today', NOTE);
-  await page.getByText('Some text.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText('Some text.'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('/');
 

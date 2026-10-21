@@ -10,6 +10,7 @@ import {
   splitWindow,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 /**
  * Block transclusion (U-25, Phase 26): `![[` picks a note, `#` its blocks;
@@ -41,8 +42,7 @@ async function openNote(page: Page, name: string, scope = page.locator('body')) 
 
 /** Types `![[Pla`, picks Plans, then its block that says `words`. */
 async function embedBlockOfPlans(page: Page, words: string) {
-  await page.getByLabel('Note', { exact: true }).getByText('Today.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByLabel('Note', { exact: true }).getByText('Today.'));
   await page.keyboard.press('Enter');
   await page.keyboard.type('![[Pla');
   const notes = page.getByRole('listbox', { name: 'Link to note' });
@@ -83,8 +83,9 @@ test('a block linked with ![[ then # is shown live, follows its note, opens ther
   // Edited in its own note, in the other pane: the embed follows.
   await splitWindow(page);
   await openNote(page, 'Plans', pane(page, 2));
-  await pane(page, 2).getByLabel('Note', { exact: true }).getByText('Pack the tent').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(
+    pane(page, 2).getByLabel('Note', { exact: true }).getByText('Pack the tent'),
+  );
   await page.keyboard.type(' and pegs');
   await saveNow(page, pane(page, 2));
   // An edited list is written afresh (A21-01); its id stays on its item.

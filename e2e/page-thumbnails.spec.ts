@@ -20,6 +20,7 @@ import {
   type FakeHost,
   type FakeVault,
 } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const BOOK_TYPE = ['---', 'name: book', 'label: Book', 'properties:', '  author: text', '---', ''];
 
@@ -197,8 +198,7 @@ const pagesOf = (host: FakeHost, title: string) =>
   host.snapshots.pages().filter((html) => html.includes(`<title>${title}</title>`));
 
 async function editBody(page: Page, text: string, added: string) {
-  await page.getByText(text).click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(page.getByText(text));
   await page.keyboard.type(added);
   await saveNow(page);
   await expectSaved(page);

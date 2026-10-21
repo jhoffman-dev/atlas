@@ -8,6 +8,7 @@
 import { readdir } from 'node:fs/promises';
 import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
+import { caretAtLineEnd } from './caret.ts';
 
 const TASKS = 150;
 const TASK_TYPE = ['---', 'name: task', 'label: Task', '---', ''].join('\n');
@@ -74,8 +75,7 @@ test('an edit in the peek reaches the file once it closes', async ({ page }) => 
   await openTaskTable(page);
   await rowName(page, 4).click();
   const dialog = page.getByRole('dialog', { name: title(4) });
-  await dialog.getByText('Body of errand 4.').click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(dialog.getByText('Body of errand 4.'));
   await page.keyboard.type(' Typed in the peek.');
   await page.keyboard.press('Escape');
 
@@ -251,8 +251,7 @@ test('a board’s card peeks, and ↓ steps column by column, as the board shows
 async function typeInPeek(page: Page, at: number, typed: string) {
   await rowName(page, at).click();
   const dialog = page.getByRole('dialog', { name: title(at) });
-  await dialog.getByText(`Body of errand ${at}.`).click();
-  await page.keyboard.press('End');
+  await caretAtLineEnd(dialog.getByText(`Body of errand ${at}.`));
   await page.keyboard.type(typed);
 }
 
