@@ -143,10 +143,11 @@ export const backlinks = defineTool({
 
 export const exportNote = defineTool({
   name: 'atlas_export_note',
-  title: 'Export a note for Confluence',
+  title: 'Export a note',
   description:
-    'A note as markdown for a Confluence page. Returns { export: { path, format, title, ' +
-    'markdown, dropped } }. In "markdown", each [[wiki link]] is its words (its alias, or the ' +
+    'A note made ready to leave Atlas, by "format" (default "confluence"). Returns { export: ' +
+    '{ path, format, title, markdown, ... } }. "confluence": markdown for a Confluence page, ' +
+    'with "dropped". In "markdown", each [[wiki link]] is its words (its alias, or the ' +
     "linked note's title), a block shown in place is quoted under the note it came from, and a " +
     'callout is a quote opening with its name in bold; tasks, tables, code and web links stay. ' +
     'Properties, block ids, comments and images in the vault are left out, and "dropped" lists ' +
@@ -156,10 +157,29 @@ export const exportNote = defineTool({
     'the note, create the page with the ' +
     'Atlassian connector — "title" as its title, "markdown" as its body, in markdown format, ' +
     'passed verbatim: add, reword or reformat nothing, or "dropped" is no longer the whole ' +
-    'story — and tell the user what "dropped" lists, so they can attach an image or fill a gap.',
-  inputSchema: z.object({ path: notePath }),
+    'story — and tell the user what "dropped" lists, so they can attach an image or fill a gap. ' +
+    '"markdown": the file exactly as it is on disk, and "attachments": [{ path, as }], each ' +
+    'picture its own blocks show, by vault path, with the file name a copy takes. ' +
+    '"standalone": Markdown that reads without the vault — links as words, embedded notes ' +
+    'inlined, each picture linked at "attachments/<name>" (each listed in "attachments" with ' +
+    'that "as"), frontmatter kept unless "frontmatter" is "drop" — with "dropped". Pictures are ' +
+    'listed, not sent: no Atlas tool reads a picture, so copy them some other way if needed. ' +
+    'There is no PDF or Google Doc here: the API writes no file anywhere, a PDF is made by the ' +
+    "app's own window, and a Google Doc needs the user's consent in their browser — ask the " +
+    'user to export from the note\'s "⋯" menu, or ⌘K "Export…".',
+  inputSchema: z.object({
+    path: notePath,
+    format: z
+      .enum(['confluence', 'markdown', 'standalone'])
+      .optional()
+      .describe('Default "confluence".'),
+    frontmatter: z
+      .enum(['keep', 'drop'])
+      .optional()
+      .describe('For "standalone" only: keep (the default) or drop the frontmatter.'),
+  }),
   annotations: READ_ONLY,
-  call: (client, { path }) => client.exportNote(path),
+  call: (client, { path, ...query }) => client.exportNote(path, definedOnly(query)),
 });
 
 export const noteTools = [

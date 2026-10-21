@@ -21,6 +21,7 @@ export type Overlay =
   | 'template-delete'
   | 'template-to-note'
   | PeopleOverlay
+  | ExportOverlay
   | QueryPopupOverlay
   | PagesOverlay
   | PageMenuOverlay
@@ -34,6 +35,9 @@ export type PagesOverlay = 'tree-menu' | 'pages-menu' | 'move-picker' | 'delete-
 
 /** Merging people (#464): the question before a merge, and the list of people who may be one. */
 export type PeopleOverlay = 'merge-people' | 'people-duplicates';
+
+/** Exporting notes (#501): the question of how, before the system's save dialog asks where. */
+export type ExportOverlay = 'export-notes';
 
 /** A popup on the query page — Save as view, Add to dashboard — by its name. */
 export type QueryPopupOverlay = `query-${string}`;
@@ -72,6 +76,7 @@ const MODAL: ReadonlySet<Overlay> = new Set([
   'template-to-note',
   'merge-people',
   'people-duplicates',
+  'export-notes',
 ]);
 
 /**

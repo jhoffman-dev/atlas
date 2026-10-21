@@ -129,21 +129,36 @@ objc2-web-kit = { version = "0.3.2", default-features = false, features = [
   "std",
   "block2",
   "objc2-app-kit",
+  "objc2-core-foundation",
   "WKFrameInfo",
   "WKNavigation",
   "WKNavigationAction",
   "WKNavigationDelegate",
+  "WKPDFConfiguration",
   "WKPreferences",
   "WKSnapshotConfiguration",
   "WKWebView",
   "WKWebViewConfiguration",
   "WKWebsiteDataStore",
 ] }
+# A note's PDF export (`export/pdf_macos.rs`) is made a page at a time by
+# WebKit; PDFKit joins the pages into one document. Same objc2 family and
+# version as the bindings above; a system framework, so nothing is downloaded.
+objc2-pdf-kit = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "PDFDocument",
+  "PDFPage",
+] }
 
 # Pictures real pages in a real WKWebView, which only works on the main thread,
 # so it brings its own `main` rather than the test harness's worker threads.
 [[test]]
 name = "page_snapshot"
+harness = false
+
+# Makes real PDFs in a real WKWebView: the main thread again.
+[[test]]
+name = "pdf_export"
 harness = false
 
 [dev-dependencies]

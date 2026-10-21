@@ -410,6 +410,19 @@ export interface FakeHost {
   /** Every link the app asked the host to open in the browser, in order. */
   openedLinks(): readonly string[];
   /**
+   * Exports (#501), as `export.rs` makes them: the save dialog answers with
+   * a file of the name it offered — or a new folder, for several notes — in
+   * `root`, a folder beside the vault; `cancelNext` makes it answer as a
+   * person cancelling would. A PDF is the stub's (`%PDF-` and the page's
+   * length); the real one is WebKit's, tested in `tests/pdf_export.rs`.
+   */
+  readonly exports: {
+    readonly root: string;
+    cancelNext(): void;
+    /** Every page the app asked to be made a PDF, in order. */
+    pdfPages(): readonly string[];
+  };
+  /**
    * Every page the app asked the host to picture (`snapshot_page`), in order.
    * The stub pictures each as `STUB_THUMBNAIL`, or refuses with `failWith`.
    */
@@ -657,6 +670,14 @@ export async function installHost(
   const trashed: string[] = [];
   const openedLinks: string[] = [];
   const pictured: string[] = [];
+  /** Where the fake save dialog puts exports: beside the vault, never in it. */
+  const exportsRoot = `${vault.root}.exports`;
+  const exportGrants = new Map<
+    string,
+    { root: string; file: string | null; companion: string | null }
+  >();
+  let cancelExport = false;
+  const pdfPages: string[] = [];
   let snapshotFailure: string | null = null;
   let snapshotHeld: Promise<void> = Promise.resolve();
   /** Each vault's Activity log, by vault root, as `activity.rs` keeps them outside the vault. */
@@ -1536,6 +1557,61 @@ export async function installHost(
       case 'open_url':
         openedLinks.push((args as { url: string }).url);
         return null;
+      case 'export_choose_destination': {
+        const { request } = args as {
+          request:
+            | { kind: 'file'; suggestedName: string; companionSuffix: string | null }
+            | { kind: 'folder'; folderName: string };
+        };
+        if (cancelExport) {
+          cancelExport = false;
+          return null;
+        }
+        // Removed with the test's folders (#486).
+        removeWithTempFolders(exportsRoot);
+        const { mkdir: makeDirectory } = await import('node:fs/promises');
+        const id = `grant-${exportGrants.size + 1}`;
+        if (request.kind === 'folder') {
+          const folder = join(exportsRoot, request.folderName);
+          await makeDirectory(folder, { recursive: true });
+          exportGrants.set(id, { root: folder, file: null, companion: null });
+          return { id, path: folder, companion: null };
+        }
+        await makeDirectory(exportsRoot, { recursive: true });
+        const file = join(exportsRoot, request.suggestedName);
+        const stem = request.suggestedName.replace(/\.[^.]*$/, '');
+        const companion =
+          request.companionSuffix === null
+            ? null
+            : join(exportsRoot, `${stem}${request.companionSuffix}`);
+        exportGrants.set(id, { root: exportsRoot, file, companion });
+        return { id, path: file, companion };
+      }
+      case 'export_write_file': {
+        const { bytes, headers } = args as { bytes: number[]; headers: Record<string, string> };
+        const grant = exportGrants.get(headers['atlas-export-destination'] ?? '');
+        if (grant === undefined) {
+          return { [REJECT]: "this export's destination is no longer open; export again" };
+        }
+        const relative = decodeURIComponent(headers['atlas-export-path'] ?? '');
+        const target =
+          relative === '' && grant.file !== null ? grant.file : containedPath(grant.root, relative);
+        const { mkdir: makeDirectory } = await import('node:fs/promises');
+        await makeDirectory(dirname(target), { recursive: true });
+        await writeFile(target, Buffer.from(bytes));
+        return bytes.length;
+      }
+      case 'export_finish':
+        exportGrants.delete((args as { id: string }).id);
+        return null;
+      case 'export_render_pdf': {
+        const { bytes } = args as { bytes: number[] };
+        const html = Buffer.from(bytes).toString('utf8');
+        pdfPages.push(html);
+        return Array.from(
+          Buffer.from(`%PDF-1.7\n% stub of a ${html.length}-character page\n%%EOF\n`),
+        );
+      }
       case 'snapshot_page': {
         // The page arrives as the raw body; the picture goes back as numbers,
         // which the init script below makes an ArrayBuffer again.
@@ -1737,7 +1813,7 @@ export async function installHost(
         const answer = (
           window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
         ).__atlasInvoke(command, { bytes: Array.from(args), headers: options?.headers ?? {} });
-        return command === 'snapshot_page'
+        return command === 'snapshot_page' || command === 'export_render_pdf'
           ? answer.then((numbers) => new Uint8Array(numbers as number[]).buffer)
           : answer;
       }
@@ -1852,6 +1928,13 @@ export async function installHost(
     seedActivity: (root, text) => void activityFiles.set(root, text),
     trashed: () => [...trashed],
     openedLinks: () => [...openedLinks],
+    exports: {
+      root: exportsRoot,
+      cancelNext: () => {
+        cancelExport = true;
+      },
+      pdfPages: () => [...pdfPages],
+    },
     snapshots: {
       pages: () => [...pictured],
       failWith: (reason) => {

@@ -27,6 +27,7 @@ export const ACTIVITY_KINDS = [
   'chat',
   'index',
   'save',
+  'export',
   'sync',
   'app',
 ] as const;

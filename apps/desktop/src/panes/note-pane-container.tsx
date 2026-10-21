@@ -147,6 +147,7 @@ import { localClock, localNow, localToday } from '../today.ts';
 import type { OpenEditors, PaneEditors } from './open-editors.ts';
 import type { StrandedEdits } from '../notes/stranded-edits.ts';
 import { pageArchiveItems } from '../archive/archive-menu.ts';
+import type { ExportCommands } from '../export/export-flow.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
 import { rowPaths, type ChosenPeopleMerge } from '../people/use-chosen-people.ts';
@@ -235,6 +236,8 @@ export interface PaneContext {
   readonly archive: ArchiveCommands;
   /** Merging the people a People view's rows chose (#464). */
   readonly peopleMerge: ChosenPeopleMerge;
+  /** Exporting notes (#501): a page's menu, the peek's, a view's chosen rows. Null where none can be made. */
+  readonly exporting: ExportCommands | null;
   /** Told the problem with a link — one that could not be made or followed — or null once one leads somewhere. */
   readonly onLinkProblem: (message: string | null) => void;
   /** What `[[` is making, the window over, so no two panes make one name twice. */
@@ -615,6 +618,7 @@ export function useNotePane({
     commands: context.archive,
     tab: tabId,
     present: viewRows,
+    exporting: context.exporting,
     ...(isPersonType(savedView.type?.name ?? savedView.query?.type ?? null) && {
       people: context.peopleMerge,
     }),
@@ -930,6 +934,9 @@ export function useNotePane({
         template === null &&
         deleteRefusal({ path, kind: 'file' }) === null && { onDelete: () => onDelete(path) })}
       {...(mergeInto !== null && { onMergeInto: mergeInto })}
+      {...(context.exporting !== null &&
+        path !== null &&
+        template === null && { onExport: () => context.exporting?.ask([path]) })}
       {...pageArchiveItems({
         commands: context.archive,
         path,

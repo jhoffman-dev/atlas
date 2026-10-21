@@ -197,6 +197,8 @@ export interface NotePaneProps {
   actions?: ReactNode;
   /** Opens the graph around this note; offered in the page's menu when given. */
   onShowInGraph?: () => void;
+  /** Asks how to export this note (#501); offered in the page's menu when given. */
+  onExport?: () => void;
   /** Given for a template: the band over it, saying what it is and what uses it. */
   template?: TemplateNotice;
   /** Given for a meeting whose spellings were corrected: the band over it, with its Undo. */
@@ -376,7 +378,7 @@ function usePickerSlot(arrangement: PaneArrangement) {
     : { open: slot.open, setOpen: slot.onOpenChange };
 }
 
-/** Linking from the menu, and seeing the note among its links. */
+/** Linking from the menu, seeing the note among its links, and taking it out of the app. */
 function linkItems({
   isNote,
   onLink,
@@ -390,6 +392,9 @@ function linkItems({
   if (isNote) items.push({ label: 'Link to…', onSelect: onLink, movesFocus: true });
   if (props.onShowInGraph !== undefined) {
     items.push({ label: 'Show in graph', onSelect: props.onShowInGraph, movesFocus: true });
+  }
+  if (props.onExport !== undefined) {
+    items.push({ label: 'Export…', onSelect: props.onExport, movesFocus: true });
   }
   return items;
 }

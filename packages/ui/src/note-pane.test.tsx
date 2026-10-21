@@ -418,6 +418,14 @@ describe('NotePane: a note', () => {
     expect(onShowInGraph).toHaveBeenCalled();
   });
 
+  it('offers Export… when the page can be exported (#501)', async () => {
+    const onExport = vi.fn();
+    show({ onExport });
+    await openMenu();
+    await userEvent.click(await item(/^Export…$/));
+    expect(onExport).toHaveBeenCalled();
+  });
+
   it('shows its properties above the text', () => {
     show();
     expect(screen.getByRole('region', { name: 'Properties' })).toBeDefined();

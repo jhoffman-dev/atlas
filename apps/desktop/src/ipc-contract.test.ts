@@ -144,6 +144,8 @@ describe('IPC contract', () => {
       'google_connect',
       'google_connect_cancel',
       'google_disconnect',
+      // An export's Doc (#501): Drive's files and upload only, the token added by the host.
+      'google_drive_request',
       'google_status',
     ]);
     const tokenCommands = exposed.filter((name) => /token/i.test(name));

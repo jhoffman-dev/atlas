@@ -57,6 +57,7 @@ export const ACTIVITY_KIND_LABELS: Readonly<Record<ActivityKind, string>> = {
   chat: 'Claude',
   index: 'Index',
   save: 'Saves',
+  export: 'Exports',
   sync: 'Sync',
   app: 'App',
 };

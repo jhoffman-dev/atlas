@@ -65,7 +65,11 @@ import {
   type AppInfoPort,
   type ExternalLinkPort,
   type GlobalCapturePort,
+  type ExportFilesPort,
   type GoogleCalendarPort,
+  type GoogleDrivePort,
+  type NotePageRenderer,
+  type PdfRendererPort,
   type GranolaPort,
   type GranolaPullRecords,
   type PageSnapshotPort,
@@ -183,6 +187,9 @@ import { movingEditorsIn, openNotesIn } from './panes/open-notes.ts';
 import { useVaultEntries, type VaultEntryPorts } from './vault/use-vault-entries.ts';
 import { MergePeopleSlot, PossibleDuplicatesSlot } from './people/people-merge-slot.tsx';
 import { usePeopleMerge } from './people/use-people-merge.ts';
+import { useExport } from './export/use-export.ts';
+import { ExportSlot } from './export/export-slot.tsx';
+import { paletteExportCommands, runPaletteExportCommand } from './export/palette-export.ts';
 import { vaultSettingsWriter } from './settings/vault-settings-writer.ts';
 import { useLocalApi, type LocalApiPorts } from './api/use-local-api.ts';
 import { useApiHost } from './api/use-api-host.ts';
@@ -348,6 +355,23 @@ function focusFallback(): HTMLElement | null {
   );
 }
 
+/** Stands in where the host gave no export ports: never reached, as no export is offered then. */
+const NOT_OFFERED = (): never => {
+  throw new Error('Exporting is not offered here.');
+};
+const NO_EXPORT_FILES: ExportFilesPort = {
+  choose: NOT_OFFERED,
+  write: NOT_OFFERED,
+  finish: NOT_OFFERED,
+};
+const NO_PDF: PdfRendererPort = { pagingScript: '', render: NOT_OFFERED };
+const NO_DRIVE: GoogleDrivePort = {
+  findFolder: NOT_OFFERED,
+  createFolder: NOT_OFFERED,
+  uploadDocument: NOT_OFFERED,
+};
+const NO_RENDERER: NotePageRenderer = { bodyHtml: NOT_OFFERED, styles: '' };
+
 /** The window, with its one query cache (ADR-0040): every whole-vault read below is kept in it. */
 export function App(props: ComponentProps<typeof AppWindow>) {
   const [client] = useState(createWindowQueryClient);
@@ -373,6 +397,7 @@ function AppWindow({
   googleCalendar,
   granola: granolaPorts,
   globalCapture: globalCapturePorts,
+  exporting: exportPorts,
 }: {
   appInfo: AppInfoPort;
   vault: OnHost<VaultPorts>;
@@ -397,6 +422,13 @@ function AppWindow({
   granola: { port: GranolaPort; records: GranolaPullRecords };
   /** The shortcut that opens quick capture from any app, registered by the host (#81). */
   globalCapture: { port: GlobalCapturePort; store: GlobalCaptureStore };
+  /** Where exports go, how a PDF is made and how a Doc reaches Drive (#501); left out, nothing is exported. */
+  exporting?: {
+    files: ExportFilesPort;
+    pdf: PdfRendererPort;
+    drive: GoogleDrivePort;
+    renderer: NotePageRenderer;
+  };
 }) {
   const [app, setApp] = useState<AppInfoState>({ kind: 'loading' });
   // The last sync runs before the Activity log's final write, so its line is kept.
@@ -717,6 +749,10 @@ function AppWindow({
   const paletteCommandsFor = useSteadyCallback((focused: NavigationPlace | null) => [
     ...PALETTE_COMMANDS,
     ...paletteArchiveCommands(focused?.kind === 'note' ? focused.path : null),
+    // Offered wherever the host can export: the commands themselves are made further down.
+    ...(exportPorts === undefined
+      ? []
+      : paletteExportCommands(focused?.kind === 'note' ? focused.path : null)),
   ]);
   const paletteOffersFor = useCallback(
     (query: string) => [...paletteOffers(query), ...paletteEditTypeOffers(types, query)],
@@ -1202,6 +1238,33 @@ function AppWindow({
     closeNotes: closeDeleted,
     openActivity: () => openPage({ kind: 'activity' }),
   });
+  const exporting = useExport({
+    ports: {
+      fs: vault.fs,
+      index: index.index,
+      markdown: notes.markdown,
+      clock: localClock,
+      google: googleCalendar,
+      // Nothing is exported without the host's ports: `exportCommands` is not handed out then.
+      files: exportPorts?.files ?? NO_EXPORT_FILES,
+      pdf: exportPorts?.pdf ?? NO_PDF,
+      drive: exportPorts?.drive ?? NO_DRIVE,
+      renderer: exportPorts?.renderer ?? NO_RENDERER,
+    },
+    vault: vaultKey,
+    appName: app.kind === 'ready' ? app.info.name : '',
+    notePaths,
+    overlay: { show: showOverlay, hide: hideOverlay },
+    toasts,
+    activity: activityLog,
+    openActivity: () => openPage({ kind: 'activity' }),
+    openLink: (url) => {
+      links
+        .open(url)
+        .catch((cause: unknown) => console.error('The Google Doc could not be opened:', cause));
+    },
+  });
+  const exportCommands = exportPorts === undefined ? null : exporting.commands;
   // Each one function for as long as the entries' ports: the panes are handed them (#325).
   const { rename: renameEntry, askMove: askEntryMove, askDelete: askEntryDelete } = entries;
   const templatesPage = useTemplatesPage({
@@ -1519,6 +1582,7 @@ function AppWindow({
       viewDrafts,
       archive: archiveCommands,
       peopleMerge: peopleMerge.commands,
+      exporting: exportCommands,
       onLinkProblem: setLinkError,
       notesBeingMade,
       templateCommands,
@@ -1559,6 +1623,7 @@ function AppWindow({
       viewDrafts,
       archiveCommands,
       peopleMerge,
+      exportCommands,
       templateCommands,
       notesBeingMade,
     ],
@@ -1718,6 +1783,15 @@ function AppWindow({
         focused: peekNow(overlays)?.path ?? focusedNote(),
         commands: archiveCommands,
         openArchive: () => leavingPeekFor(openArchive),
+      })
+    ) {
+      return;
+    }
+    if (
+      exportCommands !== null &&
+      runPaletteExportCommand(id, {
+        focused: peekNow(overlays)?.path ?? focusedNote(),
+        commands: exportCommands,
       })
     ) {
       return;
@@ -2131,6 +2205,12 @@ function AppWindow({
                 destinations={entries.picker.destinations}
                 onPick={entries.picker.pick}
                 onClose={entries.picker.close}
+                fallbackFocus={focusFallback}
+              />
+            ) : overlay === 'export-notes' ? (
+              <ExportSlot
+                store={exporting.store}
+                commands={exporting.commands}
                 fallbackFocus={focusFallback}
               />
             ) : overlay === 'merge-people' ? (

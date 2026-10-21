@@ -4,6 +4,9 @@ mod api;
 // integration test, which run the real model outside the app.
 #[doc(hidden)]
 pub mod embeddings;
+// Public for its integration test, which makes real PDFs on the main thread.
+#[doc(hidden)]
+pub mod export;
 mod git_process;
 mod global_capture;
 mod google;
@@ -44,6 +47,7 @@ pub fn run() {
         .manage(api::ApiState::default())
         .manage(secrets::SecretState::default())
         .manage(sqlite_source::SqliteGrants::default())
+        .manage(export::ExportGrants::default())
         .manage(model_process::ModelProcesses::default())
         .manage(git_process::GitHost::default())
         .manage(embeddings::EmbeddingState::default())
@@ -81,6 +85,7 @@ pub fn run() {
             google::google_connect_cancel,
             google::google_disconnect,
             google::google_calendar_request,
+            google::google_drive_request,
             granola::granola_status,
             granola::granola_set_key,
             granola::granola_forget_key,
@@ -111,6 +116,10 @@ pub fn run() {
             vault_files::write_binary_file,
             opener::open_url,
             page_snapshot::snapshot_page,
+            export::export_choose_destination,
+            export::export_write_file,
+            export::export_finish,
+            export::export_render_pdf,
             vault::create_note,
             vault_entries::create_folder,
             vault_entries::move_entry,

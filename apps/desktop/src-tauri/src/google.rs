@@ -27,7 +27,7 @@ use crate::opener::open_web_link;
 use crate::secrets::{redact_off_worker, vault_scope, SecretState, SecretStore};
 use crate::vault::{root_for_write, VaultState};
 
-pub use api::{ApiCall, GoogleAnswer};
+pub use api::{ApiCall, GoogleAnswer, Service};
 pub use failure::{FailureKind, GoogleFailure};
 use grant::Grant;
 use held::{Access, HeldSignIns};
@@ -212,7 +212,11 @@ fn authorization_url(authorize: &Url, request: &Authorization) -> Url {
         // consent screen: without `prompt=consent`, connecting again after a
         // disconnect would bring back an access token alone.
         .append_pair("access_type", "offline")
-        .append_pair("prompt", "consent");
+        .append_pair("prompt", "consent")
+        // Asking for one more scope (Drive, for an export) keeps those
+        // granted before: Google answers with all of them, so the grant kept
+        // still reaches the Calendar (#501).
+        .append_pair("include_granted_scopes", "true");
     url
 }
 
@@ -427,9 +431,13 @@ impl Session<'_> {
         ))
     }
 
-    /// Sends one Calendar API call and hands back its answer.
-    pub async fn call(&self, call: &ApiCall) -> Result<GoogleAnswer, GoogleFailure> {
-        let checked = api::check(&self.endpoints.api, call)?;
+    /// Sends one call to `service` and hands back its answer.
+    pub async fn call(
+        &self,
+        call: &ApiCall,
+        service: Service,
+    ) -> Result<GoogleAnswer, GoogleFailure> {
+        let checked = api::check(&self.endpoints.api, call, service)?;
         let mut access = self.access_token(false).await?;
         let mut answer = api::send(&checked, &access).await?;
         if answer.0 == 401 {
@@ -443,7 +451,7 @@ impl Session<'_> {
         let text = String::from_utf8(body).map_err(|_| {
             GoogleFailure::new(
                 FailureKind::Malformed,
-                "the Calendar API did not answer with text",
+                "the Google API did not answer with text",
             )
         })?;
         let sent = [("google-access-token".to_string(), access)];
@@ -582,7 +590,30 @@ pub async fn google_calendar_request(
         scope: &scope,
         state: &google,
     }
-    .call(&call)
+    .call(&call, Service::Calendar)
+    .await
+}
+
+/// One Drive API call for an export (#501), as TypeScript builds it; the
+/// host adds the token. Only files and the upload are reachable, and with
+/// `drive.file` Google keeps those to the files this app made.
+#[tauri::command]
+pub async fn google_drive_request(
+    vaults: State<'_, VaultState>,
+    secrets: State<'_, SecretState>,
+    google: State<'_, GoogleState>,
+    vault: String,
+    call: ApiCall,
+) -> Result<GoogleAnswer, GoogleFailure> {
+    let scope = scope_of(&vaults, &vault)?;
+    let endpoints = Endpoints::google();
+    Session {
+        endpoints: &endpoints,
+        store: secrets.store(),
+        scope: &scope,
+        state: &google,
+    }
+    .call(&call, Service::Drive)
     .await
 }
 

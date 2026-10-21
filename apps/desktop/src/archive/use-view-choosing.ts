@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { archiveRefusal, isArchivedPath, type VaultPath } from '@atlas/domain';
 import type { ArchiveOutcome } from '@atlas/application';
 import type { BulkAction, RowSelection } from '@atlas/ui';
+import type { ExportCommands } from '../export/export-flow.ts';
 import type { ArchiveCommands } from './use-archive.ts';
 import { usePeopleChoice, type ChosenPeopleMerge } from '../people/use-chosen-people.ts';
 import { batchSettled, useRowSelection } from './use-row-selection.ts';
@@ -28,6 +29,7 @@ export function useViewChoosing({
   tab = '',
   people = null,
   present = null,
+  exporting = null,
 }: {
   viewKey: string;
   commands: ArchiveCommands;
@@ -37,6 +39,8 @@ export function useViewChoosing({
   people?: ChosenPeopleMerge | null;
   /** The rows the view shows now: a chosen row no longer among them is let go of. */
   present?: readonly string[] | null;
+  /** Given where notes can be exported (#501): the chosen rows can be, together. */
+  exporting?: ExportCommands | null;
 }): ViewChoosing {
   const [on, setOn] = useState(false);
   const { selection, chosen, clear, afterBatch, beginBatch } = useRowSelection(
@@ -69,6 +73,12 @@ export function useViewChoosing({
           .then((outcome) => settle(batchSettled(outcome, given)));
       };
     const offered: BulkAction[] = [...merging];
+    if (exporting !== null && paths.length > 0) {
+      offered.push({
+        label: `Export ${notes(paths.length)}…`,
+        onRun: () => exporting.ask(paths, beginBatch()),
+      });
+    }
     if (archivable.length > 0) {
       offered.push({
         label: `Archive ${notes(archivable.length)}`,
@@ -84,7 +94,7 @@ export function useViewChoosing({
       });
     }
     return offered;
-  }, [chosen, commands, beginBatch, merging]);
+  }, [chosen, commands, beginBatch, merging, exporting]);
 
   return { on, setOn, selection, actions, count: chosen.length, clear };
 }

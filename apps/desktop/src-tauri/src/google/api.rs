@@ -1,8 +1,9 @@
-//! One call to the Google Calendar API, carrying the access token.
+//! One call to a Google API — Calendar, or Drive for an export (#501) —
+//! carrying the access token.
 //!
 //! The webview says which call — method, path and body, as TypeScript builds
-//! them — and the host adds the token and sends it to the one API it may go
-//! to. Which calls to make and what their answers mean are TypeScript's
+//! them — and the host adds the token and sends it to the API the command is
+//! for, and to no other part of Google. Which calls to make and what their answers mean are TypeScript's
 //! (ADR-0005); where the token may go is the host's, because the webview is
 //! the untrusted side (ADR-0017).
 
@@ -13,18 +14,56 @@ use serde::{Deserialize, Serialize};
 use super::failure::{FailureKind, GoogleFailure};
 use super::token::{answer_of, client, unreachable};
 
-/// The only paths a call may reach: the Calendar API, version 3.
+/// The only paths a Calendar call may reach: the Calendar API, version 3.
 const CALENDAR_PATH: &str = "/calendar/v3/";
+
+/// The only paths a Drive call may reach: files (folders are files to Drive),
+/// and the upload a Doc is converted from. With `drive.file`, Google itself
+/// keeps them to the files this app made.
+const DRIVE_PATHS: [&str; 2] = ["/drive/v3/files", "/upload/drive/v3/files"];
+
+/// The one body that is not JSON: a Drive upload's metadata and its page,
+/// as `multipart/related` with a boundary of letters, digits, `-` and `_`.
+const MULTIPART: &str = "multipart/related; boundary=";
+
+/// Which Google API a command's calls go to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Service {
+    Calendar,
+    Drive,
+}
+
+impl Service {
+    fn name(self) -> &'static str {
+        match self {
+            Service::Calendar => "Google Calendar API",
+            Service::Drive => "Google Drive API",
+        }
+    }
+
+    /// Whether `path`, as parsing resolved it, stays under this API.
+    fn holds(self, path: &str) -> bool {
+        match self {
+            Service::Calendar => path.starts_with(CALENDAR_PATH),
+            Service::Drive => DRIVE_PATHS
+                .iter()
+                .any(|root| path == *root || path.starts_with(&format!("{root}/"))),
+        }
+    }
+}
 
 /// A call as TypeScript asks for it. It holds no token.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ApiCall {
     pub method: String,
-    /// From `/calendar/v3/`, with any query.
+    /// From the API's root — `/calendar/v3/…`, `/drive/v3/files…` — with any query.
     pub path: String,
     /// JSON, for a call that sends some.
     #[serde(default)]
     pub body: Option<String>,
+    /// The body's type when it is not JSON: only a Drive upload's multipart.
+    #[serde(default, rename = "contentType")]
+    pub content_type: Option<String>,
 }
 
 /// What the API answered, with every token struck from the body.
@@ -38,20 +77,43 @@ fn invalid(message: String) -> GoogleFailure {
     GoogleFailure::new(FailureKind::Invalid, message)
 }
 
-/// The call's URL, if it stays under the Calendar API. A path that starts
+/// The call's URL, if it stays under the API it is for. A path that starts
 /// with `/` keeps the API's origin when joined to it, so what a path could
 /// still change is the path itself, through `..` or its encoded forms — which
 /// is why it is checked again once parsing has resolved them.
-pub fn call_url(api: &Url, path: &str) -> Result<Url, GoogleFailure> {
-    let refused = || invalid(format!("{path:?} is not a Google Calendar API path"));
-    if !path.starts_with(CALENDAR_PATH) {
+pub fn call_url(api: &Url, path: &str, service: Service) -> Result<Url, GoogleFailure> {
+    let refused = || invalid(format!("{path:?} is not a {} path", service.name()));
+    let before_query = path.split(['?', '#']).next().unwrap_or_default();
+    if !path.starts_with('/') || !service.holds(before_query) {
         return Err(refused());
     }
     let url = api.join(path).map_err(|_| refused())?;
-    if url.path().starts_with(CALENDAR_PATH) {
+    if url.origin() == api.origin() && service.holds(url.path()) {
         Ok(url)
     } else {
         Err(refused())
+    }
+}
+
+/// The body's type: JSON, or — for a Drive upload alone — multipart with a
+/// boundary that cannot break the header it is written into.
+fn content_type(call: &ApiCall, service: Service, url: &Url) -> Result<String, GoogleFailure> {
+    let Some(given) = &call.content_type else {
+        return Ok("application/json".into());
+    };
+    let boundary = given.strip_prefix(MULTIPART).unwrap_or_default();
+    let usable = !boundary.is_empty()
+        && boundary.len() <= 70
+        && boundary
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    let upload = service == Service::Drive && url.path().starts_with(DRIVE_PATHS[1]);
+    if usable && upload {
+        Ok(given.clone())
+    } else {
+        Err(invalid(format!(
+            "{given:?} is not a body this call may send"
+        )))
     }
 }
 
@@ -63,7 +125,7 @@ fn call_method(method: &str) -> Result<Method, GoogleFailure> {
         "PATCH" => Ok(Method::PATCH),
         "DELETE" => Ok(Method::DELETE),
         other => Err(invalid(format!(
-            "{other:?} is not a method the Calendar API is called with"
+            "{other:?} is not a method a Google API is called with"
         ))),
     }
 }
@@ -73,12 +135,15 @@ pub struct Checked {
     method: Method,
     url: Url,
     body: Option<String>,
+    content_type: String,
 }
 
-pub fn check(api: &Url, call: &ApiCall) -> Result<Checked, GoogleFailure> {
+pub fn check(api: &Url, call: &ApiCall, service: Service) -> Result<Checked, GoogleFailure> {
+    let url = call_url(api, &call.path, service)?;
     Ok(Checked {
         method: call_method(&call.method)?,
-        url: call_url(api, &call.path)?,
+        content_type: content_type(call, service, &url)?,
+        url,
         body: call.body.clone(),
     })
 }
@@ -91,7 +156,7 @@ pub async fn send(checked: &Checked, access_token: &str) -> Result<(u16, Vec<u8>
         .header(AUTHORIZATION, format!("Bearer {access_token}"));
     if let Some(body) = &checked.body {
         request = request
-            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_TYPE, &checked.content_type)
             .body(body.clone());
     }
     let response = request.send().await.map_err(unreachable)?;
@@ -102,7 +167,7 @@ pub async fn send(checked: &Checked, access_token: &str) -> Result<(u16, Vec<u8>
 mod tests {
     use reqwest::Url;
 
-    use super::{call_method, call_url};
+    use super::{call_method, call_url, check, ApiCall, Service};
 
     fn api() -> Url {
         Url::parse("https://www.googleapis.com/").unwrap()
@@ -113,6 +178,7 @@ mod tests {
         let url = call_url(
             &api(),
             "/calendar/v3/users/me/calendarList?minAccessRole=owner",
+            Service::Calendar,
         )
         .unwrap();
         assert_eq!(
@@ -132,7 +198,10 @@ mod tests {
             "calendar/v3/calendars",
             "/calendar/v3x/calendars",
         ] {
-            assert!(call_url(&api(), path).is_err(), "{path} was allowed");
+            assert!(
+                call_url(&api(), path, Service::Calendar).is_err(),
+                "{path} was allowed"
+            );
         }
     }
 
@@ -144,5 +213,67 @@ mod tests {
         for method in ["get", "CONNECT", "TRACE", ""] {
             assert!(call_method(method).is_err(), "{method}");
         }
+    }
+
+    #[test]
+    fn a_drive_call_reaches_files_and_the_upload_and_nothing_else() {
+        for path in [
+            "/drive/v3/files?q=name%3D%27x%27&fields=files(id)",
+            "/drive/v3/files",
+            "/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",
+        ] {
+            assert!(call_url(&api(), path, Service::Drive).is_ok(), "{path}");
+        }
+        for path in [
+            "/drive/v3/about",
+            "/drive/v3/filesX",
+            "/drive/v3/files/../../gmail/v1/users/me/messages",
+            "/drive/v3/files/%2e%2e/%2e%2e/oauth2/v4/token",
+            "/calendar/v3/calendars",
+            "//evil.example/drive/v3/files",
+        ] {
+            assert!(
+                call_url(&api(), path, Service::Drive).is_err(),
+                "{path} was allowed"
+            );
+        }
+        assert!(call_url(&api(), "/drive/v3/files", Service::Calendar).is_err());
+    }
+
+    fn call(path: &str, content_type: Option<&str>) -> ApiCall {
+        ApiCall {
+            method: "POST".into(),
+            path: path.into(),
+            body: Some("--b\r\n".into()),
+            content_type: content_type.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn only_a_drive_upload_sends_multipart_with_a_plain_boundary() {
+        let upload = "/upload/drive/v3/files?uploadType=multipart";
+        let good = Some("multipart/related; boundary=atlas-export_1");
+        assert!(check(&api(), &call(upload, good), Service::Drive).is_ok());
+        assert!(check(&api(), &call(upload, None), Service::Drive).is_ok());
+        assert!(check(&api(), &call("/drive/v3/files", good), Service::Drive).is_err());
+        assert!(check(
+            &api(),
+            &call("/calendar/v3/calendars", good),
+            Service::Calendar
+        )
+        .is_err());
+        for bad in [
+            "multipart/related; boundary=",
+            "multipart/related; boundary=a\r\nX-Evil: 1",
+            "multipart/related; boundary=a b",
+            "text/html",
+        ] {
+            assert!(
+                check(&api(), &call(upload, Some(bad)), Service::Drive).is_err(),
+                "{bad}"
+            );
+        }
+        let long = format!("multipart/related; boundary={}", "a".repeat(71));
+        assert!(check(&api(), &call(upload, Some(&long)), Service::Drive).is_err());
     }
 }
