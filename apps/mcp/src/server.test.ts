@@ -38,6 +38,7 @@ const ALL_TOOLS = [
   'atlas_create_note',
   'atlas_daily_note',
   'atlas_export_note',
+  'atlas_find_duplicate_people',
   'atlas_inbox',
   'atlas_list_notes',
   'atlas_list_templates',
@@ -45,6 +46,7 @@ const ALL_TOOLS = [
   'atlas_list_types',
   'atlas_list_views',
   'atlas_meetings',
+  'atlas_merge_people',
   'atlas_move_card',
   'atlas_process_inbox_item',
   'atlas_profile',
@@ -139,6 +141,11 @@ describe('tools/list', () => {
       destructiveHint: false,
     });
     expect(byName.get('atlas_archived')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('atlas_find_duplicate_people')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('atlas_merge_people')).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
     expect(byName.get('atlas_weekly_review')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('atlas_export_note')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('atlas_inbox')).toMatchObject({ readOnlyHint: true });
@@ -477,6 +484,31 @@ describe('tools/call → REST', () => {
       null,
     ],
     ['atlas_terms', {}, 'GET', '/v1/terms', null],
+    ['atlas_find_duplicate_people', {}, 'GET', '/v1/people/duplicates', null],
+    [
+      'atlas_merge_people',
+      { keep: 'People/Mara Quill.md', merge: ['Mara.md'] },
+      'POST',
+      '/v1/people/merge',
+      { keep: 'People/Mara Quill.md', merge: ['Mara.md'], confirm: false },
+    ],
+    [
+      'atlas_merge_people',
+      {
+        keep: 'People/Mara Quill.md',
+        merge: ['Mara.md', 'Inbox/Marra Quill.md'],
+        confirm: true,
+        version: '0a1b2c3d',
+      },
+      'POST',
+      '/v1/people/merge',
+      {
+        keep: 'People/Mara Quill.md',
+        merge: ['Mara.md', 'Inbox/Marra Quill.md'],
+        confirm: true,
+        version: '0a1b2c3d',
+      },
+    ],
     ['atlas_tags', {}, 'GET', '/v1/tags', null],
     ['atlas_tags', { sort: 'frequency' }, 'GET', '/v1/tags?sort=frequency', null],
     [
@@ -715,6 +747,10 @@ describe('tools/call → REST', () => {
     ['atlas_tags', { sort: 'size' }],
     ['atlas_tagged_notes', {}],
     ['atlas_rename_tag', { tag: 'idea' }],
+    ['atlas_merge_people', { keep: 'People/Mara Quill.md' }],
+    ['atlas_merge_people', { keep: 'People/Mara Quill.md', merge: [] }],
+    ['atlas_merge_people', { keep: 'People/Mara Quill.md', merge: ['Mara.md'], confirm: 'yes' }],
+    ['atlas_merge_people', { keep: 'People/Mara Quill.md', merge: ['Mara.md'], version: 3 }],
     ['atlas_rename_tag', { tag: 'idea', to: '' }],
     ['atlas_rename_tag', { tag: 'idea', to: 'x', dryRun: 'yes' }],
     ['atlas_read_note', { path: '..' }],

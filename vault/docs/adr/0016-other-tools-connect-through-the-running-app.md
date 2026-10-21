@@ -804,3 +804,36 @@ not a replacement. It is held to the terms above:
   says the route and the file, never what the meeting carried.
 - **No MCP tool.** The route takes a provider's raw meeting and email for a
   program; a model recording a meeting writes a note with `atlas_create_note`.
+
+## People: duplicates and merging (#464, 2026-10-20)
+
+`GET /v1/people/duplicates` and `POST /v1/people/merge` run the People page's
+own use-cases. A merge moves no file but the merged people's, into the Trash
+— a write the app already makes, recoverable — and writes notes' text in user
+space and in `.atlas/templates`, each once and byte for byte apart from the merge, against the version
+the preview read. On the same terms as a tag rename:
+
+- **It previews unless `confirm: true`.** The preview names every note
+  written, the links that move, and the values the kept note keeps over a
+  merged one's, and carries a `version`. A confirm carries the version it was
+  shown; the merge is worked out afresh and made only while it gives that
+  version again — otherwise `conflict`, nothing written (amended in #467: a
+  confirm with no version, or another, is not the merge the caller saw).
+- **Typing in the app's panes is saved first, and the index brought up to
+  the files** — the app's own refresh, handed to the router — before the
+  links are looked for (amended in #467: a link typed a moment ago, or written
+  by another program and not yet indexed, would otherwise point at a person in
+  the Trash). Typing whose save is refused, or an index that cannot catch up,
+  is `conflict`, with nothing written. This is the one route that saves
+  typing for the person, as the app's own merge does.
+- **A note changed since the preview is `conflict`**, with nothing written.
+- **A template, saved view or dashboard linking to a merged person is
+  rewritten**, as the app rewrites it: it is the person's own work, and the
+  link would otherwise open a note in the Trash (#467). One that names a
+  merged person by file, where no link reaches, refuses the merge. **Any other note of Atlas's own** (a type, say)
+  linking to them refuses the merge, with nothing written; hidden folders are
+  never written.
+- **Saying two people are not one is the app's alone for now.** It writes the
+  vault's settings note, which only the app's one settings writer may write
+  (two writers would refuse each other's writes as stale); the router is not
+  handed it yet.

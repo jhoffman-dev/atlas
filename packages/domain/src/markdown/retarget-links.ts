@@ -38,6 +38,71 @@ export function notesAfterMoves(
   return { moves, before: notes, after, moved };
 }
 
+/**
+ * The vault's notes either side of a merge (#464): each merged note gone, and
+ * every link that opened one to open the note it was merged into. Nothing
+ * moves, so only links change — no image source does.
+ */
+export function notesAfterMerge({
+  notes,
+  into,
+}: {
+  notes: readonly VaultPath[];
+  /** Each merged note, to the note it was merged into. */
+  into: ReadonlyMap<VaultPath, VaultPath>;
+}): NotesAcrossMove {
+  return { moves: [], before: notes, after: notes.filter((path) => !into.has(path)), moved: into };
+}
+
+/**
+ * Re-points every wiki link — in the body or a property, `[[…]]` or `![[…]]` —
+ * that opened a merged note at the note it went into, among the notes
+ * {@link notesAfterMerge} gives. Only a link's target changes: its `|display`
+ * text, `#heading`, `^block` and `!` stay byte for byte, as does everything
+ * else. A link that already opens the kept note — a bare name both notes
+ * shared, say — is left alone.
+ */
+export function retargetMergedLinks({ text, ...across }: NotesAcrossMove & { text: string }): {
+  text: string;
+  count: number;
+} {
+  return retargetWikiLinks({ text, ...across });
+}
+
+/**
+ * Re-points the relative image sources in a body moved from one note to
+ * another — a merged note's, put at the end of the note it went into — so
+ * each still shows the image it showed where it was.
+ */
+export function rebaseImageSources({
+  text,
+  from,
+  to,
+  exists,
+}: {
+  text: string;
+  from: VaultPath;
+  to: VaultPath;
+  exists: (path: VaultPath) => boolean;
+}): { text: string; count: number } {
+  const across = { moves: [], moved: new Map([[from, to]]), path: to };
+  return retargetImageSources({ text, exists, inCode: codeRanges(text), ...across });
+}
+
+/** Every file the image sources of a body moved from `from` to `to` could name: what `exists` must know. */
+export function imagePathsToRebase({
+  text,
+  from,
+  to,
+}: {
+  text: string;
+  from: VaultPath;
+  to: VaultPath;
+}): VaultPath[] {
+  const across = { moves: [], moved: new Map([[from, to]]), path: to };
+  return imagePathsAcrossMove({ text, inCode: codeRanges(text), ...across });
+}
+
 // A fenced block, from its opening fence to the matching close (or the end),
 // and an inline code span: an image source inside either is text. (Wiki links
 // are found by `wikiLinkSpans`, which reads code as the editor does.)

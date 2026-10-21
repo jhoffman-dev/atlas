@@ -26,6 +26,7 @@ function panesSaying(state: 'closed' | 'clean' | 'dirty'): PaneEditors {
     flushHolding: async () => {},
     follow: () => {},
     abandon: () => {},
+    dirtyPaths: () => [],
   };
 }
 

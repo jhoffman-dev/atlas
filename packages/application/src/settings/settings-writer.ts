@@ -1,11 +1,19 @@
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
-import { saveVaultSettings } from './vault-settings.ts';
+import { readVaultSettings, saveVaultSettings } from './vault-settings.ts';
 
 /** The one way into a vault's settings note, shared by every setting kept there. */
 export interface SettingsWriter {
   /** Settles once the changes are in the file; rejects with why they are not. */
   save(changes: Readonly<Record<string, unknown>>): Promise<void>;
+  /**
+   * Changes worked out from the settings as they stand at the writer's turn:
+   * read, changed and written with no other write between — for a setting a
+   * change adds to, as a list two quick clicks each add one to.
+   */
+  update(
+    change: (current: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>,
+  ): Promise<void>;
 }
 
 /**
@@ -44,6 +52,17 @@ export function createSettingsWriter({
       }
       Object.assign(waiting.changes, changes);
       return waiting.written;
+    },
+    update(change) {
+      // Behind every write asked for so far; what is saved after goes after it.
+      waiting = null;
+      const written = queue.then(async () => {
+        const current = await readVaultSettings({ fs, markdown });
+        await saveVaultSettings({ fs, markdown, changes: change(current) });
+      });
+      // As for `save`: the caller hears of a failure through `written`.
+      queue = written.catch(() => undefined);
+      return written;
     },
   };
 }

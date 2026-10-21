@@ -1,6 +1,7 @@
-import type { ImagePlacement } from '@atlas/domain';
+import type { ImagePlacement, VaultPath } from '@atlas/domain';
 import type { ThumbnailQueue } from '../artifacts/thumbnail-queue.ts';
 import type { IndexPort } from '../index/ports.ts';
+import { refreshIndex } from '../index/refresh-index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { SourceRefresher } from '../sources/source-refresher.ts';
 import type { VaultTagRenames } from '../tags/index.ts';
@@ -69,6 +70,11 @@ export interface VaultRequest {
   readonly timeZone: string;
   /** Refuses with `no_vault` once the vault this request arrived for is no longer open. */
   readonly assertStillOpen: () => void;
+  /**
+   * Brings the index up to the files, `recheck` read again whatever their time
+   * says; `conflict` when it cannot catch up.
+   */
+  readonly refreshIndex: (recheck: readonly VaultPath[]) => Promise<void>;
 }
 
 export type VaultHandler = (request: VaultRequest) => Promise<RouteResult>;
@@ -86,6 +92,7 @@ export function vaultRequest({
   const vault = deps.host.currentVault()?.absolutePath ?? null;
   if (vault === null) throw noVault('No vault is open in Atlas');
 
+  const fs = inVault({ fs: deps.fs, vault });
   return {
     pathParam: params.path,
     nameParam: params.name,
@@ -93,7 +100,7 @@ export function vaultRequest({
     idParam: params.id,
     query: request.query,
     body: request.body,
-    fs: inVault({ fs: deps.fs, vault }),
+    fs,
     markdown: deps.markdown,
     index: deps.index,
     openNotes: deps.openNotes,
@@ -115,8 +122,19 @@ export function vaultRequest({
         throw noVault('The vault this request was for is no longer open');
       }
     },
+    refreshIndex: async (recheck) => {
+      const caughtUp =
+        deps.indexRefresh === undefined
+          ? (await refreshIndex({ fs, index: deps.index, markdown: deps.markdown, recheck }), true)
+          : await deps.indexRefresh(recheck);
+      if (!caughtUp) throw new ApiError('conflict', INDEX_BEHIND);
+    },
   };
 }
+
+/** Why a request that needs every link indexed was not answered. */
+const INDEX_BEHIND =
+  'The index could not catch up with the vault, so links could be missed. Try again in a moment.';
 
 function noVault(message: string): ApiError {
   return new ApiError('no_vault', message);
