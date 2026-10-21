@@ -121,7 +121,11 @@ describe('a new person after @', () => {
   });
 
   it('is cleaned of what no file name can hold', () => {
-    expect(rank('Ann/Lee').at(-1)).toEqual({ kind: 'create', name: 'Ann Lee' });
+    expect(rank('Ann*Lee').at(-1)).toEqual({ kind: 'create', name: 'Ann Lee' });
+  });
+
+  it('is not offered for a name holding /, which every link’s Create refuses (#465)', () => {
+    expect(rank('Ann/Lee').some((item) => item.kind === 'create')).toBe(false);
   });
 });
 

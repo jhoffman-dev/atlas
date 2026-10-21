@@ -39,6 +39,8 @@ export {
 } from './retarget-links.ts';
 export type { NoteAcrossMove, NotesAcrossMove } from './retarget-links.ts';
 export { rankNoteSuggestions } from './note-suggestions.ts';
+export { newLinkName } from './new-link-name.ts';
+export type { NewLinkName } from './new-link-name.ts';
 export {
   ALIAS_KEYS,
   compileLinkHintsQuery,
@@ -53,7 +55,6 @@ export {
   linkMatchOf,
   linkMatchStrength,
   NO_LINK_HINTS,
-  offersLinkCreate,
   openLinkInText,
   rankLinkChoices,
   withLinkInText,

@@ -10,7 +10,7 @@ import {
 import {
   createVaultPath,
   linkMatchOf,
-  offersLinkCreate,
+  newLinkName,
   placeCrumb,
   rankLinkChoices,
   relationGroupLabel,
@@ -185,12 +185,15 @@ function useRows({
     () => rankLinkChoices({ query, choices: offered, hints: source.hints }),
     [query, offered, source.hints],
   );
-  const typed = query.trim();
-  const taken =
-    typed !== '' &&
-    (names.opens(`[[${typed}]]`) !== null ||
-      (source.notes ?? NO_CHOICES).some((note) => linkMatchOf(note.title, typed) === 'exact'));
-  const makes = offersCreate && !taken && offersLinkCreate({ query, ranked }) ? creates : NO_TYPES;
+  // Any note answers: one this picker offers, one it may not (linked already, of
+  // another type, archived) by its link, or by its title from the vault's notes.
+  const answers = (name: string) =>
+    names.opens(`[[${name}]]`) !== null ||
+    [...offered, ...(source.notes ?? NO_CHOICES)].some(
+      (note) => linkMatchOf(note.title, name) === 'exact',
+    );
+  const made = offersCreate ? newLinkName(query, answers) : null;
+  const makes = made !== null && 'name' in made ? creates : NO_TYPES;
   return [
     ...ranked.map((suggestion) => ({ kind: 'note' as const, suggestion })),
     ...makes.map((target) => ({ kind: 'create' as const, target })),

@@ -173,20 +173,6 @@ function byText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/**
- * Whether a link field offers to make a note of what was typed: something
- * was, and no note offered is already called that, by its title or an alias.
- */
-export function offersLinkCreate({
-  query,
-  ranked,
-}: {
-  query: string;
-  ranked: readonly LinkSuggestion<LinkCandidate>[];
-}): boolean {
-  return query.trim() !== '' && !ranked.some((each) => each.match === 'exact');
-}
-
 /** A half-typed `[[link` in a text field: where its `[[` starts, and what follows it to the caret. */
 export interface OpenLinkInText {
   readonly start: number;

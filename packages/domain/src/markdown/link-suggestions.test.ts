@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   linkMatchOf,
-  offersLinkCreate,
   openLinkInText,
   rankLinkChoices,
   withLinkInText,
@@ -149,26 +148,6 @@ describe('rankLinkChoices', () => {
     const [first] = rankLinkChoices({ query: 'gar', choices: [note('Garden', { type: 'area' })] });
     expect(first?.choice.type).toBe('area');
     expect(first?.match).toBe('prefix');
-  });
-});
-
-describe('offersLinkCreate', () => {
-  it('offers to make a note when something is typed and no note is called that', () => {
-    const ranked = rankLinkChoices({ query: 'Gard', choices: [note('Garden')] });
-    expect(offersLinkCreate({ query: 'Gard', ranked })).toBe(true);
-  });
-
-  it('does not offer it when a note is already called that, by title or alias', () => {
-    const choices = [note('Garden')];
-    const exact = rankLinkChoices({ query: 'garden ', choices });
-    expect(offersLinkCreate({ query: 'garden ', ranked: exact })).toBe(false);
-    const given = hints({ aliases: { 'projects/Garden.md': ['Allotment'] } });
-    const byAlias = rankLinkChoices({ query: 'allotment', choices, hints: given });
-    expect(offersLinkCreate({ query: 'allotment', ranked: byAlias })).toBe(false);
-  });
-
-  it('does not offer it for nothing typed', () => {
-    expect(offersLinkCreate({ query: '  ', ranked: [] })).toBe(false);
   });
 });
 

@@ -5,6 +5,7 @@ import {
   blockOutline,
   linkMatchOf,
   matchingOutline,
+  newLinkName,
   noteTitle,
   offeredByOwnId,
   type EditorDocument,
@@ -41,11 +42,10 @@ export interface WikiLinkSuggestionOptions {
 export interface LinkedNoteMaker {
   /** Makes the note, resolving to what a link to it is written as, as made. */
   readonly make: MakeLinked;
-  /**
-   * Whether a note — any note, archived ones too — already answers to the
-   * name, or to the name its file would be given, or is being made of it.
-   */
+  /** Whether a note — any note, archived ones too — answers to the name, or is being made of it. */
   readonly named: (name: string) => boolean;
+  /** The note was made, but where it was typed had gone, so no link was written; left out, unsaid. */
+  readonly notLinked?: (name: string) => void;
 }
 
 /**
@@ -117,8 +117,8 @@ function linkPicker({
           name: item.name,
           sigil: '[[',
           make: maker.make,
-          // The app says why; the words typed come back either way.
-          notLinked: () => {},
+          // Made, but its placeholder had gone (an undo, the note re-read): the app says so.
+          notLinked: maker.notLinked ?? (() => {}),
           closeList: () => exitSuggestion(current.view, pluginKey),
         });
         return;
@@ -152,15 +152,11 @@ function choicesFor({
   return fragmentsFor({ query, hash, editor, blocks: options.blocks });
 }
 
-/** What a name made from `[[` may not hold: a folder, an alias, a heading. */
-const NOT_IN_A_NEW_NAME = /[/|#]/;
-
 /**
- * The notes offered for what was typed, then "Create '<typed>'" when none of
- * them is called that and no other note answers to it (`named`: archived
- * ones too, and any being made) — as a link field offers it (#465). Never
- * for a name holding `/`, `|` or `#`, which a link would read as a folder,
- * an alias or a heading. Nothing typed, nothing to make.
+ * The notes offered for what was typed, then "Create '<typed>'" when the
+ * rule every link's Create keeps (`newLinkName`, #465) lets it be made: a
+ * name a link can hold, which no note answers to — none offered, nor any
+ * other (`named`: archived ones too, and any being made).
  */
 export function withCreate(
   notes: readonly NoteSuggestion[],
@@ -168,10 +164,10 @@ export function withCreate(
   named: (name: string) => boolean,
 ): LinkChoice[] {
   const choices: LinkChoice[] = notes.map((note) => ({ kind: 'note', note }));
-  const name = query.trim();
-  const listed = notes.some((note) => linkMatchOf(noteTitle(note.path), name) === 'exact');
-  if (name === '' || NOT_IN_A_NEW_NAME.test(name) || listed || named(name)) return choices;
-  return [...choices, { kind: 'create', name }];
+  const answers = (name: string) =>
+    named(name) || notes.some((note) => linkMatchOf(noteTitle(note.path), name) === 'exact');
+  const made = newLinkName(query, answers);
+  return 'name' in made ? [...choices, { kind: 'create', name: made.name }] : choices;
 }
 
 async function fragmentsFor({

@@ -109,6 +109,7 @@ import { tellingOwnWrites } from './reads/telling-own-writes.ts';
 import { useSqlViews } from './reads/use-sql-views.ts';
 import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';
 import { LinkHintsHost } from './linked-pages/link-hints-host.tsx';
+import { createNotesBeingMade } from './notes/notes-being-made.ts';
 import { useVaultReads } from './reads/use-vault-reads.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
@@ -486,6 +487,8 @@ function AppWindow({
   const focusedNote = useCallback(() => focusedNotePath(workspaceNow(workspace)), [workspace]);
   // What the query tab is writing, read by the chat for the window it opens on.
   const [queryText] = useState(createQueryTextStore);
+  // What `[[` is making, shared by every pane, so two cannot make one name twice.
+  const [notesBeingMade] = useState(createNotesBeingMade);
   /** The focused tab's query text while that tab shows the query page, else null. */
   const focusedQueryText = useCallback(() => {
     const tab = activeTabOf(workspaceNow(workspace));
@@ -1472,6 +1475,7 @@ function AppWindow({
       viewDrafts,
       archive: archiveCommands,
       onLinkProblem: setLinkError,
+      notesBeingMade,
       templateCommands,
     }),
     [
@@ -1510,6 +1514,7 @@ function AppWindow({
       viewDrafts,
       archiveCommands,
       templateCommands,
+      notesBeingMade,
     ],
   );
 

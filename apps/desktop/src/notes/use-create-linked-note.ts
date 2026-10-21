@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { createNote, type MarkdownPort, type VaultFsPort } from '@atlas/application';
 import {
   createVaultPath,
@@ -10,6 +10,10 @@ import {
 } from '@atlas/domain';
 import type { LinkedNoteMaker } from '@atlas/ui';
 import { localToday } from '../today.ts';
+import type { NotesBeingMade } from './notes-being-made.ts';
+
+/** A name as the notes being made are kept by: the name its file is given, folded. */
+const keyOf = (name: string) => noteTitle(createVaultPath(noteFileName(name))).toLowerCase();
 
 /**
  * "Create '<name>'" from the editor's `[[` (#465): makes a blank note of the
@@ -17,12 +21,13 @@ import { localToday } from '../today.ts';
  * Obsidian makes the note a link names — without opening it, and answers
  * with the link to the note as made: its name cleaned of what a file name
  * cannot hold (`Q3: plan` is `Q3 plan`), or numbered. A note that cannot be
- * made is said through `onProblem`, and the rejection passed on.
+ * made is said through `onProblem`, and the rejection passed on; one made
+ * whose link could not be written, too.
  *
- * `named` says which names are taken, so "Create" is offered for none of
- * them: any note's — archived ones too, whose links a new note of that name
- * would take over — by the name typed or the one its file would get, and
- * any being made, until the vault's notes list it.
+ * `named` says which names a note answers to — any note, archived ones too,
+ * whose links a new note of that name would take over — and which are being
+ * made (`beingMade`, the window's), until the vault's notes list them.
+ * Whether a name may be made at all is the domain's rule (`newLinkName`).
  */
 export function useCreateLinkedNote({
   fs,
@@ -31,6 +36,7 @@ export function useCreateLinkedNote({
   beside,
   onChanged,
   onProblem,
+  beingMade,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
@@ -38,30 +44,27 @@ export function useCreateLinkedNote({
   beside: VaultPath | null;
   onChanged: () => void;
   onProblem: (message: string) => void;
+  beingMade: NotesBeingMade;
 }): LinkedNoteMaker {
-  /** The names being made, folded as links fold them, by the path each will take. */
-  const making = useRef(new Map<string, VaultPath | null>());
   return useMemo(() => {
     const opens = createWikiLinkResolver(notePaths);
-    const fileTitle = (name: string) => noteTitle(createVaultPath(noteFileName(name)));
-    const key = (name: string) => fileTitle(name).toLowerCase();
     const listed = new Set(notePaths);
     /** Whether a name is being made: one the vault's notes now list is not, any more. */
-    const beingMade = (name: string) => {
-      const path = making.current.get(key(name));
+    const making = (name: string) => {
+      const path = beingMade.get(keyOf(name));
       if (path === undefined) return false;
       if (path === null || !listed.has(path)) return true;
-      making.current.delete(key(name));
+      beingMade.delete(keyOf(name));
       return false;
     };
     return {
       named: (name) => {
         // Asked first, so a note the vault now lists is let go of even when it answers below.
-        const pending = beingMade(name);
-        return pending || opens(name) !== null || opens(fileTitle(name)) !== null;
+        const pending = making(name);
+        return pending || opens(name) !== null;
       },
       make: async (name) => {
-        making.current.set(key(name), null);
+        beingMade.set(keyOf(name), null);
         try {
           const path = await createNote({
             fs,
@@ -71,16 +74,20 @@ export function useCreateLinkedNote({
             beside,
             notePaths,
           });
-          making.current.set(key(name), path);
+          beingMade.set(keyOf(name), path);
           onChanged();
           return wikiLinkTargetFor(path, [...notePaths, path]);
         } catch (cause) {
-          making.current.delete(key(name));
+          beingMade.delete(keyOf(name));
           const why = cause instanceof Error ? cause.message : String(cause);
           onProblem(`“${name}” could not be made: ${why}`);
           throw cause;
         }
       },
+      notLinked: (name) =>
+        onProblem(
+          `“${name}” was made, but the link could not be written here: the note changed meanwhile.`,
+        ),
     };
-  }, [fs, markdown, notePaths, beside, onChanged, onProblem]);
+  }, [fs, markdown, notePaths, beside, onChanged, onProblem, beingMade]);
 }

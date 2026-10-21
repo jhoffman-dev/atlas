@@ -201,6 +201,7 @@ export function NoteEditor({
         creator.current?.make(name) ?? Promise.reject(new Error('Nothing can be made here.')),
       // Read when asked: the vault's notes change without the editor being built again.
       named: (name) => creator.current?.named(name) ?? true,
+      notLinked: (name) => creator.current?.notLinked?.(name),
     }),
     [creator],
   );

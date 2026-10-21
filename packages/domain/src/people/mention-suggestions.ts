@@ -1,6 +1,7 @@
 import { isArchivedPath } from '../archive/archive.ts';
 import { isAtlasNote } from '../vault/vault-visibility.ts';
 import { createWikiLinkResolver, wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
+import { newLinkName } from '../markdown/new-link-name.ts';
 import { linkBreakingCharacter } from '../markdown/wikilink.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
@@ -101,9 +102,14 @@ export function rankMentionSuggestions(
     .slice(0, limit)
     .map(({ person, name }) => offered(person.path, name, linkable));
 
+  // Whether a person may be made is the rule every link's Create keeps (#465).
+  const answers = (typed: string) =>
+    active.some((person) => comparable(noteTitle(person.path)) === comparable(typed));
   const name = cleanEntryName(query);
-  const taken = active.some((person) => comparable(noteTitle(person.path)) === comparable(name));
-  return offersNewPerson(query, name) && !taken ? [...found, { kind: 'create', name }] : found;
+  const made = newLinkName(query, answers);
+  return 'name' in made && offersNewPerson(query, name)
+    ? [...found, { kind: 'create', name }]
+    : found;
 }
 
 /** A person as the list offers them: with the link to write, or why there is none. */

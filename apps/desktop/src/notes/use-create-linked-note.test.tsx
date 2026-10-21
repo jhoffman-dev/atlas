@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { fakeMarkdown, fakeVaultFs } from '@atlas/application';
 import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createNotesBeingMade, type NotesBeingMade } from './notes-being-made.ts';
 import { useCreateLinkedNote } from './use-create-linked-note.ts';
 
 /** #465: "Create '<name>'" after `[[` in the editor. Fictional names only. */
@@ -12,9 +13,11 @@ const PLANS = createVaultPath('Plans/Offsite.md');
 function hook({
   createNote = vi.fn<ReturnType<typeof fakeVaultFs>['createNote']>(async () => 0),
   notePaths = [PLANS],
+  beingMade = createNotesBeingMade(),
 }: {
   createNote?: ReturnType<typeof fakeVaultFs>['createNote'];
   notePaths?: readonly VaultPath[];
+  beingMade?: NotesBeingMade;
 } = {}) {
   const onChanged = vi.fn();
   const onProblem = vi.fn();
@@ -27,6 +30,7 @@ function hook({
         beside: PLANS,
         onChanged,
         onProblem,
+        beingMade,
       }),
     { initialProps: { paths: notePaths } },
   );
@@ -47,13 +51,40 @@ describe('useCreateLinkedNote', () => {
     expect(await result.current.make('Q3: plan')).toBe('Q3 plan');
   });
 
-  it('takes a name any note answers to, an archived one too, or the name its file would get', () => {
+  it('takes a name any note answers to, an archived one too', () => {
     const { result } = hook({
       notePaths: [PLANS, createVaultPath('Archive/Larkspur.md'), createVaultPath('Q3 plan.md')],
     });
     expect(result.current.named('larkspur')).toBe(true);
-    expect(result.current.named('Q3: plan')).toBe(true);
+    expect(result.current.named('Q3 plan')).toBe(true);
     expect(result.current.named('Tobias Fenn')).toBe(false);
+  });
+
+  it('takes a name another pane is making: the window shares what is being made', async () => {
+    let finish = () => {};
+    const createNote = vi.fn(
+      () =>
+        new Promise<number>((resolve) => {
+          finish = () => resolve(0);
+        }),
+    );
+    const beingMade = createNotesBeingMade();
+    const left = hook({ createNote, beingMade });
+    const right = hook({ beingMade });
+    const made = left.result.current.make('Q3: plan');
+    // The right pane asks by the name the file will be given, as the domain's rule does.
+    expect(right.result.current.named('Q3 plan')).toBe(true);
+    await vi.waitFor(() => expect(createNote).toHaveBeenCalled());
+    finish();
+    await made;
+  });
+
+  it('says so when a note was made but its link could not be written', () => {
+    const { result, onProblem } = hook();
+    result.current.notLinked?.('Mara Quill');
+    expect(onProblem).toHaveBeenCalledWith(
+      '“Mara Quill” was made, but the link could not be written here: the note changed meanwhile.',
+    );
   });
 
   it('takes a name being made until the vault lists its note, so a second Create makes no second note', async () => {
