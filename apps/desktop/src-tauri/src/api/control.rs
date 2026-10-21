@@ -304,7 +304,7 @@ fn cannot_listen(error: std::io::Error) -> String {
 
 /// On a port other than the one `next` records, `next` gets a new token:
 /// whoever holds the recorded port may have been collecting the old one from
-/// tools that knocked there while Atlas was closed.
+/// tools that knocked there while DFAI was closed.
 fn replace_the_token_if_moved(
     next: &mut ConnectionFile,
     listener: &TcpListener,
@@ -413,7 +413,7 @@ mod tests {
         );
     }
 
-    /// Off then straight back on must not find Atlas's own old listener still
+    /// Off then straight back on must not find DFAI's own old listener still
     /// holding the port, take it for a squatter, move and replace the token.
     #[test]
     fn turning_it_off_and_straight_back_on_keeps_the_port_and_the_token() {
@@ -434,7 +434,7 @@ mod tests {
 
     /// A copy of the socket listening on `port`, as a child process that was
     /// being spawned at that moment holds one of every descriptor until it has
-    /// exec'd. While any copy is open the port is not free, though Atlas has
+    /// exec'd. While any copy is open the port is not free, though DFAI has
     /// closed its own.
     #[cfg(unix)]
     fn copy_of_the_listener_on(port: u16) -> std::os::fd::OwnedFd {
@@ -461,7 +461,7 @@ mod tests {
         panic!("nothing in this process is listening on {port}");
     }
 
-    /// Turning it off closes Atlas's listener, but a child being spawned at
+    /// Turning it off closes DFAI's listener, but a child being spawned at
     /// that moment (git, the model) still holds a copy for a few milliseconds
     /// — longer under load. Turning straight back on must wait that out, not
     /// take the copy for a squatter, move and replace the token (#89).
@@ -500,8 +500,8 @@ mod tests {
             .starts_with("HTTP/1.1 200"));
     }
 
-    /// Something that keeps the port Atlas let go of is a squatter: once the
-    /// wait is over, Atlas listens elsewhere, under a new token.
+    /// Something that keeps the port DFAI let go of is a squatter: once the
+    /// wait is over, DFAI listens elsewhere, under a new token.
     #[cfg(unix)]
     #[test]
     fn a_port_still_held_after_the_wait_is_replaced_with_the_token() {
@@ -943,9 +943,9 @@ mod tests {
     }
 
     /// Something that takes the port in the moment between a child's copy
-    /// closing and Atlas trying again is a squatter: if Atlas did not get its
-    /// port, the token is replaced and the old one is refused where Atlas now
-    /// listens. Atlas getting it first keeps both. Either way, port moved if
+    /// closing and DFAI trying again is a squatter: if DFAI did not get its
+    /// port, the token is replaced and the old one is refused where DFAI now
+    /// listens. DFAI getting it first keeps both. Either way, port moved if
     /// and only if token replaced.
     #[cfg(unix)]
     #[test]
@@ -968,7 +968,7 @@ mod tests {
                 if let Ok(listener) = std::net::TcpListener::bind(("127.0.0.1", port)) {
                     return Some(listener);
                 }
-                // Faster than Atlas's 5 ms, without exhausting the socket table.
+                // Faster than DFAI's 5 ms, without exhausting the socket table.
                 std::thread::sleep(std::time::Duration::from_millis(1));
             }
             None
@@ -980,7 +980,7 @@ mod tests {
         assert_eq!(
             squatter.is_some(),
             now_on != port,
-            "squatter and Atlas share {port}"
+            "squatter and DFAI share {port}"
         );
         assert_eq!(
             now_on != port,

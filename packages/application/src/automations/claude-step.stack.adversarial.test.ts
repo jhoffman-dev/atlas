@@ -165,7 +165,7 @@ async function setUp(
     await arrive();
     await hearFeeds();
   };
-  /** Atlas is quit and opened again: what was heard and not yet run on is gone, and the feed starts from the index. */
+  /** DFAI is quit and opened again: what was heard and not yet run on is gone, and the feed starts from the index. */
   const relaunch = async () => {
     feeds.splice(0);
     held = new Map<string, NoteVersion>(await heldEntries(vault.ports.index));
@@ -264,8 +264,8 @@ describe('a Claude step and a meeting it has already answered', () => {
   });
 });
 
-describe('a meeting let in just before Atlas was quit, its rule not yet run', () => {
-  it('is caught up with when Atlas opens: the rule asks once about it, and not again the time after', async () => {
+describe('a meeting let in just before DFAI was quit, its rule not yet run', () => {
+  it('is caught up with when DFAI opens: the rule asks once about it, and not again the time after', async () => {
     const { arrive, relaunch, catchUp, proposals, asked } = await setUp([BY_TITLE, BY_TITLE]);
     await arrive();
     // Quit between the stamp and the run: on opening, the feed has nothing to say of a meeting already in.

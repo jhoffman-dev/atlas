@@ -24,7 +24,7 @@ import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 
-/** Where a vault keeps the notes Atlas itself put there. */
+/** Where a vault keeps the notes DFAI itself put there. */
 export const ATLAS_FOLDER = '.atlas';
 
 /**
@@ -46,7 +46,7 @@ export interface SidebarCatalog {
    * view's page can offer the others over the same type as tabs.
    */
   readonly savedViews: readonly SavedViewSummary[];
-  /** Every saved Atlas query, so a query's page can offer the others as tabs (ADR-0019). */
+  /** Every saved DFAI query, so a query's page can offer the others as tabs (ADR-0019). */
   readonly queryViews: readonly QueryViewSummary[];
   /**
    * Every path a new view cannot be written to (`takenViewPaths`): each file
@@ -69,7 +69,7 @@ export type MarkedNotes = ReadonlyMap<VaultPath, MarkedNote>;
  *
  * Read from two places, because one place cannot see everything: the index
  * covers user space, which leaves out the `.atlas` folders that have a section
- * here already, and those are exactly where Atlas keeps the views and
+ * here already, and those are exactly where DFAI keeps the views and
  * dashboards it makes. Both hand back frontmatter,
  * and one rule — {@link classifySidebarNote} — decides what each note is, so
  * there is no second list to keep in step and a view is a view wherever it is

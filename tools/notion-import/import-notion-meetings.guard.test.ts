@@ -6,8 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type * as Mapper from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
 
 /*
- * The importer checks each mapped file with Atlas's validator before writing
- * it. The mapping is built never to write a file Atlas refuses, so here it is
+ * The importer checks each mapped file with DFAI's validator before writing
+ * it. The mapping is built never to write a file DFAI refuses, so here it is
  * made to, for one meeting, to show the check stops that file and no other.
  */
 
@@ -43,7 +43,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-it('refuses a file Atlas would not let in, naming the problem, and writes the others', async () => {
+it('refuses a file DFAI would not let in, naming the problem, and writes the others', async () => {
   const outcomes = await importNotionMeetings({
     csv: join(root, 'export/Meeting Notes 5d0c9e2a7b1f4c3e8a6d2b9f0e1c7a54_all.csv'),
     vault: join(root, 'vault'),

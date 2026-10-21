@@ -155,7 +155,7 @@ const LOG: LogEntryView[] = [
     summary: 'Archived 1 note. Left 1 alone.',
     lines: [
       { kind: 'done', text: 'Archived Old (Tasks/Old.md)' },
-      { kind: 'left', text: 'Left Busy: It is open in Atlas with unsaved typing.' },
+      { kind: 'left', text: 'Left Busy: It is open in DFAI with unsaved typing.' },
     ],
   },
 ];
@@ -206,7 +206,7 @@ describe('AutomationEditor', () => {
     );
     expect(screen.queryByLabelText('Time of day')).toBeNull();
     expect(screen.getByLabelText('Hours between runs')).toBeTruthy();
-    await userEvent.click(screen.getByRole('radio', { name: 'When Atlas opens' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'When DFAI opens' }));
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ when: { kind: 'open' } }));
   });
 
@@ -425,7 +425,7 @@ describe('AutomationEditor', () => {
       '27 Sep 2026, 03:00:00 · Ran on schedule',
     ]);
     expect(
-      within(log).getByText('Left Busy: It is open in Atlas with unsaved typing.').className,
+      within(log).getByText('Left Busy: It is open in DFAI with unsaved typing.').className,
     ).toContain('automation-log__line--left');
   });
 

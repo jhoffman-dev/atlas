@@ -66,7 +66,7 @@ describe('the profile the chat is handed, before and between reads', () => {
 
     // The app hands this profile to the chat whether or not it has been read.
     const prompt = promptFor(hook.result.current.profile);
-    expect(prompt).not.toContain('has not told Atlas their name');
+    expect(prompt).not.toContain('has not told DFAI their name');
 
     release();
     await waitFor(() => expect(hook.result.current.loaded).toBe(true));

@@ -29,7 +29,7 @@ const noteRow = (name: string): SidebarTreeRow => ({
   opensArchive: false,
 });
 
-const ROWS = ['Atlas', 'Budget', 'Garden', 'Ledger'].map(noteRow);
+const ROWS = ['DFAI', 'Budget', 'Garden', 'Ledger'].map(noteRow);
 
 const twoItems = (entry: VaultEntry): MenuCommand[] => [
   { label: 'Rename', onSelect: () => {} },

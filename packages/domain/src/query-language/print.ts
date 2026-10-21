@@ -106,7 +106,7 @@ export function printValue(value: QueryValue): string {
   }
 }
 
-/** Whether `[[target]]` reads back as this target; `|Atlas` does not, so it is written as text. */
+/** Whether `[[target]]` reads back as this target; `|DFAI` does not, so it is written as text. */
 function linkReadsBack(target: string): boolean {
   const pieces = splitWikiLinks(`[[${target}]]`);
   const [piece] = pieces;

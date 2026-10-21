@@ -217,7 +217,7 @@ describe('POST /v1/proposals/{path}/accept', () => {
     expect(response.status).toBe(200);
   });
 
-  it('leaves a proposal with typing unsaved in Atlas alone, as unsaved_in_app', async () => {
+  it('leaves a proposal with typing unsaved in DFAI alone, as unsaved_in_app', async () => {
     const api = vault();
     api.deps = {
       ...api.deps,

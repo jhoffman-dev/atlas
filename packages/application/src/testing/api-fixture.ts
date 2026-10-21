@@ -309,7 +309,7 @@ export function apiFixture({
   });
   const deps: ApiRouterDeps = {
     host: { currentVault: () => state.open, indexReady: () => state.indexReady },
-    appInfo: { read: async () => ({ name: 'Atlas', version: '1.4.0' }) },
+    appInfo: { read: async () => ({ name: 'DFAI', version: '1.4.0' }) },
     clock: { today: () => TODAY, now: () => state.now, localNow: () => `${TODAY}T09:00:00` },
     fs,
     markdown,

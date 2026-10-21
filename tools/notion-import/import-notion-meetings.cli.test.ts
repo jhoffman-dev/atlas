@@ -17,7 +17,7 @@ let csv: string;
 beforeEach(async () => {
   home = await realpath(await mkdtemp(join(tmpdir(), 'atlas-notion-import-cli-')));
   await cp(FIXTURE, join(home, 'Downloads/export'), { recursive: true });
-  await mkdir(join(home, 'Atlas Vault'));
+  await mkdir(join(home, 'DFAI Vault'));
   await mkdir(join(home, 'vault copy'));
   csv = join(home, 'Downloads/export', CSV_NAME);
 });
@@ -29,7 +29,7 @@ afterEach(async () => {
 /** The command run in the real vault's folder, with HOME the test's, so a default would land there. */
 const run = (...args: string[]) =>
   spawnSync(process.execPath, [CLI, ...args], {
-    cwd: join(home, 'Atlas Vault'),
+    cwd: join(home, 'DFAI Vault'),
     env: { ...process.env, HOME: home },
     encoding: 'utf8',
     timeout: 60_000,
@@ -44,7 +44,7 @@ describe('import-notion-meetings', { timeout: 120_000 }, () => {
 
       expect(result.stderr).toMatch(/usage: .*--csv .*--vault/);
       expect(result.status).toBe(2);
-      expect(await readdir(join(home, 'Atlas Vault'))).toEqual([]);
+      expect(await readdir(join(home, 'DFAI Vault'))).toEqual([]);
     },
   );
 
@@ -68,7 +68,7 @@ describe('import-notion-meetings', { timeout: 120_000 }, () => {
       /^5 rows: 0 written, 4 already in the vault, 1 without a Source ID, 0 left out, 0 held, 0 refused$/m,
     );
     expect(second.status).toBe(0);
-    expect(await readdir(join(home, 'Atlas Vault'))).toEqual([]);
+    expect(await readdir(join(home, 'DFAI Vault'))).toEqual([]);
   });
 
   it('holds Gemini’s rows without --gemini-dates, says why, and exits 1', () => {

@@ -196,7 +196,7 @@ describe('refreshSource', () => {
     const vault = fakeFs({ 'feeds/people.csv': PEOPLE });
 
     await refresh({ fs: vault.fs });
-    // A second refresh of unchanged text: the note is Atlas's to replace, which
+    // A second refresh of unchanged text: the note is DFAI's to replace, which
     // it can only know if the body it wrote hashes to the digest beside it.
     const second = await refresh({ fs: vault.fs });
 

@@ -3,7 +3,7 @@ import type { ObjectType } from './property-def.ts';
 
 /**
  * The glyphs a type may choose for itself: the sidebar's own set, less the
- * system folder's, which means "Atlas's files" and would be a lie on a type.
+ * system folder's, which means "DFAI's files" and would be a lie on a type.
  */
 export const TYPE_ICONS: readonly SidebarIcon[] = [
   'doc',

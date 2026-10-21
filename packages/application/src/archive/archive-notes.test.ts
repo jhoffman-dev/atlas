@@ -203,7 +203,7 @@ describe('archiveNotes', () => {
 
     expect(outcome.moves.map((each) => each.move.to)).toEqual(['Archive/A.md']);
     expect(outcome.failed).toEqual([
-      { path: '.atlas/views/Board.md', reason: 'Atlas keeps its own files where they are.' },
+      { path: '.atlas/views/Board.md', reason: 'DFAI keeps its own files where they are.' },
       { path: 'Archive/Old.md', reason: 'It is already archived.' },
     ]);
   });

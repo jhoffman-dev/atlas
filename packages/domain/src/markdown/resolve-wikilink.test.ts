@@ -89,20 +89,20 @@ describe('wikiLinkNewNotePath', () => {
 });
 
 describe('wikiLinkTargetFor', () => {
-  const atlas = createVaultPath('projects/Atlas.md');
+  const atlas = createVaultPath('projects/DFAI.md');
 
   it('writes the bare name when it opens the note', () => {
-    expect(wikiLinkTargetFor(atlas, notes('projects/Atlas.md', 'b.md'))).toBe('Atlas');
+    expect(wikiLinkTargetFor(atlas, notes('projects/DFAI.md', 'b.md'))).toBe('DFAI');
   });
 
   it('writes the path when a shallower note of the same name would open instead', () => {
-    const target = wikiLinkTargetFor(atlas, notes('Atlas.md', 'projects/Atlas.md'));
-    expect(target).toBe('projects/Atlas');
-    expect(resolveWikiLinkTarget(target, notes('Atlas.md', 'projects/Atlas.md'))).toBe(atlas);
+    const target = wikiLinkTargetFor(atlas, notes('DFAI.md', 'projects/DFAI.md'));
+    expect(target).toBe('projects/DFAI');
+    expect(resolveWikiLinkTarget(target, notes('DFAI.md', 'projects/DFAI.md'))).toBe(atlas);
   });
 
   it('writes the path when the note is not among those known', () => {
-    expect(wikiLinkTargetFor(atlas, [])).toBe('projects/Atlas');
+    expect(wikiLinkTargetFor(atlas, [])).toBe('projects/DFAI');
   });
 });
 

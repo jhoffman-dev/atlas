@@ -51,7 +51,7 @@ function chunkFilesMeta(): Plugin {
 export default defineConfig({
   plugins: [react(), chunkFilesMeta()],
   // The MCP server's path in this checkout, so Settings can offer a command that
-  // runs it. Only right for a build made from source, which is how Atlas is run.
+  // runs it. Only right for a build made from source, which is how DFAI is run.
   define: {
     __ATLAS_MCP_ENTRY__: JSON.stringify(
       fileURLToPath(new URL('../mcp/dist/main.js', import.meta.url)),

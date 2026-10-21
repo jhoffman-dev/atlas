@@ -114,7 +114,7 @@ jobs:
       # full name and the host's domain. A Mac has both; this runner has neither.
       - name: Give git a name and host to guess from, as a Mac does
         run: |
-          sudo usermod --comment 'Atlas CI' "$(whoami)"
+          sudo usermod --comment 'DFAI CI' "$(whoami)"
           sudo hostname "$(hostname).local"
 
       # A third of the tests cannot meet the coverage thresholds, so the shard

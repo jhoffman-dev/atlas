@@ -12,7 +12,7 @@ import type { VaultFsPort } from '../vault/ports.ts';
  * The versions with the keys the rule's output knows a note by, besides its
  * whole-file digest (`ProposalSchema.handledKeyOf`): for `meeting-items`, the
  * meeting's words. Accepting a proposal writes the meeting's `tasks` or
- * `decisions` — Atlas's change, not something said — so a rule that has
+ * `decisions` — DFAI's change, not something said — so a rule that has
  * answered the words is not asked again, however the frontmatter has changed.
  * The keys ride on the version, so the ledger records them when the rule
  * answers and finds them when it looks again; no other memory is kept.

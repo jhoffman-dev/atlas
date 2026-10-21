@@ -17,7 +17,7 @@ interface Asked {
 
 /**
  * Full-text search, answered by the index as the search palette is. Hits the
- * API could not then read — Atlas's own notes in `.atlas` — are left out, and
+ * API could not then read — DFAI's own notes in `.atlas` — are left out, and
  * so is the Archive unless `includeArchived` asks for it, when each archived
  * hit says so.
  */

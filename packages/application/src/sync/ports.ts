@@ -2,7 +2,7 @@
  * What syncing a vault through GitHub needs from the host (U-29). The host
  * runs the Mac's own `git` — and `gh`, only to create a repository — with
  * argument shapes it holds fixed, in the open vault's folder, and hands the
- * output back untouched; what it means is decided above it. Atlas never holds
+ * output back untouched; what it means is decided above it. DFAI never holds
  * a GitHub login: git and gh use the one already on the Mac.
  */
 

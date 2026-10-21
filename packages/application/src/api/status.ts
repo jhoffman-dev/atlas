@@ -4,7 +4,7 @@ import type { ApiStatus } from './contract.ts';
 import type { ApiRouterDeps } from './ports.ts';
 import type { RouteResult } from './vault-request.ts';
 
-/** What Atlas has open. The one route that answers with no vault open. */
+/** What DFAI has open. The one route that answers with no vault open. */
 export async function statusRoute(deps: ApiRouterDeps): Promise<RouteResult> {
   const { version } = await getAppInfo({ appInfo: deps.appInfo });
   const location = deps.host.currentVault();

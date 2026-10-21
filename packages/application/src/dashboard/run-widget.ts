@@ -72,7 +72,7 @@ export type WidgetData =
   /** The widget asked something the index could not answer. */
   | { readonly shape: 'error'; readonly message: string };
 
-/** An Atlas query's rows, in their groups and sub-groups when it has any (ADR-0019). */
+/** A DFAI query's rows, in their groups and sub-groups when it has any (ADR-0019). */
 export interface QueryWidgetData {
   readonly shape: 'grouped';
   /** The columns after the name, each with its heading. */

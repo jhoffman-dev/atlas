@@ -32,7 +32,7 @@ export interface TermNote {
   readonly kind: TermKind | null;
 }
 
-/** The kind a note's `kind:` names, or null when it names none Atlas knows. */
+/** The kind a note's `kind:` names, or null when it names none DFAI knows. */
 export function termKindOf(value: unknown): TermKind | null {
   return TERM_KINDS.find((kind) => kind === value) ?? null;
 }

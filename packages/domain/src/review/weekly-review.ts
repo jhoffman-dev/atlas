@@ -125,7 +125,7 @@ export interface ReviewMoment {
  * The weekly review (P30-07): GTD's questions of the week, answered from the
  * tasks and projects the vault holds.
  *
- * A task's file last changing is when it was last looked at — Atlas keeps no
+ * A task's file last changing is when it was last looked at — DFAI keeps no
  * "waiting since" key (ADR-0029 turned down keys nobody asked for), so any
  * edit, including the review's own, counts as a look. A task deferred to a
  * later day is out of every section until that day, as it is out of Next

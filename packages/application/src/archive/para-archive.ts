@@ -100,7 +100,7 @@ function withParaRestored(rule: MoveRule): MoveRule {
 /**
  * A note's frontmatter, read to tell whether it is archived by its value:
  * from what is on screen, its pane's typing saved first when the batch saves
- * it. Null for a note that cannot be — one of Atlas's own, one in the Archive
+ * it. Null for a note that cannot be — one of DFAI's own, one in the Archive
  * folder, one that cannot be read — which the move then answers for.
  */
 async function paraCandidate(batch: NoteBatch, path: VaultPath): Promise<Properties | null> {

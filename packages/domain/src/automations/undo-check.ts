@@ -49,11 +49,11 @@ export function loggedActionProblem(action: AutomationAction, line: DoneAction):
   const declared = action.kind === 'claude' && action.apply === 'mine';
   if (line.kind === 'summarised') {
     if (!declared) return 'Only the rule that makes your own action items writes a summary.';
-    return isAtlasNote(line.path) ? 'Atlas keeps its own files as they are.' : null;
+    return isAtlasNote(line.path) ? 'DFAI keeps its own files as they are.' : null;
   }
   // The declared step's own tasks are logged with what it wrote, and trashed only while unchanged (#185).
   if (line.kind === 'created' && declared && line.digest !== undefined) {
-    return isAtlasNote(line.path) ? 'Atlas keeps its own files as they are.' : null;
+    return isAtlasNote(line.path) ? 'DFAI keeps its own files as they are.' : null;
   }
   if (line.kind === 'proposed' || line.kind === 'created') {
     return 'What a Claude step made is answered in the Inbox, or kept or deleted by you; undo leaves it.';
@@ -68,7 +68,7 @@ export function loggedActionProblem(action: AutomationAction, line: DoneAction):
   }
   if (line.kind !== 'set') return 'Undo only reverses what a run did, not what an undo did.';
   if (action.kind !== 'set') return 'This rule archives; it never set a property.';
-  if (isAtlasNote(line.path)) return 'Atlas keeps its own files as they are.';
+  if (isAtlasNote(line.path)) return 'DFAI keeps its own files as they are.';
   if (setKeyProblem(line.key) !== null || !Object.hasOwn(action.values, line.key)) {
     return `This rule does not set “${line.key}”.`;
   }
@@ -91,7 +91,7 @@ function claudeLineProblem(
   const never = 'This rule asks Claude; it never archived a note or set a property.';
   if (line.kind !== 'set' || action.apply !== 'mine') return never;
   if (line.key !== MEETING_PROJECT_KEY) return `This rule does not set “${line.key}”.`;
-  if (isAtlasNote(line.path)) return 'Atlas keeps its own files as they are.';
+  if (isAtlasNote(line.path)) return 'DFAI keeps its own files as they are.';
   if (!isPropertyValue(line.before) || !isSetValue(line.after)) {
     return `The log gives “${line.key}” a value no property of a note holds.`;
   }

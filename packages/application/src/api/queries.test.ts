@@ -356,7 +356,7 @@ describe('POST /v1/views/{path}/run', () => {
     expect(asked[0]).toContain('done');
   });
 
-  it("leaves Atlas's own notes in .atlas out of a view's rows", async () => {
+  it("leaves DFAI's own notes in .atlas out of a view's rows", async () => {
     const api = vault({
       query: async () => ({
         columns: ['path', 'title'],
@@ -487,7 +487,7 @@ describe('POST /v1/query', () => {
     expect(codeOf(response)).toBe('query_failed');
   });
 
-  it("leaves Atlas's own notes in .atlas out of the rows", async () => {
+  it("leaves DFAI's own notes in .atlas out of the rows", async () => {
     const response = await query(
       { type: 'task' },
       {

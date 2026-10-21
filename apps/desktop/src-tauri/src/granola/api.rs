@@ -27,7 +27,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// bigger is a mistake or an attack, and holding it would take the app down.
 pub const MAX_ANSWER_BYTES: usize = 16 * 1024 * 1024;
 
-const USER_AGENT: &str = concat!("Atlas/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("DFAI/", env!("CARGO_PKG_VERSION"));
 
 fn invalid(message: String) -> GranolaFailure {
     GranolaFailure::new(FailureKind::Invalid, message)
@@ -101,7 +101,7 @@ fn failed(error: reqwest::Error) -> GranolaFailure {
 fn too_large() -> GranolaFailure {
     GranolaFailure::new(
         FailureKind::TooLarge,
-        "Granola's answer is larger than Atlas will read",
+        "Granola's answer is larger than DFAI will read",
     )
 }
 

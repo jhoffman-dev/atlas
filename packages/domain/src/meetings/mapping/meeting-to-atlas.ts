@@ -22,7 +22,7 @@ import { meetingWhen, type MeetingWhen } from './meeting-when.ts';
 
 /**
  * What James's n8n workflow hands over, by the mapper's names (the
- * "Meeting fields for Atlas" node renames his fields to these, and
+ * "Meeting fields for DFAI" node renames his fields to these, and
  * `POST /v1/meetings` its request's). Untyped: it comes as JSON.
  */
 export interface MeetingFields {
@@ -204,7 +204,7 @@ function body(fields: MeetingFields, transcript: Transcript): string {
  * One meeting as a meeting/v1 contract file (vault/docs/contracts/meeting-import-v1.md),
  * with the path it goes to and the commit message. Throws a
  * {@link MeetingMappingError} when a required field is missing, rather than
- * writing a file Atlas would refuse.
+ * writing a file DFAI would refuse.
  */
 export function mapMeeting(given: MeetingFields, options: MappingOptions = {}): MeetingFile {
   const fields = withSections(given);

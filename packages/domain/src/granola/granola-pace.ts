@@ -1,11 +1,11 @@
 /**
  * How fast a pull asks Granola, and how long it waits when told to slow down
  * (plan §5). Granola allows bursts of 25 requests in 5 seconds and 5 a second
- * sustained, and answers 429 past that; Atlas keeps to 4 a second, so a 429
+ * sustained, and answers 429 past that; DFAI keeps to 4 a second, so a 429
  * is rare. The timers are the caller's; the waits are decided here.
  */
 
-/** Requests Atlas sends in any one second. */
+/** Requests DFAI sends in any one second. */
 export const REQUESTS_PER_SECOND = 4;
 const PACE_WINDOW_MS = 1_000;
 

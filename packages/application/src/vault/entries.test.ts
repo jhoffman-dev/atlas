@@ -162,14 +162,14 @@ describe('moving a note into a folder', () => {
   });
 
   it('refuses a folder the domain rules out, before touching anything', async () => {
-    const vault = memoryVault({ folders: ['Projects', 'Projects/Atlas'], notes: [] });
+    const vault = memoryVault({ folders: ['Projects', 'Projects/DFAI'], notes: [] });
     const ports = { fs: vault.fs, index: fakeIndexPort(), editors: panes({ log: vault.log }) };
 
     await expect(
       moveEntryInto({
         ports,
         entry: folder('Projects'),
-        folder: path('Projects/Atlas'),
+        folder: path('Projects/DFAI'),
         notePaths: [],
       }),
     ).rejects.toBeInstanceOf(MoveRefusedError);
@@ -180,7 +180,7 @@ describe('moving a note into a folder', () => {
         folder: path('Projects'),
         notePaths: [],
       }),
-    ).rejects.toThrow('Atlas keeps');
+    ).rejects.toThrow('DFAI keeps');
     expect(vault.log).toEqual([]);
   });
 
@@ -218,8 +218,8 @@ describe('moving a note into a folder', () => {
 describe('moving a folder', () => {
   it('carries every note under it, and re-points the panes on any of them', async () => {
     const vault = memoryVault({
-      folders: ['Projects', 'Projects/Atlas', 'Attic'],
-      notes: ['Projects/Atlas/plan.md', 'Projects/a.md', 'Other.md'],
+      folders: ['Projects', 'Projects/DFAI', 'Attic'],
+      notes: ['Projects/DFAI/plan.md', 'Projects/a.md', 'Other.md'],
     });
     const ports = {
       fs: vault.fs,
@@ -235,13 +235,13 @@ describe('moving a folder', () => {
     });
 
     expect(vault.files).toEqual(
-      new Set(['Attic/Projects/Atlas/plan.md', 'Attic/Projects/a.md', 'Other.md']),
+      new Set(['Attic/Projects/DFAI/plan.md', 'Attic/Projects/a.md', 'Other.md']),
     );
     expect(vault.log).toEqual([
       'flush Projects/a.md',
       'move Projects -> Attic/Projects',
       'follow Projects -> Attic/Projects',
-      'unindex Projects/Atlas/plan.md,Projects/a.md',
+      'unindex Projects/DFAI/plan.md,Projects/a.md',
     ]);
   });
 });
@@ -308,12 +308,12 @@ describe('renaming', () => {
     expect(vault.files.has('Work 2/a.md')).toBe(true);
   });
 
-  it('keeps the names of Atlas’s own folders', async () => {
+  it('keeps the names of DFAI’s own folders', async () => {
     const vault = memoryVault({ folders: ['.atlas', '.atlas/views'] });
     const ports = { fs: vault.fs, index: fakeIndexPort(), editors: panes({ log: vault.log }) };
     await expect(
       renameEntry({ ports, entry: folder('.atlas/views'), name: 'Mine', notePaths: [] }),
-    ).rejects.toThrow('Atlas needs');
+    ).rejects.toThrow('DFAI needs');
   });
 });
 
@@ -373,11 +373,11 @@ describe('deleting', () => {
     expect(await countOtherFiles({ fs: vault.fs, entry: note, notes: [note.path] })).toBe(0);
   });
 
-  it('says why Atlas’s own folder cannot go', () => {
+  it('says why DFAI’s own folder cannot go', () => {
     expect(
       previewDeletion({ entry: folder('.atlas'), notePaths: [], editors: panes({ log: [] }) })
         .refusal,
-    ).toMatch(/Atlas needs/);
+    ).toMatch(/DFAI needs/);
   });
 
   it('puts a note in the Trash, then lets go of its panes and its index entry', async () => {
@@ -457,7 +457,7 @@ describe('deleting', () => {
           entry: folder(each),
           notePaths: [],
         }),
-      ).rejects.toThrow('Atlas needs');
+      ).rejects.toThrow('DFAI needs');
     }
     expect(vault.trash).toEqual([]);
   });
@@ -504,7 +504,7 @@ describe('new folders', () => {
   it('makes none inside .atlas', async () => {
     const vault = memoryVault({ folders: ['.atlas'] });
     await expect(createFolder({ fs: vault.fs, parent: path('.atlas') })).rejects.toThrow(
-      'Only Atlas',
+      'Only DFAI',
     );
     expect(vault.log).toEqual([]);
   });

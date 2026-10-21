@@ -65,7 +65,7 @@ function refusal(code: string | undefined): GoogleProblem {
 function tokenRefusal(code: string | undefined): GoogleProblem {
   if (code === 'invalid_grant') {
     return {
-      problem: 'Google no longer accepts Atlas’s sign-in: it expired or was revoked.',
+      problem: 'Google no longer accepts DFAI’s sign-in: it expired or was revoked.',
       fix: `${CONNECT_AGAIN} If this happens every week, the Google Cloud project’s consent screen is in Testing, where sign-ins last seven days; publish it to keep them.`,
     };
   }
@@ -91,7 +91,7 @@ export function explainGoogleFailure(failure: GoogleFailure): GoogleProblem {
     case 'scope_not_granted':
       return {
         problem: 'Google Calendar was not connected: the calendar permission was left unticked.',
-        fix: 'Connect again and tick the permission to make and change Atlas’s own calendars.',
+        fix: 'Connect again and tick the permission to make and change DFAI’s own calendars.',
       };
     case 'timeout':
       return {
@@ -124,7 +124,7 @@ export function explainGoogleFailure(failure: GoogleFailure): GoogleProblem {
       };
     case 'malformed':
       return {
-        problem: `Google answered in a way Atlas does not understand: ${failure.message}.`,
+        problem: `Google answered in a way DFAI does not understand: ${failure.message}.`,
         fix: 'Try again; if it keeps happening, connect again.',
       };
     case 'invalid':

@@ -198,7 +198,7 @@ function toHeader(properties: Readonly<Record<string, unknown>>): MeetingHeader 
 /**
  * A meeting file's frontmatter, read as YAML gives it, checked against
  * meeting/v1: the header, or every key that is wrong. Keys the contract does
- * not name are left alone — Atlas adds its own later (`atlas_import_error`).
+ * not name are left alone — DFAI adds its own later (`atlas_import_error`).
  */
 export function readMeetingHeader(properties: Readonly<Record<string, unknown>>): {
   readonly header: MeetingHeader | null;

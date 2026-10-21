@@ -47,18 +47,18 @@ const ACCEPTED: &[&[&str]] = &[
         "--quiet",
         "--no-verify",
         "-m",
-        "Atlas sync from James's Mac 2026-09-28 10:00",
+        "DFAI sync from James's Mac 2026-09-28 10:00",
     ],
     &[
         "-c",
-        "user.name=Atlas on Work Mac",
+        "user.name=DFAI on Work Mac",
         "-c",
         "user.email=atlas@work-mac.local",
         "commit",
         "--quiet",
         "--no-verify",
         "-m",
-        "Atlas sync",
+        "DFAI sync",
     ],
     &["fetch", "--quiet", "origin"],
     &[
@@ -69,7 +69,7 @@ const ACCEPTED: &[&[&str]] = &[
     ],
     &[
         "-c",
-        "user.name=Atlas on Work Mac",
+        "user.name=DFAI on Work Mac",
         "-c",
         "user.email=atlas@work-mac.local",
         "merge",
@@ -239,7 +239,7 @@ fn options_that_run_programs_are_refused_everywhere() {
 #[test]
 fn a_commit_message_is_never_an_option_or_empty_or_endless() {
     let commit = |message: &str| vault_ok(&["commit", "--quiet", "--no-verify", "-m", message]);
-    assert!(commit("Atlas sync"));
+    assert!(commit("DFAI sync"));
     assert!(commit("line one\nline two"));
     assert!(!commit(""));
     assert!(!commit("--amend"));
@@ -613,9 +613,7 @@ fn refused_arguments_run_nothing() {
     let vault = tempfile::tempdir().unwrap();
     let host = host_in(&[bin.path()], None, NO_LIMIT);
     let refused = host.git_in_vault(vault.path(), &args(&["reset", "--hard"]));
-    assert!(refused
-        .unwrap_err()
-        .contains("not ones Atlas runs git with"));
+    assert!(refused.unwrap_err().contains("not ones DFAI runs git with"));
     host.grant(vault.path()).unwrap();
     let refused = host.git_in_folder(vault.path(), &args(&["add", "--all"]), None);
     assert!(refused.is_err());
@@ -665,7 +663,7 @@ fn a_run_past_its_limit_is_stopped_and_says_why() {
     assert!(
         output
             .stderr
-            .ends_with("Atlas stopped git: it ran longer than 2s."),
+            .ends_with("DFAI stopped git: it ran longer than 2s."),
         "{}",
         output.stderr
     );
@@ -995,7 +993,7 @@ fn commit(host: &GitHost, repo: &Path, message: &str) {
             repo,
             &args(&[
                 "-c",
-                "user.name=Atlas Test",
+                "user.name=DFAI Test",
                 "-c",
                 "user.email=atlas@test.local",
                 "commit",
@@ -1056,7 +1054,7 @@ fn a_conflict_round_trip_keeps_both_versions_and_leaves_no_markers() {
         .unwrap());
     fs::write(a.join("Note.md"), "# Note\n\nbase\n").unwrap();
     fs::write(a.join("Other.md"), "other\n").unwrap();
-    commit(&host, &a, "Atlas sync set up");
+    commit(&host, &a, "DFAI sync set up");
     let remote = bare.display().to_string();
     ok(host
         .git_in_vault(&a, &args(&["remote", "add", "origin", &remote]))
@@ -1081,7 +1079,7 @@ fn a_conflict_round_trip_keeps_both_versions_and_leaves_no_markers() {
     let from_b = "# Note\n\nwritten on B\r\n\u{2014} with bytes \u{e9}\n";
     fs::write(b.join("Note.md"), from_b).unwrap();
     fs::write(b.join("Other.md"), "other, from B\n").unwrap();
-    commit(&host, &b, "Atlas sync from B");
+    commit(&host, &b, "DFAI sync from B");
     ok(host
         .git_in_vault(
             &b,
@@ -1092,7 +1090,7 @@ fn a_conflict_round_trip_keeps_both_versions_and_leaves_no_markers() {
     // Mac A changed the same note meanwhile, then syncs.
     let from_a = "# Note\n\nwritten on A\n";
     fs::write(a.join("Note.md"), from_a).unwrap();
-    commit(&host, &a, "Atlas sync from A");
+    commit(&host, &a, "DFAI sync from A");
     ok(host
         .git_in_vault(&a, &args(&["fetch", "--quiet", "origin"]))
         .unwrap());
@@ -1134,7 +1132,7 @@ fn a_conflict_round_trip_keeps_both_versions_and_leaves_no_markers() {
     ok(checkout_as_it_is(&host, &a, &["checkout", "--theirs", "--", "Note.md"]).unwrap());
     fs::rename(a.join("Note.md"), a.join(copy)).unwrap();
     ok(checkout_as_it_is(&host, &a, &["checkout", "--ours", "--", "Note.md"]).unwrap());
-    commit(&host, &a, "Atlas sync from A, keeping both");
+    commit(&host, &a, "DFAI sync from A, keeping both");
     ok(host
         .git_in_vault(
             &a,
@@ -1221,7 +1219,7 @@ fn a_hook_in_the_vault_never_runs() {
     fs::copy(&hook, &post).unwrap();
     fs::write(vault.join("Note.md"), "x\n").unwrap();
     // `--no-verify` skips pre-commit; post-commit would still run without the prefix.
-    commit(&host, &vault, "Atlas sync");
+    commit(&host, &vault, "DFAI sync");
     assert!(!ran.exists(), "a hook ran");
 }
 
@@ -1347,7 +1345,7 @@ fn adversarial_a_checkout_of_a_glob_like_name_touches_only_that_file() {
 /// vault's root is kept as it was picked, so TypeScript asks about the folder
 /// above the link (`parentFolderOf(vaultRoot)`), while the host allows only
 /// the folder above the resolved vault. Every inspection then fails with "that
-/// folder was not chosen in Atlas", and sync can never be set up, nor refused
+/// folder was not chosen in DFAI", and sync can never be set up, nor refused
 /// for the right reason.
 #[test]
 fn adversarial_a_vault_opened_through_a_symlink_can_be_asked_where_it_sits() {
@@ -1699,7 +1697,7 @@ fn asking_a_remote_for_its_branches_runs_outside_the_vault_and_nothing_else_does
 #[test]
 fn the_host_spells_the_open_vault_and_a_picked_folder_as_the_disk_does() {
     let parent = tempfile::tempdir().unwrap();
-    let real = parent.path().join("Atlas Vault");
+    let real = parent.path().join("DFAI Vault");
     fs::create_dir(&real).unwrap();
     let link = parent.path().join("Notes");
     std::os::unix::fs::symlink(&real, &link).unwrap();
@@ -2088,7 +2086,7 @@ fn raw_git(git_dir: &Path, repo: &Path, list: &[&str]) {
     let status = Command::new(git_dir.join("git"))
         .args([
             "-c",
-            "user.name=Atlas Test",
+            "user.name=DFAI Test",
             "-c",
             "user.email=atlas@test.local",
         ])
@@ -2685,7 +2683,7 @@ fn adversarial_a_real_merge_records_a_unicode_author_exactly() {
     fs::create_dir(&vault).unwrap();
     vault_with_diverged_origin(&git_dir, &host, &vault);
 
-    let name = "Atlas on Zoë’s Mac 🚀 漢字";
+    let name = "DFAI on Zoë’s Mac 🚀 漢字";
     let email = "atlas@zo-s-mac.local";
     ok(host
         .git_in_vault(
@@ -2697,7 +2695,7 @@ fn adversarial_a_real_merge_records_a_unicode_author_exactly() {
             ),
         )
         .unwrap());
-    // `log` is not a shape Atlas runs; read it straight from git.
+    // `log` is not a shape DFAI runs; read it straight from git.
     let log = Command::new(git_dir.join("git"))
         .current_dir(&vault)
         .env("GIT_CONFIG_NOSYSTEM", "1")

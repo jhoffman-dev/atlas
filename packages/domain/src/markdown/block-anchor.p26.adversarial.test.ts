@@ -6,7 +6,7 @@ import type { EditorDocument, EditorNode } from './editor-node.ts';
 /*
  * Adversarial pass on the P26-01 id rules: a note saved on Windows, and a
  * note that holds one id on two blocks (a copy pasted in Obsidian or another
- * editor — Atlas's own editor never makes one, but it reads what it is given).
+ * editor — DFAI's own editor never makes one, but it reads what it is given).
  */
 
 const paragraph = (value: string, anchor?: string): EditorNode => ({

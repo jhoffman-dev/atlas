@@ -515,9 +515,9 @@ describe('InboxPage — more waiting than one page (#167)', () => {
   });
 });
 
-describe('InboxPage: when Atlas can’t tell which action items are yours (#181)', () => {
+describe('InboxPage: when DFAI can’t tell which action items are yours (#181)', () => {
   const notice = () =>
-    screen.queryByRole('alert', { name: 'Atlas can’t tell which action items are yours' });
+    screen.queryByRole('alert', { name: 'DFAI can’t tell which action items are yours' });
 
   it('says so, and opens Settings', async () => {
     const onOpenSettings = vi.fn();

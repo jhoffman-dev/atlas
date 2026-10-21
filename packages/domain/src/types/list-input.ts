@@ -1,6 +1,6 @@
 /*
  * A list as one line of text, for a box the person edits: commas between the
- * items, as a list is typed everywhere in Atlas. An item can hold a comma of
+ * items, as a list is typed everywhere in DFAI. An item can hold a comma of
  * its own — `[[Larkspur Payroll, Inc.]]`, `Quill, Mara` — so one that does is
  * written in double quotes, a quote inside it doubled, as a CSV cell is.
  * Reading the line back gives the same list, so editing one item never cuts

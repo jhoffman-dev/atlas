@@ -520,7 +520,7 @@ function useListing({
 /**
  * Runs every rule that is due: once when a vault's rules are first read with
  * its index ready — a rule that runs on opening, and any schedule missed while
- * Atlas was closed — then on each minute's fresh read. Rules it has not taken
+ * DFAI was closed — then on each minute's fresh read. Rules it has not taken
  * in yet are taken in first: given their id, and a first mark to count from.
  */
 function useSchedule({
@@ -608,7 +608,7 @@ function useSchedule({
 }
 
 /**
- * Brings the prompts Atlas ships up to date where they are untouched (#226),
+ * Brings the prompts DFAI ships up to date where they are untouched (#226),
  * once each time the vault is opened on the Mac that runs its automations,
  * and says so in Activity, a failure too: the rules still run as they are.
  * Not one of the runner's commands: it writes no rule, and one that wrote
@@ -627,7 +627,7 @@ async function refreshPrompts({
       recorder.record({
         level: 'info',
         kind: 'automation',
-        message: `Brought ${noteTitle(path)}, a prompt Atlas ships that was never edited, up to date.`,
+        message: `Brought ${noteTitle(path)}, a prompt DFAI ships that was never edited, up to date.`,
         subject: { kind: 'note', path },
       });
     }
@@ -635,7 +635,7 @@ async function refreshPrompts({
     recorder.record({
       level: 'warning',
       kind: 'automation',
-      message: `The prompts Atlas ships could not be brought up to date: ${errorMessage(cause)}`,
+      message: `The prompts DFAI ships could not be brought up to date: ${errorMessage(cause)}`,
       subject: null,
     });
   }
@@ -654,10 +654,10 @@ async function refreshPrompts({
  * on what it was holding. Whether it already handled a version, and what it
  * does, is the use-case's to say.
  *
- * News is heard in memory, so what a rule was holding when Atlas was quit is
+ * News is heard in memory, so what a rule was holding when DFAI was quit is
  * gone. Once per vault opened, each rule a note being created sets off is
  * queued a look for the arrivals it never ran on (ADR-0028, "Catching up
- * when Atlas opens"), ahead of this session's news.
+ * when DFAI opens"), ahead of this session's news.
  *
  * A queue holds {@link HELD_NEWS}; past that the oldest is let go, and that
  * is said — counted as it happens, and told each minute, so a burst is one

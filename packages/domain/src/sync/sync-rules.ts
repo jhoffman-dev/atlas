@@ -14,7 +14,7 @@ export const AUTOMATIONS_MAC_KEY = 'automationsMac';
 /** That Mac's name as it was when it was named, to show; never what decides. */
 export const AUTOMATIONS_MAC_NAME_KEY = 'automationsMacName';
 /**
- * Atlas's mark that it set this vault's sync up (A29-01): `sync: github` in
+ * DFAI's mark that it set this vault's sync up (A29-01): `sync: github` in
  * the settings note, beside its block in `.gitignore`. A repository without
  * both — a code project, a vault kept with obsidian-git — is never committed
  * or pushed until the person connects it in Settings → Sync.
@@ -73,7 +73,7 @@ export function runsAutomationsHere({
   return automationsMac === null || automationsMac === thisMacId.trim();
 }
 
-/** Whether Atlas set this vault's sync up: its settings say so, and its `.gitignore` holds Atlas's block. */
+/** Whether DFAI set this vault's sync up: its settings say so, and its `.gitignore` holds DFAI's block. */
 export function isSetUpByAtlas({
   settings,
   gitignore,
@@ -95,30 +95,37 @@ export function defaultBranchOf(listing: string): string | null {
   return match?.[1] ?? null;
 }
 
+/**
+ * The name a sync's commits go by. Still "Atlas", the app's name before DFAI
+ * (ADR-0042), while a Mac may still run Atlas: Atlas reads only its own name
+ * back out of a commit. DFAI reads either, so a later release can switch.
+ */
+const COMMIT_NAME = 'Atlas';
+
 /** What a sync's commit says: which Mac, and when on its wall clock (`YYYY-MM-DDTHH:MM:SS`). */
 export function syncCommitMessage({ mac, localNow }: { mac: string; localNow: string }): string {
-  return `Atlas sync from ${mac.trim() || 'a Mac'} ${localNow.slice(0, 16).replace('T', ' ')}`;
+  return `${COMMIT_NAME} sync from ${mac.trim() || 'a Mac'} ${localNow.slice(0, 16).replace('T', ' ')}`;
 }
 
 /** What the first commit of a vault's sync says: which Mac set it up. */
 export function syncSetUpMessage(mac: string): string {
-  return `Atlas sync set up on ${mac.trim() || 'a Mac'}`;
+  return `${COMMIT_NAME} sync set up on ${mac.trim() || 'a Mac'}`;
 }
 
 /**
- * The Mac a commit came from, read back out of what Atlas called it; null
- * for a commit Atlas did not make — one made by hand, or by another tool.
+ * The Mac a commit came from, read back out of what DFAI called it; null
+ * for a commit DFAI did not make — one made by hand, or by another tool.
  */
 export function macOfCommit(subject: string): string | null {
   const line = subject.trim();
-  const synced = /^Atlas sync from (.+) \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.exec(line);
-  const setUp = /^Atlas sync set up on (.+)$/.exec(line);
+  const synced = /^(?:Atlas|DFAI) sync from (.+) \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.exec(line);
+  const setUp = /^(?:Atlas|DFAI) sync set up on (.+)$/.exec(line);
   const mac = (synced ?? setUp)?.[1]?.trim() ?? '';
   return mac === '' ? null : mac;
 }
 
 /**
- * Remotes Atlas connects a vault to: GitHub over HTTPS or SSH, another host
+ * Remotes DFAI connects a vault to: GitHub over HTTPS or SSH, another host
  * the same ways, or a bare repository on a disk. Never one that starts like an
  * option, holds spaces, or names a transport helper (`ext::`), which git would
  * run as a program.
@@ -144,7 +151,7 @@ export function remoteUrlProblem(raw: string): string | null {
 /**
  * Whether the address holds a password or a token before its host. Kept, it
  * would sit in `.git/config` in plain text and be shown back in Settings;
- * Atlas never holds a GitHub login (U-29, ADR-0017). An https address needs
+ * DFAI never holds a GitHub login (U-29, ADR-0017). An https address needs
  * no user at all, and an ssh one only a user name (`git@`).
  */
 function carriesALogin(url: string): boolean {
@@ -192,7 +199,7 @@ export interface RepositoryPlace {
 
 /**
  * Why a vault cannot be synced where it is, or null when it can. A vault in
- * another repository's work tree — the Atlas code repository, say — would
+ * another repository's work tree — the DFAI code repository, say — would
  * have its notes committed into that project, or that project's files into the
  * vault's history. The folder above is what is asked, not the vault: a vault
  * that is a repository of its own answers with itself, and git prints paths
@@ -202,7 +209,7 @@ export interface RepositoryPlace {
 export function enclosingRepositoryRefusal(place: RepositoryPlace): string | null {
   const outer = place.topFromParent;
   if (outer === null) return null;
-  return `This vault is inside another git repository (${nameOf(outer)}), so Atlas won’t sync it: its notes would be mixed into that project. Move the vault out of that folder first.`;
+  return `This vault is inside another git repository (${nameOf(outer)}), so DFAI won’t sync it: its notes would be mixed into that project. Move the vault out of that folder first.`;
 }
 
 /**
@@ -212,7 +219,7 @@ export function enclosingRepositoryRefusal(place: RepositoryPlace): string | nul
  * before anything is written, with the two ways on.
  */
 export function existingOriginRefusal(url: string): string {
-  return `This vault already sends to ${url.trim()}, so Atlas won’t make a new repository for it. To sync with that one, use Connect existing repo with its address. To use a new one instead, remove the old origin first: in Terminal, in the vault’s folder, run \`git remote remove origin\`.`;
+  return `This vault already sends to ${url.trim()}, so DFAI won’t make a new repository for it. To sync with that one, use Connect existing repo with its address. To use a new one instead, remove the old origin first: in Terminal, in the vault’s folder, run \`git remote remove origin\`.`;
 }
 
 /** Whether `ls-remote --heads` listed any branch: a repository with none is empty. */
@@ -252,7 +259,7 @@ export function cloneFolderRefusal({
     folder === vault
       ? `${nameOf(openVault)} is the vault you have open`
       : `That folder is inside ${nameOf(openVault)}, the vault you have open`;
-  return `${where}, so the copy would land inside it and Atlas would open the copy instead of your notes. To sync this vault with a GitHub repository, use Settings → Sync and connect it there. To open a vault from GitHub, choose a folder outside this one.`;
+  return `${where}, so the copy would land inside it and DFAI would open the copy instead of your notes. To sync this vault with a GitHub repository, use Settings → Sync and connect it there. To open a vault from GitHub, choose a folder outside this one.`;
 }
 
 function folded(path: string): string {

@@ -27,7 +27,7 @@ pub use binding::{check_bound, entries_in, remove_secret, write_secret, SecretEn
 pub use keychain::KeychainStore;
 
 /// The Keychain service every DFAI secret is filed under: the bundle
-/// identifier. Atlas filed its secrets under its own, and the first launch
+/// identifier. DFAI filed its secrets under its own, and the first launch
 /// copies them across (`rename_migration`).
 pub const SERVICE: &str = crate::rename_migration::IDENTIFIER;
 
@@ -176,14 +176,14 @@ pub use redact::{
 };
 
 /// Refuses, before anything is sent, a request carrying a secret that could
-/// not be struck from what comes back: one kept before Atlas checked that
+/// not be struck from what comes back: one kept before DFAI checked that
 /// when a secret is saved. Sending it and then withholding the answer would
 /// already have given it away to wherever it went.
 pub fn check_strikable(used: &[(String, String)]) -> Result<(), String> {
     for (name, value) in used {
         ensure_strikable(value).map_err(|_| {
             format!(
-                "the secret {name:?} is too long for Atlas to protect, so nothing was sent — replace it with a shorter one in Settings → Secrets"
+                "the secret {name:?} is too long for DFAI to protect, so nothing was sent — replace it with a shorter one in Settings → Secrets"
             )
         })?;
     }

@@ -113,13 +113,13 @@ describe('paraNoteMove', () => {
   });
 
   it('leaves every other note alone', () => {
-    expect(paraNoteMove({ path: 'Atlas.md', properties: { type: 'project' } })).toBeNull();
+    expect(paraNoteMove({ path: 'DFAI.md', properties: { type: 'project' } })).toBeNull();
     expect(paraNoteMove({ path: 'Archive/Call.md', properties: { type: 'task' } })).toBeNull();
     expect(paraNoteMove({ path: 'Plain.md', properties: {} })).toBeNull();
     expect(paraNoteMove({ path: 'List.md', properties: { type: ['area'] } })).toBeNull();
   });
 
-  it('never moves a note Atlas keeps for itself, such as an Area template', () => {
+  it('never moves a note DFAI keeps for itself, such as an Area template', () => {
     expect(
       paraNoteMove({ path: '.atlas/templates/Area.md', properties: { type: 'area' } }),
     ).toBeNull();

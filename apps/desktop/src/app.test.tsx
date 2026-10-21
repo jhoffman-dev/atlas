@@ -41,7 +41,7 @@ await vi.hoisted(async () => {
   installRenderCounter();
 });
 
-const appInfo: AppInfoPort = { read: async () => ({ name: 'Atlas', version: '0.1.0' }) };
+const appInfo: AppInfoPort = { read: async () => ({ name: 'DFAI', version: '0.1.0' }) };
 
 const location: VaultLocation = { absolutePath: '/Users/j/Vault', name: 'Vault' };
 
@@ -503,7 +503,7 @@ describe('App', () => {
     renderApp(fakeVault());
     await userEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     const dialog = await screen.findByRole('dialog', { name: 'Settings' });
-    expect(await within(dialog).findByText('Atlas 0.1.0')).toBeDefined();
+    expect(await within(dialog).findByText('DFAI 0.1.0')).toBeDefined();
   });
 });
 

@@ -56,7 +56,7 @@ const PROJECT_TYPE = [
 /** Each note, and how many days before now it last changed. */
 const NOTES: Record<string, { text: string; daysAgo: number }> = {
   'People/Mara Quill.md': { text: note(['type: person'], 'At Larkspur Payroll.'), daysAgo: 1 },
-  'Projects/Atlas.md': { text: note(['type: project', 'status: active'], 'The app.'), daysAgo: 1 },
+  'Projects/DFAI.md': { text: note(['type: project', 'status: active'], 'The app.'), daysAgo: 1 },
   'Projects/Garden.md': {
     text: note(['type: project', 'status: active'], 'Beds and seeds.'),
     daysAgo: 1,
@@ -72,7 +72,7 @@ const NOTES: Record<string, { text: string; daysAgo: number }> = {
   },
   'Tasks/Ship the review.md': {
     text: note(
-      ['type: task', 'status: next-action', 'project: "[[Atlas]]"', 'due: 2026-10-05'],
+      ['type: task', 'status: next-action', 'project: "[[DFAI]]"', 'due: 2026-10-05'],
       'This card.',
     ),
     daysAgo: 1,

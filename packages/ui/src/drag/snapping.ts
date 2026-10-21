@@ -1,7 +1,7 @@
 /**
  * What an arrow key means while something is held, kept out of the components.
  *
- * dnd-kit's keyboard sensor moves by pixels. None of Atlas's surfaces are laid
+ * dnd-kit's keyboard sensor moves by pixels. None of DFAI's surfaces are laid
  * out in pixels a person cares about: a board is columns, a calendar is days in
  * weeks, a timeline is days along a line. These functions turn a key into the
  * next column, day or day-offset, and a target box into the coordinates that

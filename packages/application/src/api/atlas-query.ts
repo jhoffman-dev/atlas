@@ -15,7 +15,7 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
 export const MAX_QUERY_TEXT = 200_000;
 
 /**
- * Runs an Atlas query (ADR-0019) as the query builder runs it, read-only:
+ * Runs a DFAI query (ADR-0019) as the query builder runs it, read-only:
  * the rows, and — for `GROUP BY` — the groups and sub-groups a list shows.
  * Archived notes are left out unless the text says `INCLUDE ARCHIVED`; the
  * text is the only place that says so. `context` is the note the query is

@@ -26,7 +26,7 @@ export function needsAdoption(listing: AutomationListing, now: LocalTime): boole
 }
 
 /**
- * Takes in the rules Atlas has found (A25-01), so each is one it can keep
+ * Takes in the rules DFAI has found (A25-01), so each is one it can keep
  * track of:
  *
  * - A rule without an `id:` — written by hand, or by the feature before ids —
@@ -35,7 +35,7 @@ export function needsAdoption(listing: AutomationListing, now: LocalTime): boole
  *   renaming the file keeps its history.
  * - An enabled rule on a clock that has never run nor been turned on here is
  *   marked as first seen, so its schedule counts from now: a daily rule whose
- *   time only ever falls while Atlas is closed still runs by the next day.
+ *   time only ever falls while DFAI is closed still runs by the next day.
  */
 export async function adoptAutomations({
   fs,

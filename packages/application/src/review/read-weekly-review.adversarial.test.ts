@@ -43,12 +43,12 @@ describe('readWeeklyReview, adversarial', () => {
 
   it('does not say an active project has nothing next on the strength of a truncated read', async () => {
     const files = {
-      'Projects/Atlas.md': note(['type: project', 'status: active']),
+      'Projects/DFAI.md': note(['type: project', 'status: active']),
       'Tasks/A first idea.md': note(['type: task', 'status: someday']),
       'Tasks/Ship the review.md': note([
         'type: task',
         'status: next-action',
-        'project: "[[Atlas]]"',
+        'project: "[[DFAI]]"',
       ]),
     };
     const query = atlasQueryIndex({ markdown: fakeMarkdown(), files });
@@ -64,7 +64,7 @@ describe('readWeeklyReview, adversarial', () => {
     const review = await readWeeklyReview({ index: capped, ...NO_PROPOSALS, clock: CLOCK });
 
     expect(review.truncated).toBe(true);
-    // Observed: ['Atlas'] — its next action was beyond the cap, so it is listed as having none,
+    // Observed: ['DFAI'] — its next action was beyond the cap, so it is listed as having none,
     // while the page's banner only warns that items may be *missing*.
     expect(titles(review.projectsWithoutNextAction)).toEqual([]);
   });

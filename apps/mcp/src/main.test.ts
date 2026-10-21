@@ -1,6 +1,6 @@
 /**
  * The real process, over real stdio: `node src/main.ts` started by the SDK's
- * stdio client, finding a fake Atlas through a connection file on disk. This is
+ * stdio client, finding a fake DFAI through a connection file on disk. This is
  * what Claude Code and Claude Desktop do; if anything but protocol reached
  * stdout, the client would fail to parse it.
  */

@@ -24,7 +24,7 @@ type Fields = ReturnType<typeof bodyObject>;
  * folder given a project is then filed under it. Waiting never needs anyone
  * to wait on (#202). Anything refused — a status the vault does not declare,
  * a project that is not one — is `invalid` and nothing is written. Never saves someone's typing (ADR-0016): a note
- * open in Atlas with unsaved edits is `unsaved_in_app`, and one that changed
+ * open in DFAI with unsaved edits is `unsaved_in_app`, and one that changed
  * on disk between being read and written is `conflict`. The route decides on
  * any task the API reaches, not only one the Inbox lists — an agent may move a
  * task on from anywhere — but never an archived one.
@@ -64,7 +64,7 @@ export async function clarifyInboxRoute(request: VaultRequest): Promise<RouteRes
       );
     }
     if (error instanceof UnsavedTypingError) {
-      throw new ApiError('unsaved_in_app', `${path} is open in Atlas with unsaved edits`);
+      throw new ApiError('unsaved_in_app', `${path} is open in DFAI with unsaved edits`);
     }
     throw error;
   }

@@ -88,19 +88,19 @@ describe('tauriGoogleCalendar', () => {
   });
 
   it('makes a calendar by name and reads back the one Google made', async () => {
-    invoke.mockResolvedValue(answer(200, { id: 'made@example.com', summary: 'Atlas blocks' }));
+    invoke.mockResolvedValue(answer(200, { id: 'made@example.com', summary: 'DFAI blocks' }));
 
-    const made = await tauriGoogleCalendar.createCalendar({ vault: VAULT, name: 'Atlas blocks' });
+    const made = await tauriGoogleCalendar.createCalendar({ vault: VAULT, name: 'DFAI blocks' });
 
     expect(made).toEqual({
       id: 'made@example.com',
-      name: 'Atlas blocks',
+      name: 'DFAI blocks',
       primary: false,
       owned: true,
     });
     expect(invoke).toHaveBeenCalledWith('google_calendar_request', {
       vault: VAULT,
-      call: { method: 'POST', path: '/calendar/v3/calendars', body: '{"summary":"Atlas blocks"}' },
+      call: { method: 'POST', path: '/calendar/v3/calendars', body: '{"summary":"DFAI blocks"}' },
     });
   });
 
@@ -118,7 +118,7 @@ describe('tauriGoogleCalendar', () => {
     });
     invoke.mockResolvedValueOnce(answer(200, { summary: 'no id' }));
     await expect(
-      tauriGoogleCalendar.createCalendar({ vault: VAULT, name: 'Atlas blocks' }),
+      tauriGoogleCalendar.createCalendar({ vault: VAULT, name: 'DFAI blocks' }),
     ).rejects.toMatchObject({ failure: { kind: 'malformed' } });
   });
 

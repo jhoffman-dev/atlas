@@ -89,7 +89,7 @@ impl Google {
         made
     }
 
-    /// Ends every token: what a person removing Atlas from their account does.
+    /// Ends every token: what a person removing DFAI from their account does.
     pub fn revoke_everything(&mut self) {
         self.refresh_tokens.clear();
         self.access_tokens.clear();
@@ -237,9 +237,9 @@ fn api_answer(google: &mut Google, method: &str, path: &str, authorization: &str
             json(200, format!(r#"{{"items":[{}]{echo}}}"#, items.join(",")))
         }
         ("POST", "/calendar/v3/calendars") => {
-            google.calendars.push("Atlas blocks".into());
-            let id = calendar_id("Atlas blocks");
-            json(200, format!(r#"{{"id":"{id}","summary":"Atlas blocks"}}"#))
+            google.calendars.push("DFAI blocks".into());
+            let id = calendar_id("DFAI blocks");
+            json(200, format!(r#"{{"id":"{id}","summary":"DFAI blocks"}}"#))
         }
         _ => json(404, r#"{"error":{"code":404}}"#.into()),
     }

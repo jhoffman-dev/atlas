@@ -46,7 +46,7 @@ export const VAULT_READS: readonly VaultRead[] = [
  * The files and folders the file reads are made from, each with the reads
  * made from it. The sidebar walks the whole of `.atlas`, so any change in it
  * reaches the walk; the Today and Inbox counts read their views' files,
- * which Atlas keeps there.
+ * which DFAI keeps there.
  */
 const PATH_READS: readonly (readonly [string, readonly VaultRead[]])[] = [
   [TYPES_DIRECTORY, ['types']],

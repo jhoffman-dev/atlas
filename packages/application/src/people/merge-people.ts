@@ -213,7 +213,7 @@ function stuckTypingRefusal(paths: readonly VaultPath[], merge: readonly VaultPa
   );
 }
 
-/** The folders of Atlas's own a merge rewrites links in: the person's templates, views and dashboards. */
+/** The folders of DFAI's own a merge rewrites links in: the person's templates, views and dashboards. */
 const REWRITTEN_ATLAS_FOLDERS = [TEMPLATES_DIRECTORY, VIEWS_DIRECTORY, DASHBOARDS_DIRECTORY].map(
   createVaultPath,
 );
@@ -248,13 +248,13 @@ function unsafeViewRefusal(paths: readonly VaultPath[], merge: readonly VaultPat
   );
 }
 
-/** Why a merge is refused while one of Atlas's own files links to a merged person. */
+/** Why a merge is refused while one of DFAI's own files links to a merged person. */
 function atlasOwnRefusal(paths: readonly VaultPath[], merge: readonly VaultPath[]): string {
   const files = paths.join(', ');
   const people = merge.map(noteTitle).join(', ');
   return (
     `${files} ${paths.length === 1 ? 'links' : 'link'} to ${people} but ` +
-    `${paths.length === 1 ? 'is one' : 'are'} of Atlas's own files, which a merge does not rewrite. ` +
+    `${paths.length === 1 ? 'is one' : 'are'} of DFAI's own files, which a merge does not rewrite. ` +
     'Change those links by hand, then merge.'
   );
 }

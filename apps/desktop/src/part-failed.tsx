@@ -14,7 +14,7 @@ export function PartFailed({ retrying, onRetry, onReloadWindow }: Outcome) {
     <div className="viewer" role="alert">
       <p>This part couldn’t load.</p>
       {onReloadWindow !== null && (
-        <p>Reloading the window starts Atlas again. Unsaved changes might be lost.</p>
+        <p>Reloading the window starts DFAI again. Unsaved changes might be lost.</p>
       )}
       <button type="button" className="btn btn--sm" disabled={retrying} onClick={onRetry}>
         {retrying ? 'Reloading…' : 'Reload'}

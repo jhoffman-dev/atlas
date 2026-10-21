@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IndexSettings, indexStatusText } from './index-status.tsx';
 
-const ready = { kind: 'ready', info: { name: 'Atlas', version: '0.1.0' } } as const;
+const ready = { kind: 'ready', info: { name: 'DFAI', version: '0.1.0' } } as const;
 const noop = () => {};
 
 describe('indexStatusText', () => {
@@ -35,7 +35,7 @@ describe('IndexSettings', () => {
   it('shows the count and the app version', () => {
     render(<IndexSettings index={{ kind: 'ready', notes: 208 }} app={ready} onRebuild={noop} />);
     expect(screen.getByText('208 notes indexed')).toBeDefined();
-    expect(screen.getByText('Atlas 0.1.0')).toBeDefined();
+    expect(screen.getByText('DFAI 0.1.0')).toBeDefined();
   });
 
   it('rebuilds on request', async () => {
@@ -78,7 +78,7 @@ describe('IndexSettings', () => {
 
   it('shows nothing about the app while it is still loading', () => {
     render(<IndexSettings index={null} app={{ kind: 'loading' }} onRebuild={noop} />);
-    expect(screen.queryByText(/Atlas/)).toBeNull();
+    expect(screen.queryByText(/DFAI/)).toBeNull();
   });
 
   it('announces a failure to read the app identity', () => {

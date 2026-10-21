@@ -75,7 +75,7 @@ export async function rejectProposalRoute(request: VaultRequest): Promise<RouteR
 /**
  * The proposal a request names, and the ports to answer it through, refused
  * as the caller can act on it: a path outside `Inbox/Proposals` is `invalid`,
- * one with no note `not_found`, and one with typing unsaved in Atlas
+ * one with no note `not_found`, and one with typing unsaved in DFAI
  * `unsaved_in_app` — the API never saves someone's typing.
  */
 async function answerable(
@@ -88,7 +88,7 @@ async function answerable(
   if (ports.editors.state(path) === 'dirty') {
     throw new ApiError(
       'unsaved_in_app',
-      `${noteTitle(path)} is open in Atlas with unsaved typing; it was left as it is.`,
+      `${noteTitle(path)} is open in DFAI with unsaved typing; it was left as it is.`,
     );
   }
   return { ports, path };

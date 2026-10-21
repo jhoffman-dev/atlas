@@ -62,7 +62,7 @@ function vault({ refuse = null }: { refuse?: string | null } = {}) {
   return { fs, files, created };
 }
 
-// Held once, as the app holds them: a new list each render would re-run the Atlas query forever.
+// Held once, as the app holds them: a new list each render would re-run the DFAI query forever.
 const NO_TYPES: readonly ObjectType[] = [];
 const NO_NOTES: readonly string[] = [];
 

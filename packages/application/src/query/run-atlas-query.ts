@@ -37,7 +37,7 @@ export interface AtlasQueryAnswer {
 }
 
 /**
- * Runs an Atlas query (ADR-0019): read, checked against the vault's types,
+ * Runs a DFAI query (ADR-0019): read, checked against the vault's types,
  * compiled with its links resolved the way every link in the app is, and run
  * through the index's read-only path.
  */

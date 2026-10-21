@@ -5,7 +5,7 @@ import { relationGroupLinks } from './relation-group-links.ts';
 /* What a board grouped by a relation has a column (or lane) for: every note it can point at. */
 
 const NOTES = [
-  { path: 'Projects/Atlas.md', title: 'Atlas' },
+  { path: 'Projects/DFAI.md', title: 'DFAI' },
   { path: 'Archive/Projects/Old.md', title: 'Old' },
   { path: '.atlas/templates/Project.md', title: 'Project' },
 ];
@@ -25,11 +25,11 @@ describe('relationGroupLinks', () => {
         },
       },
       targets: ['project'],
-      names: noteNames([{ path: createVaultPath('Projects/Atlas.md'), title: 'Atlas' }]),
+      names: noteNames([{ path: createVaultPath('Projects/DFAI.md'), title: 'DFAI' }]),
     });
 
     expect(asked).toEqual(['project']);
-    expect(links).toEqual(['[[Atlas]]']);
+    expect(links).toEqual(['[[DFAI]]']);
   });
 
   it('links the notes of every type a relation points at, a type at a time (P30-01)', async () => {
@@ -39,12 +39,12 @@ describe('relationGroupLinks', () => {
         notesOfType: async (type) =>
           type === 'area'
             ? [{ path: 'Areas/Garden.md', title: 'Garden' }]
-            : [{ path: 'Projects/Atlas.md', title: 'Atlas' }],
+            : [{ path: 'Projects/DFAI.md', title: 'DFAI' }],
       },
       targets: ['project', 'area'],
       names: noteNames(null),
     });
-    expect(links).toEqual(['[[Projects/Atlas]]', '[[Areas/Garden]]']);
+    expect(links).toEqual(['[[Projects/DFAI]]', '[[Areas/Garden]]']);
   });
 
   it('fails as the index fails, rather than offering no columns as if there were none', async () => {

@@ -76,7 +76,7 @@ type PersonNoteEmails = readonly string[] | null;
 
 /**
  * The Person note's addresses for the profile's name: the owner's while the
- * settings hold none (#226), so what the card shows is what Atlas uses. One
+ * settings hold none (#226), so what the card shows is what DFAI uses. One
  * that cannot be read is said in the console and read as none, so the
  * owner's addresses still settle.
  */

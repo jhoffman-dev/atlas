@@ -14,7 +14,7 @@ import { caretAtLineEnd } from './caret.ts';
 /**
  * Another program's write on a disk whose clock is coarse (#245): HFS+ keeps
  * whole seconds, exFAT two, a network share whatever its server keeps. A write
- * within the tick of the version Atlas read leaves the time as it was, and a
+ * within the tick of the version DFAI read leaves the time as it was, and a
  * write of the same length leaves the size too. Simulated by writing the same
  * number of bytes and setting the time back to the one the note had.
  */

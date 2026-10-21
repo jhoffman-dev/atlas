@@ -65,7 +65,7 @@ import {
  * `pnpm dev` opens the UI in a plain browser, where no Tauri runtime answers.
  */
 export function resolveAppInfoPort(): AppInfoPort {
-  return isTauri() ? tauriAppInfo : staticAppInfo({ name: 'Atlas', version: '0.1.0' });
+  return isTauri() ? tauriAppInfo : staticAppInfo({ name: 'DFAI', version: '0.1.0' });
 }
 
 export function resolveVaultPorts(): OnHost<VaultPorts> {

@@ -9,7 +9,7 @@ import { parseAtlasQuery } from './parse.ts';
 import { QUERY_TEST_TYPES } from './query-fixtures.ts';
 
 /**
- * A query reads the vault's own notes only (A24-02): not Atlas's `.atlas`, not
+ * A query reads the vault's own notes only (A24-02): not DFAI's `.atlas`, not
  * a note in a hidden folder — as a row, or one relation hop away. The index
  * leaves hidden folders out already (refreshIndex lists user space), so here
  * they are put in on purpose: the query must hold the rule by itself.

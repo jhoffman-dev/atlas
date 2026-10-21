@@ -347,7 +347,7 @@ pub fn vet_repo_name(name: &str) -> Result<(), String> {
         || name.starts_with('-')
         || name.starts_with('.')
     {
-        return Err(format!("{name:?} is not a repository name Atlas creates"));
+        return Err(format!("{name:?} is not a repository name DFAI creates"));
     }
     Ok(())
 }
@@ -366,7 +366,7 @@ fn vet(shapes: &[Shape], args: &[String]) -> Result<Reach, String> {
     }
     let why = closest.map_or_else(|| "no shape".to_string(), |(_, why)| why);
     Err(format!(
-        "the arguments are not ones Atlas runs git with: {why}"
+        "the arguments are not ones DFAI runs git with: {why}"
     ))
 }
 

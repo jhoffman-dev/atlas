@@ -63,7 +63,7 @@ export interface GranolaPullReport {
   readonly refused: readonly GranolaNoteProblem[];
   /**
    * Notes Granola refused in a way that comes back the same on every pull,
-   * and notes it listed in a shape Atlas cannot read.
+   * and notes it listed in a shape DFAI cannot read.
    */
   readonly skipped: readonly GranolaNoteProblem[];
   /** Notes that failed in a way that may pass: the next pull lists them again. */

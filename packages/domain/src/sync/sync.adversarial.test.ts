@@ -138,7 +138,7 @@ describe('withManagedIgnores', () => {
   it('never drops a line the person wrote when the block’s closing line was deleted', () => {
     const edited = [
       'node_modules/',
-      '# >>> Atlas sync (managed: edits between these lines are replaced)',
+      '# >>> DFAI sync (managed: edits between these lines are replaced)',
       '.atlas-cache/',
       'private/diary.md',
       '',
@@ -168,7 +168,7 @@ describe('remoteUrlProblem', () => {
 
   // A30: a token pasted into the address lands in `.git/config` in plain text,
   // is handed back to the webview by `remote get-url`, and is shown in
-  // Settings → Sync and the host's Connect dialog. Atlas never holds a GitHub
+  // Settings → Sync and the host's Connect dialog. DFAI never holds a GitHub
   // login (U-29) and the webview never receives a secret (ADR-0017).
   it.each([
     'https://ghp_abcdefghijklmnopqrstuvwxyz0123456789@github.com/james/vault.git',
@@ -206,7 +206,7 @@ describe('macOfCommit', () => {
   );
 
   it('reads nothing out of a commit made by hand', () => {
-    expect(macOfCommit('Atlas sync from ')).toBeNull();
+    expect(macOfCommit('DFAI sync from ')).toBeNull();
     expect(macOfCommit('Merge branch main')).toBeNull();
   });
 });

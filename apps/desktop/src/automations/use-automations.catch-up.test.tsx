@@ -30,8 +30,8 @@ import {
 } from './use-automations.ts';
 
 /**
- * A rule a note sets off, and a meeting the import let in just before Atlas
- * was quit (ADR-0028, "Catching up when Atlas opens"): the feed has nothing
+ * A rule a note sets off, and a meeting the import let in just before DFAI
+ * was quit (ADR-0028, "Catching up when DFAI opens"): the feed has nothing
  * to say of it on opening, so the rule is run on it once, from what the
  * files and its log say. An archive rule stands in for a Claude step.
  */

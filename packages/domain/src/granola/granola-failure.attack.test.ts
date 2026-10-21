@@ -33,7 +33,7 @@ describe('granolaFailureEffect, against ADR-0034’s watermark rule', () => {
  * it held the watermark and the next pull asked again — whatever its status
  * but 401, while explainGranolaFailure told the person the note "was
  * skipped". Round 2 settled it the other way: a page is a request like any
- * other, so a 404, a 400 or an answer Atlas could not read on a page is
+ * other, so a 404, a 400 or an answer DFAI could not read on a page is
  * skipped (it fails the same on every pull), and the person is told so.
  */
 describe('explainGranolaFailure for a failed page of a transcript', () => {
@@ -41,7 +41,7 @@ describe('explainGranolaFailure for a failed page of a transcript', () => {
   it.each([
     ['a 404', page(refused(404))],
     ['a 400', page(refused(400))],
-    ['an answer Atlas could not read', page({ kind: 'malformed', message: 'what the host said' })],
+    ['an answer DFAI could not read', page({ kind: 'malformed', message: 'what the host said' })],
   ])('with %s says it was skipped, as the pull does, not that it is tried again', (_, failure) => {
     expect(granolaFailureEffect(failure)).toBe('skip');
     const { problem, fix } = explainGranolaFailure(failure);

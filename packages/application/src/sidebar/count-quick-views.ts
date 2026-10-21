@@ -24,7 +24,7 @@ import type { VaultFsPort } from '../vault/ports.ts';
  *
  * The index counts a saved view, rather than handing back every row to be
  * counted here, and the count stops at the view's limit: the number beside a
- * view is how many it shows when opened. An Atlas query view (ADR-0019) — an
+ * view is how many it shows when opened. A DFAI query view (ADR-0019) — an
  * Inbox over tasks and meetings, say — is run as it is opened, and its rows
  * counted: its own LIMIT already stops it there.
  */

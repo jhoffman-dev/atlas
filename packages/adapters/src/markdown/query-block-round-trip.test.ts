@@ -10,7 +10,7 @@ import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /**
  * A query block in the file is a fenced code block whose language is
- * `atlas-query` (P30-05): Obsidian shows it as code, Atlas as the answer to
+ * `atlas-query` (P30-05): Obsidian shows it as code, DFAI as the answer to
  * the query. It is read as a query block only at the top of the note, kept
  * byte for byte when untouched, and written so it reads back as itself.
  */
@@ -52,7 +52,7 @@ describe('reading a query block', () => {
     ['another language', '```sql\nSELECT 1\n```\n', ['codeBlock']],
     ['no language', '```\nFROM task\n```\n', ['codeBlock']],
     ['words after the language', '```atlas-query wide\nFROM task\n```\n', ['codeBlock']],
-    ['a language in capitals', '```Atlas-Query\nFROM task\n```\n', ['codeBlock']],
+    ['a language in capitals', '```DFAI-Query\nFROM task\n```\n', ['codeBlock']],
     ['indented code', '    FROM task\n', ['codeBlock']],
     ['a fence in a list', '- one\n\n  ```atlas-query\n  FROM task\n  ```\n', ['bulletList']],
     ['a fence in a quote', '> ```atlas-query\n> FROM task\n> ```\n', ['blockquote']],

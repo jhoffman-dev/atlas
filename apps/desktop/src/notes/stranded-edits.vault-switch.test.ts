@@ -7,7 +7,7 @@ import { memoryStrandedStore } from './testing/memory-stranded-store.ts';
 
 /**
  * Adversarial: work the store could not hold lives only in the hook's memory.
- * The notice promises it is lost only "if Atlas quits first". A vault switch is
+ * The notice promises it is lost only "if DFAI quits first". A vault switch is
  * not a quit, and a stranding for a vault that is not open is not exempt from
  * "a refused write is reported rather than ignored".
  */
@@ -44,7 +44,7 @@ describe('work the store refused, across a vault switch', () => {
     const { result, rerender } = mount(VAULT);
     act(() => result.current.keep(stranding(VAULT)));
     // Precondition: it is held, in memory only.
-    expect(result.current.notice).toContain('lost if Atlas quits');
+    expect(result.current.notice).toContain('lost if DFAI quits');
 
     rerender({ vaultKey: ANOTHER_VAULT });
     rerender({ vaultKey: VAULT });

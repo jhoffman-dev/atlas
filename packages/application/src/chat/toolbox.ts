@@ -66,7 +66,7 @@ const PROPOSAL_SPECS: readonly ModelToolSpec[] = [
 ];
 
 /**
- * The two toolboxes Atlas hands a model (P29-03), built once at the
+ * The two toolboxes DFAI hands a model (P29-03), built once at the
  * composition root from the same API: the chat's, and a rule's Claude step's.
  */
 export interface Toolboxes {

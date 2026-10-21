@@ -24,7 +24,7 @@ describe('POST /v1/artifacts', () => {
     const response = await save(api, {
       title: 'Q3 Sales Deck',
       url: 'https://claude.ai/artifact/abc',
-      project: 'Atlas',
+      project: 'DFAI',
       tags: ['sales'],
       html: PAGE,
       body: 'Made for the board meeting.',
@@ -37,7 +37,7 @@ describe('POST /v1/artifacts', () => {
     expect(note['properties']).toMatchObject({
       url: 'https://claude.ai/artifact/abc',
       kind: 'page',
-      project: '[[Atlas]]',
+      project: '[[DFAI]]',
       saved: 'artifacts/q3-sales-deck',
       saved_at: TODAY,
     });
@@ -316,7 +316,7 @@ describe('POST /v1/artifacts/{path}/thumbnail', () => {
     expect(codeOf(await thumbnail(api, 'artifacts/Gone.md'))).toBe('not_found');
   });
 
-  it('keeps the name for Atlas: no file of the copy may take it', async () => {
+  it('keeps the name for DFAI: no file of the copy may take it', async () => {
     const api = withCopy();
     const response = await api.send({
       method: 'PUT',

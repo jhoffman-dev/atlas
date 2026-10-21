@@ -38,7 +38,7 @@ export interface VaultFsPort {
    * host merely obeys, so that a vault holding `node_modules` does not cost tens
    * of thousands of paths across IPC. Passing none walks the whole tree.
    * `maxDepth` is how many folders down it reads notes — the domain's
-   * `VAULT_WALK_DEPTH`, handed over the same way, so nothing Atlas files is
+   * `VAULT_WALK_DEPTH`, handed over the same way, so nothing DFAI files is
    * deeper than the walk reads.
    */
   listNotes(options: {

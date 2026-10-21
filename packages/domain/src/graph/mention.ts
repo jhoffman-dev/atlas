@@ -121,8 +121,8 @@ const overlaps = (left: BodyRange, right: BodyRange) =>
 /**
  * The first plain-text mention of any of these names in the body's prose.
  *
- * Earliest wins; at the same place the longer name does, so "Atlas plan" is
- * found whole rather than as "Atlas". A name that could not be written into a
+ * Earliest wins; at the same place the longer name does, so "DFAI plan" is
+ * found whole rather than as "DFAI". A name that could not be written into a
  * link is never looked for.
  */
 export function findMention({

@@ -15,7 +15,7 @@ interface Asked {
 
 /**
  * Where a note's query blocks (P30-05) are answered: each block's text run
- * as an Atlas query in which `this` is this note, its rows grouped for the
+ * as a DFAI query in which `this` is this note, its rows grouped for the
  * layout the block says. Every block asks again whenever `revision` — the
  * index's count of changes — moves, so a note saved anywhere reaches them.
  * Undefined where there is no note to be `this`.

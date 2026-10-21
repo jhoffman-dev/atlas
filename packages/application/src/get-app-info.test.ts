@@ -10,13 +10,13 @@ const portReturning = (value: { name: string; version: string }): AppInfoPort =>
 describe('getAppInfo', () => {
   it('returns validated app info from the port', async () => {
     const result = await getAppInfo({
-      appInfo: portReturning({ name: 'Atlas', version: '0.1.0' }),
+      appInfo: portReturning({ name: 'DFAI', version: '0.1.0' }),
     });
-    expect(result).toEqual({ name: 'Atlas', version: '0.1.0' });
+    expect(result).toEqual({ name: 'DFAI', version: '0.1.0' });
   });
 
   it('rejects host values that break the domain rules', async () => {
-    const appInfo = portReturning({ name: 'Atlas', version: 'nightly' });
+    const appInfo = portReturning({ name: 'DFAI', version: 'nightly' });
     await expect(getAppInfo({ appInfo })).rejects.toThrow(InvalidAppInfoError);
   });
 

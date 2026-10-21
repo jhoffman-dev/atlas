@@ -119,10 +119,10 @@ describe('MeetingCleanup', () => {
   it('says why nothing is offered, with nothing to tick', async () => {
     const props = draw({
       tasks: null,
-      notice: 'Atlas can’t tell which tasks meetings made are yours, so it offers none to archive.',
+      notice: 'DFAI can’t tell which tasks meetings made are yours, so it offers none to archive.',
     });
     expect(within(region()).getByRole('status').textContent).toBe(
-      'Atlas can’t tell which tasks meetings made are yours, so it offers none to archive.',
+      'DFAI can’t tell which tasks meetings made are yours, so it offers none to archive.',
     );
     expect(within(region()).queryByRole('checkbox')).toBeNull();
     await userEvent.click(within(region()).getByRole('button', { name: 'Dismiss' }));

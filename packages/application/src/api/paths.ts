@@ -13,7 +13,7 @@ import { ApiError } from './api-error.ts';
  *
  * Traversal, absolute paths, backslashes and null bytes are refused by
  * `createVaultPath`, the one place the vault's own path rules live. On top of
- * that the API reaches user space only: `.atlas` holds Atlas's configuration
+ * that the API reaches user space only: `.atlas` holds DFAI's configuration
  * and hidden folders hold other tools' machinery, and a caller that could write
  * there could change what every type, template and view means.
  */
@@ -66,7 +66,7 @@ export function isApiFolderPath(path: VaultPath): boolean {
   return path === VAULT_ROOT || isUserSpace(path);
 }
 
-/** Any file the API may have Atlas read or write for it: one in user space. */
+/** Any file the API may have DFAI read or write for it: one in user space. */
 export function isApiFilePath(path: VaultPath): boolean {
   return isUserSpace(path);
 }

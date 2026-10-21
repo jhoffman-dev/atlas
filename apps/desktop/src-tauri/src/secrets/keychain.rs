@@ -9,7 +9,7 @@
 use super::SecretStore;
 
 /// The items filed under one service name: DFAI's own, or, for the one-time
-/// move from Atlas (`rename_migration`), the ones Atlas filed.
+/// move from DFAI (`rename_migration`), the ones DFAI filed.
 pub struct KeychainStore {
     service: &'static str,
 }

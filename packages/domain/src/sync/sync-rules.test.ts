@@ -59,10 +59,14 @@ describe('syncCommitMessage', () => {
       'Atlas sync from a Mac 2026-09-28 14:05',
     );
   });
+
+  it('still says "Atlas", the only name a Mac still running Atlas reads back (ADR-0042)', () => {
+    expect(syncSetUpMessage('Studio')).toBe('Atlas sync set up on Studio');
+  });
 });
 
 describe('macOfCommit', () => {
-  it('reads the Mac back out of what Atlas called its commits', () => {
+  it('reads the Mac back out of what DFAI called its commits', () => {
     const synced = syncCommitMessage({
       mac: 'James’s MacBook Pro',
       localNow: '2026-09-28T14:05:00',
@@ -71,9 +75,16 @@ describe('macOfCommit', () => {
     expect(macOfCommit(`${syncSetUpMessage('Studio')}\n`)).toBe('Studio');
   });
 
-  it('knows no Mac for a commit Atlas did not make', () => {
+  it('reads the Mac out of a commit named by either name the app has had', () => {
+    expect(macOfCommit('DFAI sync from Studio 2026-10-20 09:00')).toBe('Studio');
+    expect(macOfCommit('DFAI sync set up on Laptop')).toBe('Laptop');
+    expect(macOfCommit('Atlas sync from Studio 2026-10-20 09:00')).toBe('Studio');
+    expect(macOfCommit('Atlas sync set up on Laptop')).toBe('Laptop');
+  });
+
+  it('knows no Mac for a commit DFAI did not make', () => {
     expect(macOfCommit('Fix typo')).toBeNull();
-    expect(macOfCommit('Atlas sync from  2026-09-28 14:05')).toBeNull();
+    expect(macOfCommit('DFAI sync from  2026-09-28 14:05')).toBeNull();
     expect(macOfCommit('')).toBeNull();
   });
 });
@@ -131,7 +142,7 @@ describe('defaultBranchOf', () => {
 describe('isSetUpByAtlas', () => {
   const gitignore = withManagedIgnores(null);
 
-  it('is true only when the settings say github and the gitignore holds Atlas’s block', () => {
+  it('is true only when the settings say github and the gitignore holds DFAI’s block', () => {
     expect(isSetUpByAtlas({ settings: { [SYNC_KEY]: SYNC_KEY_VALUE }, gitignore })).toBe(true);
   });
 
@@ -140,7 +151,7 @@ describe('isSetUpByAtlas', () => {
     expect(isSetUpByAtlas({ settings: { [SYNC_KEY]: 'obsidian-git' }, gitignore })).toBe(false);
   });
 
-  it('is false when there is no gitignore, or it lacks Atlas’s block', () => {
+  it('is false when there is no gitignore, or it lacks DFAI’s block', () => {
     expect(isSetUpByAtlas({ settings: { [SYNC_KEY]: SYNC_KEY_VALUE }, gitignore: null })).toBe(
       false,
     );
@@ -251,26 +262,26 @@ describe('withManagedIgnores', () => {
 // Issue #8: a vault from GitHub copied into the open vault became a folder
 // inside it, and opening it left the vault the person had behind.
 describe('where a vault from GitHub may be copied', () => {
-  const openVault = '/Users/j/Atlas Vault';
+  const openVault = '/Users/j/DFAI Vault';
 
   it('refuses the open vault itself, and says where setting up sync is', () => {
-    const refusal = cloneFolderRefusal({ picked: '/Users/j/Atlas Vault/', openVault });
-    expect(refusal).toContain('Atlas Vault is the vault you have open');
+    const refusal = cloneFolderRefusal({ picked: '/Users/j/DFAI Vault/', openVault });
+    expect(refusal).toContain('DFAI Vault is the vault you have open');
     expect(refusal).toContain('Settings → Sync');
   });
 
   it('refuses a folder inside the open vault, however it is spelled', () => {
-    expect(cloneFolderRefusal({ picked: '/Users/j/Atlas Vault/Chats', openVault })).not.toBeNull();
-    expect(cloneFolderRefusal({ picked: '/users/J/atlas vault/chats', openVault })).not.toBeNull();
+    expect(cloneFolderRefusal({ picked: '/Users/j/DFAI Vault/Chats', openVault })).not.toBeNull();
+    expect(cloneFolderRefusal({ picked: '/users/J/dfai vault/chats', openVault })).not.toBeNull();
     expect(
-      cloneFolderRefusal({ picked: '/Users/j/Atlas Vault', openVault: '/Users/j/Atlas Vault/' }),
+      cloneFolderRefusal({ picked: '/Users/j/DFAI Vault', openVault: '/Users/j/DFAI Vault/' }),
     ).not.toBeNull();
   });
 
   it('allows the folder above the vault, one beside it, and any folder with no vault open', () => {
     expect(cloneFolderRefusal({ picked: '/Users/j', openVault })).toBeNull();
-    expect(cloneFolderRefusal({ picked: '/Users/j/Atlas Vault 2', openVault })).toBeNull();
-    expect(cloneFolderRefusal({ picked: '/Users/j/Atlas Vault', openVault: null })).toBeNull();
+    expect(cloneFolderRefusal({ picked: '/Users/j/DFAI Vault 2', openVault })).toBeNull();
+    expect(cloneFolderRefusal({ picked: '/Users/j/DFAI Vault', openVault: null })).toBeNull();
   });
 });
 

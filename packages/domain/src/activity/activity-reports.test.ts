@@ -199,7 +199,7 @@ describe('sourceRefreshReport', () => {
 });
 
 describe('apiWriteReport', () => {
-  const NOTE = p('Projects/Atlas.md');
+  const NOTE = p('Projects/DFAI.md');
 
   it('keeps its route once the line is made safe, which strikes out anything path-shaped', () => {
     const report = apiWriteReport({
@@ -207,7 +207,7 @@ describe('apiWriteReport', () => {
       notePath: NOTE,
       refusal: null,
     });
-    expect(activityEvent({ ...report, at: 1 }).message).toBe('PUT v1/notes/{path}/body — Atlas');
+    expect(activityEvent({ ...report, at: 1 }).message).toBe('PUT v1/notes/{path}/body — DFAI');
   });
 
   it('names the route and the note written, not what was written', () => {
@@ -216,7 +216,7 @@ describe('apiWriteReport', () => {
     ).toEqual({
       level: 'info',
       kind: 'api',
-      message: 'PUT v1/notes/{path}/body — Atlas',
+      message: 'PUT v1/notes/{path}/body — DFAI',
       subject: { kind: 'note', path: NOTE },
     });
   });
@@ -235,7 +235,7 @@ describe('apiWriteReport', () => {
       apiWriteReport({ route: 'PUT /v1/notes/{path}/body', notePath: NOTE, refusal: 'conflict' }),
     ).toMatchObject({
       level: 'warning',
-      message: 'PUT v1/notes/{path}/body refused for Atlas (conflict).',
+      message: 'PUT v1/notes/{path}/body refused for DFAI (conflict).',
     });
     expect(
       apiWriteReport({ route: 'POST /v1/archive', notePath: null, refusal: 'bad_request' }).message,
@@ -497,13 +497,13 @@ describe('meetingImportReport', () => {
         path: standup,
         of: original,
         archivedTo: null,
-        problem: 'It is open in Atlas with unsaved typing.',
+        problem: 'It is open in DFAI with unsaved typing.',
       }),
     ).toEqual({
       level: 'warning',
       kind: 'meeting',
       message:
-        '2026-10-06 Standup: a second copy of 2026-10-06 Standup, but it could not be archived. It is open in Atlas with unsaved typing. It is tried again when it next changes.',
+        '2026-10-06 Standup: a second copy of 2026-10-06 Standup, but it could not be archived. It is open in DFAI with unsaved typing. It is tried again when it next changes.',
       subject: { kind: 'note', path: standup },
     });
   });

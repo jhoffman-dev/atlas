@@ -20,7 +20,7 @@ import { isLoginProblem, readStreamJsonLine } from './stream-json.ts';
 export const INSTALL_CLAUDE_CODE = 'curl -fsSL https://claude.ai/install.sh | bash';
 export const LOG_IN_TO_CLAUDE_CODE = 'claude auth login';
 
-/** How long `claude` is given, in milliseconds, before Atlas kills it and says so. */
+/** How long `claude` is given, in milliseconds, before DFAI kills it and says so. */
 export interface ClaudeCodeTimeouts {
   /** `claude auth status`, which answers at once unless something is wrong. */
   readonly status: number;
@@ -31,10 +31,10 @@ export interface ClaudeCodeTimeouts {
 export const CLAUDE_CODE_TIMEOUTS: ClaudeCodeTimeouts = { status: 15_000, run: 10 * 60_000 };
 
 /**
- * The model, reached through the person's own Claude Code (ADR-0021). Atlas
+ * The model, reached through the person's own Claude Code (ADR-0021). DFAI
  * never sees their login: it starts `claude` in print mode with every one of
  * Claude Code's own tools off, sends the conversation on stdin, and reads the
- * streamed reply. Atlas's tools are described in the system prompt and read
+ * streamed reply. DFAI's tools are described in the system prompt and read
  * back out of the text.
  */
 export function claudeCodeProvider(
@@ -51,7 +51,7 @@ export function claudeCodeProvider(
 /**
  * The arguments for one turn. The host refuses any shape but this one; in
  * particular `--tools ""` must be there, which turns off Bash, file access and
- * web fetch, so what the model can reach is only what Atlas runs for it.
+ * web fetch, so what the model can reach is only what DFAI runs for it.
  */
 export function claudeCodeArgs(request: ModelRequest): string[] {
   const system = `${request.system}\n\n${toolProtocolInstructions(request.tools)}`;
@@ -186,7 +186,7 @@ function hostFailure(error: unknown, signal: AbortSignal): Error {
 const notInstalled = () =>
   new ModelProviderError(
     'not_installed',
-    'Claude Code is not installed on this Mac, or not where Atlas looks for it.',
+    'Claude Code is not installed on this Mac, or not where DFAI looks for it.',
   );
 
 const notLoggedIn = () =>

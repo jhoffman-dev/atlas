@@ -79,11 +79,11 @@ describe('readTaskSchedules', () => {
   });
 
   it('reads a task in no block as scheduled for nothing, and leaves out what is not a task', async () => {
-    const index = indexOf({ 'tasks/Later.md': task('1h30m'), 'Atlas.md': { type: 'project' } });
+    const index = indexOf({ 'tasks/Later.md': task('1h30m'), 'DFAI.md': { type: 'project' } });
 
     const schedules = await readTaskSchedules({
       index,
-      paths: ['tasks/Later.md', 'Atlas.md'],
+      paths: ['tasks/Later.md', 'DFAI.md'],
       taskType: GTD_TASK,
     });
 

@@ -2,7 +2,7 @@ import { expect, test, type Page } from './fixtures.ts';
 import { createVault, expectFile, installHost, type FakeHost, type FakeVault } from './host.ts';
 
 /**
- * #81: what makes Atlas the daily driver — today's note from the built-in
+ * #81: what makes DFAI the daily driver — today's note from the built-in
  * Daily type, and quick capture from any app through the global shortcut.
  */
 

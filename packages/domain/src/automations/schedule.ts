@@ -13,7 +13,7 @@ import { parseNoteTrigger, printNoteTrigger, type NoteTrigger } from './note-tri
 /** A moment on the person's wall clock: `YYYY-MM-DDTHH:MM:SS`. */
 export type LocalTime = string;
 
-/** When a rule runs: on a clock, when Atlas opens, by hand, or when a note of a type appears or changes. */
+/** When a rule runs: on a clock, when DFAI opens, by hand, or when a note of a type appears or changes. */
 export type Schedule =
   | { readonly kind: 'daily'; readonly at: string }
   | { readonly kind: 'hourly'; readonly every: number }
@@ -98,7 +98,7 @@ export function describeSchedule(schedule: Schedule): string {
     case 'hourly':
       return schedule.every === 1 ? 'Every hour' : `Every ${schedule.every} hours`;
     case 'open':
-      return 'When Atlas opens';
+      return 'When DFAI opens';
     case 'manual':
       return 'Only when run by hand';
     case 'note':
@@ -108,10 +108,10 @@ export function describeSchedule(schedule: Schedule): string {
 
 /**
  * The first time the schedule falls due after `since`, or null for a rule
- * that only runs when Atlas opens, when a note sets it off, or when asked.
+ * that only runs when DFAI opens, when a note sets it off, or when asked.
  *
  * `since` is the last run — or, for a rule never run, when it was turned on —
- * so a run missed while Atlas was closed is still due when it opens.
+ * so a run missed while DFAI was closed is still due when it opens.
  */
 export function nextRunAfter(schedule: Schedule, since: LocalTime): LocalTime | null {
   const from = localTimeMs(since);

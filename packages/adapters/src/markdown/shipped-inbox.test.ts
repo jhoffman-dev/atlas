@@ -110,7 +110,7 @@ describe('the Inbox this vault ships', () => {
     });
   });
 
-  it('declares what Atlas offers another vault, so the two never drift apart', () => {
+  it('declares what DFAI offers another vault, so the two never drift apart', () => {
     for (const { type } of PROPOSAL_TYPE_FILES) {
       expect(parseObjectType(frontmatterOf(shipped(`.atlas/types/${type.name}.md`)))).toEqual(type);
     }

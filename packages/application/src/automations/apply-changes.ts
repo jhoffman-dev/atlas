@@ -26,7 +26,7 @@ export interface PropertyChange {
   readonly to: PriorValue;
 }
 
-export const UNSAVED_TYPING = 'It is open in Atlas with unsaved typing, so it was left as it is.';
+export const UNSAVED_TYPING = 'It is open in DFAI with unsaved typing, so it was left as it is.';
 
 /**
  * Changes properties note by note, recording exactly what each held before so

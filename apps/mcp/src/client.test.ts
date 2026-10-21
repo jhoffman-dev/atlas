@@ -138,21 +138,21 @@ describe('AtlasClient errors', () => {
   it('reports a body it cannot read by status, not by parse error', async () => {
     atlas.respondWith(() => ({ status: 502, body: '<html>bad gateway</html>' }));
     expect(await callError(fixed().status())).toBe(
-      'Atlas answered 502 with a body this server cannot read.',
+      'DFAI answered 502 with a body this server cannot read.',
     );
   });
 
-  it('says Atlas is not running when the connection is refused', async () => {
+  it('says DFAI is not running when the connection is refused', async () => {
     const port = await closedPort();
     const client = clientFor(async () => ({ baseUrl: `http://127.0.0.1:${port}`, token: TOKEN }));
     expect(await callError(client.status())).toBe(NOT_RUNNING);
   });
 
-  it('gives up after its timeout when Atlas never answers', async () => {
+  it('gives up after its timeout when DFAI never answers', async () => {
     atlas.respondWith(() => ({ status: 200 })); // no body: the fake never answers
     const client = clientFor(async () => ({ baseUrl: atlas.baseUrl, token: TOKEN }), 50);
     expect(await callError(client.status())).toBe(
-      `Atlas did not answer within 0.05 s. ${MAY_HAVE_LANDED}`,
+      `DFAI did not answer within 0.05 s. ${MAY_HAVE_LANDED}`,
     );
   });
 
@@ -171,7 +171,7 @@ describe('AtlasClient errors', () => {
       },
     });
     expect(await callError(client.status())).toBe(
-      `Could not reach Atlas at http://127.0.0.1:1 (${expected}).`,
+      `Could not reach DFAI at http://127.0.0.1:1 (${expected}).`,
     );
   });
 

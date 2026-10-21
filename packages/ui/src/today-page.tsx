@@ -458,8 +458,8 @@ function Section({
       </h2>
       {section.id === 'waiting' && section.count > 0 && (
         <p className="review__note today__measure">
-          Days are counted from each task’s last change — Atlas keeps no “waiting since”, so any
-          edit to a task starts its count again.
+          Days are counted from each task’s last change — DFAI keeps no “waiting since”, so any edit
+          to a task starts its count again.
         </p>
       )}
       {section.count === 0 ? (

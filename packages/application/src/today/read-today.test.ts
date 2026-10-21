@@ -19,15 +19,15 @@ const note = (frontmatter: readonly string[]) => ['---', ...frontmatter, '---', 
 const task = (...frontmatter: string[]) => note(['type: task', ...frontmatter]);
 
 const FILES = {
-  'Projects/Atlas.md': note(['type: project', 'status: active']),
+  'Projects/DFAI.md': note(['type: project', 'status: active']),
   'Projects/Garden.md': note(['type: project', 'status: active']),
   'Projects/Shed.md': note(['type: project', 'status: active']),
   'People/Mara Quill.md': note(['type: person']),
   'Tasks/Renew the licence.md': task('status: backlog', 'due: 2026-10-10'),
   'Tasks/Send the figures.md': task('status: next-action', 'due: 2026-10-13'),
   'Tasks/Book the venue.md': task('status: someday', 'defer: 2026-10-13'),
-  'Tasks/Draft the plan.md': task('status: in-progress', 'project: "[[Atlas]]"'),
-  'Tasks/Ship the page.md': task('status: next-action', 'project: "[[Atlas]]"', 'contexts: desk'),
+  'Tasks/Draft the plan.md': task('status: in-progress', 'project: "[[DFAI]]"'),
+  'Tasks/Ship the page.md': task('status: next-action', 'project: "[[DFAI]]"', 'contexts: desk'),
   'Tasks/Sow the beans.md': task('status: next-action', 'project: "[[Garden]]"'),
   'Tasks/Call the bank.md': task('status: next-action'),
   'Tasks/Not yet.md': task('status: next-action', 'defer: 2026-10-14'),
@@ -74,11 +74,11 @@ describe('readToday', () => {
     expect(
       next.groups.map((group) => [group.label, group.tasks.map((item) => item.title)]),
     ).toEqual([
-      ['Atlas', ['Ship the page']],
+      ['DFAI', ['Ship the page']],
       ['Garden', ['Sow the beans']],
       [null, ['Call the bank']],
     ]);
-    expect(next.groups[0]?.project).toBe('Projects/Atlas.md');
+    expect(next.groups[0]?.project).toBe('Projects/DFAI.md');
     expect(next.groups[0]?.tasks[0]?.contexts).toEqual(['desk']);
   });
 
@@ -106,7 +106,7 @@ describe('readToday', () => {
       clock: CLOCK,
     });
     expect(report.inbox).toEqual({ count: 2, toFile: 1, toAnswer: 1, more: false });
-    // Atlas and Garden have a next action or work under way; Shed has neither.
+    // DFAI and Garden have a next action or work under way; Shed has neither.
     expect(report.stalledProjects).toBe(1);
   });
 

@@ -34,7 +34,7 @@ function filing(readProject: () => Promise<{ text: string; modified: number }>) 
     },
   };
   const activity = recordingActivity();
-  const notePaths = [NOTE, createVaultPath('Projects/Atlas.md')];
+  const notePaths = [NOTE, createVaultPath('Projects/DFAI.md')];
   const hook = renderHook(() =>
     useInbox({
       ports,
@@ -53,7 +53,7 @@ function filing(readProject: () => Promise<{ text: string; modified: number }>) 
     act(() =>
       hook.result.current.clarify({
         path: NOTE,
-        clarification: { project: createVaultPath('Projects/Atlas.md') },
+        clarification: { project: createVaultPath('Projects/DFAI.md') },
       }),
     );
   return { hook, activity, file };

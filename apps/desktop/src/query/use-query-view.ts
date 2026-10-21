@@ -44,7 +44,7 @@ export interface QueryViewState {
 }
 
 /**
- * The open note when it is a saved Atlas query (P24-04): its query, edited in
+ * The open note when it is a saved DFAI query (P24-04): its query, edited in
  * the builder or as text, and its answer in the layout it keeps. Edits are
  * the view's until saved; Save writes the `query` and `layout` keys and
  * nothing else, so the rest of the file is left as it was written.

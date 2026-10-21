@@ -53,7 +53,7 @@ describe('work a closing pane could not write', () => {
 
     expect(result.current.notice).toContain('today');
     expect(result.current.notice).toContain(REFUSED);
-    expect(result.current.notice).not.toContain('lost if Atlas quits');
+    expect(result.current.notice).not.toContain('lost if DFAI quits');
     expect(result.current.waiting).toEqual([NOTE]);
   });
 
@@ -282,7 +282,7 @@ describe('work kept across a quit', () => {
     const { result } = run({ store });
 
     expect(result.current.waiting).toEqual([NOTE]);
-    expect(result.current.notice).toContain('lost if Atlas quits');
+    expect(result.current.notice).toContain('lost if DFAI quits');
   });
 
   it('can be discarded by hand, for a note that no longer exists', () => {
@@ -304,7 +304,7 @@ describe('work kept across a quit', () => {
 
     expect(stored(VAULT)).toEqual([]);
     expect(result.current.notice).toContain('today could not be stored either');
-    expect(result.current.notice).toContain('lost if Atlas quits');
+    expect(result.current.notice).toContain('lost if DFAI quits');
     expect(result.current.take(NOTE)?.doc).toEqual(doc('Typed.'));
   });
 });

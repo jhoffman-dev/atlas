@@ -1,6 +1,6 @@
-# Atlas
+# DFAI
 
-A local-first macOS desktop app that replaces Notion and Obsidian: markdown notes, typed
+**DFAI** (Daily Flow AI) is a local-first macOS desktop app that replaces Notion and Obsidian: markdown notes, typed
 objects, SQL-backed database views, tasks, calendar, projects and dashboards. Your notes stay
 plain markdown files on disk; the SQLite index is a disposable cache built from them.
 
@@ -48,10 +48,10 @@ pnpm tauri:dev
 ```
 
 Starts Vite on `http://localhost:1420`, compiles the Rust host (a few minutes the first
-time) and opens the Atlas window. The frontend hot-reloads.
+time) and opens the DFAI window. The frontend hot-reloads.
 
-- **First run:** Atlas shows **Open a vault** — choose any folder of markdown notes. Nothing
-  is imported or moved; Atlas works on the files where they are and reopens the same vault
+- **First run:** DFAI shows **Open a vault** — choose any folder of markdown notes. Nothing
+  is imported or moved; DFAI works on the files where they are and reopens the same vault
   next launch. The repo's own `vault/` is a real vault (the project board, tasks and docs).
 - **Restart after Rust changes.** A change under `apps/desktop/src-tauri/` needs
   `pnpm tauri:dev` stopped and started again; TypeScript/CSS changes do not.
@@ -68,7 +68,7 @@ pnpm --filter @atlas/desktop tauri:build
 the frontend, then a release Rust binary (about 3 minutes from clean). Output, on Apple
 silicon:
 
-- `apps/desktop/src-tauri/target/release/bundle/macos/Atlas.app`
+- `apps/desktop/src-tauri/target/release/bundle/macos/DFAI.app`
 - `apps/desktop/src-tauri/target/release/bundle/dmg/Atlas_0.1.0_aarch64.dmg`
 
 The DMG step scripts Finder to lay out the window, so it fails with
@@ -81,18 +81,18 @@ CI=true pnpm --filter @atlas/desktop tauri:build
 pnpm --filter @atlas/desktop tauri:build --bundles app
 ```
 
-Drag `Atlas.app` to `/Applications`. The build is **unsigned**: the first time, right-click
+Drag `DFAI.app` to `/Applications`. The build is **unsigned**: the first time, right-click
 it → **Open** → **Open** (or allow it in System Settings → Privacy & Security).
 
 ## Optional: Claude
 
-**Claude in Atlas** (the chat, ⌘J) runs through Claude Code by default. Install
+**Claude in DFAI** (the chat, ⌘J) runs through Claude Code by default. Install
 [Claude Code](https://docs.claude.com/en/docs/claude-code) and log in once with `claude`;
-Atlas finds it in `~/.local/bin`, `~/.claude/local` or `/opt/homebrew/bin` and never sees
+DFAI finds it in `~/.local/bin`, `~/.claude/local` or `/opt/homebrew/bin` and never sees
 your login. Settings → Claude can use an Anthropic API key (kept in the Keychain) instead.
 
 **The MCP server** lets Claude Code or Claude Desktop read and write your vault through the
-running app. Turn on the API in Atlas (**Settings → Connections**), then:
+running app. Turn on the API in DFAI (**Settings → Connections**), then:
 
 ```sh
 pnpm --filter @atlas/mcp build   # → apps/mcp/dist/main.js (pnpm build at the root builds it too)

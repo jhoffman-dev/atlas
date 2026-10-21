@@ -24,7 +24,7 @@ let mcp: Client;
 let folder: string;
 
 beforeEach(async () => {
-  // As Atlas does: every chunk is kept until one would take the image past the limit.
+  // As DFAI does: every chunk is kept until one would take the image past the limit.
   atlas = await startFakeAtlas((request) => {
     const { base64, offset } = (request.body ?? {}) as { base64?: string; offset?: number };
     const size = (offset ?? 0) + Buffer.from(base64 ?? '', 'base64').byteLength;
@@ -76,13 +76,13 @@ describe('atlas_add_image with a file on disk, attacked', () => {
     expect(atlas.requests).toEqual([]);
   });
 
-  it('refuses a file past the size Atlas allows before sending any of it, leaving no partial image', async () => {
+  it('refuses a file past the size DFAI allows before sending any of it, leaving no partial image', async () => {
     const big = join(folder, 'huge.png');
     await writeFile(big, Buffer.concat([PNG_HEAD, Buffer.alloc(MAX_IMAGE_BYTES)]));
 
     const result = await addImage({ path: 'Inbox.md', file: big, insert: false });
 
-    // Atlas refuses only the chunk that crosses the limit; every chunk before it
+    // DFAI refuses only the chunk that crosses the limit; every chunk before it
     // is already a file in the vault, which nothing ever removes.
     expect(result.isError).toBe(true);
     expect(atlas.requests).toEqual([]);

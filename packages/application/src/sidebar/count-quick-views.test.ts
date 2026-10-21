@@ -137,7 +137,7 @@ describe('countQuickViews', () => {
     expect(counts.get('today')).toBe(10);
   });
 
-  it('counts an Atlas query view by running it, up to its own limit', async () => {
+  it('counts a DFAI query view by running it, up to its own limit', async () => {
     const types = [
       parseObjectType({
         name: 'task',

@@ -44,7 +44,7 @@ async function keyCommand(
   args: Record<string, string>,
 ): Promise<GranolaKeyStatus> {
   const status = keyStatusOf(await throughHost(invoke<unknown>(command, args)));
-  if (status === null) throw malformed('the host answered a key status Atlas cannot read');
+  if (status === null) throw malformed('the host answered a key status DFAI cannot read');
   return status;
 }
 
@@ -90,19 +90,19 @@ export const tauriGranola: GranolaPort = {
   async listNotes({ vault, updatedAfter, cursor }) {
     const query = queryOf({ page_size: NOTES_PAGE_SIZE, updated_after: updatedAfter, cursor });
     const page = notesPageOf(await callApi(vault, '/v1/notes', query));
-    if (page === null) throw malformed('the list of notes is not one Atlas can read');
+    if (page === null) throw malformed('the list of notes is not one DFAI can read');
     return page;
   },
   async getNote({ vault, id, transcript }) {
     const query = queryOf({ include: transcript ? 'transcript' : null });
     const note = noteOf(await callApi(vault, `/v1/notes/${id}`, query), id);
-    if (note === null) throw malformed('the note is not one Atlas can read');
+    if (note === null) throw malformed('the note is not one DFAI can read');
     return note;
   },
   async getTranscriptPage({ vault, id, cursor }) {
     const query = queryOf({ page_size: TRANSCRIPT_PAGE_SIZE, cursor });
     const page = transcriptPageOf(await callApi(vault, `/v1/notes/${id}/transcript`, query));
-    if (page === null) throw malformed('the page of the transcript is not one Atlas can read');
+    if (page === null) throw malformed('the page of the transcript is not one DFAI can read');
     return page;
   },
 };

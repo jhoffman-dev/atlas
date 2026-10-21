@@ -42,7 +42,7 @@ export function compileParaCandidatesQuery(): CompiledQuery {
 
 /** One note's move onto the Project type: where it stands now, and the PARA value it is given. */
 export interface ParaNoteMove {
-  /** Its `type` as written, or the empty string when it has none Atlas can read. */
+  /** Its `type` as written, or the empty string when it has none DFAI can read. */
   readonly fromType: string;
   /** Its `para` as written, or null when it has none. */
   readonly fromPara: string | null;
@@ -65,8 +65,8 @@ export interface ParaNoteMove {
  *   longer what archives it.
  *
  * Only `type`, `para` and `para_before_archive` are written; the file stays
- * where it is. A note Atlas keeps for itself — a template — is never moved.
- * A note whose `para` is the person's own is not Atlas's to write over: see
+ * where it is. A note DFAI keeps for itself — a template — is never moved.
+ * A note whose `para` is the person's own is not DFAI's to write over: see
  * {@link paraMoveRefusal}, asked first.
  */
 export function paraNoteMove({

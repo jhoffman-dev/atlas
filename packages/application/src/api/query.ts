@@ -133,7 +133,7 @@ export async function runViewQuery(
 }
 
 /**
- * The rows for notes the API could then read: Atlas's own notes in `.atlas` —
+ * The rows for notes the API could then read: DFAI's own notes in `.atlas` —
  * a Task template is `type: task` too — are left out, as search leaves them out.
  */
 function userSpaceRows({ columns, rows }: Omit<ApiRows, 'sql'>): ApiRows['rows'] {

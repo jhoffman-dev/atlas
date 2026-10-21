@@ -1,6 +1,6 @@
 import type { GoogleCalendar } from '@atlas/domain';
 
-/** One page of the Calendar API's `calendarList`, as Atlas reads it. */
+/** One page of the Calendar API's `calendarList`, as DFAI reads it. */
 export interface CalendarListPage {
   readonly calendars: readonly GoogleCalendar[];
   /** The `pageToken` for the next page; null on the last. */
@@ -23,7 +23,7 @@ export function calendarOf(entry: unknown): GoogleCalendar | null {
 }
 
 /**
- * A `calendarList` page. A calendar Atlas has just made, or one `calendars`
+ * A `calendarList` page. A calendar DFAI has just made, or one `calendars`
  * answered with, has no `accessRole`: it is the person's own.
  */
 export function calendarListPage(body: unknown): CalendarListPage | null {
@@ -36,7 +36,7 @@ export function calendarListPage(body: unknown): CalendarListPage | null {
   };
 }
 
-/** The calendar `POST /calendars` answers with: made by Atlas, so the person's own. */
+/** The calendar `POST /calendars` answers with: made by DFAI, so the person's own. */
 export function createdCalendarOf(body: unknown): GoogleCalendar | null {
   const made = calendarOf(isRecord(body) ? { ...body, accessRole: 'owner' } : body);
   return made === null ? null : { ...made, primary: false };

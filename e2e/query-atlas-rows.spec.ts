@@ -2,7 +2,7 @@ import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost } from './host.ts';
 
 /*
- * #427: the Query page's Atlas-language result is virtualised as the other
+ * #427: the Query page's DFAI-language result is virtualised as the other
  * tables are, grouped or not. A 2,000-row result draws only a window of its
  * rows, the result's own sheet scrolls rather than the panel around it, and
  * the last row can be reached.
@@ -77,7 +77,7 @@ const QUERIES = [
 
 for (const { width, height, panelScrolls } of WINDOWS) {
   for (const query of QUERIES) {
-    test(`at ${width}×${height}, a 2,000-row ${query.name} Atlas result draws a window of rows in its own scrolling sheet, down to the last`, async ({
+    test(`at ${width}×${height}, a 2,000-row ${query.name} DFAI result draws a window of rows in its own scrolling sheet, down to the last`, async ({
       page,
     }) => {
       test.setTimeout(90_000);

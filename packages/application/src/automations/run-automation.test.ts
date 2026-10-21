@@ -139,7 +139,7 @@ describe('runAutomation', () => {
       { path: 'Tasks/Old done.md', reason: expect.stringMatching(/unsaved typing/) },
     ]);
     expect(vault.files.get(logPathFor(RULE.id))).toContain(
-      '- left `"Tasks/Old done.md"`: It is open in Atlas with unsaved typing',
+      '- left `"Tasks/Old done.md"`: It is open in DFAI with unsaved typing',
     );
   });
 

@@ -69,7 +69,7 @@ describe('waiting for more than seven days', () => {
 
 describe('active projects with no next action', () => {
   it('lists an active project the index says is not moving, by title', () => {
-    const projects = [project('Garden'), project('Atlas', { moving: true }), project('Beds')];
+    const projects = [project('Garden'), project('DFAI', { moving: true }), project('Beds')];
     expect(titles(review([], projects).projectsWithoutNextAction)).toEqual(['Beds', 'Garden']);
   });
 
@@ -85,9 +85,9 @@ describe('active projects with no next action', () => {
   it('is decided by the project alone, never by which tasks were read', () => {
     const garden = project('Garden', { moving: true });
     expect(review([], [garden]).projectsWithoutNextAction).toEqual([]);
-    const atlas = project('Atlas');
+    const atlas = project('DFAI');
     const tasks = [task('Ship the review', { project: atlas.path, status: 'next-action' })];
-    expect(titles(review(tasks, [atlas]).projectsWithoutNextAction)).toEqual(['Atlas']);
+    expect(titles(review(tasks, [atlas]).projectsWithoutNextAction)).toEqual(['DFAI']);
   });
 });
 
@@ -152,7 +152,7 @@ describe('a deferred task', () => {
 
 describe('with a fixed clock, a vault of fixtures', () => {
   it('yields exactly the expected items per section', () => {
-    const atlas = project('Atlas', { moving: true });
+    const atlas = project('DFAI', { moving: true });
     const garden = project('Garden');
     const tasks = [
       task('Quote from Larkspur', { status: 'waiting', waitingOn: 'Mara Quill', daysAgo: 10 }),

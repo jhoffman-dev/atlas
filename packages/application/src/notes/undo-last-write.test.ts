@@ -13,7 +13,7 @@ import { undoLastWrite, writeUndoably } from './undo-last-write.ts';
 /** #320: any write a view makes, taken back to the byte — and only while the file is as it left it. */
 const PATH = createVaultPath('Tasks/Send the Larkspur invoice.md');
 const TODAY = '2026-10-20';
-// Written by hand, not by Atlas: a comment, a quoted value, odd spacing and CRLF in the body.
+// Written by hand, not by DFAI: a comment, a quoted value, odd spacing and CRLF in the body.
 const TEXT =
   '---\nstatus:   "Next"   # Mara Quill asked\ndue: 2026-10-21\nassignee: Tobias Fenn\n---\r\nCall first.\r\n';
 

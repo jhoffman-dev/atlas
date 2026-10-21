@@ -119,7 +119,7 @@ export async function guardedWrite<T>(
     if (error instanceof NoteStillOpeningError) {
       throw new ApiError(
         'conflict',
-        `${path} is still opening in Atlas; nothing was written, and retrying is safe`,
+        `${path} is still opening in DFAI; nothing was written, and retrying is safe`,
       );
     }
     request.assertStillOpen();

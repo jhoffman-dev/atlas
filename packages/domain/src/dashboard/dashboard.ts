@@ -123,7 +123,7 @@ export interface Widget {
   readonly query: ViewQuery | null;
   /** A `sql` widget's statement and how it draws. Null for every other kind. */
   readonly sql: SqlWidgetSpec | null;
-  /** A `query` widget's Atlas query, as written (ADR-0019). Null for every other kind. */
+  /** A `query` widget's DFAI query, as written (ADR-0019). Null for every other kind. */
   readonly atlasQuery: string | null;
   /** Which number a `number` widget shows. Null for every other kind. */
   readonly aggregate: { readonly kind: AggregateKind; readonly column: string | null } | null;
@@ -228,7 +228,7 @@ function parseSqlWidget(
 }
 
 /**
- * A `query` widget: an Atlas query, drawn as its rows in their groups — the
+ * A `query` widget: a DFAI query, drawn as its rows in their groups — the
  * same query a query view runs, so a view can be put on a dashboard as it is.
  * No query, no widget; whether it reads is the query's own check, when it runs.
  */

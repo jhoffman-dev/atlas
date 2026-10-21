@@ -37,7 +37,7 @@ async function notesIn(fs: VaultFsPort, root: string): Promise<VaultPath[]> {
   return notesUnder(fs, folder, root.split('/').length);
 }
 
-/** The notes under a folder, as the rest of Atlas sees them: hidden files and folders left out (ADR-0014). */
+/** The notes under a folder, as the rest of DFAI sees them: hidden files and folders left out (ADR-0014). */
 async function notesUnder(fs: VaultFsPort, folder: VaultPath, depth: number): Promise<VaultPath[]> {
   const entries: readonly VaultEntry[] = (await fs.listDirectory(folder)).filter(isVisibleEntry);
   const notes = entries

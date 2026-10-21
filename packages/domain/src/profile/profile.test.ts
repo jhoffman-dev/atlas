@@ -86,7 +86,7 @@ describe('profileSettingsChanges', () => {
   });
 
   it('writes only the name that changed, so the other key keeps what the file holds', () => {
-    // A hand-edited profileName Atlas cannot show (a list, or past the limit) reads as
+    // A hand-edited profileName DFAI cannot show (a list, or past the limit) reads as
     // null or cut; changing the preferred name must not rewrite or remove it.
     const before = { name: 'a'.repeat(PROFILE_NAME_LIMIT), preferredName: null };
     expect(profileSettingsChanges({ ...before, preferredName: 'Ada' }, before)).toEqual({

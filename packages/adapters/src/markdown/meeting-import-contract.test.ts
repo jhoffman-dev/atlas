@@ -17,7 +17,7 @@ import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 /*
  * The meeting import contract v1 (ADR-0027) has three statements of itself —
  * the doc, the JSON Schema n8n can check a file against, and the validator
- * Atlas runs. These tests read the fixtures with the YAML reader every note is
+ * DFAI runs. These tests read the fixtures with the YAML reader every note is
  * read with, and hold the schema and the validator to the same verdicts.
  */
 
@@ -153,7 +153,7 @@ describe('the JSON Schema and the validator', () => {
   );
 
   it.each(['true', 'false', "'yes'"])(
-    'agree that start_approximate (a mapping’s note, which Atlas does not read) may be %s',
+    'agree that start_approximate (a mapping’s note, which DFAI does not read) may be %s',
     (value) => {
       const text = fixture('valid', 'gemini-platform-sync.md').replace(
         /^(start: .*)$/m,
@@ -204,7 +204,7 @@ describe('a meeting read from its file', () => {
   });
 });
 
-describe('a transcript turn edited in Atlas', () => {
+describe('a transcript turn edited in DFAI', () => {
   /** The fixture's body with ` (edited)` typed at the end of each paragraph, saved. */
   function editedTranscript(): string {
     const body = splitFrontmatter(fixture('valid', 'gemini-platform-sync.md')).body;
@@ -235,7 +235,7 @@ describe('a transcript turn edited in Atlas', () => {
 });
 
 describe('the Meeting type this vault ships', () => {
-  it('declares the contract’s keys Atlas shows, and the links it fills in later', () => {
+  it('declares the contract’s keys DFAI shows, and the links it fills in later', () => {
     const file = readFileSync(new URL('vault/.atlas/types/meeting.md', root), 'utf8');
     const type = parseObjectType(parseFrontmatterProperties(splitFrontmatter(file).frontmatter));
     expect(type.name).toBe('meeting');

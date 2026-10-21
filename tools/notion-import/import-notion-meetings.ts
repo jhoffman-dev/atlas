@@ -94,7 +94,7 @@ async function exportPages(folder: string): Promise<NotionPage[]> {
   );
 }
 
-/** Why the file breaks the contract, in one line; null when Atlas will let it in. */
+/** Why the file breaks the contract, in one line; null when DFAI will let it in. */
 function contractProblem(content: string): string | null {
   const result = validateMeetingImport({ text: content, selfName: null, readFrontmatter });
   if (result.ok) return null;
@@ -207,7 +207,7 @@ async function importRow(plan: RowPlan, run: Run): Promise<RowOutcome> {
 /**
  * Brings a Notion Meeting Notes export into a vault as meeting/v1 files
  * (ADR-0027), one row at a time, through the n8n destination's mapping
- * (P28-02). Each file is checked with the validator Atlas runs before it is
+ * (P28-02). Each file is checked with the validator DFAI runs before it is
  * written, and a meeting the vault already holds anywhere, by the import's
  * own rule (P28-04), is not written again: a second run writes nothing.
  * Gemini's rows wait for a way to read their Dates (issue #44). Every row

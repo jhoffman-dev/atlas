@@ -11,7 +11,7 @@ export const RECORD_PATH = '.atlas/imports/notion-workspace.md';
 /** What was imported for each Notion page, by its id. */
 export type ImportRecord = ReadonlyMap<string, ImportedPage>;
 
-/** A record that cannot be trusted: without it, every edit made in Atlas would look like Notion's to take. */
+/** A record that cannot be trusted: without it, every edit made in DFAI would look like Notion's to take. */
 export class ImportRecordError extends Error {
   override readonly name = 'ImportRecordError';
   constructor(reason: string) {
@@ -39,7 +39,7 @@ export function recordText(record: ImportRecord): string {
     '',
     `What the last run imported for each of ${record.size} Notion pages, as digests: a later run`,
     'changes a property or a body only where the note still holds what was imported, so an edit',
-    'made in Atlas is never written over. Removing this file makes the next run fill in only what',
+    'made in DFAI is never written over. Removing this file makes the next run fill in only what',
     'the notes lack.',
     '',
     `${FENCE}json`,

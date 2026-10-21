@@ -4,7 +4,7 @@
  * A source declares where data comes from, which folder it lands in, and which
  * field becomes which property. What arrives is written as ordinary markdown
  * notes, so views, boards, dashboards and the timeline all work on it without
- * knowing it came from somewhere else — and deleting Atlas leaves it behind.
+ * knowing it came from somewhere else — and deleting DFAI leaves it behind.
  */
 
 import { asName, isRecord } from '../query/frontmatter-query.ts';

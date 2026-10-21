@@ -65,7 +65,7 @@ export type PagePlan =
       /** Left unfilled with no record of an earlier import (`--no-fill-unrecorded`): nothing is recorded for it either. */
       readonly unrecorded?: true;
     } & Placed)
-  /** Imported before, and its note is gone from the vault: deleted (or hidden) in Atlas, so not made again. */
+  /** Imported before, and its note is gone from the vault: deleted (or hidden) in DFAI, so not made again. */
   | ({ readonly kind: 'deleted'; readonly id: string } & Named)
   | ({ readonly kind: 'refused'; readonly reason: string } & Named);
 
@@ -170,7 +170,7 @@ function unplacedBecause(
   places: ReadonlyMap<string, NotePlace>,
   input: PlanInput,
 ): string {
-  if (places.get(id)?.kind === 'deleted') return 'was deleted in Atlas';
+  if (places.get(id)?.kind === 'deleted') return 'was deleted in DFAI';
   if (input.meetingIds.has(id)) return 'is a meeting this run does not bring in';
   return 'is not in this run';
 }
@@ -237,7 +237,7 @@ function created(placed: Omit<Placed, 'imported'>, wanted: WantedContent): PageP
   return { kind: 'create', ...placed, content, imported: importedAs(wanted) };
 }
 
-/** The note the page is in, brought into step with it where Atlas has not changed it since the last run. */
+/** The note the page is in, brought into step with it where DFAI has not changed it since the last run. */
 function merged(
   placed: Omit<Placed, 'imported'>,
   wanted: WantedContent,

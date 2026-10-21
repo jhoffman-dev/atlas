@@ -2,9 +2,9 @@ import type { EditorNode } from '../markdown/editor-node.ts';
 
 /*
  * A live query inside a note (P30-05): a fenced code block whose language is
- * `atlas-query`, drawn by Atlas as the answer to the query it holds, and by
+ * `atlas-query`, drawn by DFAI as the answer to the query it holds, and by
  * Obsidian as the code block it is. The fence's text is the whole of it —
- * an optional `layout:` line, then an Atlas query (ADR-0019) in which `this`
+ * an optional `layout:` line, then a DFAI query (ADR-0019) in which `this`
  * names the note the block is in.
  *
  *     ```atlas-query

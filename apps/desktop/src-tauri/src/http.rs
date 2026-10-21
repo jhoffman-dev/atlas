@@ -34,9 +34,9 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_REDIRECTS: usize = 5;
 
 /// Plain and honest. Nothing about the vault or the machine goes out with it.
-const USER_AGENT: &str = concat!("Atlas/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("DFAI/", env!("CARGO_PKG_VERSION"));
 
-const TOO_LARGE: &str = "the feed is larger than Atlas will read";
+const TOO_LARGE: &str = "the feed is larger than DFAI will read";
 
 /// The schemes a source may be fetched over.
 ///

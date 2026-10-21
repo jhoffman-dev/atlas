@@ -468,7 +468,7 @@ describe('importArrivedMeetings', () => {
     expect(activity.reports.map((report) => [report.level, report.message])).toEqual([
       [
         'warning',
-        '2026-10-06 Standup: could not be imported. The problem is not in the file: it is open in Atlas with unsaved typing. external_id is required',
+        '2026-10-06 Standup: could not be imported. The problem is not in the file: it is open in DFAI with unsaved typing. external_id is required',
       ],
     ]);
   });
@@ -722,7 +722,7 @@ describe('importArrivedMeetings: adversarial, round 3', () => {
 
   /**
    * A copy is stamped `duplicate` first and archived second. When the move
-   * fails (or Atlas quits between the two), the copy sits in the Inbox
+   * fails (or DFAI quits between the two), the copy sits in the Inbox
    * stamped `duplicate`, which is never judged again — so no later change or
    * catch-up ever archives it, though Activity said only that the move failed.
    */
@@ -759,9 +759,9 @@ describe('importArrivedMeetings: adversarial, round 3', () => {
    * The index, the tree and the API never read a dotted folder or file
    * (ADR-0014, `isVisibleEntry`), but the catch-up walks `Inbox/Meetings/`
    * with a rule of its own and writes an error stamp into whatever it finds
-   * there — a tool's hidden scratch file the person cannot see in Atlas.
+   * there — a tool's hidden scratch file the person cannot see in DFAI.
    */
-  it('leaves hidden files under the meeting folder alone, as the rest of Atlas does', async () => {
+  it('leaves hidden files under the meeting folder alone, as the rest of DFAI does', async () => {
     const hidden = 'Inbox/Meetings/.drafts/2026-10-06 Standup.md';
     const scratch = '# Draft\n\nNot a meeting yet.\n';
     const { vault, ports, activity } = setUp({ [STANDUP]: imported(), [hidden]: scratch });

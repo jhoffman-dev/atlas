@@ -33,7 +33,7 @@ const task = (title: string, more: Partial<InboxTask> = {}): InboxItem => ({
   task: { ...CAPTURED, ...more },
 });
 const TASKS = TITLES.map((title) => task(title));
-const FILING = [{ path: 'Projects/Atlas.md', title: 'Atlas', type: 'project' }];
+const FILING = [{ path: 'Projects/DFAI.md', title: 'DFAI', type: 'project' }];
 
 function page(overrides: Partial<InboxPageProps> = {}) {
   const props: InboxPageProps = {
@@ -99,7 +99,7 @@ describe('one-key triage — the armed picker (attack #406)', () => {
     expect(document.activeElement).toBe(picker);
     // Escape: "not this". The picker keeps the focus, as a native select does.
     await userEvent.keyboard('{Escape}');
-    fireEvent.change(picker, { target: { value: 'Projects/Atlas.md' } });
+    fireEvent.change(picker, { target: { value: 'Projects/DFAI.md' } });
     expect(onClarify).not.toHaveBeenCalled();
   });
 

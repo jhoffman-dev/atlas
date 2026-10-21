@@ -19,8 +19,8 @@ export interface SettingsMergePorts {
 }
 
 /**
- * Merges each settings file of Atlas's own both Macs changed by its keys
- * (#233) — the records and types Atlas writes by itself as a vault opens
+ * Merges each settings file of DFAI's own both Macs changed by its keys
+ * (#233) — the records and types DFAI writes by itself as a vault opens
  * among them — and gives back the conflicts still to settle the usual way,
  * with a copy. A file is written only while it holds what git's merge wrote
  * into it, so typing into it since is never written over; a run after a quit

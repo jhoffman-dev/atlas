@@ -150,7 +150,7 @@ describe('InboxPage — what arrives after the rows are drawn does not go in abo
 
     rerender({ ownerUnknown: { onOpenSettings: vi.fn() } });
     expect(
-      screen.getByRole('alert', { name: 'Atlas can’t tell which action items are yours' }),
+      screen.getByRole('alert', { name: 'DFAI can’t tell which action items are yours' }),
     ).toBeDefined();
     expect(rowStayedAt(before)).toBe(true);
   });

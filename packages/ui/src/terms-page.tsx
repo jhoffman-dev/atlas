@@ -24,7 +24,7 @@ export interface TermsContents {
   readonly conflicts: readonly VocabularyConflict[];
   /** Misheard spellings that may not do what their author meant. */
   readonly warnings: readonly SpellingWarning[];
-  /** How many misheard spellings Atlas puts right. */
+  /** How many misheard spellings DFAI puts right. */
   readonly spellings: number;
 }
 
@@ -54,7 +54,7 @@ export interface TermsPageProps {
 /**
  * Terms: the names a notetaker gets wrong and how each is spelt — every term,
  * the ways it is misheard, and any spelling two notes disagree about, which
- * Atlas leaves alone until one of them lets it go.
+ * DFAI leaves alone until one of them lets it go.
  */
 export function TermsPage(props: TermsPageProps) {
   const counted = describe(props.contents);
@@ -213,8 +213,8 @@ function Conflicts({
         {conflicts.length === 1 ? '1 conflict' : `${conflicts.length} conflicts`}
       </h2>
       <p className="terms__conflicts-why">
-        Each of these spellings is claimed by two notes that spell it differently, so Atlas leaves
-        it as it is until one of them lets it go.
+        Each of these spellings is claimed by two notes that spell it differently, so DFAI leaves it
+        as it is until one of them lets it go.
       </p>
       <ul className="page-list">
         {conflicts.map((conflict) => (

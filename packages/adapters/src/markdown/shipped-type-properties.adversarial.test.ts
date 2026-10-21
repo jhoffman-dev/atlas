@@ -95,7 +95,7 @@ const frontmatterOf = (text: string) =>
   remarkMarkdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
 
 describe('#162 migration, on a type file whose `properties` is not a map', () => {
-  it('never overwrites a hand-written list of properties with Atlas’s map', async () => {
+  it('never overwrites a hand-written list of properties with DFAI’s map', async () => {
     const meeting = [
       '---',
       'name: meeting',
@@ -112,12 +112,12 @@ describe('#162 migration, on a type file whose `properties` is not a map', () =>
 
     await ensureBuiltInTypes(v);
 
-    // What the person wrote under `properties` is theirs; Atlas could not read
+    // What the person wrote under `properties` is theirs; DFAI could not read
     // it, so it must not be replaced. Additive only (shippedPropertiesPlan's contract).
     expect(v.text('.atlas/types/meeting.md')).toContain('  - title\n  - attendees\n');
   });
 
-  it('never overwrites a scalar `properties` value with Atlas’s map', async () => {
+  it('never overwrites a scalar `properties` value with DFAI’s map', async () => {
     const daily = [
       '---',
       'name: daily',

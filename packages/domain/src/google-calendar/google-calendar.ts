@@ -1,6 +1,6 @@
 /**
- * Google Calendar, as Atlas uses it (ADR-0030): one calendar of the person's
- * own, made by Atlas, that blocks are written to — reached through a sign-in
+ * Google Calendar, as DFAI uses it (ADR-0030): one calendar of the person's
+ * own, made by DFAI, that blocks are written to — reached through a sign-in
  * the host keeps.
  *
  * The rules live here: which scope a sign-in asks for, what a client ID looks
@@ -9,7 +9,7 @@
  */
 
 /**
- * Only calendars Atlas made itself: it may make one, and see and change the
+ * Only calendars DFAI made itself: it may make one, and see and change the
  * events on it, and nothing on any other calendar. Google lists it as a
  * non-sensitive scope, so a client needs no verification to ask for it.
  */
@@ -17,8 +17,11 @@ export const GOOGLE_CALENDAR_SCOPES: readonly string[] = [
   'https://www.googleapis.com/auth/calendar.app.created',
 ];
 
-/** The name Atlas gives the calendar it makes for blocks. */
-export const DEDICATED_CALENDAR_NAME = 'Atlas blocks';
+/** The name DFAI gives the calendar it makes for blocks. */
+export const DEDICATED_CALENDAR_NAME = 'DFAI blocks';
+
+/** The name Atlas, the app before DFAI, gave it (ADR-0042): still its calendar. */
+const LEGACY_CALENDAR_NAME = 'Atlas blocks';
 
 /** The vault setting holding the Google OAuth client ID a sign-in uses. */
 export const GOOGLE_CLIENT_ID_KEY = 'google_client_id';
@@ -36,7 +39,7 @@ export function parseGoogleClientId(raw: unknown): string | null {
   return CLIENT_ID.test(trimmed) ? trimmed : null;
 }
 
-/** A calendar on the person's Google account, as Atlas needs to know it. */
+/** A calendar on the person's Google account, as DFAI needs to know it. */
 export interface GoogleCalendar {
   readonly id: string;
   readonly name: string;
@@ -48,7 +51,7 @@ export interface GoogleCalendar {
 
 /**
  * Whether blocks may go to a calendar: one the person owns that is not their
- * main calendar. Atlas writes to one calendar of its own and never to the one
+ * main calendar. DFAI writes to one calendar of its own and never to the one
  * colleagues book meetings into.
  */
 export function canHoldBlocks(calendar: GoogleCalendar): boolean {
@@ -65,13 +68,15 @@ export function dedicatedCalendar(
 }
 
 /**
- * Whether Atlas should offer to make its calendar: not while one of the
+ * Whether DFAI should offer to make its calendar: not while one of the
  * calendars blocks may go to already has its name, so connecting again after
  * a disconnect finds the old one rather than making a second.
  */
 export function needsBlocksCalendar(calendars: readonly GoogleCalendar[]): boolean {
   return !calendars.some(
-    (calendar) => canHoldBlocks(calendar) && calendar.name === DEDICATED_CALENDAR_NAME,
+    (calendar) =>
+      canHoldBlocks(calendar) &&
+      (calendar.name === DEDICATED_CALENDAR_NAME || calendar.name === LEGACY_CALENDAR_NAME),
   );
 }
 

@@ -130,7 +130,7 @@ function vault(files: Record<string, string>, overrides: Partial<VaultFsPort> = 
 const refuseViews =
   (fs: VaultFsPort): VaultFsPort['createNote'] =>
   async (args) => {
-    if (args.path.startsWith('.atlas/views/')) throw new Error('Atlas quit');
+    if (args.path.startsWith('.atlas/views/')) throw new Error('DFAI quit');
     return fs.createNote(args);
   };
 

@@ -17,12 +17,12 @@ const [PROJECT_FIELD, OWNER_FIELD] = TASK.properties.map(propertyField);
 const index = fakeIndexPort({
   notesOfType: async (type) =>
     ({
-      project: [{ path: 'Projects/Atlas.md', title: 'Atlas' }],
+      project: [{ path: 'Projects/DFAI.md', title: 'DFAI' }],
       area: [{ path: 'Areas/Garden.md', title: 'Garden' }],
       person: [{ path: 'People/Mara Quill.md', title: 'Mara Quill' }],
     })[type] ?? [],
 });
-const NOTE_PATHS = ['Projects/Atlas.md', 'Areas/Garden.md', 'People/Mara Quill.md'];
+const NOTE_PATHS = ['Projects/DFAI.md', 'Areas/Garden.md', 'People/Mara Quill.md'];
 const FIELDS = [PROJECT_FIELD!, OWNER_FIELD!];
 
 describe('useQueryChoices — a relation to several types (P30-01)', () => {
@@ -37,7 +37,7 @@ describe('useQueryChoices — a relation to several types (P30-01)', () => {
       }),
     );
     await waitFor(() => expect(result.current.valueChoices(PROJECT_FIELD!)).toHaveLength(2));
-    expect(result.current.valueChoices(PROJECT_FIELD!)).toEqual(['Atlas', 'Garden']);
+    expect(result.current.valueChoices(PROJECT_FIELD!)).toEqual(['DFAI', 'Garden']);
     expect(result.current.valueChoices(OWNER_FIELD!)).toEqual(['Mara Quill']);
   });
 });

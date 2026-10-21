@@ -134,7 +134,7 @@ describe('a page with no properties paragraph', () => {
 });
 
 describe('a property set only where the task has none', () => {
-  it('is not put back after it was removed in Atlas', async () => {
+  it('is not put back after it was removed in DFAI', async () => {
     await run();
     await editNote(SHIP, 'status: archive', 'status: in-progress');
     await editNote(SHIP, 'completed: 2026-10-10\n', '');
@@ -144,7 +144,7 @@ describe('a property set only where the task has none', () => {
   });
 });
 
-describe('a note deleted in Atlas', () => {
+describe('a note deleted in DFAI', () => {
   it('is not made again by the next run, which recorded importing it', async () => {
     await run();
     await rm(join(vault, SHIP));

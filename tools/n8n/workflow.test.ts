@@ -242,7 +242,7 @@ describe('idempotency', () => {
   });
 });
 
-describe('the Atlas branch never stops or prevents the Notion write', () => {
+describe('the DFAI branch never stops or prevents the Notion write', () => {
   const incoming = (name: string) =>
     Object.entries(committed.connections)
       .filter(([, { main }]) => main.some((output) => output.some((each) => each.node === name)))
@@ -281,7 +281,7 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
     expect(value('arrived')).toBe(`={{ $('Parse').item.json["emailDate"] }}`);
   });
 
-  it('sends every failure in it to "Atlas commit failed", never stopping the run', () => {
+  it('sends every failure in it to "DFAI commit failed", never stopping the run', () => {
     const failing = [
       NODES.fields,
       NODES.map,
@@ -309,7 +309,7 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
     expect(notify.onError).toBe('continueErrorOutput');
     expect(next(NODES.notify, 1)).toEqual([]);
     expect(String(notify.parameters.message)).toMatch(
-      /^=This meeting did not reach Atlas: \{\{ .*\$json\.error/,
+      /^=This meeting did not reach DFAI: \{\{ .*\$json\.error/,
     );
     expect(String(notify.parameters.subject)).toContain(
       `$('${EXAMPLE_SOURCES.meetingNode}').item.json["title"]`,

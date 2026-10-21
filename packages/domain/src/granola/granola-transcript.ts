@@ -12,7 +12,7 @@ export const TRANSCRIPT_LIMIT = {
 } as const;
 
 /** Why a note whose transcript passed the limit was refused. */
-export const TRANSCRIPT_TOO_LONG = `its transcript is longer than Atlas takes (${TRANSCRIPT_LIMIT.characters.toLocaleString('en-US')} characters, or ${TRANSCRIPT_LIMIT.pages} pages)`;
+export const TRANSCRIPT_TOO_LONG = `its transcript is longer than DFAI takes (${TRANSCRIPT_LIMIT.characters.toLocaleString('en-US')} characters, or ${TRANSCRIPT_LIMIT.pages} pages)`;
 
 /** How many characters of words the turns hold; a turn with no text holds none. */
 export function transcriptCharacters(turns: readonly unknown[]): number {

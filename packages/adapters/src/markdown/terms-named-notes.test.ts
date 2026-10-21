@@ -84,7 +84,7 @@ describe('a note whose properties cannot be read (#404)', () => {
     const refusal = await refusalOf('Larkspur Payroll');
 
     expect(refusal).toMatch(
-      new RegExp(`^${COMPANY_PATH} has properties Atlas can't change safely: `),
+      new RegExp(`^${COMPANY_PATH} has properties DFAI can't change safely: `),
     );
     expect(vault.files.get(COMPANY_PATH)).toBe(broken);
     expect(terms()).toEqual([]);

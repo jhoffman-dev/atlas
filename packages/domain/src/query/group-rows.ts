@@ -162,7 +162,7 @@ const SPELLINGS: Readonly<Record<GroupingKind, Spelling>> = {
     label: (value) => value,
   },
   relation: {
-    // `[[Atlas]]`, `[[projects/Atlas]]` and `[[atlas|The app]]` are one note,
+    // `[[DFAI]]`, `[[projects/DFAI]]` and `[[atlas|The app]]` are one note,
     // so they are one column.
     key: (raw) => {
       const link = firstLink(raw);

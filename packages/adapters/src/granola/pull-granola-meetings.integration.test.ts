@@ -198,7 +198,7 @@ describe('pulling Granola into a vault', () => {
       'Meetings/2026/10/2026-10-06 Tobias one on one.md',
     ]);
     expect(records.current()).toEqual({ watermark: '2026-10-13T17:00:00.000Z', lastPullAt: START });
-    expect(messages()).toEqual(['Granola: 2 new, 2 already in Atlas.']);
+    expect(messages()).toEqual(['Granola: 2 new, 2 already in DFAI.']);
     // Held by provider and id, so never fetched.
     expect(granola.count('note', HELD.id)).toBe(0);
     expect(granola.count('note', NOTION_ERA.id)).toBe(0);
@@ -263,7 +263,7 @@ describe('pulling Granola into a vault', () => {
         id: NEW_1.id,
         title: 'Larkspur Payroll renewal',
         url: null,
-        problem: 'Granola asked Atlas to slow down.',
+        problem: 'Granola asked DFAI to slow down.',
       },
     ]);
     expect(report.written).toEqual(['Meetings/2026/10/2026-10-06 Tobias one on one.md']);
@@ -271,7 +271,7 @@ describe('pulling Granola into a vault', () => {
     expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
     expect(api.activity.reports.map(({ level }) => level)).toEqual(['error', 'error']);
     expect(api.activity.reports.at(-1)?.message).toBe(
-      'Granola: 1 new, 0 already in Atlas, 1 to try again.',
+      'Granola: 1 new, 0 already in DFAI, 1 to try again.',
     );
 
     const again = await pull();
@@ -315,7 +315,7 @@ describe('pulling Granola into a vault', () => {
 
     expect(report.written).toEqual([]);
     expect(report.refused).toHaveLength(1);
-    expect(report.refused[0]?.problem).toMatch(/transcript is longer than Atlas takes/);
+    expect(report.refused[0]?.problem).toMatch(/transcript is longer than DFAI takes/);
     expect(granola.count('transcript', NEW_1.id)).toBe(1);
     expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
     expect(api.activity.reports[0]).toMatchObject({ level: 'warning' });
@@ -503,7 +503,7 @@ describe('pulling Granola into a vault', () => {
     expect(granola.count('list')).toBe(1);
     expect(messages()).toEqual([
       'Granola: the pull failed. Storage is gone.',
-      'Granola: 1 new, 0 already in Atlas.',
+      'Granola: 1 new, 0 already in DFAI.',
     ]);
   });
 
@@ -743,7 +743,7 @@ describe('pulling Granola into a vault', () => {
         title: null,
         url: null,
         problem:
-          'Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.',
+          'Granola listed a note DFAI cannot read (its updated_at is not text); it was left out of this pull.',
       },
     ]);
     // The note it could not read has no say in the watermark.
@@ -751,9 +751,9 @@ describe('pulling Granola into a vault', () => {
     expect(api.activity.reports.map(({ level, message }) => [level, message])).toEqual([
       [
         'warning',
-        'Granola: “not_odd0000000001”: Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.',
+        'Granola: “not_odd0000000001”: Granola listed a note DFAI cannot read (its updated_at is not text); it was left out of this pull.',
       ],
-      ['warning', 'Granola: 1 new, 0 already in Atlas, 1 skipped.'],
+      ['warning', 'Granola: 1 new, 0 already in DFAI, 1 skipped.'],
     ]);
   });
 
@@ -768,14 +768,14 @@ describe('pulling Granola into a vault', () => {
     const pullOf = (mode: 'periodic' | 'sync-now', vault = VAULT.absolutePath) =>
       puller.pull({ vault, mode });
     const skippedLine = (id: string) =>
-      `Granola: “${id}”: Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.`;
+      `Granola: “${id}”: Granola listed a note DFAI cannot read (its updated_at is not text); it was left out of this pull.`;
 
     // The first timed pull says it, once though it was listed twice, and counts it.
     const first = await pullOf('periodic');
     expect(first.skipped.map(({ id }) => id)).toEqual(['not_odd0000000001']);
     expect(lines).toEqual([
       [VAULT.absolutePath, skippedLine('not_odd0000000001')],
-      [VAULT.absolutePath, 'Granola: nothing new, 1 already in Atlas, 1 skipped.'],
+      [VAULT.absolutePath, 'Granola: nothing new, 1 already in DFAI, 1 skipped.'],
     ]);
 
     // The next timed pull, whose only skip was said already, is quiet; its report still counts it.
@@ -789,14 +789,14 @@ describe('pulling Granola into a vault', () => {
     await pullOf('periodic');
     expect(lines).toEqual([
       [VAULT.absolutePath, skippedLine('not_odd0000000002')],
-      [VAULT.absolutePath, 'Granola: nothing new, 1 already in Atlas, 2 skipped.'],
+      [VAULT.absolutePath, 'Granola: nothing new, 1 already in DFAI, 2 skipped.'],
     ]);
 
     // Sync now gets its line, counting both, and says neither note again.
     lines.length = 0;
     await pullOf('sync-now');
     expect(lines).toEqual([
-      [VAULT.absolutePath, 'Granola: nothing new, 1 already in Atlas, 2 skipped.'],
+      [VAULT.absolutePath, 'Granola: nothing new, 1 already in DFAI, 2 skipped.'],
     ]);
 
     // Another vault has its own Activity, and is told.
@@ -830,7 +830,7 @@ describe('pulling Granola into a vault', () => {
     await pullOf();
     expect(lines[0]).toEqual([
       VAULT.absolutePath,
-      `Granola: “${HELD.id}”: Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.`,
+      `Granola: “${HELD.id}”: Granola listed a note DFAI cannot read (its updated_at is not text); it was left out of this pull.`,
     ]);
   });
 
@@ -838,14 +838,14 @@ describe('pulling Granola into a vault', () => {
     const { pull, granola, api } = pullFixture();
     granola.fail('list', {
       kind: 'malformed',
-      message: 'the list of notes is not one Atlas can read',
+      message: 'the list of notes is not one DFAI can read',
     });
 
     const report = await pull();
 
     expect(report.ended).toBe('failed');
     expect(report.problem).toBe(
-      'Granola answered in a way Atlas does not understand: the list of notes is not one Atlas can read. The notes could not be listed; the next pull lists them again.',
+      'Granola answered in a way DFAI does not understand: the list of notes is not one DFAI can read. The notes could not be listed; the next pull lists them again.',
     );
     expect(api.activity.reports.map(({ message }) => message).join('\n')).not.toMatch(/skipped/);
   });
@@ -870,7 +870,7 @@ describe('pulling Granola into a vault', () => {
     expect(granola.count('note', giant.id)).toBe(1);
     expect(meetingFiles()).toEqual(['Inbox/Meetings/2026-10-06 From the Notion export.md']);
     expect(api.activity.reports[0]?.message).toMatch(
-      /^Granola: “All-day offsite” was not written: its transcript is longer than Atlas takes .* Open it in Granola: https:\/\/notes\.granola\.ai\/d\/not_aaaaaaaaaaaaa8$/,
+      /^Granola: “All-day offsite” was not written: its transcript is longer than DFAI takes .* Open it in Granola: https:\/\/notes\.granola\.ai\/d\/not_aaaaaaaaaaaaa8$/,
     );
     expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
   });
@@ -901,8 +901,8 @@ describe('pulling Granola into a vault', () => {
     await quiet.pull('startup');
     await quiet.pull('sync-now');
     expect(quiet.messages()).toEqual([
-      'Granola: nothing new, 1 already in Atlas.',
-      'Granola: nothing new, 1 already in Atlas.',
+      'Granola: nothing new, 1 already in DFAI.',
+      'Granola: nothing new, 1 already in DFAI.',
     ]);
   });
 
@@ -969,11 +969,11 @@ describe('pulling Granola into a vault', () => {
     expect(report.ended).toBe('stopped');
     expect(granola.count('note', NEW_2.id)).toBe(0);
     expect(api.activity.reports.at(-1)?.message).toBe(
-      'Granola: the pull stopped. The Keychain did not give Atlas the Granola API key: the Keychain is locked. Unlock the Keychain, or paste the key again in Settings → Granola. Atlas stops pulling; the next pull asks again.',
+      'Granola: the pull stopped. The Keychain did not give DFAI the Granola API key: the Keychain is locked. Unlock the Keychain, or paste the key again in Settings → Granola. DFAI stops pulling; the next pull asks again.',
     );
   });
 
-  describe('when Granola keeps asking Atlas to slow down', () => {
+  describe('when Granola keeps asking DFAI to slow down', () => {
     const notes = [1, 2, 3, 4].map((at) =>
       granolaNote(`not_cccccccccccc0${at}`, {
         title: `Standup ${at}`,
@@ -1007,7 +1007,7 @@ describe('pulling Granola into a vault', () => {
         expect.objectContaining({
           level: 'error',
           message:
-            'Granola: the pull failed. Granola asked Atlas to slow down for 3 notes in a row, so Atlas stopped this pull. The next pull tries those notes again.',
+            'Granola: the pull failed. Granola asked DFAI to slow down for 3 notes in a row, so DFAI stopped this pull. The next pull tries those notes again.',
         }),
       );
     });

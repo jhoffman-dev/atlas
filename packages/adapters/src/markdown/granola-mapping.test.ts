@@ -12,7 +12,7 @@ import { remarkMarkdown } from './markdown-port.ts';
 
 /*
  * The Granola mapping (P28-09) held to the meeting/v1 contract by both of its
- * checks: the validator Atlas runs, with the YAML reader every note is read
+ * checks: the validator DFAI runs, with the YAML reader every note is read
  * with, and the JSON Schema. All names here are made up.
  */
 

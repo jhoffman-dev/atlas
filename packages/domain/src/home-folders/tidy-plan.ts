@@ -46,7 +46,7 @@ export interface TidyNote {
 /**
  * Whether the tidy looks at a note at all (#214): one loose at the root of
  * the vault, or one in the older `Inbox/Meetings`, where every meeting landed
- * before each had a month of its own. Atlas's own notes, hidden ones and the
+ * before each had a month of its own. DFAI's own notes, hidden ones and the
  * Archive are never looked at. Whether it moves is {@link tidyPlan}'s to say.
  */
 export function isTidyCandidate(path: VaultPath): boolean {
@@ -61,7 +61,7 @@ export function isTidyCandidate(path: VaultPath): boolean {
  * folder, all under their own names. A note whose type has no home stays
  * where it is. A meeting file the import has not let in — still arriving,
  * refused, a copy, or one that declares the import's contract from before
- * Atlas imported — is listed and left where it is: moved into `Meetings`, it
+ * DFAI imported — is listed and left where it is: moved into `Meetings`, it
  * would be handed to the import as an arrival.
  *
  * Nothing is ever renamed: a note whose home already holds that name, or two

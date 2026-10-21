@@ -103,7 +103,7 @@ export interface MeetingImportOutcome {
 }
 
 /** Why the problem was not written into a file, as a clause the Activity line ends a sentence with. */
-const UNSAVED_CLAUSE = 'it is open in Atlas with unsaved typing';
+const UNSAVED_CLAUSE = 'it is open in DFAI with unsaved typing';
 const UNREADABLE_FRONTMATTER = 'its frontmatter cannot be read, so nothing could be added to it';
 
 /**

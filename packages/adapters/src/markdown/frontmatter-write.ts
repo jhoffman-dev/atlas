@@ -179,7 +179,7 @@ export function checkedBody({
   throw new FrontmatterRefusedError({
     key: [...edit.keys][0] ?? '',
     message:
-      "Atlas could not write this change without changing the note's other properties, so the note was left as it was. Change it in the source instead.",
+      "DFAI could not write this change without changing the note's other properties, so the note was left as it was. Change it in the source instead.",
   });
 }
 

@@ -1,4 +1,4 @@
-# Meetings into Atlas from n8n
+# Meetings into DFAI from n8n
 
 Your n8n workflow already reads "Notes by Gemini" emails and writes each
 meeting to the Notion Meeting Notes database. This folder adds a **second
@@ -6,19 +6,19 @@ destination** beside Notion: the same meeting, committed as one markdown file
 to the vault's sync repository, `jhoffman-dev/pkm-space`, at
 `Meetings/<YYYY>/<MM>/<YYYY-MM-DD> <title>.md`, the month's folder for the
 meeting's date (ADR-0038). A workflow imported before that still writes
-`Inbox/Meetings/<YYYY-MM-DD> <title>.md`, which Atlas still reads; re-import
-`meeting-to-atlas.workflow.json` to write by month. Atlas pulls that repository every
+`Inbox/Meetings/<YYYY-MM-DD> <title>.md`, which DFAI still reads; re-import
+`meeting-to-atlas.workflow.json` to write by month. DFAI pulls that repository every
 minute, so meetings arrive even while the Mac is asleep (ADR-0027). The
-Notion path is not touched: the Atlas branch runs beside it, from the
+Notion path is not touched: the DFAI branch runs beside it, from the
 assembled meeting before any Notion step, and nothing in it can stop the run.
 
-| File                                                | What it is                                                                     |
-| --------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `meeting-to-atlas.workflow.json`                    | The n8n nodes to paste in. No secrets: the credential is referenced by name.   |
-| `packages/domain/src/meetings/mapping/`             | The mapper, which the Code nodes and Atlas's `POST /v1/meetings` both run.     |
-| `github-file.ts`                                    | Whether a file already at a meeting's path is that meeting (compiled in too).  |
-| `validate-meeting.mjs`                              | Checks a file with the validator Atlas runs: `pnpm validate:meeting <file.md>` |
-| `build-workflow.mjs`, `code-node.ts`, `workflow.ts` | Rebuild the JSON after changing the mapper: `pnpm n8n:build`.                  |
+| File                                                | What it is                                                                    |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `meeting-to-atlas.workflow.json`                    | The n8n nodes to paste in. No secrets: the credential is referenced by name.  |
+| `packages/domain/src/meetings/mapping/`             | The mapper, which the Code nodes and DFAI's `POST /v1/meetings` both run.     |
+| `github-file.ts`                                    | Whether a file already at a meeting's path is that meeting (compiled in too). |
+| `validate-meeting.mjs`                              | Checks a file with the validator DFAI runs: `pnpm validate:meeting <file.md>` |
+| `build-workflow.mjs`, `code-node.ts`, `workflow.ts` | Rebuild the JSON after changing the mapper: `pnpm n8n:build`.                 |
 
 The file format is the meeting import contract,
 `vault/docs/contracts/meeting-import-v1.md`.
@@ -78,28 +78,28 @@ Work on an inactive copy, so the live workflow keeps running untouched until
 the copy is proven:
 
 1. In n8n, open your Gemini → Notion workflow, **⋯ → Duplicate**, and name the
-   copy (say, `Meeting notes → Notion + Atlas (staging)`). It is created
+   copy (say, `Meeting notes → Notion + DFAI (staging)`). It is created
    inactive; leave it so.
 2. In the copy, open `meeting-to-atlas.workflow.json`, copy all of it, click
    the canvas and press **Cmd+V**. Twelve nodes appear, starting at
-   **Meeting fields for Atlas**.
+   **Meeting fields for DFAI**.
 3. Drag a connection from **the assembled meeting node's output** to
-   **Meeting fields for Atlas**, beside the connections that already go to
+   **Meeting fields for DFAI**, beside the connections that already go to
    the Notion steps. Wire it from there, not from a later node: the People
    lookups, the merge with their ids and the Notion writes all come after,
    so a Notion failure, or a meeting with no people to look up, cannot keep
-   Atlas from running. Put the Atlas nodes **above** the Notion branches on
+   DFAI from running. Put the DFAI nodes **above** the Notion branches on
    the canvas: n8n (execution order v1) runs the branches of one output top
-   to bottom, so Atlas runs first. The Atlas branch cannot stop the Notion
+   to bottom, so DFAI runs first. The DFAI branch cannot stop the Notion
    one: every failure in it leaves by an error output.
 4. Open each of the four GitHub nodes and check that the credential shows
    `GitHub pkm-space (contents)`; pick it from the list if n8n asks. Open
-   **Email me: meeting not in Atlas**, pick your Gmail credential, and put
+   **Email me: meeting not in DFAI**, pick your Gmail credential, and put
    your own address in **To** (it comes as `you@example.com`).
 
 ## 4. Point the fields at your nodes
 
-Open **Meeting fields for Atlas**. Each row is one field the mapper reads; the
+Open **Meeting fields for DFAI**. Each row is one field the mapper reads; the
 right-hand side reads one of your nodes by name, so it works wherever the
 branch is wired. The rows name the nodes `Assembled meeting` and
 `Notes email` (the email): rename your nodes to those, or change the name in
@@ -170,7 +170,7 @@ transcript doc's title is dropped: `## Transcript`, `# Transcript`,
 `Weekly sync - Transcript`, `## Q4: planning – Transcript`. Below it, or in a
 code fence, the same words are kept as someone's.
 
-**Dates and instants.** Open **Map meeting to Atlas file**; at the bottom is
+**Dates and instants.** Open **Map meeting to DFAI file**; at the bottom is
 `const OPTIONS = { timeZone: 'America/Los_Angeles', groupAddresses: [] };`.
 The mapper reads two kinds of value differently:
 
@@ -198,7 +198,7 @@ never read (`Staff Sergeant Rivera` is a person), nor is a dotted
 **Your own addresses (Granola).** A Code node that maps a Granola note
 (`mapGranolaNote($json, OPTIONS)`) also takes `selfEmails`: a note owned by
 one of them has its `me` turns written `You`, any other as the owner's name.
-They must be the same addresses as the vault's `selfEmails` — Atlas →
+They must be the same addresses as the vault's `selfEmails` — DFAI →
 Settings → Profile → **Your emails**, or `granola_self_emails` while that is
 empty — written as that field shows them: lower case, in its order.
 `OPTIONS = { timeZone: 'America/Los_Angeles', selfEmails: ['you@example.com'],
@@ -225,15 +225,15 @@ attendee's name, a speaker already heard, `You`/`Remote Speaker`/`Speaker 2`,
 the first line of a section, has no words after it, or the meeting has no
 attendees to check against; otherwise it continues the turn before.
 
-**When Atlas cannot take a meeting.** Every failure in the Atlas branch — a
+**When DFAI cannot take a meeting.** Every failure in the DFAI branch — a
 meeting the mapper refuses (no start time, say), an existing file it cannot
 read, both of a meeting's paths taken by other meetings, a commit GitHub
-rejects (an expired token) — leaves by that node's error output to **Atlas
-commit failed**, and the run goes on to the Notion steps, which the Atlas
-branch never touches. **Email me: meeting not in Atlas** then sends you
-"This meeting did not reach Atlas: <the error>", with the
+rejects (an expired token) — leaves by that node's error output to **DFAI
+commit failed**, and the run goes on to the Notion steps, which the DFAI
+branch never touches. **Email me: meeting not in DFAI** then sends you
+"This meeting did not reach DFAI: <the error>", with the
 meeting's title and Source ID and the execution number to open in n8n. It
-says nothing of Notion: Atlas runs first, so Notion may not have the meeting
+says nothing of Notion: DFAI runs first, so Notion may not have the meeting
 yet. If that email cannot be sent either, nothing stops: the execution still
 shows the error. To be told another way (Slack, say), swap that node for one
 that posts there, reading the same expressions.
@@ -257,27 +257,27 @@ In the inactive copy:
    after it (and any Code node between them that reads an append's output).
 3. Run the copy on one recent email: your manual test trigger, or pin a past
    execution's trigger data and press **Test workflow**.
-4. Open **Map meeting to Atlas file**'s output. Check `path`, `commitMessage`
+4. Open **Map meeting to DFAI file**'s output. Check `path`, `commitMessage`
    and `content`: the date and start are right (fix `timeZone` if not; a
    start worked out from the arrival says `start_approximate: true`). A
-   meeting with no transcript and no time in its subject goes to **Atlas
+   meeting with no transcript and no time in its subject goes to **DFAI
    commit failed** instead, with "start: the meeting has no start time"; that
    is by design, not a fault. Check the
    attendees are split, and the transcript has one
-   `**Speaker** [~00:09:44] … ^t0001` paragraph per turn. Otherwise **Atlas
+   `**Speaker** [~00:09:44] … ^t0001` paragraph per turn. Otherwise **DFAI
    commit failed** should receive nothing.
 5. Optional, on the Mac: copy `content` into a file and run
-   `pnpm validate:meeting that-file.md` in the Atlas repo. `ok` means Atlas
+   `pnpm validate:meeting that-file.md` in the DFAI repo. `ok` means DFAI
    will accept it.
 6. Reactivate both commit nodes (leave the Notion writes off), run once more,
    and look in `pkm-space` on GitHub for `Meetings/<YYYY>/<MM>/<date> <title>.md`
    and a commit `Meeting: <title> (gemini)`. Within a minute of the Mac
-   being awake, it is in Atlas's Inbox.
+   being awake, it is in DFAI's Inbox.
 7. Reactivate the Notion writes. Then, in one sitting, **activate the copy and
    deactivate the original**, so each email is handled by exactly one of
    them. Both poll on the same schedule, so an email that arrives while both
    are active can reach Notion twice (both runs pass the "already synced"
-   lookup together); Atlas writes it once either way. To go back, do the
+   lookup together); DFAI writes it once either way. To go back, do the
    reverse: activate the original, deactivate the copy.
 
 ## How the workflow avoids writing a meeting twice
@@ -299,14 +299,14 @@ The path is deterministic: the same meeting always maps to the same
      a file name cannot, or be too long; the name stays within 255 bytes and
      keeps the date). Not found → **Commit meeting file (other path)** creates
      it. Found → **Same meeting at the other path?** checks it the same way:
-     this meeting → skip; another → **Atlas commit failed** (it never writes
+     this meeting → skip; another → **DFAI commit failed** (it never writes
      a third name).
    - GitHub sends no content for a file over 1 MB, so it cannot be told apart
-     → **Atlas commit failed**, rather than a guess that would write the
+     → **DFAI commit failed**, rather than a guess that would write the
      meeting twice.
 
 Commits go to `pkm-space`'s default branch. A commit that fails (an expired
-token, no permission) goes to **Atlas commit failed**; it is never taken for
+token, no permission) goes to **DFAI commit failed**; it is never taken for
 "already there".
 
 **Case.** GitHub paths are case-sensitive; the Mac's disk is not. Two
@@ -316,19 +316,19 @@ pull would clash. The lookup cannot compare without case (it fetches one
 exact path), so this stays a known gap: keep a recurring meeting's title
 stable.
 
-One case n8n cannot see: once Atlas has moved or renamed the file (after
-P28-04), a re-run would write the meeting to `Inbox/Meetings` again. Atlas
+One case n8n cannot see: once DFAI has moved or renamed the file (after
+P28-04), a re-run would write the meeting to `Inbox/Meetings` again. DFAI
 catches that: a second file with the same `provider` + `external_id` is marked
 `atlas_duplicate_of` and archived (reversibly).
 
-## What Atlas does when the file arrives (after P28-04)
+## What DFAI does when the file arrives (after P28-04)
 
 - The vault's next pull (within a minute of the Mac being awake) brings the
   file into `Inbox/Meetings/`. The Mac that runs the vault's automations
-  imports it; another Mac leaves it for that one. Anything left — Atlas
+  imports it; another Mac leaves it for that one. Anything left — DFAI
   closed, the other Mac asleep — is settled when the importing Mac next
   opens the vault.
-- Atlas checks it against the contract and writes one line into it,
+- DFAI checks it against the contract and writes one line into it,
   `atlas_import_outcome:`, right after the `atlas_import: meeting/v1` line
   the mapping writes, saying how it settled it. Nothing else in the file
   changes.
@@ -343,7 +343,7 @@ catches that: a second file with the same `provider` + `external_id` is marked
   `<date> <title>.md` is kept over the one at
   `<date> <title> (<provider> <hash>).md`.
 - Each outcome is one entry in Activity.
-- **Fixing a file that failed.** Fix it in place and save: Atlas checks it
+- **Fixing a file that failed.** Fix it in place and save: DFAI checks it
   again, takes the error out and stamps it `imported`. To send it again from
   n8n instead (after fixing the mapping), delete the broken file first.
   **Same meeting?** skips a path that already holds this provider and Source
@@ -352,27 +352,27 @@ catches that: a second file with the same `provider` + `external_id` is marked
 ## API destination: send the meeting to the running app
 
 Instead of committing a file to `pkm-space`, n8n can send the meeting to
-Atlas's local API, `POST /v1/meetings` (#93). Atlas runs this folder's
+DFAI's local API, `POST /v1/meetings` (#93). DFAI runs this folder's
 mapper itself (it lives in `packages/domain/src/meetings/mapping`), so the
 file it writes into `Inbox/Meetings/` is the one the commit would make, at
 the same path, and the import stamps it as any arrival. Sending the same
 meeting again writes nothing. The route is described in
 `vault/docs/api/v1.md` (Meetings).
 
-It needs **Atlas open, with the API on** (Settings → Connections), on the
-Mac n8n's Docker runs on. While Atlas is closed the request fails and the
-failure email says so; re-run that execution once Atlas is open. The commit
+It needs **DFAI open, with the API on** (Settings → Connections), on the
+Mac n8n's Docker runs on. While DFAI is closed the request fails and the
+failure email says so; re-run that execution once DFAI is open. The commit
 does not have that limit, so keep it where the Mac may be asleep.
 
 **The token.** Settings → Connections shows the port and the token, which
 are also in `~/Library/Application Support/<bundle id>/api.json`. In n8n:
-**Credentials → Add credential → Bearer Auth**, named `Atlas local API`,
+**Credentials → Add credential → Bearer Auth**, named `DFAI local API`,
 with the token as **Bearer Token**. It lives only in n8n's credential store,
 never in the workflow or this repository. Rotating the token in Settings, or
-Atlas moving to another port (it does when its port was taken at launch),
+DFAI moving to another port (it does when its port was taken at launch),
 means changing the credential, or the URL and `Host` header below.
 
-**The node.** Add an **HTTP Request** node, say `Send meeting to Atlas`, and
+**The node.** Add an **HTTP Request** node, say `Send meeting to DFAI`, and
 wire it from `Assembled meeting`, beside the Notion branches and above them,
 as for the commit (section 3). `<port>` is the port from Settings.
 
@@ -380,13 +380,13 @@ as for the commit (section 3). `<port>` is the port from Settings.
 | -------------------------------- | ----------------------------------------------------------- |
 | Method                           | `POST`                                                      |
 | URL                              | `http://host.docker.internal:<port>/v1/meetings`            |
-| Authentication                   | Generic Credential Type → Bearer Auth → `Atlas local API`   |
+| Authentication                   | Generic Credential Type → Bearer Auth → `DFAI local API`    |
 | Send Headers → Header Parameters | Name `Host`, Value `127.0.0.1:<port>`                       |
 | Send Body                        | on; Body Content Type **JSON**; Specify Body **Using JSON** |
 | JSON                             | the expression below                                        |
 | Settings → Retry On Fail         | on; Max Tries `3`; Wait Between Tries (ms) `5000`           |
 | Settings → On Error              | **Continue (using error output)**                           |
-| Error output →                   | `Email me: meeting not in Atlas`                            |
+| Error output →                   | `Email me: meeting not in DFAI`                             |
 
 ```
 ={{ {
@@ -406,33 +406,33 @@ Why each part:
 
 - **`host.docker.internal` and the `Host` header.** Inside the container,
   `127.0.0.1` is the container itself; `host.docker.internal` is the Mac.
-  Atlas refuses any `Host` but `127.0.0.1:<port>` or `localhost:<port>`, the
+  DFAI refuses any `Host` but `127.0.0.1:<port>` or `localhost:<port>`, the
   guard against web pages reaching the API, so the node sends that `Host`
   itself.
-- **`timeZone`** is left out: Atlas reads `arrived` on the Mac's own clock.
+- **`timeZone`** is left out: DFAI reads `arrived` on the Mac's own clock.
   Add `timeZone: 'America/Los_Angeles'` to the body to pin it.
 - **Every field is a string, null or left out.** Null is taken as left out
   (n8n sends it for a field with no value), but `provider`, `sourceId` and
   `title` must be there. A field of another kind (a number, say) is refused
   `invalid`, naming it.
-- **Only these fields.** A key Atlas does not read — a misspelt
+- **Only these fields.** A key DFAI does not read — a misspelt
   `transcriptMD` — is refused `invalid`, naming it, rather than ignored: the
   meeting would be written without that content, and every send after it
-  answered "already in the vault". Add a field to the body only once Atlas
+  answered "already in the vault". Add a field to the body only once DFAI
   reads it.
 - **Groups, as in the commit.** Attendee records go to the mapper as they
   are, so one with `group: true` is a group, and the body may carry
   `groupAddresses: ['leads@example.com']`, as `OPTIONS` does in **Map
-  meeting to Atlas file**.
-- **Retry on fail** covers Atlas starting up, a sleeping Mac waking, or a
+  meeting to DFAI file**.
+- **Retry on fail** covers DFAI starting up, a sleeping Mac waking, or a
   timeout after the file was written: a retry of a meeting already written is
   answered "already in the vault" and writes nothing.
 - **The error output** sends whatever is left after the retries — a meeting
   with no start time (`invalid`, as in the commit's mapper), both paths held
-  by other meetings (`exists`), no vault open (`no_vault`), Atlas closed — to
+  by other meetings (`exists`), no vault open (`no_vault`), DFAI closed — to
   the failure email, and the run goes on to the Notion steps.
 
-Atlas answers `201` with `{ "meeting": { "path": …, "outcome": "written" } }`
+DFAI answers `201` with `{ "meeting": { "path": …, "outcome": "written" } }`
 or `200` with `"outcome": "in-vault"` and the path of the note holding it;
 both are success, and nothing follows the node.
 
@@ -441,7 +441,7 @@ both are success, and nothing follows the node.
 The workflow only sends meetings from now on. The ones already in the Notion
 Meeting Notes database come in once, through the same mapper, with
 `tools/import-notion-meetings.mjs` (P28-07). It reads a Notion export, maps
-each row as the workflow would, checks each file with the validator Atlas
+each row as the workflow would, checks each file with the validator DFAI
 runs, and writes it into a vault. It never writes into your vault unless you
 give it that vault's path.
 To bring in the rest of the workspace as well (tasks, notes, people, PARA,
@@ -460,13 +460,13 @@ the Meeting Notes: `tools/notion-import/README.md`.
 2. **Run it on a copy of the vault first.**
 
    ```sh
-   cp -R ~/"Atlas Vault" /tmp/atlas-vault-copy
+   cp -R ~/"DFAI Vault" /tmp/atlas-vault-copy
    pnpm import:notion-meetings --csv ~/Downloads/<export>/"Meeting Notes <id>_all.csv" \
      --vault /tmp/atlas-vault-copy
    ```
 
    Use absolute paths: pnpm runs the script from the repository's folder.
-   Do not open the copy in Atlas: it carries the vault's sync settings and
+   Do not open the copy in DFAI: it carries the vault's sync settings and
    would sync into `pkm-space`. Read the files in it instead, and
    `pnpm validate:meeting /tmp/atlas-vault-copy/Inbox/Meetings/*.md` if you
    like (the import has already checked each one).
@@ -476,11 +476,11 @@ the Meeting Notes: `tools/notion-import/README.md`.
    | Line       | Means                                                                                                 |
    | ---------- | ----------------------------------------------------------------------------------------------------- |
    | `wrote`    | The meeting's file, at the path the workflow would use (two `1:1`s on one day: the second's names it) |
-   | `in vault` | The vault already holds the meeting, by Atlas's own rule, wherever it is filed; nothing written       |
+   | `in vault` | The vault already holds the meeting, by DFAI's own rule, wherever it is filed; nothing written        |
    | `no id`    | A row with no Source ID: listed, never given one, so not imported                                     |
    | `left out` | A provider you did not name in `--providers`                                                          |
    | `held`     | A Gemini row, waiting for `--gemini-dates` (step 4)                                                   |
-   | `refused`  | Why not: no start time, no page for the row, two pages with one Source ID, a file Atlas would refuse  |
+   | `refused`  | Why not: no start time, no page for the row, two pages with one Source ID, a file DFAI would refuse   |
 
    It exits 0 when every row with a Source ID you asked for is in the vault,
    1 when one was held or refused, 2 when it could not run (no such vault, a
@@ -523,10 +523,10 @@ the Meeting Notes: `tools/notion-import/README.md`.
 
    ```sh
    pnpm import:notion-meetings --csv ~/Downloads/<export>/"Meeting Notes <id>_all.csv" \
-     --vault ~/"Atlas Vault" --gemini-dates arrival-local
+     --vault ~/"DFAI Vault" --gemini-dates arrival-local
    ```
 
-   The files land in `Inbox/Meetings/`, and Atlas takes each in as it does a
+   The files land in `Inbox/Meetings/`, and DFAI takes each in as it does a
    meeting from n8n (below): checked, stamped, listed in the Inbox. Running it
    again writes nothing new. Each file is written whole under a hidden name
    and then given its name, so a run that stops partway leaves no part of a
@@ -543,14 +543,14 @@ the Meeting Notes: `tools/notion-import/README.md`.
 | `--gemini-dates <how>`    | none: Gemini held     | `arrival-local`: Gemini's Date is when its notes arrived, in local time (issue #44)          |
 | `--date-order <order>`    | none: refused         | How a Date written `10/06/2026` is read: `mdy` (month first) or `dmy` (day first)            |
 
-**Which folder.** In `Inbox/Meetings/`, Atlas imports each file on arrival,
+**Which folder.** In `Inbox/Meetings/`, DFAI imports each file on arrival,
 and the Inbox lists every one until you file it: a whole history at once.
 With `--folder Meetings/From Notion` (any folder outside `Inbox/Meetings/`)
-they are filed from the start: the importer has already checked them, Atlas
+they are filed from the start: the importer has already checked them, DFAI
 does not stamp or list them, and if n8n later sends one of them again, that
 copy is archived as a duplicate of the filed one.
 
-**Already in the vault** means what it means to Atlas's import (P28-04): a
+**Already in the vault** means what it means to DFAI's import (P28-04): a
 note stamped `imported` that names the meeting, or an unstamped one that
 follows the contract as it. A copy stamped `duplicate` or `error`, or a sync
 conflict's copy, does not count, and the meeting is written beside it.
@@ -565,7 +565,7 @@ heading, so nothing in the page is dropped.
 The mapper is `packages/domain/src/meetings/mapping/` (since #93, so the app's
 `POST /v1/meetings` maps by the same rules); `github-file.ts` here holds the
 workflow's own checks. Edit them, run `pnpm n8n:build`, then in n8n replace the
-three Code nodes' code (**Map meeting to Atlas file**, **Same meeting?**,
+three Code nodes' code (**Map meeting to DFAI file**, **Same meeting?**,
 **Same meeting at the other path?**) with the new `jsCode` from the JSON — or
 delete the twelve nodes and paste the file again. A test fails while the JSON
 is out of date with the mapper.

@@ -34,7 +34,7 @@ interface Editing {
 }
 
 /**
- * The editor for one Atlas query (ADR-0019): its text, the builder's view of
+ * The editor for one DFAI query (ADR-0019): its text, the builder's view of
  * it, and its answer, re-asked whenever the text or the index changes.
  *
  * While the builder is open it holds the query — a condition still waiting

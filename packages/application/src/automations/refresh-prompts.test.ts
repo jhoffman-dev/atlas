@@ -7,7 +7,7 @@ import {
 import { fakeVaultFs } from '../testing/fake-ports.ts';
 import { refreshBuiltInPrompts } from './refresh-prompts.ts';
 
-/** #226: a prompt Atlas shipped, never edited, is brought up to date; anything else is the person's. */
+/** #226: a prompt DFAI shipped, never edited, is brought up to date; anything else is the person's. */
 
 function vaultOf(notes: Record<string, string>) {
   const files = new Map(Object.entries(notes));
@@ -28,7 +28,7 @@ function vaultOf(notes: Record<string, string>) {
 }
 
 describe('refreshBuiltInPrompts', () => {
-  it('writes the words Atlas ships now over an untouched earlier version, over the very version read', async () => {
+  it('writes the words DFAI ships now over an untouched earlier version, over the very version read', async () => {
     const vault = vaultOf({
       [AFTER_A_MEETING_PROMPT]: EARLIER_AFTER_A_MEETING,
       [MEETING_EXTRACTION_PROMPT]: EARLIER_MEETING_EXTRACTION,

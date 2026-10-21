@@ -215,7 +215,7 @@ test('a body write to a note with unsaved typing is refused, and the typing surv
   // as this test needs rather than for as long as the autosave timer allows.
   const release = host.holdWrites('first.md');
   await caretAtLineEnd(page.getByText('The work.'));
-  await page.keyboard.type(' Typed in Atlas.');
+  await page.keyboard.type(' Typed in DFAI.');
   await expect(saveStatus(page)).toHaveText('Unsaved');
 
   const refused = await host.api.send({
@@ -227,10 +227,10 @@ test('a body write to a note with unsaved typing is refused, and the typing surv
   expect(refused.status).toBe(409);
   expect(refused.body).toMatchObject({ error: { code: 'unsaved_in_app' } });
   expect(await vault.read('first.md')).toBe(FIRST);
-  await expect(page.getByText('The work. Typed in Atlas.')).toBeVisible();
+  await expect(page.getByText('The work. Typed in DFAI.')).toBeVisible();
 
   release();
-  await expectFile(vault, 'first.md').toContain('The work. Typed in Atlas.');
+  await expectFile(vault, 'first.md').toContain('The work. Typed in DFAI.');
   expect(await vault.read('first.md')).not.toContain('Written by another tool.');
 });
 
@@ -248,7 +248,7 @@ test('a body write naming the note in another case is refused while it has unsav
 
   const release = host.holdWrites('first.md');
   await caretAtLineEnd(page.getByText('The work.'));
-  await page.keyboard.type(' Typed in Atlas.');
+  await page.keyboard.type(' Typed in DFAI.');
   await expect(saveStatus(page)).toHaveText('Unsaved');
 
   const refused = await host.api.send({
@@ -260,7 +260,7 @@ test('a body write naming the note in another case is refused while it has unsav
   expect(refused.body).toMatchObject({ error: { code: 'unsaved_in_app' } });
   expect(await vault.read('first.md')).toBe(FIRST);
   release();
-  await expectFile(vault, 'first.md').toContain('The work. Typed in Atlas.');
+  await expectFile(vault, 'first.md').toContain('The work. Typed in DFAI.');
 });
 
 test('rotating the token asks first, then replaces the one Copy token hands out', async ({

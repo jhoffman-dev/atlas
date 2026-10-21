@@ -150,7 +150,7 @@ describe('what the import reads', () => {
 // The command starts `node`, which transpiles the domain and the adapters as it loads them: slow under load.
 describe('the command', { timeout: 120_000 }, () => {
   it('writes nowhere when --vault is empty, as an unset shell variable leaves it', async () => {
-    const here = join(root, 'Atlas Vault');
+    const here = join(root, 'DFAI Vault');
     await mkdir(here);
 
     const result = spawnSync(

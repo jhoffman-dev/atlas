@@ -21,7 +21,7 @@ const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : S
 
 /** What the offer says when it cannot judge the tasks meetings made: it lists none, so nothing is ticked. */
 export const NEEDS_OWNER_NOTICE =
-  'Atlas can’t tell which tasks meetings made are yours, so it offers none to archive. Add your name or email in Settings → Profile.';
+  'DFAI can’t tell which tasks meetings made are yours, so it offers none to archive. Add your name or email in Settings → Profile.';
 
 /**
  * The offered cleanup on the Inbox page (#226): the tasks the "After a

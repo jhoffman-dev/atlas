@@ -35,7 +35,7 @@ describe('conflictCopyPath', () => {
     );
   });
 
-  it('puts copies of Atlas’s own files where they cannot become a second rule or view', () => {
+  it('puts copies of DFAI’s own files where they cannot become a second rule or view', () => {
     expect(
       conflictCopyPath({ path: '.atlas/automations/Tidy.md', mac: 'Laptop', taken: none }),
     ).toBe('Sync conflicts/atlas/automations/Tidy (conflict from Laptop).md');

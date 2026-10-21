@@ -402,7 +402,7 @@ describe('DESIGN: the same meeting reaching Claude more than once', () => {
 
     await run(SYNC_ONLY);
 
-    // Accept's own write of `tasks` is the only change: Atlas's, not what was said in the meeting.
+    // Accept's own write of `tasks` is the only change: DFAI's, not what was said in the meeting.
     expect(asked()).toHaveLength(1);
   });
 

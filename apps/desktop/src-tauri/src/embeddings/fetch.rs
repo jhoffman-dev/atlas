@@ -6,7 +6,7 @@
 //! is removed and fetched again. A fetch streams into a temporary file of its
 //! own in the same folder, checking each chunk as it writes it, and is put in
 //! place under the file's name only if it matches — and never over a file
-//! another fetch put there first. Two fetches at once (two Atlas processes on
+//! another fetch put there first. Two fetches at once (two DFAI processes on
 //! one Mac share the folder) cannot mix their bytes, and an interrupted fetch
 //! leaves nothing under the file's name.
 //!
@@ -34,7 +34,7 @@ pub const HUGGING_FACE: &str = "https://huggingface.co";
 /// A slow line is fine while bytes keep arriving; one that stops is not.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
-const USER_AGENT: &str = concat!("Atlas/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("DFAI/", env!("CARGO_PKG_VERSION"));
 
 /// Makes sure `folder` holds the model's pinned files, from Hugging Face.
 pub async fn ensure_model(folder: &Path, spec: &ModelSpec) -> Result<(), String> {

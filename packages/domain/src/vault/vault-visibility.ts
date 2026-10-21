@@ -44,11 +44,11 @@ export function isWithinWalk(path: string): boolean {
   return path.split('/').length - 1 <= VAULT_WALK_DEPTH;
 }
 
-/** Where Atlas keeps the notes that configure it. */
+/** Where DFAI keeps the notes that configure it. */
 export const ATLAS_DIRECTORY = '.atlas';
 
 /**
- * Whether a note is one Atlas keeps for itself — a template, a type
+ * Whether a note is one DFAI keeps for itself — a template, a type
  * definition, a view — rather than one of the vault's own notes.
  *
  * A Task template declares `type: task` so that a task can be made from it; it
@@ -128,7 +128,7 @@ const SECTIONED_ATLAS_PATHS = new Set([VIEWS_DIRECTORY, DASHBOARDS_DIRECTORY, TE
  * Whether an entry belongs in user space — the vault as it is on disk, minus
  * what the sidebar's other sections already show.
  *
- * Dotfiles stay hidden, with one deliberate exception: `.atlas` is Atlas's own
+ * Dotfiles stay hidden, with one deliberate exception: `.atlas` is DFAI's own
  * configuration, written as ordinary notes you are meant to be able to open and
  * edit. It is listed, minus the subfolders that already have sections.
  *
@@ -151,7 +151,7 @@ export function isVisibleEntry(entry: VaultEntry): boolean {
 }
 
 /**
- * Whether a note is one of the vault's own: not one Atlas keeps in `.atlas`,
+ * Whether a note is one of the vault's own: not one DFAI keeps in `.atlas`,
  * and not in a hidden folder at any depth. What a query, a view, a widget and
  * the local API may read — as a row, or one relation away.
  */

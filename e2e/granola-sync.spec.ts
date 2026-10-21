@@ -111,7 +111,7 @@ test('a key is set, the meetings Granola holds are pulled in, and Sync now bring
   expect(host.granola.hasKey()).toBe(true);
   // A key set where there was none pulls at once: the vault does not sync, so has nothing to wait for.
   await expectFile(vault, RENEWAL_FILE).toContain(`external_id: '${RENEWAL.id}'`);
-  await expect(card(page).getByTestId('granola-pull')).toContainText('1 new, 0 already in Atlas');
+  await expect(card(page).getByTestId('granola-pull')).toContainText('1 new, 0 already in DFAI');
 
   // The meeting written is in the index as soon as the pull has ended, as it would be from Sync.
   await expect(indexed).toHaveText(`${before + 1} notes indexed`);
@@ -120,7 +120,7 @@ test('a key is set, the meetings Granola holds are pulled in, and Sync now bring
   await card(page).getByRole('button', { name: 'Sync now' }).click();
 
   await expectFile(vault, ONE_ON_ONE_FILE).toContain(`external_id: '${ONE_ON_ONE.id}'`);
-  await expect(card(page).getByTestId('granola-pull')).toContainText('1 new, 1 already in Atlas');
+  await expect(card(page).getByTestId('granola-pull')).toContainText('1 new, 1 already in DFAI');
   // The meeting already in the vault was never fetched again.
   const fetched = host.granola.requests().filter(({ path }) => path === `/v1/notes/${RENEWAL.id}`);
   expect(fetched).toHaveLength(1);

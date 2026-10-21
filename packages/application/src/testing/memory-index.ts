@@ -96,7 +96,7 @@ function answer(
 
 /**
  * What the window asks besides, whose rows no test of this index reads: the
- * sidebar's counts and favourites, PARA's values and an Atlas query. Answered
+ * sidebar's counts and favourites, PARA's values and a DFAI query. Answered
  * with none; anything not named here is refused, so a new reader is noticed.
  */
 const ANSWERED_EMPTY = [

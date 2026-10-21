@@ -1,6 +1,6 @@
 /**
  * `atlas_save_artifact` end to end over MCP: the SDK's client calls the tool,
- * and a fake Atlas records the REST requests it became — one when the page is
+ * and a fake DFAI records the REST requests it became — one when the page is
  * small, the note then chunks when it is not.
  */
 
@@ -29,7 +29,7 @@ const THUMBNAIL_URL = '/v1/artifacts/artifacts%2FQ3%20Deck.md/thumbnail';
 let atlas: FakeAtlas;
 let mcp: Client;
 
-/** Answers as Atlas would: the note for a save or a read, the file's new length for a chunk. */
+/** Answers as DFAI would: the note for a save or a read, the file's new length for a chunk. */
 function atlasAnswer(request: RecordedRequest) {
   if (request.method === 'PUT') {
     const { base64, offset } = request.body as { base64: string; offset: number };
@@ -101,7 +101,7 @@ describe('atlas_save_artifact', () => {
     expect(summary()).toEqual([{ method: 'POST', url: '/v1/artifacts' }]);
   });
 
-  it('still answers with the note when Atlas cannot picture the copy, saying why', async () => {
+  it('still answers with the note when DFAI cannot picture the copy, saying why', async () => {
     atlas.respondWith((request) =>
       request.url === THUMBNAIL_URL
         ? { status: 422, body: errorBody('thumbnail_failed', 'thumbnails are made on macOS only') }
@@ -184,7 +184,7 @@ describe('atlas_save_artifact', () => {
     );
   });
 
-  it('refuses a kind Atlas does not have before any request is made', async () => {
+  it('refuses a kind DFAI does not have before any request is made', async () => {
     const result = await save({ title: 'x', kind: 'slides' });
     expect(result.isError).toBe(true);
     expect(atlas.requests).toEqual([]);

@@ -90,7 +90,7 @@ export function vaultRequest({
   deps: ApiRouterDeps;
 }): VaultRequest {
   const vault = deps.host.currentVault()?.absolutePath ?? null;
-  if (vault === null) throw noVault('No vault is open in Atlas');
+  if (vault === null) throw noVault('No vault is open in DFAI');
 
   const fs = inVault({ fs: deps.fs, vault });
   return {

@@ -19,13 +19,13 @@ import type { ApiQueryGroup, ApiRows } from './contract.ts';
 import type { VaultRequest } from './vault-request.ts';
 
 /*
- * An Atlas query (ADR-0019) answered for the API, shared by /v1/atlas-query
+ * A DFAI query (ADR-0019) answered for the API, shared by /v1/atlas-query
  * and the views route. The compiled query reads the vault's own notes only —
  * rows, relation hops and the notes groups are named by — so nothing here
  * filters rows after the index answers, and a page fills to its limit.
  */
 
-/** What an Atlas query is checked and resolved against: the vault's types and notes, as the app has them. */
+/** What a DFAI query is checked and resolved against: the vault's types and notes, as the app has them. */
 export async function vaultQueryContext(request: VaultRequest) {
   const [types, notePaths] = await Promise.all([
     loadObjectTypes({ fs: request.fs, markdown: request.markdown }),

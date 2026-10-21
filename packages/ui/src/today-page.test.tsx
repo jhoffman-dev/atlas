@@ -10,7 +10,7 @@ import { TodayPage, todayActionWords, type TodayPageProps } from './today-page.t
 const TODAY = '2026-10-13';
 const NOW = Date.UTC(2026, 9, 13, 15);
 const DAY = 86_400_000;
-const ATLAS = createVaultPath('Projects/Atlas.md');
+const ATLAS = createVaultPath('Projects/DFAI.md');
 
 const task = (title: string, fields: Partial<ReviewTask> = {}): ReviewTask => ({
   path: createVaultPath(`Tasks/${title}.md`),
@@ -26,7 +26,7 @@ const task = (title: string, fields: Partial<ReviewTask> = {}): ReviewTask => ({
   ...fields,
 });
 
-const inAtlas = { project: ATLAS, projectTitle: 'Atlas' };
+const inAtlas = { project: ATLAS, projectTitle: 'DFAI' };
 
 const TASKS = [
   task('Renew the licence', { status: 'backlog', due: '2026-10-10', ...inAtlas }),
@@ -120,7 +120,7 @@ describe('TodayPage', () => {
   it('shows a row’s project, contexts and day', () => {
     page();
     const late = within(section('Overdue'));
-    expect(late.getByRole('button', { name: 'Atlas' })).toBeDefined();
+    expect(late.getByRole('button', { name: 'DFAI' })).toBeDefined();
     expect(late.getByText('Due 2026-10-10')).toBeDefined();
     expect(late.getByText('Backlog')).toBeDefined();
     expect(section('Due today').querySelector('.today__pieces')?.textContent).toContain(
@@ -135,7 +135,7 @@ describe('TodayPage', () => {
     page();
     const pieces = section('Overdue').querySelector('.today__pieces') as HTMLElement;
     // Its status, its project and its day: two dots between three pieces.
-    expect(pieces.textContent).toBe('Backlog·Atlas·Due 2026-10-10');
+    expect(pieces.textContent).toBe('Backlog·DFAI·Due 2026-10-10');
     const dots = [...pieces.querySelectorAll('.today__sep')];
     expect(dots).toHaveLength(2);
     expect(dots.every((dot) => dot.getAttribute('aria-hidden') === 'true')).toBe(true);
@@ -167,7 +167,7 @@ describe('TodayPage', () => {
         : item,
     );
     page({ today: { ...made, sections } });
-    const named = within(section('Next actions')).getByRole('group', { name: 'Atlas' });
+    const named = within(section('Next actions')).getByRole('group', { name: 'DFAI' });
     expect(named.querySelector('.review__count')?.textContent).toBe('2');
     const empty = within(section('Next actions')).getByRole('group', { name: 'Shed' });
     expect(empty.querySelector('.review__count')).toBeNull();
@@ -176,17 +176,14 @@ describe('TodayPage', () => {
   it('groups next actions under their project, with those under none named last', () => {
     page();
     const groups = within(section('Next actions')).getAllByRole('group');
-    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
-      'Atlas',
-      'No project',
-    ]);
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['DFAI', 'No project']);
     expect(within(groups[0] as HTMLElement).getByText('Ship the page')).toBeDefined();
     expect(within(groups[1] as HTMLElement).getByText('Call the bank')).toBeDefined();
   });
 
   it('opens a project from its group’s name', async () => {
     const { onOpen } = page();
-    await userEvent.click(within(section('Next actions')).getByRole('button', { name: 'Atlas' }));
+    await userEvent.click(within(section('Next actions')).getByRole('button', { name: 'DFAI' }));
     expect(onOpen).toHaveBeenCalledWith(ATLAS);
   });
 

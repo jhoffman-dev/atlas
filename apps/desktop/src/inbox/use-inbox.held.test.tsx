@@ -27,7 +27,7 @@ import { useInbox, type InboxOptions } from './use-inbox.ts';
 const CALL = createVaultPath('Inbox/Call the bank.md');
 const QUOTE = createVaultPath('Inbox/Chase the quote.md');
 const FILES = {
-  'Projects/Atlas.md': '---\ntype: project\n---\n',
+  'Projects/DFAI.md': '---\ntype: project\n---\n',
   [CALL]: '---\ntype: task\nstatus: inbox\n---\n\nAbout the loan.\n',
   [QUOTE]: '---\ntype: task\nstatus: inbox\n---\n\nSoon.\n',
 };

@@ -485,7 +485,7 @@ describe('restoreSummary', () => {
       expect(restoreSummary(second.body, { recorded: second.digest, prior: forged })).toEqual({
         ok: false,
         reason:
-          'The summary this run wrote over is not one Atlas can put back, so the summary was left as it is.',
+          'The summary this run wrote over is not one DFAI can put back, so the summary was left as it is.',
       });
     }
   });

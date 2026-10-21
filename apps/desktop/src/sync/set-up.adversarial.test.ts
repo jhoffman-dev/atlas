@@ -71,7 +71,7 @@ async function setUp(mac: Mac, env: Env, remote: SyncRemoteChoice) {
 }
 
 async function jamesVault(base: string, env: Env, trash: string, github?: string) {
-  const root = join(base, 'Atlas Vault');
+  const root = join(base, 'DFAI Vault');
   const mac = macAt({
     name: 'James’s MacBook Air',
     root,

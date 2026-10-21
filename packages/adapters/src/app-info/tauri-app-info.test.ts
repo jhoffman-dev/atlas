@@ -16,13 +16,13 @@ describe('tauriAppInfo', () => {
   });
 
   it('combines the runtime name and version into one value', async () => {
-    getName.mockResolvedValue('Atlas');
+    getName.mockResolvedValue('DFAI');
     getVersion.mockResolvedValue('0.1.0');
-    await expect(tauriAppInfo.read()).resolves.toEqual({ name: 'Atlas', version: '0.1.0' });
+    await expect(tauriAppInfo.read()).resolves.toEqual({ name: 'DFAI', version: '0.1.0' });
   });
 
   it('propagates a runtime failure rather than returning a half-filled value', async () => {
-    getName.mockResolvedValue('Atlas');
+    getName.mockResolvedValue('DFAI');
     getVersion.mockRejectedValue(new Error('ipc closed'));
     await expect(tauriAppInfo.read()).rejects.toThrow('ipc closed');
   });

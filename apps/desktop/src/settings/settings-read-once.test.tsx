@@ -75,7 +75,7 @@ describe('the settings note, read once', () => {
     const before = settingsReads();
 
     // An autosave: its path, and the index's news once it has taken the note in.
-    reads.invalidate('v', readsTouchedByPaths(['Projects/Atlas.md']));
+    reads.invalidate('v', readsTouchedByPaths(['Projects/DFAI.md']));
     reads.indexMoved('v');
     await settle();
 

@@ -489,7 +489,7 @@ describe('a meeting whose items stay proposals', () => {
     expect(vault.properties(MEETING)['tasks']).toBeUndefined();
     const warned = () =>
       activity.reports.filter((report) =>
-        report.message.includes('Atlas can’t tell which action items are yours'),
+        report.message.includes('DFAI can’t tell which action items are yours'),
       ).length;
     expect(warned()).toBe(1);
 

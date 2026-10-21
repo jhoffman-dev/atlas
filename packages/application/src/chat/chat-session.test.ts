@@ -74,7 +74,7 @@ describe('a chat session, and who the person is', () => {
   it('with no name, tells the model to write the placeholder rather than guess', async () => {
     const { chat, model } = session([[{ type: 'text', text: 'Noted.' }]]);
     await chat.send('Make me a meeting note');
-    expect(model.requests[0]?.system).toContain('has not told Atlas their name');
+    expect(model.requests[0]?.system).toContain('has not told DFAI their name');
     expect(model.requests[0]?.system).toContain('[Your name]');
   });
 
@@ -100,8 +100,8 @@ describe('a chat session, and who the person is', () => {
       profile: () => Promise.resolve('unknown'),
     });
     await chat.send('Make me a meeting note');
-    expect(model.requests[0]?.system).toContain("Atlas couldn't read the person's name");
-    expect(model.requests[0]?.system).not.toContain('has not told Atlas their name');
+    expect(model.requests[0]?.system).toContain("DFAI couldn't read the person's name");
+    expect(model.requests[0]?.system).not.toContain('has not told DFAI their name');
   });
 
   it('a new chat started while the profile is read sends nothing', async () => {

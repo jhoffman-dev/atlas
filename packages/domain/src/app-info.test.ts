@@ -3,18 +3,18 @@ import { createAppInfo, InvalidAppInfoError } from './app-info.ts';
 
 describe('createAppInfo', () => {
   it('accepts a name and a semver version', () => {
-    expect(createAppInfo({ name: 'Atlas', version: '0.1.0' })).toEqual({
-      name: 'Atlas',
+    expect(createAppInfo({ name: 'DFAI', version: '0.1.0' })).toEqual({
+      name: 'DFAI',
       version: '0.1.0',
     });
   });
 
   it('accepts a pre-release version', () => {
-    expect(createAppInfo({ name: 'Atlas', version: '1.0.0-beta.2' }).version).toBe('1.0.0-beta.2');
+    expect(createAppInfo({ name: 'DFAI', version: '1.0.0-beta.2' }).version).toBe('1.0.0-beta.2');
   });
 
   it('trims surrounding whitespace from the name', () => {
-    expect(createAppInfo({ name: '  Atlas  ', version: '0.1.0' }).name).toBe('Atlas');
+    expect(createAppInfo({ name: '  DFAI  ', version: '0.1.0' }).name).toBe('DFAI');
   });
 
   it.each(['', '   '])('rejects a blank name (%j)', (name) => {
@@ -24,11 +24,11 @@ describe('createAppInfo', () => {
   it.each(['1.0', 'v1.0.0', '1.0.0.0', '01.0.0', '1.0.0-', 'nightly', ''])(
     'rejects non-semver version %j',
     (version) => {
-      expect(() => createAppInfo({ name: 'Atlas', version })).toThrow(InvalidAppInfoError);
+      expect(() => createAppInfo({ name: 'DFAI', version })).toThrow(InvalidAppInfoError);
     },
   );
 
   it('names the offending version in the error message', () => {
-    expect(() => createAppInfo({ name: 'Atlas', version: 'nightly' })).toThrow(/"nightly"/);
+    expect(() => createAppInfo({ name: 'DFAI', version: 'nightly' })).toThrow(/"nightly"/);
   });
 });

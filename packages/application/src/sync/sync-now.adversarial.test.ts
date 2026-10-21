@@ -256,7 +256,7 @@ describe('syncNow, adversarially', () => {
     ).toBe('theirs');
   });
 
-  it('names the copy for the other Mac even when its last commit was not made by Atlas', async () => {
+  it('names the copy for the other Mac even when its last commit was not made by DFAI', async () => {
     const sides = { 'Ideas.md': { ours: 'mine', theirs: 'theirs' } };
     const { run, files } = setUp({
       script: {

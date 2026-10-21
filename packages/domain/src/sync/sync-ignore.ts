@@ -12,10 +12,12 @@ import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
 
 export const GITIGNORE_PATH = '.gitignore';
 
+// Still "Atlas", the app's name before DFAI (ADR-0042): the block is found by
+// these exact lines, and a Mac still running Atlas would otherwise add its own.
 const BEGIN = '# >>> Atlas sync (managed: edits between these lines are replaced)';
 const END = '# <<< Atlas sync';
 
-/** The lines Atlas keeps in the block, in order, each with why. */
+/** The lines DFAI keeps in the block, in order, each with why. */
 export const MANAGED_IGNORES: readonly { readonly pattern: string; readonly why: string }[] = [
   { pattern: '.atlas-cache/', why: 'the index, which rebuilds itself on each Mac' },
   { pattern: '.DS_Store', why: "Finder's folder state" },
@@ -28,7 +30,7 @@ function managedBlock(): string {
   return [BEGIN, ...lines, END].join('\n');
 }
 
-/** Whether a `.gitignore` holds Atlas's block, whole. */
+/** Whether a `.gitignore` holds DFAI's block, whole. */
 export function hasManagedIgnores(text: string): boolean {
   const lines = text.split('\n').map((line) => line.replace(/\r$/, ''));
   const begin = lines.indexOf(BEGIN);
@@ -36,7 +38,7 @@ export function hasManagedIgnores(text: string): boolean {
 }
 
 /**
- * The person's own lines, with every Atlas block taken out. A block is only
+ * The person's own lines, with every DFAI block taken out. A block is only
  * the lines from its opening line to its closing one; an opening line with no
  * closing line before the next opening (or the end) is dropped alone, so a
  * line the person wrote after a damaged block is never taken with it.
@@ -58,7 +60,7 @@ function withoutManagedBlocks(text: string): string[] {
 }
 
 /**
- * The `.gitignore` with Atlas's block at its end, after the person's own
+ * The `.gitignore` with DFAI's block at its end, after the person's own
  * lines, which are never touched. The result is the same file a second time round.
  */
 export function withManagedIgnores(existing: string | null): string {
@@ -75,7 +77,7 @@ function globOf(pattern: string): RegExp {
   return new RegExp(`^${escaped}$`);
 }
 
-/** Whether one of Atlas's own lines leaves the path out: that is Atlas's choice, not the person's. */
+/** Whether one of DFAI's own lines leaves the path out: that is DFAI's choice, not the person's. */
 function ignoredByManagedBlock(path: string): boolean {
   const segments = path.split('/');
   return MANAGED_IGNORES.some(({ pattern }) => {
@@ -87,9 +89,9 @@ function ignoredByManagedBlock(path: string): boolean {
 }
 
 /**
- * Atlas's own files that the vault's `.gitignore` keeps out of git (issue
+ * DFAI's own files that the vault's `.gitignore` keeps out of git (issue
  * #8): every file in `.atlas` on disk that git neither tracks nor lists as
- * untracked, past what Atlas's own block leaves out. Named as a file directly
+ * untracked, past what DFAI's own block leaves out. Named as a file directly
  * in `.atlas`, otherwise as its folder there (`.atlas/types/`), once each.
  * Reported, never acted on: the person's lines are theirs.
  */
@@ -111,7 +113,7 @@ export function atlasPathsIgnored({
   return [...named].sort();
 }
 
-/** The Activity log's warning for something of Atlas's own a `.gitignore` line keeps out. */
+/** The Activity log's warning for something of DFAI's own a `.gitignore` line keeps out. */
 export function ignoredByGitignoreWarning(path: string): string {
-  return `${path} is left out by a line in this vault’s .gitignore, so it isn’t synced and other Macs won’t get it. Atlas leaves your .gitignore as you wrote it; to sync it, remove that line.`;
+  return `${path} is left out by a line in this vault’s .gitignore, so it isn’t synced and other Macs won’t get it. DFAI leaves your .gitignore as you wrote it; to sync it, remove that line.`;
 }

@@ -101,7 +101,7 @@ function startingProperties(
 }
 
 /**
- * {@link createNote} without the task rules: for a note whose text Atlas
+ * {@link createNote} without the task rules: for a note whose text DFAI
  * writes whole and which is never a task — a chat's transcript.
  */
 export async function createNoteFile({

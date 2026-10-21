@@ -50,17 +50,17 @@ describe('processRefusal', () => {
 
 describe('filingRefusal on a Project, by the PARA value it holds (#213)', () => {
   const archived = 'That is archived: unarchive it to file notes under it.';
-  it('files under a project or an area, and under a PARA Atlas cannot read, as a project', () => {
+  it('files under a project or an area, and under a PARA DFAI cannot read, as a project', () => {
     for (const para of [undefined, 'project', 'Area', 'Life admin']) {
-      expect(filingRefusal({ path: path('Projects/Atlas.md'), type: 'project', para })).toBeNull();
+      expect(filingRefusal({ path: path('Projects/DFAI.md'), type: 'project', para })).toBeNull();
     }
   });
 
   it('refuses one archived by its value, as one moved to the Archive', () => {
     expect(
-      filingRefusal({ path: path('Projects/Atlas.md'), type: 'Project', para: ' archive ' }),
+      filingRefusal({ path: path('Projects/DFAI.md'), type: 'Project', para: ' archive ' }),
     ).toBe(archived);
-    expect(filingRefusal({ path: path('Archive/Projects/Atlas.md'), type: 'project' })).toBe(
+    expect(filingRefusal({ path: path('Archive/Projects/DFAI.md'), type: 'project' })).toBe(
       archived,
     );
   });
@@ -76,7 +76,7 @@ describe('filingRefusal on a Project, by the PARA value it holds (#213)', () => 
 
 describe('filingRefusal', () => {
   it('files under a project or an area', () => {
-    expect(filingRefusal({ path: path('Projects/Atlas.md'), type: 'project' })).toBeNull();
+    expect(filingRefusal({ path: path('Projects/DFAI.md'), type: 'project' })).toBeNull();
     expect(filingRefusal({ path: path('Areas/Garden.md'), type: 'area' })).toBeNull();
   });
 
@@ -90,7 +90,7 @@ describe('filingRefusal', () => {
     expect(filingRefusal({ path: path('Plan.md'), type: null })).toContain('neither');
   });
 
-  it('refuses a project still in the Inbox, an archived one, or one of Atlas’s own files', () => {
+  it('refuses a project still in the Inbox, an archived one, or one of DFAI’s own files', () => {
     expect(filingRefusal({ path: path('Inbox/New project.md'), type: 'project' })).toContain(
       'still in the Inbox',
     );
@@ -98,7 +98,7 @@ describe('filingRefusal', () => {
       'archived',
     );
     expect(filingRefusal({ path: path('.atlas/templates/Project.md'), type: 'project' })).toContain(
-      'Atlas’s own files',
+      'DFAI’s own files',
     );
   });
 });
@@ -142,9 +142,9 @@ describe('processDestination', () => {
 
 describe('filedUnderStamp', () => {
   it('links the project by its name', () => {
-    const notePaths = [path('Projects/Atlas.md'), path('Inbox/Call.md')];
-    expect(filedUnderStamp({ project: path('Projects/Atlas.md'), notePaths })).toEqual({
-      project: '[[Atlas]]',
+    const notePaths = [path('Projects/DFAI.md'), path('Inbox/Call.md')];
+    expect(filedUnderStamp({ project: path('Projects/DFAI.md'), notePaths })).toEqual({
+      project: '[[DFAI]]',
     });
   });
 
@@ -187,7 +187,7 @@ describe('inboxItem — a task (#112)', () => {
       title: 'Chase the invoice',
       type: 'Task',
       status: 'inbox',
-      project: 'Projects/Atlas.md',
+      project: 'Projects/DFAI.md',
       waitingOn: 'People/Mara Quill.md',
       waitingOnNames: '[[People/Mara Quill|Mara Quill]]',
       defer: '2026-10-20',
@@ -195,7 +195,7 @@ describe('inboxItem — a task (#112)', () => {
     });
     expect(item.task).toEqual({
       status: 'inbox',
-      project: 'Projects/Atlas.md',
+      project: 'Projects/DFAI.md',
       waitingOn: 'People/Mara Quill.md',
       waitingOnNames: 'Mara Quill',
       defer: '2026-10-20',
@@ -223,17 +223,17 @@ describe('inboxItem — a task (#112)', () => {
 describe('isProcessMove', () => {
   it('is a note filed out of the Inbox under its own name, numbered or not', () => {
     const from = path('Inbox/Meetings/Kickoff.md');
-    expect(isProcessMove(from, path('Projects/Atlas/Kickoff.md'))).toBe(true);
+    expect(isProcessMove(from, path('Projects/DFAI/Kickoff.md'))).toBe(true);
     expect(isProcessMove(from, path('projects/atlas/kickoff.md'))).toBe(true);
-    expect(isProcessMove(from, path('Projects/Atlas/Kickoff 2.md'))).toBe(true);
+    expect(isProcessMove(from, path('Projects/DFAI/Kickoff 2.md'))).toBe(true);
   });
 
   it('is not a move within the Inbox, into the Archive, or to another name', () => {
     const from = path('Inbox/Kickoff.md');
     expect(isProcessMove(from, path('Inbox/Meetings/Kickoff.md'))).toBe(false);
     expect(isProcessMove(from, path('Archive/Inbox/Kickoff.md'))).toBe(false);
-    expect(isProcessMove(from, path('Projects/Atlas/Launch.md'))).toBe(false);
-    expect(isProcessMove(path('Notes/Kickoff.md'), path('Projects/Atlas/Kickoff.md'))).toBe(false);
+    expect(isProcessMove(from, path('Projects/DFAI/Launch.md'))).toBe(false);
+    expect(isProcessMove(path('Notes/Kickoff.md'), path('Projects/DFAI/Kickoff.md'))).toBe(false);
   });
 });
 

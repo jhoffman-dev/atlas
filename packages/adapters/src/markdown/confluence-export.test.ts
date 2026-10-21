@@ -208,7 +208,7 @@ describe('a note exported for Confluence', () => {
       ].join('\n'),
     );
     expect(dropped).toEqual([
-      { kind: 'property', items: ['(frontmatter Atlas cannot read)'] },
+      { kind: 'property', items: ['(frontmatter DFAI cannot read)'] },
       {
         kind: 'link',
         items: [

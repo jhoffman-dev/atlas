@@ -1,4 +1,4 @@
-# Atlas UI v2 "Dense & Calm" — implementation plan
+# DFAI UI v2 "Dense & Calm" — implementation plan
 
 Status: **in progress** — slices 0, 0b and 1 are merged, slice 2 is being built, and James approved slices 3a, 3b, 4, 9 and 10 on 2026-10-17 (evening). The rest wait for his approval slice by slice; every slice has an issue (section 0). Brief: [`ui-v2-brief.md`](ui-v2-brief.md). Mockups: `design/target/*.dc.html` (moved from `design/v2/` in #270). Paths are relative to the repo root. Code was first read at main `abcf3553`; the file lists, conflicts and budgets below were re-checked at main `8f034450` (2026-10-18).
 
@@ -8,7 +8,7 @@ Status: **in progress** — slices 0, 0b and 1 are merged, slice 2 is being buil
 
 ## 0. Where each slice stands
 
-Every slice has a GitHub issue (the Issue column), a sub-issue of epic #267, on the Atlas Project board: 3a and 3b sit in Ready, the rest in Backlog until their condition is met and James approves them. "Can start when" is the precise condition; "conflicts" names the open PRs (as of 2026-10-18: #271 code-split, #274 Performance 6, #281 save path, #283 Inbox offers, #293 Performance 5b+5c, #322 the sidebar scrollbar fix on `sidebar.css` and `e2e/sidebar-scroll.spec.ts`; #286 Rust API merged later that day, so it no longer counts) that touch the same files. Builders run on Fable 5.1.
+Every slice has a GitHub issue (the Issue column), a sub-issue of epic #267, on the DFAI Project board: 3a and 3b sit in Ready, the rest in Backlog until their condition is met and James approves them. "Can start when" is the precise condition; "conflicts" names the open PRs (as of 2026-10-18: #271 code-split, #274 Performance 6, #281 save path, #283 Inbox offers, #293 Performance 5b+5c, #322 the sidebar scrollbar fix on `sidebar.css` and `e2e/sidebar-scroll.spec.ts`; #286 Rust API merged later that day, so it no longer counts) that touch the same files. Builders run on Fable 5.1.
 
 | Slice | Name                                             | Issue | Status                   | Can start when                                                                     | Conflicts with open PRs                                                                                            |
 | ----- | ------------------------------------------------ | ----- | ------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -154,7 +154,7 @@ Conventions for every slice: one PR, opened as a draft, mergeable on its own aga
   | `dashboard-editing.css` | Dashboard editing (P17-03)                                                                                                                                             |
   | `types.css`             | Types: New type, and the type editor (P17-02)                                                                                                                          |
   | `pages-tree.css`        | Pages: folders, moving and deleting (P17-01)                                                                                                                           |
-  | `queries.css`           | Saved views and SQL queries (P17-04); Atlas queries: builder, text, grouped answer (P24)                                                                               |
+  | `queries.css`           | Saved views and SQL queries (P17-04); DFAI queries: builder, text, grouped answer (P24)                                                                                |
   | `graph.css`             | Links and the graph (P17-06)                                                                                                                                           |
   | `artifacts.css`         | Artifacts (P17-07)                                                                                                                                                     |
   | `quick-add.css`         | Quick add (U-13)                                                                                                                                                       |

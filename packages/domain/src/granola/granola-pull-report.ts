@@ -17,7 +17,7 @@ import type { GranolaPullMode } from './granola-watermark.ts';
  *   completed a sync pull of the vault (ADR-0034);
  * - `stopped`: a failure every later request would share (no key, a refused
  *   key) ended it;
- * - `failed`: the notes could not be listed, or Granola kept asking Atlas to
+ * - `failed`: the notes could not be listed, or Granola kept asking DFAI to
  *   slow down;
  * - `vault-changed`: another vault was opened while it ran.
  */
@@ -47,7 +47,7 @@ export interface GranolaPullCounts {
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
-/** What a pull did, in a few words: "3 new, 12 already in Atlas, 1 refused". */
+/** What a pull did, in a few words: "3 new, 12 already in DFAI, 1 refused". */
 export function granolaCountsLine({
   written,
   held,
@@ -57,7 +57,7 @@ export function granolaCountsLine({
 }: GranolaPullCounts): string {
   return [
     written === 0 ? 'nothing new' : `${written} new`,
-    `${held} already in Atlas`,
+    `${held} already in DFAI`,
     ...(refused > 0 ? [`${refused} refused`] : []),
     ...(skipped > 0 ? [`${skipped} skipped`] : []),
     ...(failed > 0 ? [`${failed} to try again`] : []),
@@ -79,7 +79,7 @@ export function granolaFailureWords(
 }
 
 /** Why a pull gave up after {@link SLOW_DOWNS_IN_A_ROW} notes in a row were each refused with 429. */
-export const GRANOLA_KEPT_SLOWING_DOWN = `Granola asked Atlas to slow down for ${SLOW_DOWNS_IN_A_ROW} notes in a row, so Atlas stopped this pull. The next pull tries those notes again.`;
+export const GRANOLA_KEPT_SLOWING_DOWN = `Granola asked DFAI to slow down for ${SLOW_DOWNS_IN_A_ROW} notes in a row, so DFAI stopped this pull. The next pull tries those notes again.`;
 
 /** The most of a listed id a line shows: an id that is not one may be anything, at any length. */
 const SHOWN_ID_LENGTH = 40;
@@ -117,7 +117,7 @@ export function unreadableSummaryProblem({
     id: shownId(id),
     title: null,
     url: null,
-    problem: `Granola listed a note Atlas cannot read (${reason}); it was left out of this pull.`,
+    problem: `Granola listed a note DFAI cannot read (${reason}); it was left out of this pull.`,
   };
 }
 

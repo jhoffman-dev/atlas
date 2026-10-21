@@ -14,7 +14,7 @@ import { remarkMarkdown } from './markdown-port.ts';
  * R12-22 / ADR-0003 ("Untouched blocks keep their original bytes").
  *
  * `planRefresh` (packages/domain/src/sources/merge.ts) decides a note is still
- * Atlas's to replace by comparing `digestOf(body)` against the digest a source
+ * DFAI's to replace by comparing `digestOf(body)` against the digest a source
  * wrote into its frontmatter. `body` is whatever the *real* markdown adapter
  * hands back after a read. ADR-0003 promises that reading and writing a block
  * nobody touched reproduces its exact bytes; this test crosses the seam between
@@ -120,7 +120,7 @@ describe('a source note round-trips through the real markdown adapter', () => {
     expect(saved.note.originalBody).toBe(body);
   });
 
-  it("is still classified as Atlas's to replace by planRefresh after that round trip", async () => {
+  it("is still classified as DFAI's to replace by planRefresh after that round trip", async () => {
     const files: Record<string, string> = { [path]: fileTextFor(digest) };
     const fs = vaultWith(files);
 

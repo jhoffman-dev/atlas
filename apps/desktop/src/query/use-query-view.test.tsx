@@ -30,7 +30,7 @@ function queryFoldStore() {
 }
 
 /**
- * P24-04: a saved Atlas query, opened as a page. Its query is edited in the
+ * P24-04: a saved DFAI query, opened as a page. Its query is edited in the
  * builder or as text; Save writes `query` and `layout` and leaves every other
  * byte of the file as it was written.
  */
@@ -66,7 +66,7 @@ const NO_PANE: OpenEditors = {
   reloadOthers: () => {},
 };
 
-/** An index that answers every Atlas query with two tasks, and records what it was asked. */
+/** An index that answers every DFAI query with two tasks, and records what it was asked. */
 function taskIndex() {
   const asked: string[] = [];
   const index = fakeIndexPort({

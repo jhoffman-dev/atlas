@@ -11,7 +11,7 @@ import type { ModelProcessHost } from './model-process.ts';
 
 const REQUEST: ModelRequest = {
   model: 'claude-opus-5-5',
-  system: 'You are Claude in Atlas.',
+  system: 'You are Claude in DFAI.',
   messages: [{ role: 'user', text: 'Who is Sam?' }],
   tools: [],
 };

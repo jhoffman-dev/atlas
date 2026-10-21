@@ -130,7 +130,7 @@ const REFUSAL_WORDS: Readonly<Record<SummaryRefusal, string>> = {
     'The meeting has a summary closing marker with no opening one, so nothing was written.',
   'two-blocks': 'The meeting has more than one summary block, so neither was written over.',
   'unknown-version':
-    'The summary at the top was written by another version of Atlas, so it was left as it is.',
+    'The summary at the top was written by another version of DFAI, so it was left as it is.',
   'in-code-fence': 'A summary marker sits inside a code fence, so nothing was written.',
 };
 
@@ -546,7 +546,7 @@ export function restoreSummary(
 }
 
 const PRIOR_UNREADABLE =
-  'The summary this run wrote over is not one Atlas can put back, so the summary was left as it is.';
+  'The summary this run wrote over is not one DFAI can put back, so the summary was left as it is.';
 
 /**
  * `text` without its summary block, what the model is shown: it never

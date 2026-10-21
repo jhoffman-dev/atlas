@@ -13,7 +13,7 @@ describe('a term’s kind', () => {
     for (const kind of TERM_KINDS) expect(termKindOf(kind)).toBe(kind);
   });
 
-  it('is none when the note names one Atlas does not know, or nothing', () => {
+  it('is none when the note names one DFAI does not know, or nothing', () => {
     for (const value of ['Product', 'vendor', '', null, undefined, 3]) {
       expect(termKindOf(value)).toBeNull();
     }

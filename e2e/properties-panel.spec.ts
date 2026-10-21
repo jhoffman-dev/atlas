@@ -96,7 +96,7 @@ test.describe('Add a property on a note of a type', () => {
     expect(await vault.read('.atlas/types/book.md')).toBe(BOOK_TYPE);
   });
 
-  test('refuses a key Atlas keeps for itself', async ({ page }) => {
+  test('refuses a key DFAI keeps for itself', async ({ page }) => {
     await open(page, files);
     await openNote(page, 'Dune');
 

@@ -33,7 +33,7 @@ export function newPropertyKey(typed: string, existing: readonly string[]): NewP
   if (!/^[A-Za-z][\w-]*$/.test(written)) return { key: null, problem: null };
   const key = written.toLowerCase();
   if (RESERVED_KEYS.includes(key)) {
-    return { key: null, problem: `“${written}” is kept for Atlas and cannot be added here` };
+    return { key: null, problem: `“${written}” is kept for DFAI and cannot be added here` };
   }
   if (existing.some((name) => name.toLowerCase() === key)) {
     return { key: null, problem: `This note already has “${written}”` };

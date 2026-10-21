@@ -283,7 +283,7 @@ describe('importing a workspace export', () => {
         { what: 'Tasks Tracker', reason: '"Created time": not a column this import maps' },
         {
           what: 'Notes',
-          reason: '"Back Links": it links back here, and Atlas shows that as a backlink',
+          reason: '"Back Links": it links back here, and DFAI shows that as a backlink',
         },
       ]),
     );
@@ -334,7 +334,7 @@ describe('the GTD move comes first', () => {
   });
 });
 
-describe('an edit made in Atlas', () => {
+describe('an edit made in DFAI', () => {
   const OFFSITE = 'Tasks/Plan the offsite.md';
   const OFFSITE_PAGE = `${TASKS}/Plan the offsite a1000000000000000000000000000005.md`;
   const OFFSITE_CSV = `${TASKS}_all.csv`;
@@ -369,11 +369,11 @@ describe('an edit made in Atlas', () => {
     expect(workspaceImported(fourth)).toBe(true);
   });
 
-  it("gives way to Notion's change where Atlas left the value alone, every other byte kept", async () => {
+  it("gives way to Notion's change where DFAI left the value alone, every other byte kept", async () => {
     await run();
     const path = 'Tasks/Renew the Larkspur contract.md';
     await editNote(path, 'type: task\n', 'type: task\n# kept by hand\nrating:   5\n');
-    await editNote(path, 'book the call.', 'book the call. Added in Atlas.');
+    await editNote(path, 'book the call.', 'book the call. Added in DFAI.');
     const before = await note(path);
     await editExport(
       `${TASKS}_all.csv`,
@@ -592,7 +592,7 @@ const pageTitled = (pages: readonly PageOutcome[], title: string) =>
 const notesOf = (page: PageOutcome | undefined) =>
   page !== undefined && 'notes' in page ? page.notes : [];
 
-describe('a note deleted in Atlas', () => {
+describe('a note deleted in DFAI', () => {
   const SHIP = 'Tasks/Ship the payroll export.md';
 
   it('is listed and not made again, deleted or hidden, until asked for', async () => {
@@ -620,7 +620,7 @@ describe('a note deleted in Atlas', () => {
       people: ['[[Mara Quill]]'],
     });
     expect(notesOf(pageTitled(outcome.pages, 'Renew the Larkspur contract'))).toContain(
-      'People: "Mara Quill" was deleted in Atlas; linked by its name',
+      'People: "Mara Quill" was deleted in DFAI; linked by its name',
     );
   });
 });
@@ -757,8 +757,8 @@ describe("the app's own places", () => {
   it('says which types the vault does not declare, and writes no type file', async () => {
     const outcome = await run({ only: ['people', 'teams'] });
     expect([...outcome.warnings].sort()).toEqual([
-      'the vault declares no person type: its notes are written with type: person. Open the vault in Atlas first, which adds the types it builds in, or add the type.',
-      'the vault declares no team type: its notes are written with type: team. Open the vault in Atlas first, which adds the types it builds in, or add the type.',
+      'the vault declares no person type: its notes are written with type: person. Open the vault in DFAI first, which adds the types it builds in, or add the type.',
+      'the vault declares no team type: its notes are written with type: team. Open the vault in DFAI first, which adds the types it builds in, or add the type.',
     ]);
     expect(await readdir(join(vault, '.atlas', 'types'))).toEqual(['task.md']);
   });

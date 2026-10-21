@@ -18,7 +18,7 @@ export interface GraphFilter {
   /** The types to show, `UNTYPED` among them for notes without one; null shows every note. */
   readonly types: readonly string[] | null;
   readonly hideOrphans: boolean;
-  /** Atlas's own notes — types, templates, views — which say little about the vault. */
+  /** DFAI's own notes — types, templates, views — which say little about the vault. */
   readonly hideSystem: boolean;
   /** Notes put away in the Archive, which are out of the way unless asked for (U-22). */
   readonly hideArchived: boolean;

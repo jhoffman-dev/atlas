@@ -11,7 +11,7 @@ import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 /**
  * A bookmark in the file is its link alone in a paragraph, then a comment
  * every markdown reader hides (ADR-0020): Obsidian shows a working link, and
- * Atlas shows a card. It is read as a bookmark only with the marker, kept
+ * DFAI shows a card. It is read as a bookmark only with the marker, kept
  * byte for byte when untouched, and written so it reads back as itself.
  */
 const MARKER = '<!-- atlas:bookmark -->';
@@ -34,7 +34,7 @@ const withoutId = ({ attrs, ...node }: EditorNode): EditorNode => {
 
 describe('reading a bookmark', () => {
   it.each([
-    ['the marker as Atlas writes it', `[[Trip plan]] ${MARKER}`],
+    ['the marker as DFAI writes it', `[[Trip plan]] ${MARKER}`],
     ['no space before the marker', `[[Trip plan]]${MARKER}`],
     ['spacing inside the comment', '[[Trip plan]] <!--atlas:bookmark-->'],
     ['spaces after it', `[[Trip plan]] ${MARKER}   `],

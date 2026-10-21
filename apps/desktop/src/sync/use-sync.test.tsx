@@ -27,7 +27,7 @@ import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { toldNews } from '../reads/told-news.test-support.ts';
 
 const NOT_A_REPO = failed('fatal: not a git repository', 128);
-/** What a vault Atlas set up for sync says in its settings, beside its `.gitignore` block. */
+/** What a vault DFAI set up for sync says in its settings, beside its `.gitignore` block. */
 const SET_UP = 'sync: github\nautomationsMac: mac-studio\nautomationsMacName: Studio';
 
 /** Where the hand clock, and the fake timers' clock in the tests that use them, start. */
@@ -628,8 +628,8 @@ describe('useSync, after the A29-01 review', () => {
     expect(settled).toBe(true);
   });
 
-  it('does not sync, commit or push a repository Atlas never set up, even with an origin', async () => {
-    // A vault kept with obsidian-git: its own repository, an origin, no Atlas marker.
+  it('does not sync, commit or push a repository DFAI never set up, even with an origin', async () => {
+    // A vault kept with obsidian-git: its own repository, an origin, no DFAI marker.
     const { hook, called } = setUpHook({
       fs: vaultFiles('theme: dark', { gitignore: '.obsidian/workspace.json\n' }),
     });
@@ -640,7 +640,7 @@ describe('useSync, after the A29-01 review', () => {
     expect(called('push')).toHaveLength(0);
   });
 
-  it('takes a vault for set up only with both of Atlas’s marks', async () => {
+  it('takes a vault for set up only with both of DFAI’s marks', async () => {
     const onlySettings = setUpHook({ fs: vaultFiles(SET_UP, { gitignore: null }) });
     const onlyIgnores = setUpHook({ fs: vaultFiles('theme: dark') });
     const both = setUpHook({ fs: vaultFiles(SET_UP) });
@@ -1086,7 +1086,7 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
   });
 
   it('waits, once sync is set up on a vault, for its first sync or look to complete', async () => {
-    // A repository Atlas has not set up: once set up, it reads as one that syncs.
+    // A repository DFAI has not set up: once set up, it reads as one that syncs.
     const { settings, fs } = settingsFile('automationsMac: mac-studio');
     let connected = false;
     const { hook } = setUpHook({

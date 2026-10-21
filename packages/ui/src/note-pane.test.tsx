@@ -591,7 +591,7 @@ describe('NotePane: adding a property never overwrites one the file already has'
     show({ typeName: 'task' });
     await userEvent.click(screen.getByRole('button', { name: 'Add a property' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Property name' }), 'type');
-    expect(screen.getByRole('alert').textContent).toMatch(/kept for Atlas/);
+    expect(screen.getByRole('alert').textContent).toMatch(/kept for DFAI/);
   });
 
   it('does not add over a key the file holds that no row shows', async () => {

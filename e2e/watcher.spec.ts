@@ -23,7 +23,7 @@ test('an edit still saves after the vault changes underneath', async ({ page }) 
   await expect(page.getByText('Unsaved')).toBeVisible();
 
   // Something else touches the vault — another app, a sync client, or the board
-  // writing a task file while Atlas is open.
+  // writing a task file while DFAI is open.
   await emitVaultChanged(page, ['other.md']);
   await page.waitForTimeout(300);
 

@@ -191,7 +191,7 @@ function meetingBody(raw: unknown): Fields {
   return Object.fromEntries(Object.entries(body).filter(([, value]) => value !== null));
 }
 
-/** The request as the mapper's fields: the names n8n's "Meeting fields for Atlas" node gives them. */
+/** The request as the mapper's fields: the names n8n's "Meeting fields for DFAI" node gives them. */
 function meetingFieldsOf(body: Fields): MeetingFields {
   return {
     source: requiredText(body, 'provider'),

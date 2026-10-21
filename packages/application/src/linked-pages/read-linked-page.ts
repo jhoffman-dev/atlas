@@ -60,7 +60,7 @@ const MODIFIED_KEY = 'modified';
 /**
  * What a Person, Company, Project, Area or Meeting page shows about itself,
  * and a Task or Decision of its meeting (P30-06): each section the domain
- * plans for the page's type, asked of the index as one bounded Atlas query in
+ * plans for the page's type, asked of the index as one bounded DFAI query in
  * which `this` is the page — never one per row — all at once. Nothing is read
  * from the note and nothing is written to it. A section that cannot be
  * answered says why and leaves the others standing. No sections for a type

@@ -162,7 +162,7 @@ describe('properties', () => {
     const properties = artifactProperties({
       url: ' https://claude.ai/artifact/a ',
       kind: 'deck',
-      project: 'Atlas',
+      project: 'DFAI',
       tags: ['#q3', 'sales', ' ', 'sales'],
       copy: { saved: createVaultPath('artifacts/a'), savedAt: '2026-09-25' },
     });
@@ -178,7 +178,7 @@ describe('properties', () => {
     expect(properties).toMatchObject({
       type: 'artifact',
       url: 'https://claude.ai/artifact/a',
-      project: '[[Atlas]]',
+      project: '[[DFAI]]',
       tags: ['q3', 'sales'],
     });
   });
@@ -196,8 +196,8 @@ describe('properties', () => {
   });
 
   it('links a project whether or not it came bracketed', () => {
-    expect(projectLink('[[Atlas]]')).toBe('[[Atlas]]');
-    expect(projectLink(' Atlas ')).toBe('[[Atlas]]');
+    expect(projectLink('[[DFAI]]')).toBe('[[DFAI]]');
+    expect(projectLink(' DFAI ')).toBe('[[DFAI]]');
     expect(projectLink('[[ ]]')).toBe('');
   });
 

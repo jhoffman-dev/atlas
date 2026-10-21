@@ -11,7 +11,7 @@ import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
  *
  * The second is meeting extraction (P29-05): when a meeting arrives, Claude
  * pulls its action items and decisions out as proposals. Its prompt is one
- * Atlas ships, written into the vault when the rule is saved.
+ * DFAI ships, written into the vault when the rule is saved.
  *
  * The third is "After a meeting" (#179, ADR-0036): the declared step, which
  * says `apply: mine` so the owner's own action items may become tasks, asks

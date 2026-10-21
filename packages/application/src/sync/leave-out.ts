@@ -46,9 +46,9 @@ export async function leaveOut({
 }
 
 /**
- * Atlas's own files the vault's `.gitignore` keeps out (issue #8): in
+ * DFAI's own files the vault's `.gitignore` keeps out (issue #8): in
  * `.atlas` on disk, and neither tracked nor listed by git as untracked.
- * Read with Atlas's excludes cleared, so only the person's lines count.
+ * Read with DFAI's excludes cleared, so only the person's lines count.
  */
 async function atlasIgnored({
   git,
@@ -65,7 +65,7 @@ async function atlasIgnored({
   return atlasPathsIgnored({ onDisk, inGit });
 }
 
-/** How deep `.atlas` is walked: far past any folder Atlas makes, and short of a link to a folder above. */
+/** How deep `.atlas` is walked: far past any folder DFAI makes, and short of a link to a folder above. */
 const MAX_ATLAS_DEPTH = 8;
 
 /** Every file under a folder, as the host lists them; a folder that cannot be listed holds none. */

@@ -38,7 +38,7 @@ function fakePort(overrides: Partial<GoogleCalendarPort> = {}): GoogleCalendarPo
 }
 
 describe('connectGoogleCalendar', () => {
-  it('asks the host for Atlas’s one scope with the client typed, trimmed', async () => {
+  it('asks the host for DFAI’s one scope with the client typed, trimmed', async () => {
     const port = fakePort();
 
     await connectGoogleCalendar({
@@ -93,24 +93,24 @@ describe('blockCalendars', () => {
         calendar('Zeta'),
         calendar('Mara Quill', { primary: true }),
         calendar('Team', { owned: false }),
-        calendar('Atlas blocks'),
+        calendar('DFAI blocks'),
       ],
     });
 
     const listed = await blockCalendars({ port, vault: VAULT });
 
-    expect(listed.map((each) => each.name)).toEqual(['Atlas blocks', 'Zeta']);
+    expect(listed.map((each) => each.name)).toEqual(['DFAI blocks', 'Zeta']);
   });
 });
 
 describe('createBlocksCalendar', () => {
-  it('makes the calendar under Atlas’s name for it', async () => {
+  it('makes the calendar under DFAI’s name for it', async () => {
     const port = fakePort();
 
     const made = await createBlocksCalendar({ port, vault: VAULT });
 
-    expect(port.createCalendar).toHaveBeenCalledWith({ vault: VAULT, name: 'Atlas blocks' });
-    expect(made.name).toBe('Atlas blocks');
+    expect(port.createCalendar).toHaveBeenCalledWith({ vault: VAULT, name: 'DFAI blocks' });
+    expect(made.name).toBe('DFAI blocks');
   });
 });
 

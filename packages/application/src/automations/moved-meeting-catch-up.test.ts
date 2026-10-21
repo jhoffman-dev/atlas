@@ -1,7 +1,7 @@
 /**
  * A meeting a `created` rule ran on, then moved — the #214 tidy takes let-in
  * meetings from `Inbox/Meetings` to their month, rewriting a link in one when
- * a note it links moved too. The catch-up when Atlas opens must not take it
+ * a note it links moved too. The catch-up when DFAI opens must not take it
  * for an arrival the rule missed: a `set` rule run again writes its value over
  * what the person changed since (found by adv-222).
  *
@@ -130,7 +130,7 @@ async function setUp() {
 }
 
 describe('a meeting the rule ran on, moved by the tidy', () => {
-  it('is not run on again when Atlas opens: what the person set stays', async () => {
+  it('is not run on again when DFAI opens: what the person set stays', async () => {
     const { vault, hear, arriveAndEdit, tidy, catchUp } = await setUp();
     await arriveAndEdit();
     await tidy();

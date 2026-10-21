@@ -30,7 +30,7 @@ function dialog(
     <NewArtifactDialog
       draft={{ ...DRAFT, ...draft }}
       kinds={KINDS}
-      projects={[{ value: 'Atlas', label: 'Atlas' }]}
+      projects={[{ value: 'DFAI', label: 'DFAI' }]}
       error={extra.error ?? null}
       saving={extra.saving ?? false}
       onChange={onChange}
@@ -56,8 +56,8 @@ describe('NewArtifactDialog', () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, url: 'https://claude.ai/artifact/a' });
     await userEvent.click(screen.getByRole('button', { name: 'Deck' }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, kind: 'deck' });
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'Atlas');
-    expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, project: 'Atlas' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'DFAI');
+    expect(onChange).toHaveBeenLastCalledWith({ ...DRAFT, project: 'DFAI' });
   });
 
   it('takes a dropped page, and a picked one', async () => {

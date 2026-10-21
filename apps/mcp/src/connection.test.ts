@@ -70,7 +70,7 @@ describe('resolveConnection', () => {
     expect(read).toEqual([MAC_FILE]);
   });
 
-  it("never falls back past a DFAI file it could not read: that error is the one to fix", async () => {
+  it('never falls back past a DFAI file it could not read: that error is the one to fix', async () => {
     const { src, read } = source({
       files: { [LEGACY_MAC_FILE]: file({ port: 1, token: TOKEN, version: 1, enabled: true }) },
       readFile: async (path) => {

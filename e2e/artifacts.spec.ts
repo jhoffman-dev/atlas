@@ -29,7 +29,7 @@ async function openVault(page: Page): Promise<{ vault: FakeVault; host: FakeHost
     await vault.write(`.atlas/${file}`, await readFile(new URL(file, REPO_ATLAS), 'utf8'));
   }
   await vault.write('.atlas/types/project.md', '---\nname: project\n---\n');
-  await vault.write('Atlas.md', '---\ntype: project\n---\n');
+  await vault.write('DFAI.md', '---\ntype: project\n---\n');
 
   const host = await installHost(page, vault);
   await page.goto('/');
@@ -72,13 +72,13 @@ test('a pasted claude.ai link becomes an artifact note in artifacts/, with only 
     ),
   ).toBeVisible();
   await dialog(page).getByRole('textbox', { name: 'Title' }).fill('Q3 review');
-  await dialog(page).getByRole('combobox', { name: 'Project' }).selectOption('Atlas');
+  await dialog(page).getByRole('combobox', { name: 'Project' }).selectOption('DFAI');
   await dialog(page).getByRole('button', { name: 'Save artifact' }).click();
 
   await expect.poll(() => vault.read('artifacts/Q3 review.md')).toContain(`url: ${LINK}`);
   const note = await vault.read('artifacts/Q3 review.md');
   expect(note).toContain('type: artifact');
-  expect(note).toMatch(/^project: ["']\[\[Atlas\]\]["']$/m);
+  expect(note).toMatch(/^project: ["']\[\[DFAI\]\]["']$/m);
   expect(note).not.toMatch(/^saved: \S/m);
 
   // The note opens, and says there is no copy yet — with the link one click away.
@@ -114,7 +114,7 @@ test('a dropped page is saved beside its note and shown in a sandboxed frame', a
   await expect(frame(page)).toHaveAttribute('sandbox', 'allow-scripts');
   const inside = page.frameLocator('iframe[title="Saved copy of Quarterly"]');
   await expect(inside.getByRole('heading', { name: 'Quarterly numbers' })).toBeVisible();
-  // Its own script ran, under the policy Atlas put first in its head.
+  // Its own script ran, under the policy DFAI put first in its head.
   await expect(inside.locator('#headline')).toHaveAttribute('data-ran', 'yes');
   await expect(inside.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);
 

@@ -58,14 +58,14 @@ describe('BoardView', () => {
         {...props}
         groupBy="project"
         columns={[
-          { value: '[[Atlas]]', label: 'Atlas', rows: [], tone: null },
+          { value: '[[DFAI]]', label: 'DFAI', rows: [], tone: null },
           { value: 'in review', label: 'in review', rows: [], tone: 'review' },
         ]}
       />,
     );
-    const atlas = screen.getByRole('region', { name: 'Atlas' });
+    const atlas = screen.getByRole('region', { name: 'DFAI' });
     expect(atlas.querySelector('.status-pill')).toBeNull();
-    expect(atlas.querySelector('.board__group-label')?.textContent).toBe('Atlas');
+    expect(atlas.querySelector('.board__group-label')?.textContent).toBe('DFAI');
     const review = screen.getByRole('region', { name: 'In review' });
     expect(review.querySelector('.status-pill--dot')?.getAttribute('data-tone')).toBe('review');
     expect(review.querySelector('.board__group-label')?.textContent).toBe('In review');

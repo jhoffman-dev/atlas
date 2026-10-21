@@ -2,7 +2,7 @@
  * Adversarial (P30-01, #214): what a note may be filed under. Filing only
  * links a note, so a project at the root named as one of the app's own
  * folders is a project like any other — and a note is still never filed
- * under one of Atlas's own files, or under a project still waiting itself.
+ * under one of DFAI's own files, or under a project still waiting itself.
  */
 import { describe, expect, it } from 'vitest';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
@@ -21,9 +21,9 @@ describe('filingRefusal — a project named as the Inbox or the Archive', () => 
     );
   });
 
-  it('still refuses a type file, which is one of Atlas’s own', () => {
+  it('still refuses a type file, which is one of DFAI’s own', () => {
     expect(filingRefusal({ path: path('.atlas/types/project.md'), type: 'project' })).toContain(
-      'Atlas’s own files',
+      'DFAI’s own files',
     );
   });
 });

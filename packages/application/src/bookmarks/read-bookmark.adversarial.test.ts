@@ -4,7 +4,7 @@ import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { readBookmark } from './read-bookmark.ts';
 
 /**
- * Adversarial probe of reading a bookmark's card (U-21): a link Atlas lets
+ * Adversarial probe of reading a bookmark's card (U-21): a link DFAI lets
  * the user switch to a card must not be drawn as a missing note.
  */
 describe('readBookmark of a link to a heading in the same note', () => {

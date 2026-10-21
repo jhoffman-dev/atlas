@@ -356,7 +356,7 @@ const MAX_QUERY_ROWS: usize = 5_000;
 /// written in a note anyone could have written.
 const MAX_QUERY_BYTES: usize = 16 * 1024 * 1024;
 
-const QUERY_TOO_LARGE: &str = "the result is larger than Atlas will read";
+const QUERY_TOO_LARGE: &str = "the result is larger than DFAI will read";
 
 /// How much work a query may do before it is stopped. SQLite counts virtual
 /// machine steps, so this is a budget rather than a clock — but it is enough to
@@ -2931,7 +2931,7 @@ ORDER BY m.type DESC, m.name, p.cid";
                 .clone()
         }
 
-        /// What an Atlas query (`compileAtlasQuery`) asks of every note: is this
+        /// What a DFAI query (`compileAtlasQuery`) asks of every note: is this
         /// one of the types listed? One key and one value of one note.
         const NOTES_OF_A_TYPE: &str = "SELECT n.path FROM files AS n
              WHERE EXISTS (SELECT 1 FROM props AS t
@@ -3070,7 +3070,7 @@ LIMIT ?"#;
             }
         }
 
-        /// How many rows a compiled Atlas query finds in an index holding
+        /// How many rows a compiled DFAI query finds in an index holding
         /// `notes`, asked as `index_query` asks it, budget and all.
         fn rows_found(
             notes: &[IndexedNote],

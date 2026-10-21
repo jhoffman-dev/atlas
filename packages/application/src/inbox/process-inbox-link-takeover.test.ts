@@ -16,7 +16,7 @@ const path = (raw: string): VaultPath => createVaultPath(raw);
 describe('filing a note whose name another note already answers to', () => {
   it('leaves [[Acme]] opening the note it opened before', async () => {
     const memory = memoryVault({
-      'Projects/Atlas.md': '---\ntype: project\nstatus: active\n---\n',
+      'Projects/DFAI.md': '---\ntype: project\nstatus: active\n---\n',
       // An older, different Acme; every [[Acme]] in the vault opens it ("Customers" < "Inbox").
       'Customers/Acme.md': '# Acme Holdings, the customer\n',
       'Notes/Call log.md': 'Spoke to [[Acme]] about renewal.\n',
@@ -50,7 +50,7 @@ describe('filing a note whose name another note already answers to', () => {
       ports,
       paths: [path('Inbox/Acme.md')],
       notePaths: before,
-      project: path('Projects/Atlas.md'),
+      project: path('Projects/DFAI.md'),
       today: '2026-10-14',
       updateLinks: true,
     });

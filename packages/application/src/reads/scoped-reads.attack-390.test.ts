@@ -116,7 +116,7 @@ describe('attack-390: Today and the weekly review hear what their rows show', ()
   });
 
   it('hears a project retitled or moved', () => {
-    expect(reaches(REVIEW_SCOPE, removed('Projects/Atlas.md', 'project'))).toBe(true);
+    expect(reaches(REVIEW_SCOPE, removed('Projects/DFAI.md', 'project'))).toBe(true);
   });
 
   it('hears a task that stops being a task (it leaves the list)', () => {
@@ -132,8 +132,8 @@ describe('attack-390: the Inbox’s rows hear what their pickers show', () => {
     // path, read with the list. Moving the project re-resolves the relation in the
     // index without changing the task's bytes, so only the project's news says so.
     const moved = [
-      removed('Projects/Atlas.md', 'project'),
-      added('Projects/Active/Atlas.md', 'project'),
+      removed('Projects/DFAI.md', 'project'),
+      added('Projects/Active/DFAI.md', 'project'),
     ];
     expect(reaches(INBOX_SCOPE, ...moved)).toBe(true);
   });
@@ -185,8 +185,8 @@ describe('attack-390: the window’s readers of a type', () => {
 
   it('reads the projects again when a project is archived (moved into the Archive)', () => {
     const archived = [
-      removed('Projects/Atlas.md', 'project'),
-      added('Archive/Projects/Atlas.md', 'project'),
+      removed('Projects/DFAI.md', 'project'),
+      added('Archive/Projects/DFAI.md', 'project'),
     ];
     expect(reaches(PROJECTS_SCOPE, ...archived)).toBe(true);
   });

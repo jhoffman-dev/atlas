@@ -27,7 +27,7 @@ function notionIdOfNote(text: string): string | null {
 
 /**
  * Every note in the vault, hidden files and folders left out as everywhere
- * in Atlas (ADR-0014), and the ones a Notion page is in, found by the
+ * in DFAI (ADR-0014), and the ones a Notion page is in, found by the
  * `notion_id` they carry wherever they were moved, renamed or archived —
  * the earlier, one-off import's notes too. A sync conflict's copy is no
  * note of its own.

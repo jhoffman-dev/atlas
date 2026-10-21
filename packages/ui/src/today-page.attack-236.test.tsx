@@ -20,7 +20,7 @@ await vi.hoisted(async () => {
 
 const TODAY = '2026-10-13';
 const NOW = Date.UTC(2026, 9, 13, 15);
-const ATLAS = createVaultPath('Projects/Atlas.md');
+const ATLAS = createVaultPath('Projects/DFAI.md');
 const path = (title: string) => createVaultPath(`Tasks/${title}.md`);
 
 const task = (title: string, fields: Partial<ReviewTask> = {}): ReviewTask => ({
@@ -52,7 +52,7 @@ const TASKS = [
     status: 'backlog',
     due: '2026-10-10',
     project: ATLAS,
-    projectTitle: 'Atlas',
+    projectTitle: 'DFAI',
   }),
   task('Call the bank'),
   task('Send the figures'),
@@ -99,7 +99,7 @@ describe('TodayPage busy (fieldset) — #236', () => {
   it('still opens a task’s project from its row while an action is under way', () => {
     render(<TodayPage {...props({ busy: true })} />);
     const row = screen.getByText('Renew the licence').closest('tr') as HTMLElement;
-    const project = within(row).getByRole('button', { name: 'Atlas' });
+    const project = within(row).getByRole('button', { name: 'DFAI' });
 
     expect(project.matches(':disabled')).toBe(false);
   });

@@ -349,12 +349,12 @@ function OwnerUnknown({ onOpenSettings }: { onOpenSettings: () => void }) {
     <aside
       className="notice-bar inbox__offer inbox__offer--warning"
       role="alert"
-      aria-label="Atlas can’t tell which action items are yours"
+      aria-label="DFAI can’t tell which action items are yours"
     >
       <Icon name="person" size={14} className="notice-bar__icon" />
       <div className="notice-bar__text">
         <p>
-          Atlas can’t tell which action items are yours, so meetings make no tasks for you. Add your
+          DFAI can’t tell which action items are yours, so meetings make no tasks for you. Add your
           name or your emails in Settings → Profile.
         </p>
       </div>

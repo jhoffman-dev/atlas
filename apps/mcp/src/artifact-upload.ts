@@ -4,9 +4,9 @@
  *
  * A page that fits is sent with the note in one request. One that does not —
  * and every other file of the copy — goes after it in chunks, each at the
- * offset the last one ended at, so Atlas can refuse a chunk that arrives
+ * offset the last one ended at, so DFAI can refuse a chunk that arrives
  * twice or out of order rather than write a broken file. Once the last file
- * is in, Atlas is asked to picture the copy for its thumbnail. This decides
+ * is in, DFAI is asked to picture the copy for its thumbnail. This decides
  * nothing about artifacts; it only cuts bytes to fit the pipe.
  */
 
@@ -34,7 +34,7 @@ export interface ArtifactUpload extends Omit<ApiSaveArtifactBody, 'html'> {
 export interface UploadedArtifact {
   readonly note: ApiNote;
   readonly files: readonly ApiArtifactFile[];
-  /** Why the copy has no thumbnail, when Atlas could not make one; absent when it could. */
+  /** Why the copy has no thumbnail, when DFAI could not make one; absent when it could. */
   readonly thumbnail?: string;
 }
 
@@ -71,7 +71,7 @@ export async function uploadArtifact(
 
 /**
  * The note once its copy is pictured — the thumbnail is its cover — or, when
- * Atlas cannot picture it (not on macOS, a page that never loads), the note
+ * DFAI cannot picture it (not on macOS, a page that never loads), the note
  * as it is and why. The copy is saved either way, so that is not an error.
  */
 async function withThumbnail(

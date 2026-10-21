@@ -1,10 +1,10 @@
 /**
- * What a note shared outside Atlas leaves behind (P32-07), by kind, in this
+ * What a note shared outside DFAI leaves behind (P32-07), by kind, in this
  * order. Nothing is left out without being named here, so whoever shares the
  * page can say what it lacks.
  */
 export const EXPORT_DROP_KINDS = [
-  /** A frontmatter key: a note's properties stay in Atlas. */
+  /** A frontmatter key: a note's properties stay in DFAI. */
   'property',
   /** Where a link went: its words are kept, but the note it opens is not on the page. */
   'link',
@@ -14,7 +14,7 @@ export const EXPORT_DROP_KINDS = [
   'missing-embed',
   /** An image in the vault, which the page cannot reach: its words are kept. */
   'image',
-  /** `^id`: names a block for Atlas and Obsidian alone. */
+  /** `^id`: names a block for DFAI and Obsidian alone. */
   'block-id',
   /** `<!-- … -->`: hidden in the note, and left off the page. */
   'comment',

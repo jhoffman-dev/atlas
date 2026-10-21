@@ -120,7 +120,7 @@ const VAULT = {
   // A namesake one folder down, which [[Acme]] would open once the root one is deeper.
   'Clients/Acme.md': '# Another Acme\n',
   // A note the tidy never moves, linking by body and by relation.
-  'Projects/Atlas.md':
+  'Projects/DFAI.md':
     '---\ntype: project\ncompany: "[[Acme]]"\n---\n\nFor [[Acme]], see [[Call Sam]] and [[Idea]].\n',
   // A let-in meeting in the older flat folder, and one still arriving there.
   'Inbox/Meetings/2026-09-29 Larkspur sync.md':
@@ -197,7 +197,7 @@ describe('tidying the vault (#214)', () => {
       ).toBe(true);
     }
     // The relation was rewritten, since [[Acme]] alone now opens Clients/Acme.md.
-    expect(vault.files.get('Projects/Atlas.md')).toContain('Companies/Acme');
+    expect(vault.files.get('Projects/DFAI.md')).toContain('Companies/Acme');
     expect(done.linksUpdated).toBeGreaterThan(0);
   });
 

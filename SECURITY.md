@@ -13,6 +13,6 @@ anything is made public.
 
 ## Supported versions
 
-Only the latest `main` is supported. Atlas is a local-first desktop app with no hosted
+Only the latest `main` is supported. DFAI is a local-first desktop app with no hosted
 service, so reports about the app itself, its local HTTP/MCP API, the sync path and the
 handling of stored secrets are all in scope.

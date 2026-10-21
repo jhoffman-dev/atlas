@@ -92,7 +92,7 @@ describe('loadSidebarCatalog', () => {
     expect(catalog.dashboards.map((one) => one.path)).toEqual(['.atlas/dashboards/Progress.md']);
   });
 
-  it('lists a saved Atlas query as a view, and among the queries its tabs offer', async () => {
+  it('lists a saved DFAI query as a view, and among the queries its tabs offer', async () => {
     const { index } = indexWith([]);
     const fs = atlasVault({
       '.atlas/views/Open work.md': noteWith({

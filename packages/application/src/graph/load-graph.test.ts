@@ -98,7 +98,7 @@ describe('readVaultGraph', () => {
 });
 
 describe('loadGraph', () => {
-  it('shows the vault without Atlas’s own notes by default', async () => {
+  it('shows the vault without DFAI’s own notes by default', async () => {
     const { graph, hidden } = await loadGraph({
       ...indexOf(vault),
       scope: { kind: 'vault' },

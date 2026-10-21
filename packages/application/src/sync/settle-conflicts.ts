@@ -58,8 +58,8 @@ export async function recordMerge({
  * of it — never by reading the file as text, so an image, a file that is not
  * UTF-8 or one of any size is copied as exactly as a note.
  *
- * A settings file of Atlas's own in `.atlas/` is first merged by its keys
- * (#233): one Atlas changed by itself on each Mac — a built-in type given
+ * A settings file of DFAI's own in `.atlas/` is first merged by its keys
+ * (#233): one DFAI changed by itself on each Mac — a built-in type given
  * the properties a newer build ships — is never left as a copy. Only one
  * whose two versions a person must reconcile is copied.
  *

@@ -31,7 +31,7 @@ const noteRow = (name: string): SidebarTreeRow => ({
   opensArchive: false,
 });
 
-const ROWS = ['Atlas', 'Budget', 'Garden', 'Harbour', 'Ledger', 'Orchard'].map(noteRow);
+const ROWS = ['DFAI', 'Budget', 'Garden', 'Harbour', 'Ledger', 'Orchard'].map(noteRow);
 
 /** Pages as the app hands it over: every handler, the sets and the editing made again on each render. */
 function tree({
@@ -128,8 +128,8 @@ describe('VaultTree — what one commit draws', () => {
   });
 
   it('draws the one row a note opened in', () => {
-    const view = render(tree({ open: ['Atlas.md'] }));
-    const drawn = drawnBy(() => view.rerender(tree({ open: ['Atlas.md', 'Ledger.md'] })));
+    const view = render(tree({ open: ['DFAI.md'] }));
+    const drawn = drawnBy(() => view.rerender(tree({ open: ['DFAI.md', 'Ledger.md'] })));
     expect(drawn.rows).toBe(1);
     expect(screen.getByRole('treeitem', { name: 'Ledger' }).getAttribute('aria-selected')).toBe(
       'true',

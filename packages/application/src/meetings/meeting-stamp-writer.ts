@@ -8,7 +8,7 @@ export type StampPorts = Pick<ArchivePorts, 'fs' | 'markdown'> & {
   readonly editors: Pick<ArchivePorts['editors'], 'state' | 'reload'>;
 };
 
-export const UNSAVED = 'It is open in Atlas with unsaved typing, so the import left it as it is.';
+export const UNSAVED = 'It is open in DFAI with unsaved typing, so the import left it as it is.';
 
 /**
  * Writes the import's keys into a note as it was read — refused if it changed

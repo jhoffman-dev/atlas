@@ -113,7 +113,7 @@ export function SelfEmailsForm({
   return (
     <>
       <p className="settings__lede">
-        Atlas knows you in a meeting by these addresses as well as by your name: an attendee at one
+        DFAI knows you in a meeting by these addresses as well as by your name: an attendee at one
         of them is you, and in a Granola meeting you own, “me” is written as <b>You</b>. Put one on
         each line, or separate them with commas; <code>Name &lt;address&gt;</code> works too.
       </p>

@@ -101,7 +101,7 @@ export function chatSystemPrompt({
   profile: ProfileState;
 }): string {
   const parts = [
-    'You are Claude, working inside Atlas, a local-first notes app. The person keeps their',
+    'You are Claude, working inside DFAI, a local-first notes app. The person keeps their',
     'notes, tasks, views and dashboards in a vault of markdown files. Answer briefly and in',
     `markdown. Today is ${today}.`,
     '',

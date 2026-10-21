@@ -24,7 +24,7 @@ async function openVault(page: Page): Promise<FakeVault> {
     '.atlas/types/project.md',
     note(['name: project', 'label: Project'], '# Project'),
   );
-  await vault.write('Projects/Atlas.md', note(['type: project'], 'For [[Acme]]: [[Call Sam]].'));
+  await vault.write('Projects/DFAI.md', note(['type: project'], 'For [[Acme]]: [[Call Sam]].'));
   // Loose at the root, each with a home to go to.
   await vault.write('Acme.md', note(['type: company'], 'The client.'));
   await vault.write('Call Sam.md', note(['type: task', 'date: 2026-09-15'], 'About the loan.'));
@@ -70,11 +70,11 @@ test('a meeting waits in the Inbox in its month’s folder, and filing it links 
   await expect(inbox.getByRole('button', { name: '2026-10-06 Larkspur sync' })).toBeVisible();
   await pickSuggestion(
     inbox.getByRole('combobox', { name: 'File 2026-10-06 Larkspur sync under' }),
-    'Atlas',
+    'DFAI',
   );
 
-  await expectFile(vault, MEETING).toMatch(/^project: "?\[\[Atlas\]\]"?$/m);
-  expect(await vault.exists('Projects/Atlas/2026-10-06 Larkspur sync.md')).toBe(false);
+  await expectFile(vault, MEETING).toMatch(/^project: "?\[\[DFAI\]\]"?$/m);
+  expect(await vault.exists('Projects/DFAI/2026-10-06 Larkspur sync.md')).toBe(false);
   await expect(inbox.getByRole('button', { name: '2026-10-06 Larkspur sync' })).toHaveCount(0);
 });
 
@@ -102,8 +102,8 @@ test('the tidy previews each move, moves nothing until asked, and keeps links op
   await expectFile(vault, 'Tasks/2026/09/Call Sam.md').toContain('About the loan.');
   expect(await vault.exists('Acme.md')).toBe(false);
   // [[Acme]] alone would now open Clients/Acme.md: the link was rewritten to keep opening the company.
-  await expectFile(vault, 'Projects/Atlas.md').toContain('[[Companies/Acme');
-  await expectFile(vault, 'Projects/Atlas.md').toContain('[[Call Sam]]');
+  await expectFile(vault, 'Projects/DFAI.md').toContain('[[Companies/Acme');
+  await expectFile(vault, 'Projects/DFAI.md').toContain('[[Call Sam]]');
   await expect(tidy.getByRole('status')).toHaveText(/moved 2 notes to their home folders/);
   await expect(tidy.getByRole('button', { name: 'Preview the tidy' })).toHaveCount(0);
 });

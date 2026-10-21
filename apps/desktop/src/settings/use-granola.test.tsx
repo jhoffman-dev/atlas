@@ -186,7 +186,7 @@ describe('useGranola', () => {
     const hook = renderGranola({ port });
     act(() => hook.result.current.saveKey(KEY));
     await waitFor(() =>
-      expect(hook.result.current.view.problem).toContain('The Keychain did not give Atlas'),
+      expect(hook.result.current.view.problem).toContain('The Keychain did not give DFAI'),
     );
     expect(hook.result.current.view.pending).toBe(false);
   });
@@ -195,7 +195,7 @@ describe('useGranola', () => {
     const { view } = renderGranola({
       pull: pullWith({ report: PULLED, lastPullAt: Date.UTC(2026, 9, 13, 16, 40) }),
     }).result.current;
-    expect(view.lastPull).toBe('3 new, 12 already in Atlas, 1 refused');
+    expect(view.lastPull).toBe('3 new, 12 already in DFAI, 1 refused');
     expect(view.lastPullAt).not.toBeNull();
     expect(view.notes).toEqual([
       {

@@ -27,7 +27,7 @@ describe('POST /v1/inbox/process', () => {
   it('links each note to its project and files it in its type’s home folder, the rest of it untouched', async () => {
     const api = apiFixture({
       files: {
-        'Projects/Atlas.md': PROJECT,
+        'Projects/DFAI.md': PROJECT,
         'Inbox/Call Sam.md': '---\ntype: task\n---\n\nAbout the  *lease*.\n',
         'Inbox/Meetings/Standup.md': 'Notes.\n',
       },
@@ -36,7 +36,7 @@ describe('POST /v1/inbox/process', () => {
     const response = await api.send(
       processInbox({
         paths: ['Inbox/Call Sam.md', 'Inbox/Meetings/Standup.md'],
-        project: 'Projects/Atlas.md',
+        project: 'Projects/DFAI.md',
       }),
     );
 
@@ -51,10 +51,10 @@ describe('POST /v1/inbox/process', () => {
       linksUpdated: 0,
     });
     const filed = api.files.get('Tasks/2026/09/Call Sam.md')?.text ?? '';
-    expect(filed).toContain('project: [[Atlas]]');
+    expect(filed).toContain('project: [[DFAI]]');
     expect(filed.endsWith('\nAbout the  *lease*.\n')).toBe(true);
     expect(api.files.has('Inbox/Call Sam.md')).toBe(false);
-    expect(api.files.get('Notes/2026/Standup.md')?.text).toContain('project: [[Atlas]]');
+    expect(api.files.get('Notes/2026/Standup.md')?.text).toContain('project: [[DFAI]]');
   });
 
   it('files under an area as readily as a project', async () => {
@@ -95,9 +95,9 @@ describe('POST /v1/inbox/process', () => {
     ['a project that is not a path', { paths: ['Inbox/Call.md'], project: '../Out.md' }],
     ['a project in .atlas', { paths: ['Inbox/Call.md'], project: '.atlas/types/project.md' }],
     ['a project that is not there', { paths: ['Inbox/Call.md'], project: 'Projects/Gone.md' }],
-    ['no paths', { paths: [], project: 'Projects/Atlas.md' }],
+    ['no paths', { paths: [], project: 'Projects/DFAI.md' }],
   ])('refuses %s as invalid, writing nothing', async (_, body) => {
-    const api = apiFixture({ files: { 'Projects/Atlas.md': PROJECT, 'Inbox/Call.md': 'c\n' } });
+    const api = apiFixture({ files: { 'Projects/DFAI.md': PROJECT, 'Inbox/Call.md': 'c\n' } });
     const response = await api.send(processInbox(body));
     expect(codeOf(response)).toBe('invalid');
     expect(api.writes).toEqual([]);
@@ -105,10 +105,10 @@ describe('POST /v1/inbox/process', () => {
 
   it('lists a note that is not in the Inbox, and files the rest', async () => {
     const api = apiFixture({
-      files: { 'Projects/Atlas.md': PROJECT, 'Plan.md': 'p\n', 'Inbox/Call.md': 'c\n' },
+      files: { 'Projects/DFAI.md': PROJECT, 'Plan.md': 'p\n', 'Inbox/Call.md': 'c\n' },
     });
     const response = await api.send(
-      processInbox({ paths: ['Plan.md', 'Inbox/Call.md'], project: 'Projects/Atlas.md' }),
+      processInbox({ paths: ['Plan.md', 'Inbox/Call.md'], project: 'Projects/DFAI.md' }),
     );
     expect(bodyOf(response)['failed']).toEqual([
       { path: 'Plan.md', reason: 'It is not in the Inbox.' },
@@ -117,7 +117,7 @@ describe('POST /v1/inbox/process', () => {
   });
 
   it('leaves a note being typed in where it is, never saving the typing', async () => {
-    const api = apiFixture({ files: { 'Projects/Atlas.md': PROJECT, 'Inbox/Call.md': 'c\n' } });
+    const api = apiFixture({ files: { 'Projects/DFAI.md': PROJECT, 'Inbox/Call.md': 'c\n' } });
     const flushed: (readonly VaultPath[])[] = [];
     api.deps = {
       ...api.deps,
@@ -129,7 +129,7 @@ describe('POST /v1/inbox/process', () => {
     };
 
     const response = await api.send(
-      processInbox({ paths: ['Inbox/Call.md'], project: 'Projects/Atlas.md' }),
+      processInbox({ paths: ['Inbox/Call.md'], project: 'Projects/DFAI.md' }),
     );
 
     expect(bodyOf(response)['failed']).toEqual([
@@ -142,13 +142,13 @@ describe('POST /v1/inbox/process', () => {
   it('never files a note over one already there: it is numbered', async () => {
     const api = apiFixture({
       files: {
-        'Projects/Atlas.md': PROJECT,
+        'Projects/DFAI.md': PROJECT,
         'Notes/2026/Call.md': 'older\n',
         'Inbox/Call.md': 'newer\n',
       },
     });
     const response = await api.send(
-      processInbox({ paths: ['Inbox/Call.md'], project: 'Projects/Atlas.md' }),
+      processInbox({ paths: ['Inbox/Call.md'], project: 'Projects/DFAI.md' }),
     );
     expect(bodyOf(response)['moves']).toEqual([
       { from: 'Inbox/Call.md', to: 'Notes/2026/Call 2.md' },
@@ -161,7 +161,7 @@ describe('PATCH /v1/notes/{path}/properties — a relation to a note of the wron
   const TYPE = '---\nname: task\nproperties: {}\n---\n';
   const files = {
     'Tasks/Call.md': '---\ntype: task\n---\n\nCall.\n',
-    'Projects/Atlas.md': PROJECT,
+    'Projects/DFAI.md': PROJECT,
     'People/Mara Quill.md': PERSON,
   };
   const patch = (set: Record<string, unknown>) => ({
@@ -191,7 +191,7 @@ describe('PATCH /v1/notes/{path}/properties — a relation to a note of the wron
 
   it('sets a project, and a note not written yet', async () => {
     const api = withTaskType();
-    expect((await api.send(patch({ project: '[[Atlas]]' }))).status).toBe(200);
+    expect((await api.send(patch({ project: '[[DFAI]]' }))).status).toBe(200);
     expect((await api.send(patch({ project: '[[Someday]]' }))).status).toBe(200);
   });
 
@@ -207,7 +207,7 @@ describe('GET /v1/inbox', () => {
       'Inbox/Call Sam.md': '---\ntype: task\n---\n',
       'Inbox/Meetings/Standup.md': '---\ntype: meeting\n---\n',
       'Inbox/Proposals/Send the file.md': '---\ntype: proposal\nkind: task\n---\n',
-      'Projects/Atlas.md': PROJECT,
+      'Projects/DFAI.md': PROJECT,
     };
     const api = apiFixture({
       files,

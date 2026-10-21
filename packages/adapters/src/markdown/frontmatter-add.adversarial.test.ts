@@ -55,7 +55,7 @@ describe('addToFrontmatterMap, given a key the map already holds under another s
   // YAML's duplicate-key check compares nodes, so `*k` (an alias of `tasks`),
   // `2024` (an int) and `true` (a bool) are not duplicates of the string keys
   // written after them — but every reader that turns the block into values
-  // (Atlas's index, its type parser) keeps only the last, so the person's own
+  // (DFAI's index, its type parser) keeps only the last, so the person's own
   // property is silently replaced. `expected` spreads `entries` over what was
   // held, so the read-back check agrees with the shadowed result.
   it.each([

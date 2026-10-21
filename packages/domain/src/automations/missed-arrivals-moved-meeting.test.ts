@@ -1,7 +1,7 @@
 /**
  * The #214 tidy moves let-in meetings from Inbox/Meetings into
  * Meetings/<YYYY>/<MM> — still where meeting files land — and rewrites a link
- * in one when a note it links moved too. The catch-up when Atlas opens
+ * in one when a note it links moved too. The catch-up when DFAI opens
  * (missedArrivals) must not take such a meeting for an arrival a `created`
  * rule never ran on: a `set` rule run again writes its value over whatever the
  * person changed since (found by adv-222).

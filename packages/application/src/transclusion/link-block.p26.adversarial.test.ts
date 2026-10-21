@@ -67,7 +67,7 @@ function vault(files: Record<string, string>, onRead: () => void = () => {}) {
 
 describe('anchorBlock hands back an id that names the block picked', () => {
   it('when an earlier block of the note already carries the same id', async () => {
-    // Duplicate ids come from copy and paste, in Atlas or in Obsidian.
+    // Duplicate ids come from copy and paste, in DFAI or in Obsidian.
     const { fs, files } = vault({ [plans]: 'Pack the tent ^dup\nBook the train ^dup\n' });
     const openNotes: BlockLinkPanes = { state: () => 'closed', reload: () => {} };
     const id = await anchorBlock({

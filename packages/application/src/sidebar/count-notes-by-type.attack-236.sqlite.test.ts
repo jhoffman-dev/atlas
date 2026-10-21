@@ -71,7 +71,7 @@ describe('countNotesByType against the per-type counting it replaced', () => {
     const index = indexOver({
       'Projects/Garden.md': { type: 'project', para: ['project', 'archive'] },
       'Projects/Shed.md': { type: 'project', para: 'archive' },
-      'Projects/Atlas.md': { type: 'project' },
+      'Projects/DFAI.md': { type: 'project' },
     });
     const names = ['project'];
 

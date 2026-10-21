@@ -102,7 +102,7 @@ describe('InboxRows — deciding one row (#217)', () => {
   });
   const NOTES = ['Larkspur sync', 'Ledger review', 'Payroll dry run', 'Quarter close'].map(note);
   // Kept the same lists while they say the same, as the app keeps them.
-  const FILING = [{ path: 'Projects/Atlas.md', title: 'Atlas' }];
+  const FILING = [{ path: 'Projects/DFAI.md', title: 'DFAI' }];
   const PEOPLE = [{ path: 'People/Mara Quill.md', title: 'Mara Quill' }];
 
   /** The page as the app hands it over: callbacks made again on every render of the app. */
@@ -118,7 +118,7 @@ describe('InboxRows — deciding one row (#217)', () => {
     const view = render(<InboxPage {...given(NOTES)} />);
     startCountingRenders();
     fireEvent.change(screen.getByRole('combobox', { name: 'File Larkspur sync under' }), {
-      target: { value: 'Projects/Atlas.md' },
+      target: { value: 'Projects/DFAI.md' },
     });
     // The write lands; the app renders again, the filed row gone and every callback new.
     await act(async () => {});

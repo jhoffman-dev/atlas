@@ -23,7 +23,7 @@ import type { MarkdownPort } from './ports.ts';
 
 /** A note as a Confluence page takes it (P32-07). */
 export interface NoteForConfluence {
-  /** The note's title, as its page in Atlas shows it: the page's title. */
+  /** The note's title, as its page in DFAI shows it: the page's title. */
   readonly title: string;
   /** The page's body, as markdown. */
   readonly markdown: string;
@@ -32,7 +32,7 @@ export interface NoteForConfluence {
 }
 
 /** What a property key reads as when the frontmatter holding it cannot be read at all. */
-export const UNREADABLE_FRONTMATTER = '(frontmatter Atlas cannot read)';
+export const UNREADABLE_FRONTMATTER = '(frontmatter DFAI cannot read)';
 
 /** What it reads as when the frontmatter is YAML but no map of properties: a list, a value, comments. */
 export const NOT_PROPERTIES = '(frontmatter that is not properties)';

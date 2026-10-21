@@ -81,7 +81,7 @@ describe('useGoogleCalendar', () => {
     expect(hook.result.current.view.canCreate).toBe(true);
   });
 
-  it('makes Atlas’s calendar and sends blocks to it', async () => {
+  it('makes DFAI’s calendar and sends blocks to it', async () => {
     const google = fakeGoogleCalendar();
     google.connected.set(VAULT, { connected: true, clientId: CLIENT_ID, scopes: [] });
     const { hook, vault } = renderGoogle({ google });
@@ -90,9 +90,9 @@ describe('useGoogleCalendar', () => {
     act(() => hook.result.current.create());
 
     await waitFor(() =>
-      expect(hook.result.current.view.chosen).toBe('atlas-blocks@group.calendar.example.com'),
+      expect(hook.result.current.view.chosen).toBe('dfai-blocks@group.calendar.example.com'),
     );
-    expect(vault.file.text).toContain('google_calendar: atlas-blocks@group.calendar.example.com');
+    expect(vault.file.text).toContain('google_calendar: dfai-blocks@group.calendar.example.com');
     expect(hook.result.current.view.canCreate).toBe(false);
   });
 
@@ -101,7 +101,7 @@ describe('useGoogleCalendar', () => {
     google.state.next = new GoogleCalendarError({
       kind: 'refused',
       code: 'access_denied',
-      message: 'Google did not let Atlas in',
+      message: 'Google did not let DFAI in',
     });
     const { hook } = renderGoogle({ google });
     await waitFor(() => expect(hook.result.current.view.phase).toBe('disconnected'));
@@ -148,8 +148,8 @@ describe('GoogleCalendarSettingsCard', () => {
   it('lists the dedicated calendar once connected, and disconnects from the card', async () => {
     const google = fakeGoogleCalendar([
       {
-        id: 'atlas-blocks@group.calendar.example.com',
-        name: 'Atlas blocks',
+        id: 'dfai-blocks@group.calendar.example.com',
+        name: 'DFAI blocks',
         primary: false,
         owned: true,
       },
@@ -157,7 +157,7 @@ describe('GoogleCalendarSettingsCard', () => {
     ]);
     google.connected.set(VAULT, { connected: true, clientId: CLIENT_ID, scopes: [] });
     const vault = vaultWithSettings(
-      '---\ngoogle_calendar: atlas-blocks@group.calendar.example.com\n---\n',
+      '---\ngoogle_calendar: dfai-blocks@group.calendar.example.com\n---\n',
     );
     function Card() {
       const setting = useGoogleCalendar({
@@ -172,7 +172,7 @@ describe('GoogleCalendarSettingsCard', () => {
     }
     render(<Card />, { wrapper: queryWrapper().wrapper });
 
-    expect(await screen.findByText('Connected. Blocks go to Atlas blocks.')).not.toBeNull();
+    expect(await screen.findByText('Connected. Blocks go to DFAI blocks.')).not.toBeNull();
     // Their main calendar is never offered for blocks.
     expect(screen.queryByRole('option', { name: 'Mara Quill' })).toBeNull();
 

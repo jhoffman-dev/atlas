@@ -180,9 +180,9 @@ async function runOnHeard(
 
 /**
  * Runs a rule set off by a note being created on the arrivals it never ran
- * on (ADR-0028, "Catching up when Atlas opens"): asked once when a vault
+ * on (ADR-0028, "Catching up when DFAI opens"): asked once when a vault
  * opens, on the Mac that runs its automations. An arrival is heard in memory,
- * so one let in just before Atlas was quit — or held back by the hour's cap,
+ * so one let in just before DFAI was quit — or held back by the hour's cap,
  * or let go — would otherwise wait for a run by hand for ever.
  *
  * It looks only where meeting files land, at meetings the import let in

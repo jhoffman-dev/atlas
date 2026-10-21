@@ -9,7 +9,7 @@ interface RuleClock {
   readonly log: readonly LogEntry[];
   readonly now: LocalTime;
   /**
-   * When Atlas started watching this vault: what a rule with nothing in its
+   * When DFAI started watching this vault: what a rule with nothing in its
    * log — written by hand, never run — counts its first run from.
    */
   readonly watchingSince: LocalTime;
@@ -20,7 +20,7 @@ interface RuleClock {
  *
  * `opening` is the one check made when a vault is opened: a rule that runs on
  * opening runs then and only then, and a scheduled rule that missed its time
- * while Atlas was closed catches up — once, because the run it makes becomes
+ * while DFAI was closed catches up — once, because the run it makes becomes
  * the mark its next time is counted from.
  */
 export function dueTrigger({

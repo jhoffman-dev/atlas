@@ -296,7 +296,7 @@ describe('newPropertyKey', () => {
     for (const typed of ['type', 'Type', 'atlas']) {
       const result = newPropertyKey(typed, []);
       expect(result.key).toBeNull();
-      expect(result.problem).toMatch(/kept for Atlas/);
+      expect(result.problem).toMatch(/kept for DFAI/);
     }
   });
 
@@ -314,7 +314,7 @@ describe('newPropertyKey', () => {
     for (const typed of ['title', 'path', 'summary', 'Modified']) {
       const result = newPropertyKey(typed, []);
       expect(result.key).toBeNull();
-      expect(result.problem).toMatch(/kept for Atlas/);
+      expect(result.problem).toMatch(/kept for DFAI/);
     }
   });
 });

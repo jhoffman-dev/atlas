@@ -69,7 +69,7 @@ export function isArtifactPage(name: string): boolean {
  * The name is relative to the copy's folder, with `/` between folders. Refused:
  * an empty or absolute name, a backslash, a control character, `.` or `..`, an
  * empty or hidden segment, more than four levels, any extension not in
- * `ARTIFACT_FILE_EXTENSIONS`, and the name Atlas keeps for the copy's
+ * `ARTIFACT_FILE_EXTENSIONS`, and the name DFAI keeps for the copy's
  * thumbnail, which a file of the page's own must never take.
  */
 export function artifactFileRefusal(name: string): string | null {
@@ -89,7 +89,7 @@ export function artifactFileRefusal(name: string): string | null {
   if (!(extensionOf(name) in MEDIA_TYPES)) {
     return `only ${ARTIFACT_FILE_EXTENSIONS.join(', ')} files can be saved`;
   }
-  if (isThumbnailName(name)) return `${ARTIFACT_THUMBNAIL} is kept for the thumbnail Atlas makes`;
+  if (isThumbnailName(name)) return `${ARTIFACT_THUMBNAIL} is kept for the thumbnail DFAI makes`;
   return null;
 }
 

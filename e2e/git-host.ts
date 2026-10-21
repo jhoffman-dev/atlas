@@ -203,7 +203,7 @@ export async function otherMac(stub: GitStub, remote: string, name: string) {
       await git('add', '--all');
       const committed = await git(
         '-c',
-        `user.name=Atlas on ${name}`,
+        `user.name=DFAI on ${name}`,
         '-c',
         'user.email=other@mac.local',
         'commit',
@@ -220,7 +220,7 @@ export async function otherMac(stub: GitStub, remote: string, name: string) {
       const branch = (await git('symbolic-ref', '--short', 'HEAD')).stdout.trim() || 'main';
       const pulled = await git(
         '-c',
-        `user.name=Atlas on ${name}`,
+        `user.name=DFAI on ${name}`,
         '-c',
         'user.email=other@mac.local',
         'pull',

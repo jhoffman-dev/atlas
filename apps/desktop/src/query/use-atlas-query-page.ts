@@ -15,7 +15,7 @@ import { QUERY_LAYOUT_CHOICES, useQueryKeeping } from './use-query-keeping.ts';
 import type { QueryPagePorts } from './use-query-page.ts';
 
 /**
- * A new Atlas query on the query page (P24-02): it starts as every note of
+ * A new DFAI query on the query page (P24-02): it starts as every note of
  * the vault's first type, in the builder, and can be saved as a view or added
  * to a dashboard. The panel's props, less the open state of its popovers.
  */

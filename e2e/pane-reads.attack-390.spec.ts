@@ -149,7 +149,7 @@ test.describe('attack-390: stale panes (failing on the PR head)', () => {
   test('an Inbox row’s File under picker follows its project moved by another program', async ({
     page,
   }) => {
-    const vault = await gtdVault({ path: 'Projects/Atlas.md', type: 'project' });
+    const vault = await gtdVault({ path: 'Projects/DFAI.md', type: 'project' });
     await open(page, vault);
     await goTo(page)
       .getByRole('button', { name: /^Inbox/ })
@@ -157,15 +157,15 @@ test.describe('attack-390: stale panes (failing on the PR head)', () => {
     const inbox = page.getByRole('article', { name: 'Inbox' });
     const fileUnder = inbox.getByRole('combobox', { name: 'File Call the bank under' });
     // The field shows the project the row holds by its title (#465).
-    await expect(fileUnder).toHaveValue('Atlas');
+    await expect(fileUnder).toHaveValue('DFAI');
 
-    await moveOutside(page, vault, 'Projects/Atlas.md', 'Projects/Active/Atlas.md');
-    // The choices heard it (INBOX_CHOICES_SCOPE holds project): Atlas is offered where it is now.
+    await moveOutside(page, vault, 'Projects/DFAI.md', 'Projects/Active/DFAI.md');
+    // The choices heard it (INBOX_CHOICES_SCOPE holds project): DFAI is offered where it is now.
     await fileUnder.click();
-    await expect(suggestion(fileUnder, 'Atlas')).toHaveAttribute('aria-label', /Active/);
+    await expect(suggestion(fileUnder, 'DFAI')).toHaveAttribute('aria-label', /Active/);
     await fileUnder.press('Escape');
-    // `[[Atlas]]` now resolves there, and the row holds the project where it is.
-    await expect(fileUnder).toHaveValue('Atlas');
+    // `[[DFAI]]` now resolves there, and the row holds the project where it is.
+    await expect(fileUnder).toHaveValue('DFAI');
   });
 
   test('Today drops a next action’s area group when another program deletes the area', async ({

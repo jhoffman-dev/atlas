@@ -12,7 +12,7 @@ import { pagePictureSrc } from './use-page-thumbnails.ts';
 export interface PageThumbnailState {
   /** The property it is kept under. */
   readonly key: string;
-  /** The picture it names or Atlas made; null for none (yet). */
+  /** The picture it names or DFAI made; null for none (yet). */
   readonly shown: string | null;
   readonly cleared: boolean;
   readonly generating: boolean;

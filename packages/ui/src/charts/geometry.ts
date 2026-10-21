@@ -5,7 +5,7 @@
  * functions with no React and no DOM. The components take the results and add
  * attributes to them.
  *
- * The geometry is `d3-shape` and `d3-scale` (ADR-0015). Atlas still renders its
+ * The geometry is `d3-shape` and `d3-scale` (ADR-0015). DFAI still renders its
  * own SVG, so the flat-fill look stays ours, and only the generators these four
  * functions are built on are imported rather than a charting library:
  *

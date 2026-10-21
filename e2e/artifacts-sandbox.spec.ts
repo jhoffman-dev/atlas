@@ -3,7 +3,7 @@ import { expect, test, type Page } from './fixtures.ts';
 import { createVault, installHost } from './host.ts';
 
 /*
- * Adversarial: a saved copy is a stranger's page. Atlas's policy, put first in
+ * Adversarial: a saved copy is a stranger's page. DFAI's policy, put first in
  * its head, is what keeps it from calling home — "a picture cannot be a
  * beacon". Each page here tries to load a picture from another site, then
  * marks itself done; the test waits for the mark and then counts what reached

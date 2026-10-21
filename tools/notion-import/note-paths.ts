@@ -91,7 +91,7 @@ function renamed(title: string, name: string): string[] {
  *
  * - where a note already holds its `notion_id`, wherever it was moved;
  * - nowhere, when the record says it was imported and its note is gone: it
- *   was deleted in Atlas (or hidden), and is not made again unless asked;
+ *   was deleted in DFAI (or hidden), and is not made again unless asked;
  * - a daily note at the app's own path, `<YYYY-MM-DD>.md` at the root,
  *   filling in the day's note when there is one;
  * - else a new path in its database's folder, numbered when the name is

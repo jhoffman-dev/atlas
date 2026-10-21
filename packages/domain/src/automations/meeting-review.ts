@@ -48,7 +48,7 @@ export function meetingReview(items: readonly CheckedProposal[]): CheckedProposa
         [TASK_MEETING_KEY]: `[[${meetingLink}]]`,
       },
       body: [
-        'Atlas was not sure enough to make these tasks. Make a task of each that is yours, and delete the rest.',
+        'DFAI was not sure enough to make these tasks. Make a task of each that is yours, and delete the rest.',
         '',
         ...items.map(reviewLine),
       ].join('\n'),

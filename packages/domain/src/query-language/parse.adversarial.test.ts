@@ -68,13 +68,13 @@ describe('a text value made of letters outside the Basic Multilingual Plane (adv
 
 describe('a link typed into the builder (adversarial)', () => {
   it('prints a typed link it could not read as text that reads back', () => {
-    // Why: valueFromInput keeps "|Atlas" whole when it names no note; printed as
-    // [[|Atlas]] it is refused by the tokenizer: "A link needs the name of a note".
+    // Why: valueFromInput keeps "|DFAI" whole when it names no note; printed as
+    // [[|DFAI]] it is refused by the tokenizer: "A link needs the name of a note".
     const project = queryableFields(QUERY_TEST_TYPES, ['task']).find(
       (field) => field.text === 'project',
     );
     if (project === undefined) throw new Error('no project field');
-    const value = valueFromInput(project, '=', '|Atlas');
+    const value = valueFromInput(project, '=', '|DFAI');
     expect(value).not.toBeNull();
     expect(() =>
       roundTrip({ field: 'project', op: '=', value, negated: false }, 'task'),

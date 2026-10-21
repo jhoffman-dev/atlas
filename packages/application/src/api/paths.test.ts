@@ -1,6 +1,6 @@
 /**
  * Which paths a request may name. This is the line between the API and the
- * rest of the disk, and between the API and Atlas's own configuration, so
+ * rest of the disk, and between the API and DFAI's own configuration, so
  * every way of stepping over it is tried — and none may reach the filesystem.
  */
 

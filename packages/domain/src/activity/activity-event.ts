@@ -18,7 +18,7 @@ import { withoutSecrets } from './without-secrets.ts';
 export const ACTIVITY_LEVELS = ['info', 'warning', 'error'] as const;
 export type ActivityLevel = (typeof ACTIVITY_LEVELS)[number];
 
-/** What part of Atlas a line is about, in the order the page's filters list them. */
+/** What part of DFAI a line is about, in the order the page's filters list them. */
 export const ACTIVITY_KINDS = [
   'automation',
   'source',

@@ -8,7 +8,7 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /**
  * A note as markdown for a Confluence page (P32-07), for Claude's Atlassian
- * connector to write: Atlas writes nothing, here or anywhere else. Its links
+ * connector to write: DFAI writes nothing, here or anywhere else. Its links
  * and shown blocks are read from user space alone, so nothing in `.atlas` or a
  * hidden folder reaches the page — a link there is shared as it is written.
  */

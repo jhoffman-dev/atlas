@@ -67,12 +67,12 @@ export function outsideArchiveSql(column: string): string {
 
 /** Why a note cannot be archived, or null when it can. */
 export function archiveRefusal(path: VaultPath): string | null {
-  if (isAtlasNote(path)) return 'Atlas keeps its own files where they are.';
+  if (isAtlasNote(path)) return 'DFAI keeps its own files where they are.';
   if (isArchivedPath(path)) return 'It is already archived.';
   if (!MARKDOWN.test(path)) return 'Only notes can be archived.';
   // The Archive adds a folder; past the walk's depth the note would drop out of sight.
   if (!isWithinWalk(joinVaultPath(ARCHIVE_DIRECTORY as VaultPath, path))) {
-    return 'It is too many folders deep: in the Archive, Atlas would no longer read it.';
+    return 'It is too many folders deep: in the Archive, DFAI would no longer read it.';
   }
   return null;
 }
@@ -85,7 +85,7 @@ export function unarchiveRefusal(path: VaultPath): string | null {
     isAtlasNote(implied) ||
     !isVisibleEntry({ kind: 'file', name: vaultPathName(implied), path: implied })
   ) {
-    return 'Out of the Archive it would be somewhere Atlas does not show.';
+    return 'Out of the Archive it would be somewhere DFAI does not show.';
   }
   return null;
 }
@@ -291,7 +291,7 @@ export interface ArchivedNote {
 
 const DAY = /^\d{4}-\d{2}-\d{2}/;
 
-/** The day in an `archived:` value: a date written by hand or by Atlas. */
+/** The day in an `archived:` value: a date written by hand or by DFAI. */
 export function archivedDay(value: unknown): string | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value.toISOString().slice(0, 10);

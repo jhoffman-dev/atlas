@@ -19,7 +19,7 @@ const MODIFIED_KEY = 'modified';
 /**
  * How many days a waiting-for has waited: since its file last changed, the
  * same measure the weekly review's "waiting for more than 7 days" uses
- * (ADR-0029) — Atlas keeps no "waiting since" key. Null when either day
+ * (ADR-0029) — DFAI keeps no "waiting since" key. Null when either day
  * cannot be read, or is one the calendar does not have; never less than
  * none, when a file is dated ahead of the clock.
  */

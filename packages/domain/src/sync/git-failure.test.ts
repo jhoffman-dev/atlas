@@ -14,7 +14,7 @@ describe('explainGitFailure', () => {
       "fatal: unable to access 'https://github.com/x/': Could not resolve host: github.com",
       'couldn’t be reached',
     ],
-    ['Atlas stopped git: it ran longer than 180s.', 'took too long'],
+    ['DFAI stopped git: it ran longer than 180s.', 'took too long'],
     [
       "remote: error: File big.zip is 150.00 MB; this exceeds GitHub's file size limit of 100.00 MB\nGH001: Large files detected.",
       '100 MB size limit',

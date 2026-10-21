@@ -31,7 +31,7 @@ use crate::vault::{root_for_write, VaultState};
 /// A model can take minutes to answer a long question.
 const MODEL_TIMEOUT: Duration = Duration::from_secs(300);
 
-const USER_AGENT: &str = concat!("Atlas/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("DFAI/", env!("CARGO_PKG_VERSION"));
 
 /// What came back, with every secret that went out struck from the body.
 #[derive(Debug, Serialize, PartialEq)]

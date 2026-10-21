@@ -5,9 +5,9 @@
  * One that fits in a chunk is sent whole. A larger one is sent as an upload:
  * the first chunk is answered with an upload id, every next chunk carries it
  * at the offset the last answer ended at, and the last says so — only then
- * does Atlas check the whole image and put it in place, under the name asked
+ * does DFAI check the whole image and put it in place, under the name asked
  * for, numbered when that is taken. Then, unless asked not to, the image's
- * markdown is appended to the note. Atlas checks the kind, the bytes and the
+ * markdown is appended to the note. DFAI checks the kind, the bytes and the
  * size, and says where it goes; this checks only what it reads from disk
  * (`local-image.ts`) and that nothing too large is sent at all.
  */
@@ -117,10 +117,10 @@ type ImageAnswer = { image: ApiNoteImage } | { upload: ApiImageUpload };
 
 function imageFrom(answer: ImageAnswer): ApiNoteImage {
   if ('image' in answer) return answer.image;
-  throw new AtlasCallError('Atlas did not say where it saved the image');
+  throw new AtlasCallError('DFAI did not say where it saved the image');
 }
 
 function uploadFrom(answer: ImageAnswer): ApiImageUpload {
   if ('upload' in answer) return answer.upload;
-  throw new AtlasCallError('Atlas did not start an upload for the image');
+  throw new AtlasCallError('DFAI did not start an upload for the image');
 }

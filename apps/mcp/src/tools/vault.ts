@@ -8,9 +8,9 @@ const READ_ONLY = { readOnlyHint: true } as const;
 
 export const status = defineTool({
   name: 'atlas_status',
-  title: 'Atlas status',
+  title: 'DFAI status',
   description:
-    'Check that Atlas is running and which vault it has open: ' +
+    'Check that DFAI is running and which vault it has open: ' +
     '{ app, version, vault, index, googleCalendar }. When "vault" is null no vault is open and ' +
     'every other tool fails with "no_vault". "googleCalendar" says only whether Google Calendar ' +
     'is connected ({ connected }); no tool reads or changes the calendar or sees a Google token. ' +
@@ -68,7 +68,7 @@ export const listTypeViews = defineTool({
   name: 'atlas_list_type_views',
   title: "List a type's views",
   description:
-    "List one type's views in the order its tabs read in Atlas: { type, views: [{ path, title, " +
+    "List one type's views in the order its tabs read in DFAI: { type, views: [{ path, title, " +
     'layout, order, virtual }], total, next }. "order" is the view\'s place (null when never ' +
     'placed; those read after the placed ones). When "next" is a number, pass it as "offset" for ' +
     'the next page. A type with no views answers its default table with "virtual": true — not a ' +

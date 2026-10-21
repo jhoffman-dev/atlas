@@ -140,7 +140,7 @@ describe('what a note’s pane is made from', () => {
     expect(scope.linkedNames).toEqual(['tobias fenn']);
   });
 
-  it('is any note for a typed note, a view or dashboard, Atlas’s own, or one with a query block', () => {
+  it('is any note for a typed note, a view or dashboard, DFAI’s own, or one with a query block', () => {
     const at = 'Notes/Recipes.md';
     expect(notePaneScope(plain('', { properties: { type: 'project' } }), at)).toEqual({
       anyNote: true,

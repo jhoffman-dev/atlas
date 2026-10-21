@@ -114,7 +114,7 @@ describe('a type file’s own folder', () => {
     ['a token it does not know', 'Tasks/{DD}'],
     ['a path out of the vault', '../Elsewhere'],
     ['an absolute path', '/Users/someone'],
-    ['Atlas’s own folder', '.atlas/tasks'],
+    ['DFAI’s own folder', '.atlas/tasks'],
     ['a hidden folder', 'Tasks/.hidden'],
     ['the Archive', 'Archive/Tasks'],
     ['the Archive in another case', 'archive'],

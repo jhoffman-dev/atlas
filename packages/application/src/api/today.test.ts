@@ -12,14 +12,14 @@ const DAY = 86_400_000;
 const note = (frontmatter: readonly string[]) => ['---', ...frontmatter, '---', ''].join('\n');
 
 const FILES = {
-  'Projects/Atlas.md': note(['type: project', 'status: active']),
+  'Projects/DFAI.md': note(['type: project', 'status: active']),
   'Projects/Garden.md': note(['type: project', 'status: active']),
   'People/Mara Quill.md': note(['type: person']),
   'Tasks/Late.md': note(['type: task', 'status: backlog', 'due: 2020-01-01']),
   'Tasks/Due.md': note(['type: task', 'status: next-action', `due: ${TODAY}`]),
   'Tasks/Back.md': note(['type: task', 'status: someday', `defer: ${TODAY}`]),
   'Tasks/Doing.md': note(['type: task', 'status: in-progress']),
-  'Tasks/Ship.md': note(['type: task', 'status: next-action', 'project: "[[Atlas]]"']),
+  'Tasks/Ship.md': note(['type: task', 'status: next-action', 'project: "[[DFAI]]"']),
   'Tasks/Loose.md': note(['type: task', 'status: next-action']),
   'Tasks/Later.md': note(['type: task', 'status: next-action', 'defer: 2999-01-01']),
   'Tasks/Quote.md': note(['type: task', 'status: waiting', 'waiting_on: [[Mara Quill]]']),
@@ -70,7 +70,7 @@ describe('GET /v1/today', () => {
       ['waiting', 1, ['Tasks/Quote.md']],
     ]);
     expect(sections[4]?.groups.map((group) => [group.label, group.project])).toEqual([
-      ['Atlas', 'Projects/Atlas.md'],
+      ['DFAI', 'Projects/DFAI.md'],
       [null, null],
     ]);
     expect(sections[5]?.groups[0]).toMatchObject({
@@ -92,7 +92,7 @@ describe('GET /v1/today', () => {
       ],
     });
     expect(today['today']).toBe(TODAY);
-    // Atlas has a next action; Garden has nothing next.
+    // DFAI has a next action; Garden has nothing next.
     expect(today['stalledProjects']).toBe(1);
     expect(today['inbox']).toEqual({ count: 1, toFile: 1, toAnswer: 0, more: false });
     expect(today['truncated']).toBe(false);

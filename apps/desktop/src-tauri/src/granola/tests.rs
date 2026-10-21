@@ -30,7 +30,7 @@ impl Setup {
         }
     }
 
-    /// With the key set in Atlas and honoured by the fake, and the request
+    /// With the key set in DFAI and honoured by the fake, and the request
     /// that checked it as it was set no longer counted among those heard.
     async fn keyed() -> Self {
         let setup = Self::new().await;
@@ -760,7 +760,7 @@ async fn a_refusal_heard_while_a_save_waits_on_the_keychain_stands_when_the_save
     assert_eq!(session().status().unwrap().last_refusal, Some(401));
 }
 
-/// A key kept before Atlas refused one it could not strike from an answer is
+/// A key kept before DFAI refused one it could not strike from an answer is
 /// not sent: the request is refused before it goes, and says what to do.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_key_kept_too_long_to_protect_is_refused_before_anything_is_sent() {

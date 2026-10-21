@@ -5,7 +5,7 @@ import { createVault, expectFile, installHost, sidebarSection, type FakeHost } f
 /**
  * Phase 27: Claude beside the work. The model is a stub — the e2e host's
  * Claude Code prints scripted replies as stream-json — so what is proved is
- * Atlas's side: the context it opens with, the tools it runs for the model,
+ * DFAI's side: the context it opens with, the tools it runs for the model,
  * and that a proposed edit writes nothing until Accept.
  */
 
@@ -259,7 +259,7 @@ const SECTION = [
   '',
   '```js\nconsole.log("hi");\n```',
   '',
-  'See [[Atlas Field Guide]]. ^mdtest01',
+  'See [[DFAI Field Guide]]. ^mdtest01',
   '',
   '#test #markdown',
 ].join('\n');

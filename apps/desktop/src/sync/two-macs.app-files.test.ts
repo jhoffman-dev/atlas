@@ -1,10 +1,10 @@
 /**
- * #233: what Atlas writes by itself into `.atlas/` as a vault opens never
+ * #233: what DFAI writes by itself into `.atlas/` as a vault opens never
  * comes back as a sync conflict because the vault was opened on another Mac.
  *
  * Two simulated Macs share one bare remote. Each runs the app's own launch
  * step for the vault's types (`ensureBuiltInTypes`, which gives the Meeting
- * type the properties Atlas ships and records them in
+ * type the properties DFAI ships and records them in
  * `.atlas/migrations/type-properties.md`) over its own clone, then the real
  * `syncNow` over real git. An older build is the same code with the
  * catalogue it shipped: Meeting without the summary keys (#183).
@@ -24,7 +24,7 @@ import { expectNoMarkers, TIMEOUT, twoMacs, vaultFsOf, type Mac } from './two-ma
 const MEETING = '.atlas/types/meeting.md';
 const RECORD = SHIPPED_PROPERTIES_RECORD_PATH as string;
 
-/** A Meeting type written before Atlas shipped any of its own keys on it. */
+/** A Meeting type written before DFAI shipped any of its own keys on it. */
 const OLD_MEETING = [
   '---',
   'name: meeting',

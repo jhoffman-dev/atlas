@@ -162,7 +162,7 @@ describe('loadAutomations', () => {
   });
 });
 
-describe('a ready-made rule whose prompt Atlas ships (P29-05)', () => {
+describe('a ready-made rule whose prompt DFAI ships (P29-05)', () => {
   const EXTRACTION = AUTOMATION_PRESETS.find((preset) => preset.action.kind === 'claude')!;
   const SHIPPED = builtInPromptAt(MEETING_EXTRACTION_PROMPT)!.contents;
 
@@ -215,7 +215,7 @@ describe('a ready-made rule whose prompt Atlas ships (P29-05)', () => {
     ).rejects.toThrow('disk full');
   });
 
-  it('writes it when a rule is edited to name it, and nothing for a prompt Atlas does not ship', async () => {
+  it('writes it when a rule is edited to name it, and nothing for a prompt DFAI does not ship', async () => {
     const vault = emptyVault();
     const own = {
       ...EXTRACTION,

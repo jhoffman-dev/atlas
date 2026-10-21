@@ -18,7 +18,7 @@ export type WikiLinkPiece =
 /**
  * Characters a link reads as its own syntax — a heading, a block, an alias,
  * the brackets — so a note whose name holds one cannot be linked to, in
- * Atlas or in Obsidian, which refuses them in a name for that reason.
+ * DFAI or in Obsidian, which refuses them in a name for that reason.
  */
 const LINK_SYNTAX = /[#^[\]|]/;
 

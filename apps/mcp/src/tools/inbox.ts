@@ -36,20 +36,20 @@ export const processInboxItem = defineTool({
   title: 'Process an Inbox note',
   description:
     "File a note from the Inbox under a project or an area, as the Inbox's Process does in " +
-    "Atlas: it moves into the project's folder (Projects/Atlas.md files into Projects/Atlas/), " +
-    'keeping its name, and gets project: "[[Atlas]]" linking it; links to it in other notes are ' +
+    "DFAI: it moves into the project's folder (Projects/DFAI.md files into Projects/DFAI/), " +
+    'keeping its name, and gets project: "[[DFAI]]" linking it; links to it in other notes are ' +
     'rewritten. Captured tasks wait in Inbox/ and imported meetings in Inbox/Meetings/ — list ' +
     'what waits with atlas_inbox. A proposal (type proposal, wherever it is) is refused: answer ' +
     'it with atlas_accept_proposal or atlas_reject_proposal. "project" must be a note of type project or ' +
     'area, still in use (not in the Inbox, not archived); anything else is refused before the ' +
     'note moves. Returns { moves: [{ from, to }], failed: [{ path, reason, code? }], ' +
-    'linksUpdated }: a note that could not be filed — not in the Inbox, or open in Atlas with ' +
+    'linksUpdated }: a note that could not be filed — not in the Inbox, or open in DFAI with ' +
     'unsaved typing (code "unsaved_in_app"), which is never saved for you — is listed in ' +
     '"failed" rather than moved.',
   inputSchema: z.object({
     path: notePath.describe('The note waiting in the Inbox, e.g. "Inbox/Call Sam.md".'),
     project: notePath.describe(
-      'The project or area to file it under, by its path, e.g. "Projects/Atlas.md".',
+      'The project or area to file it under, by its path, e.g. "Projects/DFAI.md".',
     ),
   }),
   // A move that filing elsewhere undoes, so not destructive; a second call finds nothing in the Inbox.
@@ -67,7 +67,7 @@ export const clarifyInboxItem = defineTool({
   name: 'atlas_clarify_inbox_item',
   title: 'Clarify an Inbox task',
   description:
-    "Decide what one item waiting in the Inbox is, as a row of Atlas's Inbox page does (GTD's " +
+    "Decide what one item waiting in the Inbox is, as a row of DFAI's Inbox page does (GTD's " +
     'clarify step). Everything given is written in ONE save of the note, the rest of the file ' +
     'kept byte for byte: status (inbox, backlog, next-action, in-progress, waiting, someday, ' +
     'longterm, archive), waitingOn (optional: the path of a note of type person), defer and ' +
@@ -83,7 +83,7 @@ export const clarifyInboxItem = defineTool({
     "an archived one; a status the vault's Task type does not declare is refused; waitingOn " +
     'is written only when the task is, or is being made, waiting. Returns { path, movedFrom, failed: [{ path, reason, code? }], linksUpdated }: ' +
     'path is where the note is now, movedFrom where it was if it was filed. A note open in ' +
-    'Atlas with unsaved typing is refused ("unsaved_in_app"); it is never saved for you. One ' +
+    'DFAI with unsaved typing is refused ("unsaved_in_app"); it is never saved for you. One ' +
     'that changed on disk while being clarified is "conflict": read it again and retry.',
   inputSchema: z.object({
     path: notePath.describe(
@@ -104,7 +104,7 @@ export const clarifyInboxItem = defineTool({
       .describe('The GTD status to give it.'),
     project: notePath
       .optional()
-      .describe('The project or area to file it under, by its path, e.g. "Projects/Atlas.md".'),
+      .describe('The project or area to file it under, by its path, e.g. "Projects/DFAI.md".'),
     waitingOn: notePath
       .nullable()
       .optional()

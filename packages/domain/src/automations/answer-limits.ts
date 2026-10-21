@@ -50,7 +50,7 @@ export function unknownKeyProblem(
 
 /**
  * Why `properties` are not properties a step may write, or null: few, named
- * as a rule would name them (none Atlas keeps), and each plain — text, a
+ * as a rule would name them (none DFAI keeps), and each plain — text, a
  * number, true or false, or a short list of text — and loading nothing.
  * Nothing nests: a note's frontmatter is not a document.
  */

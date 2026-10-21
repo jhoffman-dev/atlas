@@ -17,7 +17,7 @@ use super::grant::Grant;
 use crate::http::{read_capped, ReadFailure, MAX_RESPONSE_BYTES};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
-const USER_AGENT: &str = concat!("Atlas/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("DFAI/", env!("CARGO_PKG_VERSION"));
 
 /// Everything but RFC 3986's unreserved characters is escaped in a form value.
 const FORM_VALUE: &AsciiSet = &NON_ALPHANUMERIC
@@ -97,7 +97,7 @@ pub async fn answer_of(response: reqwest::Response) -> Result<(u16, Vec<u8>), Go
             .map_err(|failure| match failure {
                 ReadFailure::TooLarge => GoogleFailure::new(
                     FailureKind::Malformed,
-                    "Google's answer is larger than Atlas will read",
+                    "Google's answer is larger than DFAI will read",
                 ),
                 ReadFailure::Stopped(error) => unreachable(error),
             })?;

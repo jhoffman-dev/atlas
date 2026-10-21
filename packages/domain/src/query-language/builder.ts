@@ -297,7 +297,7 @@ export function valueFromInput(
   return { kind: 'text', text: typed, span };
 }
 
-/** The note a picked or typed link names: `Atlas` for `[[Atlas|the app]]` or `Atlas|the app`. */
+/** The note a picked or typed link names: `DFAI` for `[[DFAI|the app]]` or `DFAI|the app`. */
 function linkTarget(typed: string): string {
   const [piece] = splitWikiLinks(typed.startsWith('[[') ? typed : `[[${typed}]]`);
   return piece?.kind === 'wikiLink' && piece.target.trim() !== '' ? piece.target.trim() : typed;

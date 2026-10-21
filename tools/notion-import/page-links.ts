@@ -13,7 +13,7 @@ const nameOf = (target: string) => target.slice(target.lastIndexOf('/') + 1);
 
 /**
  * The page's body with each link to another page of the export written as a
- * wiki link to that page's note, so it opens in Atlas rather than pointing
+ * wiki link to that page's note, so it opens in DFAI rather than pointing
  * at a file that is not there. A link to a page this run does not know, an
  * image, and any other link are left exactly as written.
  */

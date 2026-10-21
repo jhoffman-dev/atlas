@@ -6,7 +6,7 @@ import type { KeyboardEvent } from 'react';
  * While a Japanese, Chinese or Korean IME is composing, Enter commits the
  * characters being composed; it is not the field's own Enter. Engines report
  * that two ways: Chromium and Firefox set `isComposing`, while WebKit — the
- * macOS webview Atlas runs in — ends the composition first and then sends the
+ * macOS webview DFAI runs in — ends the composition first and then sends the
  * Enter with `keyCode` 229, the code the IME reserves for keys it has handled.
  */
 export function isImeKey(event: KeyboardEvent): boolean {

@@ -30,8 +30,8 @@ describe('isTidyCandidate (#214)', () => {
     expect(isTidyCandidate(path('inbox/meetings/Older/2026-01-01 Sync.md'))).toBe(true);
   });
 
-  it('never looks at a note already in a folder, Atlas’s own, the Archive, or a file that is not a note', () => {
-    expect(isTidyCandidate(path('Projects/Atlas.md'))).toBe(false);
+  it('never looks at a note already in a folder, DFAI’s own, the Archive, or a file that is not a note', () => {
+    expect(isTidyCandidate(path('Projects/DFAI.md'))).toBe(false);
     expect(isTidyCandidate(path('Inbox/Call Sam.md'))).toBe(false);
     expect(isTidyCandidate(path('.atlas/views/Board.md'))).toBe(false);
     expect(isTidyCandidate(path('Archive/Inbox/Meetings/Old.md'))).toBe(false);
@@ -123,7 +123,7 @@ describe('tidyPlan', () => {
       note('Inbox/Meetings/Arriving.md', waiting),
       note('Inbox/Meetings/Broken.md', { ...waiting, atlas_import_outcome: 'error' }),
       note('Inbox/Meetings/Copy.md', { ...waiting, atlas_import_outcome: 'duplicate' }),
-      // From before Atlas imported: moved into a month's folder it would become an arrival.
+      // From before DFAI imported: moved into a month's folder it would become an arrival.
       note('Old sync.md', waiting),
     ]);
     expect(result.moves).toEqual([]);

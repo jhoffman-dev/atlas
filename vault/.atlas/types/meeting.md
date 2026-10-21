@@ -66,13 +66,13 @@ saying how it was settled — written into the file and nothing else changed
   copy is archived. Unarchiving it brings it back, and it is left alone.
 - `error` — it breaks the contract: `atlas_import_error` says why, with line
   numbers, and the file stays where it landed and shows in the Inbox. Fix it
-  and save: Atlas checks it again, takes the error out and stamps it
+  and save: DFAI checks it again, takes the error out and stamps it
   `imported`.
 
 A stamped file is never judged again, so editing, renaming or moving a
 meeting never brings the import back to it.
 
-## What Atlas fills in
+## What DFAI fills in
 
 `people`, `companies` and `project` are links, filled in when the meeting is
 linked to the vault — attendees to People, and the likely project — or by

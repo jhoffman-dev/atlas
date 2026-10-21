@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "MCP server that lets AI tools read and write an Atlas vault through the running app.",
+  "description": "MCP server that lets AI tools read and write a DFAI vault through the running app.",
   "bin": {
     "atlas-mcp": "./dist/main.js"
   },

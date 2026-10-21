@@ -75,7 +75,7 @@ describe('One Inbox — a proposal moved out of Inbox/Proposals by hand', () => 
   it('Process refuses a note that is a proposal by its type, wherever in the Inbox it sits', async () => {
     const MOVED = 'Inbox/Send Mara the payroll file.md';
     const memory = memoryVault({
-      'Projects/Atlas.md': '---\ntype: project\nstatus: active\n---\n\n# Atlas\n',
+      'Projects/DFAI.md': '---\ntype: project\nstatus: active\n---\n\n# DFAI\n',
       [MOVED]: '---\ntype: proposal\nkind: task\nstate: open\n---\n\nMara asked for it.\n',
     });
     const ports: ArchivePorts = {
@@ -95,14 +95,14 @@ describe('One Inbox — a proposal moved out of Inbox/Proposals by hand', () => 
       ports,
       paths: [path(MOVED)],
       notePaths: [...memory.files.keys()].map(path),
-      project: path('Projects/Atlas.md'),
+      project: path('Projects/DFAI.md'),
       today: TODAY,
     });
 
-    // "A proposal is answered, not filed": it must not become a filed note under Atlas.
+    // "A proposal is answered, not filed": it must not become a filed note under DFAI.
     expect(outcome.moves).toEqual([]);
     expect(memory.files.has(MOVED)).toBe(true);
-    expect(memory.files.has('Projects/Atlas/Send Mara the payroll file.md')).toBe(false);
+    expect(memory.files.has('Projects/DFAI/Send Mara the payroll file.md')).toBe(false);
   });
 });
 

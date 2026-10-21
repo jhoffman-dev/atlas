@@ -34,7 +34,7 @@ describe('notesInUseOfTypes', () => {
   const index = fakeIndexPort({
     notesOfType: async (type) =>
       ({
-        project: [{ path: 'Projects/Atlas.md', title: 'Atlas' }],
+        project: [{ path: 'Projects/DFAI.md', title: 'DFAI' }],
         area: [
           { path: 'Areas/Garden.md', title: 'Garden' },
           { path: 'Archive/Areas/Old.md', title: 'Old' },
@@ -45,7 +45,7 @@ describe('notesInUseOfTypes', () => {
 
   it('offers the notes of every type asked for, in that order, each with its type', async () => {
     expect(await notesInUseOfTypes({ index, types: ['project', 'area'] })).toEqual([
-      { path: 'Projects/Atlas.md', title: 'Atlas', type: 'project' },
+      { path: 'Projects/DFAI.md', title: 'DFAI', type: 'project' },
       { path: 'Areas/Garden.md', title: 'Garden', type: 'area' },
     ]);
   });
@@ -72,7 +72,7 @@ describe('notesInUseOfTypes, over PARA', () => {
     notesOfType: async (type) =>
       ({
         project: [
-          { path: 'Projects/Atlas.md', title: 'Atlas' },
+          { path: 'Projects/DFAI.md', title: 'DFAI' },
           { path: 'Garden.md', title: 'Garden' },
           { path: 'Manual.md', title: 'Manual' },
           { path: 'Old Plan.md', title: 'Old Plan' },
@@ -99,7 +99,7 @@ describe('notesInUseOfTypes, over PARA', () => {
 
   it('offers a task’s Project picker projects then areas: never a resource or an archived one', async () => {
     expect(await notesInUseOfTypes({ index: paraIndex, types: ['project', 'area'] })).toEqual([
-      { path: 'Projects/Atlas.md', title: 'Atlas', type: 'project' },
+      { path: 'Projects/DFAI.md', title: 'DFAI', type: 'project' },
       { path: 'Someday.md', title: 'Someday', type: 'project' },
       // Each group in the order its types are read: the Project type's notes, then the Area type's.
       { path: 'Garden.md', title: 'Garden', type: 'area' },
@@ -120,7 +120,7 @@ describe('notesInUseOfTypes, over PARA', () => {
       types: ['resource', 'project'],
     });
     expect(offered.map((note) => [note.title, note.type])).toEqual([
-      ['Atlas', 'project'],
+      ['DFAI', 'project'],
       ['Someday', 'project'],
       ['Manual', 'resource'],
     ]);
@@ -132,12 +132,12 @@ describe('notesInUseOfTypes, over PARA', () => {
         type === 'person'
           ? [{ path: 'People/Mara Quill.md', title: 'Mara Quill' }]
           : type === 'project'
-            ? [{ path: 'Projects/Atlas.md', title: 'Atlas' }]
+            ? [{ path: 'Projects/DFAI.md', title: 'DFAI' }]
             : [],
     });
     expect(await notesInUseOfTypes({ index: mixed, types: ['person', 'project'] })).toEqual([
       { path: 'People/Mara Quill.md', title: 'Mara Quill', type: 'person' },
-      { path: 'Projects/Atlas.md', title: 'Atlas', type: 'project' },
+      { path: 'Projects/DFAI.md', title: 'DFAI', type: 'project' },
     ]);
   });
 
@@ -145,6 +145,6 @@ describe('notesInUseOfTypes, over PARA', () => {
     const titles = (await notesInUseOfType({ index: paraIndex, type: 'project' })).map(
       (note) => note.title,
     );
-    expect(titles).toEqual(['Atlas', 'Garden', 'Manual', 'Someday']);
+    expect(titles).toEqual(['DFAI', 'Garden', 'Manual', 'Someday']);
   });
 });

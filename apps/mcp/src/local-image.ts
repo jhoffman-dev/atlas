@@ -7,11 +7,11 @@
  * gains. So it reads only what is plainly a picture the user put somewhere
  * pictures go: a file under one of the image folders (resolved through any
  * link), whose own extension is an image kind, whose bytes are that kind, and
- * no larger than Atlas takes. Anything else is one answer that says nothing
+ * no larger than DFAI takes. Anything else is one answer that says nothing
  * about whether the file is there.
  *
- * Atlas checks the image again as it arrives; this is the check on what the
- * server itself is willing to read. It cannot use Atlas's own rules — the
+ * DFAI checks the image again as it arrives; this is the check on what the
+ * server itself is willing to read. It cannot use DFAI's own rules — the
  * server may import only the API's types — so it keeps the few it needs here.
  */
 
@@ -20,7 +20,7 @@ import { homedir, tmpdir } from 'node:os';
 import { delimiter, extname, isAbsolute, join, sep } from 'node:path';
 import { AtlasCallError } from './client.ts';
 
-/** Settings → Images' limit, as Atlas sets it (MAX_IMAGE_BYTES). */
+/** Settings → Images' limit, as DFAI sets it (MAX_IMAGE_BYTES). */
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 /** The environment variable naming the folders images may be read from. */
@@ -51,7 +51,7 @@ const KINDS: Readonly<Record<string, (head: Buffer) => boolean>> = {
     head.toString('latin1', 0, 4) === 'RIFF' && head.toString('latin1', 8, 12) === 'WEBP',
   heic: isHeif,
   heif: isHeif,
-  // Markup whose root, past a prolog, is <svg>; Atlas checks the rest of it.
+  // Markup whose root, past a prolog, is <svg>; DFAI checks the rest of it.
   svg: (head) => /^\uFEFF?\s*(?:<[?!][^>]*>\s*)*<svg[\s/>]/.test(head.toString('utf8', 0, 1024)),
 };
 

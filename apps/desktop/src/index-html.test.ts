@@ -109,7 +109,7 @@ describe('index.html — reporting a failure to the host', () => {
     await turns(3);
 
     expect(warned).toEqual([
-      ['This error could not be reported to Atlas:', 'first @ main.js:7', refusal],
+      ['This error could not be reported to DFAI:', 'first @ main.js:7', refusal],
     ]);
   });
 

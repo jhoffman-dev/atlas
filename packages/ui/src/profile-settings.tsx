@@ -4,9 +4,9 @@ import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 
 /**
- * Settings → Profile: who uses this vault. Claude in Atlas writes this name
+ * Settings → Profile: who uses this vault. Claude in DFAI writes this name
  * wherever a note needs the person's, and writes a placeholder without one;
- * their addresses are how Atlas knows them in a meeting.
+ * their addresses are how DFAI knows them in a meeting.
  */
 export function ProfileSettings({
   name,
@@ -39,7 +39,7 @@ export function ProfileSettings({
   return (
     <SettingsSection section={SETTINGS_SECTIONS.profile}>
       <p className="settings__lede">
-        Claude in Atlas uses your name wherever a note needs it — an owner, an author, an attendee.
+        Claude in DFAI uses your name wherever a note needs it — an owner, an author, an attendee.
         It is kept in this vault’s settings, so every Mac that syncs the vault has it.
       </p>
       <div className="settings__row">

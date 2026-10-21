@@ -59,7 +59,7 @@ export interface WorkspaceImportOptions {
   readonly geminiDates?: GeminiDates;
   /** How a date written `10/06/2026` is read, meetings' included; left out, such a date is listed as unreadable. */
   readonly dateOrder?: DateOrder;
-  /** Makes again the notes of pages imported before whose notes were deleted in Atlas. */
+  /** Makes again the notes of pages imported before whose notes were deleted in DFAI. */
   readonly recreateDeleted?: boolean;
   /** Whether a note no run recorded importing (the earlier one-off import's) is filled in where it lacks a property; on unless turned off. */
   readonly fillUnrecorded?: boolean;
@@ -170,7 +170,7 @@ function typeWarnings(
     .filter((type) => !types.has(type))
     .map(
       (type) =>
-        `the vault declares no ${type} type: its notes are written with type: ${type}. Open the vault in Atlas first, which adds the types it builds in, or add the type.`,
+        `the vault declares no ${type} type: its notes are written with type: ${type}. Open the vault in DFAI first, which adds the types it builds in, or add the type.`,
     );
 }
 
@@ -313,7 +313,7 @@ async function setUp(options: WorkspaceImportOptions) {
  * meetings go first, so links to them name their notes; then every other
  * page is planned before anything is written, so each link names the note
  * it will open. A page already in the vault, by its `notion_id`, is brought
- * into step where Atlas has not changed it since the last run, and the run
+ * into step where DFAI has not changed it since the last run, and the run
  * records what it brought in so the next one can tell. Nothing is written
  * on a dry run. Every page comes back with what became of it.
  */

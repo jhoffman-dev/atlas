@@ -59,7 +59,7 @@ describe('dueTrigger', () => {
     ).toBeNull();
   });
 
-  it('counts a rule never run from when it was turned on, or else from when Atlas began watching', () => {
+  it('counts a rule never run from when it was turned on, or else from when DFAI began watching', () => {
     const turnedOn: LogEntry[] = [{ kind: 'turnedOn', at: '2026-09-26T14:00:00' }];
     const now = '2026-09-27T09:00:00';
     expect(dueTrigger({ rule: RULE, log: turnedOn, now, watchingSince: now, opening: true })).toBe(

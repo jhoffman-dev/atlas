@@ -53,7 +53,7 @@ const rowOf = (name: string) => {
 };
 
 describe('the Terms page', () => {
-  it('lists each term with its kind and the ways it is misheard, and says how many spellings Atlas knows', () => {
+  it('lists each term with its kind and the ways it is misheard, and says how many spellings DFAI knows', () => {
     renderPage();
     expect(screen.queryByText(/capitals included/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'New term' }));

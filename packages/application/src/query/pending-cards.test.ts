@@ -26,7 +26,7 @@ describe('cardAsMoved', () => {
   it('reads as the column it was dropped in, spelled as the column holds it', () => {
     expect(
       cardAsMoved({
-        values: { status: 'backlog', project: '[[Atlas]]' },
+        values: { status: 'backlog', project: '[[DFAI]]' },
         move: {
           column: { key: 'project', value: '[[Garden]]', kind: 'relation' },
           lane: null,

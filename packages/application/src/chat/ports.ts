@@ -32,7 +32,7 @@ export type ProviderStatus =
 export type ChatProviderId = 'claude-code' | 'anthropic-api';
 
 /**
- * A model Atlas can talk to (ADR-0021). Claude Code and the Anthropic API are
+ * A model DFAI can talk to (ADR-0021). Claude Code and the Anthropic API are
  * the two there are; a local model behind an OpenAI-compatible endpoint would
  * be a third, and nothing above the adapters would change.
  */

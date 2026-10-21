@@ -378,7 +378,7 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
  * say who its owner is (#181): no task can be known to be theirs, so none is made.
  */
 export const OWNER_UNKNOWN_WARNING =
-  'Atlas can’t tell which action items are yours, so it made no tasks: add your name or emails in Settings → Profile.';
+  'DFAI can’t tell which action items are yours, so it made no tasks: add your name or emails in Settings → Profile.';
 
 /**
  * What the declared step made of one meeting it read: its tasks, its
@@ -434,7 +434,7 @@ const SUMMARISED_ALREADY =
 /**
  * What the chat panel shows when the provider cannot be used, in one line.
  * The provider's words may name this machine's paths and are stripped; the
- * fix is Atlas's own command, and a URL in it is no path.
+ * fix is DFAI's own command, and a URL in it is no path.
  */
 function fixIt(status: Extract<ProviderStatus, { ready: false }>): string {
   const said = messageWithoutPaths(status.message);
@@ -519,7 +519,7 @@ async function askModel({
   counted,
 }: Asking & {
   notes: readonly AnsweredNote[];
-  /** What the output has Atlas say beside the notes. */
+  /** What the output has DFAI say beside the notes. */
   data?: readonly PromptData[];
   /** Told as the model is asked: not before the system prompt was found to fit. */
   counted: () => void;

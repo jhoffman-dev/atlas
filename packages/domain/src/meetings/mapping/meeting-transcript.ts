@@ -59,7 +59,7 @@ const WALL_TIME = /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/;
 /** A `^id`-shaped word, which the provider's words must not carry. */
 const INNER_ID = /(^|\s)\^([A-Za-z0-9-]+)(?=\s|$)/g;
 const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
-/** What providers call a speaker they could not name, and the vault's owner (as Atlas reads them). */
+/** What providers call a speaker they could not name, and the vault's owner (as DFAI reads them). */
 const PROVIDER_LABEL =
   /^(?:you|(?:(?:unknown|remote)(?: speaker)?|speaker|guest|participant)(?: (?:\d+|[a-z]))?)$/i;
 /**

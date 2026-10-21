@@ -107,7 +107,7 @@ async function writeBody(
   checkIfModified(path, modified, ifModified);
   const pane = request.openNotes.state(path);
   if (pane === 'dirty') {
-    throw new ApiError('unsaved_in_app', `${path} is open in Atlas with unsaved edits`);
+    throw new ApiError('unsaved_in_app', `${path} is open in DFAI with unsaved edits`);
   }
 
   const document = splitFrontmatter(text);

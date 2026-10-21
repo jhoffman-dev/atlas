@@ -22,7 +22,7 @@ export const QUERY_LAYOUT_CHOICES: readonly Choice<ViewLayout>[] = QUERY_VIEW_LA
 );
 
 /**
- * The two ways to keep an Atlas query (P24-04): as a view note, which the
+ * The two ways to keep a DFAI query (P24-04): as a view note, which the
  * sidebar lists and the tabs offer, or as a widget on a dashboard. Both keep
  * the text exactly as it is written, never a reprint of it.
  */

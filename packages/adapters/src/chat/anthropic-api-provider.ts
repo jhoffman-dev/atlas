@@ -106,7 +106,7 @@ async function* reply({
   yield* eventsOf(answer);
 }
 
-/** The request body, Atlas's conversation translated into the API's messages. */
+/** The request body, DFAI's conversation translated into the API's messages. */
 export function messagesBody(request: ModelRequest): Record<string, unknown> {
   return {
     model: request.model,

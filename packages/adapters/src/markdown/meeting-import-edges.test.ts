@@ -49,7 +49,7 @@ describe('frontmatter YAML cannot read is reported as such', () => {
   });
 });
 
-describe('a meeting edited in Atlas still follows the contract', () => {
+describe('a meeting edited in DFAI still follows the contract', () => {
   it('validates after a section heading is given a block id, as citing it writes one', () => {
     const { frontmatter, body } = splitFrontmatter(gemini);
     const parsed = parseMarkdownBody(body);

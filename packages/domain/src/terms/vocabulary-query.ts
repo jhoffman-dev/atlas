@@ -66,7 +66,7 @@ export interface VocabularyRow {
  * The terms, people and companies the rows describe, terms in the order of
  * their right spellings. A term's other spellings are its `variants`; a
  * person's or a company's are its `aliases`, which only link, and its
- * `variants`, which correct to its name as a term's do. A `kind` Atlas does
+ * `variants`, which correct to its name as a term's do. A `kind` DFAI does
  * not know is no kind.
  */
 export function vocabularySourcesOf(rows: readonly VocabularyRow[]): VocabularySources {

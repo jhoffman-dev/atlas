@@ -66,7 +66,7 @@ function readToken(text: string, at: number): Token {
   if (symbol !== undefined) {
     return { kind: 'symbol', text: symbol, span: { start: at, end: at + symbol.length } };
   }
-  throw new QueryTextError(`Atlas queries have no “${char}”.`, {
+  throw new QueryTextError(`DFAI queries have no “${char}”.`, {
     start: at,
     end: at + char.length,
   });

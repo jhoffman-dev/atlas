@@ -81,7 +81,7 @@ export function noteDay({
  * A home folder written in a type file, for a note of `day`: the tokens
  * filled in, or null when what is written cannot be a folder notes live in —
  * a token other than `{YYYY}` and `{MM}`, a path out of the vault, a folder
- * Atlas keeps for itself, a hidden one, the Archive, or one too deep to be
+ * DFAI keeps for itself, a hidden one, the Archive, or one too deep to be
  * read. A folder that cannot be used is never refused: the note goes where it
  * would have gone without one.
  */

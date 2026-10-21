@@ -25,9 +25,9 @@ export interface GoogleCalendarView {
   readonly calendars: readonly GoogleCalendarChoice[];
   /** The calendar blocks go to, while it is listed. */
   readonly chosen: string | null;
-  /** Whether to offer to make Atlas's calendar. */
+  /** Whether to offer to make DFAI's calendar. */
   readonly canCreate: boolean;
-  /** The name Atlas gives the calendar it makes. */
+  /** The name DFAI gives the calendar it makes. */
   readonly calendarName: string;
   readonly problem: GoogleCalendarProblem | null;
   readonly pending: boolean;
@@ -63,7 +63,7 @@ export function GoogleCalendarSettings({
     <SettingsSection section={SETTINGS_SECTIONS.googleCalendar}>
       <p className="settings__lede">
         Blocks show as busy on a calendar of their own on your Google account. You sign in in your
-        browser; the sign-in stays in this Mac’s Keychain, and Atlas can only see and change
+        browser; the sign-in stays in this Mac’s Keychain, and DFAI can only see and change
         calendars it made.
       </p>
       {view.phase === 'loading' && <p className="settings__lede">Checking…</p>}
@@ -217,7 +217,7 @@ function Connected({
       {confirming && (
         <div className="settings__confirm" role="group" aria-label="Disconnect Google Calendar?">
           <p className="settings__lede">
-            Atlas forgets the sign-in on this Mac and asks Google to revoke it. The calendar and its
+            DFAI forgets the sign-in on this Mac and asks Google to revoke it. The calendar and its
             events stay on your Google account.
           </p>
           <div className="settings__actions">

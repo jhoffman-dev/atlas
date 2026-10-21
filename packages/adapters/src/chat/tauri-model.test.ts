@@ -78,8 +78,8 @@ describe('tauriModelProcess', () => {
         signal: new AbortController().signal,
       });
     await expect(run()).rejects.toBeInstanceOf(ProgramNotFound);
-    invoke.mockRejectedValueOnce('the arguments are not ones Atlas runs claude with');
-    await expect(run()).rejects.toThrow('not ones Atlas runs');
+    invoke.mockRejectedValueOnce('the arguments are not ones DFAI runs claude with');
+    await expect(run()).rejects.toThrow('not ones DFAI runs');
     expect(unlisten).toHaveBeenCalledTimes(2);
   });
 });
