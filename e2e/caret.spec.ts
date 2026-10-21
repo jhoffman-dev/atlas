@@ -78,3 +78,42 @@ test('the caret still reaches the line when the editor puts its old caret back a
     page.getByLabel('Note', { exact: true }).getByRole('heading', { level: 1 }),
   ).toHaveText('Tables');
 });
+
+test('a caret beside a card, not in any line, is a miss to retry, never an error', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await vault.write('cards.md', '# Cards\n\n[[Rome]] <!-- atlas:bookmark -->\n\nPacking list.\n');
+  await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await page.getByRole('treeitem', { name: 'cards', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Bookmark: Rome' })).toBeVisible();
+  // After every key, the card is selected: the editor's caret then sits
+  // between top-level blocks, where there is no block to be in (depth 0).
+  await page.getByLabel('Note', { exact: true }).evaluate((editor) => {
+    const { commands, state } = (
+      editor as unknown as {
+        editor: {
+          commands: { setNodeSelection(pos: number): boolean };
+          state: {
+            doc: { forEach(visit: (node: { isTextblock: boolean }, at: number) => void): void };
+          };
+        };
+      }
+    ).editor;
+    let card = -1;
+    state.doc.forEach((node, at) => {
+      if (card === -1 && !node.isTextblock) card = at;
+    });
+    if (card === -1) throw new Error('the note has no card');
+    editor.addEventListener('keyup', () => commands.setNodeSelection(card));
+  });
+
+  const missed = await caretAtLineStart(page.getByText('Packing list.')).then(
+    () => null,
+    (error: unknown) => String(error),
+  );
+  expect(missed).toContain('"inLine": false');
+  expect(missed).not.toContain('RangeError');
+});
