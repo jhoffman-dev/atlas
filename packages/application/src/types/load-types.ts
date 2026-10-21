@@ -5,7 +5,7 @@ import {
   TYPES_DIRECTORY,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 

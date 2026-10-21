@@ -19,7 +19,7 @@ import {
   withManagedIgnores,
   type SyncReport,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import type { SettingsWriter } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

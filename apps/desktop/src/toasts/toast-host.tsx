@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from 'zustand';
-import { noticeReport } from '@atlas/domain';
-import type { ActivityLog } from '@atlas/application';
-import { ToastStack } from '@atlas/ui';
+import { noticeReport } from '@dfai/domain';
+import type { ActivityLog } from '@dfai/application';
+import { ToastStack } from '@dfai/ui';
 import type { Toasts, ToastsState } from './toasts.ts';
 
 /**

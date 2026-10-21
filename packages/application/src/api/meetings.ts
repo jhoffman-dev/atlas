@@ -7,7 +7,7 @@ import {
   readEventTime,
   createVaultPath,
   type MeetingFields,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   MeetingPathsTakenError,
   readMeetingSummaryStates,

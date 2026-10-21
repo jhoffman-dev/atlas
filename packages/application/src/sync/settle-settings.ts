@@ -4,7 +4,7 @@ import {
   journalEntryFor,
   type GitConflict,
   type JournalFile,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { blobOf, firstLine } from './git-steps.ts';

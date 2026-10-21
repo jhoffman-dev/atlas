@@ -15,14 +15,14 @@ import {
   type ObjectType,
   type QueryProblem,
   type ViewLayout,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   AtlasQueryError,
   runAtlasQuery,
   type AtlasQueryAnswer,
   type IndexPort,
-} from '@atlas/application';
-import type { ComposerMode, GroupedResultProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { ComposerMode, GroupedResultProps } from '@dfai/ui';
 import { errorMessage } from './error-message.ts';
 
 /** How the query was last opened in the editor: as dropdowns, or as text and why. */

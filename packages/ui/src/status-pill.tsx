@@ -4,7 +4,7 @@ import {
   optionLabel,
   STATUS_PROPERTY,
   type OptionColor,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { pillPaint } from './pill-paint.ts';
 
 /**

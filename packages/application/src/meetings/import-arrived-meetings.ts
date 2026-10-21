@@ -22,7 +22,7 @@ import {
   type MeetingImportHappening,
   type NoteChange,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityRecorder } from '../activity/ports.ts';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

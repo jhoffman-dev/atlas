@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { NO_LINK_HINTS, type LinkHints } from '@atlas/domain';
+import { NO_LINK_HINTS, type LinkHints } from '@dfai/domain';
 import type { RelationChoice } from '../properties-panel.tsx';
 
 /**

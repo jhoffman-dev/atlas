@@ -28,7 +28,7 @@ import {
   type VaultEntry,
   type VaultFile,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ThumbnailResult } from '../artifacts/artifact-thumbnail.ts';
 import type { PageSnapshotPort } from '../artifacts/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

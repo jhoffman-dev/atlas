@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { FEED_EXCERPT_BLOCKS, type BoardRow, type EditorDocument } from '@atlas/domain';
+import { FEED_EXCERPT_BLOCKS, type BoardRow, type EditorDocument } from '@dfai/domain';
 import { FeedView, type FeedBodies } from './feed-view.tsx';
 
 const paragraph = (text: string) => ({

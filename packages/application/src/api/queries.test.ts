@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { splitFrontmatter } from '@atlas/domain';
+import { splitFrontmatter } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf, encoded } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 

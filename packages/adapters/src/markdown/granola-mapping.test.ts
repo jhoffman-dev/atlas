@@ -7,7 +7,7 @@ import {
   splitFrontmatter,
   validateMeetingImport,
   type MeetingImport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*

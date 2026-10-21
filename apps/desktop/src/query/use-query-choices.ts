@@ -5,9 +5,9 @@ import {
   wikiLinkTargetFor,
   type ObjectType,
   type QueryField,
-} from '@atlas/domain';
-import { loadTagCounts, notesInUseOfType, type IndexPort } from '@atlas/application';
-import type { Choice } from '@atlas/ui';
+} from '@dfai/domain';
+import { loadTagCounts, notesInUseOfType, type IndexPort } from '@dfai/application';
+import type { Choice } from '@dfai/ui';
 
 const NONE: readonly string[] = [];
 

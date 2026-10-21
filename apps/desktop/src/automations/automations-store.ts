@@ -1,6 +1,6 @@
 import { createStore, useStore, type StoreApi } from 'zustand';
 import { shallow } from 'zustand/shallow';
-import { ownerNeededBy, type OwnerSettings } from '@atlas/domain';
+import { ownerNeededBy, type OwnerSettings } from '@dfai/domain';
 import type { useAutomations } from './use-automations.ts';
 
 /** The vault's automations as their runner holds them: the rules read, and the commands on them. */

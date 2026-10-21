@@ -1,4 +1,4 @@
-import { rowChecklistProgress } from '@atlas/domain';
+import { rowChecklistProgress } from '@dfai/domain';
 
 /**
  * How far through its checklist a note is (P30-03): a bar, and the share

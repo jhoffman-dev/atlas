@@ -14,8 +14,8 @@ import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { remarkMarkdown } from '@atlas/adapters';
-import { splitFrontmatter } from '@atlas/domain';
+import { remarkMarkdown } from '@dfai/adapters';
+import { splitFrontmatter } from '@dfai/domain';
 import {
   importNotionWorkspace,
   type PageOutcome,

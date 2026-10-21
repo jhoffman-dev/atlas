@@ -5,7 +5,7 @@ import {
   trailingBlockAnchor,
   type EditorNode,
   type ParsedBody,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { apiFixture, bodyOf, codeOf, encoded } from '../testing/api-fixture.ts';

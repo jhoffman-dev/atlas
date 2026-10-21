@@ -1,4 +1,4 @@
-import { newWidgetDraft, type WidgetDraft } from '@atlas/domain';
+import { newWidgetDraft, type WidgetDraft } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { applyDashboardEdit, dashboardChange, previewWidget } from './edit-dashboard.ts';

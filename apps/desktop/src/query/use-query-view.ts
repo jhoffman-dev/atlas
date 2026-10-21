@@ -11,14 +11,14 @@ import {
   type SidebarEntry,
   type ViewLayout,
   type ViewTab,
-} from '@atlas/domain';
-import type { OpenNote } from '@atlas/application';
+} from '@dfai/domain';
+import type { OpenNote } from '@dfai/application';
 import {
   useNoteNames,
   type AtlasQueryPanelProps,
   type GroupFolds,
   type QueryPanelFoldStore,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import { resultFor, useAtlasQuery } from './use-atlas-query.ts';

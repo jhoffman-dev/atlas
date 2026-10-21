@@ -22,8 +22,8 @@ import {
   type TodaySectionId,
   type TodayTask,
   type VaultPath,
-} from '@atlas/domain';
-import type { TodayReport } from '@atlas/application';
+} from '@dfai/domain';
+import type { TodayReport } from '@dfai/application';
 import { Icon } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';

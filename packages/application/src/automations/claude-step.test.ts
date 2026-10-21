@@ -18,7 +18,7 @@ import {
   type AutomationRule,
   type ClaudeAction,
   type LogEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ChatCancelled, ModelProviderError, type ModelEvent } from '../chat/ports.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';

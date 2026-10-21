@@ -8,8 +8,8 @@
  * Failing tests prove a bug; passing ones stay as guards.
  */
 import { describe, expect, it } from 'vitest';
-import { FrontmatterRefusedError } from '@atlas/application';
-import { KeyAsWritten } from '@atlas/domain';
+import { FrontmatterRefusedError } from '@dfai/application';
+import { KeyAsWritten } from '@dfai/domain';
 import { frontmatterKeyTexts, updateFrontmatter } from './frontmatter-write.ts';
 import { frontmatterProblem, parseFrontmatterProperties } from './frontmatter.ts';
 

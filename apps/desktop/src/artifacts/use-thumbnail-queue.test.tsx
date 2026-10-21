@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath, pageThumbnailPath, parseObjectType, type VaultPath } from '@atlas/domain';
-import { fakeVaultFs } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, pageThumbnailPath, parseObjectType, type VaultPath } from '@dfai/domain';
+import { fakeVaultFs } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { PaneEditors } from '../panes/open-editors.ts';
 import { thumbnailWroteVault, useThumbnailQueue } from './use-thumbnails.ts';
 

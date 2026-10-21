@@ -12,9 +12,9 @@ import {
   sidebarEntry,
   splitFrontmatter,
   statusMappingFor,
-} from '@atlas/domain';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import { countQuickViews, fakeIndexPort, fakeVaultFs, runAtlasQuery } from '@atlas/application';
+} from '@dfai/domain';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
+import { countQuickViews, fakeIndexPort, fakeVaultFs, runAtlasQuery } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*

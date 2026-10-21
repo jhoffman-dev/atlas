@@ -1,9 +1,4 @@
-import {
-  movedValue,
-  repeatingTaskUpdate,
-  type FieldKind,
-  type StatusProperty,
-} from '@atlas/domain';
+import { movedValue, repeatingTaskUpdate, type FieldKind, type StatusProperty } from '@dfai/domain';
 import type { CompletionRule, PropertyChanges } from './set-property.ts';
 
 /** A property a card was dropped into a new group of, and the group's value. */

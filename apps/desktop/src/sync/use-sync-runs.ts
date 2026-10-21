@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { SyncPhase, SyncReport } from '@atlas/domain';
+import type { SyncPhase, SyncReport } from '@dfai/domain';
 import {
   checkRemote,
   inspectSync,
@@ -12,7 +12,7 @@ import {
   type SyncFilesPort,
   type SyncSetup,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { errorMessage } from '../query/error-message.ts';
 import type { PullRecorder } from './use-pulled-files.ts';
 

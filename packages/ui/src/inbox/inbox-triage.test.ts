@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type InboxItem, type InboxTask } from '@atlas/domain';
+import { createVaultPath, type InboxItem, type InboxTask } from '@dfai/domain';
 import { asksWhoItWaitsOn, clarificationOf, rowAfter, rowAfterLeaving } from './inbox-triage.ts';
 
 const TASK: InboxTask = {

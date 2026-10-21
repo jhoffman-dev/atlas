@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { digestOf, type VaultPath } from '@atlas/domain';
+import { digestOf, type VaultPath } from '@dfai/domain';
 import {
   jsonLinesNote,
   proposalVault,

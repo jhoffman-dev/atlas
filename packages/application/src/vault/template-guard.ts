@@ -1,4 +1,4 @@
-import { templateEditRefusal } from '@atlas/domain';
+import { templateEditRefusal } from '@dfai/domain';
 
 /** A note flow was about to change a template; nothing was touched. */
 export class TemplateEditRefusedError extends Error {

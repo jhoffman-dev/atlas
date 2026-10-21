@@ -5,8 +5,8 @@
  * memory, so the second session cannot put it back.
  */
 import { describe, expect, it } from 'vitest';
-import { GTD_STATUS_PROPERTY, statusToRemember, type StatusProperty } from '@atlas/domain';
-import { doneChange } from '@atlas/application';
+import { GTD_STATUS_PROPERTY, statusToRemember, type StatusProperty } from '@dfai/domain';
+import { doneChange } from '@dfai/application';
 import { createTickMemory } from './tick-memory.ts';
 
 const STATUS: StatusProperty = {

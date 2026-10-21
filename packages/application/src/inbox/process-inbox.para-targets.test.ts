@@ -7,7 +7,7 @@
  * the same words, and the note waiting in the Inbox stays where it is.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

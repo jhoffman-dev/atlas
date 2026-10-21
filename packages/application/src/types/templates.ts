@@ -16,7 +16,7 @@ import {
   vaultPathDepth,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /** Where a vault keeps its note templates. */

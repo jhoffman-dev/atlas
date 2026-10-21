@@ -14,13 +14,13 @@ import {
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   createVaultPath,
   INBOX_QUERY_COLUMNS,
   PARA_VALUES_QUERY_MARK,
   TASK_TYPE_FILE,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 
 const NO_PARA = { columns: ['path', 'para'], rows: [], truncated: false };

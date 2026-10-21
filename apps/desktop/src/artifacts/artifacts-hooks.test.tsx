@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type VaultEntry } from '@dfai/domain';
 import {
   createThumbnailQueue,
   fakeIndexPort,
@@ -11,8 +11,8 @@ import {
   type ThumbnailJob,
   type VaultFsPort,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useArtifactCopy } from './use-artifact-copy.ts';
 import { useNewArtifact } from './use-new-artifact.ts';
 

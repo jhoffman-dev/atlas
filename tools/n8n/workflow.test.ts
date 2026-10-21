@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { mapMeeting, type MeetingFields } from '@atlas/domain';
+import { mapMeeting, type MeetingFields } from '@dfai/domain';
 import {
   mapMeetingScript,
   sameMeetingAtOtherPathScript,

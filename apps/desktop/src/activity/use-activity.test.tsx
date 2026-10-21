@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { ActivityReport } from '@atlas/domain';
-import { createActivityLog, memoryActivityStore } from '@atlas/application';
+import type { ActivityReport } from '@dfai/domain';
+import { createActivityLog, memoryActivityStore } from '@dfai/application';
 import type { ActivitySeenStore } from './browser-activity-seen-store.ts';
 import { useActivity } from './use-activity.ts';
 

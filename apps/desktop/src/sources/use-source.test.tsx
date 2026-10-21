@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createVaultPath, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type VaultEntry } from '@dfai/domain';
 import {
   recordingActivity,
   createSourceRefresher,
@@ -9,8 +9,8 @@ import {
   openNote,
   type OpenNote,
   type VaultFsPort,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useSource } from './use-source.ts';
 import type { SourcePorts } from './source-ports.ts';
 

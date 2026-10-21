@@ -12,7 +12,7 @@ import {
   type NoteNames,
   type PropertyDef,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { LinkedNote, useNoteNames } from '../note-names.tsx';
 import type { CreateRelated, RelationChoice } from '../properties-panel.tsx';

@@ -9,7 +9,7 @@ import {
   type CompiledAtlasQuery,
   type RowGroup,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { readNamedNotes } from '../graph/load-graph.ts';
 import { AtlasQueryError, runAtlasQuery, type AtlasQueryAnswer } from '../query/run-atlas-query.ts';
 import { loadObjectTypes } from '../types/load-types.ts';

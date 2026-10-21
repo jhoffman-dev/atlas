@@ -11,8 +11,8 @@ import {
   fakeVaultFs,
   recordingActivity,
   type ApiRouterDeps,
-} from '@atlas/application';
-import { remarkMarkdown, tauriApiBridge } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown, tauriApiBridge } from '@dfai/adapters';
 import { useLocalApi } from './use-local-api.ts';
 
 /**

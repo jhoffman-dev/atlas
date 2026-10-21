@@ -1,4 +1,4 @@
-import { createVaultPath, parentVaultPath, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, parentVaultPath, type VaultEntry } from '@dfai/domain';
 import {
   isEchoOf,
   noteSavedThrough,

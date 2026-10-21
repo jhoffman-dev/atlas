@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react';
-import { digestOf, type VaultPath } from '@atlas/domain';
-import type { NoteChanges, OpenNote } from '@atlas/application';
+import { digestOf, type VaultPath } from '@dfai/domain';
+import type { NoteChanges, OpenNote } from '@dfai/application';
 
 /** What of an editor the re-read reads, as it stands now. */
 export interface ReloadableNote {

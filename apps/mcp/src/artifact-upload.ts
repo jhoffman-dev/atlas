@@ -10,7 +10,7 @@
  * nothing about artifacts; it only cuts bytes to fit the pipe.
  */
 
-import type { ApiArtifactFile, ApiNote, ApiSaveArtifactBody } from '@atlas/application';
+import type { ApiArtifactFile, ApiNote, ApiSaveArtifactBody } from '@dfai/application';
 import { AtlasCallError, type AtlasClient } from './client.ts';
 
 /** Raw bytes per chunk: as base64 in JSON, well under the host's 1 MiB cap. */

@@ -1,4 +1,4 @@
-import type { ModelMessage, TemplatePart } from '@atlas/domain';
+import type { ModelMessage, TemplatePart } from '@dfai/domain';
 import {
   ChatCancelled,
   ModelProviderError,
@@ -7,7 +7,7 @@ import {
   type ModelRequest,
   type ProviderStatus,
   type SecretStorePort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /** The secret the key is kept under, and the one site it may go to (ADR-0017). */
 export const ANTHROPIC_SECRET = 'anthropic';

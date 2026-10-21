@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { replaceEqualDeep, useQuery } from '@tanstack/react-query';
-import { objectTypeIcon, type ObjectType, type QuickViewId } from '@atlas/domain';
+import { objectTypeIcon, type ObjectType, type QuickViewId } from '@dfai/domain';
 import {
   countNotesByType,
   countQuickViews,
@@ -11,8 +11,8 @@ import {
   type MarkdownPort,
   type SidebarCatalog,
   type VaultFsPort,
-} from '@atlas/application';
-import type { SidebarQuickView, SidebarType } from '@atlas/ui';
+} from '@dfai/application';
+import type { SidebarQuickView, SidebarType } from '@dfai/ui';
 import { vaultReadKey } from '../reads/query-client.ts';
 
 const NOTHING: SidebarCatalog = {

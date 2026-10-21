@@ -11,7 +11,7 @@ import {
   type ChatNoteEntry,
   type ChatNoteMessage,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createNoteFile } from '../notes/create-note.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { noteModified } from '../notes/note-modified.ts';

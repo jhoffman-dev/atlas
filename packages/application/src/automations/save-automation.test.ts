@@ -6,7 +6,7 @@ import {
   MEETING_EXTRACTION_PROMPT,
   parseRunLog,
   type AutomationDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { loadAutomations } from './load-automations.ts';
 import { runAutomation } from './run-automation.ts';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, EMPTY_PROFILE } from '@atlas/domain';
+import { createVaultPath, EMPTY_PROFILE } from '@dfai/domain';
 import type { ModelEvent } from './ports.ts';
 import { apiFixture, TODAY } from '../testing/api-fixture.ts';
 import { blockMarkdown } from '../testing/block-markdown.ts';

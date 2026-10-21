@@ -13,7 +13,7 @@ import {
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   createVaultPath,
   INBOX_LIST_LIMIT,
@@ -21,7 +21,7 @@ import {
   PARA_VALUES_QUERY_MARK,
   TASK_TYPE_FILE,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createToasts } from '../toasts/toasts.ts';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 

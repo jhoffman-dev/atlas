@@ -4,7 +4,7 @@ import {
   ModelProviderError,
   type ModelEvent,
   type ModelRequest,
-} from '@atlas/application';
+} from '@dfai/application';
 import { claudeCodeArgs, claudeCodeProvider } from './claude-code-provider.ts';
 import { ProgramNotFound, type ModelProcessHost, type ProcessExit } from './model-process.ts';
 

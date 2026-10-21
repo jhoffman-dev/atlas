@@ -59,18 +59,18 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // Before '@atlas/ui', which would otherwise claim it as a path inside its index file.
+      // Before '@dfai/ui', which would otherwise claim it as a path inside its index file.
       // A second entry point so the graph page, loaded lazily, keeps d3-force out of
       // the main bundle: the barrel is imported eagerly and everything it exports lands there.
-      '@atlas/ui/graph': fileURLToPath(
+      '@dfai/ui/graph': fileURLToPath(
         new URL('../../packages/ui/src/graph/index.ts', import.meta.url),
       ),
       // The same reader on the window's thread and in the worker, so both read a note alike.
       'decode-named-character-reference': entityTable,
-      '@atlas/domain': pkg('domain'),
-      '@atlas/application': pkg('application'),
-      '@atlas/adapters': pkg('adapters'),
-      '@atlas/ui': pkg('ui'),
+      '@dfai/domain': pkg('domain'),
+      '@dfai/application': pkg('application'),
+      '@dfai/adapters': pkg('adapters'),
+      '@dfai/ui': pkg('ui'),
     },
   },
   // Tauri drives the dev server, so the port is fixed and failures must be loud.
@@ -82,7 +82,7 @@ export default defineConfig({
     // Everything start-up loads in one chunk. Left alone, the bundler splits the code
     // the main chunk shares with a page loaded on first use (`pages-on-first-use.ts`)
     // into chunks of their own, which start-up then fetches anyway, compressed worse.
-    // The pages can leave the main chunk at all because @atlas/ui declares no side
+    // The pages can leave the main chunk at all because @dfai/ui declares no side
     // effects: its index file then no longer keeps every page it exports there.
     rolldownOptions: {
       output: { codeSplitting: { groups: [{ name: 'start', tags: ['$initial'] }] } },

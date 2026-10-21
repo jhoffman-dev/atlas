@@ -7,15 +7,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useEffect } from 'react';
-import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultEntry, type VaultPath } from '@dfai/domain';
 import {
   fakeClaudeStepPorts,
   fakeIndexPort,
   fakeVaultFs,
   type AutomationPorts,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useAutomations, type AutomationsOptions } from '../automations/use-automations.ts';
 import { createAutomationRelay, type WatchedVault } from './automation-relay.ts';
 

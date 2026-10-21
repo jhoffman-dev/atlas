@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, parseObjectType, type ObjectType } from '@atlas/domain';
+import { createVaultPath, parseObjectType, type ObjectType } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   openNote,
   type OpenNote,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import type { QueryPanelFoldStore } from '@atlas/ui';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import type { QueryPanelFoldStore } from '@dfai/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useQueryView } from './use-query-view.ts';
 

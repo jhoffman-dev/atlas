@@ -10,7 +10,7 @@ import {
   type EditorDocument,
   type EditorNode,
   type MeetingImportResult,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { frontmatterProblem, parseFrontmatterProperties } from './frontmatter.ts';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 

@@ -3,7 +3,7 @@
  * writes for a type that has none, through the real frontmatter writer.
  */
 import { describe, expect, it } from 'vitest';
-import { typeTemplateFrontmatter, type PropertyDef } from '@atlas/domain';
+import { typeTemplateFrontmatter, type PropertyDef } from '@dfai/domain';
 import { parseFrontmatterProperties } from './frontmatter.ts';
 import { updateFrontmatter } from './frontmatter-write.ts';
 

@@ -10,7 +10,7 @@ import {
   type SidebarSectionId,
   type SidebarTreeRow,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { FavoriteStar } from './favorite-star.tsx';
 import { Icon, sidebarGlyph, type IconName } from './icon.tsx';
 import { VaultTree, type TreeEditing } from './vault-tree.tsx';

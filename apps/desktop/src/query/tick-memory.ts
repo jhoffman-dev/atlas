@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createVaultPath, movedPath, type EntryMove } from '@atlas/domain';
+import { createVaultPath, movedPath, type EntryMove } from '@dfai/domain';
 
 /**
  * What each note's status was before its box was ticked, for as long as the

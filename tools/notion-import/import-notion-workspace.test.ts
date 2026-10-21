@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { remarkMarkdown } from '@atlas/adapters';
-import { createVaultPath, originOf, resolveWikiLinkTarget, splitFrontmatter } from '@atlas/domain';
+import { remarkMarkdown } from '@dfai/adapters';
+import { createVaultPath, originOf, resolveWikiLinkTarget, splitFrontmatter } from '@dfai/domain';
 import {
   importNotionWorkspace,
   type PageOutcome,

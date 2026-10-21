@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
-import { legendName } from '@atlas/domain';
-import type { WidgetBar } from '@atlas/application';
+import { legendName } from '@dfai/domain';
+import type { WidgetBar } from '@dfai/application';
 import { stackedSegments } from '../charts/geometry.ts';
 import { useNoteNames } from '../note-names.tsx';
 import { CountTable, swatchOf } from './count-table.tsx';

@@ -10,8 +10,8 @@ import {
   type MappingOptions,
   type MeetingFields,
   type MeetingImport,
-} from '@atlas/domain';
-import { countedWork } from '@atlas/domain/testing';
+} from '@dfai/domain';
+import { countedWork } from '@dfai/domain/testing';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*

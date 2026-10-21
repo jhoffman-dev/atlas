@@ -5,7 +5,7 @@ import {
   redateStrandedEdit,
   type StrandedEdit,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { UnstoredWork } from './unstored-work.ts';
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { CREATE_ATTEMPTS, createNote, NoteNameTakenError } from './create-note.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 

@@ -9,7 +9,7 @@ import {
   parentVaultPath,
   parseExcludes,
   type LeftOut,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { readIndex, readStatus } from './git-steps.ts';
 import type { GitPort, SyncFilesPort } from './ports.ts';

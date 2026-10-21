@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import type { QuerySort } from '@atlas/domain';
+import type { QuerySort } from '@dfai/domain';
 import { TableView, type TableResult } from './table-view.tsx';
 
 const result: TableResult = {

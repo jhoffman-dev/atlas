@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { withManagedIgnores } from '@atlas/domain';
+import { withManagedIgnores } from '@dfai/domain';
 import {
   failed,
   fakeSleepClock,
@@ -17,9 +17,9 @@ import {
   type GitPort,
   type GitResult,
   type GitScript,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { drained, settles } from '@atlas/ui/testing/settles';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { drained, settles } from '@dfai/ui/testing/settles';
 import { useSync, type SyncOptions } from './use-sync.ts';
 import { syncConflictNotice, syncIndicatorBadge, syncSettingsView } from './sync-view.ts';
 import { QUIT_SYNC_WAIT_MS, SYNC_TICK_MS } from './use-sync-schedule.ts';

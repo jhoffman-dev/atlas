@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, NO_LINK_HINTS, noteNames } from '@atlas/domain';
+import { createVaultPath, NO_LINK_HINTS, noteNames } from '@dfai/domain';
 import { NoteNamesProvider } from '../note-names.tsx';
 import { LinkHintsProvider } from './link-hints.tsx';
 import { optionNamed, suggestedTitles } from './link-suggest.test-support.ts';

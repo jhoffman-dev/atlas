@@ -5,7 +5,7 @@
  * note it opened, so no link changes what it opens (found by adv-222).
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, resolveWikiLinkTarget, type VaultPath } from '@atlas/domain';
+import { createVaultPath, resolveWikiLinkTarget, type VaultPath } from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

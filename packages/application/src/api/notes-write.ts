@@ -1,4 +1,4 @@
-import { appendToBody, joinFrontmatter, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import { appendToBody, joinFrontmatter, splitFrontmatter, type VaultPath } from '@dfai/domain';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';
 import { linkedTypeProblems } from '../types/linked-types.ts';
 import { loadObjectTypes, noteTypeName } from '../types/load-types.ts';

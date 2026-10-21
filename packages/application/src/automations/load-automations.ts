@@ -9,7 +9,7 @@ import {
   type BrokenAutomation,
   type HandledLedger,
   type LogEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { readRuleLog } from './automation-log.ts';

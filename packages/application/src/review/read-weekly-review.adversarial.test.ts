@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REVIEW_TASKS_QUERY_MARK, taskRuleChanges } from '@atlas/domain';
+import { REVIEW_TASKS_QUERY_MARK, taskRuleChanges } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { readWeeklyReview } from './read-weekly-review.ts';

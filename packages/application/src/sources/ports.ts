@@ -1,4 +1,4 @@
-import type { HttpRequest, SqliteRows } from '@atlas/domain';
+import type { HttpRequest, SqliteRows } from '@dfai/domain';
 
 /**
  * Fetching text from outside the vault.

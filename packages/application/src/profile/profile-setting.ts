@@ -1,4 +1,4 @@
-import { parseProfile, profileSettingsChanges, type Profile } from '@atlas/domain';
+import { parseProfile, profileSettingsChanges, type Profile } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings, type SettingsWriter } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

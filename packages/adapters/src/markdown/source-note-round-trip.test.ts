@@ -6,8 +6,8 @@ import {
   planRefresh,
   type Datasource,
   type ExistingSourceNote,
-} from '@atlas/domain';
-import { openNote, saveNote, fakeVaultFs } from '@atlas/application';
+} from '@dfai/domain';
+import { openNote, saveNote, fakeVaultFs } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /**

@@ -7,7 +7,7 @@ import {
   type CompiledQuery,
   type ReviewProject,
   type ReviewTask,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { listInbox, listVaultInbox } from '../inbox/list-inbox.ts';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

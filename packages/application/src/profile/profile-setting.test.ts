@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_PROFILE } from '@atlas/domain';
+import { EMPTY_PROFILE } from '@dfai/domain';
 import { createSettingsWriter } from '../settings/index.ts';
 import { jsonMarkdown, vaultWith } from '../testing/settings-vault.ts';
 import { loadProfile, saveProfile } from './profile-setting.ts';

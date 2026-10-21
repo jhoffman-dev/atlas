@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { durationLabel, type TaskSchedule, type TrayTask } from '@atlas/domain';
+import { durationLabel, type TaskSchedule, type TrayTask } from '@dfai/domain';
 import { planWords } from './drag/announcements.ts';
 import { trayDragId } from './drag/tray-drag.ts';
 

@@ -12,7 +12,7 @@ import {
   repeatsActivity,
   type ActivityEvent,
   type ActivityReport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import type { ActivityLog, ActivityNews, ActivityRecorder, ActivityStore } from './ports.ts';
 

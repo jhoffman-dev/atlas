@@ -3,7 +3,7 @@ import {
   DEFAULT_GLOBAL_CAPTURE_SHORTCUT,
   globalShortcutFromKeys,
   globalShortcutLabel,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 

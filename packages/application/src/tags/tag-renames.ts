@@ -5,7 +5,7 @@ import {
   tagKey,
   type TagCount,
   type TagRename,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { LinkUpdatePanes } from '../vault/update-links.ts';

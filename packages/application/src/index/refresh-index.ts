@@ -14,7 +14,7 @@ import {
   type NoteChange,
   type NoteVersion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { listVaultNoteFiles } from '../vault/read-vault.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

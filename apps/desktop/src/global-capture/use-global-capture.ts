@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { GlobalCapturePort, GlobalCaptureShortcut } from '@atlas/application';
+import type { GlobalCapturePort, GlobalCaptureShortcut } from '@dfai/application';
 import type { GlobalCaptureStore } from './browser-global-capture-store.ts';
 
 /** The global capture shortcut as Settings shows it, and a way to change it. */

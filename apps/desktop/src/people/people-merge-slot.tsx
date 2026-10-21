@@ -1,12 +1,12 @@
 import { memo, useMemo } from 'react';
 import { useStore } from 'zustand';
-import { noteTitle, type VaultPath } from '@atlas/domain';
+import { noteTitle, type VaultPath } from '@dfai/domain';
 import {
   MergePeopleDialog,
   PossibleDuplicatesDialog,
   type DuplicatesState,
   type MergeDialogState,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import type { MergeFlow, PeopleMergeCommands, PeopleMergeStore } from './people-merge.ts';
 import { duplicatePairView, mergePreviewView } from './people-merge-views.ts';
 

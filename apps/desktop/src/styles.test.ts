@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { STATUS_TONES } from '@atlas/domain';
+import { STATUS_TONES } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import {
   importedSections,

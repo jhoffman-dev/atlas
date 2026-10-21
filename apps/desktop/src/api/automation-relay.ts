@@ -1,5 +1,5 @@
-import type { LocalTime } from '@atlas/domain';
-import type { AutomationClock, AutomationPause } from '@atlas/application';
+import type { LocalTime } from '@dfai/domain';
+import type { AutomationClock, AutomationPause } from '@dfai/application';
 
 /** What the runner says of the vault it watches, as it is handed to the relay. */
 export interface WatchedVault {

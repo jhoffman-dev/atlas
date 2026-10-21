@@ -2,7 +2,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultEntry, type VaultPath } from '@dfai/domain';
 import {
   VaultAccessError,
   memoryActivityStore,
@@ -21,8 +21,8 @@ import {
   type VaultLocation,
   type VaultLocationStore,
   type VaultPickerPort,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { App, localToday } from './app.tsx';
 import { preloadPages } from './pages-on-first-use.ts';
 import type { VaultPorts } from './vault/use-vault.ts';
@@ -32,12 +32,12 @@ import type { ChatPorts } from './chat/use-chat.ts';
 import type { LocalApiPorts } from './api/use-local-api.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { createBrowserGlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
-import { startCountingRenders, stopCountingRenders } from '@atlas/ui/testing';
+import { startCountingRenders, stopCountingRenders } from '@dfai/ui/testing';
 
 // Before React loads, so every commit is handed to the counter. It counts
 // nothing until a test switches it on.
 await vi.hoisted(async () => {
-  const { installRenderCounter } = await import('@atlas/ui/testing');
+  const { installRenderCounter } = await import('@dfai/ui/testing');
   installRenderCounter();
 });
 

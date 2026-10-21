@@ -4,7 +4,7 @@ import {
   isUserSpaceNote,
   VAULT_ROOT,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ATLAS_FOLDER } from '../sidebar/load-catalog.ts';
 import { ApiError } from './api-error.ts';
 

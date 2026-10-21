@@ -1,5 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core';
-import { wikiLinkLabel } from '@atlas/domain';
+import { wikiLinkLabel } from '@dfai/domain';
 import { linkAttributes } from './link-attributes.ts';
 
 /**

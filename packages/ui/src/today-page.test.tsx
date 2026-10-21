@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, todayLists, type ReviewTask } from '@atlas/domain';
-import type { TodayReport } from '@atlas/application';
+import { createVaultPath, todayLists, type ReviewTask } from '@dfai/domain';
+import type { TodayReport } from '@dfai/application';
 import { TodayPage, todayActionWords, type TodayPageProps } from './today-page.tsx';
 
 /** #111: the Today page, drawn from a report the domain made on a fixed clock. */

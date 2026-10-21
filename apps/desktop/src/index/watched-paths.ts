@@ -5,7 +5,7 @@ import {
   isWithinWalk,
   vaultPathName,
   type VaultEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /** The watched path as a file entry, or null when it is not one a vault can hold. */
 function asFile(path: string): VaultEntry | null {

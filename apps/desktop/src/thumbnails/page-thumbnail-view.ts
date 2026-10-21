@@ -4,8 +4,8 @@ import {
   thumbnailValue,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
-import type { ThumbnailSnapshot } from '@atlas/application';
+} from '@dfai/domain';
+import type { ThumbnailSnapshot } from '@dfai/application';
 import { pagePictureSrc } from './use-page-thumbnails.ts';
 
 /** What a note's thumbnail row shows. */

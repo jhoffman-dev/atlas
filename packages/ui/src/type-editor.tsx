@@ -5,7 +5,7 @@ import {
   type ObjectType,
   type SidebarIcon,
   type TypeEdit,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { SortableList } from './sortable-list.tsx';

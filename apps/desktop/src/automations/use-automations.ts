@@ -12,7 +12,7 @@ import {
   type LocalTime,
   type LogEntry,
   type RunTrigger,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   adoptAutomations,
   AutomationLogError,
@@ -36,7 +36,7 @@ import {
   type RuleQueryPorts,
   type Clock,
   type VaultGuard,
-} from '@atlas/application';
+} from '@dfai/application';
 import { errorMessage } from '../query/error-message.ts';
 import type { PulledFilesGate } from '../sync/use-pulled-files.ts';
 

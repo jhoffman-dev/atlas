@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { createVaultPath } from '@atlas/domain';
-import { QUERY_SCOPE } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { QUERY_SCOPE } from '@dfai/application';
 import { hideOverlay, showOverlay, useWindowOverlay } from '../overlay-store.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { queryScreen } from '../pages-on-first-use.ts';

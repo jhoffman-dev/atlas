@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { mapGranolaNote } from '@atlas/domain';
+import { mapGranolaNote } from '@dfai/domain';
 
 /*
  * The mapper lives in the domain (#93) and is compiled from there into n8n's

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { backPlace, forwardPlace, type NavigationPlace, type TabId } from '@atlas/domain';
-import type { PageHistory } from '@atlas/ui';
+import { backPlace, forwardPlace, type NavigationPlace, type TabId } from '@dfai/domain';
+import type { PageHistory } from '@dfai/ui';
 import { goBackIn, goForwardIn, useTabHistory, type WorkspaceStore } from './workspace-store.ts';
 
 /**

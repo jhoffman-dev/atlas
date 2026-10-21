@@ -11,7 +11,7 @@ import {
   type PriorValue,
   type ProjectBackfillRow,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { changeProperties, type PropertyChange } from '../automations/apply-changes.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { loadLinkDirectory } from './link-directory.ts';

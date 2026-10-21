@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FileChangedError, ProgramMissingError } from '@atlas/application';
+import { FileChangedError, ProgramMissingError } from '@dfai/application';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));

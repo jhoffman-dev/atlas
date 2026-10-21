@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ActivityLog, ApiConnectionStatus, ApiSettingsPort } from '@atlas/application';
-import type { ConnectionSettingsState } from '@atlas/ui';
+import type { ActivityLog, ApiConnectionStatus, ApiSettingsPort } from '@dfai/application';
+import type { ConnectionSettingsState } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { ClipboardWriter } from './clipboard.ts';
 

@@ -19,7 +19,7 @@ import {
   WEEKDAY_LABELS,
   type CalendarDay,
   type CalendarEvent,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { AddCard } from './board-card.tsx';
 import { pieceId, pieceOf, type CalendarGestures } from './calendar-gestures.ts';
 import { CalendarStatusDot } from './calendar-status-dot.tsx';

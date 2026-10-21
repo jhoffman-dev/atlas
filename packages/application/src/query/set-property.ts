@@ -1,4 +1,4 @@
-import { createVaultPath, repeatingTaskUpdate, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, repeatingTaskUpdate, splitFrontmatter } from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';

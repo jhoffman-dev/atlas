@@ -1,5 +1,5 @@
-import { createVaultPath } from '@atlas/domain';
-import type { NoteNames, VaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
+import type { NoteNames, VaultPath } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { LinkCombobox } from './link-suggest/link-combobox.tsx';
 import type { CreateLink } from './link-suggest/link-suggestions.tsx';

@@ -2,8 +2,8 @@
 /** P31-01: a task's page reads its schedule, and reads it again when the index changes. */
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { fakeIndexPort, type DefinedType } from '@atlas/application';
-import { createVaultPath, GTD_STATUS_PROPERTY } from '@atlas/domain';
+import { fakeIndexPort, type DefinedType } from '@dfai/application';
+import { createVaultPath, GTD_STATUS_PROPERTY } from '@dfai/domain';
 import { useTaskSchedule } from './use-task-schedule.ts';
 
 const REPORT = createVaultPath('tasks/Report.md');

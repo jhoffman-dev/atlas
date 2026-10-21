@@ -5,7 +5,7 @@ import {
   compileLinkHoldersQuery,
   compileTagCountsQuery,
   type GraphQueryPart,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { memoryIndexPort } from './memory-index.ts';
 import { sqliteIndexPort } from './sqlite-index.ts';

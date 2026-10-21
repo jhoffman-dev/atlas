@@ -1,4 +1,4 @@
-import { splitFrontmatter, withLinesAfterContract, type VaultPath } from '@atlas/domain';
+import { splitFrontmatter, withLinesAfterContract, type VaultPath } from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

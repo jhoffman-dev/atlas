@@ -7,7 +7,7 @@ import {
   type NoteMigration,
   type PropertyDef,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { OpenNotes } from '../api/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

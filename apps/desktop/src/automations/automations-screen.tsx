@@ -4,9 +4,9 @@ import {
   createVaultPath,
   PROPOSAL_SCHEMAS,
   type VaultPath,
-} from '@atlas/domain';
-import type { ActivityLog, AutomationPorts, Clock, RuleQueryPorts } from '@atlas/application';
-import { AutomationEditor, AutomationsPage, QueryComposer, type PageHistory } from '@atlas/ui';
+} from '@dfai/domain';
+import type { ActivityLog, AutomationPorts, Clock, RuleQueryPorts } from '@dfai/application';
+import { AutomationEditor, AutomationsPage, QueryComposer, type PageHistory } from '@dfai/ui';
 import { automationRows, logViews } from './automation-rows.ts';
 import { useAutomationEditor } from './use-automation-editor.ts';
 import type { useAutomations } from './use-automations.ts';

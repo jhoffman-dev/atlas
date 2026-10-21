@@ -1,4 +1,4 @@
-import { AtlasQueryPanel, ViewSaveControls, ViewTabs, type OverlaySlots } from '@atlas/ui';
+import { AtlasQueryPanel, ViewSaveControls, ViewTabs, type OverlaySlots } from '@dfai/ui';
 import type { QueryViewState } from '../query/use-query-view.ts';
 
 /**

@@ -12,7 +12,7 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { remarkMarkdown } from '@atlas/adapters';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   compileAtlasQuery,
   isDashboard,
@@ -26,7 +26,7 @@ import {
   isDatasource,
   parseDatasource,
   splitFrontmatter,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /** Read the way the app reads it: the same split and the same parser. */
 const frontmatterOf = (path: string): Record<string, unknown> => {

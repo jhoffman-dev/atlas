@@ -12,7 +12,7 @@ import {
   type PropertyKind,
   type QueryFilter,
   type QuerySort,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { FilterValueBox } from './filter-value-box.tsx';
 import { Icon, type IconName } from './icon.tsx';
 import type { OverlaySlot } from './overlay-slot.ts';

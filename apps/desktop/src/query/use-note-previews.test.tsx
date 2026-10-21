@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { BoardRow, ViewLayout } from '@atlas/domain';
-import { fakeVaultFs, PREVIEW_BATCH } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import type { BoardRow, ViewLayout } from '@dfai/domain';
+import { fakeVaultFs, PREVIEW_BATCH } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { FEED_PAGE, GALLERY_COVERS, useNotePreviews } from './use-note-previews.ts';
 
 const rows: BoardRow[] = Array.from({ length: 60 }, (_, at) => ({

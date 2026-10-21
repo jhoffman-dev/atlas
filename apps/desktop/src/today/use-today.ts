@@ -8,7 +8,7 @@ import {
   type ObjectType,
   type TaskAsRead,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   archiveTaskChange,
   changeUndoably,
@@ -20,8 +20,8 @@ import {
   type PropertyChanges,
   type TodayReport,
   type UndoableChange,
-} from '@atlas/application';
-import { todayActionWords, type TodayAction } from '@atlas/ui';
+} from '@dfai/application';
+import { todayActionWords, type TodayAction } from '@dfai/ui';
 import { errorMessage } from '../query/error-message.ts';
 import { keptTodayReport } from './kept-today-report.ts';
 import { createTodayWrites, NOTHING_SETTLING, type TodayWrites } from './today-writes.ts';

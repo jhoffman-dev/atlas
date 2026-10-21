@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, VOCABULARY_PAGE_SIZE, type ObjectType } from '@atlas/domain';
+import { createVaultPath, VOCABULARY_PAGE_SIZE, type ObjectType } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeOpenNotes, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { VaultAccessError } from '../vault/ports.ts';

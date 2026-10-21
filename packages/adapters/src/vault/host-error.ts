@@ -1,4 +1,4 @@
-import { VaultAccessError } from '@atlas/application';
+import { VaultAccessError } from '@dfai/application';
 
 /**
  * Tauri rejects with the plain string a command returned in `Err`. Turn that into

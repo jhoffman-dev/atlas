@@ -7,7 +7,7 @@
  * fixture's markdown writes a list as one line, which hides it.)
  */
 import { describe, expect, it } from 'vitest';
-import { indexablePropertiesOf } from '@atlas/domain';
+import { indexablePropertiesOf } from '@dfai/domain';
 import { apiFixture } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 

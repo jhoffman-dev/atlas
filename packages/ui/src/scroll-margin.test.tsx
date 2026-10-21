@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRef, useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { createVaultPath, type SidebarTreeRow } from '@atlas/domain';
+import { createVaultPath, type SidebarTreeRow } from '@dfai/domain';
 import { offsetWithin, useScrollMargin } from './scroll-margin.ts';
 import { VaultTree } from './vault-tree.tsx';
 

@@ -5,7 +5,7 @@
  * checklist progress.
  */
 import { describe, expect, it } from 'vitest';
-import { apiFixture, bodyOf, codeOf, encoded, type ApiResponse } from '@atlas/application';
+import { apiFixture, bodyOf, codeOf, encoded, type ApiResponse } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TASK_TYPE = [

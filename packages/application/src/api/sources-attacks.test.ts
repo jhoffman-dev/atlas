@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { parseDatasource, sourceRequest, splitFrontmatter } from '@atlas/domain';
+import { parseDatasource, sourceRequest, splitFrontmatter } from '@dfai/domain';
 import { apiFixture } from '../testing/api-fixture.ts';
 import { fakeMarkdown } from '../testing/fake-ports.ts';
 

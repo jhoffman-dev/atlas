@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PARA_VALUES_QUERY_MARK } from '@atlas/domain';
+import { PARA_VALUES_QUERY_MARK } from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { notesInUseOfType, notesInUseOfTypes } from './notes-in-use.ts';
 

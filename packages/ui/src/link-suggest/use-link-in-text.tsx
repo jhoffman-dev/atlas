@@ -8,7 +8,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { createVaultPath, openLinkInText, withLinkInText } from '@atlas/domain';
+import { createVaultPath, openLinkInText, withLinkInText } from '@dfai/domain';
 import { isImeKey } from '../ime.ts';
 import { useNoteNames } from '../note-names.tsx';
 import { EVERY_NOTE, LinkSuggestions, type ListKeys } from './link-suggestions.tsx';

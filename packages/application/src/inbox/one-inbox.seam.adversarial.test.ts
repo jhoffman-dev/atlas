@@ -6,7 +6,7 @@
  * is judged as a broken meeting.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type NoteChange, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type NoteChange, type VaultPath } from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { importArrivedMeetings } from '../meetings/import-arrived-meetings.ts';
 import { acceptProposalNote } from '../proposals/accept-proposal.ts';

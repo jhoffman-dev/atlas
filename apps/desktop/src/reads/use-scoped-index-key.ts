@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { ReadScope } from '@atlas/application';
+import type { ReadScope } from '@dfai/application';
 import { indexKeyOf, type IndexStatusStore } from '../index/index-status-store.ts';
 import { scopedReadKey, scopedReadMeta } from './query-client.ts';
 

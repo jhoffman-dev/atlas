@@ -1,10 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
-import { isGoogleFailureKind, type GoogleCalendar, type GoogleFailure } from '@atlas/domain';
+import { isGoogleFailureKind, type GoogleCalendar, type GoogleFailure } from '@dfai/domain';
 import {
   GoogleCalendarError,
   type GoogleCalendarPort,
   type GoogleConnection,
-} from '@atlas/application';
+} from '@dfai/application';
 import { calendarListPage, createdCalendarOf } from './calendar-list.ts';
 
 /** A Calendar API answer as the host hands it back, with every token struck from it. */

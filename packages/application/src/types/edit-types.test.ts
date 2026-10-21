@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseObjectType, TypeEditError, type VaultPath } from '@atlas/domain';
+import { parseObjectType, TypeEditError, type VaultPath } from '@dfai/domain';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

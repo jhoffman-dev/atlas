@@ -3,7 +3,7 @@
  * the row no longer shows must not be written with the ones it does.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type InboxTask } from '@atlas/domain';
+import { createVaultPath, type InboxTask } from '@dfai/domain';
 import { asksWhoItWaitsOn, clarificationOf } from './inbox-triage.ts';
 
 const TASK: InboxTask = {

@@ -12,9 +12,9 @@ import {
   type GranolaPort,
   type GranolaPullRecord,
   type GranolaPullRecords,
-} from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import { TRANSCRIPT_LIMIT, unreadableSummaryProblem, type GranolaNote } from '@atlas/domain';
+} from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
+import { TRANSCRIPT_LIMIT, unreadableSummaryProblem, type GranolaNote } from '@dfai/domain';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 
 const invoke = vi.fn();

@@ -1,4 +1,4 @@
-import { createVaultPath, parentVaultPath, vaultPathName, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, parentVaultPath, vaultPathName, type VaultEntry } from '@dfai/domain';
 import {
   FileChangedError,
   type GitFoldersPort,

@@ -1,4 +1,4 @@
-import type { TermNote, VocabularyClaim, VocabularyConflict, VocabularyEntry } from '@atlas/domain';
+import type { TermNote, VocabularyClaim, VocabularyConflict, VocabularyEntry } from '@dfai/domain';
 import { loadTerms } from '../terms/terms.ts';
 import type {
   ApiTerm,

@@ -14,7 +14,7 @@ import {
   type BoardRow,
   type PropertyKind,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 import { NoteNamesProvider } from './note-names.tsx';
 import { StatusPill } from './status-pill.tsx';

@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { RULE_QUERY_SCOPE } from '@atlas/application';
+import { RULE_QUERY_SCOPE } from '@dfai/application';
 import { LoadedLater, PageFrameFallback } from '../page-frame-fallback.tsx';
 import { automationsScreen } from '../pages-on-first-use.ts';
 import { localClock } from '../today.ts';

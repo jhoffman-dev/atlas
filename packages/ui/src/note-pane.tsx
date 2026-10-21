@@ -11,7 +11,7 @@ import {
   type PageCrumb,
   type PageTitle,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { FavoriteStar } from './favorite-star.tsx';
 import {
   NoteEditor,
@@ -59,7 +59,7 @@ export type NotePaneState =
 
 /**
  * How the open page is headed, worked out from the note by the rules in
- * `@atlas/domain` (`page/`): where it lives and its title.
+ * `@dfai/domain` (`page/`): where it lives and its title.
  */
 export interface PageHeading {
   /**

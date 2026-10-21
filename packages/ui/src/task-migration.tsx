@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { optionLabel } from '@atlas/domain';
+import { optionLabel } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
 import { noticeBarClass } from './notice-bar.ts';

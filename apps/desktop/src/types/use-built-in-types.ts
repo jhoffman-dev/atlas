@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { shippedPropertiesLine, shippedPropertiesSkippedLine, typeSetupLines } from '@atlas/domain';
+import { shippedPropertiesLine, shippedPropertiesSkippedLine, typeSetupLines } from '@dfai/domain';
 import {
   acceptTypeSetup,
   ensureBuiltInTypes,
@@ -9,7 +9,7 @@ import {
   type TypeSetupFailure,
   type TypeSetupOffer,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 const NOTHING_OFFERED: TypeSetupOffer = { types: [], extensions: [] };
 

@@ -61,7 +61,7 @@ time) and opens the DFAI window. The frontend hot-reloads.
 ## Build a standalone app
 
 ```sh
-pnpm --filter @atlas/desktop tauri:build
+pnpm --filter @dfai/desktop tauri:build
 ```
 
 (`pnpm tauri build` at the root does not work — there is no root `tauri` script.) It builds
@@ -77,8 +77,8 @@ Automation permission). The `.app` is already built by then. To get a DMG anyway
 `CI=true` (skips the Finder layout); to build only the app, add `--bundles app`:
 
 ```sh
-CI=true pnpm --filter @atlas/desktop tauri:build
-pnpm --filter @atlas/desktop tauri:build --bundles app
+CI=true pnpm --filter @dfai/desktop tauri:build
+pnpm --filter @dfai/desktop tauri:build --bundles app
 ```
 
 Drag `DFAI.app` to `/Applications`. The build is **unsigned**: the first time, right-click
@@ -95,7 +95,7 @@ your login. Settings → Claude can use an Anthropic API key (kept in the Keycha
 running app. Turn on the API in DFAI (**Settings → Connections**), then:
 
 ```sh
-pnpm --filter @atlas/mcp build   # → apps/mcp/dist/main.js (pnpm build at the root builds it too)
+pnpm --filter @dfai/mcp build   # → apps/mcp/dist/main.js (pnpm build at the root builds it too)
 claude mcp add atlas -- node /abs/path/to/atlas/apps/mcp/dist/main.js
 ```
 

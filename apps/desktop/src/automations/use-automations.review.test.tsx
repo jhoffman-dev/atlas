@@ -15,15 +15,15 @@ import {
   type LogEntry,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeClaudeStepPorts,
   fakeIndexPort,
   fakeVaultFs,
   type AutomationPorts,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { automationRows } from './automation-rows.ts';
 import { SCHEDULE_TICK_MS, useAutomations, type AutomationsOptions } from './use-automations.ts';
 

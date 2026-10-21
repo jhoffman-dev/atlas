@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NO_LINK_HINTS, type LinkHints } from '@atlas/domain';
+import { NO_LINK_HINTS, type LinkHints } from '@dfai/domain';
 import type { RelationChoice } from '../properties-panel.tsx';
 import { LinkCombobox } from './link-combobox.tsx';
 import { LinkHintsProvider, type LinkHintsSource } from './link-hints.tsx';

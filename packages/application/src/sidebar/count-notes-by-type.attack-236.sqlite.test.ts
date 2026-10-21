@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import type { ObjectType } from '@atlas/domain';
+import type { ObjectType } from '@dfai/domain';
 import type { QueryResult } from '../index/ports.ts';
 import { notesInUseOfType } from '../archive/notes-in-use.ts';
 import { fakeIndexPort } from '../testing/fake-ports.ts';

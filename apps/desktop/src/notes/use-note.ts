@@ -5,7 +5,7 @@ import {
   type EditorDocument,
   type StrandedEdit,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   NoteChangedError,
   noteModified,
@@ -17,8 +17,8 @@ import {
   type OpenNote,
   type SavedNote,
   type VaultFsPort,
-} from '@atlas/application';
-import type { NotePaneState } from '@atlas/ui';
+} from '@dfai/application';
+import type { NotePaneState } from '@dfai/ui';
 import { localToday } from '../today.ts';
 import type { Stranding } from './stranded-edits.ts';
 

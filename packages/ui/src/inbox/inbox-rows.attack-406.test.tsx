@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type InboxItem, type InboxTask } from '@atlas/domain';
+import { createVaultPath, type InboxItem, type InboxTask } from '@dfai/domain';
 import { InboxPage, type InboxPageProps } from '../inbox-page.tsx';
 import { startCountingRenders, stopCountingRenders } from '../testing/render-counter.ts';
 

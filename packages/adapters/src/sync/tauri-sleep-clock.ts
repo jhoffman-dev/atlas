@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { SleepClockPort } from '@atlas/application';
+import type { SleepClockPort } from '@dfai/application';
 
 /** How long this Mac has slept since it booted, as the host reads it (`sleep_clock.rs`, #172). */
 export const tauriSleepClock: SleepClockPort = {

@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { BoardRow } from '@atlas/domain';
+import type { BoardRow } from '@dfai/domain';
 import {
   OVERSCAN,
   ROW_ESTIMATE,

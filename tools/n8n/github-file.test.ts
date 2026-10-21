@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mapMeeting, MeetingMappingError, type MeetingFields } from '@atlas/domain';
+import { mapMeeting, MeetingMappingError, type MeetingFields } from '@dfai/domain';
 import {
   decodeBase64,
   existingFileText,

@@ -6,7 +6,7 @@ import {
   type OptionColor,
   type PropertyDef,
   type TypeEdit,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon } from './icon.tsx';
 import { isImeKey } from './ime.ts';

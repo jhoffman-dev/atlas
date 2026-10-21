@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { readCsv } from './notion-csv.ts';
 import { readNotionPage } from './notion-page.ts';
 import { DEFAULT_TASK_STATUSES } from './task-status.ts';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TodaySectionId } from '@atlas/domain';
+import type { TodaySectionId } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { jsonLinesNote, proposalVault } from '../testing/proposal-vault.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';

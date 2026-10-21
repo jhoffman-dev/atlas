@@ -18,7 +18,7 @@ import {
   type LinkedSectionPlan,
   type ObjectType,
   type RowGroup,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { Clock } from '../ports.ts';
 import { AtlasQueryError, runAtlasQuery, type AtlasQueryAnswer } from '../query/run-atlas-query.ts';

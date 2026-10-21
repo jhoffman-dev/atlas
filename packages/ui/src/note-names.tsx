@@ -5,7 +5,7 @@ import {
   type NoteNames,
   type PillHue,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * The vault's notes by name, which every place that shows a relation reads

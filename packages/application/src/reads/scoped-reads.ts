@@ -18,7 +18,7 @@ import {
   type EditorNode,
   type IndexFacet,
   type NoteChange,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * What a reader is made from (ADR-0040, #325), so the index's news reads it

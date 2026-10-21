@@ -3,8 +3,8 @@ import {
   resolveWikiLinkTarget,
   type NavigationPlace,
   type VaultPath,
-} from '@atlas/domain';
-import type { OpenHow } from '@atlas/ui';
+} from '@dfai/domain';
+import type { OpenHow } from '@dfai/ui';
 import { requestReveal, type RevealStore } from '../panes/reveals.ts';
 import { closePeek, openPeek, peekNow, replacePeek, type OverlayStore } from '../overlay-store.ts';
 import {

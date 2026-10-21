@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type InboxItem } from '@atlas/domain';
-import type { InboxListing } from '@atlas/application';
+import { createVaultPath, type InboxItem } from '@dfai/domain';
+import type { InboxListing } from '@dfai/application';
 import { withoutLeaving, type LeavingRow } from './leaving-rows.ts';
 
 const item = (title: string): InboxItem =>

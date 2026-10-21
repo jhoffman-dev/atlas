@@ -16,7 +16,7 @@ import type {
   KeyboardCoordinateGetter,
   UniqueIdentifier,
 } from '@dnd-kit/core';
-import { snappedMove, SNAP_MINUTES, type CalendarEvent } from '@atlas/domain';
+import { snappedMove, SNAP_MINUTES, type CalendarEvent } from '@dfai/domain';
 import { pieceOf, type CalendarGestures, type ClockGesture } from '../calendar-gestures.ts';
 import { clockWords, type ClockMove } from './announcements.ts';
 import { useDragSensors } from './dnd.ts';

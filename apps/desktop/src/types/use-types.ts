@@ -5,7 +5,7 @@ import {
   type DefinedType,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { readAgain, vaultReadKey } from '../reads/query-client.ts';
 
 const NO_TYPES: readonly DefinedType[] = [];

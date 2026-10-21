@@ -19,7 +19,7 @@ import type {
   NoteEvent,
   RunTrigger,
   SetValue,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /** Every path the API serves starts with this. A breaking change gets `/v2`. */
 export const API_VERSION_PREFIX = '/v1';

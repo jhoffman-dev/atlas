@@ -5,7 +5,7 @@ import {
   vaultPathName,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { createRelatedNote } from './create-related-note.ts';
 

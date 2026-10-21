@@ -1,4 +1,4 @@
-import { todayLists, type TodayLists } from '@atlas/domain';
+import { todayLists, type TodayLists } from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import {
   readReviewSources,

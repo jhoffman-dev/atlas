@@ -6,7 +6,7 @@ import {
   recordingActivity,
   type ApiConnectionStatus,
   type ApiSettingsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { settingsDialog } from '../pages-on-first-use.ts';
 import { createBrowserThemeStore } from '../theme/browser-theme-store.ts';
 import { SettingsPanel } from './settings-panel.tsx';

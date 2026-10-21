@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ARTIFACT_CSP, createVaultPath, MAX_THUMBNAIL_BYTES, THUMBNAIL_SHOT } from '@atlas/domain';
+import { ARTIFACT_CSP, createVaultPath, MAX_THUMBNAIL_BYTES, THUMBNAIL_SHOT } from '@dfai/domain';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';
 import { apiFixture } from '../testing/api-fixture.ts';
 import { ArtifactRefusedError } from './artifact-copy.ts';

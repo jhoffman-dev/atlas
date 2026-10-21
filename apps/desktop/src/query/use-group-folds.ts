@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { GroupFolds, GroupFoldStore } from '@atlas/ui';
+import type { GroupFolds, GroupFoldStore } from '@dfai/ui';
 
 /**
  * The groups folded shut in the view a pane shows, remembered per view on

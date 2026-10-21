@@ -4,9 +4,9 @@
  * through the real YAML adapter over a vault held in memory. Names are made up.
  */
 import { describe, expect, it } from 'vitest';
-import { addTerm, loadTerms, TermRefusedError } from '@atlas/application';
-import { automationVault } from '@atlas/application/testing/sqlite';
-import { createVaultPath, type ObjectType } from '@atlas/domain';
+import { addTerm, loadTerms, TermRefusedError } from '@dfai/application';
+import { automationVault } from '@dfai/application/testing/sqlite';
+import { createVaultPath, type ObjectType } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TODAY = '2026-10-19';

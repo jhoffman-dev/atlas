@@ -7,7 +7,7 @@ import {
   type MarkdownDocument,
   type ProposalNote,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { archiveNotes, type ArchivePorts } from '../archive/index.ts';
 import { ProposalRefused } from '../chat/proposals.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';

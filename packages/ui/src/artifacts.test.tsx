@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardColumn, BoardRow } from '@atlas/domain';
+import type { BoardColumn, BoardRow } from '@dfai/domain';
 import { ArtifactCardFace } from './artifact-card-face.tsx';
 import { ARTIFACT_SANDBOX, ArtifactViewer, type ArtifactViewerCopy } from './artifact-viewer.tsx';
 import { GalleryView } from './list-view.tsx';

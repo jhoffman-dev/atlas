@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { addProperty, parseObjectType, TYPE_ICONS, type TypeEdit } from '@atlas/domain';
+import { addProperty, parseObjectType, TYPE_ICONS, type TypeEdit } from '@dfai/domain';
 import { TypeEditor } from './type-editor.tsx';
 
 const TASK = parseObjectType({

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseActivityLog, repeatsActivity, type ActivityReport } from '@atlas/domain';
-import type * as Domain from '@atlas/domain';
+import { parseActivityLog, repeatsActivity, type ActivityReport } from '@dfai/domain';
+import type * as Domain from '@dfai/domain';
 import { memoryActivityStore } from '../testing/fake-activity.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { syncIndex } from '../index/sync-index.ts';
@@ -12,7 +12,7 @@ import { createActivityLog } from './activity-log.ts';
  */
 
 // Counted, not replaced: how often the log compares one line with another.
-vi.mock('@atlas/domain', async (importOriginal) => {
+vi.mock('@dfai/domain', async (importOriginal) => {
   const domain = await importOriginal<typeof Domain>();
   return { ...domain, repeatsActivity: vi.fn(domain.repeatsActivity) };
 });

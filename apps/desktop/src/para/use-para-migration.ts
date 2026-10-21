@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { noteTitle, paraMigrationLine } from '@atlas/domain';
+import { noteTitle, paraMigrationLine } from '@dfai/domain';
 import {
   hasParaMigrationWork,
   previewParaMigration,
@@ -7,8 +7,8 @@ import {
   type ActivityRecorder,
   type ArchivePorts,
   type ParaMigrationPreview,
-} from '@atlas/application';
-import type { ParaMigrationProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { ParaMigrationProps } from '@dfai/ui';
 import { keepIfSame } from '../same-reading.ts';
 
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));

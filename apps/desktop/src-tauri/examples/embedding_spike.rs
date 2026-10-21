@@ -26,10 +26,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use atlas_lib::embeddings::fetch::ensure_model;
-use atlas_lib::embeddings::model::{Embedder, ModelFile, ModelSpec, Pooling, Purpose};
-use atlas_lib::embeddings::refusal::RefusalReason;
-use atlas_lib::embeddings::MODEL;
+use dfai_lib::embeddings::fetch::ensure_model;
+use dfai_lib::embeddings::model::{Embedder, ModelFile, ModelSpec, Pooling, Purpose};
+use dfai_lib::embeddings::refusal::RefusalReason;
+use dfai_lib::embeddings::MODEL;
 use serde_json::{json, Value};
 
 const MINILM: ModelSpec = ModelSpec {

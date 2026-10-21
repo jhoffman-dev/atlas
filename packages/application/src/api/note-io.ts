@@ -1,4 +1,4 @@
-import { noteTitle, pageTitle, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import { noteTitle, pageTitle, splitFrontmatter, type VaultPath } from '@dfai/domain';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { NoteStillOpeningError } from '../notes/note-still-opening-error.ts';
 import { noteModified } from '../notes/note-modified.ts';

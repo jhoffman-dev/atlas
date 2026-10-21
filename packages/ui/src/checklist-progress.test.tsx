@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import type { BoardColumn, BoardRow } from '@atlas/domain';
+import type { BoardColumn, BoardRow } from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 import { ListView } from './list-view.tsx';
 import { TableView, type TableResult } from './table-view.tsx';

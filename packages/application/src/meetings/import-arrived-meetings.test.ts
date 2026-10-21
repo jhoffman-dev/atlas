@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, digestOf, type NoteChange } from '@atlas/domain';
+import { createVaultPath, digestOf, type NoteChange } from '@dfai/domain';
 import type { IndexEntry } from '../index/ports.ts';
 import { unarchiveNotes } from '../archive/archive-notes.ts';
 import { automationVault } from '../testing/automation-vault.ts';

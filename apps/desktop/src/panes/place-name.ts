@@ -1,4 +1,4 @@
-import { formatTag, type NavigationPlace, type VaultPath } from '@atlas/domain';
+import { formatTag, type NavigationPlace, type VaultPath } from '@dfai/domain';
 
 /**
  * What a place Back or Forward leads to is called, for the button's tooltip:

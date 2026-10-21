@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
-import type { ObjectType } from '@atlas/domain';
-import { AtlasQueryError, runQueryBlock, type IndexPort } from '@atlas/application';
-import { useNoteNames, type NoteQueryBlocks, type QueryBlockShown } from '@atlas/ui';
+import type { ObjectType } from '@dfai/domain';
+import { AtlasQueryError, runQueryBlock, type IndexPort } from '@dfai/application';
+import { useNoteNames, type NoteQueryBlocks, type QueryBlockShown } from '@dfai/ui';
 import { errorMessage } from './error-message.ts';
 import { answerRows } from './use-atlas-query.ts';
 

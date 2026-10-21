@@ -1,6 +1,6 @@
 import manrope from '@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2?inline';
-import type { NotePageRenderer } from '@atlas/application';
-import { createNotePageRenderer } from '@atlas/ui';
+import type { NotePageRenderer } from '@dfai/application';
+import { createNotePageRenderer } from '@dfai/ui';
 
 /**
  * How a note's page is drawn to be pictured: the app's reading schema and

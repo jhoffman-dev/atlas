@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
-import { countedWork } from '@atlas/domain/testing';
-import { FrontmatterRefusedError } from '@atlas/application';
+import { countedWork } from '@dfai/domain/testing';
+import { FrontmatterRefusedError } from '@dfai/application';
 import { updateFrontmatter } from './frontmatter-write.ts';
 import { frontmatterProblem, parseFrontmatterProperties } from './frontmatter.ts';
 

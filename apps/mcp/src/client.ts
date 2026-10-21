@@ -73,7 +73,7 @@ import type {
   ApiType,
   ApiTypeView,
   ApiView,
-} from '@atlas/application';
+} from '@dfai/application';
 import { ConnectionError, type Connection } from './connection.ts';
 
 /** Past the host's own 30 s `timeout`, so its clearer answer normally arrives first. */

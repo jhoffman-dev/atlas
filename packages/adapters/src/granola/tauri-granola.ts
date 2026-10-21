@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { isGranolaFailureKind, type GranolaFailure } from '@atlas/domain';
-import { GranolaError, type GranolaKeyStatus, type GranolaPort } from '@atlas/application';
+import { isGranolaFailureKind, type GranolaFailure } from '@dfai/domain';
+import { GranolaError, type GranolaKeyStatus, type GranolaPort } from '@dfai/application';
 import { keyStatusOf, noteOf, notesPageOf, transcriptPageOf } from './granola-wire.ts';
 
 /** An API answer as the host hands it back: every status, with the key struck from the body. */

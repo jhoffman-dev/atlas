@@ -7,7 +7,7 @@ import {
   VAULT_SETTINGS_PATH,
   type IndexFacet,
   type NoteChange,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * A whole-vault read the window keeps until something it is made from

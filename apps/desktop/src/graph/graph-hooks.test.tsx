@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, NO_LINKS, type NoteLinks } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type OpenNotes } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, NO_LINKS, type NoteLinks } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type OpenNotes } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { vaultReadKey } from '../reads/query-client.ts';

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PropertyDef } from '@atlas/domain';
+import type { PropertyDef } from '@dfai/domain';
 import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 import { PropertiesPanel, type PropertyRow, type RelationChoice } from './properties-panel.tsx';
 

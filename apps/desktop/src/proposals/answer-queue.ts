@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { WindowClosingPort } from '@atlas/application';
+import type { WindowClosingPort } from '@dfai/application';
 
 /** Whose answer a write is: the vault it was given in, named by any object that stands for it. */
 export type AnswerVault = object;

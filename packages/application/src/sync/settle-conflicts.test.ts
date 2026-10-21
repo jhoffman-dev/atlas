@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { journalText, type GitConflict } from '@atlas/domain';
+import { journalText, type GitConflict } from '@dfai/domain';
 import { failed, fakeBlob, memorySyncFiles, said, scriptedGit } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { mergeHeadOf, recordMerge, settleConflicts } from './settle-conflicts.ts';

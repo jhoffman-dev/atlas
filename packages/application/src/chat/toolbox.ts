@@ -1,4 +1,4 @@
-import type { ModelToolSpec, ToolCall, ToolResult } from '@atlas/domain';
+import type { ModelToolSpec, ToolCall, ToolResult } from '@dfai/domain';
 import type { ApiRouterDeps } from '../api/index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';

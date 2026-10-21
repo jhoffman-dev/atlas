@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AFTER_A_MEETING_PROMPT, builtInPromptAt, MEETING_EXTRACTION_PROMPT } from '@atlas/domain';
+import { AFTER_A_MEETING_PROMPT, builtInPromptAt, MEETING_EXTRACTION_PROMPT } from '@dfai/domain';
 import {
   EARLIER_AFTER_A_MEETING,
   EARLIER_MEETING_EXTRACTION,

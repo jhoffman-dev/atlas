@@ -8,7 +8,7 @@ import {
   type HandledLedger,
   type LogEntry,
   type StoredAnswerDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 

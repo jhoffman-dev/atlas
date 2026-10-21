@@ -1,4 +1,4 @@
-import { facetsChangedBetween, INDEX_FACETS, type FacetRow, type IndexFacet } from '@atlas/domain';
+import { facetsChangedBetween, INDEX_FACETS, type FacetRow, type IndexFacet } from '@dfai/domain';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { readNoteFacets } from './index-facets.ts';
 

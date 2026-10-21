@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { archiveRefusal, isArchivedPath, type VaultPath } from '@atlas/domain';
-import type { ArchiveOutcome } from '@atlas/application';
-import type { BulkAction, RowSelection } from '@atlas/ui';
+import { archiveRefusal, isArchivedPath, type VaultPath } from '@dfai/domain';
+import type { ArchiveOutcome } from '@dfai/application';
+import type { BulkAction, RowSelection } from '@dfai/ui';
 import type { ArchiveCommands } from './use-archive.ts';
 import { usePeopleChoice, type ChosenPeopleMerge } from '../people/use-chosen-people.ts';
 import { batchSettled, useRowSelection } from './use-row-selection.ts';

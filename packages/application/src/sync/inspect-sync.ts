@@ -4,7 +4,7 @@ import {
   isOwnRepository,
   isSetUpByAtlas,
   parseGitStatus,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

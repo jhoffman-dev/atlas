@@ -4,7 +4,7 @@ import {
   compileTagCountsQuery,
   type GraphQueryPart,
   type IndexFacet,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexedNote, IndexPort } from '../index/ports.ts';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import { reportingIndexWrites } from './reporting-index-writes.ts';

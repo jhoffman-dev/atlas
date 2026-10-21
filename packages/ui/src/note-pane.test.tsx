@@ -10,7 +10,7 @@ import {
   type EditorDocument,
   type NoteLinks,
   type PropertyDef,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   NotePane,
   type NotePaneProps,

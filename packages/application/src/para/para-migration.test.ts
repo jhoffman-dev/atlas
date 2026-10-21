@@ -5,7 +5,7 @@
  * every byte of YAML is the adapters' integration test.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, PARA_CANDIDATES_QUERY_MARK, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, PARA_CANDIDATES_QUERY_MARK, splitFrontmatter } from '@dfai/domain';
 import type { MigrationPanes } from '../gtd/run-task-migration.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';

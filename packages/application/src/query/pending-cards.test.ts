@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { BoardRow, StatusProperty } from '@atlas/domain';
+import type { BoardRow, StatusProperty } from '@dfai/domain';
 import { cardAsMoved, resultAsPending, rowsAsPending, type PendingCard } from './pending-cards.ts';
 
 const STATUS: StatusProperty = {

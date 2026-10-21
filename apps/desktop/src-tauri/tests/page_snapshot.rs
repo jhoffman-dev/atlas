@@ -8,7 +8,7 @@ mod macos {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    use atlas_lib::page_snapshot::{macos, snapshot_spec, SnapshotArgs};
+    use dfai_lib::page_snapshot::{macos, snapshot_spec, SnapshotArgs};
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSApplication, NSBitmapImageRep};
     use objc2_foundation::{NSData, NSDate, NSRunLoop};

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { parseObjectType, propertyField } from '@atlas/domain';
-import { fakeIndexPort } from '@atlas/application';
+import { parseObjectType, propertyField } from '@dfai/domain';
+import { fakeIndexPort } from '@dfai/application';
 import { useQueryChoices } from './use-query-choices.ts';
 
 const TASK = parseObjectType({

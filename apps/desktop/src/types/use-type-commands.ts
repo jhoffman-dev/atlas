@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import type { VaultPath } from '@atlas/domain';
-import type { DefinedType, MarkdownPort, VaultFsPort } from '@atlas/application';
+import type { VaultPath } from '@dfai/domain';
+import type { DefinedType, MarkdownPort, VaultFsPort } from '@dfai/application';
 import { useNewType } from './use-new-type.ts';
 import type { ReadTypesAgain } from './use-types.ts';
 import { useNewNoteOfType } from './use-new-note-of-type.ts';

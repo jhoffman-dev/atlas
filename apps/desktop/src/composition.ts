@@ -31,7 +31,7 @@ import {
   tauriMacName,
   tauriSleepClock,
   tauriSyncFiles,
-} from '@atlas/adapters';
+} from '@dfai/adapters';
 import type {
   ActivityStore,
   WindowClosingPort,
@@ -42,7 +42,7 @@ import type {
   GranolaPort,
   GranolaPullRecords,
   PageSnapshotPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import type { VaultPorts } from './vault/use-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import type { IndexPorts } from './index/use-index.ts';

@@ -1,4 +1,4 @@
-import type { ModelToolSpec, ToolCall, ToolResult } from '@atlas/domain';
+import type { ModelToolSpec, ToolCall, ToolResult } from '@dfai/domain';
 import { routeApiRequest, type ApiRequest, type ApiRouterDeps } from '../api/index.ts';
 import { cappedJson } from './capped-json.ts';
 import { notePageAnswer } from './note-page.ts';

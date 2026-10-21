@@ -10,7 +10,7 @@ import {
   type QuerySort,
   type ViewQuery,
   withChecklistProgress,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { runView } from '../query/run-view.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';

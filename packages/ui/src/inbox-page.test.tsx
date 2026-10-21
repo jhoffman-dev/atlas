@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
+import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@dfai/domain';
 import {
   INBOX_OFFERS_AFTER_INDEX_WAIT_MS,
   INBOX_OFFERS_WAIT_MS,

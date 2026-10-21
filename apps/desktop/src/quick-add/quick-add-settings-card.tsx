@@ -7,8 +7,8 @@ import {
   withQuickAddType,
   QUICK_ADD_LIMIT,
   type ObjectType,
-} from '@atlas/domain';
-import { QuickAddSettings, sidebarGlyph, type QuickAddRow } from '@atlas/ui';
+} from '@dfai/domain';
+import { QuickAddSettings, sidebarGlyph, type QuickAddRow } from '@dfai/ui';
 import type { QuickAddSetting } from './use-quick-add-setting.ts';
 
 /** Settings → Quick add, wired to the vault's settings note. */

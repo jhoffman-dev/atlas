@@ -1,5 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { WindowClosingPort } from '@atlas/application';
+import type { WindowClosingPort } from '@dfai/application';
 
 /**
  * The window's close button, through Tauri: the task runs first, and the

@@ -17,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { remarkMarkdown } from '@atlas/adapters';
-import { splitFrontmatter, validateMeetingImport, type MeetingImport } from '@atlas/domain';
+import { remarkMarkdown } from '@dfai/adapters';
+import { splitFrontmatter, validateMeetingImport, type MeetingImport } from '@dfai/domain';
 import {
   ImportSetupError,
   importNotionMeetings,

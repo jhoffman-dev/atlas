@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, parseObjectType, type VaultPath } from '@atlas/domain';
+import { createVaultPath, parseObjectType, type VaultPath } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { linkedTypeProblems } from './linked-types.ts';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LINK_HINTS_QUERY_COLUMNS } from '@atlas/domain';
+import { LINK_HINTS_QUERY_COLUMNS } from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { readLinkHints } from './link-hints.ts';
 

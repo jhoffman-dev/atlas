@@ -18,8 +18,8 @@ import {
   readVaultSettings,
   setUpSync,
   type GitFoldersPort,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   bothChange,
   clock,

@@ -10,7 +10,7 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeClaudeStepPorts,
   createNoteChanges,
@@ -18,8 +18,8 @@ import {
   fakeVaultFs,
   type AutomationPorts,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { SCHEDULE_TICK_MS, useAutomations, type AutomationsOptions } from './use-automations.ts';
 
 /**

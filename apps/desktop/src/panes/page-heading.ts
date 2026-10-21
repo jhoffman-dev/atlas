@@ -10,9 +10,9 @@ import {
   pageTitle,
   parseViewDisplay,
   type PageKind,
-} from '@atlas/domain';
-import type { OpenNote } from '@atlas/application';
-import type { PageHeading } from '@atlas/ui';
+} from '@dfai/domain';
+import type { OpenNote } from '@dfai/application';
+import type { PageHeading } from '@dfai/ui';
 
 const DESCRIPTION_KEY = 'description';
 

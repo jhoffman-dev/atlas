@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, noteNames } from '@atlas/domain';
+import { createVaultPath, noteNames } from '@dfai/domain';
 import { relationGroupLinks } from './relation-group-links.ts';
 
 /* What a board grouped by a relation has a column (or lane) for: every note it can point at. */

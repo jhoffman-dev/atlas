@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOTHING_LEFT_OUT, type LeftOut } from '@atlas/domain';
+import { NOTHING_LEFT_OUT, type LeftOut } from '@dfai/domain';
 import { failed, said, scriptedGit, statusText } from '../testing/fake-git.ts';
 import { commitAll, identityFor, stageAll } from './git-steps.ts';
 

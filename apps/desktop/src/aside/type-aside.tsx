@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { TYPE_ICONS, typeDeleteRefusal, type VaultPath } from '@atlas/domain';
-import type { DefinedType } from '@atlas/application';
-import { TypeEditor, type TypeDefaultView } from '@atlas/ui';
+import { TYPE_ICONS, typeDeleteRefusal, type VaultPath } from '@dfai/domain';
+import type { DefinedType } from '@dfai/application';
+import { TypeEditor, type TypeDefaultView } from '@dfai/ui';
 import { typeTabsShown } from '../types/type-tabs.ts';
 import { useTypeEditor } from '../types/use-type-editor.ts';
 import type { RowPorts } from './row-aside.tsx';

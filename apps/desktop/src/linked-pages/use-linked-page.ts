@@ -5,14 +5,14 @@ import {
   type LinkedRange,
   type LinkedSectionId,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   readLinkedPage,
   type Clock,
   type IndexPort,
   type LinkedRangeStore,
   type LinkedSection,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /** A page's linked sections, and the way to turn one between recent and all. */
 export interface LinkedPage {

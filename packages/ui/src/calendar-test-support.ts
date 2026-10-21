@@ -3,7 +3,7 @@
  * layout without the toolbar that pages it.
  */
 import { vi } from 'vitest';
-import { rangeTitle, type CalendarRange } from '@atlas/domain';
+import { rangeTitle, type CalendarRange } from '@dfai/domain';
 import type { CalendarNavigation } from './calendar-nav.tsx';
 
 /** Each way of changing what is shown is a spy, so a test can see it was asked for. */

@@ -7,7 +7,7 @@ import {
   splitFrontmatter,
   vaultProjectTypeName,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { UnsavedTypingError } from '../vault/update-links.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import {

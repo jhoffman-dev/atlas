@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { useOpenEditors, type OpenEditor } from './open-editors.ts';
 import { movingEditorsIn, openNotesIn } from './open-notes.ts';
 

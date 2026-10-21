@@ -5,7 +5,7 @@ import {
   type Transclusion,
   type VaultPath,
   type WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   anchorBlock,
   createBlockChoicesReader,
@@ -16,8 +16,8 @@ import {
   type Rng,
   type TransclusionReader,
   type VaultFsPort,
-} from '@atlas/application';
-import type { BlockChoices, BlockPicking, NoteTransclusions } from '@atlas/ui';
+} from '@dfai/application';
+import type { BlockChoices, BlockPicking, NoteTransclusions } from '@dfai/ui';
 import { useVaultImages } from './use-images.ts';
 
 interface ReadPorts {

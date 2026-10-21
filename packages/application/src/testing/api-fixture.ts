@@ -7,7 +7,7 @@ import {
   type ImagePlacement,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ApiRequest, ApiResponse } from '../api/contract.ts';
 import type { ApiRouterDeps, AutomationClockState } from '../api/ports.ts';
 import { createRefreshSpacing } from '../api/refresh-spacing.ts';

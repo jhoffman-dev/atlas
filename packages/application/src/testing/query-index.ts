@@ -8,7 +8,7 @@ import {
   splitFrontmatter,
   splitWikiLinks,
   TAGS_KEY,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 

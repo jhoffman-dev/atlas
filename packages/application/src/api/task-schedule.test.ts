@@ -4,7 +4,7 @@
  * shows it. The schedule's own questions run for real against SQLite.
  */
 import { describe, expect, it } from 'vitest';
-import { TASK_SCHEDULE_QUERY_MARK } from '@atlas/domain';
+import { TASK_SCHEDULE_QUERY_MARK } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import type { Editor } from '@tiptap/core';
-import { BOOKMARK_NODE } from '@atlas/domain';
+import { BOOKMARK_NODE } from '@dfai/domain';
 import { linkSwitchAt, showAsBookmark, showAsLink } from './editor/bookmark-commands.ts';
 import { FOLLOW_REQUEST, LINK_MENU_REQUEST, type LinkMenuRequest } from './editor/link-keys.ts';
 import { LinkHoverButton, LinkMenu } from './link-menu.tsx';

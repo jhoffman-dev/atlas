@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import { createVaultPath, placeCrumb, type PaletteCommand } from '@atlas/domain';
-import type { SearchHit } from '@atlas/application';
+import { createVaultPath, placeCrumb, type PaletteCommand } from '@dfai/domain';
+import type { SearchHit } from '@dfai/application';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { Key, KeyHints } from './key-hints.tsx';

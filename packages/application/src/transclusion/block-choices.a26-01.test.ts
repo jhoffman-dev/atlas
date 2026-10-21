@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type EditorDocument } from '@atlas/domain';
+import { createVaultPath, type EditorDocument } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { createBlockChoicesReader } from './link-block.ts';

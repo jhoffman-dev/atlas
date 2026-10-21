@@ -1,4 +1,4 @@
-import { parseSectionOrder, SIDEBAR_ORDER_KEY, type SidebarSectionId } from '@atlas/domain';
+import { parseSectionOrder, SIDEBAR_ORDER_KEY, type SidebarSectionId } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings, type SettingsWriter } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

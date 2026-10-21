@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor, type JSONContent } from '@tiptap/core';
-import type { TagSuggestion } from '@atlas/domain';
+import type { TagSuggestion } from '@dfai/domain';
 import { createEditorExtensions, createReadingExtensions } from './extensions.ts';
 import type { TagSuggestionView } from './tag-suggestion.ts';
 

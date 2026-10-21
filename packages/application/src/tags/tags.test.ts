@@ -5,7 +5,7 @@
  * does, and each note that cannot be rewritten reported.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { TAG_PAGE_SIZE, type VaultPath } from '@atlas/domain';
+import { TAG_PAGE_SIZE, type VaultPath } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { tagIndexQuery } from '../testing/tag-index.ts';
 import { loadTagCounts, loadTagCountsWhere, loadTaggedNotes } from './load-tags.ts';

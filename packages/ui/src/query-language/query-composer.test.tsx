@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { blankBuilder, type QueryProblem } from '@atlas/domain';
+import { blankBuilder, type QueryProblem } from '@dfai/domain';
 import { QueryComposer, type QueryComposerProps } from './query-composer.tsx';
 
 function composer(overrides: Partial<QueryComposerProps> = {}) {

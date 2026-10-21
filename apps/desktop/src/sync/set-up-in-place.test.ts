@@ -7,7 +7,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { withManagedIgnores } from '@atlas/domain';
+import { withManagedIgnores } from '@dfai/domain';
 import {
   createSettingsWriter,
   inspectSync,
@@ -15,8 +15,8 @@ import {
   setUpSync,
   type GitFoldersPort,
   type SyncRemoteChoice,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   clock,
   isolatedWorld,

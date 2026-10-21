@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { ViewLayout } from '@atlas/domain';
+import type { ViewLayout } from '@dfai/domain';
 import type { Choice } from '../choice-select.tsx';
 import type { OverlaySlots } from '../overlay-slot.ts';
 import type { QueryPanelFold } from '../query-panel-fold.ts';

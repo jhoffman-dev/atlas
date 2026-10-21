@@ -6,7 +6,7 @@ import {
   STRANDED_EDIT_LIFETIME_MS,
   type EditorDocument,
   type StrandedEdit,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { useStrandedEdits, type StrandedEditStore } from './stranded-edits.ts';
 import { memoryStrandedStore } from './testing/memory-stranded-store.ts';
 

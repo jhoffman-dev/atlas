@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ActivityLog, MarkdownPort, VaultFsPort } from '@atlas/application';
+import type { ActivityLog, MarkdownPort, VaultFsPort } from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useVaultSettingsRead } from './use-vault-settings-read.ts';
 

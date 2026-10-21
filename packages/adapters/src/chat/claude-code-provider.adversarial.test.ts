@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ChatCancelled, ModelProviderError, type ModelRequest } from '@atlas/application';
+import { ChatCancelled, ModelProviderError, type ModelRequest } from '@dfai/application';
 import { claudeCodeProvider } from './claude-code-provider.ts';
 import type { ModelProcessHost } from './model-process.ts';
 

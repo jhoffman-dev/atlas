@@ -8,8 +8,8 @@ import {
   type PropertyDef,
   type PropertyKind,
   type VaultPath,
-} from '@atlas/domain';
-import { isDatasource, isSavedView } from '@atlas/domain';
+} from '@dfai/domain';
+import { isDatasource, isSavedView } from '@dfai/domain';
 import {
   linkedTypeProblems,
   noteTypeName,
@@ -18,8 +18,8 @@ import {
   type MarkdownPort,
   type OpenNote,
   type VaultFsPort,
-} from '@atlas/application';
-import type { PropertyRow, RelationChoice, RelationTarget } from '@atlas/ui';
+} from '@dfai/application';
+import type { PropertyRow, RelationChoice, RelationTarget } from '@dfai/ui';
 
 const NO_KINDS: Readonly<Record<string, PropertyKind>> = {};
 

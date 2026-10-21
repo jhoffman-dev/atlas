@@ -5,8 +5,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, parseObjectType, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeMarkdown, fakeVaultFs, type OpenNote } from '@atlas/application';
+import { createVaultPath, parseObjectType, type VaultPath } from '@dfai/domain';
+import { fakeIndexPort, fakeMarkdown, fakeVaultFs, type OpenNote } from '@dfai/application';
 import { useNoteProperties } from './use-note-properties.ts';
 
 const FILES: Record<string, string> = {

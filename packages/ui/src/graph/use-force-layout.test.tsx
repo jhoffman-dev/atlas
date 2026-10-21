@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath, type GraphEdge, type GraphNode, type VaultGraph } from '@atlas/domain';
+import { createVaultPath, type GraphEdge, type GraphNode, type VaultGraph } from '@dfai/domain';
 import { useForceLayout } from './use-force-layout.ts';
 
 const node = (name: string, degree: number): GraphNode => ({

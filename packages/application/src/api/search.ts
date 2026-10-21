@@ -1,4 +1,4 @@
-import { createVaultPath, isArchivedPath, toSearchQuery } from '@atlas/domain';
+import { createVaultPath, isArchivedPath, toSearchQuery } from '@dfai/domain';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import { countOf, queryFlag, requiredText } from './fields.ts';
 import { isApiNotePath } from './paths.ts';

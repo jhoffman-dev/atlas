@@ -20,7 +20,7 @@ import {
   type NotesAcrossMove,
   type PersonMergePlan,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { forgetNotes, notesLinkingTo } from '../index/refresh-index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

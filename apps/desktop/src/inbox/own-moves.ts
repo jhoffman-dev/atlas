@@ -1,4 +1,4 @@
-import { notesAfterMoves, type EntryMove, type VaultPath } from '@atlas/domain';
+import { notesAfterMoves, type EntryMove, type VaultPath } from '@dfai/domain';
 
 /**
  * The vault's notes as the page's own filings have left them (#217), and

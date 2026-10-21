@@ -4,8 +4,8 @@ import {
   pageThumbnailPath,
   pageThumbnailSrc,
   parseObjectType,
-} from '@atlas/domain';
-import type { ThumbnailSnapshot } from '@atlas/application';
+} from '@dfai/domain';
+import type { ThumbnailSnapshot } from '@dfai/application';
 import { pageThumbnailState } from './page-thumbnail-view.ts';
 
 const DUNE = createVaultPath('Books/Dune.md');

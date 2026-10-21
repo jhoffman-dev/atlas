@@ -6,7 +6,7 @@ import {
   type ChecklistLine,
   type EditorDocument,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   LineAlreadyPromotedError,
   lineMarkdown,

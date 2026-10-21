@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodeBase64 } from '@atlas/domain';
+import { encodeBase64 } from '@dfai/domain';
 import { fakeOpenNotes } from '../testing/fake-ports.ts';
 import {
   apiFixture,

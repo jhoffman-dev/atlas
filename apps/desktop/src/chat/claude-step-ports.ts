@@ -1,5 +1,5 @@
-import type { ClaudeStepPorts, ModelProvider, Toolboxes } from '@atlas/application';
-import { chatModelOrDefault } from '@atlas/domain';
+import type { ClaudeStepPorts, ModelProvider, Toolboxes } from '@dfai/application';
+import { chatModelOrDefault } from '@dfai/domain';
 import { localClock } from '../today.ts';
 import type { ChatSettings, ChatSettingsStore } from './chat-settings-store.ts';
 import type { ChatPorts } from './use-chat.ts';

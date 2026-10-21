@@ -13,8 +13,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use atlas_lib::embeddings::fetch::ensure_model;
-use atlas_lib::embeddings::{model_folder, MODEL};
+use dfai_lib::embeddings::fetch::ensure_model;
+use dfai_lib::embeddings::{model_folder, MODEL};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};

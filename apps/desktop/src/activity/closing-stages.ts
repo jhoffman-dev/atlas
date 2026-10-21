@@ -1,4 +1,4 @@
-import type { WindowClosingPort } from '@atlas/application';
+import type { WindowClosingPort } from '@dfai/application';
 
 /**
  * The window's close, in three stages: every `writes` task, then every

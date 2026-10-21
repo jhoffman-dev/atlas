@@ -1,4 +1,4 @@
-import type { GroupFoldStore } from '@atlas/ui';
+import type { GroupFoldStore } from '@dfai/ui';
 
 const KEY = 'atlas.view-folds';
 

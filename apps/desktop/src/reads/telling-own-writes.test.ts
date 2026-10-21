@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createOwnWrites } from '@atlas/application';
+import { createOwnWrites } from '@dfai/application';
 import { tellingOwnWrites } from './telling-own-writes.ts';
 
 describe('the app’s own writes, telling where each landed', () => {

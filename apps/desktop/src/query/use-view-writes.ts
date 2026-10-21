@@ -8,7 +8,7 @@ import {
   type StatusProperty,
   type ViewDisplay,
   type WriteRecord,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   cardAsMoved,
   cardMoveChanges,
@@ -21,8 +21,8 @@ import {
   type PropertyChanges,
   type VaultFsPort,
   FrontmatterRefusedError,
-} from '@atlas/application';
-import type { CardMove, CellEdit } from '@atlas/ui';
+} from '@dfai/application';
+import type { CardMove, CellEdit } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';

@@ -1,4 +1,4 @@
-import { ANSWERED_VIA_KEY, messageOf, type ProposalAnswerer, type VaultPath } from '@atlas/domain';
+import { ANSWERED_VIA_KEY, messageOf, type ProposalAnswerer, type VaultPath } from '@dfai/domain';
 import { ProposalRefused } from '../chat/proposals.ts';
 import { backFromArchive, reopen } from './accept-proposal.ts';
 import {

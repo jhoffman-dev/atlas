@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, type ReactNode } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import type { ApiConnectionStatus } from '@atlas/application';
+import type { ApiConnectionStatus } from '@dfai/application';
 import { AppearanceSettings } from './appearance-settings.tsx';
 import { Icon } from './icon.tsx';
 import { SettingsSection } from './settings-section.tsx';

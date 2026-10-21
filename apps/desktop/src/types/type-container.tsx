@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
-import { createVaultPath, isPersonType, typeShownAt } from '@atlas/domain';
-import { typeTableScope } from '@atlas/application';
+import { createVaultPath, isPersonType, typeShownAt } from '@dfai/domain';
+import { typeTableScope } from '@dfai/application';
 import { clearRow, focusRow, hideAside, typeEditorShown, withinOf } from '../aside/aside-store.ts';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { typePage } from '../pages-on-first-use.ts';

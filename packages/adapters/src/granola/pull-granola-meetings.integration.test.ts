@@ -14,8 +14,8 @@ import {
   granolaTurn,
   type GranolaPullRecord,
   type GranolaPullRecords,
-} from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
+} from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
 import {
   mapGranolaNote,
   splitFrontmatter,
@@ -23,7 +23,7 @@ import {
   type ActivityReport,
   type GranolaFailure,
   type GranolaNote,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 
 /** The vault `apiFixture` opens, and another to switch to. */

@@ -6,7 +6,7 @@
  * none is read, none is written to the index — once they are indexed.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { refreshIndex } from '../index/refresh-index.ts';
 

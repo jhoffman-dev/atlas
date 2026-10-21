@@ -3,7 +3,7 @@ import {
   renderTranscript,
   toolProtocolInstructions,
   type ScannedPiece,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   ChatCancelled,
   ModelProviderError,
@@ -11,7 +11,7 @@ import {
   type ModelProvider,
   type ModelRequest,
   type ProviderStatus,
-} from '@atlas/application';
+} from '@dfai/application';
 import { createEventQueue } from './event-queue.ts';
 import { ProgramNotFound, type ModelProcessHost, type ProcessExit } from './model-process.ts';
 import { isLoginProblem, readStreamJsonLine } from './stream-json.ts';

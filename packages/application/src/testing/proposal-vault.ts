@@ -1,4 +1,4 @@
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { ProposalPorts } from '../proposals/index.ts';
 import { apiFixture, type ApiFixture } from './api-fixture.ts';

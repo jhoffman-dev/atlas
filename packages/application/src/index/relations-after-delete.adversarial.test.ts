@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, resolveWikiLinkTarget, type VaultPath } from '@atlas/domain';
+import { createVaultPath, resolveWikiLinkTarget, type VaultPath } from '@dfai/domain';
 import { deleteEntry } from '../vault/delete-entry.ts';
 import { renameEntry } from '../vault/relocate-entry.ts';
 import type { OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';

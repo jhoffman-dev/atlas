@@ -8,7 +8,7 @@ import {
   type IndexEntry,
   type LeftOut,
   type RepositoryPlace,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   ProgramMissingError,
   type GitFoldersPort,

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, noteNames, type PropertyDef, type PropertyKind } from '@atlas/domain';
+import { createVaultPath, noteNames, type PropertyDef, type PropertyKind } from '@dfai/domain';
 import { pickSuggestion, suggestedTitles } from './link-suggest/link-suggest.test-support.ts';
 import { NoteNamesProvider } from './note-names.tsx';
 import { PropertiesPanel, type NewProperty, type PropertyRow } from './properties-panel.tsx';

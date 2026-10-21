@@ -27,7 +27,7 @@ import {
   type GranolaSettings,
   type GranolaUnreadableSummary,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityLog, ActivityRecorder } from '../activity/ports.ts';
 import { meetingHoldersIn, type HolderPorts } from '../meetings/meeting-files.ts';
 import { MeetingPathsTakenError, receiveMeeting } from '../meetings/receive-meeting.ts';

@@ -8,7 +8,7 @@ import {
   type PropertyDef,
   type PropertyKind,
   type TypeEdit,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { OptionsEditor } from './options-editor.tsx';

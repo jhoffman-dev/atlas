@@ -1,4 +1,4 @@
-import { messageWithoutPaths, TASK_TYPE, taskTypeOf } from '@atlas/domain';
+import { messageWithoutPaths, TASK_TYPE, taskTypeOf } from '@dfai/domain';
 import { readTaskSchedules } from '../timeblocks/task-schedules.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { ApiError } from './api-error.ts';

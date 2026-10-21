@@ -6,7 +6,7 @@ import {
   splitFrontmatter,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createNote } from '../notes/create-note.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

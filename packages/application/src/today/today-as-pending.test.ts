@@ -7,7 +7,7 @@ import {
   type ReviewTask,
   type TodaySectionId,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { archiveTaskChange } from '../review/review-actions.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 import type { TodayReport } from './read-today.ts';

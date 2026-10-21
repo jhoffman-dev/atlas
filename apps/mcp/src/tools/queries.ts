@@ -1,6 +1,6 @@
 /** Tools that return rows from the index: saved views, structured queries, DFAI queries, SQL. */
 
-import type { ApiQueryBody } from '@atlas/application';
+import type { ApiQueryBody } from '@dfai/application';
 import { z } from 'zod';
 import { defineTool, definedOnly } from './define.ts';
 import { includeArchived, limit, notePath } from './inputs.ts';

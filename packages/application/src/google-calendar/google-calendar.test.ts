@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { GoogleCalendar } from '@atlas/domain';
+import type { GoogleCalendar } from '@dfai/domain';
 import { createSettingsWriter } from '../settings/index.ts';
 import { jsonMarkdown, vaultWith } from '../testing/settings-vault.ts';
 import {

@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import { fakeMarkdown } from '../testing/fake-ports.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';

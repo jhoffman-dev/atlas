@@ -4,7 +4,7 @@ import {
   splitFrontmatter,
   type AutomationRule,
   type NoteVersionRef,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 

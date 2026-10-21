@@ -6,7 +6,7 @@ import {
   INBOX_QUERY_COLUMNS,
   PARA_VALUES_QUERY_MARK,
   TASK_TYPE_FILE,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeMarkdown,
@@ -14,7 +14,7 @@ import {
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import { createInboxWrites } from './inbox-writes.ts';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 

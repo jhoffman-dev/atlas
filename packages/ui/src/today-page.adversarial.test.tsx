@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { createVaultPath, todayLists, type ReviewTask } from '@atlas/domain';
-import type { TodayReport } from '@atlas/application';
+import { createVaultPath, todayLists, type ReviewTask } from '@dfai/domain';
+import type { TodayReport } from '@dfai/application';
 import { TodayPage, type TodayPageProps } from './today-page.tsx';
 
 /** Adversarial pass on #111: whatever a task is called, the page shows it as text. */

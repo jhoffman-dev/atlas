@@ -1,4 +1,4 @@
-import { isPillHue, type OptionColor } from '@atlas/domain';
+import { isPillHue, type OptionColor } from '@dfai/domain';
 
 /** The attribute a pill is painted by: `data-hue` for a hue, `data-tone` for a status's tone. */
 export type PillPaint = { readonly 'data-hue': string } | { readonly 'data-tone': string };

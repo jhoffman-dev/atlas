@@ -13,7 +13,7 @@ import {
   type ScheduledTaskRow,
   type TaskSchedule,
   type TimeblockRow,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 
 /** A row of a result, read by column name. */

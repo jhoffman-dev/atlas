@@ -12,8 +12,8 @@ import {
   type WidgetDraft,
   type WidgetIcon,
   type WidgetKind,
-} from '@atlas/domain';
-import type { WidgetResult } from '@atlas/application';
+} from '@dfai/domain';
+import type { WidgetResult } from '@dfai/application';
 import { Icon, widgetGlyph, widgetKindGlyph } from '../icon.tsx';
 import type { OverlaySlot } from '../overlay-slot.ts';
 import { FilterList, type ViewField } from '../view-query-popovers.tsx';

@@ -15,7 +15,7 @@ import {
   type RawPartsReader,
   type Transclusion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { createTransclusionReader } from '../transclusion/read-transclusions.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

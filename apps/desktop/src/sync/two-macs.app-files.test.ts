@@ -16,9 +16,9 @@ import {
   SHIPPED_PROPERTIES,
   SHIPPED_PROPERTIES_RECORD_PATH,
   type ShippedCatalogue,
-} from '@atlas/domain';
-import { ensureBuiltInTypes } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/domain';
+import { ensureBuiltInTypes } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { expectNoMarkers, TIMEOUT, twoMacs, vaultFsOf, type Mac } from './two-macs.harness.ts';
 
 const MEETING = '.atlas/types/meeting.md';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type EntryMove } from '@atlas/domain';
+import { createVaultPath, type EntryMove } from '@dfai/domain';
 import { createMoveRelay } from './move-relay.ts';
 
 const MOVE: EntryMove = { from: createVaultPath('A.md'), to: createVaultPath('Archive/A.md') };

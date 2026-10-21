@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { hueOf, noteNames, type BoardColumn, type VaultPath } from '@atlas/domain';
+import { hueOf, noteNames, type BoardColumn, type VaultPath } from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 import { NoteNamesProvider } from './note-names.tsx';
 import { announced, dragByKeyboard, layOut, type Box } from './drag/test-layout.ts';

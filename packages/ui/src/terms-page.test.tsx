@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type ListedTerm, type VocabularyConflict } from '@atlas/domain';
+import { createVaultPath, type ListedTerm, type VocabularyConflict } from '@dfai/domain';
 import { TermsPage, type TermsContents } from './terms-page.tsx';
 
 const term = (path: string, canonical: string, variants: string[], kind: ListedTerm['kind']) =>

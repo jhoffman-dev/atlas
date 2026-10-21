@@ -1,4 +1,4 @@
-import type { NoteChange } from '@atlas/domain';
+import type { NoteChange } from '@dfai/domain';
 
 /** The notes one sync of the index found added, changed or removed in a vault. */
 export interface NoteChangeNews {

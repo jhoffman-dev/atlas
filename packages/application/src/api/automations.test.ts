@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { digestOf, newLogText, VAULT_WALK_DEPTH, type LogEntry } from '@atlas/domain';
+import { digestOf, newLogText, VAULT_WALK_DEPTH, type LogEntry } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT, VAULT } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';

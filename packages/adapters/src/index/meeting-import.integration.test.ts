@@ -24,8 +24,8 @@ import {
   recordingActivity,
   type ArchivePorts,
   type IndexedNote,
-} from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath } from '@dfai/domain';
 
 /**
  * Meeting import on arrival end to end on this side of the boundary: meeting

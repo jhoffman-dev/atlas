@@ -8,7 +8,7 @@ import {
   type QuickView,
   type QuickViewId,
   type ViewQuery,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { runAtlasQuery } from '../query/run-atlas-query.ts';

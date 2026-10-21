@@ -21,7 +21,7 @@ import {
   type SqlWidgetSpec,
   type ViewQuery,
   type Widget,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { messageWithoutPaths } from '../api/api-error.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { runAtlasQuery } from '../query/run-atlas-query.ts';

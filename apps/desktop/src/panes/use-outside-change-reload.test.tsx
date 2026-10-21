@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath, digestOf, type NoteChange } from '@atlas/domain';
-import { createNoteChanges, type OpenNote } from '@atlas/application';
+import { createVaultPath, digestOf, type NoteChange } from '@dfai/domain';
+import { createNoteChanges, type OpenNote } from '@dfai/application';
 import { useOutsideChangeReload, type ReloadableNote } from './use-outside-change-reload.ts';
 
 const VAULT = '/Users/someone/Vault';

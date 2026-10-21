@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createTagRenames, fakeIndexPort, fakeVaultFs } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import type { TagCount } from '@atlas/domain';
+import { createTagRenames, fakeIndexPort, fakeVaultFs } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import type { TagCount } from '@dfai/domain';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { useVaultTags } from './use-vault-tags.ts';
 import { useTagsPage, type TagsPagePorts } from './use-tags-page.ts';

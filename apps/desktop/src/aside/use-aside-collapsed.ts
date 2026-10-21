@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import { ASIDE_WIDTH, asideCollapsesBelow } from '@atlas/ui';
+import { ASIDE_WIDTH, asideCollapsesBelow } from '@dfai/ui';
 
 /**
  * Whether the window is too narrow for the aside, by the one rule

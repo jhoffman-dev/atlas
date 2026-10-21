@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AREA_TYPE, FILED_UNDER_TYPES, PERSON_TYPE, type NoteChange } from '@atlas/domain';
+import { AREA_TYPE, FILED_UNDER_TYPES, PERSON_TYPE, type NoteChange } from '@dfai/domain';
 import {
   INBOX_CHOICES_SCOPE,
   INBOX_SCOPE,

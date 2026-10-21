@@ -5,8 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, readsTouchedByPaths, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeVaultFs, readsTouchedByPaths, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { createReadInvalidator } from '../reads/read-invalidator.ts';
 import { useSidebarOrder } from '../sidebar/use-sidebar-order.ts';

@@ -1,4 +1,4 @@
-import { apiWriteReport, insideVault, type VaultPath } from '@atlas/domain';
+import { apiWriteReport, insideVault, type VaultPath } from '@dfai/domain';
 import type { ActivityRecorder } from '../activity/ports.ts';
 import { failureOf } from './api-error.ts';
 import type { ApiRequest, ApiResponse } from './contract.ts';

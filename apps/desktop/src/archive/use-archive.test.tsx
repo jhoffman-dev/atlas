@@ -12,9 +12,9 @@ import {
   vaultPathName,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type ArchivePorts, type IndexPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type ArchivePorts, type IndexPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useArchive, useArchivePage, type ArchiveOptions } from './use-archive.ts';
 
 const path = (raw: string): VaultPath => createVaultPath(raw);

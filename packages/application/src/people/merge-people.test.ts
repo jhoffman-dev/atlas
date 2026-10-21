@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, splitFrontmatter } from '@dfai/domain';
 import { refreshIndex } from '../index/refresh-index.ts';
 import {
   jsonFrontmatterMarkdown as markdown,

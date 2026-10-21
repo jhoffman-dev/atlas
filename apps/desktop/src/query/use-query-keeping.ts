@@ -8,9 +8,9 @@ import {
   type SidebarEntry,
   type VaultPath,
   type ViewLayout,
-} from '@atlas/domain';
-import { dashboardChange, ViewRefusedError, writeViewNote } from '@atlas/application';
-import type { AddQueryToDashboard, Choice, SaveQuery } from '@atlas/ui';
+} from '@dfai/domain';
+import { dashboardChange, ViewRefusedError, writeViewNote } from '@dfai/application';
+import type { AddQueryToDashboard, Choice, SaveQuery } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import type { QueryPagePorts } from './use-query-page.ts';

@@ -8,7 +8,7 @@
  * put the held item over it. No React, no DOM, no dnd-kit.
  */
 
-import type { LayoutStep } from '@atlas/domain';
+import type { LayoutStep } from '@dfai/domain';
 
 export type Direction = 'left' | 'right' | 'up' | 'down';
 

@@ -4,7 +4,7 @@ import {
   granolaIndexWaitReport,
   parseGranolaSettings,
   type GranolaPullMode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createGranolaPuller,
   GranolaError,
@@ -17,7 +17,7 @@ import {
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { errorMessage } from '../query/error-message.ts';
 import { useVaultSettingsRead } from '../settings/use-vault-settings-read.ts';
 

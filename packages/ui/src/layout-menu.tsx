@@ -1,5 +1,5 @@
 import { Menu } from '@base-ui/react/menu';
-import { layoutLabel, viewIcon, type LayoutChoice, type ViewLayout } from '@atlas/domain';
+import { layoutLabel, viewIcon, type LayoutChoice, type ViewLayout } from '@dfai/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import type { OverlaySlot } from './overlay-slot.ts';
 

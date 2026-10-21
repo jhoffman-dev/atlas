@@ -7,7 +7,7 @@ import {
   VAULT_WALK_DEPTH,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 const MARKDOWN = /\.(md|markdown)$/i;

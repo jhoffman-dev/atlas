@@ -4,7 +4,7 @@ import {
   DEFAULT_GRAPH_FILTER,
   GRAPH_PAGE_SIZE,
   type GraphQueryPart,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import type { QueryResult } from '../index/ports.ts';
 import { loadGraph, pictureGraph, readVaultGraph } from './load-graph.ts';

@@ -1,4 +1,4 @@
-import { DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT, type VaultPath } from '@atlas/domain';
+import { DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT, type VaultPath } from '@dfai/domain';
 import { ApiError } from './api-error.ts';
 import { answerAtlasQueryPage, groupsOf } from './atlas-query-answer.ts';
 import type { ApiAtlasQueryRows } from './contract.ts';

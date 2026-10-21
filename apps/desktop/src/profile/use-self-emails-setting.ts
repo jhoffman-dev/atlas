@@ -6,9 +6,9 @@ import {
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
-import { parseSelfEmails, selfEmailsFromText, type SelfEmails } from '@atlas/domain';
-import type { SelfEmailsView } from '@atlas/ui';
+} from '@dfai/application';
+import { parseSelfEmails, selfEmailsFromText, type SelfEmails } from '@dfai/domain';
+import type { SelfEmailsView } from '@dfai/ui';
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
 import { useVaultSettingsRead } from '../settings/use-vault-settings-read.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';

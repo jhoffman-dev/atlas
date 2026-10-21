@@ -6,16 +6,16 @@ import {
   REVIEW_PROJECTS_QUERY_MARK,
   REVIEW_TASKS_QUERY_MARK,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   memoryVault,
   recordingActivity,
   type QueryResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { settles } from '@atlas/ui/testing/settles';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { settles } from '@dfai/ui/testing/settles';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useToday } from './use-today.ts';
 

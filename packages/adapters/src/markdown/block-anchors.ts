@@ -7,7 +7,7 @@ import {
   trailingBlockAnchor,
   type AnchorSlot,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Heading, Nodes, Paragraph, RootContent } from 'mdast';
 
 /*

@@ -8,7 +8,7 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { createNote } from '../notes/create-note.ts';
 import { createFolder, listVaultFolders } from './create-folder.ts';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, todayLists, type ReviewTask } from '@atlas/domain';
-import type { TodayReport } from '@atlas/application';
+import { createVaultPath, todayLists, type ReviewTask } from '@dfai/domain';
+import type { TodayReport } from '@dfai/application';
 import { keptTodayReport } from './kept-today-report.ts';
 
 const NOW = Date.UTC(2026, 9, 13, 15);

@@ -4,7 +4,7 @@
  * rename that only evens out spellings. Each test names the invariant it holds.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { TAG_PAGE_SIZE } from '@atlas/domain';
+import { TAG_PAGE_SIZE } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { tagIndexQuery } from '../testing/tag-index.ts';
 import { loadTaggedNotes } from './load-tags.ts';

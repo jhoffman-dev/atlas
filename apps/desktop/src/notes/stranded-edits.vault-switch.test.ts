@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createVaultPath, type EditorDocument } from '@atlas/domain';
+import { createVaultPath, type EditorDocument } from '@dfai/domain';
 import { useStrandedEdits } from './stranded-edits.ts';
 import { memoryStrandedStore } from './testing/memory-stranded-store.ts';
 

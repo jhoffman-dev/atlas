@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { apiFixture, bodyOf, codeOf } from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import { mapMeeting, splitFrontmatter } from '@atlas/domain';
+import { apiFixture, bodyOf, codeOf } from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
+import { mapMeeting, splitFrontmatter } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*

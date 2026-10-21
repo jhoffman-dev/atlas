@@ -7,7 +7,7 @@ import {
   parseAutomationRule,
   splitFrontmatter,
   type AutomationDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /**

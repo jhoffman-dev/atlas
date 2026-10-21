@@ -1,4 +1,4 @@
-import { relationTypes, type ObjectType } from '@atlas/domain';
+import { relationTypes, type ObjectType } from '@dfai/domain';
 import { loadObjectTypes } from '../types/load-types.ts';
 import type { ApiType } from './contract.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';

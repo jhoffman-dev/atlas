@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import { noteTitle, type VaultPath } from '@atlas/domain';
+import { noteTitle, type VaultPath } from '@dfai/domain';
 import {
   acceptProposalNote,
   listProposals,
@@ -17,8 +17,8 @@ import {
   type ProposalPorts,
   type RejectedProposal,
   type WindowClosingPort,
-} from '@atlas/application';
-import type { ProposalsContents, ProposalsSectionProps, RowSelection } from '@atlas/ui';
+} from '@dfai/application';
+import type { ProposalsContents, ProposalsSectionProps, RowSelection } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useRowSelection } from '../archive/use-row-selection.ts';
 import { answeredNotice, inTurn, undoneNotice, type InTurn } from './answer-many.ts';

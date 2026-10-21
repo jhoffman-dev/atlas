@@ -2,7 +2,7 @@
 /** Adversarial pass on #236: the Inbox rows' steady callbacks and memo, over every row. */
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
-import { createVaultPath, type InboxItem } from '@atlas/domain';
+import { createVaultPath, type InboxItem } from '@dfai/domain';
 import { InboxPage, type InboxPageProps } from '../inbox-page.tsx';
 import { pickTyped } from '../link-suggest/link-suggest.test-support.ts';
 import { startCountingRenders, stopCountingRenders } from '../testing/render-counter.ts';

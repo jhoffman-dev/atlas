@@ -11,7 +11,7 @@ import {
   type VaultPath,
   type VocabularyClaim,
   type VocabularyConflict,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon } from './icon.tsx';
 import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';

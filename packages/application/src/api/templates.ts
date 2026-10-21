@@ -1,4 +1,4 @@
-import { splitFrontmatter, type TemplateUse } from '@atlas/domain';
+import { splitFrontmatter, type TemplateUse } from '@dfai/domain';
 import { loadTemplateCatalog, type TemplateRow } from '../types/manage-templates.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { findTemplateNamed } from '../types/templates.ts';

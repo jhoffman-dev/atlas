@@ -17,7 +17,7 @@ import {
   type SqlShow,
   type VaultPath,
   type ViewLayout,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   dashboardChange,
   loadSchema,
@@ -29,7 +29,7 @@ import {
   type MarkdownPort,
   type VaultFsPort,
   type ViewResult,
-} from '@atlas/application';
+} from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from './error-message.ts';

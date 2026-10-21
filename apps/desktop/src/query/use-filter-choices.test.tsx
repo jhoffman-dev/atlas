@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { noteNames, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, type IndexPort } from '@atlas/application';
+import { noteNames, type ObjectType } from '@dfai/domain';
+import { fakeIndexPort, type IndexPort } from '@dfai/application';
 import { useFilterChoices } from './use-filter-choices.ts';
 
 /* #212: the Filter control's choices for each property of a view's type. */

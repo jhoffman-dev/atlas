@@ -1,4 +1,4 @@
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { describe, expect, it, vi } from 'vitest';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';
 import { cardMoveChanges } from '../query/card-move.ts';

@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type SidebarTreeRow } from '@atlas/domain';
+import { createVaultPath, type SidebarTreeRow } from '@dfai/domain';
 import { VaultTree, type TreeEditing } from './vault-tree.tsx';
 
 const noteRow = (name: string): SidebarTreeRow => ({

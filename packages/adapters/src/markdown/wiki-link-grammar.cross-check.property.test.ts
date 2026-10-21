@@ -4,7 +4,7 @@ import {
   retargetLinks,
   splitWikiLinksAndEmbeds,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Nodes, Root } from 'mdast';
 import { parseBodyToMdast } from './markdown-blocks.ts';
 

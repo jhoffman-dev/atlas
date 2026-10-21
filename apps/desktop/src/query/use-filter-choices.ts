@@ -6,8 +6,8 @@ import {
   type FilterChoiceSources,
   type NoteNames,
   type ObjectType,
-} from '@atlas/domain';
-import { loadFilterChoiceSources, type IndexPort } from '@atlas/application';
+} from '@dfai/domain';
+import { loadFilterChoiceSources, type IndexPort } from '@dfai/application';
 
 /** Each property's filter choices, by key. */
 export type FilterChoicesByKey = Readonly<Record<string, readonly FilterChoice[]>>;

@@ -9,7 +9,7 @@ import {
   type GroupLine,
   type PropertyKind,
   type RowGroup,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { ROW_STOP, useRowFocus } from './row-focus.ts';
 import { StatusPill } from './status-pill.tsx';

@@ -10,7 +10,7 @@ import {
   type ConflictCopy,
   type LeftOut,
   type SyncReport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityRecorder } from '../activity/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';

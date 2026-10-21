@@ -19,7 +19,7 @@ import {
   type AutomationRule,
   type NoteChange,
   type NoteVersion,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { heldEntries } from '../index/refresh-index.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';

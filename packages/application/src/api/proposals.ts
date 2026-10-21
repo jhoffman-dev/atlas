@@ -4,7 +4,7 @@ import {
   payloadRecord,
   proposalHeadline,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ProposalRefused } from '../chat/proposals.ts';
 import {
   acceptProposalNote,

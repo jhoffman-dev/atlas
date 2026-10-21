@@ -1,6 +1,6 @@
-import { withKindToggled, type ActivitySubject } from '@atlas/domain';
-import type { Clock } from '@atlas/application';
-import { ActivityPage, type PageHistory } from '@atlas/ui';
+import { withKindToggled, type ActivitySubject } from '@dfai/domain';
+import type { Clock } from '@dfai/application';
+import { ActivityPage, type PageHistory } from '@dfai/ui';
 import { activityRows, subjectOf } from './activity-rows.ts';
 import type { useActivity } from './use-activity.ts';
 

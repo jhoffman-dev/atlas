@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
-import type { VaultPath } from '@atlas/domain';
-import type { BulkAction, RowSelection } from '@atlas/ui';
+import type { VaultPath } from '@dfai/domain';
+import type { BulkAction, RowSelection } from '@dfai/ui';
 import type { BatchAnswer } from '../archive/use-row-selection.ts';
 import { useRowSelection } from '../archive/use-row-selection.ts';
 import type { ChosenPeople } from './people-merge.ts';

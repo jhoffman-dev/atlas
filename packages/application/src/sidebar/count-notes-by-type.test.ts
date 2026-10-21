@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@atlas/domain';
+import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { countNotesByType } from './count-notes-by-type.ts';
 

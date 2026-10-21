@@ -1,4 +1,4 @@
-import { createVaultPath, pageCrumb, type VaultPath } from '@atlas/domain';
+import { createVaultPath, pageCrumb, type VaultPath } from '@dfai/domain';
 import {
   AtlasQueryPanel,
   HiddenTitle,
@@ -7,7 +7,7 @@ import {
   SegmentedControl,
   type OverlaySlots,
   type PageHistory,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import type { QueryLanguage, useQueryPage } from './use-query-page.ts';
 
 const PAGE = { kind: 'query' } as const;

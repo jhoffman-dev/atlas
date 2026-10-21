@@ -7,7 +7,7 @@ import {
   type VaultEntry,
   type VaultPath,
   type VaultTreeRow,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   listVaultDirectory,
   listVaultNotes,
@@ -18,7 +18,7 @@ import {
   type VaultLocationStore,
   type VaultPickerPort,
   type VaultWatchPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { sameReading } from '../same-reading.ts';
 
 export interface VaultPorts {

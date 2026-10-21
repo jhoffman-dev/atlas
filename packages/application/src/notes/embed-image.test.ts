@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type IncomingImage, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type IncomingImage, type VaultEntry } from '@dfai/domain';
 import {
   embedImage,
   ImageEmbedError,

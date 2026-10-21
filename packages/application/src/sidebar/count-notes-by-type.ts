@@ -1,4 +1,4 @@
-import { compileTypeCountsQuery, TYPE_COUNTS_QUERY_COLUMNS, type ObjectType } from '@atlas/domain';
+import { compileTypeCountsQuery, TYPE_COUNTS_QUERY_COLUMNS, type ObjectType } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 
 /**

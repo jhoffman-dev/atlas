@@ -16,7 +16,7 @@ import {
   type EditorDocument,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';

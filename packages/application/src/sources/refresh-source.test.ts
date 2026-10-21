@@ -6,7 +6,7 @@ import {
   type Datasource,
   type HttpRequest,
   type VaultEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { refreshSource } from './refresh-source.ts';
 import type { HttpPort, SqliteSourcePort } from './ports.ts';
 import { fakeIndexPort } from '../testing/fake-ports.ts';

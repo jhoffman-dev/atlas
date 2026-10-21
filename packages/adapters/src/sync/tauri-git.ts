@@ -9,7 +9,7 @@ import {
   type SyncFilesPort,
   type ThisMacPort,
   type VaultLocation,
-} from '@atlas/application';
+} from '@dfai/application';
 import { checkoutArgs, gitCommands } from './git-commands.ts';
 
 /** How the host words a refusal to run because the program is not installed. */

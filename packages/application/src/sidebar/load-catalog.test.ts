@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compileSidebarQuery, createVaultPath, type VaultEntry } from '@atlas/domain';
+import { compileSidebarQuery, createVaultPath, type VaultEntry } from '@dfai/domain';
 import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { QueryResult } from '../index/ports.ts';

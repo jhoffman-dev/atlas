@@ -9,7 +9,7 @@ import {
   vaultPathSegments,
   VAULT_ROOT,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { MoveRefusedError } from './relocate-entry.ts';
 import type { VaultFsPort } from './ports.ts';
 

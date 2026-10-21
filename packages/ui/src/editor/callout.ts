@@ -1,5 +1,5 @@
 import { Node } from '@tiptap/core';
-import { calloutLabel } from '@atlas/domain';
+import { calloutLabel } from '@dfai/domain';
 
 /**
  * An Obsidian callout. The marker line is held in attributes and drawn as a

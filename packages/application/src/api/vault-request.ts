@@ -1,4 +1,4 @@
-import type { ImagePlacement, VaultPath } from '@atlas/domain';
+import type { ImagePlacement, VaultPath } from '@dfai/domain';
 import type { ThumbnailQueue } from '../artifacts/thumbnail-queue.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { refreshIndex } from '../index/refresh-index.ts';

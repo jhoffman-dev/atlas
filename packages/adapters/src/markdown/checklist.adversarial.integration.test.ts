@@ -12,7 +12,7 @@ import {
   TASK_TYPE_FILE,
   utf8Bytes,
   MAX_NAME_BYTES,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   apiFixture,
   bodyOf,
@@ -21,7 +21,7 @@ import {
   promoteChecklistLine,
   toIndexedNote,
   type PromotionPanes,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 describe('the index counts the boxes the editor draws', () => {

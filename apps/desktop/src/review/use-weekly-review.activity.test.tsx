@@ -1,14 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, type ObjectType } from '@atlas/domain';
-import {
-  fakeIndexPort,
-  fakeVaultFs,
-  NoteChangedError,
-  recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, type ObjectType } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, NoteChangedError, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useWeeklyReview, type WeeklyReviewOptions } from './use-weekly-review.ts';
 

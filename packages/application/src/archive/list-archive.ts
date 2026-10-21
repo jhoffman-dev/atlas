@@ -4,7 +4,7 @@ import {
   compileArchiveQuery,
   createVaultPath,
   type ArchivedNote,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 
 /** The Archive's rows, and whether there were more than it lists. */

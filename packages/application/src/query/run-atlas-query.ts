@@ -9,7 +9,7 @@ import {
   type CompiledAtlasQuery,
   type ObjectType,
   type QueryProblem,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { messageWithoutPaths } from '../api/api-error.ts';
 import type { IndexPort } from '../index/ports.ts';
 import type { ViewResult } from './run-view.ts';

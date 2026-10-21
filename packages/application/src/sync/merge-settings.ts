@@ -12,7 +12,7 @@ import {
   type SettingsMerged,
   type SettingsText,
   type ShippedPropertiesRecord,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 
 /** The three versions of a file both Macs changed, as text; `base` is null when both made it. */

@@ -5,7 +5,7 @@ import {
   type HostVaultFsPort,
   type OwnWrites,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /** Ports as the composition root hands them over: the host's, not yet bound to a vault. */
 export type OnHost<Ports extends { fs: VaultFsPort }> = Omit<Ports, 'fs'> & {

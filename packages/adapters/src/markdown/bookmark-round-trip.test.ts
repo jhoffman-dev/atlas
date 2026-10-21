@@ -5,7 +5,7 @@ import {
   paragraphWithBookmark,
   type EditorDocument,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /**

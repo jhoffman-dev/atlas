@@ -1,4 +1,4 @@
-import type { EditorDocument } from '@atlas/domain';
+import type { EditorDocument } from '@dfai/domain';
 
 /**
  * What the chat panel draws, as plain data. The app hands its chat session's

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { GlobalCapturePort } from '@atlas/application';
+import type { GlobalCapturePort } from '@dfai/application';
 import { createBrowserGlobalCaptureStore } from './browser-global-capture-store.ts';
 import { useGlobalCapture } from './use-global-capture.ts';
 

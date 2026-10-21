@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
-import { checklistLines, type EditorDocument, type NodePath } from '@atlas/domain';
+import { checklistLines, type EditorDocument, type NodePath } from '@dfai/domain';
 
 /** A checklist line asked to become a task: its place among the note's boxes, and its words. */
 export interface PromotedLine {

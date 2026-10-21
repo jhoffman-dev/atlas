@@ -12,7 +12,7 @@ import {
   type MappingOptions,
   type MeetingFields,
   type MeetingImport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*

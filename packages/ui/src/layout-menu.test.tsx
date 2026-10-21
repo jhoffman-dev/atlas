@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { layoutChoices, type PropertyDef } from '@atlas/domain';
+import { layoutChoices, type PropertyDef } from '@dfai/domain';
 import { LayoutMenu } from './layout-menu.tsx';
 
 const status: PropertyDef = {

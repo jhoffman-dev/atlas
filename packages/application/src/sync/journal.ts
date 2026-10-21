@@ -5,7 +5,7 @@ import {
   withUnreported,
   type ConflictCopy,
   type SettleJournal,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { SyncFilesPort } from './ports.ts';
 
 const JOURNAL = 'journal.json';

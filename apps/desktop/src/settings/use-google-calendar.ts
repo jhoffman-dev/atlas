@@ -7,7 +7,7 @@ import {
   type GoogleCalendar,
   type GoogleCalendarSetting,
   type GoogleProblem,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   blockCalendars,
   connectGoogleCalendar,
@@ -20,8 +20,8 @@ import {
   type GoogleConnection,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
-import type { GoogleCalendarView, GoogleConnectRequest } from '@atlas/ui';
+} from '@dfai/application';
+import type { GoogleCalendarView, GoogleConnectRequest } from '@dfai/ui';
 import { useVaultSetting } from './use-vault-setting.ts';
 import { vaultSettingsWriter } from './vault-settings-writer.ts';
 

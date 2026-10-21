@@ -1,4 +1,4 @@
-import { DEFAULT_IMAGE_PLACEMENT, isImagePlacement, type ImagePlacement } from '@atlas/domain';
+import { DEFAULT_IMAGE_PLACEMENT, isImagePlacement, type ImagePlacement } from '@dfai/domain';
 
 const KEY = 'atlas.imagePlacement';
 

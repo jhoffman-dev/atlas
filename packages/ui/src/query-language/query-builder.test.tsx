@@ -13,7 +13,7 @@ import {
   queryFromBuilder,
   type BuilderQuery,
   type QueryField,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { QueryBuilder } from './query-builder.tsx';
 
 const TYPES = [

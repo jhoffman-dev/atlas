@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
-import { groupName, humanizeKey } from '@atlas/domain';
-import type { WidgetBar } from '@atlas/application';
+import { groupName, humanizeKey } from '@dfai/domain';
+import type { WidgetBar } from '@dfai/application';
 import { largestOf, niceTicks } from '../charts/geometry.ts';
 import { useNoteNames } from '../note-names.tsx';
 import { counted } from './counted.ts';

@@ -3,7 +3,7 @@ import {
   type ActivityKind,
   type ActivityLevel,
   type ActivityLevelFilter,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
 import { HiddenTitle } from '../page-head.tsx';

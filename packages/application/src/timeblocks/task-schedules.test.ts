@@ -4,7 +4,7 @@
  * for real against SQLite.
  */
 import { describe, expect, it } from 'vitest';
-import { GTD_STATUS_PROPERTY, type ObjectType } from '@atlas/domain';
+import { GTD_STATUS_PROPERTY, type ObjectType } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';

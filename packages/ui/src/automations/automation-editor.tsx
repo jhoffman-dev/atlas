@@ -8,7 +8,7 @@ import {
   type ClaudeAction,
   type NoteEvent,
   type Schedule,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { Toggle } from '../toggle.tsx';
 import type { DryRunView, LogEntryView } from './automation-views.ts';

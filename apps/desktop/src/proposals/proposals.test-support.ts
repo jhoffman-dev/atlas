@@ -4,9 +4,9 @@ import {
   vaultPathName,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type ProposalPorts } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type ProposalPorts } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { act } from '@testing-library/react';
 import { createToasts } from '../toasts/toasts.ts';
 

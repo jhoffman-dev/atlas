@@ -8,7 +8,7 @@ import {
   type StatusTone,
   type VaultGraph,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
 import { HiddenTitle } from '../page-head.tsx';
 import { SegmentedControl } from '../segmented-control.tsx';

@@ -14,8 +14,8 @@ import {
   type YAMLError,
   type YAMLSeq,
 } from 'yaml';
-import { FrontmatterRefusedError } from '@atlas/application';
-import { KeyAsWritten } from '@atlas/domain';
+import { FrontmatterRefusedError } from '@dfai/application';
+import { KeyAsWritten } from '@dfai/domain';
 
 /**
  * Changes some keys of a frontmatter block and leaves everything else alone.

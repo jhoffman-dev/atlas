@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { noteLinksLabel, type NoteLinkEntry, type NoteLinks, type VaultPath } from '@atlas/domain';
+import { noteLinksLabel, type NoteLinkEntry, type NoteLinks, type VaultPath } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 
 /** Another note naming this one in plain text, and the words around it. */

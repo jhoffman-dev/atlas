@@ -22,8 +22,8 @@ import {
   setNoteProperty,
   writeFrontmatterChanges,
   type ArchivePorts,
-} from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TODAY = '2026-10-18';

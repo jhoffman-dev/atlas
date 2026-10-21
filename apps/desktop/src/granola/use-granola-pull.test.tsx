@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { explainGranolaFailure, type GranolaFailure, type GranolaNote } from '@atlas/domain';
+import { explainGranolaFailure, type GranolaFailure, type GranolaNote } from '@dfai/domain';
 import {
   fakeGranola,
   fakeIndexPort,
@@ -12,9 +12,9 @@ import {
   type GranolaKeyStatus,
   type GranolaPullRecord,
   type GranolaPullRecords,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { drained, settles } from '@atlas/ui/testing/settles';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { drained, settles } from '@dfai/ui/testing/settles';
 import {
   GRANOLA_PULL_INTERVAL_MS,
   INDEX_WAIT_MS,

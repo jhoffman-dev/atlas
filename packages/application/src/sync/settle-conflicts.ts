@@ -10,7 +10,7 @@ import {
   type JournalFile,
   type LeftOut,
   type SettleJournal,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { blobOf, expectOk, firstLine, readIndex, stageAll, SyncError } from './git-steps.ts';
 import { readJournal, writeJournal } from './journal.ts';
 import { FileChangedError, type GitPort, type GitResult, type SyncFilesPort } from './ports.ts';

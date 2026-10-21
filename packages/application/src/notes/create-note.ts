@@ -4,7 +4,7 @@ import {
   nextAvailableNotePath,
   splitFrontmatter,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

@@ -1,4 +1,4 @@
-import type { AppInfo } from '@atlas/domain';
+import type { AppInfo } from '@dfai/domain';
 import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';
 

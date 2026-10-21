@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitWikiLinks, type EditorDocument, type EditorNode } from '@atlas/domain';
+import { splitWikiLinks, type EditorDocument, type EditorNode } from '@dfai/domain';
 import { parseBodyToMdast, parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /**

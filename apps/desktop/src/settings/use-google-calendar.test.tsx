@@ -7,8 +7,8 @@ import {
   fakeVaultFs,
   GoogleCalendarError,
   recordingActivity,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useGoogleCalendar } from './use-google-calendar.ts';
 import { GoogleCalendarSettingsCard } from './google-calendar-settings-card.tsx';
 import { queryWrapper } from '../reads/query-wrapper.tsx';

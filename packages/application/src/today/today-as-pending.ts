@@ -6,7 +6,7 @@ import {
   type TodayLists,
   type TodayTask,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { PropertyChanges } from '../query/set-property.ts';
 import type { TodayReport } from './read-today.ts';
 

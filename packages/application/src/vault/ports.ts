@@ -1,4 +1,4 @@
-import type { EntryMove, VaultEntry, VaultPath } from '@atlas/domain';
+import type { EntryMove, VaultEntry, VaultPath } from '@dfai/domain';
 
 /** Where the vault sits on the real filesystem. The UI never sees absolute paths. */
 export interface VaultLocation {

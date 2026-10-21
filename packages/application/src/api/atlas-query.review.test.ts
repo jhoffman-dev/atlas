@@ -1,4 +1,4 @@
-import type { BoardRow, RowGroup } from '@atlas/domain';
+import type { BoardRow, RowGroup } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';

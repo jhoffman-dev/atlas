@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { createNote, type MarkdownPort, type VaultFsPort } from '@atlas/application';
+import { createNote, type MarkdownPort, type VaultFsPort } from '@dfai/application';
 import {
   createVaultPath,
   createWikiLinkResolver,
@@ -7,8 +7,8 @@ import {
   noteTitle,
   wikiLinkTargetFor,
   type VaultPath,
-} from '@atlas/domain';
-import type { LinkedNoteMaker } from '@atlas/ui';
+} from '@dfai/domain';
+import type { LinkedNoteMaker } from '@dfai/ui';
 import { localToday } from '../today.ts';
 import type { NotesBeingMade } from './notes-being-made.ts';
 

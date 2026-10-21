@@ -10,7 +10,7 @@ import {
   type ObjectType,
   type SavedViewSummary,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   addTypeView,
   duplicateTab,
@@ -19,8 +19,8 @@ import {
   type MarkdownPort,
   type TypeViewPorts,
   type VaultFsPort,
-} from '@atlas/application';
-import type { ViewTabEditing } from '@atlas/ui';
+} from '@dfai/application';
+import type { ViewTabEditing } from '@dfai/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { writeNoteProperties } from '../query/use-view-writes.ts';

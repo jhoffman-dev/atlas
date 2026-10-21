@@ -12,8 +12,8 @@ import {
   fakeVaultFs,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath } from '@dfai/domain';
 import { useInbox } from './use-inbox.ts';
 
 const NOTE = createVaultPath('Inbox/Call Mara.md');

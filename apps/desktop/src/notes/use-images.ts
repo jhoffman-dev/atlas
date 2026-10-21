@@ -5,8 +5,8 @@ import {
   imageSourceCandidates,
   resolveImageSource,
   type VaultPath,
-} from '@atlas/domain';
-import type { VaultFsPort } from '@atlas/application';
+} from '@dfai/domain';
+import type { VaultFsPort } from '@dfai/application';
 
 /**
  * Turns a markdown image source into something the editor can display.

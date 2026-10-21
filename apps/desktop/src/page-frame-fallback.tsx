@@ -1,5 +1,5 @@
 import { Suspense, type ReactNode } from 'react';
-import { PageBar, type PageHistory } from '@atlas/ui';
+import { PageBar, type PageHistory } from '@dfai/ui';
 
 /** What a page's frame keeps from the page: the way back to the sidebar, and Back and Forward. */
 export interface PageChrome {

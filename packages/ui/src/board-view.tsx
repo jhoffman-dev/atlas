@@ -17,7 +17,7 @@ import {
   type BoardRow,
   type OptionColors,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { AddCard, Card, LiftedCard, type CardLook } from './board-card.tsx';
 import { BoardLanes, ColumnHeading, columnName, keyOf, laneCellLabel } from './board-lanes.tsx';
 import type { DoneTicks } from './done-checkbox.tsx';

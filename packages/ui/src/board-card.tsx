@@ -8,7 +8,7 @@ import {
   type CardMetaItem,
   type OptionColors,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import { ChecklistProgress } from './checklist-progress.tsx';

@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type InboxItem } from '@atlas/domain';
+import { createVaultPath, type InboxItem } from '@dfai/domain';
 import { InboxPage, type InboxPageProps } from '../inbox-page.tsx';
 import { startCountingRenders, stopCountingRenders } from '../testing/render-counter.ts';
 

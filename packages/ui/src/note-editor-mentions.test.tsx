@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Editor } from '@tiptap/core';
-import type { EditorDocument, MentionSuggestion } from '@atlas/domain';
+import type { EditorDocument, MentionSuggestion } from '@dfai/domain';
 import { NoteEditor } from './note-editor.tsx';
 
 /**

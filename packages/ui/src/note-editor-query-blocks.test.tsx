@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import type { Editor } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
 import type { Slice } from '@tiptap/pm/model';
-import type { BoardRow, EditorDocument, EditorNode, VaultPath } from '@atlas/domain';
+import type { BoardRow, EditorDocument, EditorNode, VaultPath } from '@dfai/domain';
 import { NoteEditor, type NoteQueryBlocks } from './note-editor.tsx';
 import type { QueryBlockShown } from './editor/query-block.tsx';
 

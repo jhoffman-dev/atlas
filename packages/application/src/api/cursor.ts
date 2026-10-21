@@ -1,4 +1,4 @@
-import { createVaultPath, type InboxKey, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type InboxKey, type VaultPath } from '@dfai/domain';
 import { ApiError } from './api-error.ts';
 import { isApiNotePath } from './paths.ts';
 

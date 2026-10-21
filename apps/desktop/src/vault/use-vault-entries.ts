@@ -16,7 +16,7 @@ import {
   type MovableEntry,
   type NameClash,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   countOtherFiles,
   createFolder,
@@ -33,8 +33,8 @@ import {
   type OpenEditorsPort,
   type Relocation,
   type VaultFsPort,
-} from '@atlas/application';
-import type { DeletionSubject, MenuCommand, MoveDestination } from '@atlas/ui';
+} from '@dfai/application';
+import type { DeletionSubject, MenuCommand, MoveDestination } from '@dfai/ui';
 
 /** The tree, as moving and deleting has to keep it in step. */
 export interface TreeState {

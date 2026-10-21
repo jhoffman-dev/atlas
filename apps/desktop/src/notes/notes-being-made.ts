@@ -1,4 +1,4 @@
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 
 /**
  * The notes a `[[` "Create" is making, the window over (#465): by the name

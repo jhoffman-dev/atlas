@@ -1,4 +1,4 @@
-import { compileNoteFacetsQuery, FACET_CHECK_LIMIT, type FacetRow } from '@atlas/domain';
+import { compileNoteFacetsQuery, FACET_CHECK_LIMIT, type FacetRow } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 
 /**

@@ -6,7 +6,7 @@ import {
   TASK_TYPE_FILE,
   type LinkedSectionId,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { jsonMarkdown } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';

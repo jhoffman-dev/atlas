@@ -1,5 +1,5 @@
 import { notifyManager, QueryClient } from '@tanstack/react-query';
-import type { ReadScope, VaultRead } from '@atlas/application';
+import type { ReadScope, VaultRead } from '@dfai/application';
 
 /**
  * The window's one query cache (ADR-0040). A read is made again only when it

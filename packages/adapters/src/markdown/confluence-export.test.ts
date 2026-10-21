@@ -8,8 +8,8 @@ import type { Nodes, RootContent } from 'mdast';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
-import { createVaultPath } from '@atlas/domain';
-import { exportNoteForConfluence, fakeIndexPort, fakeVaultFs } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { exportNoteForConfluence, fakeIndexPort, fakeVaultFs } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const FILES: Record<string, string> = {

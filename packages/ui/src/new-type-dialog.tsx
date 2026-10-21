@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import type { SidebarIcon } from '@atlas/domain';
+import type { SidebarIcon } from '@dfai/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { KeyHints } from './key-hints.tsx';

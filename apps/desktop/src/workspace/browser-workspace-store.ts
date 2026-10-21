@@ -1,4 +1,4 @@
-import { parseRememberedWorkspace, rememberWorkspace } from '@atlas/domain';
+import { parseRememberedWorkspace, rememberWorkspace } from '@dfai/domain';
 import type { RememberedWorkspaces } from './workspace-store.ts';
 
 /** One key per vault, so two vaults' tabs never read as each other's. */

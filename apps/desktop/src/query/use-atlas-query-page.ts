@@ -7,8 +7,8 @@ import {
   type SidebarEntry,
   type VaultPath,
   type ViewLayout,
-} from '@atlas/domain';
-import { useNoteNames, type AtlasQueryPanelProps } from '@atlas/ui';
+} from '@dfai/domain';
+import { useNoteNames, type AtlasQueryPanelProps } from '@dfai/ui';
 import { resultFor, useAtlasQuery } from './use-atlas-query.ts';
 import { useQueryChoices } from './use-query-choices.ts';
 import { QUERY_LAYOUT_CHOICES, useQueryKeeping } from './use-query-keeping.ts';

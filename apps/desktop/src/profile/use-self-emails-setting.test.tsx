@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import {
-  fakeIndexPort,
-  fakeVaultFs,
-  recordingActivity,
-  type QueryResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeIndexPort, fakeVaultFs, recordingActivity, type QueryResult } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useSelfEmailsSetting } from './use-self-emails-setting.ts';
 import { readAgain, vaultReadKey } from '../reads/query-client.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';

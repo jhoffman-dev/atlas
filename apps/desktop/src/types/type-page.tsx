@@ -5,14 +5,14 @@ import {
   type ObjectType,
   type VaultPath,
   type ViewTab,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type {
   DefinedType,
   IndexPort,
   MarkdownPort,
   OpenNotes,
   VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   EditableTitle,
   PageAction,
@@ -25,7 +25,7 @@ import {
   type ViewTabEditing,
   type OpenHow,
   type PeekRequest,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { PageFrameFallback } from '../page-frame-fallback.tsx';
 import { schemaOf } from '../panes/table-schema.ts';
 import type { useTypeTable } from './use-type-table.ts';

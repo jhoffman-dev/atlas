@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { fakeMarkdown, fakeVaultFs } from '@atlas/application';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { fakeMarkdown, fakeVaultFs } from '@dfai/application';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { createNotesBeingMade, type NotesBeingMade } from './notes-being-made.ts';
 import { useCreateLinkedNote } from './use-create-linked-note.ts';
 

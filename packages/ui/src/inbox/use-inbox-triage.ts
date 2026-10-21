@@ -19,7 +19,7 @@ import {
   type InboxItem,
   type TriageAction,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { clarificationOf, rowAfter, rowAfterLeaving, type InboxDraft } from './inbox-triage.ts';
 
 /** Clarifies a note; settles true once it is done, false when it was refused. */

@@ -1,4 +1,4 @@
-import { readWikiLink, type MarkdownSpan, type RawPart } from '@atlas/domain';
+import { readWikiLink, type MarkdownSpan, type RawPart } from '@dfai/domain';
 import type { Definition, Nodes, Parents, Root } from 'mdast';
 import { parseBodyToMdast } from './markdown-blocks.ts';
 import './mdast-custom-nodes.ts';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import type { PageOutcome, WorkspaceOutcome } from './import-notion-workspace.ts';
 import { workspaceImported, workspaceReportLines } from './workspace-report.ts';
 

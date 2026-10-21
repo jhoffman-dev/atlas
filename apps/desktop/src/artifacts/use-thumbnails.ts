@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-import { isPageThumbnailPath } from '@atlas/domain';
+import { isPageThumbnailPath } from '@dfai/domain';
 import {
   createThumbnailQueue,
   generateThumbnail,
@@ -8,7 +8,7 @@ import {
   type ThumbnailQueue,
   type ThumbnailResult,
   type ThumbnailSnapshot,
-} from '@atlas/application';
+} from '@dfai/application';
 import type { NotePorts } from '../notes/use-note.ts';
 import type { PaneEditors } from '../panes/open-editors.ts';
 import { writeNoteProperties } from '../query/use-view-writes.ts';

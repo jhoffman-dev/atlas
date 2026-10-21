@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
-import type { PageCrumb } from '@atlas/domain';
+import type { PageCrumb } from '@dfai/domain';
 import { Icon, sidebarGlyph, type IconName } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { PageBarToggles } from './page-bar-toggles.tsx';

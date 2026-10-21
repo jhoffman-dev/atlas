@@ -7,8 +7,8 @@ import {
   notesUnder,
   type MovableEntry,
   type VaultPath,
-} from '@atlas/domain';
-import type { MenuCommand } from '@atlas/ui';
+} from '@dfai/domain';
+import type { MenuCommand } from '@dfai/ui';
 import type { ArchiveCommands } from './use-archive.ts';
 
 /**

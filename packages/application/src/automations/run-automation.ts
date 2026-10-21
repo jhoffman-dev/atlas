@@ -22,7 +22,7 @@ import {
   type RunTrigger,
   type StoredAnswerDraft,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { archiveNotes, type ArchiveOutcome, type ArchivePorts } from '../archive/archive-notes.ts';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { Clock } from '../ports.ts';

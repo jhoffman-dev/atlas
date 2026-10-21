@@ -4,7 +4,7 @@
  * unarchiving gives them back byte for byte rather than re-rendered.
  */
 import { describe, expect, it } from 'vitest';
-import { KeyAsWritten } from '@atlas/domain';
+import { KeyAsWritten } from '@dfai/domain';
 import { frontmatterKeyTexts, updateFrontmatter } from './frontmatter-write.ts';
 
 describe('frontmatterKeyTexts', () => {

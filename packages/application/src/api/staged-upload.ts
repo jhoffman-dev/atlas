@@ -1,4 +1,4 @@
-import { createVaultPath, joinVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, joinVaultPath, type VaultPath } from '@dfai/domain';
 import { ApiError } from './api-error.ts';
 import { writeChunk } from './chunks.ts';
 import { optionalString, type Fields } from './fields.ts';

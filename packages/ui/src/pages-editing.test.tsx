@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type SidebarTreeRow, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type SidebarTreeRow, type VaultEntry } from '@dfai/domain';
 import { VaultTree, type TreeEditing } from './vault-tree.tsx';
 import { MovePicker } from './move-picker.tsx';
 import { DeleteDialog, type DeletionSubject } from './delete-dialog.tsx';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, parseAutomationRule, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, parseAutomationRule, splitFrontmatter } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /**

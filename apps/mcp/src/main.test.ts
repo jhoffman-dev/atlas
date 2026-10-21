@@ -53,7 +53,7 @@ const search = async () => {
   return { isError: result.isError === true, content: result.content };
 };
 
-describe('atlas-mcp over stdio', () => {
+describe('dfai-mcp over stdio', () => {
   it('lists every tool', async () => {
     const { tools } = await mcp.listTools();
     expect(tools).toHaveLength(53);

@@ -7,7 +7,7 @@ import {
   type ArtifactFileInput,
   type SavedCopyProperties,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /** A file that was picked but cannot be in a copy, and why. */

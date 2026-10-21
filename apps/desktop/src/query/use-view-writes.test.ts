@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
-import { fakeVaultFs, memoryVault } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath } from '@dfai/domain';
+import { fakeVaultFs, memoryVault } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';
 import { writeNoteProperties } from './use-view-writes.ts';

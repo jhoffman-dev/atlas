@@ -31,7 +31,7 @@ import {
   type Vocabulary,
   type VocabularyRow,
   type VocabularySource,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { OpenNotes } from '../api/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';

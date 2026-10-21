@@ -1,5 +1,5 @@
-import { typePageTabs, type ObjectType, type ViewTab } from '@atlas/domain';
-import type { SidebarCatalog } from '@atlas/application';
+import { typePageTabs, type ObjectType, type ViewTab } from '@dfai/domain';
+import type { SidebarCatalog } from '@dfai/application';
 
 /**
  * A type's tabs as its page shows them, read from the same catalogue its

@@ -2,13 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-  fakeIndexPort,
-  fakeVaultFs,
-  recordingActivity,
-  type QueryResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeIndexPort, fakeVaultFs, recordingActivity, type QueryResult } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { ProfileSettingsCard } from './profile-settings-card.tsx';
 import { useSelfEmailsSetting } from './use-self-emails-setting.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';

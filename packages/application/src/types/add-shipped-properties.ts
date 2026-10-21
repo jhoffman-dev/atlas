@@ -14,7 +14,7 @@ import {
   type ShippedPropertiesChange,
   type ShippedPropertiesRecord,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { findVaultEntry } from '../vault/find-entry.ts';

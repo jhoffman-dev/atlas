@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { Active, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
-import type { TimelineEntry } from '@atlas/domain';
+import type { TimelineEntry } from '@dfai/domain';
 import { spokenDate } from './announcements.ts';
 import { useBarDrag } from './bar-drag.ts';
 

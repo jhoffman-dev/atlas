@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { renderHook } from '@testing-library/react';
 import { createTickMemory, useTickMemory } from './tick-memory.ts';
 

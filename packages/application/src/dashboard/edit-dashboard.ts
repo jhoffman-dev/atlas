@@ -8,7 +8,7 @@ import {
   replaceEntry,
   widgetEntries,
   type WidgetDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { PropertyChanges } from '../query/set-property.ts';
 import { runWidget, type WidgetResult } from './run-widget.ts';
 

@@ -13,7 +13,7 @@
  */
 
 import { basename, extname } from 'node:path';
-import type { ApiImageUpload, ApiNote, ApiNoteImage } from '@atlas/application';
+import type { ApiImageUpload, ApiNote, ApiNoteImage } from '@dfai/application';
 import { bytesFromBase64, CHUNK_BYTES } from './artifact-upload.ts';
 import { AtlasCallError, type AtlasClient } from './client.ts';
 import { imageKindOf, MAX_IMAGE_BYTES, readLocalImage, sameKind } from './local-image.ts';

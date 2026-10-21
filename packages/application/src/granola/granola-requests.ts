@@ -1,4 +1,4 @@
-import { backoff, paceOf, REQUESTS_PER_SECOND, type GranolaFailure } from '@atlas/domain';
+import { backoff, paceOf, REQUESTS_PER_SECOND, type GranolaFailure } from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import { GranolaError } from './ports.ts';
 

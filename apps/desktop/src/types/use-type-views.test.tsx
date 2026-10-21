@@ -8,9 +8,9 @@ import {
   typeViews,
   type SavedViewSummary,
   type VaultPath,
-} from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, loadSidebarCatalog, memoryVault } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, loadSidebarCatalog, memoryVault } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import type { TypeTabStore } from './browser-type-tab-store.ts';
 import { typeTabsShown } from './type-tabs.ts';

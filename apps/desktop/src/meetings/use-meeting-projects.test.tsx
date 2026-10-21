@@ -6,18 +6,18 @@
  */
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type ProjectBackfillRow, type ProposalConfidence } from '@atlas/domain';
+import { createVaultPath, type ProjectBackfillRow, type ProposalConfidence } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   previewProjectBackfill,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useMeetingProjects } from './use-meeting-projects.ts';
 
-vi.mock('@atlas/application', async (original) => ({
+vi.mock('@dfai/application', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   previewProjectBackfill: vi.fn(),
 }));

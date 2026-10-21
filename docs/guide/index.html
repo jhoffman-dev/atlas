@@ -1910,7 +1910,7 @@ do: archive</pre>
       <p class="sub">DFAI has a local API and an MCP server, so Claude Code, Claude Desktop and scripts can search, read and write your vault while DFAI is open.</p>
       <ol class="steps">
         <li>Settings (<kbd>⌘,</kbd>) → <b>Connections</b> → turn on <b>Local API</b>. It's off until you do.</li>
-        <li>Build the MCP server once: <code>pnpm --filter @atlas/mcp build</code></li>
+        <li>Build the MCP server once: <code>pnpm --filter @dfai/mcp build</code></li>
         <li>Press <b>Copy MCP command</b> and run it in a terminal, or use this:</li>
       </ol>
       <pre>claude mcp add atlas -- node ~/Projects/atlas/apps/mcp/dist/main.js</pre>
@@ -1970,7 +1970,7 @@ do: archive</pre>
       <p>Some blocks — one with a footnote, raw HTML or a comment in it — are tidied as written. DFAI then reads the tidied block again, and if it would come out differently on the page (HTML turned into a paragraph, say) or still points into your vault, that block goes across as plain words instead, and is listed under <b>formatting</b> by its first line, so you know which to fix up by hand.</p>
       <p>Only notes outside <code>.atlas</code> and hidden folders are read for a title or an embed, so nothing from DFAI's own settings ever reaches the page.</p>
       <div class="note"><b>Claude inside DFAI needs none of this.</b> The <a href="#claude">chat pane</a> (<kbd>⌘J</kbd>) uses the same read tools in the app itself, with the Local API off, and proposes changes for you to accept rather than writing them.</div>
-      <div class="note"><b>Don't see the new tools?</b> Rebuild the MCP server with <code>pnpm --filter @atlas/mcp build</code>, then restart it — in Claude Code start a new session; in Claude Desktop quit and reopen it.</div>
+      <div class="note"><b>Don't see the new tools?</b> Rebuild the MCP server with <code>pnpm --filter @dfai/mcp build</code>, then restart it — in Claude Code start a new session; in Claude Desktop quit and reopen it.</div>
     </section>
 
     <section id="sync">

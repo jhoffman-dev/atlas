@@ -1,4 +1,4 @@
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import type { ThumbnailResult } from './artifact-thumbnail.ts';
 
 /** One thumbnail to make: whose, and whether the person asked (Regenerate). */

@@ -1,4 +1,4 @@
-import { BUILT_IN_PROMPTS, outdatedBuiltInPrompt, type VaultPath } from '@atlas/domain';
+import { BUILT_IN_PROMPTS, outdatedBuiltInPrompt, type VaultPath } from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /**

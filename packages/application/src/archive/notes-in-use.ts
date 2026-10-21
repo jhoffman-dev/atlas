@@ -9,7 +9,7 @@ import {
   paraOf,
   PROJECT_TYPE,
   type ParaValue,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 
 /** What reading the notes in use asks of the index: a type's notes, and their PARA. */

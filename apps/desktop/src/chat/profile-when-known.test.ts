@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EMPTY_PROFILE, type ProfileState } from '@atlas/domain';
+import { EMPTY_PROFILE, type ProfileState } from '@dfai/domain';
 import { profileWhenKnown } from './profile-when-known.ts';
 
 const ADA = { name: 'Ada Lovelace', preferredName: null };

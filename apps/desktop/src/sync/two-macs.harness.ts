@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, onTestFinished } from 'vitest';
-import { createVaultPath, VAULT_ROOT, type SyncReport } from '@atlas/domain';
+import { createVaultPath, VAULT_ROOT, type SyncReport } from '@dfai/domain';
 import {
   fakeVaultFs,
   syncNow,
@@ -35,8 +35,8 @@ import {
   type SyncFilesPort,
   type SyncPorts,
   type VaultFsPort,
-} from '@atlas/application';
-import { gitCommands, remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { gitCommands, remarkMarkdown } from '@dfai/adapters';
 
 const run = promisify(execFile);
 export const TIMEOUT = 60_000;

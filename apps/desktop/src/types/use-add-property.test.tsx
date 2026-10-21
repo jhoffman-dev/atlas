@@ -7,10 +7,10 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createVaultPath, parseObjectType, splitFrontmatter } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type DefinedType, type OpenNote } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import type { NewProperty } from '@atlas/ui';
+import { createVaultPath, parseObjectType, splitFrontmatter } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type DefinedType, type OpenNote } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import type { NewProperty } from '@dfai/ui';
 import { useAddProperty } from './use-add-property.ts';
 import { useNoteProperties } from './use-note-properties.ts';
 

@@ -6,7 +6,7 @@ import {
   readEventTime,
   VAULT_ROOT,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError } from './api-error.ts';
 import { pageAfter } from './cursor.ts';

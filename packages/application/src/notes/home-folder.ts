@@ -1,4 +1,4 @@
-import { homeFolderOf, type VaultPath } from '@atlas/domain';
+import { homeFolderOf, type VaultPath } from '@dfai/domain';
 import { loadObjectTypes, noteTypeName } from '../types/load-types.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from './ports.ts';

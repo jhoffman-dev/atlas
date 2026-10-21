@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { HttpRequest } from '@atlas/domain';
-import { HttpFetchError, type HttpPort } from '@atlas/application';
+import type { HttpRequest } from '@dfai/domain';
+import { HttpFetchError, type HttpPort } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 /**

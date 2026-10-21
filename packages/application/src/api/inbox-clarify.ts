@@ -3,7 +3,7 @@ import {
   InvalidVaultPathError,
   type Clarification,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { clarifyInboxItem, ClarifyRefusedError } from '../inbox/clarify-inbox-item.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';

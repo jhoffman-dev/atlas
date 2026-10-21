@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import type { ObjectType } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { createReadInvalidator } from '../reads/read-invalidator.ts';
 import { useSidebarCatalog } from './use-sidebar-catalog.ts';

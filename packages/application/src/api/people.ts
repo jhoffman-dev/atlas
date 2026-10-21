@@ -1,4 +1,4 @@
-import { vaultSpellingOf, type DuplicatePair, type VaultPath } from '@atlas/domain';
+import { vaultSpellingOf, type DuplicatePair, type VaultPath } from '@dfai/domain';
 import {
   applyPeopleMerge,
   loadPossibleDuplicates,

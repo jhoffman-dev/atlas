@@ -12,7 +12,7 @@ import {
   parseRunLog,
   type AutomationRule,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { runAutomation } from './run-automation.ts';
 import { loadAutomations } from './load-automations.ts';

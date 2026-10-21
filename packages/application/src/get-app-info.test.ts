@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidAppInfoError } from '@atlas/domain';
+import { InvalidAppInfoError } from '@dfai/domain';
 import { getAppInfo } from './get-app-info.ts';
 import type { AppInfoPort } from './ports.ts';
 

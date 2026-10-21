@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { VaultEntry } from '@atlas/domain';
-import { createVaultPath } from '@atlas/domain';
+import type { VaultEntry } from '@dfai/domain';
+import { createVaultPath } from '@dfai/domain';
 import { createSettingsWriter } from '../settings/index.ts';
 import { jsonMarkdown, vaultWith } from '../testing/settings-vault.ts';
 import { loadQuickAddSetting, saveQuickAddSetting } from './vault-settings.ts';

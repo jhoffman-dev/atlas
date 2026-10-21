@@ -1,5 +1,5 @@
-import { NAME_PLACEHOLDER } from '@atlas/domain';
-import { ProfileSettings } from '@atlas/ui';
+import { NAME_PLACEHOLDER } from '@dfai/domain';
+import { ProfileSettings } from '@dfai/ui';
 import type { ProfileSetting } from './use-profile-setting.ts';
 import type { SelfEmailsSetting } from './use-self-emails-setting.ts';
 

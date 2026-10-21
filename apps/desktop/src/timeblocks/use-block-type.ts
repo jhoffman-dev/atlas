@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { blockTypeToWrite, messageWithoutPaths, type ObjectType } from '@atlas/domain';
+import { blockTypeToWrite, messageWithoutPaths, type ObjectType } from '@dfai/domain';
 import {
   ensureBlockType,
   type ActivityRecorder,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /** The writes this hook started for one vault, and what came of them. */
 interface Attempts {

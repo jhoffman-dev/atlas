@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor, type JSONContent } from '@tiptap/core';
-import { createVaultPath, type NoteSuggestion } from '@atlas/domain';
+import { createVaultPath, type NoteSuggestion } from '@dfai/domain';
 import type { BlockPicking } from './block-picking.ts';
 import { createEditorExtensions } from './extensions.ts';
 import {

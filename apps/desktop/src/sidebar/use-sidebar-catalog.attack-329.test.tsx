@@ -5,9 +5,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type IndexPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type IndexPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { createReadInvalidator } from '../reads/read-invalidator.ts';
 import { useSidebarCatalog } from './use-sidebar-catalog.ts';

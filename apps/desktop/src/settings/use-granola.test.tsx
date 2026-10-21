@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   fakeGranola,
   fakeVaultFs,
@@ -11,8 +11,8 @@ import {
   type GranolaKeyStatus,
   type GranolaPort,
   type GranolaPullReport,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
 import { GranolaSettingsCard } from './granola-settings-card.tsx';
 import { useGranola, type GranolaSettingState } from './use-granola.ts';

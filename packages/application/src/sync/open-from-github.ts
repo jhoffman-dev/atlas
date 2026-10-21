@@ -4,7 +4,7 @@ import {
   hasBranches,
   remoteUrlProblem,
   repositoryNameOf,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultLocation, VaultLocationStore } from '../vault/ports.ts';
 import { expectOk, SyncError, withPrograms } from './git-steps.ts';
 import type { GitFoldersPort } from './ports.ts';

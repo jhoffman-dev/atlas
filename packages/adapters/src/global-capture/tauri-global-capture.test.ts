@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GLOBAL_CAPTURE_EVENT } from '@atlas/application';
+import { GLOBAL_CAPTURE_EVENT } from '@dfai/application';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));

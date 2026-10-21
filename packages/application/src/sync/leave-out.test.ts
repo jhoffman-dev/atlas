@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, LARGE_FILE_BYTES } from '@atlas/domain';
+import { createVaultPath, LARGE_FILE_BYTES } from '@dfai/domain';
 import { memorySyncFiles, said, scriptedGit, statusText } from '../testing/fake-git.ts';
 import { leaveOut } from './leave-out.ts';
 

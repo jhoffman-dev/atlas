@@ -6,9 +6,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, parseObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, parseObjectType } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useSavedView } from './use-saved-view.ts';
 import { useViewDrafts } from './use-view-drafts.ts';
 import { createTickMemory } from './tick-memory.ts';

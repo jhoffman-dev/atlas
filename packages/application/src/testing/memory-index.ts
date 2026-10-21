@@ -1,4 +1,4 @@
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import type { IndexedNote, IndexEntry, IndexPort, QueryResult } from '../index/ports.ts';
 import { fakeIndexPort } from './fake-ports.ts';
 

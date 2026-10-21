@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { DndContext, DragOverlay, pointerWithin, useDraggable, useDroppable } from '@dnd-kit/core';
-import { GRID_COLUMNS, type Widget } from '@atlas/domain';
-import type { WidgetResult } from '@atlas/application';
+import { GRID_COLUMNS, type Widget } from '@dfai/domain';
+import type { WidgetResult } from '@dfai/application';
 import { dashboardWords } from '../drag/announcements.ts';
 import {
   moveHandleId,

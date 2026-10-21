@@ -1,4 +1,4 @@
-import type { GoogleCalendar } from '@atlas/domain';
+import type { GoogleCalendar } from '@dfai/domain';
 
 /** One page of the Calendar API's `calendarList`, as DFAI reads it. */
 export interface CalendarListPage {

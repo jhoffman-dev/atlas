@@ -3,7 +3,7 @@ import {
   queryBlockOfCode,
   queryBlockText,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Code, RootContent } from 'mdast';
 
 /**

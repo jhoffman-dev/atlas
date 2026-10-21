@@ -8,10 +8,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, parseObjectType, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/application';
-import type { IndexPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, parseObjectType, type VaultPath } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@dfai/application';
+import type { IndexPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory } from './tick-memory.ts';
 import { useSavedView } from './use-saved-view.ts';

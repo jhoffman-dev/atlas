@@ -4,7 +4,7 @@ import {
   parseDashboard,
   parseObjectType,
   queryWidgetDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { previewWidget } from './edit-dashboard.ts';

@@ -7,7 +7,7 @@ import {
   type FreshPullVerdict,
   type PullEnd,
   type PullStanding,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';

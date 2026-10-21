@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react';
-import type { SidebarIcon } from '@atlas/domain';
+import type { SidebarIcon } from '@dfai/domain';
 import {
   createObjectType,
   type DefinedType,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /**
  * Making a type from the sidebar's "+": the file is written, and the new type

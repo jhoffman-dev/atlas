@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { runsOnMac, useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import type { Overlay } from './overlay.ts';
 
 function listen(overlay: Overlay | null = null, onMac = true): AppShortcuts {

@@ -1,5 +1,5 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
+import type { GtdStatus, InboxItem, VaultPath } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { InboxRows, type CreateFiling, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';

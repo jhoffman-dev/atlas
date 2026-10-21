@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { createMeetingImporter } from '../meetings/meeting-importer.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';

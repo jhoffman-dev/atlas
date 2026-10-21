@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { createVaultPath, type MentionSuggestion } from '@atlas/domain';
+import { createVaultPath, type MentionSuggestion } from '@dfai/domain';
 import { MentionSuggestionPopup } from './mention-suggestion-popup.tsx';
 
 const JULIE: MentionSuggestion = {

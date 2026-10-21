@@ -6,7 +6,7 @@ import {
   type ApiTextPosition,
 } from './contract.ts';
 
-export { messageOf, messageWithoutPaths } from '@atlas/domain';
+export { messageOf, messageWithoutPaths } from '@dfai/domain';
 
 /**
  * A request refused for a reason the caller can act on.

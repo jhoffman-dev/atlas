@@ -6,7 +6,7 @@ import {
   rankMentionSuggestions,
   type KnownPerson,
   type MentionSuggestion,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createEditorExtensions, type EditorPeople } from './extensions.ts';
 import type { MentionSuggestionView } from './mention-suggestion.ts';
 import { closeHistory } from '@tiptap/pm/history';

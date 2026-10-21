@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { journalText } from '@atlas/domain';
+import { journalText } from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import {
   fakeBlob,

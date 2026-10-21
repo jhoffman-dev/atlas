@@ -1,5 +1,5 @@
-import { optionColorsByKey, type ObjectType } from '@atlas/domain';
-import type { TableSchema } from '@atlas/ui';
+import { optionColorsByKey, type ObjectType } from '@dfai/domain';
+import type { TableSchema } from '@dfai/ui';
 
 /**
  * How a type heads and fills a table: each property's kind and label, and the

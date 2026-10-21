@@ -14,8 +14,8 @@ import {
   shippedPropertiesRecordText,
   splitFrontmatter,
   type VaultEntry,
-} from '@atlas/domain';
-import { ensureBuiltInTypes, loadObjectTypes, type VaultFsPort } from '@atlas/application';
+} from '@dfai/domain';
+import { ensureBuiltInTypes, loadObjectTypes, type VaultFsPort } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 function memoryHost(initial: Record<string, string>) {

@@ -2,7 +2,7 @@
 import { StrictMode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   createNoteChanges,
   createOwnWrites,
@@ -11,7 +11,7 @@ import {
   fakeVaultFs,
   INDEX_BATCH_SIZE,
   recordingActivity,
-} from '@atlas/application';
+} from '@dfai/application';
 import { IndexProgressPill, LiveIndexSettings } from './index-progress.tsx';
 import type { IndexPhase, IndexStatusStore } from './index-status-store.ts';
 import { useHeldIndexKey } from './index-key.test-support.ts';

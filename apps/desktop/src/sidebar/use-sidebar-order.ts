@@ -5,9 +5,9 @@ import {
   type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
-import type { SidebarSectionId } from '@atlas/domain';
-import type { SectionOrder } from '@atlas/ui';
+} from '@dfai/application';
+import type { SidebarSectionId } from '@dfai/domain';
+import type { SectionOrder } from '@dfai/ui';
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
 

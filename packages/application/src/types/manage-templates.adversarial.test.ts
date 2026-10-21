@@ -7,7 +7,7 @@ import {
   vaultPathName,
   type ObjectType,
   type VaultEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { ensureTypeTemplate, loadTemplateCatalog } from './manage-templates.ts';
 import { loadTemplates, templateNoteName } from './templates.ts';

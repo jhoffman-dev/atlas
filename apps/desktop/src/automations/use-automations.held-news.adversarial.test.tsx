@@ -9,7 +9,7 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createNoteChanges,
   fakeClaudeStepPorts,
@@ -17,8 +17,8 @@ import {
   fakeVaultFs,
   recordingActivity,
   type AutomationPorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   HELD_NEWS,
   SCHEDULE_TICK_MS,

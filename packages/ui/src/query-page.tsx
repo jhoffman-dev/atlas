@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from 'react';
-import type { QuerySort, SchemaTable, SqlShow, ViewLayout } from '@atlas/domain';
+import type { QuerySort, SchemaTable, SqlShow, ViewLayout } from '@dfai/domain';
 import { ChoiceSelect, type Choice } from './choice-select.tsx';
 import { Notice, PopoverForm } from './popover-form.tsx';
 import { Icon } from './icon.tsx';

@@ -19,7 +19,7 @@ import {
   parseObjectType,
   splitFrontmatter,
   type AutomationRule,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ModelEvent } from '../chat/ports.ts';
 import { acceptProposalNote, undoAcceptedProposal } from '../proposals/accept-proposal.ts';
 import { listProposals } from '../proposals/list-proposals.ts';

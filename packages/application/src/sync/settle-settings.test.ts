@@ -5,7 +5,7 @@ import {
   SHIPPED_PROPERTIES_RECORD_PATH,
   shippedPropertiesRecordText,
   type GitConflict,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   failed,
   fakeBlob,

@@ -7,7 +7,7 @@ import {
   type EditorNode,
   type StrandedEdit,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeHostVaultFs,
   inVault,
@@ -16,8 +16,8 @@ import {
   NoteStillOpeningError,
   type HostVaultFsPort,
   type VaultFsPort,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { CHANGED_SINCE_KEPT, useNote, type NotePorts, type NoteView } from './use-note.ts';
 import { useStrandedEdits, type StrandedEditStore, type Stranding } from './stranded-edits.ts';
 import { memoryStrandedStore } from './testing/memory-stranded-store.ts';

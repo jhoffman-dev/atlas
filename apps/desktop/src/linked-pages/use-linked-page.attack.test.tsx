@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { parseObjectType, type LinkedRange, type LinkedSectionId } from '@atlas/domain';
-import type { IndexPort, LinkedRangeStore, QueryResult } from '@atlas/application';
+import { parseObjectType, type LinkedRange, type LinkedSectionId } from '@dfai/domain';
+import type { IndexPort, LinkedRangeStore, QueryResult } from '@dfai/application';
 import { useLinkedPage } from './use-linked-page.ts';
 
 /** Adversarial pass on the linked-page hook (P30-06, PR #117). */

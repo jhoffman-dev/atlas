@@ -17,7 +17,7 @@ import type {
   Modifier,
   UniqueIdentifier,
 } from '@dnd-kit/core';
-import { addDays, type TimelineEntry } from '@atlas/domain';
+import { addDays, type TimelineEntry } from '@dfai/domain';
 import { timelineWords, type BarMove } from './announcements.ts';
 import { useDragSensors } from './dnd.ts';
 import { daysMoved, directionOf, grabOffset, timelineStep } from './snapping.ts';

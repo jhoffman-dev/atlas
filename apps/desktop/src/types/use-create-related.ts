@@ -5,9 +5,9 @@ import {
   type MarkdownPort,
   type RelatedNote,
   type VaultFsPort,
-} from '@atlas/application';
-import { relatedNoteKind, type VaultPath } from '@atlas/domain';
-import type { CreateRelated } from '@atlas/ui';
+} from '@dfai/application';
+import { relatedNoteKind, type VaultPath } from '@dfai/domain';
+import type { CreateRelated } from '@dfai/ui';
 import { localToday } from '../today.ts';
 
 /** What a note made from a relation's picker is made with. */

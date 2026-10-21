@@ -18,7 +18,7 @@ import {
   type PassedOver,
   type SetValue,
   truncated,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { loadAutomations, planRuleNow, type LoadedAutomation } from '../automations/index.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
 import { loadObjectTypes } from '../types/load-types.ts';

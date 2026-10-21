@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mergeAttributes, Node } from '@tiptap/core';
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react';
-import { QUERY_BLOCK_LANGUAGE, QUERY_BLOCK_NODE, queryBlockFence } from '@atlas/domain';
+import { QUERY_BLOCK_LANGUAGE, QUERY_BLOCK_NODE, queryBlockFence } from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { GroupedResult, type GroupedResultProps } from '../query-language/grouped-result.tsx';
 

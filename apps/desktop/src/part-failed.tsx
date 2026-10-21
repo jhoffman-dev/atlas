@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { SettingsUnavailable, type ChatPanel, type SettingsDialog } from '@atlas/ui';
+import { SettingsUnavailable, type ChatPanel, type SettingsDialog } from '@dfai/ui';
 import type { FailedPartProps } from './on-first-use.ts';
 import { PageFrameFallback, type PageChrome } from './page-frame-fallback.tsx';
 

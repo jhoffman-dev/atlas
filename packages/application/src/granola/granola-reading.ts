@@ -4,7 +4,7 @@ import {
   type GranolaNote,
   type GranolaNoteSummary,
   type GranolaUnreadableSummary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { GranolaSend } from './granola-requests.ts';
 import {
   GranolaError,

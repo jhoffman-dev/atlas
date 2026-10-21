@@ -4,7 +4,7 @@ import {
   locateFragment,
   type EditorDocument,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';

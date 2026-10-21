@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { unified } from 'unified';
-import type { EditorDocument, EditorMark, EditorNode } from '@atlas/domain';
+import type { EditorDocument, EditorMark, EditorNode } from '@dfai/domain';
 import { parseMarkdownBody, renderBlock, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /**

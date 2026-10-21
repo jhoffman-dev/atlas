@@ -1,4 +1,4 @@
-import { splitFrontmatter } from '@atlas/domain';
+import { splitFrontmatter } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { setNoteProperties } from '../query/set-property.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

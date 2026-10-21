@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INDEX_FACETS, type NoteChange } from '@atlas/domain';
+import { INDEX_FACETS, type NoteChange } from '@dfai/domain';
 import {
   READS_ON_INDEX_NEWS,
   readsTouchedByNoteChanges,

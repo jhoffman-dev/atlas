@@ -1,4 +1,4 @@
-import { SETTINGS_SECTIONS, type SettingsSectionLink } from '@atlas/ui';
+import { SETTINGS_SECTIONS, type SettingsSectionLink } from '@dfai/ui';
 import {
   globalCaptureSettings,
   googleCalendarSettingsCard,

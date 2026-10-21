@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withAnchorAt, type EditorDocument, type EditorNode } from '@atlas/domain';
+import { withAnchorAt, type EditorDocument, type EditorNode } from '@dfai/domain';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /*

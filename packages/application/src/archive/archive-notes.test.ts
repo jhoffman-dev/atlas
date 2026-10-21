@@ -13,7 +13,7 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { archiveNotes, unarchiveNotes, type ArchivePorts } from './archive-notes.ts';

@@ -1,4 +1,4 @@
-import { noteTitle, type VaultPath } from '@atlas/domain';
+import { noteTitle, type VaultPath } from '@dfai/domain';
 import type { LinkOffer } from './vault/use-vault-entries.ts';
 
 /**

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { GTD_STATUSES } from '@atlas/domain';
+import { GTD_STATUSES } from '@dfai/domain';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 
 /** P30-02: the move to GTD is offered in a line, previewed in full, and run only when asked. */

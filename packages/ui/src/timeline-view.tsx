@@ -12,7 +12,7 @@ import {
   noteTone,
   type BoardRow,
   type TimelineEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { timelineWords } from './drag/announcements.ts';
 import { alongItsRow, useBarDrag } from './drag/bar-drag.ts';
 

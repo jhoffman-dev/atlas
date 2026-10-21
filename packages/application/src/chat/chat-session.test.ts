@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, EMPTY_PROFILE, type ProfileState, type ToolCall } from '@atlas/domain';
+import { createVaultPath, EMPTY_PROFILE, type ProfileState, type ToolCall } from '@dfai/domain';
 import { apiFixture, TODAY } from '../testing/api-fixture.ts';
 import { blockMarkdown } from '../testing/block-markdown.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';

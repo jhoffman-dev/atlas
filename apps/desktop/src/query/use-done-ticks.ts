@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { isDoneValue, statusToRemember, type BoardRow, type StatusProperty } from '@atlas/domain';
-import { doneChange } from '@atlas/application';
-import type { DoneTicks } from '@atlas/ui';
+import { isDoneValue, statusToRemember, type BoardRow, type StatusProperty } from '@dfai/domain';
+import { doneChange } from '@dfai/application';
+import type { DoneTicks } from '@dfai/ui';
 import type { TickMemory } from './tick-memory.ts';
 import type { ChangeProperties } from './use-view-writes.ts';
 

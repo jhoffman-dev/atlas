@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type ArchivedNote } from '@atlas/domain';
+import { createVaultPath, type ArchivedNote } from '@dfai/domain';
 import { ArchivePage, type ArchiveContents } from './archive-page.tsx';
 import type { RowSelection } from './row-selection.tsx';
 

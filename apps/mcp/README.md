@@ -1,4 +1,4 @@
-# atlas-mcp
+# dfai-mcp
 
 An MCP server that lets AI tools — Claude Code, Claude Desktop, anything that
 speaks MCP over stdio — search, read and write your DFAI vault.
@@ -20,7 +20,7 @@ types, the byte-preserving save, and the panes you have open.
 
 ```sh
 pnpm install
-pnpm --filter @atlas/mcp build   # → apps/mcp/dist/main.js, one self-contained file
+pnpm --filter @dfai/mcp build   # → apps/mcp/dist/main.js, one self-contained file
 ```
 
 `pnpm build` at the root builds it too. Needs Node 22 or later.

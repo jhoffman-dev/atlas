@@ -4,7 +4,7 @@
  * must be the same tag, and a rename must change only the bytes it renames.
  */
 import { describe, expect, it } from 'vitest';
-import { renameTagInNote } from '@atlas/application';
+import { renameTagInNote } from '@dfai/application';
 import {
   findTags,
   noteTags,
@@ -12,7 +12,7 @@ import {
   tagRenameProblem,
   TAGS_KEY,
   type EditorDocument,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 

@@ -5,7 +5,7 @@ import {
   VAULT_WALK_DEPTH,
   VAULT_ROOT,
   type VaultEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { listVaultDirectory, listVaultNotes, readVaultFile } from './read-vault.ts';
 import type { NoteListing, VaultFsPort } from './ports.ts';
 

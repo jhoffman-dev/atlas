@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { EmbeddingError, type EmbeddingPort, type RefusedText } from '@atlas/application';
+import { EmbeddingError, type EmbeddingPort, type RefusedText } from '@dfai/application';
 
 /** A refusal as `refusal.rs` sends it; `textIndex` and `reason` are null for a whole call. */
 interface HostFailure {

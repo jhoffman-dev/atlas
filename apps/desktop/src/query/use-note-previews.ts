@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MODIFIED_COLUMN, type BoardRow, type ObjectType, type ViewLayout } from '@atlas/domain';
+import { MODIFIED_COLUMN, type BoardRow, type ObjectType, type ViewLayout } from '@dfai/domain';
 import {
   PREVIEW_BATCH,
   readNotePreviews,
   type MarkdownPort,
   type NotePreview,
   type VaultFsPort,
-} from '@atlas/application';
-import type { CoverSource, FeedBodies } from '@atlas/ui';
+} from '@dfai/application';
+import type { CoverSource, FeedBodies } from '@dfai/ui';
 import { useVaultImages } from '../notes/use-images.ts';
 import type { PageToPicture } from '../thumbnails/use-page-thumbnails.ts';
 

@@ -8,8 +8,8 @@ import {
   pageThumbnailRecord,
   pageThumbnailRecordPath,
   pageThumbnailSrc,
-} from '@atlas/domain';
-import { createThumbnailQueue, fakeVaultFs, type ThumbnailJob } from '@atlas/application';
+} from '@dfai/domain';
+import { createThumbnailQueue, fakeVaultFs, type ThumbnailJob } from '@dfai/application';
 import {
   pagePictureSrc,
   usePageThumbnailRefresh,

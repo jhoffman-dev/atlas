@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type ViewTab } from '@atlas/domain';
+import { createVaultPath, type ViewTab } from '@dfai/domain';
 import { ViewToolbar, type ViewToolbarProps } from './view-toolbar.tsx';
 
 const tab = (title: string, icon: ViewTab['icon'], selected = false): ViewTab => ({

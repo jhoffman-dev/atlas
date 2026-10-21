@@ -4,7 +4,7 @@ import {
   trayOrder,
   type ObjectType,
   type TrayTask,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { runAtlasQuery } from '../query/run-atlas-query.ts';
 import { readTaskSchedules } from './task-schedules.ts';

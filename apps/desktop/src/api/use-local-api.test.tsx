@@ -14,8 +14,8 @@ import {
   type ApiRequest,
   type ApiResponse,
   type ApiRouterDeps,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useLocalApi } from './use-local-api.ts';
 
 /** An open, empty vault that no pane is showing, whose creates land. */

@@ -5,7 +5,7 @@ import {
   noteTitle,
   undoStillOffered,
   type GtdStatus,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   dismissMigrationUndo,
   hasMigrationWork,
@@ -19,8 +19,8 @@ import {
   type LeftFile,
   type TaskMigrationPorts,
   type TaskMigrationPreview,
-} from '@atlas/application';
-import type { TaskMigrationPreviewData, TaskMigrationProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { TaskMigrationPreviewData, TaskMigrationProps } from '@dfai/ui';
 import { localClock, localDayOf, localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
 

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AUTOMATION_PRESETS, BLANK_AUTOMATION, type AutomationDraft } from '@atlas/domain';
+import { AUTOMATION_PRESETS, BLANK_AUTOMATION, type AutomationDraft } from '@dfai/domain';
 import { AutomationEditor, type AutomationEditorProps } from './automation-editor.tsx';
 import { AutomationsPage, type AutomationsPageProps } from './automations-page.tsx';
 import type { AutomationRow, LogEntryView } from './automation-views.ts';

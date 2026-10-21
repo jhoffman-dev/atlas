@@ -6,13 +6,13 @@ import {
   renameTypeView,
   setNoteProperties,
   type TypeViewPorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   savedViewSummary,
   splitFrontmatter,
   type SavedViewSummary,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /**

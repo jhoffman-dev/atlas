@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createVaultPath, type InboxItem, type VaultPath } from '@atlas/domain';
-import { readMeetingSummaryStates, type ArchivePorts, type Clock } from '@atlas/application';
+import { createVaultPath, type InboxItem, type VaultPath } from '@dfai/domain';
+import { readMeetingSummaryStates, type ArchivePorts, type Clock } from '@dfai/application';
 
 const NONE: ReadonlyMap<string, string> = new Map();
 

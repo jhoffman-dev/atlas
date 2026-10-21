@@ -1,4 +1,4 @@
-import { BLOCK_ID_ATTR, blockIdOf, type ParsedBody, type SourceBlock } from '@atlas/domain';
+import { BLOCK_ID_ATTR, blockIdOf, type ParsedBody, type SourceBlock } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { fakeMarkdown } from './fake-ports.ts';
 

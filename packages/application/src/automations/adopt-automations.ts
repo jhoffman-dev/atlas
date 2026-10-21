@@ -1,4 +1,4 @@
-import { lastScheduleMark, splitFrontmatter, type LocalTime } from '@atlas/domain';
+import { lastScheduleMark, splitFrontmatter, type LocalTime } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

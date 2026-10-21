@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { QUERY_BLOCK_NODE, queryBlockNode, type NoteChange } from '@atlas/domain';
+import { QUERY_BLOCK_NODE, queryBlockNode, type NoteChange } from '@dfai/domain';
 import {
   ARCHIVE_SCOPE,
   AUTOMATIONS_SCOPE,

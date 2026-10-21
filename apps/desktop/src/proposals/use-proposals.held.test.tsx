@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import { recordingActivity, type ProposalPorts } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { recordingActivity, type ProposalPorts } from '@dfai/application';
 import { createProposalWrites } from './proposal-writes.ts';
 import { inMemoryProposalVault, windowToasts } from './proposals.test-support.ts';
 import { useProposals } from './use-proposals.ts';

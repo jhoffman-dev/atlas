@@ -1,4 +1,4 @@
-import { NO_SPAN, readQueryBlock, type ObjectType, type QueryBlockLayout } from '@atlas/domain';
+import { NO_SPAN, readQueryBlock, type ObjectType, type QueryBlockLayout } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { AtlasQueryError, runAtlasQuery, type AtlasQueryAnswer } from './run-atlas-query.ts';
 

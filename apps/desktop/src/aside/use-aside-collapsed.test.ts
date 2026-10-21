@@ -7,7 +7,7 @@ import {
   ASIDE_WIDTH_TYPE,
   asideCollapsesBelow,
   collapseFor,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { useAsideCollapsed } from './use-aside-collapsed.ts';
 
 /**

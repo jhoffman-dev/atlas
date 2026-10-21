@@ -8,7 +8,7 @@ import {
   writesSummaries,
   type MeetingSummaryState,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { loadAutomations, type LoadedAutomation } from '../automations/load-automations.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

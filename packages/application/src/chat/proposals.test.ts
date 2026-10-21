@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { apiFixture } from '../testing/api-fixture.ts';
 import { blockMarkdown } from '../testing/block-markdown.ts';
 import {

@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
-import type { NavigationPlace, PaletteCommand } from '@atlas/domain';
-import { SEARCH_SCOPE, type IndexPort } from '@atlas/application';
-import { SearchPalette } from '@atlas/ui';
+import type { NavigationPlace, PaletteCommand } from '@dfai/domain';
+import { SEARCH_SCOPE, type IndexPort } from '@dfai/application';
+import { SearchPalette } from '@dfai/ui';
 import { useSearch } from './index/use-search.ts';
 import { useIndexPhase, type IndexStatusStore } from './index/index-status-store.ts';
 import { useScopedIndexKey } from './reads/use-scoped-index-key.ts';

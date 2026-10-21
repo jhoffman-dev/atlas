@@ -1,4 +1,4 @@
-import { movedPath, type EntryMove, type VaultPath } from '@atlas/domain';
+import { movedPath, type EntryMove, type VaultPath } from '@dfai/domain';
 
 /**
  * The app's overlays, and the rule that only one is ever up.

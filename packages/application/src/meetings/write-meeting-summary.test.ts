@@ -6,7 +6,7 @@ import {
   renderSummaryBlock,
   splitFrontmatter,
   type MeetingSummary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { MEETING_BODY, MEETING_HEADER } from '../testing/meeting-files.ts';
 import {

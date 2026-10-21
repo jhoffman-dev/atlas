@@ -56,7 +56,7 @@ import {
   type SummaryOutcome,
   type SummaryReading,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ModelProviderError, type ModelProvider, type ProviderStatus } from '../chat/ports.ts';
 import { runChatTurn } from '../chat/run-chat-turn.ts';
 import type { ChatToolbox, Toolboxes } from '../chat/toolbox.ts';

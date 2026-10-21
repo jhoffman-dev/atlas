@@ -4,7 +4,7 @@ import { act, cleanup, render, waitFor } from '@testing-library/react';
 import type { Editor } from '@tiptap/core';
 import { undo } from '@tiptap/pm/history';
 import { TextSelection } from '@tiptap/pm/state';
-import type { EditorDocument, EditorNode } from '@atlas/domain';
+import type { EditorDocument, EditorNode } from '@dfai/domain';
 import { NoteEditor } from './note-editor.tsx';
 import type { PromoteLine } from './editor/promote-line.ts';
 

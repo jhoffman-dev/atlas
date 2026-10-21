@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { nounOf, withoutValue } from '@atlas/domain';
-import type { WidgetResult } from '@atlas/application';
+import { nounOf, withoutValue } from '@dfai/domain';
+import type { WidgetResult } from '@dfai/application';
 import { widgetGlyph } from '../icon.tsx';
 import type { OverlaySlot } from '../overlay-slot.ts';
 import { BarChart } from './bar-chart.tsx';

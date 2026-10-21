@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { QueryWidgetData } from '@atlas/application';
+import type { QueryWidgetData } from '@dfai/application';
 import { GroupedResult } from '../query-language/grouped-result.tsx';
 
 /**

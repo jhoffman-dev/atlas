@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { isEmptyProperty } from '@atlas/domain';
+import { isEmptyProperty } from '@dfai/domain';
 import type { PropertyRow } from './properties-panel.tsx';
 
 /** The keys whose rows hold nothing, as a fold decides them once per note. */

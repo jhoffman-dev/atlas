@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { VaultWatchPort } from '@atlas/application';
+import type { VaultWatchPort } from '@dfai/application';
 import { throughHost } from './host-error.ts';
 
 /** Watches the vault through the host and forwards what changed. */

@@ -2,13 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useSyncExternalStore } from 'react';
-import type { VaultEntry, VaultPath } from '@atlas/domain';
+import type { VaultEntry, VaultPath } from '@dfai/domain';
 import type {
   VaultFsPort,
   VaultLocation,
   VaultLocationStore,
   VaultPickerPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useVault, type VaultPorts } from './use-vault.ts';
 
 const A: VaultLocation = { absolutePath: '/Users/j/A', name: 'A' };

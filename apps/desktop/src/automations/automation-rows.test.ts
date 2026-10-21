@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, planAutomation, type AutomationRule, type LogEntry } from '@atlas/domain';
+import { createVaultPath, planAutomation, type AutomationRule, type LogEntry } from '@dfai/domain';
 import { automationRows, dryRunView, logViews, shownTime } from './automation-rows.ts';
 
 const p = createVaultPath;

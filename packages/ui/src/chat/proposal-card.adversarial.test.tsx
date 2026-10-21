@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import type { EditorDocument } from '@atlas/domain';
+import type { EditorDocument } from '@dfai/domain';
 import { ChatPanel } from './chat-panel.tsx';
 import type { ChatActions, ChatItemView } from './chat-view.ts';
 

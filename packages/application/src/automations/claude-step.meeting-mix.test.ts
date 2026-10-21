@@ -18,7 +18,7 @@ import {
   readSummaryBlock,
   splitFrontmatter,
   type AutomationRule,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ModelEvent } from '../chat/ports.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';

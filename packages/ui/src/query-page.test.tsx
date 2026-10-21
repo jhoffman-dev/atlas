@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { SchemaTable, SqlShow, ViewLayout } from '@atlas/domain';
+import type { SchemaTable, SqlShow, ViewLayout } from '@dfai/domain';
 import { QueryPage, type QueryChoice } from './query-page.tsx';
 import type { TableResult } from './table-view.tsx';
 

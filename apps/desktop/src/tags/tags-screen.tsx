@@ -1,5 +1,5 @@
-import { formatTag, type VaultPath } from '@atlas/domain';
-import { HiddenTitle, PageBar, TagsPage, type PageHistory, type TagTreeState } from '@atlas/ui';
+import { formatTag, type VaultPath } from '@dfai/domain';
+import { HiddenTitle, PageBar, TagsPage, type PageHistory, type TagTreeState } from '@dfai/ui';
 import type { VaultTagsState } from './use-vault-tags.ts';
 import { useTagsPage, type TagsPagePorts } from './use-tags-page.ts';
 

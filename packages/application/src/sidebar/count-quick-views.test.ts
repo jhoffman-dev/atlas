@@ -6,7 +6,7 @@ import {
   parseSavedView,
   sidebarEntry,
   type QuickView,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
 import { jsonMarkdown } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';

@@ -1,4 +1,4 @@
-import { createVaultPath as p, type VaultEntry } from '@atlas/domain';
+import { createVaultPath as p, type VaultEntry } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 

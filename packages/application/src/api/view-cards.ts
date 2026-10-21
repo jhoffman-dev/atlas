@@ -19,7 +19,7 @@ import {
   type VaultPath,
   type ViewDisplay,
   type ViewQuery,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { cardMoveChanges, movesToDone, type CardPlacement } from '../query/card-move.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError } from './api-error.ts';

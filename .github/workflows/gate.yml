@@ -311,7 +311,7 @@ jobs:
       # their headroom covers. `pnpm perf` locally builds minified, so its
       # times differ a little from this job's.
       - name: Build the frontend, keeping component names
-        run: pnpm --filter @atlas/desktop exec vite build --minify false
+        run: pnpm --filter @dfai/desktop exec vite build --minify false
 
       - name: Response times on the fixture vault
         run: pnpm exec playwright test --config playwright.perf.config.ts --project latency --reporter=list

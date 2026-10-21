@@ -13,7 +13,7 @@ import {
   type ImagePlacement,
   type IncomingImage,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /**

@@ -1,4 +1,4 @@
-import type { ModelMessage, ModelToolSpec, ToolCall } from '@atlas/domain';
+import type { ModelMessage, ModelToolSpec, ToolCall } from '@dfai/domain';
 
 /** Everything one model turn is sent: who it is, what was said, what it may call. */
 export interface ModelRequest {

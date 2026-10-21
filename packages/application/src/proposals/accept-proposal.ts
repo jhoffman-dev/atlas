@@ -15,7 +15,7 @@ import {
   type ProposalAnswerer,
   type ProposalNote,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ProposalRefused, type AppliedProposal } from '../chat/proposals.ts';
 import { unarchiveNotes } from '../archive/index.ts';
 import {

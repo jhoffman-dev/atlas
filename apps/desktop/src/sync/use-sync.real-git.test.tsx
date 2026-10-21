@@ -14,8 +14,8 @@ import {
   recordingActivity,
   scriptedFolders,
   type GitResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useSync, type SyncOptions } from './use-sync.ts';
 import { SYNC_TICK_MS } from './use-sync-schedule.ts';
 import {

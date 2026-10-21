@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type SidebarTreeRow, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type SidebarTreeRow, type VaultEntry } from '@dfai/domain';
 import { DndContext } from '@dnd-kit/core';
 import { VaultTree, type TreeEditing } from './vault-tree.tsx';
 import { VaultTreeRow, type TreeRowActions } from './vault-tree-row.tsx';

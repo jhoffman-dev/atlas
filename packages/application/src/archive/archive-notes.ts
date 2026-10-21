@@ -16,7 +16,7 @@ import {
   type EntryMove,
   type Unstamp,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { moveEntryTo, type Relocation, type RelocationPorts } from '../vault/relocate-entry.ts';

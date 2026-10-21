@@ -11,7 +11,7 @@ import {
   parseRunLog,
   type AutomationRule,
   type LogEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { planRun } from './plan-run.ts';
 import { runAutomation } from './run-automation.ts';

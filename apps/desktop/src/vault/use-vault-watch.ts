@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { VaultWatchPort } from '@atlas/application';
+import type { VaultWatchPort } from '@dfai/application';
 
 /**
  * Runs `onChange` when the vault is changed by anything other than this app.

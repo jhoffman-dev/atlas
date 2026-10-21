@@ -40,7 +40,7 @@ host guards over raw HTTP, and reads the vault's files to confirm the writes.
                   has a vault of another name open.
   --help          Show this.
 
-Before running: build the MCP server (pnpm --filter @atlas/mcp build), open the
+Before running: build the MCP server (pnpm --filter @dfai/mcp build), open the
 scratch vault in DFAI, and turn the API on in Settings -> Connections.
 ATLAS_CONNECTION_FILE overrides where the connection file is read from.
 Exits non-zero if any check fails.
@@ -100,7 +100,7 @@ function repoAround(dir) {
 }
 
 async function connectMcp() {
-  expect(existsSync(MCP_MAIN), `${MCP_MAIN} is missing; run pnpm --filter @atlas/mcp build`);
+  expect(existsSync(MCP_MAIN), `${MCP_MAIN} is missing; run pnpm --filter @dfai/mcp build`);
   const client = new Client({ name: 'atlas-smoke', version: '1.0.0' });
   await client.connect(
     new StdioClientTransport({ command: process.execPath, args: [MCP_MAIN], stderr: 'inherit' }),

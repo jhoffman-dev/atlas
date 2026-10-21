@@ -7,7 +7,7 @@
 import { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { remarkMarkdown } from '@atlas/adapters';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   bothChange,
   expectNoMarkers,

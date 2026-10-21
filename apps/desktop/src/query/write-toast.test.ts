@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type WriteRecord } from '@atlas/domain';
-import { fakeVaultFs, memoryVault } from '@atlas/application';
+import { createVaultPath, type WriteRecord } from '@dfai/domain';
+import { fakeVaultFs, memoryVault } from '@dfai/application';
 import { createToasts } from '../toasts/toasts.ts';
 import { sayWritten } from './write-toast.ts';
 

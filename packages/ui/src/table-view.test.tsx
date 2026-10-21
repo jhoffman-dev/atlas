@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, noteNames } from '@atlas/domain';
+import { createVaultPath, noteNames } from '@dfai/domain';
 import { NoteNamesProvider } from './note-names.tsx';
 import { TableView, type TableResult } from './table-view.tsx';
 

@@ -6,7 +6,7 @@ import {
   type PassedOver,
   type PriorValue,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { setNoteProperties } from '../query/set-property.ts';
 import { VaultChangedError } from './vault-guard.ts';

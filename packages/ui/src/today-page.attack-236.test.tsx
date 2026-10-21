@@ -7,8 +7,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, todayLists, type ReviewTask } from '@atlas/domain';
-import type { TodayReport } from '@atlas/application';
+import { createVaultPath, todayLists, type ReviewTask } from '@dfai/domain';
+import type { TodayReport } from '@dfai/application';
 import { TodayPage, type TodayPageProps } from './today-page.tsx';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';
 

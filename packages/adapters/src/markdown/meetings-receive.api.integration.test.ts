@@ -12,14 +12,14 @@ import {
   codeOf,
   recordingActivity,
   type IndexPort,
-} from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
+} from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
 import {
   mapMeeting,
   splitFrontmatter,
   validateMeetingImport,
   type MeetingImport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 type ApiFixture = ReturnType<typeof apiFixture>;

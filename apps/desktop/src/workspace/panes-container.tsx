@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { PaneFrame, PaneSplit, useLinkHover } from '@atlas/ui';
+import { PaneFrame, PaneSplit, useLinkHover } from '@dfai/ui';
 import { LinkPreviewLayer } from '../panes/link-preview-layer.tsx';
 import { useFocusAfterArrange } from '../panes/use-focus-after-arrange.ts';
 import { PaneContentContainer } from './pane-content-container.tsx';
