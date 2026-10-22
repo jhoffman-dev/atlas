@@ -123,3 +123,26 @@ export function fakeKindleDelay(
     },
   };
 }
+
+/**
+ * A delay that waits until the test says: each wait is recorded, and all of
+ * them end together when `elapse` is called. Stands in for a timer the test
+ * moves on by hand, with no real time passing.
+ */
+export function heldKindleDelay(): KindleDelay & {
+  readonly waits: number[];
+  elapse(): void;
+} {
+  const waits: number[] = [];
+  const pending: (() => void)[] = [];
+  return {
+    waits,
+    wait(milliseconds) {
+      waits.push(milliseconds);
+      return new Promise((resolve) => pending.push(resolve));
+    },
+    elapse() {
+      for (const resolve of pending.splice(0)) resolve();
+    },
+  };
+}

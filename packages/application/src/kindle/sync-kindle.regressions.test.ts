@@ -7,7 +7,7 @@ import {
   kindlePage,
 } from '../testing/fake-kindle.ts';
 import { KindleFetchError } from './ports.ts';
-import { syncKindle } from './sync-kindle.ts';
+import { KINDLE_MIN_FETCH_GAP_MS, syncKindle } from './sync-kindle.ts';
 
 /*
  * Regressions found in review of PR #511: the sync under orders and answers it was not written
@@ -15,6 +15,7 @@ import { syncKindle } from './sync-kindle.ts';
  */
 
 const NOW = Date.UTC(2026, 9, 21, 9, 0);
+const HOUR = 60 * 60 * 1000;
 const clock = { now: () => NOW };
 const delay = fakeKindleDelay();
 
@@ -37,6 +38,9 @@ const highlightRow = (id: string, quote: string, note?: string) =>
   `<div id="${id}" class="a-row a-spacing-base"><span id="highlight">${quote}</span>${
     note === undefined ? '' : `<span id="note">${note}</span>`
   }</div>`;
+
+const noteRow = (id: string, note: string) =>
+  `<div id="${id}" class="a-row a-spacing-base"><span id="note">${note}</span></div>`;
 
 describe('syncKindle under orders it was not written for', () => {
   it('adds each highlight once when two syncs run at the same time', async () => {
@@ -100,5 +104,121 @@ describe('syncKindle under orders it was not written for', () => {
     await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
     const asked = source.calls.filter((call) => call.call === 'annotations').length;
     expect(asked).toBe(1);
+  });
+});
+
+/*
+ * Verification of PR #511 after its fix round: the sync against clocks, networks and notes the
+ * fixes were not tested with.
+ */
+describe('syncKindle against clocks, networks and notes the fix round did not try', () => {
+  it('never waits longer than the fetch gap when the clock is set back mid-sync', async () => {
+    // The Mac's clock is corrected back an hour after the library is read.
+    let readings = 0;
+    const steppedBack = { now: () => (readings++ === 0 ? NOW : NOW - HOUR) };
+    const pacing = fakeKindleDelay();
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1'),
+      books: {
+        B0EXAMPLE1: [bookPage('B0EXAMPLE1', highlightRow('IDCLOCKBACK1', 'Call me Ishmael.'))],
+      },
+    });
+    await syncKindle({ source, sink: fakeKindleSink(), clock: steppedBack, delay: pacing });
+    expect(Math.max(0, ...pacing.waits)).toBeLessThanOrEqual(KINDLE_MIN_FETCH_GAP_MS);
+    expect(pacing.waits).toEqual([KINDLE_MIN_FETCH_GAP_MS]);
+  });
+
+  it('stops asking for books once the host cannot reach Amazon, rather than timing out on every one', async () => {
+    // The Wi-Fi drops after the library: each further fetch is a 30 s host timeout.
+    const asins = ['B0EXAMPLE1', 'B0EXAMPLE2', 'B0EXAMPLE3', 'B0EXAMPLE4', 'B0EXAMPLE5'];
+    const lost = new KindleFetchError('timeout', 'timed out after 30 s');
+    const source = fakeKindleNotebook({
+      library: libraryOf(...asins),
+      books: Object.fromEntries(asins.map((asin) => [asin, [lost]])),
+    });
+    await syncKindle({ source, sink: fakeKindleSink(), clock, delay: fakeKindleDelay() });
+    const asked = source.calls.filter((call) => call.call === 'annotations').length;
+    expect(asked).toBe(1);
+  });
+
+  it('reports a host that stopped answering mid-sync as unavailable, with the books it had added', async () => {
+    for (const kind of ['timeout', 'unreachable'] as const) {
+      const source = fakeKindleNotebook({
+        library: libraryOf('B0EXAMPLE1', 'B0EXAMPLE2', 'B0EXAMPLE3'),
+        books: {
+          B0EXAMPLE1: [bookPage('B0EXAMPLE1', highlightRow('IDBEFORELOST', 'Call me Ishmael.'))],
+          B0EXAMPLE2: [new KindleFetchError(kind, 'no answer')],
+          B0EXAMPLE3: [
+            bookPage('B0EXAMPLE3', highlightRow('IDAFTERLOST1', 'Reader, I married him.')),
+          ],
+        },
+      });
+      const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
+      expect(report, kind).toEqual({
+        kind: 'unavailable',
+        message: 'no answer',
+        books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+        added: 1,
+      });
+      expect(describeKindleSync(report).message, kind).toMatch(
+        /Before it stopped, 1 highlight was added/,
+      );
+    }
+  });
+
+  it('brings in the new words of a note (with no passage) edited after it was synced', async () => {
+    const sink = fakeKindleSink();
+    const syncWith = (note: string) =>
+      syncKindle({
+        source: fakeKindleNotebook({
+          library: libraryOf('B0EXAMPLE1'),
+          books: { B0EXAMPLE1: [bookPage('B0EXAMPLE1', noteRow('IDSTANDALONE1', note))] },
+        }),
+        sink,
+        clock,
+        delay: fakeKindleDelay(),
+      });
+    await syncWith('A first thought on the opening.');
+    await syncWith('A better thought on the opening.');
+    const notes = sink.writes.flatMap((write) => write.highlights.map((h) => h.note));
+    expect(notes).toContain('A better thought on the opening.');
+  });
+
+  it('adds a note (with no passage) once however often it is synced unedited', async () => {
+    const sink = fakeKindleSink();
+    for (let round = 0; round < 3; round += 1) {
+      await syncKindle({
+        source: fakeKindleNotebook({
+          library: libraryOf('B0EXAMPLE1'),
+          books: {
+            B0EXAMPLE1: [bookPage('B0EXAMPLE1', noteRow('IDSTANDALONE2', 'A thought, kept.'))],
+          },
+        }),
+        sink,
+        clock,
+        delay,
+      });
+    }
+    const notes = sink.writes.flatMap((write) => write.highlights.map((h) => h.note));
+    expect(notes).toEqual(['A thought, kept.']);
+  });
+
+  it('hands a sync that failed to every caller that joined it, and lets the next one run afresh', async () => {
+    const sink = fakeKindleSink();
+    const broken = {
+      fetchLibrary: () => Promise.reject(new Error('the host went away')),
+      fetchAnnotations: () => Promise.reject(new Error('unused')),
+    };
+    const first = syncKindle({ source: broken, sink, clock, delay: fakeKindleDelay() });
+    const joined = syncKindle({ source: broken, sink, clock, delay: fakeKindleDelay() });
+    await expect(first).rejects.toThrow('the host went away');
+    await expect(joined).rejects.toThrow('the host went away');
+    const later = await syncKindle({
+      source: fakeKindleNotebook({ library: libraryOf() }),
+      sink,
+      clock,
+      delay: fakeKindleDelay(),
+    });
+    expect(later.kind).toBe('synced');
   });
 });

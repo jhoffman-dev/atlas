@@ -88,7 +88,10 @@ describe('readKindleAnnotations', () => {
           commentOn: null,
         },
         {
-          key: 'amazon:QTBFWEFNUExFMTpBNDpOT1RF',
+          key: kindleNoteKey(
+            'amazon:QTBFWEFNUExFMTpBNDpOT1RF' as KindleHighlightKey,
+            'Compare with Emma & Persuasion.',
+          ),
           asin: ASIN,
           annotationId: 'QTBFWEFNUExFMTpBNDpOT1RF',
           style: 'note',
@@ -158,7 +161,7 @@ describe('readKindleAnnotations', () => {
     expect(bare).toHaveLength(1);
   });
 
-  it('keeps a note-only annotation as one entry, under its id, whatever the note is edited to', () => {
+  it('keeps a note-only annotation as one entry, under its id and its words, so an edit is a new entry', () => {
     const keysOf = (note: string) => {
       const reading = readKindleAnnotations(
         annotations(row(ROW_ID, `<span id="note">${note}</span>`)),
@@ -166,8 +169,9 @@ describe('readKindleAnnotations', () => {
       );
       return reading.kind === 'annotations' ? reading.highlights.map((h) => h.key) : [];
     };
-    expect(keysOf('First')).toEqual([`amazon:${ROW_ID}`]);
-    expect(keysOf('Second')).toEqual([`amazon:${ROW_ID}`]);
+    expect(keysOf('First')).toEqual([`amazon:${ROW_ID}:note:${hashOf('First')}`]);
+    expect(keysOf('Second')).toEqual([`amazon:${ROW_ID}:note:${hashOf('Second')}`]);
+    expect(keysOf('First')).toEqual(keysOf('First'));
   });
 
   it('gives a typed note on a passage with no usable id a key built on the passage’s', () => {

@@ -217,7 +217,7 @@ describe('syncKindle', () => {
     expect(sink.writes.map((write) => write.book.asin)).toEqual(['B0EXAMPLE2']);
   });
 
-  it('writes nothing of a book whose page the host could not bring back, and goes on to the next', async () => {
+  it('writes nothing of a book whose page the host could not bring back, and stops there', async () => {
     const source = fakeKindleNotebook({
       library: libraryOf('B0EXAMPLE1', 'B0EXAMPLE2'),
       books: {
@@ -230,14 +230,16 @@ describe('syncKindle', () => {
     });
     const sink = fakeKindleSink();
     const report = await syncKindle({ source, sink, clock, delay });
-    expect(report).toMatchObject({
-      kind: 'synced',
-      books: [
-        { kind: 'unavailable', asin: 'B0EXAMPLE1', message: 'timed out after 30 s' },
-        { kind: 'added', asin: 'B0EXAMPLE2' },
-      ],
+    expect(report).toEqual({
+      kind: 'unavailable',
+      message: 'timed out after 30 s',
+      books: [],
+      added: 0,
     });
-    expect(sink.writes.map((write) => write.book.asin)).toEqual(['B0EXAMPLE2']);
+    expect(sink.writes).toEqual([]);
+    expect(
+      source.calls.some((call) => call.call === 'annotations' && call.asin === 'B0EXAMPLE2'),
+    ).toBe(false);
   });
 
   it('reports a book Amazon answered with an error status as unavailable, by its status', async () => {
@@ -255,12 +257,14 @@ describe('syncKindle', () => {
       const unreachable = fakeKindleNotebook({ library: new KindleFetchError(kind, 'no answer') });
       expect(
         await syncKindle({ source: unreachable, sink: fakeKindleSink(), clock, delay }),
-      ).toEqual({ kind: 'unavailable', message: 'no answer' });
+      ).toEqual({ kind: 'unavailable', message: 'no answer', books: [], added: 0 });
     }
     const refused = fakeKindleNotebook({ library: { status: 500, html: '', redirectedTo: null } });
     expect(await syncKindle({ source: refused, sink: fakeKindleSink(), clock, delay })).toEqual({
       kind: 'unavailable',
       message: 'Amazon answered 500',
+      books: [],
+      added: 0,
     });
   });
 
@@ -412,9 +416,11 @@ describe('syncKindle when the host cannot bring a page', () => {
         library: libraryOf('B0EXAMPLE1'),
         books: { B0EXAMPLE1: [new KindleFetchError(kind, 'no answer')] },
       });
-      expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toMatchObject({
-        kind: 'synced',
-        books: [{ kind: 'unavailable', message: 'no answer' }],
+      expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toEqual({
+        kind: 'unavailable',
+        message: 'no answer',
+        books: [],
+        added: 0,
       });
     }
   });

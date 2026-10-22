@@ -13,6 +13,8 @@ const page = (html: string): KindleRawPage => ({ status: 200, html, redirectedTo
 const row = (id: string, inner: string) =>
   `<div id="${id}" class="a-row a-spacing-base">${inner}</div>`;
 const annotations = (rows: string) => `<div id="kp-notebook-annotations">${rows}</div>`;
+/** A row's start tag alone, for rows nested inside one another. */
+const openRow = (id: string) => `<div id="${id}" class="a-row a-spacing-base">`;
 
 /** Milliseconds `read` takes. A linear reader does these pages in a few ms. */
 function timed(read: () => void): number {
@@ -81,5 +83,63 @@ describe('the notebook reader against hostile pages', () => {
     const keyOf = (words: string) =>
       kindleHighlightKey({ asin: 'B0EXAMPLE1', annotationId: null, location: 120, words });
     expect(keyOf('the café at the corner')).toBe(keyOf('the café at the corner'));
+  });
+
+  it('reads a passage once when one annotation row sits inside another', () => {
+    const html = annotations(
+      `${openRow('IDOUTERROW01')}${openRow('IDINNERROW01')}<span id="highlight">Call me Ishmael.</span></div></div>`,
+    );
+    const reading = readKindleAnnotations(page(html), 'B0EXAMPLE1');
+    if (reading.kind !== 'annotations') {
+      expect(reading.kind).toBe('unrecognised');
+      return;
+    }
+    expect(reading.highlights.map((highlight) => highlight.quote)).toEqual(['Call me Ishmael.']);
+  });
+
+  it('reads a row’s own passage and note, not those of a row nested inside it', () => {
+    const html = annotations(
+      row(
+        'IDOUTERROW02',
+        `<span id="highlight">It was the best of times.</span>${row('IDINNERROW02', '<span id="highlight">It was the worst of times.</span><span id="note">A thought</span>')}`,
+      ),
+    );
+    const reading = readKindleAnnotations(page(html), 'B0EXAMPLE1');
+    expect(
+      reading.kind === 'annotations'
+        ? reading.highlights.map((h) => [h.annotationId, h.quote, h.note])
+        : reading.kind,
+    ).toEqual([
+      ['IDOUTERROW02', 'It was the best of times.', null],
+      ['IDINNERROW02', 'It was the worst of times.', null],
+      ['IDINNERROW02', '', 'A thought'],
+    ]);
+  });
+
+  it('reads a page of nested annotation rows in time linear in its size', () => {
+    // 250 nested rows (under the depth cap) over 40 000 plain elements: about 300 KB. Each row
+    // searches the whole subtree under it; an 8 MB page of this shape takes tens of seconds.
+    const rows = Array.from({ length: 250 }, (_, at) =>
+      openRow(`IDNESTED${String(at).padStart(4, '0')}`),
+    ).join('');
+    const html = annotations(`${rows}${'<i></i>'.repeat(40_000)}<span id="highlight">q</span>`);
+    expect(timed(() => readKindleAnnotations(page(html), 'B0EXAMPLE1'))).toBeLessThan(
+      LINEAR_BUDGET_MS,
+    );
+  });
+
+  it('reads many rows each nesting the next, every one with a passage, in linear time', () => {
+    const rows = Array.from(
+      { length: 250 },
+      (_, at) =>
+        `${openRow(`IDCHAIN${String(at).padStart(5, '0')}`)}<span id="highlight">q${at}</span>`,
+    ).join('');
+    const html = annotations(`${rows}${'<i></i>'.repeat(40_000)}`);
+    let count = 0;
+    const took = timed(() => {
+      const reading = readKindleAnnotations(page(html), 'B0EXAMPLE1');
+      count = reading.kind === 'annotations' ? reading.highlights.length : -1;
+    });
+    expect({ count, fast: took < LINEAR_BUDGET_MS }).toEqual({ count: 250, fast: true });
   });
 });

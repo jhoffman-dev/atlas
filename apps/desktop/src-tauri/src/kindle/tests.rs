@@ -319,6 +319,10 @@ fn a_redirect_to_an_address_with_no_origin_is_shown_as_nothing_not_its_contents(
     for raw in [
         "mailto:ida.brenwick@example.com",
         "data:text/html;base64,U0VTU0lPTj1zZWNyZXQ=",
+        "blob:https://read.amazon.com/7c1e2f00-0000-4000-8000-000000000000",
+        "javascript:alert(document.cookie)",
+        "about:blank?session=secret",
+        "file:///Users/ida.brenwick/secret.txt",
     ] {
         assert_eq!(shown_target(raw), "", "{raw}");
     }

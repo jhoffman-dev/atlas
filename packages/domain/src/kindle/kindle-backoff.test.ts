@@ -32,4 +32,19 @@ describe('the back-off after a robot check', () => {
     // A clock set back is not a reason to stop syncing for ever.
     expect(mayAutoSyncKindle({ now: NOW, lastRobotCheckAt: NOW + 3 * 24 * HOUR })).toBe(true);
   });
+
+  it('does not hold automatic syncs for ever when the stored robot-check time is not a number', () => {
+    // A time read back badly from storage (Number(undefined)) is no reason to stop for good.
+    expect(
+      mayAutoSyncKindle({ now: Date.UTC(2026, 9, 21, 9, 0), lastRobotCheckAt: Number.NaN }),
+    ).toBe(true);
+    for (const stored of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(mayAutoSyncKindle({ now: NOW, lastRobotCheckAt: stored }), String(stored)).toBe(true);
+    }
+  });
+
+  it('holds nothing until a time that is not a number', () => {
+    expect(kindleAutoSyncHeldUntil(Number.NaN)).toBeNull();
+    expect(kindleAutoSyncHeldUntil(Number.NEGATIVE_INFINITY)).toBeNull();
+  });
 });

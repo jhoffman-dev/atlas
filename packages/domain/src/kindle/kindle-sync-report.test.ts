@@ -88,9 +88,25 @@ describe('describeKindleSync', () => {
   });
 
   it('says Amazon could not be reached, and why, and that it will try again', () => {
-    expect(describeKindleSync({ kind: 'unavailable', message: 'timed out' })).toEqual({
+    expect(
+      describeKindleSync({ kind: 'unavailable', message: 'timed out', books: [], added: 0 }),
+    ).toEqual({
       message:
         "Couldn't reach Amazon's Kindle notebook (timed out). Kindle sync will try again later.",
+      ok: false,
+    });
+  });
+
+  it('says what a sync had added before Amazon stopped answering it', () => {
+    const described = describeKindleSync({
+      kind: 'unavailable',
+      message: 'timed out',
+      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Emma', added: 2 }],
+      added: 2,
+    });
+    expect(described).toEqual({
+      message:
+        "Couldn't reach Amazon's Kindle notebook (timed out). Kindle sync will try again later. Before it stopped, 2 highlights were added from 1 book.",
       ok: false,
     });
   });
