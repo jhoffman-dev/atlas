@@ -19,7 +19,14 @@ describe('a literature note', () => {
     expect(isLiteratureNote({ type: 'literature' })).toBe(true);
     expect(isLiteratureNote({ type: ' Literature ' })).toBe(true);
     expect(isLiteratureNote({ type: 'literatures' })).toBe(false);
-    expect(isLiteratureNote({ type: ['literature'] })).toBe(false);
+    expect(isLiteratureNote({ atlas: 'literature' })).toBe(false);
+  });
+
+  it('is one whose type list holds literature, as the index reads a type list (ADR-0043)', () => {
+    expect(isLiteratureNote({ type: ['literature'] })).toBe(true);
+    expect(isLiteratureNote({ type: ['book', ' Literature '] })).toBe(true);
+    expect(isLiteratureNote({ type: ['book', 3, null] })).toBe(false);
+    expect(isLiteratureNote({ type: [] })).toBe(false);
     expect(isLiteratureNote({ atlas: 'literature' })).toBe(false);
   });
 

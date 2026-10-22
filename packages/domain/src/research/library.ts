@@ -6,6 +6,8 @@ import {
   countBy,
   foldedWords,
   matchesEvery,
+  usesTag,
+  withParentTags,
   type ResearchChoice,
 } from './research-text.ts';
 
@@ -81,7 +83,7 @@ export function filterLibrary(
   return entries.filter(
     (entry) =>
       (filter.kinds.length === 0 || (entry.kind !== null && filter.kinds.includes(entry.kind))) &&
-      (filter.tag === null || entry.tags.includes(filter.tag)) &&
+      (filter.tag === null || usesTag(entry.tags, filter.tag)) &&
       (filter.project === null ||
         entry.projects.some((project) => projectKey(project) === filter.project)) &&
       matchesEvery(words, [entry.title, entry.author ?? '']),
@@ -97,6 +99,8 @@ export function sortLibrary(entries: readonly LibraryEntry[], sort: LibrarySort)
   const sign = sort.descending ? -1 : 1;
   const byTitle = (left: LibraryEntry, right: LibraryEntry) =>
     byName(left.title, right.title) || byName(left.path, right.path);
+  /** A time the note never had (NaN) is the epoch, so the order stays a total one. */
+  const timeOf = (entry: LibraryEntry) => (Number.isFinite(entry.modified) ? entry.modified : 0);
   return [...entries].sort((left, right) => {
     if (sort.key === 'author') {
       if ((left.author === null) !== (right.author === null)) return left.author === null ? 1 : -1;
@@ -106,7 +110,7 @@ export function sortLibrary(entries: readonly LibraryEntry[], sort: LibrarySort)
       sort.key === 'title'
         ? byTitle(left, right)
         : sort.key === 'modified'
-          ? left.modified - right.modified
+          ? timeOf(left) - timeOf(right)
           : left.highlights - right.highlights;
     return sign * order || byTitle(left, right);
   });
@@ -130,7 +134,7 @@ export interface LibraryChoices {
 /** The choices the Library's filters offer, each with how many sources it would show; kinds in their own order, the rest by name. */
 export function libraryChoices(entries: readonly LibraryEntry[]): LibraryChoices {
   const kinds = countBy(entries, (entry) => (entry.kind === null ? [] : [entry.kind]));
-  const tags = countBy(entries, (entry) => entry.tags);
+  const tags = countBy(entries, (entry) => withParentTags(entry.tags));
   const names = new Map<string, string>();
   const projects = countBy(entries, (entry) =>
     entry.projects.map((project) => {
@@ -153,18 +157,47 @@ export function libraryChoices(entries: readonly LibraryEntry[]): LibraryChoices
   };
 }
 
+/**
+ * `filter` without the values `choices` no longer offer (a tag since taken off
+ * its last note, a project since renamed): a filter nobody can see or press
+ * off must not keep hiding sources. The search words stay: they are typed.
+ */
+export function settleLibraryFilter(filter: LibraryFilter, choices: LibraryChoices): LibraryFilter {
+  const offered = <Value extends string>(value: Value, among: readonly ResearchChoice<Value>[]) =>
+    among.some((choice) => choice.value === value);
+  const kinds = filter.kinds.filter((kind) => offered(kind, choices.kinds));
+  const tag = filter.tag !== null && offered(filter.tag, choices.tags) ? filter.tag : null;
+  const project =
+    filter.project !== null && offered(filter.project, choices.projects) ? filter.project : null;
+  const unchanged =
+    kinds.length === filter.kinds.length && tag === filter.tag && project === filter.project;
+  return unchanged ? filter : { ...filter, kinds, tag, project };
+}
+
+/** Whether any of the Library's filters, or its search, is on. */
+export function isLibraryFiltered(filter: LibraryFilter): boolean {
+  return (
+    filter.kinds.length > 0 ||
+    filter.tag !== null ||
+    filter.project !== null ||
+    filter.search.trim() !== ''
+  );
+}
+
 /** A URL's scheme, which a cover in the vault never has: a picture off the vault is never fetched. */
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
 /**
  * The picture a source's `cover:` names in the vault, as the vault's image
- * loader reads it: an embed (`![[cover.jpg]]`) or a link (`[[cover.jpg|Cover]]`)
- * becomes its path, a bare path stays. Null for none, and for a URL — the
+ * loader reads it: an embed (`![[cover.jpg]]`), a link (`[[cover.jpg|Cover]]`)
+ * or a markdown image (`![Cover](cover.jpg)`) becomes its path, a bare path stays. Null for none, and for a URL — the
  * Library shows only what is already in the vault, and fetches nothing.
  */
 export function libraryCover(value: string | null): string | null {
   if (value === null) return null;
-  const linked = /^!?\[\[([^\]|#]*)[^\]]*\]\]$/.exec(value.trim());
-  const path = (linked === null ? value : (linked[1] ?? '')).trim();
+  const written = value.trim();
+  const linked = /^!?\[\[([^\]|#]*)[^\]]*\]\]$/.exec(written);
+  const pictured = /^!\[[^\]]*\]\(\s*<?([^)\s>]*)>?[^)]*\)$/.exec(written);
+  const path = (linked?.[1] ?? pictured?.[1] ?? written).trim();
   return path === '' || SCHEME.test(path) || path.startsWith('//') ? null : path;
 }

@@ -5,6 +5,8 @@ import {
   countBy,
   foldedWords,
   matchesEvery,
+  usesTag,
+  withParentTags,
   withToggled,
 } from './research-text.ts';
 
@@ -12,6 +14,18 @@ describe('foldedWords and matchesEvery', () => {
   it('folds accents and case and cuts on any space', () => {
     expect(foldedWords('  Zoë\tÉCOLE  ')).toEqual(['zoe', 'ecole']);
     expect(foldedWords('')).toEqual([]);
+  });
+
+  it('folds the letters that have no combining mark to the plain ones typed for them', () => {
+    expect(foldedWords('Søren Łódź Ærø Straße Đorđe Þór Œuvre')).toEqual([
+      'soren',
+      'lodz',
+      'aero',
+      'strasse',
+      'dorde',
+      'thor',
+      'oeuvre',
+    ]);
   });
 
   it('matches when every word is somewhere in the fields, and anything for no words', () => {
@@ -24,7 +38,13 @@ describe('foldedWords and matchesEvery', () => {
 describe('byName', () => {
   it('reads numbers by value and case aside', () => {
     expect(['Part 10', 'part 2', 'Part 1'].sort(byName)).toEqual(['Part 1', 'part 2', 'Part 10']);
-    expect(byName('abc', 'ABC')).toBe(0);
+    expect(byName('abc', 'ABD')).toBeLessThan(0);
+  });
+
+  it('tells two names the collator reads as one apart, the same either way round', () => {
+    expect(Math.sign(byName('Resume', 'Résumé'))).toBe(-Math.sign(byName('Résumé', 'Resume')));
+    expect(byName('Resume', 'Résumé')).not.toBe(0);
+    expect(byName('same', 'same')).toBe(0);
   });
 });
 
@@ -56,5 +76,20 @@ describe('changedOn', () => {
 
   it('says the epoch for a time that is not one, rather than throwing', () => {
     expect(changedOn(Number.NaN)).toBe('Thu, Jan 1, 1970');
+  });
+});
+
+describe('usesTag and withParentTags', () => {
+  it('counts a nested tag as used under each of its parents, and not a tag that merely starts the same', () => {
+    expect(usesTag(['reading/fiction/scifi'], 'reading')).toBe(true);
+    expect(usesTag(['reading/fiction/scifi'], 'reading/fiction')).toBe(true);
+    expect(usesTag(['reading'], 'reading')).toBe(true);
+    expect(usesTag(['readings'], 'reading')).toBe(false);
+    expect(usesTag([], 'reading')).toBe(false);
+  });
+
+  it('adds every parent of a nested tag, each once', () => {
+    expect(withParentTags(['a/b/c', 'a/d', 'e'])).toEqual(['a', 'a/b', 'a/b/c', 'a/d', 'e']);
+    expect(withParentTags([])).toEqual([]);
   });
 });

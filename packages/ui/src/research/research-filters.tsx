@@ -87,6 +87,16 @@ export function ChipToggles<Value extends string>({
   );
 }
 
+/** "Clear filters", shown only while some filter (or the search) is on, so a list that hides sources can always be shown whole. */
+export function ClearFilters({ on, onClear }: { on: boolean; onClear: () => void }) {
+  if (!on) return null;
+  return (
+    <button type="button" className="btn btn--sm research__clear" onClick={onClear}>
+      Clear filters
+    </button>
+  );
+}
+
 /** What a list says while it is read, when it failed, or when nothing is in it. */
 export function ResearchNotice({
   state,

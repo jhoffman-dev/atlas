@@ -3,11 +3,13 @@ import { createVaultPath } from '../vault/vault-path.ts';
 import {
   DEFAULT_LIBRARY_SORT,
   filterLibrary,
+  isLibraryFiltered,
   libraryChoices,
   libraryCover,
   libraryShown,
   NO_LIBRARY_FILTER,
   projectKey,
+  settleLibraryFilter,
   sortLibrary,
   type LibraryEntry,
 } from './library.ts';
@@ -251,5 +253,50 @@ describe('libraryCover', () => {
     expect(libraryCover('data:image/png;base64,AAAA')).toBeNull();
     expect(libraryCover('//example.com/art.jpg')).toBeNull();
     expect(libraryCover('![[https://example.com/art.jpg]]')).toBeNull();
+  });
+});
+
+describe('settleLibraryFilter and isLibraryFiltered', () => {
+  const sources = [
+    entry('Meditations', {
+      kind: 'kindle',
+      tags: ['stoic'],
+      projects: [{ path: ART, name: 'Art' }],
+    }),
+  ];
+  const choices = libraryChoices(sources);
+
+  it('keeps a filter every value of which is still offered, as the same object', () => {
+    const filter = { ...NO_LIBRARY_FILTER, kinds: ['kindle' as const], tag: 'stoic', search: 'x' };
+    expect(settleLibraryFilter(filter, choices)).toBe(filter);
+  });
+
+  it('drops the kind, tag and project no source has any more, and keeps the search typed', () => {
+    const settled = settleLibraryFilter(
+      { kinds: ['kindle', 'epub'], tag: 'gone', project: 'name:gone', search: 'mar' },
+      choices,
+    );
+    expect(settled).toEqual({ kinds: ['kindle'], tag: null, project: null, search: 'mar' });
+  });
+
+  it('says a filter is on for a kind, tag, project or search words, and not for spaces', () => {
+    expect(isLibraryFiltered(NO_LIBRARY_FILTER)).toBe(false);
+    expect(isLibraryFiltered({ ...NO_LIBRARY_FILTER, search: '   ' })).toBe(false);
+    expect(isLibraryFiltered({ ...NO_LIBRARY_FILTER, search: 'a' })).toBe(true);
+    expect(isLibraryFiltered({ ...NO_LIBRARY_FILTER, kinds: ['pdf'] })).toBe(true);
+    expect(isLibraryFiltered({ ...NO_LIBRARY_FILTER, tag: 'a' })).toBe(true);
+    expect(isLibraryFiltered({ ...NO_LIBRARY_FILTER, project: 'a' })).toBe(true);
+  });
+
+  it('offers a parent tag used only nested, counting each source once', () => {
+    const nested = libraryChoices([
+      entry('A', { tags: ['reading/fiction', 'reading/poetry'] }),
+      entry('B', { tags: ['reading'] }),
+    ]);
+    expect(nested.tags.map((tag) => [tag.value, tag.count])).toEqual([
+      ['reading', 2],
+      ['reading/fiction', 1],
+      ['reading/poetry', 1],
+    ]);
   });
 });

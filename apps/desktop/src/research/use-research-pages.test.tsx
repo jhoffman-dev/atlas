@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
   createVaultPath,
+  highlightChoices,
+  libraryChoices,
   NO_HIGHLIGHT_FILTER,
   NO_LIBRARY_FILTER,
   type HighlightEntry,
@@ -30,6 +32,7 @@ const highlight = (id: string, modified: number): HighlightEntry => ({
   path: createVaultPath('Library/A.md'),
   source: 'A',
   modified,
+  index: 0,
   id,
   kind: 'pdf',
   quote: id,
@@ -49,10 +52,8 @@ describe('useLibraryPage', () => {
   });
 
   it('shows the sources newest first, then as the filter and order the page sets', () => {
-    const read = {
-      kind: 'ready' as const,
-      entries: [source('B', { modified: 1 }), source('A', { modified: 2, kind: 'epub' })],
-    };
+    const entries = [source('B', { modified: 1 }), source('A', { modified: 2, kind: 'epub' })];
+    const read = { kind: 'ready' as const, entries, choices: libraryChoices(entries) };
     const { result } = renderHook(() => useLibraryPage(read));
     const titles = () =>
       result.current.state.kind === 'ready'
@@ -71,10 +72,8 @@ describe('useLibraryPage', () => {
 describe('useHighlightsPage', () => {
   it('counts "changed within" back from the clock, read as the filter is set', () => {
     let now = NOW;
-    const read = {
-      kind: 'ready' as const,
-      entries: [highlight('new', NOW - DAY), highlight('old', NOW - 20 * DAY)],
-    };
+    const entries = [highlight('new', NOW - DAY), highlight('old', NOW - 20 * DAY)];
+    const read = { kind: 'ready' as const, entries, choices: highlightChoices(entries) };
     const { result } = renderHook(() => useHighlightsPage(read, () => now));
     const ids = () =>
       result.current.state.kind === 'ready'

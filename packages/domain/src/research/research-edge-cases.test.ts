@@ -1,5 +1,5 @@
 /**
- * Attack tests for PR #525 (#507, Library and All highlights): what the
+ * Tests for the research area (#507, Library and All highlights): what the
  * domain's filters, sort and cover reading were not written for. Failing
  * tests are findings; passing ones pin what held.
  */
@@ -11,10 +11,10 @@ import {
   highlightChoices,
   highlightColor,
   highlightPlace,
-  joinHighlights,
+  flattenHighlights,
+  inDisplayOrder,
   NO_HIGHLIGHT_FILTER,
   type HighlightEntry,
-  type ListedHighlight,
 } from './highlight-list.ts';
 import {
   filterLibrary,
@@ -42,7 +42,7 @@ function entry(name: string, rest: Partial<LibraryEntry> = {}): LibraryEntry {
 
 const titles = (entries: readonly LibraryEntry[]) => entries.map((each) => each.title);
 
-describe('libraryCover: every way a cover is written (attack #525)', () => {
+describe('libraryCover: every way a cover is written', () => {
   it('reads a markdown image cover `![](covers/art.jpg)` as its path', () => {
     expect(libraryCover('![](covers/art.jpg)')).toBe('covers/art.jpg');
   });
@@ -94,7 +94,7 @@ describe('libraryCover: every way a cover is written (attack #525)', () => {
   );
 });
 
-describe('filterLibrary edges (attack #525)', () => {
+describe('filterLibrary edges', () => {
   it('a nested tag is under its parent: filtering by #reading keeps #reading/fiction', () => {
     const sources = [entry('Dune', { tags: ['reading/fiction'] }), entry('Other', { tags: [] })];
     expect(titles(filterLibrary(sources, { ...NO_LIBRARY_FILTER, tag: 'reading' }))).toEqual([
@@ -133,7 +133,7 @@ describe('filterLibrary edges (attack #525)', () => {
   });
 });
 
-describe('sortLibrary edges (attack #525)', () => {
+describe('sortLibrary edges', () => {
   it('is a total order: two notes told apart only by an accent sort the same in any input order', () => {
     // `Resume.md` and `Résumé.md` are two files on APFS; the collator reads them as one name.
     const sources = [
@@ -159,6 +159,7 @@ const highlight = (rest: Partial<HighlightEntry> = {}): HighlightEntry => ({
   path: createVaultPath('Library/A.md'),
   source: 'A',
   modified: 0,
+  index: 0,
   id: 'a1',
   kind: 'pdf',
   quote: 'q',
@@ -171,34 +172,12 @@ const highlight = (rest: Partial<HighlightEntry> = {}): HighlightEntry => ({
   ...rest,
 });
 
-describe('All highlights edges (attack #525)', () => {
-  const listed = (path: string, index: number, id: string): ListedHighlight => ({
-    path: createVaultPath(path),
-    index,
-    id,
-    kind: 'pdf',
-    quote: id,
-    comment: '',
-    mark: 'highlight',
-    color: 'yellow',
-    page: null,
-    location: null,
-  });
-
-  it('lists no highlight of a note that is no longer a source, and keeps duplicate ids in order', () => {
-    const joined = joinHighlights(
-      [
-        listed('Library/A.md', 1, 'dup'),
-        listed('Notes/Gone.md', 0, 'gone'),
-        listed('Library/A.md', 0, 'dup'),
-      ],
-      [entry('A')],
-    );
-    expect(joined.map((each) => [each.id, each.quote])).toEqual([
-      ['dup', 'dup'],
-      ['dup', 'dup'],
-    ]);
-    expect(joined.every((each) => each.path === 'Library/A.md')).toBe(true);
+describe('All highlights edges', () => {
+  it('keeps duplicate ids in the order the note holds them', () => {
+    const source = entry('A');
+    const dup = (index: number) => highlight({ path: source.path, index, id: 'dup' });
+    const listed = flattenHighlights(inDisplayOrder([{ source, highlights: [dup(0), dup(1)] }]));
+    expect(listed.map((each) => each.index)).toEqual([0, 1]);
   });
 
   it.each(['', 'Green', 'teal', ' green'])('an unknown colour %j is yellow', (color) => {

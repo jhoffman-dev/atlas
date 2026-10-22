@@ -1,5 +1,5 @@
 /**
- * Attack tests for PR #525 (#507, integration): what the Library and All
+ * Tests for the research views (#507, integration): what the Library and All
  * highlights read back from the index for literature notes written in ways
  * the happy path does not — a `type:` list, a note with no `kind:`, an
  * archived source — through the real markdown reader and the views' own
@@ -47,7 +47,7 @@ async function indexOf(files: readonly (readonly [string, string, number])[]) {
   return index;
 }
 
-describe('the research views over literature notes written oddly (attack #525)', () => {
+describe('the research views over literature notes written oddly', () => {
   it('a note whose `type:` is a list holding literature is a source both views agree on', async () => {
     const listed = sourceText('The Larkspur Ledger', 'Every ledger tells a story.').replace(
       'type: literature',
