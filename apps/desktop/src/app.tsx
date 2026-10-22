@@ -1545,8 +1545,8 @@ function AppWindow({
   );
 
   const linkPlaces = useMemo(
-    () => linkPlacesOf({ fs: notes.fs, markdown: notes.markdown, index: index.index }),
-    [notes, index.index],
+    () => linkPlacesOf({ fs: notes.fs, markdown: notes.markdown }),
+    [notes],
   );
   /** Follows a wiki link in the pane it was clicked in — a link opens where you are reading. */
   const followLinkInPane = useCallback(

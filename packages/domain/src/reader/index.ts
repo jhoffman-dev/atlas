@@ -63,6 +63,7 @@ export { placeOfFile } from './document-place.ts';
 export {
   highlightChip,
   highlightOpening,
+  namesPdf,
   pdfLinkTarget,
   placeLabel,
   READER_KINDS,

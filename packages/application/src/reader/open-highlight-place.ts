@@ -1,17 +1,19 @@
 import {
   highlightOpening,
-  LITERATURE_NOTE_TYPE,
+  isPdfName,
+  namesPdf,
+  VAULT_ROOT,
+  VAULT_WALK_DEPTH,
   pdfLinkTarget,
   readerLinkLabel,
   readHighlights,
   readLiteratureNote,
-  splitFrontmatter,
   type HighlightOpening,
   type VaultPath,
 } from '@dfai/domain';
-import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
+import { listVaultDirectory } from '../vault/read-vault.ts';
 import { readLiteratureNoteAt } from './pdf-highlights.ts';
 
 /*
@@ -98,35 +100,34 @@ export function readerHighlightLinks(
   return { label, ids: new Set(highlights.map((highlight) => highlight.id)) };
 }
 
-/** What finding the PDF a wiki link names needs: the literature notes, which name the vault's PDFs. */
+/** What finding the PDF a wiki link names needs: the vault's files. */
 export interface LinkedPdfPorts {
-  readonly index: Pick<IndexPort, 'notesOfType'>;
-  readonly fs: Pick<VaultFsPort, 'readNotes'>;
-  readonly markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  readonly fs: Pick<VaultFsPort, 'listDirectory'>;
 }
 
 /**
- * The PDF a wiki link `[[…pdf]]` names, or null for a link to anything else
- * (`pdfLinkTarget`). A link by name alone is matched against the files the
- * literature notes name; when those cannot be read, the link is taken as
- * the path it writes.
+ * The PDF a wiki link `[[…pdf]]` names among the files the vault holds, or
+ * null when the vault has none so called or the link is to anything else
+ * (`pdfLinkTarget`). The vault is read for its files, not the literature
+ * notes' `file:` lines, so a PDF with no literature note is found; a read
+ * that fails is the caller's to say.
  */
 export async function linkedPdf(ports: LinkedPdfPorts, target: string): Promise<VaultPath | null> {
-  if (pdfLinkTarget(target, []) === null) return null;
-  return pdfLinkTarget(target, await knownPdfs(ports));
+  if (!namesPdf(target)) return null;
+  return pdfLinkTarget(target, await listVaultPdfs(ports));
 }
 
-async function knownPdfs({ index, fs, markdown }: LinkedPdfPorts): Promise<VaultPath[]> {
-  try {
-    const listed = await index.notesOfType(LITERATURE_NOTE_TYPE);
-    const files = await fs.readNotes(listed.map((note) => note.path));
-    return files.flatMap((file) => {
-      const frontmatter = markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter);
-      const pdf = readLiteratureNote(frontmatter)?.file ?? null;
-      return pdf === null ? [] : [pdf];
-    });
-  } catch {
-    // Unknown files only cost the by-name match: the link is still read as its own path.
-    return [];
+/** Every PDF in user space, walked folder by folder as the sidebar sees them (`listVaultDirectory`). */
+async function listVaultPdfs({ fs }: LinkedPdfPorts): Promise<VaultPath[]> {
+  const found: VaultPath[] = [];
+  let level: VaultPath[] = [VAULT_ROOT];
+  for (let depth = 0; level.length > 0 && depth <= VAULT_WALK_DEPTH; depth += 1) {
+    const listed = await Promise.all(level.map((path) => listVaultDirectory({ fs, path })));
+    level = [];
+    for (const entry of listed.flat()) {
+      if (entry.kind === 'directory') level.push(entry.path);
+      else if (isPdfName(entry.name)) found.push(entry.path);
+    }
   }
+  return found;
 }

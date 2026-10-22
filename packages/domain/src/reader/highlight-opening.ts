@@ -2,7 +2,7 @@ import type { HighlightAnchor, SourceKind } from '../highlights/anchor.ts';
 import type { HighlightBlock } from '../highlights/highlight-block.ts';
 import type { LiteratureNote } from '../highlights/literature-note.ts';
 import type { PillHue } from '../page/pill-colour.ts';
-import { createVaultPath, InvalidVaultPathError, type VaultPath } from '../vault/vault-path.ts';
+import type { VaultPath } from '../vault/vault-path.ts';
 import { isPdfName } from './pdf-library.ts';
 
 /*
@@ -54,7 +54,7 @@ export function highlightOpening({
   const inNote: HighlightOpening = { kind: 'note', note, blockId };
   if (literature === null || !literature.highlightIds.includes(blockId)) return inNote;
   const { kind, file } = literature.source;
-  if (file === null || !readers.includes(kind)) return inNote;
+  if (file === null || !opensInReader(literature.source, readers)) return inNote;
   return { kind: 'reader', source: kind, document: file, highlightId: blockId };
 }
 
@@ -73,8 +73,18 @@ export function readerLinkLabel(
   source: LiteratureNote | null,
   readers: readonly SourceKind[] = READER_KINDS,
 ): string | null {
-  if (source === null || source.file === null || !readers.includes(source.kind)) return null;
+  if (source === null || !opensInReader(source, readers)) return null;
   return `Open in ${READER_NAMES[source.kind]}`;
+}
+
+/**
+ * Whether the app can show `source`'s file in a reader: it names a file, its
+ * kind has a reader, and the file is one that reader opens. `file:` is
+ * hand-editable, so a note saying `kind: pdf` may name a Markdown note.
+ */
+function opensInReader(source: LiteratureNote, readers: readonly SourceKind[]): boolean {
+  if (source.file === null || !readers.includes(source.kind)) return false;
+  return source.kind !== 'pdf' || isPdfName(source.file);
 }
 
 /** The muted pastel a source's kind is drawn in (#413's hues): the same for every chip of a kind. */
@@ -119,30 +129,30 @@ export function placeLabel(anchor: HighlightAnchor): string | null {
   return anchor.page === undefined ? null : `p. ${anchor.page}`;
 }
 
+/** Whether a wiki link's target writes a PDF's name — it ends `.pdf` — whether or not the vault has one. */
+export const namesPdf = (target: string): boolean => isPdfName(target);
+
 /**
- * The PDF a wiki link `[[…pdf]]` names (#506), or null when it names no PDF.
- * A link names a file by its vault path, or by its name alone, as Obsidian
- * links do: `known` are the PDFs the vault is known to hold. A path one of
- * them has is that one; a name only one of them has is that one; otherwise
- * the link is read as the path it writes, which opens the file there if it
- * is there.
+ * The PDF a wiki link `[[…pdf]]` names among `files`, the PDFs the vault
+ * holds, or null when none matches (or the link names no PDF). As in
+ * Obsidian, a link writes the end of a path: its name alone, or the folders
+ * above it that tell two apart. Where several files match, one is chosen
+ * the same way every time: the exact path, else the shortest path, else the
+ * first alphabetically. A link never names a file that is not in `files`.
  */
-export function pdfLinkTarget(target: string, known: readonly VaultPath[]): VaultPath | null {
-  const written = target.trim().replace(/^\/+/, '');
+export function pdfLinkTarget(target: string, files: readonly VaultPath[]): VaultPath | null {
+  const written = target.trim().replace(/^\/+/, '').toLowerCase();
   if (!isPdfName(written)) return null;
-  const lower = written.toLowerCase();
-  const exact = known.find((path) => path.toLowerCase() === lower);
-  if (exact !== undefined) return exact;
-  const named = known.filter((path) => nameOf(path).toLowerCase() === lower);
-  const only = named.length === 1 ? named[0] : undefined;
-  if (only !== undefined) return only;
-  try {
-    return createVaultPath(written);
-  } catch (error) {
-    // A link that is no vault path at all (`..`, say) names no file: no PDF to open.
-    if (error instanceof InvalidVaultPathError) return null;
-    throw error;
-  }
+  const matching = [...new Set(files)].filter((path) => endsWithPath(path.toLowerCase(), written));
+  matching.sort(
+    (a, b) =>
+      Number(b.toLowerCase() === written) - Number(a.toLowerCase() === written) ||
+      a.length - b.length ||
+      (a < b ? -1 : a > b ? 1 : 0),
+  );
+  return matching[0] ?? null;
 }
 
-const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
+/** Whether `path` is `written`, or ends with it at a folder boundary. */
+const endsWithPath = (path: string, written: string): boolean =>
+  path === written || path.endsWith(`/${written}`);
