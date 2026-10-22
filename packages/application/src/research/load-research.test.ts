@@ -236,7 +236,9 @@ describe('loadAllHighlights', () => {
         statements.push(sql.slice(0, sql.indexOf('*/') + 2));
         if (sql.startsWith(LIBRARY_QUERY_MARK)) {
           const [limit, offset] = parameters.slice(-2).map(Number) as [number, number];
-          const rows = sources.slice(offset, offset + limit).map((path) => [path, path]);
+          const rows = sources
+            .slice(offset, offset + limit)
+            .map((path) => [path, path, 0, null, 'pdf', null, 1, '', '']);
           return { columns: [], rows, truncated: false };
         }
         after.push(parameters.slice(0, 2));
@@ -321,6 +323,44 @@ describe('reading 150,000 highlights', () => {
     expect(read.entries[0]?.path).toBe(paths[SOURCES - 1]);
     expect(read.choices.tags.map((tag) => tag.value)).toEqual(['a', 'b', 'b/c']);
     expect(took).toBeLessThan(1_500);
+  });
+});
+
+describe('readHighlights, counting what it reads', () => {
+  it("asks for no page after the one that reaches the Library's count of highlights", async () => {
+    const SIZE = HIGHLIGHTS_PAGE_SIZE;
+    const paths = Array.from(
+      { length: SIZE },
+      (_, at) => `Library/${String(at).padStart(5, '0')}.md`,
+    );
+    let highlightPages = 0;
+    const index: Pick<IndexPort, 'query'> = {
+      query: async (sql) => {
+        if (sql.startsWith(LIBRARY_QUERY_MARK)) {
+          return {
+            columns: [],
+            rows: paths.map((path) => [path, path, 0, null, 'pdf', null, 1, '', '']),
+            truncated: false,
+          };
+        }
+        highlightPages += 1;
+        const rows = paths.map((path) => [
+          path,
+          0,
+          'id',
+          'pdf',
+          'Quote',
+          '',
+          'highlight',
+          'yellow',
+          null,
+          null,
+        ]);
+        return { columns: [], rows, truncated: false };
+      },
+    };
+    expect((await readHighlights({ index })).entries).toHaveLength(SIZE);
+    expect(highlightPages).toBe(1);
   });
 });
 

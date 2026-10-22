@@ -33,20 +33,8 @@ export function FilterSelect<Value extends string>(props: {
   choices: readonly ResearchChoice<Value>[];
   onChange: (value: Value | null) => void;
 }) {
-  return props.choices.length > MOST_IN_A_DROPDOWN ? (
-    <FilterSearch {...props} />
-  ) : (
-    <FilterDropdown {...props} />
-  );
-}
-
-function FilterDropdown<Value extends string>({
-  label,
-  every,
-  value,
-  choices,
-  onChange,
-}: Parameters<typeof FilterSelect<Value>>[0]) {
+  const { label, every, value, choices, onChange } = props;
+  if (choices.length > MOST_IN_A_DROPDOWN) return <FilterSearch {...props} />;
   const known = value !== null && choices.some((choice) => choice.value === value);
   return (
     <ChoiceSelect<string>
@@ -170,9 +158,8 @@ export function ChipToggles<Value extends string>({
   );
 }
 
-/** "Clear filters", shown only while some filter (or the search) is on, so a list that hides sources can always be shown whole. */
-export function ClearFilters({ on, onClear }: { on: boolean; onClear: () => void }) {
-  if (!on) return null;
+/** "Clear filters", which a page draws only while some filter (or the search) is on, so a list that hides sources can always be shown whole. */
+export function ClearFilters({ onClear }: { onClear: () => void }) {
   return (
     <button type="button" className="btn btn--sm research__clear" onClick={onClear}>
       Clear filters

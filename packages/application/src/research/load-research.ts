@@ -47,7 +47,9 @@ const listOf = (value: unknown): string[] =>
 
 /**
  * Every page a paged statement answers, handed to `onPage` as it arrives,
- * until one comes back short. `next` is the statement after a full page.
+ * until one comes back short, or `enough` says the rows wanted are all read
+ * (a total that is an exact number of pages needs no empty page to end it).
+ * `next` is the statement after a full page.
  */
 async function eachPage(
   index: Pick<IndexPort, 'query'>,
@@ -56,18 +58,20 @@ async function eachPage(
     size,
     next,
     onPage,
+    enough = () => false,
   }: {
     first: CompiledQuery;
     size: number;
     next: (page: QueryResult, pageNumber: number) => CompiledQuery;
     onPage: (rows: readonly Row[]) => void;
+    enough?: () => boolean;
   },
 ): Promise<void> {
   let statement = first;
   for (let pageNumber = 1; ; pageNumber += 1) {
     const page = await index.query(statement.sql, statement.parameters);
     onPage(page.rows);
-    if (page.rows.length < size && !page.truncated) return;
+    if ((page.rows.length < size && !page.truncated) || enough()) return;
     statement = next(page, pageNumber);
   }
 }
@@ -145,7 +149,13 @@ async function readSourceHighlights(
   paths?: readonly string[],
 ): Promise<SourceHighlights[]> {
   const groups = new Map<string, { source: LibraryEntry; highlights: HighlightEntry[] }>();
-  for (const source of sources) groups.set(source.path, { source, highlights: [] });
+  // The Library counted each source's highlights: a full page that reaches that many leaves nothing to ask for.
+  let expected = 0;
+  let read = 0;
+  for (const source of sources) {
+    groups.set(source.path, { source, highlights: [] });
+    expected += source.highlights;
+  }
   const statement = (after?: Row) =>
     compileHighlightsQuery({
       ...(after !== undefined && { after: { path: text(after[0]), index: Number(after[1]) } }),
@@ -155,7 +165,9 @@ async function readSourceHighlights(
     first: statement(),
     size: HIGHLIGHTS_PAGE_SIZE,
     next: (page) => statement(page.rows[page.rows.length - 1]),
+    enough: () => expected > 0 && read === expected,
     onPage: (rows) => {
+      read += rows.length;
       for (const row of rows) {
         const group = groups.get(text(row[0]));
         // A note that stopped being a source between the two reads has none to list.

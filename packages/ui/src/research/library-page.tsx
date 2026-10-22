@@ -149,7 +149,7 @@ function LibraryToolbar({ choices, filter, onFilter, sort, onSort }: LibraryPage
         choices={choices.projects}
         onChange={(project) => onFilter({ ...filter, project })}
       />
-      <ClearFilters on={isLibraryFiltered(filter)} onClear={() => onFilter(NO_LIBRARY_FILTER)} />
+      {isLibraryFiltered(filter) && <ClearFilters onClear={() => onFilter(NO_LIBRARY_FILTER)} />}
       <span className="research__sort">
         <ChoiceSelect
           label="Sort by"

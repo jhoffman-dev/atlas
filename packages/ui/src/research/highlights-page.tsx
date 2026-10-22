@@ -15,7 +15,6 @@ import {
   type VaultPath,
 } from '@dfai/domain';
 import { ChoiceSelect } from '../choice-select.tsx';
-import { Icon } from '../icon.tsx';
 import { blockEmbedTransfer } from '../editor/embed-transfer.ts';
 import { openHowFrom, type OpenHow } from '../open-how.ts';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
@@ -161,10 +160,9 @@ function HighlightsToolbar({ choices, filter, onFilter }: HighlightsPageProps) {
         choices={CHANGED}
         onChange={(changed) => onFilter({ ...filter, changed })}
       />
-      <ClearFilters
-        on={isHighlightFiltered(filter)}
-        onClear={() => onFilter(NO_HIGHLIGHT_FILTER)}
-      />
+      {isHighlightFiltered(filter) && (
+        <ClearFilters onClear={() => onFilter(NO_HIGHLIGHT_FILTER)} />
+      )}
     </div>
   );
 }
@@ -241,7 +239,7 @@ const HighlightRow = memo(function HighlightRow({
         aria-label={`Copy embed of this ${color} highlight`}
         onClick={() => onCopyEmbed(transfer().text)}
       >
-        <Icon name="copy" size={14} />
+        Copy embed
       </button>
     </li>
   );
