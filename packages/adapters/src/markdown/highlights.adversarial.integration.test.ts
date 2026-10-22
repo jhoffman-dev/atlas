@@ -608,7 +608,7 @@ describe('every write keeps the other highlights readable (verify3, PR #510)', (
       random: seeded(3),
       noteBlocks,
     });
-    expect(text.startsWith(bom)).toBe(true);
+    expect(text.startsWith(`${bom}> One.`)).toBe(true);
     expect(readHighlights(text, noteBlocks)).toHaveLength(1);
     expect(withoutHighlight({ text, id: highlights[0]?.id ?? '', noteBlocks })).toBe(bom);
     const written = `${bom}${one('One.')}\n^aaa111\n`;

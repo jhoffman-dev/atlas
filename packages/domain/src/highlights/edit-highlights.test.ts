@@ -9,8 +9,9 @@ import {
   withoutHighlight,
   type NewHighlight,
 } from './edit-highlights.ts';
-import { readHighlights } from './highlight-block.ts';
+import { highlightBlockText, readHighlights } from './highlight-block.ts';
 import { highlightMarker } from './highlight-marker.ts';
+import { quoteLines } from './highlight-text.ts';
 import { literatureNoteText } from './literature-note.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
@@ -475,5 +476,30 @@ describe('Kindle passages matched by place (verify3, PR #510)', () => {
   it('keeps two passages at different locations apart when a page-only copy came first', () => {
     const { text } = sync(SOURCE, [kindleAt(null, null), kindleAt(100, null), kindleAt(140, null)]);
     expect(readHighlights(text, noteBlocks)).toHaveLength(2);
+  });
+  // Verification round 3 decisions (ADR-0043 §7): a location match is taken before a page match.
+  it('gives a held passage to the highlight at its location before one matching only its page', () => {
+    const held = sync(SOURCE, [kindleAt(100, null)]);
+    const [heldId] = held.highlights.map((highlight) => highlight.id);
+    const { highlights } = sync(held.text, [kindleAt(null, 'A1'), kindleAt(100, 'C1')]);
+    expect(highlights[1]).toEqual({ id: heldId, added: false });
+    expect(highlights[0]?.added).toBe(true);
+  });
+
+  it('answers the held passage at its location before one with only its page', () => {
+    const block = (id: string, anchor: NewHighlight['anchor']) =>
+      highlightBlockText(
+        {
+          id,
+          quoteLines: quoteLines(words),
+          commentLines: [],
+          style: { mark: 'highlight', color: 'yellow' },
+          anchor,
+        },
+        '\n',
+      );
+    const note = `${SOURCE}${block('pppppp', kindleAt(null, null).anchor)}\n${block('aaaaaa', kindleAt(100, 'A1').anchor)}`;
+    expect(readHighlights(note, noteBlocks)).toHaveLength(2);
+    expect(sync(note, [kindleAt(100, null)]).highlights).toEqual([{ id: 'aaaaaa', added: false }]);
   });
 });

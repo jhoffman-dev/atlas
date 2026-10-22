@@ -45,22 +45,54 @@ const LOCATIONS: KindleAnchor['location'][] = [
   { start: 140, end: null },
 ];
 
-function kindleHighlight(): NewHighlight {
+const WORDS = ['Emma Woodhouse, handsome, clever, and rich', 'Emma Woodhouse, handsome'];
+
+/** Any Kindle highlight: a location or none, a page or none, whatever the location. */
+function kindleHighlight(annotationId: string | null): NewHighlight {
   const location = pick(LOCATIONS);
   const page = location === null ? pick([12, 13]) : pick([undefined, 12, 13]);
   return {
-    quote: pick(['Emma Woodhouse, handsome, clever, and rich', 'Emma Woodhouse, handsome']),
-    anchor: {
-      kind: 'kindle',
-      location,
-      ...(page !== undefined && { page }),
-      annotationId: pick([null, null, 'A1', 'C1']),
-    },
+    quote: pick(WORDS),
+    anchor: { kind: 'kindle', location, ...(page !== undefined && { page }), annotationId },
   };
 }
 
+/** Highlights any sync might be handed, an annotation id even given twice. */
 const batch = (max: number) =>
-  Array.from({ length: 1 + Math.floor(random() * max) }, kindleHighlight);
+  Array.from({ length: 1 + Math.floor(random() * max) }, () =>
+    kindleHighlight(pick([null, null, 'A1', 'C1'])),
+  );
+
+/** The page each location is on, in the one book. */
+const PAGE_OF = new Map([
+  [100, 12],
+  [140, 13],
+]);
+
+/**
+ * One export's highlights as Kindle gives them: all with locations, with or
+ * without their pages, or all with pages alone; an annotation id to one
+ * highlight at most.
+ */
+function oneExport(max: number): NewHighlight[] {
+  const shape = pick(['located', 'paged', 'page alone'] as const);
+  const ids = ['A1', 'C1', 'D1'];
+  return Array.from({ length: 1 + Math.floor(random() * max) }, (): NewHighlight => {
+    const location = shape === 'page alone' ? null : pick(LOCATIONS.slice(1));
+    const page = location === null ? pick([12, 13]) : PAGE_OF.get(location.start);
+    const annotationId =
+      random() < 0.5 ? null : (ids.splice(Math.floor(random() * ids.length), 1)[0] ?? null);
+    return {
+      quote: pick(WORDS),
+      anchor: {
+        kind: 'kindle',
+        location,
+        ...(shape !== 'located' && page !== undefined && { page }),
+        annotationId,
+      },
+    };
+  });
+}
 
 const sync = (text: string, highlights: readonly NewHighlight[]) =>
   appendHighlights({ text, highlights, random, noteBlocks }).text;
@@ -80,12 +112,14 @@ function permutations<T>(items: readonly T[]): T[][] {
 
 describe('Kindle passages matched by place, in any order (ADR-0043 §7)', () => {
   it(
-    'gives the same note for every order of one export',
+    'gives the same note for every order of one batch, and adds none of it again',
     () => {
       for (let run = 0; run < RUNS; run += 1) {
         const held = random() < 0.5 ? SOURCE : sync(SOURCE, batch(3));
         const exported = batch(4);
-        const expected = passages(sync(held, exported));
+        const once = sync(held, exported);
+        expect(sync(once, exported)).toBe(once);
+        const expected = passages(once);
         for (const order of permutations(exported)) {
           expect(passages(sync(held, order))).toEqual(expected);
         }
@@ -95,10 +129,10 @@ describe('Kindle passages matched by place, in any order (ADR-0043 §7)', () => 
   );
 
   it(
-    'gives as many passages synced as the export grew as synced at once, and a sync run again adds none',
+    'gives as many passages for an export synced as it grew as synced at once, and a sync run again adds none',
     () => {
       for (let run = 0; run < RUNS; run += 1) {
-        const exported = batch(4);
+        const exported = oneExport(4);
         const atOnce = sync(SOURCE, exported);
         let grown = SOURCE;
         for (let size = 1; size <= exported.length; size += 1) {
