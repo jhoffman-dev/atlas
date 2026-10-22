@@ -334,7 +334,10 @@ function placeIn(store: WorkspaceStore, pane: number): NavigationPlace | null {
   return tabIn(store, pane)?.place ?? null;
 }
 
-function tabIn(store: WorkspaceStore, pane: number): { id: TabId; place: NavigationPlace } | null {
+function tabIn(
+  store: WorkspaceStore,
+  pane: number,
+): { id: TabId; place: NavigationPlace | null } | null {
   const held = workspaceNow(store).panes[pane];
   const tab = held?.tabs.find((candidate) => candidate.id === held.active);
   return tab === undefined ? null : { id: tab.id, place: tab.history.current };
@@ -382,5 +385,5 @@ function beginClick(
 }
 
 /** Places are plain data, so they are the same when they say the same. */
-const samePlace = (a: NavigationPlace, b: NavigationPlace): boolean =>
+const samePlace = (a: NavigationPlace | null, b: NavigationPlace | null): boolean =>
   JSON.stringify(a) === JSON.stringify(b);

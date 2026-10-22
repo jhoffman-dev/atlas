@@ -1,6 +1,7 @@
 import {
   highlightOpening,
   isPdfName,
+  isVisibleEntry,
   namesPdf,
   VAULT_ROOT,
   VAULT_WALK_DEPTH,
@@ -13,7 +14,6 @@ import {
 } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
-import { listVaultDirectory } from '../vault/read-vault.ts';
 import { readLiteratureNoteAt } from './pdf-highlights.ts';
 
 /*
@@ -117,14 +117,14 @@ export async function linkedPdf(ports: LinkedPdfPorts, target: string): Promise<
   return pdfLinkTarget(target, await listVaultPdfs(ports));
 }
 
-/** Every PDF in user space, walked folder by folder as the sidebar sees them (`listVaultDirectory`). */
+/** Every PDF in user space, walked folder by folder, hidden entries left out as everywhere (`isVisibleEntry`). */
 async function listVaultPdfs({ fs }: LinkedPdfPorts): Promise<VaultPath[]> {
   const found: VaultPath[] = [];
   let level: VaultPath[] = [VAULT_ROOT];
   for (let depth = 0; level.length > 0 && depth <= VAULT_WALK_DEPTH; depth += 1) {
-    const listed = await Promise.all(level.map((path) => listVaultDirectory({ fs, path })));
+    const listed = await Promise.all(level.map((path) => fs.listDirectory(path)));
     level = [];
-    for (const entry of listed.flat()) {
+    for (const entry of listed.flat().filter(isVisibleEntry)) {
       if (entry.kind === 'directory') level.push(entry.path);
       else if (isPdfName(entry.name)) found.push(entry.path);
     }
