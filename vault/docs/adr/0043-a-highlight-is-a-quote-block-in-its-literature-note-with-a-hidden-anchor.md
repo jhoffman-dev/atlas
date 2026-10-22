@@ -296,6 +296,47 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
     comment's markdown, and the marker's JSON. TypeScript reads the rows
     (`highlightRows`); Rust stores them (ADR-0005). `/v1/sql` reads it.
 
+11. **How a Kindle sync writes into this format** (#508, ADR-0044). The rules
+    are the domain's (`domain/kindle/kindle-note-match.ts`,
+    `kindle-note-writes.ts`); the sink (`literatureNoteKindleSink`) only
+    finds, makes and writes the note.
+    - **Which note.** The one whose `asin` is the book's; else one with no
+      `asin` whose title and author are the book's (case, spacing and Unicode
+      composition aside). Never the title alone: a book or note with no author
+      is found by ASIN only, and a note naming another ASIN is another
+      edition's. The literature notes the index knows of and the files in the
+      literature home folder are looked through, so a note made a moment ago
+      and not yet indexed is still found.
+    - **A new note** is `literatureNoteText({ kind: 'kindle', title, author,
+asin, file: null })` at `literatureNotePath(title)` in the literature
+      type's home folder (`Library` by default), numbered past any name taken
+      (`Persuasion 2.md`, `freeNotePath`) so no note is written over, and made
+      with its highlights in the same create.
+    - **One write per book.** The whole change — new blocks, then comments —
+      is one pure rewrite (`withKindleHighlights`, built on `appendHighlights`
+      and `withHighlightComment`) written once through
+      `changeLiteratureNote`, against the version just read: all of the book
+      or none of it, as the sink's port promises. A pane with unsaved typing
+      in the note is never written behind: the book is skipped that sync
+      (`unsaved_typing`, said by title) and comes next time.
+    - **Typed notes.** A note typed on a passage is the passage's comment. One
+      that arrives after its passage synced — typed later, or Kindle's edit of
+      one — goes **after** what the comment already says, as a paragraph of its
+      own (the whole comment when it has none). It never replaces the comment,
+      not even when the comment is word for word what DFAI wrote: once in the
+      vault those bytes are the person's (ADR-0003), and keeping both costs one
+      paragraph. A note at a place with no passage is a block of its own whose
+      quote names its place (`Note at location 2400`), its words the comment
+      and the marker's `exact`.
+    - **What is recorded is read from the note**, nowhere else: a passage by
+      its marker (annotation id, else place and `exact`), a typed note by its
+      words standing whole as paragraphs of its passage's comment. So a typed
+      note the person edits in the vault no longer reads as recorded, and
+      Kindle's words arrive once more, after the edit — never over it.
+    - A Kindle highlight with no location and no page in figures (a page
+      `xiv`) has no place this format holds; its book is not written, said as
+      that, rather than placed somewhere invented.
+
 ## Consequences
 
 - A literature note reads as a list of quotes with comments in Obsidian; its

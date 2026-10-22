@@ -113,29 +113,25 @@ function session(): KindleSession & { calls: string[] } {
 }
 
 describe('connectKindle', () => {
-  it('opens the sign-in, records the connection, then syncs', async () => {
-    const { sync, runs } = syncAnswering(SYNCED);
+  it('opens the sign-in, then records the connection', async () => {
     const kept = records();
     const host = session();
-    const run = await connectKindle({ sync, ports, records: kept, session: host });
+    const record = await connectKindle({ records: kept, session: host });
     expect(host.calls).toEqual(['connect']);
-    expect(runs.count).toBe(1);
-    expect(run).toMatchObject({ kind: 'ran' });
-    expect(kept.written[0]).toMatchObject({ connected: true, last: null });
+    expect(record).toEqual({ ...NO_KINDLE_SYNC_RECORD, connected: true });
+    expect(kept.now()).toEqual(record);
   });
 
   it('records nothing when the sign-in window could not open', async () => {
-    const { sync, runs } = syncAnswering(SYNCED);
     const kept = records();
     const failing: KindleSession = {
       connect: () => Promise.reject(new Error('This Mac cannot keep a Kindle session.')),
       disconnect: async () => {},
     };
-    await expect(connectKindle({ sync, ports, records: kept, session: failing })).rejects.toThrow(
+    await expect(connectKindle({ records: kept, session: failing })).rejects.toThrow(
       'This Mac cannot keep',
     );
     expect(kept.written).toEqual([]);
-    expect(runs.count).toBe(0);
   });
 });
 

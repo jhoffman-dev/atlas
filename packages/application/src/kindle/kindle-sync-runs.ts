@@ -65,16 +65,22 @@ export async function runKindleSync(
 }
 
 /**
- * Connect Kindle: the host's sign-in window, then a sync, which is what finds
- * out whether the person signed in (the window says nothing either way). The
- * record says connected first, so a sync on its own later tries too.
+ * Connect Kindle: the host's sign-in window, which resolves when the person
+ * closes it, whether or not they signed in; then the record says connected,
+ * so syncs run by themselves from now on. The sync that follows (the
+ * caller's, through {@link runKindleSync}) is what finds out whether they did.
  */
-export async function connectKindle(
-  run: KindleSyncRunPorts & { readonly session: KindleSession },
-): Promise<KindleSyncRun> {
-  await run.session.connect();
-  run.records.write({ ...run.records.read(), connected: true });
-  return runKindleSync(run, 'asked');
+export async function connectKindle({
+  session,
+  records,
+}: {
+  readonly session: KindleSession;
+  readonly records: KindleSyncRecords;
+}): Promise<KindleSyncRecord> {
+  await session.connect();
+  const record = { ...records.read(), connected: true };
+  records.write(record);
+  return record;
 }
 
 /**

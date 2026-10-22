@@ -9,8 +9,9 @@ date: 2026-10-21
 # ADR-0044 — Kindle sync reads Amazon's notebook page in a session of its own, off by default
 
 **Draft.** Proposed with the first part of #508 (the parser, the session and the
-sync use-case). The note format it writes into is #503's, decided in that
-issue's own ADR; this one does not decide it.
+sync use-case) and completed with its second (the sink, the schedule, Settings
+and ⌘K). The note format it writes into is #503's, ADR-0043; how a sync writes
+into it is ADR-0043 §11.
 
 ## Context
 
@@ -176,8 +177,38 @@ note>`, so an edited one arrives as a new entry and an unedited one is
 ### Off by default
 
 Nothing runs until the person connects. Connecting is the opt-in, for their
-own highlights. The Settings card (a follow-up to this first part) says what
-it does and the limits below before the person connects.
+own highlights. Settings → Kindle says what it does and the limits below
+before the person connects.
+
+### When it runs, and what this Mac keeps (#508, second part)
+
+- **One sync per app.** The composition root (`resolveKindle`) makes the one
+  `createKindleSync`, with the window's real timer as its delay and join
+  deadline; launch, the schedule, Settings' Sync now and ⌘K all go through
+  it, so two never run at once.
+- **Automatically**: once the open vault's index is ready (literature notes
+  are looked up in it), then every 4 hours (`KINDLE_AUTO_SYNC_INTERVAL_MS`)
+  while it is open — only while connected, never within 24 hours of a robot
+  check or rate limit (`mayAutoSyncKindle`), and not within an hour of the last
+  sync (`KINDLE_AUTO_SYNC_MIN_GAP_MS`), so restarting the app does not ask
+  Amazon again. The rule is `kindleAutoSyncSkip` (domain); `runKindleSync`
+  (application) applies it. An automatic try that does not run changes
+  nothing on screen. Sync now is the person's and is never held.
+- **What this Mac keeps**, outside the vault (it is this Mac's session, and
+  the vault syncs): whether Kindle is connected, when the last robot check or
+  rate limit came, and the last sync's words — `atlas.kindle-sync` in the
+  app's own storage (`browserKindleRecords`), read as "not connected" when it
+  is missing or unreadable. A sync the host answers `not_connected` (the store
+  deleted behind DFAI's back) or `unsupported` marks it not connected, so the
+  schedule stops; Disconnect does too, and keeps the hold.
+- **Connect** opens the sign-in window and, once the person closes it, records
+  the connection and syncs at once: that sync is what says whether they signed
+  in. **Disconnect** deletes the session's store (Amazon is not signed out).
+- **Words**: the card and a toast say `describeKindleSync`'s message. A book
+  whose note has unsaved typing is named and said to come next time.
+- ⌘K offers **Connect Kindle** while not connected, **Sync Kindle now** and
+  **Disconnect Kindle** once connected. How the highlights are written is
+  ADR-0043 §11.
 
 ## Consequences and risks
 
