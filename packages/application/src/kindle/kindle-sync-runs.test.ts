@@ -149,3 +149,58 @@ describe('disconnectKindle', () => {
     expect(kept.now()).toEqual(record);
   });
 });
+
+describe('runKindleSync when the person disconnects while it runs (PR #514)', () => {
+  /** A sync that ends only when the test lets it, so a Disconnect can come first. */
+  function slowSync(answer: KindleSyncReport | Error) {
+    let finish = () => {};
+    const sync: KindleSync = () =>
+      new Promise((resolve, reject) => {
+        finish = () => (answer instanceof Error ? reject(answer) : resolve(answer));
+      });
+    return { sync, finish: () => finish() };
+  }
+  const session: KindleSession = { connect: async () => {}, disconnect: async () => {} };
+
+  it('leaves the record as Disconnect made it, whatever the sync then says', async () => {
+    const kept = records(CONNECTED);
+    const { sync, finish } = slowSync(SYNCED);
+    const running = runKindleSync({ sync, ports, records: kept }, 'asked');
+    await disconnectKindle({ session, records: kept });
+    finish();
+    const run = await running;
+    expect(run).toMatchObject({ kind: 'ran', record: { connected: false, last: null } });
+    expect(kept.read()).toEqual({ connected: false, lastHoldAt: null, last: null });
+  });
+
+  it('does not put a failure on the record Disconnect cleared', async () => {
+    const kept = records(CONNECTED);
+    const { sync, finish } = slowSync(new Error('timed out'));
+    const running = runKindleSync({ sync, ports, records: kept }, 'asked');
+    await disconnectKindle({ session, records: kept });
+    finish();
+    expect(await running).toMatchObject({
+      kind: 'failed',
+      record: { connected: false, last: null },
+    });
+    expect(kept.read().last).toBeNull();
+  });
+
+  it('still follows the host when nobody disconnected: a sync that finds no session disconnects', async () => {
+    const kept = records(CONNECTED);
+    const { sync } = syncAnswering({ kind: 'not_connected', books: [], added: 0 });
+    await runKindleSync({ sync, ports, records: kept }, 'asked');
+    expect(kept.read().connected).toBe(false);
+  });
+
+  it('keeps a Disconnect followed by a Connect during the sync: the later word is the connection', async () => {
+    const kept = records(CONNECTED);
+    const { sync, finish } = slowSync(SYNCED);
+    const running = runKindleSync({ sync, ports, records: kept }, 'asked');
+    await disconnectKindle({ session, records: kept });
+    await connectKindle({ session, records: kept });
+    finish();
+    await running;
+    expect(kept.read().connected).toBe(true);
+  });
+});

@@ -9,8 +9,16 @@ interface BookNamed {
 }
 
 export type KindleBookOutcome =
-  /** Read whole and written; `added` is how many highlights were new. */
-  | (BookNamed & { readonly kind: 'added'; readonly added: number })
+  /**
+   * Read whole and written; `added` is how many entries the note took, and
+   * `unplaced` where each highlight the note could not hold was (`page xiv`):
+   * skipped, and tried again by the next sync.
+   */
+  | (BookNamed & {
+      readonly kind: 'added';
+      readonly added: number;
+      readonly unplaced: readonly string[];
+    })
   /** A page of it was not the shape the parser knows: nothing of it was written. */
   | (BookNamed & { readonly kind: 'unrecognised'; readonly reason: string })
   /** Amazon could not be reached for it, or answered with an error: nothing of it was written. */
@@ -80,6 +88,13 @@ function waitingMessage(books: readonly KindleBookOutcome[]): string {
   return ` Skipped ${titles}: ${waiting.length === 1 ? 'its note has' : 'their notes have'} unsaved typing. Kindle sync adds ${waiting.length === 1 ? 'it' : 'them'} next time.`;
 }
 
+/** The highlights the notes could not hold, by where each was; empty when there are none. */
+function unplacedMessage(books: readonly KindleBookOutcome[]): string {
+  const places = books.flatMap((book) => (book.kind === 'added' ? book.unplaced : []));
+  if (places.length === 0) return '';
+  return ` ${plural(places.length, 'highlight')} couldn't be placed (${places.join(', ')}).`;
+}
+
 function syncedMessage(books: readonly KindleBookOutcome[], added: number): string {
   const missed = books.filter(
     (book) => book.kind !== 'added' && book.kind !== 'unsaved_typing',
@@ -90,7 +105,7 @@ function syncedMessage(books: readonly KindleBookOutcome[], added: number): stri
       ? 'Nothing new from Kindle.'
       : `Added ${plural(added, 'highlight')} from ${plural(from, 'book')}.`;
   const couldNot = missed === 0 ? '' : ` Couldn't sync ${plural(missed, 'book')}.`;
-  return `${said}${couldNot}${waitingMessage(books)}`;
+  return `${said}${couldNot}${unplacedMessage(books)}${waitingMessage(books)}`;
 }
 
 /** What a stopped sync had added before it stopped, in words; empty when it added nothing. */

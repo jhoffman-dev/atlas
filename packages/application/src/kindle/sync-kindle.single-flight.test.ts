@@ -24,6 +24,8 @@ const NOW = Date.UTC(2026, 9, 21, 9, 0);
 const MINUTE = 60 * 1000;
 const clock = { now: () => NOW };
 const delay = fakeKindleDelay();
+/** The one vault these calls write into: a call for it joins the sync running for it. */
+const VAULT = '/Users/mara/Vault';
 
 const libraryOf = (...asins: string[]) =>
   kindlePage(
@@ -64,16 +66,61 @@ const stuckNotebook = () => ({
 });
 
 describe('createKindleSync: one sync in flight per factory', () => {
-  it('joins a call to the sync already running, whatever sink it names', async () => {
+  it('joins a call to the sync already running for the same vault, whatever sink it names', async () => {
     const syncKindle = createKindleSync({ deadline: heldKindleDelay() });
     const source = fakeKindleNotebook({ library: libraryOf() });
     const other = fakeKindleNotebook({ library: libraryOf() });
     const [first, second] = await Promise.all([
-      syncKindle({ source, sink: fakeKindleSink(), clock, delay }),
-      syncKindle({ source: other, sink: fakeKindleSink(), clock, delay }),
+      syncKindle({ source, sink: fakeKindleSink(), vault: VAULT, clock, delay }),
+      syncKindle({ source: other, sink: fakeKindleSink(), vault: VAULT, clock, delay }),
     ]);
     expect(second).toBe(first);
     expect(other.calls).toEqual([]);
+  });
+
+  it('joins a call that names the sink of the sync running, when neither names a vault', async () => {
+    const syncKindle = createKindleSync({ deadline: heldKindleDelay() });
+    const sink = fakeKindleSink();
+    const [first, second] = await Promise.all([
+      syncKindle({ source: fakeKindleNotebook({ library: libraryOf() }), sink, clock, delay }),
+      syncKindle({ source: fakeKindleNotebook({ library: libraryOf() }), sink, clock, delay }),
+    ]);
+    expect(second).toBe(first);
+  });
+
+  it('runs a call for another vault after the sync running, with its own report', async () => {
+    const syncKindle = createKindleSync({ deadline: heldKindleDelay() });
+    const first = fakeKindleNotebook({ library: libraryOf() });
+    const second = fakeKindleNotebook({ library: libraryOf() });
+    const [one, two] = await Promise.all([
+      syncKindle({ source: first, sink: fakeKindleSink(), vault: '/Vault A', clock, delay }),
+      syncKindle({ source: second, sink: fakeKindleSink(), vault: '/Vault B', clock, delay }),
+    ]);
+    expect(two).not.toBe(one);
+    expect([first.calls.length, second.calls.length]).toEqual([1, 1]);
+  });
+
+  it('never runs the syncs of two vaults beside each other', async () => {
+    const syncKindle = createKindleSync({ deadline: heldKindleDelay() });
+    const order: string[] = [];
+    const notebook = (name: string) => {
+      const source = fakeKindleNotebook({ library: libraryOf() });
+      return {
+        ...source,
+        fetchLibrary: async () => {
+          order.push(`${name} starts`);
+          await Promise.resolve();
+          await Promise.resolve();
+          order.push(`${name} ends`);
+          return source.fetchLibrary();
+        },
+      };
+    };
+    await Promise.all([
+      syncKindle({ source: notebook('A'), sink: fakeKindleSink(), vault: '/A', clock, delay }),
+      syncKindle({ source: notebook('B'), sink: fakeKindleSink(), vault: '/B', clock, delay }),
+    ]);
+    expect(order).toEqual(['A starts', 'A ends', 'B starts', 'B ends']);
   });
 
   it('lets two factories run their syncs side by side', async () => {
@@ -83,12 +130,14 @@ describe('createKindleSync: one sync in flight per factory', () => {
       createKindleSync({ deadline: heldKindleDelay() })({
         source: one,
         sink: fakeKindleSink(),
+        vault: VAULT,
         clock,
         delay,
       }),
       createKindleSync({ deadline: heldKindleDelay() })({
         source: two,
         sink: fakeKindleSink(),
+        vault: VAULT,
         clock,
         delay,
       }),
@@ -125,16 +174,40 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
     const deadline = heldKindleDelay();
     const syncKindle = createKindleSync({ deadline });
     const stuck = heldLibrary(['B0EXAMPLE1']);
-    const given = syncKindle({ source: stuck.source, sink: fakeKindleSink(), clock, delay });
+    const given = syncKindle({
+      source: stuck.source,
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock,
+      delay,
+    });
     const past = { now: () => NOW + KINDLE_SYNC_JOIN_DEADLINE_MS + 1 };
     await expect(
-      syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock: past, delay }),
+      syncKindle({
+        source: stuckNotebook(),
+        sink: fakeKindleSink(),
+        vault: VAULT,
+        clock: past,
+        delay,
+      }),
     ).rejects.toBeInstanceOf(KindleSyncStuckError);
     const next = fakeKindleNotebook({ library: libraryOf() });
-    const after = syncKindle({ source: next, sink: fakeKindleSink(), clock: past, delay });
+    const after = syncKindle({
+      source: next,
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock: past,
+      delay,
+    });
     // Another call meanwhile joins the one waiting to run, rather than queue one more.
     const other = fakeKindleNotebook({ library: libraryOf() });
-    const joined = syncKindle({ source: other, sink: fakeKindleSink(), clock: past, delay });
+    const joined = syncKindle({
+      source: other,
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock: past,
+      delay,
+    });
     await new Promise((settle) => setImmediate(settle));
     expect(next.calls).toEqual([]);
     stuck.answer();
@@ -164,13 +237,13 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
         B0EXAMPLE1: [bookPage('B0EXAMPLE1', highlightRow('IDGIVENUP001', 'Call me Ishmael.'))],
       },
     });
-    const given = syncKindle({ source, sink: slowSink, clock, delay });
+    const given = syncKindle({ source, sink: slowSink, vault: VAULT, clock, delay });
     given.catch(() => {});
     // Let it reach reading the note, past its last fetch: only the check before writing is left.
     await new Promise((settle) => setImmediate(settle));
     const past = { now: () => NOW + KINDLE_SYNC_JOIN_DEADLINE_MS + 1 };
     await expect(
-      syncKindle({ source: stuckNotebook(), sink, clock: past, delay }),
+      syncKindle({ source: stuckNotebook(), sink, vault: VAULT, clock: past, delay }),
     ).rejects.toBeInstanceOf(KindleSyncStuckError);
     const idle = fakeKindleNotebook({ library: libraryOf() });
     let writesWhenNextStarted = -1;
@@ -181,7 +254,7 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
         return idle.fetchLibrary();
       },
     };
-    const after = syncKindle({ source: next, sink, clock: past, delay });
+    const after = syncKindle({ source: next, sink, vault: VAULT, clock: past, delay });
     readNote();
     await expect(given).rejects.toBeInstanceOf(KindleSyncStuckError);
     expect(sink.writes).toEqual([]);
@@ -192,16 +265,34 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
   it('gives up on a call waiting for a given-up sync that never settles, at its own deadline', async () => {
     const deadline = heldKindleDelay();
     const syncKindle = createKindleSync({ deadline });
-    void syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock, delay }).catch(
+    void syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock,
+      delay,
+    }).catch(
       // Never settles here: its fetch never comes back. The catch only keeps the test tidy.
       () => {},
     );
     const past = { now: () => NOW + KINDLE_SYNC_JOIN_DEADLINE_MS + 1 };
     await expect(
-      syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock: past, delay }),
+      syncKindle({
+        source: stuckNotebook(),
+        sink: fakeKindleSink(),
+        vault: VAULT,
+        clock: past,
+        delay,
+      }),
     ).rejects.toBeInstanceOf(KindleSyncStuckError);
     const next = fakeKindleNotebook({ library: libraryOf() });
-    const waiting = syncKindle({ source: next, sink: fakeKindleSink(), clock: past, delay });
+    const waiting = syncKindle({
+      source: next,
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock: past,
+      delay,
+    });
     expect(deadline.waits).toEqual([KINDLE_SYNC_JOIN_DEADLINE_MS]);
     deadline.elapse();
     await expect(waiting).rejects.toBeInstanceOf(KindleSyncStuckError);
@@ -215,10 +306,22 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
   it('gives up at once on a sync the clock says has run past the deadline', async () => {
     const deadline = heldKindleDelay();
     const syncKindle = createKindleSync({ deadline });
-    void syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock, delay });
+    void syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock,
+      delay,
+    });
     const past = { now: () => NOW + KINDLE_SYNC_JOIN_DEADLINE_MS + 1 };
     await expect(
-      syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock: past, delay }),
+      syncKindle({
+        source: stuckNotebook(),
+        sink: fakeKindleSink(),
+        vault: VAULT,
+        clock: past,
+        delay,
+      }),
     ).rejects.toBeInstanceOf(KindleSyncStuckError);
     expect(deadline.waits).toEqual([]);
   });
@@ -226,9 +329,21 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
   it('never waits longer than the deadline when the clock is set back', () => {
     const deadline = heldKindleDelay();
     const syncKindle = createKindleSync({ deadline });
-    void syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock, delay });
+    void syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock,
+      delay,
+    });
     const back = { now: () => NOW - 60 * MINUTE };
-    void syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock: back, delay }).catch(
+    void syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock: back,
+      delay,
+    }).catch(
       // Never settles here: the deadline is not elapsed. The catch only keeps the test tidy.
       () => {},
     );
@@ -239,13 +354,13 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
     const deadline = heldKindleDelay();
     const syncKindle = createKindleSync({ deadline });
     const source = fakeKindleNotebook({ library: libraryOf() });
-    const first = syncKindle({ source, sink: fakeKindleSink(), clock, delay });
-    const joined = syncKindle({ source, sink: fakeKindleSink(), clock, delay });
+    const first = syncKindle({ source, sink: fakeKindleSink(), vault: VAULT, clock, delay });
+    const joined = syncKindle({ source, sink: fakeKindleSink(), vault: VAULT, clock, delay });
     expect(await joined).toBe(await first);
     deadline.elapse();
     // The deadline passing afterwards frees nothing: the next call runs its own sync.
     const next = fakeKindleNotebook({ library: libraryOf() });
-    await syncKindle({ source: next, sink: fakeKindleSink(), clock, delay });
+    await syncKindle({ source: next, sink: fakeKindleSink(), vault: VAULT, clock, delay });
     expect(next.calls).toEqual([{ call: 'library' }]);
   });
 
@@ -260,15 +375,33 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
         }),
       fetchAnnotations: () => new Promise<KindleRawPage>(() => {}),
     };
-    const stuck = syncKindle({ source: slow, sink: fakeKindleSink(), clock, delay });
-    const joined = syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock, delay });
+    const stuck = syncKindle({ source: slow, sink: fakeKindleSink(), vault: VAULT, clock, delay });
+    const joined = syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock,
+      delay,
+    });
     deadline.elapse();
     await expect(joined).rejects.toBeInstanceOf(KindleSyncStuckError);
-    void syncKindle({ source: stuckNotebook(), sink: fakeKindleSink(), clock, delay });
+    void syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock,
+      delay,
+    });
     finishStuck(libraryOf());
     await stuck;
     const meanwhile = fakeKindleNotebook({ library: libraryOf() });
-    void syncKindle({ source: meanwhile, sink: fakeKindleSink(), clock, delay }).catch(
+    void syncKindle({
+      source: meanwhile,
+      sink: fakeKindleSink(),
+      vault: VAULT,
+      clock,
+      delay,
+    }).catch(
       // Joins the sync still in flight, which never settles here.
       () => {},
     );

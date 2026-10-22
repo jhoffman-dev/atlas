@@ -47,8 +47,14 @@ export type {
   KindlePageProblem,
   KindleRawPage,
 } from './kindle-types.ts';
-export { kindleLiteratureNote, kindleNoteMatch, kindleNoteOf } from './kindle-note-match.ts';
-export type { KindleNoteMatch } from './kindle-note-match.ts';
+export {
+  kindleLiteratureNote,
+  kindleNoteIndex,
+  kindleNoteMatch,
+  kindleNoteName,
+  kindleNoteOf,
+} from './kindle-note-match.ts';
+export type { KindleNoteIndex, KindleNoteMatch } from './kindle-note-match.ts';
 export {
   KindlePassageGoneError,
   recordedKindleKeys,

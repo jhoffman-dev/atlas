@@ -63,20 +63,34 @@ export interface KindleNotebookSource {
  * before.
  */
 export interface KindleHighlightSink {
+  /**
+   * A sync is about to begin: the sink may look through its notes once for all
+   * the books of this sync, rather than for each book. Optional; a sink that
+   * is not told looks for each book afresh.
+   */
+  beginSync?(): void;
   /** The keys of the book's highlights already recorded; empty when the book has no note yet. */
   recordedKeys(book: KindleBook): Promise<ReadonlySet<string>>;
   /**
-   * Adds `highlights` to the book's note, making the note when there is none.
-   * All or nothing: a failure leaves the note as it was. Throws
-   * `UnsavedTypingError` when a pane holds unsaved typing in the note: the
-   * sync leaves the book for the next one rather than write behind it.
+   * Adds `highlights` to the book's note, making the note when there is none,
+   * and says what it wrote. All or nothing: a failure leaves the note as it
+   * was. Throws `UnsavedTypingError` when a pane holds unsaved typing in the
+   * note: the sync leaves the book for the next one rather than write behind it.
    */
   addHighlights(args: {
     readonly book: KindleBook;
     readonly highlights: readonly KindleHighlight[];
     /** When the sync ran, by the injected clock. */
     readonly syncedAt: number;
-  }): Promise<void>;
+  }): Promise<KindleWritten>;
+}
+
+/** What a write into a book's note came to. */
+export interface KindleWritten {
+  /** How many entries changed the note; fewer than were handed over when the note held some already. */
+  readonly written: number;
+  /** Where each highlight skipped for having no place the note can hold was (`page xiv`); retried next sync. */
+  readonly unplaced: readonly string[];
 }
 
 /**

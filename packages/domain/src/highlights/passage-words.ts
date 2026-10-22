@@ -13,6 +13,9 @@
  */
 const INVISIBLE = /[\u00ad\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/g;
 
+/** `words` without the characters that show nothing ({@link INVISIBLE}). */
+export const withoutInvisibles = (words: string): string => words.replace(INVISIBLE, '');
+
 /**
  * Words as a key reads them: without invisible characters, then composed
  * (NFC), white space collapsed. So a passage the notebook writes with a
@@ -21,7 +24,7 @@ const INVISIBLE = /[\u00ad\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/g
  * composing.
  */
 export function passageWords(words: string): string {
-  return words.replace(INVISIBLE, '').normalize('NFC').replace(/\s+/g, ' ').trim();
+  return withoutInvisibles(words).normalize('NFC').replace(/\s+/g, ' ').trim();
 }
 
 /**

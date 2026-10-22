@@ -11,6 +11,7 @@ const added = (count: number, asin = 'B0EXAMPLE1'): KindleBookOutcome => ({
   asin,
   title: 'Persuasion',
   added: count,
+  unplaced: [],
 });
 
 describe('describeKindleSync of a sync that was stopped', () => {
@@ -115,7 +116,7 @@ describe('describeKindleSync', () => {
     const described = describeKindleSync({
       kind: 'unavailable',
       message: 'timed out',
-      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Emma', added: 2 }],
+      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Emma', added: 2, unplaced: [] }],
       added: 2,
     });
     expect(described).toEqual({
@@ -198,6 +199,35 @@ describe('describeKindleSync of a book whose note has unsaved typing', () => {
       }).message,
     ).toBe(
       'Nothing new from Kindle. Skipped Emma, Persuasion: their notes have unsaved typing. Kindle sync adds them next time.',
+    );
+  });
+});
+
+describe('a sync that could not place a highlight', () => {
+  it('says how many, and where they were, without calling the sync a failure', () => {
+    const books: KindleBookOutcome[] = [
+      { kind: 'added', asin: 'B0EXAMPLE1', title: 'Persuasion', added: 3, unplaced: ['page xiv'] },
+      {
+        kind: 'added',
+        asin: 'B0EXAMPLE2',
+        title: 'Emma',
+        added: 0,
+        unplaced: ['page xv', 'an unknown place'],
+      },
+    ];
+    expect(describeKindleSync({ kind: 'synced', books, added: 3 })).toEqual({
+      message:
+        "Added 3 highlights from 1 book. 3 highlights couldn't be placed (page xiv, page xv, an unknown place).",
+      ok: true,
+    });
+  });
+
+  it('says one in the singular', () => {
+    const books: KindleBookOutcome[] = [
+      { kind: 'added', asin: 'B0EXAMPLE1', title: 'Persuasion', added: 0, unplaced: ['page xiv'] },
+    ];
+    expect(describeKindleSync({ kind: 'synced', books, added: 0 }).message).toBe(
+      "Nothing new from Kindle. 1 highlight couldn't be placed (page xiv).",
     );
   });
 });

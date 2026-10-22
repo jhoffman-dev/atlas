@@ -1,19 +1,21 @@
 import {
   createVaultPath,
-  freeNotePath,
   kindleLiteratureNote,
+  kindleNoteIndex,
   kindleNoteMatch,
-  kindleNoteOf,
+  kindleNoteName,
   LIBRARY_HOME,
   LITERATURE_NOTE_TYPE,
-  literatureNotePath,
   literatureNoteText,
+  nextAvailableNotePath,
   readLiteratureNote,
   recordedKindleKeys,
   splitFrontmatter,
   withKindleHighlights,
   type KindleBook,
   type KindleHighlight,
+  type KindleNoteIndex,
+  type KindleNoteWrite,
   type VaultPath,
 } from '@dfai/domain';
 import {
@@ -25,8 +27,7 @@ import { homeFolderFor } from '../notes/home-folder.ts';
 import type { Clock, Rng } from '../ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
-import { UnsavedTypingError } from '../vault/update-links.ts';
-import type { KindleHighlightSink } from './ports.ts';
+import type { KindleHighlightSink, KindleWritten } from './ports.ts';
 
 /** What Kindle sync needs to find, make and write a book's literature note. */
 export interface LiteratureNoteKindleSinkPorts extends LiteratureNoteWritePorts {
@@ -40,36 +41,56 @@ export interface LiteratureNoteKindleSinkPorts extends LiteratureNoteWritePorts 
 /** How many times a new note is named again after another took its name meanwhile. */
 const CREATE_ATTEMPTS = 3;
 
+/** What a write that wrote nothing says. */
+const NOTHING_WRITTEN: KindleWritten = { written: 0, unplaced: [] };
+
 /**
  * Kindle sync's sink over the vault's literature notes (#503, #508): a book's
  * highlights go into its literature note, found by ASIN, else by title and
- * author (`kindleNoteOf`), and made in the literature home folder when there
- * is none — under a name of its own, never over another note. What a note
- * has recorded is read from the note (`recordedKindleKeys`), and a book is
- * written in one write (`withKindleHighlights` through `changeLiteratureNote`),
- * or not at all. A note with unsaved typing in a pane is not written behind:
- * `addHighlights` throws `UnsavedTypingError`, and the sync leaves that book
- * for next time.
+ * author (`kindleNoteIndex`), and made in the literature home folder when
+ * there is none — under a name of its own, never over another note. What a
+ * note has recorded is read from the note (`recordedKindleKeys`), and a book
+ * is written in one write (`withKindleHighlights` through
+ * `changeLiteratureNote`), or not at all. A note with unsaved typing in a
+ * pane is not written behind: `addHighlights` throws `UnsavedTypingError`, and
+ * the sync leaves that book for next time.
  *
- * The note found for each book is remembered for as long as the sink lives,
- * and looked at again before it is used, so a note renamed, moved or retitled
- * is looked for afresh.
+ * Within a sync (`beginSync`) the vault's literature notes are looked through
+ * once, for every book, those with no note as well. The note found for each
+ * book is remembered for as long as the sink lives, and looked at again
+ * before it is used, so a note renamed, moved or retitled is looked for afresh.
  */
 export function literatureNoteKindleSink(
   ports: LiteratureNoteKindleSinkPorts,
 ): KindleHighlightSink {
   const found = new Map<string, VaultPath>();
+  let sync: { notes: Promise<KindleNoteIndex<VaultPath>> | null } | null = null;
+
+  /** The vault's notes looked through: once for the whole sync, else afresh for each lookup. */
+  function notes(): Promise<KindleNoteIndex<VaultPath>> {
+    if (sync === null) return readNotes(ports);
+    const current = sync;
+    current.notes ??= readNotes(ports);
+    // A failed look is not kept: the next book looks again.
+    current.notes.catch(() => {
+      current.notes = null;
+    });
+    return current.notes;
+  }
 
   async function noteOf(book: KindleBook): Promise<VaultPath | null> {
     const known = found.get(book.asin);
     if (known !== undefined && (await stillTheBooks(ports, known, book))) return known;
     found.delete(book.asin);
-    const path = await findNote(ports, book);
+    const path = (await notes()).find(book);
     if (path !== null) found.set(book.asin, path);
     return path;
   }
 
   return {
+    beginSync() {
+      sync = { notes: null };
+    },
     async recordedKeys(book) {
       const path = await noteOf(book);
       if (path === null) return new Set();
@@ -79,27 +100,33 @@ export function literatureNoteKindleSink(
     async addHighlights({ book, highlights }) {
       const path = await noteOf(book);
       if (path === null) {
-        found.set(book.asin, await createNote(ports, book, highlights));
-        return;
+        const made = await createNote(ports, book, highlights);
+        if (made.path !== null) found.set(book.asin, made.path);
+        return made.written;
       }
-      if (ports.openNotes.state(path) === 'dirty') throw new UnsavedTypingError(path);
-      const change = (text: string) => written(ports, { text, book, highlights });
+      let result = NOTHING_WRITTEN;
+      const change = (text: string) => {
+        const write = rewrite(ports, { text, book, highlights });
+        result = { written: write.written, unplaced: write.unplaced };
+        return write.text;
+      };
       await changeLiteratureNote(ports, { path, change });
+      return result;
     },
   };
 }
 
-function written(
+function rewrite(
   ports: Pick<LiteratureNoteKindleSinkPorts, 'markdown' | 'rng'>,
   args: { text: string; book: KindleBook; highlights: readonly KindleHighlight[] },
-): string {
+): KindleNoteWrite {
   return withKindleHighlights({
     text: args.text,
     asin: args.book.asin,
     highlights: args.highlights,
     random: () => ports.rng.next(),
     noteBlocks: (note) => ports.markdown.noteBlocks(note),
-  }).text;
+  });
 }
 
 /** Literature notes, as the index knows them and as the home folder holds them now. */
@@ -117,19 +144,18 @@ async function candidatesFor(
   return [...new Set([...indexed, ...inFolder])].sort();
 }
 
-/** The book's note in the vault, or null when it has none. */
-async function findNote(
+/** The vault's literature notes looked through, each read once. */
+async function readNotes(
   ports: LiteratureNoteKindleSinkPorts,
-  book: KindleBook,
-): Promise<VaultPath | null> {
+): Promise<KindleNoteIndex<VaultPath>> {
   const folder = await homeFolder(ports);
   const files = await ports.fs.readNotes(await candidatesFor(ports, folder));
-  const notes = files.map((file) => ({
-    path: file.path,
-    note: readLiteratureNote(frontmatterOf(ports, file.text)),
-  }));
-  const path = kindleNoteOf(notes, book);
-  return path === null ? null : createVaultPath(path);
+  return kindleNoteIndex(
+    files.map((file) => ({
+      path: createVaultPath(file.path),
+      note: readLiteratureNote(frontmatterOf(ports, file.text)),
+    })),
+  );
 }
 
 /** Whether the note at `path` is still `book`'s: there, and saying so. */
@@ -160,27 +186,30 @@ async function homeFolder(ports: LiteratureNoteKindleSinkPorts): Promise<VaultPa
 
 /**
  * Makes the book's note with its highlights already in it, in one write,
- * named after the book and numbered past any name taken (`Persuasion 2.md`),
- * so no note is ever written over. A name taken between the listing and the
- * write is the disk's refusal; the name is chosen again.
+ * named after the book (`kindleNoteName`) and numbered past any name taken
+ * (`Persuasion 2.md`), so no note is ever written over. A name taken between
+ * the listing and the write is the disk's refusal; the name is chosen again.
+ * A book none of whose highlights can be placed gets no note yet.
  */
 async function createNote(
   ports: LiteratureNoteKindleSinkPorts,
   book: KindleBook,
   highlights: readonly KindleHighlight[],
-): Promise<VaultPath> {
+): Promise<{ readonly path: VaultPath | null; readonly written: KindleWritten }> {
   const folder = await ensureFolder({ fs: ports.fs, folder: await homeFolder(ports) });
-  const contents = written(ports, {
+  const write = rewrite(ports, {
     text: literatureNoteText(kindleLiteratureNote(book)),
     book,
     highlights,
   });
+  const written = { written: write.written, unplaced: write.unplaced };
+  if (write.written === 0) return { path: null, written };
   for (let attempt = 1; ; attempt += 1) {
     const taken = new Set((await ports.fs.listDirectory(folder)).map((entry) => entry.path));
-    const path = freeNotePath(literatureNotePath(book.title, folder), taken);
+    const path = nextAvailableNotePath({ folder, name: kindleNoteName(book), taken });
     try {
-      await ports.fs.createNote({ path, contents });
-      return path;
+      await ports.fs.createNote({ path, contents: write.text });
+      return { path, written };
     } catch (error) {
       // Another write took the name since the listing; the next round lists and names again.
       if (attempt === CREATE_ATTEMPTS) throw error;

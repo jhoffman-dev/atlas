@@ -42,7 +42,8 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  * hour clear of the last sync (`kindleAutoSyncSkip`); one the person asks for
  * always runs, and the host says if there is no session. The record keeps the
  * sync's words, dates a robot check or rate limit, and follows the host on
- * whether this Mac has a session.
+ * whether this Mac has a session — unless the person disconnected while it
+ * ran, which stands: the sync's end leaves the record as Disconnect made it.
  */
 export async function runKindleSync(
   { sync, ports, records }: KindleSyncRunPorts,
@@ -52,17 +53,30 @@ export async function runKindleSync(
     const skip = kindleAutoSyncSkip(records.read(), ports.clock.now());
     if (skip !== null) return { kind: 'skipped', reason: skip };
   }
+  const started = records.read();
   try {
     const report = await sync(ports);
-    const record = kindleRecordAfterSync(records.read(), report, ports.clock.now());
+    const current = records.read();
+    if (disconnectedSince(started, current)) return { kind: 'ran', report, record: current };
+    const record = kindleRecordAfterSync(current, report, ports.clock.now());
     records.write(record);
     return { kind: 'ran', report, record };
   } catch (error) {
-    const record = kindleRecordAfterFailure(records.read(), messageOf(error), ports.clock.now());
+    const current = records.read();
+    if (disconnectedSince(started, current)) return { kind: 'failed', record: current };
+    const record = kindleRecordAfterFailure(current, messageOf(error), ports.clock.now());
     records.write(record);
     return { kind: 'failed', record };
   }
 }
+
+/**
+ * Whether the person disconnected Kindle while a sync that began connected
+ * ran. Their Disconnect is the later word: the sync's end must not connect
+ * it again or put its own words on a record Disconnect cleared.
+ */
+const disconnectedSince = (started: KindleSyncRecord, current: KindleSyncRecord): boolean =>
+  started.connected && !current.connected;
 
 /**
  * Connect Kindle: the host's sign-in window, which resolves when the person
