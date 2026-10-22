@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from 'zustand';
-import type { ToastShown } from '@atlas/ui';
+import type { ToastShown } from '@dfai/ui';
 
 /**
  * How many toasts show at once; one more lets the oldest go — an error

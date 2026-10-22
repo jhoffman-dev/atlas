@@ -1,7 +1,7 @@
 import { toIndexableProperties } from '../index/property-value.ts';
 
 /**
- * Tasks in Atlas follow GTD (ADR-0029): exactly these eight statuses, in the
+ * Tasks in DFAI follow GTD (ADR-0029): exactly these eight statuses, in the
  * order work moves through them. "Done" is not one of them — a finished task
  * is `archive`, with the day it was finished in `completed`.
  */

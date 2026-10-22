@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import { fakeVaultFs, type NoteFile } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath } from '@dfai/domain';
+import { fakeVaultFs, type NoteFile } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { useTypes } from './use-types.ts';
 

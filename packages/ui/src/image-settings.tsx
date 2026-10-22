@@ -1,4 +1,4 @@
-import type { ImagePlacement } from '@atlas/domain';
+import type { ImagePlacement } from '@dfai/domain';
 import { SegmentedControl, type SegmentedOption } from './segmented-control.tsx';
 import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';

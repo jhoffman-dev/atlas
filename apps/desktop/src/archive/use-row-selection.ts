@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ArchiveOutcome } from '@atlas/application';
-import type { VaultPath } from '@atlas/domain';
-import type { RowSelection } from '@atlas/ui';
+import type { ArchiveOutcome } from '@dfai/application';
+import type { VaultPath } from '@dfai/domain';
+import type { RowSelection } from '@dfai/ui';
 
 /** What a settled batch did to its rows: the ones it is done with, and the ones to try again. */
 export interface BatchAnswer {

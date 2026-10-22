@@ -17,7 +17,7 @@ const TASK = jsonNote({
 });
 
 const ROWS: Record<string, unknown>[] = [
-  { path: 'A.md', title: 'A', project: '[[Atlas]]' },
+  { path: 'A.md', title: 'A', project: '[[DFAI]]' },
   { path: 'B.md', title: 'B', project: null },
 ];
 
@@ -28,7 +28,7 @@ function vault() {
         return {
           columns: ['path', 'title'],
           rows: [
-            ['Projects/Atlas.md', 'Atlas'],
+            ['Projects/DFAI.md', 'DFAI'],
             ['Areas/Garden.md', 'Garden'],
           ],
           truncated: false,
@@ -42,7 +42,7 @@ function vault() {
       };
     },
     notesOfType: async (type: string) => {
-      if (type === 'project') return [{ path: 'Projects/Atlas.md', title: 'Atlas' }];
+      if (type === 'project') return [{ path: 'Projects/DFAI.md', title: 'DFAI' }];
       if (type === 'area') return [{ path: 'Areas/Garden.md', title: 'Garden' }];
       return [];
     },
@@ -77,7 +77,7 @@ describe('POST /v1/views/{path}/run — a relation pointing at several types', (
     );
 
     const labels = (body['groups'] as Group[]).map((group) => group.label);
-    expect(labels).toContain('Atlas');
+    expect(labels).toContain('DFAI');
     expect(labels).toContain('Garden');
   });
 });

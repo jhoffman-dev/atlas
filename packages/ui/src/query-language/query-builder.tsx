@@ -9,7 +9,7 @@ import {
   type BuilderOperator,
   type BuilderQuery,
   type QueryField,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { ChoiceSelect, type Choice } from '../choice-select.tsx';
 import { ValueControl } from './value-control.tsx';

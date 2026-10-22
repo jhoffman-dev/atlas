@@ -1,4 +1,4 @@
-import { deleteRefusal, notesUnder, type MovableEntry, type VaultPath } from '@atlas/domain';
+import { deleteRefusal, notesUnder, type MovableEntry, type VaultPath } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { forgetNotes } from '../index/refresh-index.ts';
 import { withDeclaredType } from './declared-type.ts';

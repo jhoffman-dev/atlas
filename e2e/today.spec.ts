@@ -66,7 +66,7 @@ const PROJECT_TYPE = [
 /** Each note, and how many days before now it last changed. */
 const NOTES: Record<string, { text: string; daysAgo: number }> = {
   'People/Mara Quill.md': { text: note(['type: person'], 'At Larkspur Payroll.'), daysAgo: 1 },
-  'Projects/Atlas.md': { text: note(['type: project', 'status: active'], 'The app.'), daysAgo: 1 },
+  'Projects/DFAI.md': { text: note(['type: project', 'status: active'], 'The app.'), daysAgo: 1 },
   'Projects/Garden.md': {
     text: note(['type: project', 'status: active'], 'Beds and seeds.'),
     daysAgo: 1,
@@ -77,7 +77,7 @@ const NOTES: Record<string, { text: string; daysAgo: number }> = {
     daysAgo: 1,
   },
   'Tasks/Send the figures.md': {
-    text: task(['status: next-action', 'due: 2026-10-13', 'project: "[[Atlas]]"']),
+    text: task(['status: next-action', 'due: 2026-10-13', 'project: "[[DFAI]]"']),
     daysAgo: 1,
   },
   'Tasks/Book the venue.md': {
@@ -89,11 +89,11 @@ const NOTES: Record<string, { text: string; daysAgo: number }> = {
     daysAgo: 6,
   },
   'Tasks/Draft the plan.md': {
-    text: task(['status: in-progress', 'project: "[[Atlas]]"']),
+    text: task(['status: in-progress', 'project: "[[DFAI]]"']),
     daysAgo: 1,
   },
   'Tasks/Ship the page.md': {
-    text: task(['status: next-action', 'project: "[[Atlas]]"', 'contexts: ["@desk"]']),
+    text: task(['status: next-action', 'project: "[[DFAI]]"', 'contexts: ["@desk"]']),
     daysAgo: 1,
   },
   'Tasks/Sow the beans.md': {
@@ -189,11 +189,11 @@ test('Today puts each task in its section, with counts, with no view named Today
 
   const next = section(page, 'Next actions');
   await expect(next.getByRole('group').locator('.today__group-name')).toContainText([
-    'Atlas',
+    'DFAI',
     'Garden',
     'No project',
   ]);
-  await expect(next.getByRole('group', { name: 'Atlas' })).toContainText('@desk');
+  await expect(next.getByRole('group', { name: 'DFAI' })).toContainText('@desk');
   const waiting = section(page, 'Waiting');
   await expect(waiting.getByRole('group', { name: 'Mara Quill' })).toContainText(
     '4 days since last change',
@@ -202,7 +202,7 @@ test('Today puts each task in its section, with counts, with no view named Today
 
   const elsewhere = today(page).getByRole('navigation', { name: 'Elsewhere' });
   await expect(elsewhere.getByRole('button', { name: /^Inbox 1/ })).toBeVisible();
-  // Atlas and Garden have something next or under way; Shed has neither.
+  // DFAI and Garden have something next or under way; Shed has neither.
   await expect(elsewhere.getByRole('button', { name: /^Stalled projects 1/ })).toBeVisible();
 });
 

@@ -45,7 +45,7 @@ use regex::{Regex, RegexBuilder};
 const UNCHECKED: &str = "[the response could not be checked for secrets, so it is not shown]";
 
 /// What one secret's matcher may take, which bounds what building it costs
-/// and so how long a secret Atlas keeps may be: a value whose matcher will
+/// and so how long a secret DFAI keeps may be: a value whose matcher will
 /// not build within it is refused when it is saved, and never sent. Every
 /// character may be written several ways, so what fits depends on which
 /// characters they are — some 2.2 KB of printable ASCII in no order, and a

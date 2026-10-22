@@ -14,7 +14,7 @@ import {
   sidebarEntry,
   type ActiveSidebarPage,
   type SidebarEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Sidebar, type SidebarType } from './sidebar.tsx';
 import type { SectionStore } from './sidebar-sections.ts';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';

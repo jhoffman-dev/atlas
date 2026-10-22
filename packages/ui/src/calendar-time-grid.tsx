@@ -24,7 +24,7 @@ import {
   type CalendarRange,
   type TimedBlock,
   type TrayTask,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { AddCard } from './board-card.tsx';
 import { pieceId, type CalendarGestures } from './calendar-gestures.ts';
 import { CalendarStatusDot } from './calendar-status-dot.tsx';

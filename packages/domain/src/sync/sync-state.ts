@@ -27,7 +27,7 @@ export interface SyncReport {
   readonly conflicts: readonly ConflictCopy[];
   /** What stays on this Mac unsynced: files over GitHub's limit, and repositories of their own. */
   readonly notSynced: readonly string[];
-  /** Atlas's own files a line of the vault's `.gitignore` keeps out, by file or folder (issue #8). */
+  /** DFAI's own files a line of the vault's `.gitignore` keeps out, by file or folder (issue #8). */
   readonly ignored: readonly string[];
 }
 

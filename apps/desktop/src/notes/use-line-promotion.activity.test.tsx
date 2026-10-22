@@ -6,9 +6,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import { fakeVaultFs, recordingActivity, type OpenNotes } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath } from '@dfai/domain';
+import { fakeVaultFs, recordingActivity, type OpenNotes } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { createToasts } from '../toasts/toasts.ts';
 import { useLinePromotion } from './use-line-promotion.ts';
 

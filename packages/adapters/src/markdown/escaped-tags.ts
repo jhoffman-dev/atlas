@@ -1,4 +1,4 @@
-import { findTags } from '@atlas/domain';
+import { findTags } from '@dfai/domain';
 import type { Nodes as MdastNode } from 'mdast';
 
 /** Text the serializer writes tags in: not a link's, whose words are left as they are. */

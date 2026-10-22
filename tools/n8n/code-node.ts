@@ -62,9 +62,9 @@ function moduleScript(name: string): string {
 }
 
 const HEADER = [
-  '// Atlas meeting mapper (meeting-import contract v1).',
+  '// DFAI meeting mapper (meeting-import contract v1).',
   '// Generated from packages/domain/src/meetings/mapping/*.ts and tools/n8n/*.ts',
-  '// in the Atlas repo by `pnpm n8n:build`:',
+  '// in the DFAI repo by `pnpm n8n:build`:',
   '// change those files and rebuild rather than editing here.',
 ].join('\n');
 
@@ -73,8 +73,8 @@ export function codeNodeScript(run: string): string {
   return `${HEADER}\n\n${MODULES.map(moduleScript).join('\n')}\n// --- n8n ---\n${run}\n`;
 }
 
-/** The "Map meeting to Atlas file" node: run once for each item, one file per meeting. */
-export const MAP_MEETING_NODE = 'Map meeting to Atlas file';
+/** The "Map meeting to DFAI file" node: run once for each item, one file per meeting. */
+export const MAP_MEETING_NODE = 'Map meeting to DFAI file';
 
 /** James's zone: an instant (`...Z`) is read on this clock unless OPTIONS says otherwise. */
 export const DEFAULT_TIME_ZONE = 'America/Los_Angeles';

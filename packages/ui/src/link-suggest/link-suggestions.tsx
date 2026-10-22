@@ -16,7 +16,7 @@ import {
   relationGroupLabel,
   relationHue,
   type LinkSuggestion,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { isImeKey } from '../ime.ts';
 import { useNoteNames } from '../note-names.tsx';

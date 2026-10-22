@@ -4,7 +4,7 @@
  * only, never saving someone's typing.
  */
 import { describe, expect, it } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import { fakeMarkdown } from '../testing/fake-ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
@@ -13,7 +13,7 @@ const PROJECT = '---\ntype: project\n---\n\nThe app.\n';
 const PERSON = '---\ntype: person\n---\n\nA neighbour.\n';
 const CAPTURED = '---\ntype: task\nstatus: inbox\n---\n\nAbout the  *lease*.\n';
 const FILES = {
-  'Projects/Atlas.md': PROJECT,
+  'Projects/DFAI.md': PROJECT,
   'People/Mara Quill.md': PERSON,
   'Inbox/Call Sam.md': CAPTURED,
   'Tasks/Imported.md': '---\ntype: task\nstatus: inbox\n---\n\nFrom Notion.\n',
@@ -31,7 +31,7 @@ describe('POST /v1/inbox/clarify', () => {
         path: 'Inbox/Call Sam.md',
         status: 'waiting',
         waitingOn: 'People/Mara Quill.md',
-        project: 'Projects/Atlas.md',
+        project: 'Projects/DFAI.md',
       }),
     );
 
@@ -43,7 +43,7 @@ describe('POST /v1/inbox/clarify', () => {
       linksUpdated: 0,
     });
     expect(api.files.get('Tasks/2026/09/Call Sam.md')?.text).toBe(
-      '---\ntype: task\nstatus: waiting\nwaiting_on: [[Mara Quill]]\nproject: [[Atlas]]\n---\n\nAbout the  *lease*.\n',
+      '---\ntype: task\nstatus: waiting\nwaiting_on: [[Mara Quill]]\nproject: [[DFAI]]\n---\n\nAbout the  *lease*.\n',
     );
     expect(api.files.has('Inbox/Call Sam.md')).toBe(false);
   });
@@ -84,7 +84,7 @@ describe('POST /v1/inbox/clarify', () => {
     ['a status that is not a string', { path: 'Inbox/Call Sam.md', status: 3 }],
     ['a day that is not a day', { path: 'Inbox/Call Sam.md', due: '2026-13-01' }],
     ['a person in .atlas', { path: 'Inbox/Call Sam.md', waitingOn: '.atlas/types/person.md' }],
-    ['a person who is a project', { path: 'Inbox/Call Sam.md', waitingOn: 'Projects/Atlas.md' }],
+    ['a person who is a project', { path: 'Inbox/Call Sam.md', waitingOn: 'Projects/DFAI.md' }],
     ['a project that is a person', { path: 'Inbox/Call Sam.md', project: 'People/Mara Quill.md' }],
     ['a project given as null', { path: 'Inbox/Call Sam.md', project: null }],
     ['contexts that are not strings', { path: 'Inbox/Call Sam.md', contexts: ['@desk', 4] }],

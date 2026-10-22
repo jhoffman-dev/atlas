@@ -4,7 +4,7 @@
  * run for real against SQLite.
  */
 import { describe, expect, it } from 'vitest';
-import { BLOCK_TYPE_FILE, TASK_TYPE_FILE } from '@atlas/domain';
+import { BLOCK_TYPE_FILE, TASK_TYPE_FILE } from '@dfai/domain';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { fakeIndexPort } from '../testing/fake-ports.ts';

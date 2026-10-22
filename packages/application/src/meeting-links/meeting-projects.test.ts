@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectBackfillRow } from '@atlas/domain';
+import type { ProjectBackfillRow } from '@dfai/domain';
 import { MEETING_BODY } from '../testing/meeting-files.ts';
 import {
   jsonLinesMarkdown,

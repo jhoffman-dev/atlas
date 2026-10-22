@@ -14,9 +14,9 @@ import {
   toBoardRows,
   viewGroupLevels,
   type RowGroup,
-} from '@atlas/domain';
-import { TableView, type TableGrouping, type TableResult } from '@atlas/ui';
-import { tableRowsMeasured } from '@atlas/ui/testing';
+} from '@dfai/domain';
+import { TableView, type TableGrouping, type TableResult } from '@dfai/ui';
+import { tableRowsMeasured } from '@dfai/ui/testing';
 import { useRowSelection } from './use-row-selection.ts';
 
 const TASK = parseObjectType({

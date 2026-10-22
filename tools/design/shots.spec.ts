@@ -89,7 +89,7 @@ async function addArtifacts(vault: FakeVault): Promise<void> {
   await vault.write(
     'artifacts/Q3 sales deck.md',
     note(
-      "url: https://claude.ai/artifact/q3-sales-deck\nkind: deck\nproject: '[[Atlas]]'\ntags: [sales, q3]\nsaved: artifacts/q3-sales-deck\nsaved_at: 2026-09-24\n",
+      "url: https://claude.ai/artifact/q3-sales-deck\nkind: deck\nproject: '[[DFAI]]'\ntags: [sales, q3]\nsaved: artifacts/q3-sales-deck\nsaved_at: 2026-09-24\n",
       'Made for the board meeting; the numbers are from the September export.',
     ),
   );
@@ -544,7 +544,7 @@ async function shootGraph(page: Page, theme: string): Promise<void> {
     await page.locator('.graph__node').first().waitFor({ timeout: 10_000 });
     await shoot(page, `graph-${theme}`);
   }
-  if (!(await openBySearch(page, { words: 'documents', name: /^Atlas/ }))) return;
+  if (!(await openBySearch(page, { words: 'documents', name: /^DFAI/ }))) return;
   const links = page.getByRole('region', { name: 'Links', exact: true });
   await links.getByRole('button', { name: /^Links/ }).click();
   await links.scrollIntoViewIfNeeded();
@@ -650,7 +650,7 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 /**
- * P24: an Atlas query in the builder, the same query as text with a mistake
+ * P24: a DFAI query in the builder, the same query as text with a mistake
  * pointed at, and a saved query grouped then sub-grouped.
  */
 async function shootQueries(page: Page, theme: string): Promise<void> {
@@ -990,7 +990,7 @@ async function activityVault(): Promise<FakeVault> {
     '---\natlas: automation\nname: Tidy tasks\nenabled: true\nwhen: manually\nwhich: FROM task WHERE status = done\ndo: archive\nid: Tidy tasks\n---\n',
   );
   await vault.write('Tasks/Ship the log.md', '---\ntype: task\nstatus: done\n---\n');
-  await vault.write('Projects/Atlas.md', '# Atlas\n');
+  await vault.write('Projects/DFAI.md', '# DFAI\n');
   await vault.write('Sources/GitHub issues.md', '# GitHub issues\n');
   return vault;
 }
@@ -1006,16 +1006,16 @@ function earlierActivity(): string {
     message: string,
     subject: { kind: string; path: string } | null = null,
   ) => `${JSON.stringify({ at: now - ago * hour, level, kind, message, subject })}\n`;
-  const atlas = { kind: 'note', path: 'Projects/Atlas.md' };
+  const atlas = { kind: 'note', path: 'Projects/DFAI.md' };
   const github = { kind: 'source', path: 'Sources/GitHub issues.md' };
   const tidy = { kind: 'rule', path: '.atlas/automations/Tidy tasks.md' };
   return [
     line(40, 'info', 'index', 'Rebuilt the index: 412 notes.'),
     line(30, 'info', 'source', 'GitHub issues: Refreshed. 38 records, 3 new, 5 updated.', github),
     line(26, 'error', 'source', 'GitHub issues: Refresh failed. HTTP 502 from the server.', github),
-    line(5, 'info', 'api', 'PATCH v1/notes/{path}/properties — Atlas', atlas),
-    line(4, 'warning', 'api', 'PUT v1/notes/{path}/body refused for Atlas (conflict).', atlas),
-    line(2, 'info', 'chat', 'Edited Atlas, as Claude proposed.', atlas),
+    line(5, 'info', 'api', 'PATCH v1/notes/{path}/properties — DFAI', atlas),
+    line(4, 'warning', 'api', 'PUT v1/notes/{path}/body refused for DFAI (conflict).', atlas),
+    line(2, 'info', 'chat', 'Edited DFAI, as Claude proposed.', atlas),
     line(
       1,
       'warning',
@@ -1302,11 +1302,11 @@ async function todayVault(): Promise<FakeVault> {
     'Clear the shed': ['status: backlog', 'defer: 2026-10-09'],
     'Draft the plan': [
       'status: in-progress',
-      'project: "[[Atlas]]"',
+      'project: "[[DFAI]]"',
       'contexts: ["@desk", "@deep"]',
     ],
-    'Ship the Today page': ['status: next-action', 'project: "[[Atlas]]"', 'contexts: ["@desk"]'],
-    'Write the guide entry': ['status: next-action', 'project: "[[Atlas]]"', 'due: 2026-10-16'],
+    'Ship the Today page': ['status: next-action', 'project: "[[DFAI]]"', 'contexts: ["@desk"]'],
+    'Write the guide entry': ['status: next-action', 'project: "[[DFAI]]"', 'due: 2026-10-16'],
     'Order the seed trays': [
       'status: next-action',
       'project: "[[Garden]]"',
@@ -1323,7 +1323,7 @@ async function todayVault(): Promise<FakeVault> {
   for (const person of ['Mara Quill', 'Tobias Fenn']) {
     await vault.write(`People/${person}.md`, fm(['type: person']));
   }
-  for (const project of ['Atlas', 'Garden', 'Larkspur rollout', 'Shed']) {
+  for (const project of ['DFAI', 'Garden', 'Larkspur rollout', 'Shed']) {
     await vault.write(`Projects/${project}.md`, fm(['type: project', 'status: active']));
   }
   await vault.write('Inbox/Idea.md', 'A thought.\n');

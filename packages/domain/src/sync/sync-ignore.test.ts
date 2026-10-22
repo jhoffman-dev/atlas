@@ -3,7 +3,7 @@ import { atlasPathsIgnored, ignoredByGitignoreWarning } from './sync-ignore.ts';
 
 // Issue #8: a line of the person's own .gitignore that leaves out `.atlas`
 // kept the types, views and settings off GitHub without a word.
-describe('Atlas’s own files a .gitignore keeps out of sync', () => {
+describe('DFAI’s own files a .gitignore keeps out of sync', () => {
   const onDisk = [
     '.atlas/settings.md',
     '.atlas/types/task.md',
@@ -31,7 +31,7 @@ describe('Atlas’s own files a .gitignore keeps out of sync', () => {
     expect(atlasPathsIgnored({ onDisk, inGit })).toEqual(['.atlas/types/']);
   });
 
-  it('leaves out what Atlas’s own block ignores on purpose', () => {
+  it('leaves out what DFAI’s own block ignores on purpose', () => {
     expect(atlasPathsIgnored({ onDisk: ['.atlas/.DS_Store'], inGit: new Set() })).toEqual([]);
   });
 

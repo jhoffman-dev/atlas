@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeIndexPort, fakeVaultFs } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { fakeIndexPort, fakeVaultFs } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { usePeople } from './use-people.ts';
 
 const julie = createVaultPath('People/Julie.md');

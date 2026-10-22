@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { NoteChange } from '@atlas/domain';
-import type { ReadScope } from '@atlas/application';
+import type { NoteChange } from '@dfai/domain';
+import type { ReadScope } from '@dfai/application';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { queryWrapper } from './query-wrapper.tsx';
 import { createReadInvalidator } from './read-invalidator.ts';

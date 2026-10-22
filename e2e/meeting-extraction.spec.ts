@@ -126,7 +126,7 @@ test('a meeting arrives, the extraction rule proposes mine, a waiting-for and a 
 }) => {
   const { vault, host } = await openVault(page);
   await addRule(page, vault);
-  // Saving the rule wrote the prompt Atlas ships: the rule runs as saved.
+  // Saving the rule wrote the prompt DFAI ships: the rule runs as saved.
   await expectFile(vault, PROMPT).toContain('**Only real commitments.**');
   await expectFile(vault, RULE).toContain(`prompt: ${PROMPT}`);
   host.claude.reply(ANSWER);
@@ -154,7 +154,7 @@ test('a meeting arrives, the extraction rule proposes mine, a waiting-for and a 
   expect(await vault.exists(proposalFor('Order the cake'))).toBe(false);
   expect(await vault.read(LOG)).toContain('Made 4 proposals. Left out 1 item');
 
-  // Asked once, told who was there as data, with the prompt Atlas shipped.
+  // Asked once, told who was there as data, with the prompt DFAI shipped.
   const asks = host.claude.runs().filter((run) => run.args[0] === '-p');
   expect(asks).toHaveLength(1);
   const told = asks[0]!.args.join('\n');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
-import type { PeopleMergePreview } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import type { PeopleMergePreview } from '@dfai/application';
 import { duplicateReasonView, mergePreviewView, personChoice } from './people-merge-views.ts';
 
 const p = createVaultPath;

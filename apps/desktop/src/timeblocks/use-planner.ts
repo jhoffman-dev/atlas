@@ -7,7 +7,7 @@ import {
   slotValue,
   type ObjectType,
   type TrayTask,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   addTaskToBlock,
   BlockBeingEditedError,
@@ -24,8 +24,8 @@ import {
   type Scheduling,
   type VaultFsPort,
   type WriteNoteProperties,
-} from '@atlas/application';
-import type { PlanDrop, Planner } from '@atlas/ui';
+} from '@dfai/application';
+import type { PlanDrop, Planner } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors, PaneEditors } from '../panes/open-editors.ts';
 import { writeNoteProperties } from '../query/use-view-writes.ts';

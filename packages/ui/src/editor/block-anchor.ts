@@ -1,7 +1,7 @@
 import { Extension, type Editor } from '@tiptap/core';
 import { Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { BLOCK_ANCHOR_ATTR, isBlockId, type EditorDocument } from '@atlas/domain';
+import { BLOCK_ANCHOR_ATTR, isBlockId, type EditorDocument } from '@dfai/domain';
 import { keepIds } from './block-anchor-keeping.ts';
 
 /**

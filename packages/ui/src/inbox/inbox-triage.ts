@@ -5,7 +5,7 @@ import {
   type InboxItem,
   type InboxTask,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * What a task's row holds before Done writes it (#112): only what was picked.

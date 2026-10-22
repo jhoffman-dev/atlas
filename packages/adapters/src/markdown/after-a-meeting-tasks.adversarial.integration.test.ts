@@ -12,8 +12,8 @@ import {
   runAutomation,
   runOnNoteChanges,
   type FreshPullCheck,
-} from '@atlas/application';
-import { automationVault } from '@atlas/application/testing/sqlite';
+} from '@dfai/application';
+import { automationVault } from '@dfai/application/testing/sqlite';
 import {
   AFTER_A_MEETING_PROMPT,
   builtInPromptAt,
@@ -22,7 +22,7 @@ import {
   parseObjectType,
   type AutomationRule,
   type NoteChange,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 // Adversarial pass on #180 (uncommitted): each test below fails on 570df09 and names a P2 defect.
@@ -200,8 +200,8 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
     let stale: Awaited<ReturnType<typeof query>> | null = null;
     vault.ports.fs.trashEntry = async ({ path }) => {
       stale = await query(
-        (await import('@atlas/domain')).compileMadeItemsQuery().sql,
-        (await import('@atlas/domain')).compileMadeItemsQuery().parameters as never,
+        (await import('@dfai/domain')).compileMadeItemsQuery().sql,
+        (await import('@dfai/domain')).compileMadeItemsQuery().parameters as never,
       );
       vault.files.delete(path);
     };

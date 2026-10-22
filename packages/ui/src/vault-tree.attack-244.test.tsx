@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { createVaultPath, type SidebarTreeRow } from '@atlas/domain';
+import { createVaultPath, type SidebarTreeRow } from '@dfai/domain';
 import { VaultTree, type TreeEditing } from './vault-tree.tsx';
 
 afterEach(cleanup);

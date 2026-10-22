@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { API_RESPOND_COMMAND } from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+import { API_RESPOND_COMMAND } from '@dfai/application';
+import { createVaultPath } from '@dfai/domain';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
@@ -75,7 +75,7 @@ describe('IPC contract', () => {
       .map((name) => name.replace(/_(\w)/g, (_, letter: string) => letter.toUpperCase()));
     expect(taken).toEqual(['path', 'contents', 'expectedModified', 'expectedDigest', 'vault']);
 
-    const { tauriVaultFs } = await import('@atlas/adapters');
+    const { tauriVaultFs } = await import('@dfai/adapters');
     invoke.mockResolvedValue(1);
     await tauriVaultFs.writeTextFile({
       path: createVaultPath('Plan.md'),

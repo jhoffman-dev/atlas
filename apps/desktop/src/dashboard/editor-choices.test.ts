@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newWidgetDraft, type ObjectType } from '@atlas/domain';
+import { newWidgetDraft, type ObjectType } from '@dfai/domain';
 import { editorChoices } from './editor-choices.ts';
 
 const TASK: ObjectType = {

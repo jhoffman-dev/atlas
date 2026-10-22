@@ -13,7 +13,7 @@ const paths = z
 const OUTCOME =
   'Returns { moves: [{ from, to }], failed: [{ path, reason, code? }], linksUpdated }. A note ' +
   'that cannot move is listed in "failed" with why, and the rest still move — so read "failed" ' +
-  'rather than assuming every path moved. A note open in Atlas with unsaved typing is never ' +
+  'rather than assuming every path moved. A note open in DFAI with unsaved typing is never ' +
   'saved for you: it, or a note linking to one that moved, is left alone and listed with ' +
   'code "unsaved_in_app". A note whose links could not be rewritten is listed too.';
 
@@ -24,7 +24,7 @@ export const archive = defineTool({
   name: 'atlas_archive',
   title: 'Archive notes',
   description:
-    'Put notes in the Archive, as the Archive command in Atlas does: each moves under Archive/ ' +
+    'Put notes in the Archive, as the Archive command in DFAI does: each moves under Archive/ ' +
     'at the path it had (Projects/X.md becomes Archive/Projects/X.md) and is stamped with ' +
     '"archived" (today) and "archivedFrom" (where it was). Links to it in other notes are ' +
     'rewritten so they still open it. Archived notes leave search, views and queries unless ' +

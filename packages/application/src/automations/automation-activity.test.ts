@@ -4,7 +4,7 @@
  * machine path.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type AutomationRule } from '@atlas/domain';
+import { createVaultPath, type AutomationRule } from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { createActivityLog } from '../activity/activity-log.ts';
 import { memoryActivityStore, recordingActivity } from '../testing/fake-activity.ts';

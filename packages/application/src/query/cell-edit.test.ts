@@ -4,7 +4,7 @@
  * cell showed when its edit began.
  */
 import { describe, expect, it } from 'vitest';
-import type { StatusProperty } from '@atlas/domain';
+import type { StatusProperty } from '@dfai/domain';
 import { ChangedSinceError } from '../today/today-actions.ts';
 import { fakeVaultFs } from '../testing/fake-ports.ts';
 import { cellEditChanges, readCellValue } from './cell-edit.ts';

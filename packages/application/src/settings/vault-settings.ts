@@ -5,7 +5,7 @@ import {
   VAULT_ROOT,
   VAULT_SETTINGS_PATH,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { writeFrontmatterChanges } from '../query/set-property.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

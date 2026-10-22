@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDatasource, type Datasource, type HttpRequest } from '@atlas/domain';
+import { parseDatasource, type Datasource, type HttpRequest } from '@dfai/domain';
 import { createActivityLog } from '../activity/activity-log.ts';
 import { memoryActivityStore, recordingActivity } from '../testing/fake-activity.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

@@ -9,7 +9,7 @@ import {
   type TagSort,
   type TagTreeNode,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   loadTagCountsWhere,
   loadTaggedNotes,

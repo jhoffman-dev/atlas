@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { memoryActivityStore, recordingActivity, type WindowClosingPort } from '@atlas/application';
+import { memoryActivityStore, recordingActivity, type WindowClosingPort } from '@dfai/application';
 import { useActivityLog, useNoticeActivity } from './use-activity-log.ts';
 
 const VAULT = '/Users/j/Vault';

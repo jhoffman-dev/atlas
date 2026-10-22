@@ -4,13 +4,13 @@ import {
   ModelProviderError,
   type ModelEvent,
   type ModelRequest,
-} from '@atlas/application';
+} from '@dfai/application';
 import { claudeCodeArgs, claudeCodeProvider } from './claude-code-provider.ts';
 import { ProgramNotFound, type ModelProcessHost, type ProcessExit } from './model-process.ts';
 
 const REQUEST: ModelRequest = {
   model: 'claude-opus-5-5',
-  system: 'You are Claude in Atlas.',
+  system: 'You are Claude in DFAI.',
   messages: [{ role: 'user', text: 'Who is Sam?' }],
   tools: [{ name: 'atlas_search', description: 'Search.', inputSchema: { type: 'object' } }],
 };
@@ -69,9 +69,9 @@ describe('claudeCodeArgs', () => {
     expect(args.slice(0, 3)).toEqual(['-p', '--output-format', 'stream-json']);
   });
 
-  it("puts Atlas's tools in the system prompt, after what Atlas said", () => {
+  it("puts DFAI's tools in the system prompt, after what DFAI said", () => {
     const system = claudeCodeArgs(REQUEST)[claudeCodeArgs(REQUEST).indexOf('--system-prompt') + 1];
-    expect(system).toMatch(/^You are Claude in Atlas\.\n\n## Tools/);
+    expect(system).toMatch(/^You are Claude in DFAI\.\n\n## Tools/);
     expect(system).toContain('### atlas_search');
   });
 });

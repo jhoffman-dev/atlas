@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { PropertyDef } from '@atlas/domain';
+import type { PropertyDef } from '@dfai/domain';
 import type { CellEditing } from './cell-editing.ts';
 import { holdsSeveral, type HeldCell } from './cell-pickers.tsx';
 import type { CellAt } from './cell-keys.ts';

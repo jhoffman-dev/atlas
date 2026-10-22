@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { VaultGraph } from '@atlas/domain';
-import { readVaultGraph, type IndexPort } from '@atlas/application';
+import type { VaultGraph } from '@dfai/domain';
+import { readVaultGraph, type IndexPort } from '@dfai/application';
 import { vaultReadKey } from '../reads/query-client.ts';
 import { readState, type ReadState } from '../reads/read-state.ts';
 

@@ -7,14 +7,14 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { remarkMarkdown } from '@atlas/adapters';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   fakeIndexPort,
   fakeVaultFs,
   recordingActivity,
   type DefinedType,
   type PropertyChanges,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   BLOCK_TYPE_FILE,
   createVaultPath,
@@ -22,8 +22,8 @@ import {
   type TaskSchedule,
   type TrayTask,
   type VaultPath,
-} from '@atlas/domain';
-import type { PlanDrop } from '@atlas/ui';
+} from '@dfai/domain';
+import type { PlanDrop } from '@dfai/ui';
 import type { OpenEditors, PaneEditors } from '../panes/open-editors.ts';
 import { usePlanner } from './use-planner.ts';
 

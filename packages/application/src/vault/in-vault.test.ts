@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { fakeHostVaultFs } from '../testing/fake-ports.ts';
 import { inVault, noVaultOpen } from './in-vault.ts';
 import type { HostVaultFsPort, VaultFsPort } from './ports.ts';

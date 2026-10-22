@@ -1,4 +1,4 @@
-import { appendToBody, joinFrontmatter, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import { appendToBody, joinFrontmatter, splitFrontmatter, type VaultPath } from '@dfai/domain';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';
 import { linkedTypeProblems } from '../types/linked-types.ts';
 import { loadObjectTypes, noteTypeName } from '../types/load-types.ts';
@@ -107,7 +107,7 @@ async function writeBody(
   checkIfModified(path, modified, ifModified);
   const pane = request.openNotes.state(path);
   if (pane === 'dirty') {
-    throw new ApiError('unsaved_in_app', `${path} is open in Atlas with unsaved edits`);
+    throw new ApiError('unsaved_in_app', `${path} is open in DFAI with unsaved edits`);
   }
 
   const document = splitFrontmatter(text);

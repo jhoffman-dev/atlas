@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ChatCancelled, ModelProviderError, type ModelRequest } from '@atlas/application';
+import { ChatCancelled, ModelProviderError, type ModelRequest } from '@dfai/application';
 import { claudeCodeProvider } from './claude-code-provider.ts';
 import type { ModelProcessHost } from './model-process.ts';
 
@@ -11,7 +11,7 @@ import type { ModelProcessHost } from './model-process.ts';
 
 const REQUEST: ModelRequest = {
   model: 'claude-opus-5-5',
-  system: 'You are Claude in Atlas.',
+  system: 'You are Claude in DFAI.',
   messages: [{ role: 'user', text: 'Who is Sam?' }],
   tools: [],
 };

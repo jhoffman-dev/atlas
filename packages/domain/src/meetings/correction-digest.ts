@@ -2,7 +2,7 @@ import { digestOf } from '../sources/merge.ts';
 
 /**
  * A check of a meeting's body for the correction record: the 32-bit FNV-1a
- * Atlas already uses for notes (`digestOf`), a second 53-bit mix of the same
+ * DFAI already uses for notes (`digestOf`), a second 53-bit mix of the same
  * text (cyrb53, public domain) and the length — about 90 bits together, so a
  * hand edit cannot match by accident. Not a defence against someone crafting
  * a collision; the frontmatter is theirs to edit anyway. Deterministic on

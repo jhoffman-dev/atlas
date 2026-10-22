@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, type VaultEntry } from '@atlas/domain';
+import { createVaultPath, type VaultEntry } from '@dfai/domain';
 import {
   createActivityLog,
   createNoteChanges,
@@ -18,8 +18,8 @@ import {
   recordingActivity,
   type ActivityLog,
   type MeetingImportPorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useMeetingImport } from '../meetings/use-meeting-import.ts';
 import { usePulledFiles } from './use-pulled-files.ts';
 

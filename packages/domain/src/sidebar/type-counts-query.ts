@@ -14,7 +14,7 @@ export const TYPE_COUNTS_QUERY_COLUMNS = ['type', 'count'] as const;
  * sidebar: one row per type that has any, read in one statement rather than
  * every note of every type (#217). A type with none has no row.
  *
- * Counted as a relation offers notes: never one of Atlas's own (a type's
+ * Counted as a relation offers notes: never one of DFAI's own (a type's
  * template declares the type without being one of its notes), nor one out of
  * the way in the Archive (U-22) or, as a Project, set to PARA archive where it
  * stands (#213) — read from its first `para` value, as the picker reads it.

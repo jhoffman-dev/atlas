@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, NO_LINKS, type NoteLinks } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type OpenNotes } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, NO_LINKS, type NoteLinks } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, type OpenNotes } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { vaultReadKey } from '../reads/query-client.ts';
@@ -92,9 +92,9 @@ describe('useVaultGraph', () => {
   });
 });
 
-const atlas = createVaultPath('Atlas.md');
+const atlas = createVaultPath('DFAI.md');
 const mentioning = createVaultPath('journal.md');
-const text = 'Worked on Atlas today.\n';
+const text = 'Worked on DFAI today.\n';
 
 function mentionPorts(state: 'closed' | 'dirty' = 'closed') {
   const writeTextFile = vi.fn(async () => 2);
@@ -130,7 +130,7 @@ function mentionsOf(ports: ReturnType<typeof mentionPorts>['ports'], onChanged =
     ({ path }) =>
       useUnlinkedMentions({
         ports,
-        note: { path, title: 'Atlas' },
+        note: { path, title: 'DFAI' },
         links,
         index: { status, vault: '/v' },
         onChanged,
@@ -159,7 +159,7 @@ describe('useUnlinkedMentions', () => {
     await waitFor(() => expect(result.current.state.kind).toBe('ready'));
     expect(result.current.state).toEqual({
       kind: 'ready',
-      mentions: [{ path: 'journal.md', title: 'journal', excerpt: 'Worked on Atlas today.' }],
+      mentions: [{ path: 'journal.md', title: 'journal', excerpt: 'Worked on DFAI today.' }],
     });
   });
 
@@ -196,7 +196,7 @@ describe('useUnlinkedMentions', () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     expect(writeTextFile).toHaveBeenCalledWith({
       path: mentioning,
-      contents: 'Worked on [[Atlas]] today.\n',
+      contents: 'Worked on [[DFAI]] today.\n',
       expectedModified: 1,
     });
   });

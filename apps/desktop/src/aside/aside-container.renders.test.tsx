@@ -9,9 +9,9 @@ import {
   openInActiveTab,
   type EditorDocument,
   type PropertyDef,
-} from '@atlas/domain';
-import type { PropertyRow } from '@atlas/ui';
-import { startCountingRenders, stopCountingRenders } from '@atlas/ui/testing';
+} from '@dfai/domain';
+import type { PropertyRow } from '@dfai/ui';
+import { startCountingRenders, stopCountingRenders } from '@dfai/ui/testing';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';
 import { createWorkspaceStore, loadVault, workspaceNow } from '../workspace/workspace-store.ts';
@@ -24,7 +24,7 @@ import type { RowPorts } from './row-aside.tsx';
 import { createShownNotes, publishShownDoc, publishShownNote } from './shown-notes.ts';
 
 await vi.hoisted(async () => {
-  const { installRenderCounter } = await import('@atlas/ui/testing');
+  const { installRenderCounter } = await import('@dfai/ui/testing');
   installRenderCounter();
 });
 

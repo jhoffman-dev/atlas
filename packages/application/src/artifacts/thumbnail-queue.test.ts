@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import type { ThumbnailResult } from './artifact-thumbnail.ts';
 import { createThumbnailQueue, type ThumbnailJob } from './thumbnail-queue.ts';
 

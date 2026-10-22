@@ -9,7 +9,7 @@ export const promoteChecklistLine = defineTool({
   title: 'Make a checklist line a task',
   description:
     'Make one "- [ ]" line of a note\'s checklist a task of its own, as "Make task" does in ' +
-    "Atlas. The task is a new note beside the line's, named by the line's words, with type " +
+    "DFAI. The task is a new note beside the line's, named by the line's words, with type " +
     'task, status inbox (archive, dated completed, when the line is ticked), "source" a link to ' +
     'the line ("[[Plan#^k3x9q1]]") and "project" whatever the line\'s note is filed under — or ' +
     'that note, when it is a project or an area. The line becomes a link to the task, keeping ' +
@@ -20,7 +20,7 @@ export const promoteChecklistLine = defineTool({
     'nested ones after the line they are under. Returns { note, task }, both as they now are. ' +
     'Refused with "not_found" when no line says the text, "exists" when the line is a task ' +
     'already (so calling twice makes one task), "unsaved_in_app" when the note has ' +
-    'unsaved edits open in Atlas, and "conflict" when it changed while the task was made. A ' +
+    'unsaved edits open in DFAI, and "conflict" when it changed while the task was made. A ' +
     'note\'s progress through its checklist is the "progress" field of atlas_run_query and the ' +
     'progress column of atlas_query and atlas_run_view.',
   inputSchema: z.object({

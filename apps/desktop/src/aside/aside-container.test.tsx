@@ -12,8 +12,8 @@ import {
   type NavigationPlace,
   type PropertyDef,
   type VaultPath,
-} from '@atlas/domain';
-import type { PropertyRow } from '@atlas/ui';
+} from '@dfai/domain';
+import type { PropertyRow } from '@dfai/ui';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { createOverlayStore } from '../overlay-store.ts';
 import { createRevealStore } from '../panes/reveals.ts';

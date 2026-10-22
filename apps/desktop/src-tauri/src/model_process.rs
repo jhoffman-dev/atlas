@@ -70,7 +70,7 @@ const EXIT_POLL: Duration = Duration::from_millis(20);
 /// Where a GUI app's child looks for what `claude` itself runs (`node`, for an npm install).
 const SYSTEM_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
 
-/// The one other thing Atlas asks `claude`: whether it is logged in.
+/// The one other thing DFAI asks `claude`: whether it is logged in.
 const STATUS: [&str; 2] = ["auth", "status"];
 /// A turn's arguments, whole and in order. `None` is where a value goes: the
 /// model, then the system prompt. Every other slot is fixed, so a turn always
@@ -161,7 +161,7 @@ impl Default for ModelProcesses {
 pub fn vet_args(args: &[String]) -> Result<(), String> {
     let refused = |why: &str| {
         Err(format!(
-            "the arguments are not ones Atlas runs claude with: {why}"
+            "the arguments are not ones DFAI runs claude with: {why}"
         ))
     };
     if args == STATUS {
@@ -321,7 +321,7 @@ impl ModelProcesses {
                 .unwrap_or_default();
             if timed_out.load(Ordering::SeqCst) {
                 stderr.push_str(&format!(
-                    "Atlas stopped {PROGRAM}: it ran longer than {limit:?}."
+                    "DFAI stopped {PROGRAM}: it ran longer than {limit:?}."
                 ));
             }
             forget(&running, &request.run, &child);

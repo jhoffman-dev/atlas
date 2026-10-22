@@ -8,7 +8,7 @@ import {
   type EditorNode,
   type Transclusion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { NoteEditor, type NoteTransclusions } from './note-editor.tsx';
 import type { BlockPicking } from './editor/block-picking.ts';
 

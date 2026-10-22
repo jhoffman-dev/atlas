@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeVaultFs, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useProfileSetting } from './use-profile-setting.ts';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 

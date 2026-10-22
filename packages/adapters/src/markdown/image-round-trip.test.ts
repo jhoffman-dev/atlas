@@ -5,7 +5,7 @@ import {
   resolveImageSource,
   type EditorDocument,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { parseMarkdownBody, renderBlock, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /** The ways a note written elsewhere — Obsidian, an editor, by hand — puts in an image. */

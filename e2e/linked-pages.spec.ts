@@ -2,7 +2,7 @@
  * Linked pages (P30-06): a Person, Company, Project or Meeting page shows its
  * meetings, waiting-fors, open tasks and decisions without a word being
  * written into it, and a meeting and the tasks that came from it show each
- * other. Every section is a compiled Atlas query, run for real against SQLite
+ * other. Every section is a compiled DFAI query, run for real against SQLite
  * in the stand-in host. Dates count back from the day the suite runs, as the
  * index's own "last 30 days" does.
  */

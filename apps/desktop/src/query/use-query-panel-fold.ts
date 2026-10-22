@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { QueryPanelFold, QueryPanelFoldStore } from '@atlas/ui';
+import type { QueryPanelFold, QueryPanelFoldStore } from '@dfai/ui';
 
 /**
  * Whether the query view a pane shows has its query folded to one line,

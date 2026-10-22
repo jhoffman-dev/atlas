@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { recordedCorrections, type VaultPath } from '@atlas/domain';
+import { recordedCorrections, type VaultPath } from '@dfai/domain';
 import {
   CorrectionRefusedError,
   NoteChangedError,
@@ -9,8 +9,8 @@ import {
   type MarkdownPort,
   type OpenNotes,
   type VaultFsPort,
-} from '@atlas/application';
-import type { CorrectionsNotice } from '@atlas/ui';
+} from '@dfai/application';
+import type { CorrectionsNotice } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from '../query/error-message.ts';
 

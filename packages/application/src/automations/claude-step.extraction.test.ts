@@ -19,7 +19,7 @@ import {
   parseRunLog,
   splitFrontmatter,
   type AutomationRule,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ModelEvent } from '../chat/ports.ts';
 import { acceptProposalNote } from '../proposals/accept-proposal.ts';
 import { listProposals } from '../proposals/list-proposals.ts';

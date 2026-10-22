@@ -5,7 +5,7 @@
  * vault as `task-migration.test.ts`. Each test names one invariant.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type AutomationRule, type SetValue } from '@atlas/domain';
+import { createVaultPath, type AutomationRule, type SetValue } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';

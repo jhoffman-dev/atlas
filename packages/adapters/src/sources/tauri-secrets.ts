@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { SecretStoreError, type SecretStorePort, type StoredSecret } from '@atlas/application';
+import { SecretStoreError, type SecretStorePort, type StoredSecret } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 const refused = (message: string) => new SecretStoreError(message);

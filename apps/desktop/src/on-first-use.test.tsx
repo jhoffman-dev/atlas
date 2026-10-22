@@ -135,7 +135,7 @@ describe('onFirstUse', () => {
     const { chunk, load } = scriptedChunk([FETCH_FAILED(), MODULE]);
     const greeting = partOf(chunk);
     await expect(greeting.preload()).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalledWith('A part of Atlas could not load:', expect.any(TypeError));
+    expect(warn).toHaveBeenCalledWith('A part of DFAI could not load:', expect.any(TypeError));
     renderBesideEditor(greeting.Component);
     expect(await screen.findByText('Hello, Mara 1')).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
@@ -230,7 +230,7 @@ describe('onFirstUse', () => {
     expect(await reloadButton()).toBeDefined();
     expect(screen.getByRole('textbox', { name: 'Editor' })).toBeDefined();
     expect(warn).toHaveBeenCalledWith(
-      'A part of Atlas could not load:',
+      'A part of DFAI could not load:',
       expect.objectContaining({ message: 'broken while evaluating' }),
     );
   });

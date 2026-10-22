@@ -11,7 +11,7 @@ import {
   type LogEntry,
   type PassedOver,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { unarchiveNotes } from '../archive/archive-notes.ts';
 import {
   MeetingSummaryRefused,

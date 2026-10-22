@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import { fakeVaultFs } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { fakeVaultFs } from '@dfai/application';
 import { useImages } from './use-images.ts';
 
 /** A vault holding only `files`; any other path cannot be read. */

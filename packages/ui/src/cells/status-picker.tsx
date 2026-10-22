@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
-import { optionColor, optionLabel, STATUS_PROPERTY, type OptionSource } from '@atlas/domain';
+import { optionColor, optionLabel, STATUS_PROPERTY, type OptionSource } from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { isImeKey } from '../ime.ts';
 import { StatusPill } from '../status-pill.tsx';

@@ -14,8 +14,8 @@ import {
   recordingActivity,
   scriptedFolders,
   type GitResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useSync, type SyncOptions } from './use-sync.ts';
 import { SYNC_TICK_MS } from './use-sync-schedule.ts';
 import {
@@ -66,7 +66,7 @@ describe('a vault set up from Settings syncs by itself (issue #8)', () => {
     async () => {
       const { base, env, bare, trash } = await isolatedWorld();
       await must(base, ['init', '--quiet', '--bare', '--initial-branch=main', bare], env);
-      const root = join(base, 'Atlas Vault');
+      const root = join(base, 'DFAI Vault');
       const mac = macAt({ name: 'Air', root, env, trash });
       await mac.write('Test Note.md', 'a note\n');
       await mac.write('.atlas/settings.md', '---\nquickAdd:\n  - task\n---\n\n# Settings\n');

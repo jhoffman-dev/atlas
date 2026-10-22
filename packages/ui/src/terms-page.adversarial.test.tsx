@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, variantsFromInput, type ListedTerm } from '@atlas/domain';
+import { createVaultPath, variantsFromInput, type ListedTerm } from '@dfai/domain';
 import { TermsPage } from './terms-page.tsx';
 
 /*

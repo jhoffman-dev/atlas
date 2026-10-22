@@ -2,7 +2,7 @@
 import type { ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ChatPanel, SettingsDialog } from '@atlas/ui';
+import type { ChatPanel, SettingsDialog } from '@dfai/ui';
 import { ChatFailed, PageFailed, PartFailed, SettingsFailed } from './part-failed.tsx';
 
 const outcome = { retrying: false, onRetry: vi.fn(), onReloadWindow: null };

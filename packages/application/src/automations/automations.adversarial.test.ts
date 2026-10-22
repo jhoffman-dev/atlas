@@ -12,7 +12,7 @@ import {
   parseRunLog,
   type AutomationRule,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { runAutomation } from './run-automation.ts';
 import { loadAutomations } from './load-automations.ts';
@@ -208,7 +208,7 @@ describe('a new rule under a name an old one had', () => {
       draft: { ...FLAG_RULE, name: 'Tidy' },
       takenPaths: vault.ports.notePaths,
     });
-    // The rule as Atlas reads it back from the file just written: its id is the file's, not the old rule's.
+    // The rule as DFAI reads it back from the file just written: its id is the file's, not the old rule's.
     const { fs, markdown, notePaths } = vault.ports;
     const listing = await loadAutomations({ fs, markdown, notePaths });
     const rule = listing.automations.find((loaded) => loaded.rule.path === path)!.rule;

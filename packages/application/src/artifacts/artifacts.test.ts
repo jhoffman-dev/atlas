@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARTIFACT_CSP, createVaultPath } from '@atlas/domain';
+import { ARTIFACT_CSP, createVaultPath } from '@dfai/domain';
 import { apiFixture, TODAY } from '../testing/api-fixture.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { addArtifactCopy, ArtifactRefusedError } from './artifact-copy.ts';

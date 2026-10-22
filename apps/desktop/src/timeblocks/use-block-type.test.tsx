@@ -6,9 +6,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, memoryVault, recordingActivity, type VaultFsPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { GTD_STATUS_PROPERTY, type ObjectType } from '@atlas/domain';
+import { fakeVaultFs, memoryVault, recordingActivity, type VaultFsPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { GTD_STATUS_PROPERTY, type ObjectType } from '@dfai/domain';
 import { useBlockType } from './use-block-type.ts';
 
 const TASK = [

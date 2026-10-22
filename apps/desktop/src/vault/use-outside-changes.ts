@@ -4,7 +4,7 @@ import {
   type OwnWrites,
   type VaultFsPort,
   type VaultWatchPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useVaultWatch } from './use-vault-watch.ts';
 
 /** The longest a report waits for the app's own refresh before it is judged anyway. */

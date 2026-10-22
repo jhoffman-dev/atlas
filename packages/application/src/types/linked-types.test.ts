@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, parseObjectType, type VaultPath } from '@atlas/domain';
+import { createVaultPath, parseObjectType, type VaultPath } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { linkedTypeProblems } from './linked-types.ts';
 
@@ -12,7 +12,7 @@ const TASK = parseObjectType({
 });
 
 const FILES: Record<string, string> = {
-  'Projects/Atlas.md': '---\ntype: project\n---\n',
+  'Projects/DFAI.md': '---\ntype: project\n---\n',
   'Areas/Garden.md': '---\ntype: area\n---\n',
   'People/Mara Quill.md': '---\ntype: person\n---\n',
   'Loose.md': 'No type at all.\n',
@@ -44,7 +44,7 @@ describe('linkedTypeProblems', () => {
   });
 
   it('lets through a link to any type it points at', async () => {
-    expect(await check({ project: '[[Atlas]]' })).toEqual({});
+    expect(await check({ project: '[[DFAI]]' })).toEqual({});
     expect(await check({ project: '[[Garden]]' })).toEqual({});
   });
 
@@ -55,7 +55,7 @@ describe('linkedTypeProblems', () => {
 
   it('judges every link of several, and only relations', async () => {
     expect(
-      await check({ project: ['[[Atlas]]', '[[Mara Quill]]'], status: '[[Mara Quill]]' }),
+      await check({ project: ['[[DFAI]]', '[[Mara Quill]]'], status: '[[Mara Quill]]' }),
     ).toEqual({ project: 'Project links to a project or area, not a person' });
   });
 

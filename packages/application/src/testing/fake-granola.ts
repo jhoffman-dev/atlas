@@ -1,4 +1,4 @@
-import type { GranolaFailure, GranolaNote, GranolaNoteSummary } from '@atlas/domain';
+import type { GranolaFailure, GranolaNote, GranolaNoteSummary } from '@dfai/domain';
 import { GranolaError, type GranolaKeyStatus, type GranolaPort } from '../granola/ports.ts';
 
 /** A call the fake Granola was asked, as a test reads them back. */

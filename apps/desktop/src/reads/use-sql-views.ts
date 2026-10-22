@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
-import { viewSpecsFor, type DefinedType, type IndexPort } from '@atlas/application';
+import { viewSpecsFor, type DefinedType, type IndexPort } from '@dfai/application';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
 
 /**

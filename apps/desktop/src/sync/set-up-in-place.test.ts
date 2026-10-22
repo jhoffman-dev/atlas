@@ -7,7 +7,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { withManagedIgnores } from '@atlas/domain';
+import { withManagedIgnores } from '@dfai/domain';
 import {
   createSettingsWriter,
   inspectSync,
@@ -15,8 +15,8 @@ import {
   setUpSync,
   type GitFoldersPort,
   type SyncRemoteChoice,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import {
   clock,
   isolatedWorld,
@@ -44,7 +44,7 @@ const JAMES_SETTINGS = [
   '',
 ].join('\n');
 
-/** What the stray setup commit on GitHub holds: Atlas's settings and nothing else. */
+/** What the stray setup commit on GitHub holds: DFAI's settings and nothing else. */
 const SETUP_COMMIT_SETTINGS = [
   '---',
   'sync: github',
@@ -101,7 +101,7 @@ async function setUp(mac: Mac, env: Env, remote: SyncRemoteChoice) {
 }
 
 async function jamesVault(base: string, env: Env, trash: string, github?: string) {
-  const root = join(base, 'Atlas Vault');
+  const root = join(base, 'DFAI Vault');
   const mac = macAt({
     name: 'James’s MacBook Air',
     root,
@@ -178,7 +178,7 @@ describe('setting up sync works on the open vault, in place (issue #8)', () => {
     async () => {
       const { base, env, bare, trash } = await isolatedWorld();
       await must(base, ['init', '--quiet', '--bare', '--initial-branch=main', bare], env);
-      // The stray clone's one commit: the managed .gitignore and Atlas's settings.
+      // The stray clone's one commit: the managed .gitignore and DFAI's settings.
       const stray = join(base, 'stray');
       await mkdir(join(stray, '.atlas'), { recursive: true });
       await must(stray, ['init', '--quiet', '--initial-branch=main'], env);
@@ -195,7 +195,7 @@ describe('setting up sync works on the open vault, in place (issue #8)', () => {
           'commit',
           '--quiet',
           '-m',
-          'Atlas sync set up',
+          'DFAI sync set up',
         ],
         env,
       );
@@ -210,7 +210,7 @@ describe('setting up sync works on the open vault, in place (issue #8)', () => {
         if (path === '.atlas/settings.md') continue;
         expect(await mac.read(path)).toBe(contents);
       }
-      // The vault's own settings win, with Atlas's sync keys written into them.
+      // The vault's own settings win, with DFAI's sync keys written into them.
       // GitHub's version says nothing they do not, so it is merged by its keys
       // rather than kept as a copy under Sync conflicts (#233): nothing is lost.
       const settings = await mac.read('.atlas/settings.md');

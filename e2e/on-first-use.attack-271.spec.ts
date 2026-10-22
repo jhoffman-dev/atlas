@@ -48,7 +48,7 @@ async function start(page: Page, chunk: string) {
 const warnings = new WeakMap<Page, number>();
 function countUnloadedWarnings(page: Page) {
   page.on('console', (message) => {
-    if (message.text().startsWith('A part of Atlas could not load')) {
+    if (message.text().startsWith('A part of DFAI could not load')) {
       warnings.set(page, (warnings.get(page) ?? 0) + 1);
     }
   });

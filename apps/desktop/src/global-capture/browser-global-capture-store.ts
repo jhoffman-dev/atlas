@@ -1,4 +1,4 @@
-import { DEFAULT_GLOBAL_CAPTURE_SHORTCUT } from '@atlas/domain';
+import { DEFAULT_GLOBAL_CAPTURE_SHORTCUT } from '@dfai/domain';
 
 const KEY = 'atlas.globalCaptureShortcut';
 /** What is kept when the shortcut is turned off, so off is not read back as never chosen. */

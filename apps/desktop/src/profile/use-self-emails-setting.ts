@@ -6,9 +6,9 @@ import {
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
-import { parseSelfEmails, selfEmailsFromText, type SelfEmails } from '@atlas/domain';
-import type { SelfEmailsView } from '@atlas/ui';
+} from '@dfai/application';
+import { parseSelfEmails, selfEmailsFromText, type SelfEmails } from '@dfai/domain';
+import type { SelfEmailsView } from '@dfai/ui';
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
 import { useVaultSettingsRead } from '../settings/use-vault-settings-read.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
@@ -76,7 +76,7 @@ type PersonNoteEmails = readonly string[] | null;
 
 /**
  * The Person note's addresses for the profile's name: the owner's while the
- * settings hold none (#226), so what the card shows is what Atlas uses. One
+ * settings hold none (#226), so what the card shows is what DFAI uses. One
  * that cannot be read is said in the console and read as none, so the
  * owner's addresses still settle.
  */

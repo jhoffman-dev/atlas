@@ -13,9 +13,9 @@ import {
   CorrectionRefusedError,
   recordingActivity,
   undoMeetingTermCorrections,
-} from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import { createVaultPath, splitFrontmatter } from '@atlas/domain';
+} from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
+import { createVaultPath, splitFrontmatter } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const PATH = 'Inbox/Meetings/2026-10-06 Larkspur Pay sync.md';

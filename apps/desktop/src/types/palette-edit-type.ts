@@ -1,4 +1,4 @@
-import { matchingCommands, type ObjectType, type PaletteCommand } from '@atlas/domain';
+import { matchingCommands, type ObjectType, type PaletteCommand } from '@dfai/domain';
 
 const EDIT_TYPE = 'edit-type:';
 const EDIT_TEMPLATE = 'edit-template:';

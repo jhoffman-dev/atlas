@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseObjectType, type VaultPath } from '@atlas/domain';
+import { parseObjectType, type VaultPath } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { createView, ViewRefusedError, writeViewNote } from './create-view.ts';
 

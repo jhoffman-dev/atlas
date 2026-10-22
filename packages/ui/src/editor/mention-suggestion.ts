@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { PluginKey, type EditorState } from '@tiptap/pm/state';
-import type { MentionSuggestion } from '@atlas/domain';
+import type { MentionSuggestion } from '@dfai/domain';
 import { exitSuggestion } from '@tiptap/suggestion';
 import { linkOnceMade, type MakeLinked } from './pending-mention.ts';
 import { pickerSuggestion, type PickerView } from './picker-suggestion.ts';

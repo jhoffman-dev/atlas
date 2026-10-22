@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ApiConnectionStatus, ApiSettingsPort } from '@atlas/application';
+import type { ApiConnectionStatus, ApiSettingsPort } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 /** Not a vault failure: the API could not be switched, or its token not read. */

@@ -1,4 +1,4 @@
-import { GoogleCalendarSettings } from '@atlas/ui';
+import { GoogleCalendarSettings } from '@dfai/ui';
 import type { GoogleCalendarSettingState } from './use-google-calendar.ts';
 
 /** Settings → Google Calendar, wired to the host's sign-in and the vault's settings. */

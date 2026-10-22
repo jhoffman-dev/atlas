@@ -1,4 +1,4 @@
-import type { TemplateUse } from '@atlas/domain';
+import type { TemplateUse } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { templateUsesText } from './template-words.ts';
 

@@ -96,7 +96,7 @@ const FILES = {
   '.atlas/views/Task table.md': view('table'),
   '.atlas/views/Task board.md': view('board'),
   '.atlas/dashboards/Work.md': DASHBOARD,
-  'Atlas.md': '---\ntype: project\n---\n\n# Atlas\n',
+  'DFAI.md': '---\ntype: project\n---\n\n# DFAI\n',
   'Ada Lovelace.md': '---\ntype: person\n---\n\n# Ada Lovelace\n',
   'Grace Hopper.md': '---\ntype: person\n---\n\n# Grace Hopper\n',
   'Write docs.md': '---\ntype: task\nstatus: next\n---\n\n# Write docs\n',
@@ -111,9 +111,9 @@ test('a relation set through the note reads as the note it names, everywhere it 
   await addRelation(page, { name: 'Project', target: 'Project', many: false });
   const project = properties(page).getByRole('combobox', { name: 'Project' });
   await project.click();
-  await expect.poll(() => suggestedTitles(project).allTextContents()).toContain('Atlas');
-  await pickSuggestion(project, 'Atlas');
-  await expectFile(vault, 'Write docs.md').toContain('project: "[[Atlas]]"');
+  await expect.poll(() => suggestedTitles(project).allTextContents()).toContain('DFAI');
+  await pickSuggestion(project, 'DFAI');
+  await expectFile(vault, 'Write docs.md').toContain('project: "[[DFAI]]"');
 
   await addRelation(page, { name: 'People', target: 'Person', many: true });
   const people = properties(page).getByRole('combobox', { name: 'People' });
@@ -126,7 +126,7 @@ test('a relation set through the note reads as the note it names, everywhere it 
   );
 
   // The note's own rows: the note's name, which opens it.
-  await expect(properties(page).getByRole('button', { name: 'Open Atlas' })).toBeVisible();
+  await expect(properties(page).getByRole('button', { name: 'Open DFAI' })).toBeVisible();
   await expect(
     properties(page).getByRole('list', { name: 'People' }).getByRole('listitem'),
   ).toHaveText(['Ada Lovelace', 'Grace Hopper']);
@@ -139,7 +139,7 @@ test('a relation set through the note reads as the note it names, everywhere it 
     .getByRole('button', { name: 'Task table', exact: true })
     .click();
   const table = page.locator('.table__grid');
-  await expect(table.getByRole('button', { name: 'Open Atlas' })).toBeVisible();
+  await expect(table.getByRole('button', { name: 'Open DFAI' })).toBeVisible();
   await expect(table.getByRole('button', { name: 'Open Grace Hopper' })).toBeVisible();
   await expect(table).not.toContainText('[[');
 
@@ -149,7 +149,7 @@ test('a relation set through the note reads as the note it names, everywhere it 
     .click();
   const next = page.getByRole('region', { name: 'Next', exact: true });
   const pills = next.locator('.board__meta .status-pill');
-  await expect(pills).toHaveText(['Atlas', 'Ada Lovelace', 'Grace Hopper']);
+  await expect(pills).toHaveText(['DFAI', 'Ada Lovelace', 'Grace Hopper']);
   for (const pill of await pills.all()) await expect(pill).toHaveAttribute('data-hue', /^[a-z]+$/);
   await expect(next).not.toContainText('[[');
 
@@ -157,7 +157,7 @@ test('a relation set through the note reads as the note it names, everywhere it 
   await sidebarSection(page, 'dashboards')
     .getByRole('button', { name: 'Work', exact: true })
     .click();
-  await expect(page.getByLabel('By project').locator('.bars__label')).toHaveText(['Atlas']);
+  await expect(page.getByLabel('By project').locator('.bars__label')).toHaveText(['DFAI']);
 });
 
 test('a relation to a note that is not there reads as its bare name, marked missing', async ({

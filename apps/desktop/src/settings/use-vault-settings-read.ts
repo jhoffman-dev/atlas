@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { readVaultSettings, type MarkdownPort, type VaultFsPort } from '@atlas/application';
+import { readVaultSettings, type MarkdownPort, type VaultFsPort } from '@dfai/application';
 import { readAgain, vaultReadKey } from '../reads/query-client.ts';
 
 /** The vault's settings note as the window last read it. */

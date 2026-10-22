@@ -1,12 +1,12 @@
 import { useCallback } from 'react';
-import { newPropertyValue, type PropertyKind } from '@atlas/domain';
+import { newPropertyValue, type PropertyKind } from '@dfai/domain';
 import {
   addTypeProperty,
   type DefinedType,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
-import type { NewProperty } from '@atlas/ui';
+} from '@dfai/application';
+import type { NewProperty } from '@dfai/ui';
 import type { ReadTypesAgain } from './use-types.ts';
 
 /**

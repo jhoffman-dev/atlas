@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockIdOf, type EditorDocument, type EditorNode } from '@atlas/domain';
+import { blockIdOf, type EditorDocument, type EditorNode } from '@dfai/domain';
 import {
   parseMarkdownBody,
   renderBlock,

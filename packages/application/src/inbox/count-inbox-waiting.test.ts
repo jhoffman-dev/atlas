@@ -20,7 +20,7 @@ describe('countInboxWaiting', () => {
       'Inbox/Idea.md': 'A thought.\n',
       'Inbox/Proposals/Call Tobias.md': openProposal,
       'Inbox/Proposals/Done.md': answeredProposal,
-      'Projects/Atlas.md': jsonLinesNote({ type: 'project' }),
+      'Projects/DFAI.md': jsonLinesNote({ type: 'project' }),
     };
     const vault = proposalVault(files);
     const query = atlasQueryIndex({ markdown: vault.ports.markdown, files });
@@ -34,7 +34,7 @@ describe('countInboxWaiting', () => {
   });
 
   it('is zero with nothing waiting and no proposals folder', async () => {
-    const vault = proposalVault({ 'Projects/Atlas.md': jsonLinesNote({ type: 'project' }) });
+    const vault = proposalVault({ 'Projects/DFAI.md': jsonLinesNote({ type: 'project' }) });
     const query = atlasQueryIndex({ markdown: vault.ports.markdown, files: {} });
     const waiting = await countInboxWaiting({
       index: fakeIndexPort({ query }),

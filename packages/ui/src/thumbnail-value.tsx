@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { IMAGE_PICKER_ACCEPT } from '@atlas/domain';
+import { IMAGE_PICKER_ACCEPT } from '@dfai/domain';
 
 /**
  * A Thumbnail property: the picture itself, small, rather than the path it

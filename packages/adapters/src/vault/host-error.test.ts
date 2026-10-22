@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { VaultAccessError } from '@atlas/application';
+import { VaultAccessError } from '@dfai/application';
 import { throughHost } from './host-error.ts';
 
 describe('throughHost', () => {

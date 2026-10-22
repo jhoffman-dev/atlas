@@ -111,7 +111,7 @@ export async function preloadAll(preloads: readonly (() => Promise<void>)[]): Pr
   const settled = await Promise.allSettled(preloads.map((preload) => preload()));
   for (const result of settled) {
     if (result.status === 'rejected')
-      console.warn('A part of Atlas could not preload:', result.reason);
+      console.warn('A part of DFAI could not preload:', result.reason);
   }
 }
 

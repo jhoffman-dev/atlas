@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
-import { createVaultPath, hueOf, noteNames, relationHue, type PropertyDef } from '@atlas/domain';
+import { createVaultPath, hueOf, noteNames, relationHue, type PropertyDef } from '@dfai/domain';
 import { NoteNamesProvider } from './note-names.tsx';
 import { TableView, type TableResult, type TableSchema } from './table-view.tsx';
 

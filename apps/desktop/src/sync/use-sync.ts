@@ -4,7 +4,7 @@ import {
   DEFAULT_PUSH_DELAY_SECONDS,
   runsAutomationsHere,
   type SyncPhase,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   saveSyncSettings,
   syncSettingsOf,
@@ -22,7 +22,7 @@ import {
   type ThisMacPort,
   type VaultFsPort,
   type WindowClosingPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
 import type { SyncPauseStore } from './browser-sync-pause.ts';

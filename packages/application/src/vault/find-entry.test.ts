@@ -3,7 +3,7 @@
  * is "nothing there"; a folder that is there but fails to list is a failure.
  */
 import { describe, expect, it } from 'vitest';
-import { MIGRATION_RECORD_PATH, type VaultPath } from '@atlas/domain';
+import { MIGRATION_RECORD_PATH, type VaultPath } from '@dfai/domain';
 import { readMigrationRecord } from '../gtd/migration-record-file.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeVaultFs } from '../testing/fake-ports.ts';

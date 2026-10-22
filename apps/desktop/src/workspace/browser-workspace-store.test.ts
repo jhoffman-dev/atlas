@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createVaultPath, EMPTY_WORKSPACE, openInActiveTab, openInNewTab } from '@atlas/domain';
+import { createVaultPath, EMPTY_WORKSPACE, openInActiveTab, openInNewTab } from '@dfai/domain';
 import { browserWorkspaceStore } from './browser-workspace-store.ts';
 
 const note = (name: string) => ({ kind: 'note' as const, path: createVaultPath(`${name}.md`) });

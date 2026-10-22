@@ -8,7 +8,7 @@ import {
   type BoardRow,
   type CalendarEvent,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { CalendarAgenda } from './calendar-agenda.tsx';
 import type { CalendarGestures, ClockGesture } from './calendar-gestures.ts';
 import { answerCalendarKey } from './calendar-keys.ts';

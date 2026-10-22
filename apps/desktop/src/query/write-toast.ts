@@ -1,11 +1,11 @@
-import { noteTitle, type WriteRecord } from '@atlas/domain';
+import { noteTitle, type WriteRecord } from '@dfai/domain';
 import {
   ChangedSinceError,
   UnsavedTypingError,
   undoLastWrite,
   type UndoPanes,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import type { Toasts } from '../toasts/toasts.ts';
 import { errorMessage } from './error-message.ts';
 

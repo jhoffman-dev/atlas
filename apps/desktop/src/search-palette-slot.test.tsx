@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath } from '@atlas/domain';
-import { fakeIndexPort } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import { fakeIndexPort } from '@dfai/application';
 import { createOverlayStore, overlayNow, showOverlay } from './overlay-store.ts';
 import { createWorkspaceStore } from './workspace/workspace-store.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';

@@ -1,7 +1,7 @@
 /**
  * A25-01's review findings on Phase 25's domain: a rule file and its log are
  * text anyone could have written or synced, so each rule here is about what
- * that text may and may not make Atlas do. Pure; the clock is a fixed string.
+ * that text may and may not make DFAI do. Pure; the clock is a fixed string.
  */
 import { describe, expect, it } from 'vitest';
 import { parseAtlasQuery } from '../query-language/parse.ts';
@@ -290,7 +290,7 @@ describe('loggedActionProblem: whether a log line is something this rule could h
     expect(loggedActionProblem({ kind: 'set', values }, setLine('type', 'note'))).not.toBeNull();
   });
 
-  it('refuses a line naming one of Atlas’s own files', () => {
+  it('refuses a line naming one of DFAI’s own files', () => {
     const line = { ...setLine('flagged', undefined), path: p('.atlas/views/Board.md') };
     expect(loggedActionProblem(FLAG, line)).not.toBeNull();
   });

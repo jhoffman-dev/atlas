@@ -9,9 +9,9 @@ use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
-use atlas_lib::embeddings::fetch::ensure_model;
-use atlas_lib::embeddings::model::{Embedder, ModelSpec, Purpose};
-use atlas_lib::embeddings::{model_folder, MODEL};
+use dfai_lib::embeddings::fetch::ensure_model;
+use dfai_lib::embeddings::model::{Embedder, ModelSpec, Purpose};
+use dfai_lib::embeddings::{model_folder, MODEL};
 use tempfile::{tempdir_in, TempDir};
 
 /// The app's model at a repository that does not exist: a fix that refetches

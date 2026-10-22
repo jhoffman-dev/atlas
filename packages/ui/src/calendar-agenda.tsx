@@ -7,7 +7,7 @@ import {
   timeLabel,
   type CalendarEvent,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import { NoteFields } from './note-fields.tsx';
 

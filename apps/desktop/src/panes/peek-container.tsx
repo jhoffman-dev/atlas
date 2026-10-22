@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import type { TabId, VaultPath } from '@atlas/domain';
-import { PeekDialog, SaveStatus, useLinkHover, type OpenHow } from '@atlas/ui';
+import type { TabId, VaultPath } from '@dfai/domain';
+import { PeekDialog, SaveStatus, useLinkHover, type OpenHow } from '@dfai/ui';
 import { closePeek, openPeek, replacePeek, stepPeek, usePeek } from '../overlay-store.ts';
 import { leavePeek, leavingPeek, useHoldersFlushed } from './peek-moves.ts';
 import { peekPosition, type Peek } from '../overlay.ts';

@@ -5,8 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import type { BoardRow } from '@atlas/domain';
-import type { PropertyChanges } from '@atlas/application';
+import type { BoardRow } from '@dfai/domain';
+import type { PropertyChanges } from '@dfai/application';
 import { useBoardAsPending, usePendingCards, type BoardShape } from './use-pending-cards.ts';
 
 const ROWS: readonly BoardRow[] = [

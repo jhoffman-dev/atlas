@@ -111,7 +111,7 @@ function statusComparisons(expression: Expression | null) {
 const foldedType = (name: string) => name.trim().toLowerCase();
 
 /**
- * An Atlas query with each old status it compares with written as the one it
+ * A DFAI query with each old status it compares with written as the one it
  * becomes, in place: only the value's own characters change, so the rest of
  * the text — its spacing, its comments' worth of layout — stays as typed.
  *
@@ -195,7 +195,7 @@ function rewrittenFilters(
 /**
  * What the migration does to a saved view: a query view's text, or a table
  * view's `filters:`, moved on. A SQL view that mentions status is listed —
- * SQL is James's own, and Atlas does not rewrite it.
+ * SQL is James's own, and DFAI does not rewrite it.
  */
 export function viewStatusRewrite(
   frontmatter: Properties,
@@ -208,7 +208,7 @@ export function viewStatusRewrite(
     return /\bstatus\b/i.test(sql)
       ? {
           problem:
-            'It is a SQL view that reads status. Atlas does not rewrite SQL: check it by hand.',
+            'It is a SQL view that reads status. DFAI does not rewrite SQL: check it by hand.',
         }
       : null;
   }

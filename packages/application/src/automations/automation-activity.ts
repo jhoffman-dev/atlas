@@ -6,7 +6,7 @@ import {
   type LogEntry,
   type RuleNamed,
   type StoredAnswerDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

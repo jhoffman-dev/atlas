@@ -11,7 +11,7 @@ import {
   toSearchQuery,
   type VaultPath,
   wikiLinkTargetFor,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { OpenNotes } from '../api/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { searchScope } from '../index/search-notes.ts';

@@ -5,7 +5,7 @@ import {
   indexInWindowReport,
   notesNotIndexedReport,
   type NoteChange,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { deleteEntry } from '../vault/delete-entry.ts';

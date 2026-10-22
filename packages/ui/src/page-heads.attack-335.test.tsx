@@ -11,7 +11,7 @@ import {
   scopeGraph,
   type EditorDocument,
   type ListedTerm,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { TermsPage, type TermsContents } from './terms-page.tsx';
 import { GraphView } from './graph/graph-view.tsx';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';

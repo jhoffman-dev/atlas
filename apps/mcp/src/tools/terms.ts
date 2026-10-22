@@ -10,7 +10,7 @@ export const terms = defineTool({
     'How names in this vault are spelt: { terms, vocabulary, conflicts }. "terms" are the notes of ' +
     'type term: { path, canonical, variants, kind } — the right spelling, the ways a notetaker ' +
     'mishears it, and product, person, company, acronym or other. "vocabulary" is every spelling ' +
-    "Atlas puts right, longest first, { form, canonical, claims }: each term's spelling and " +
+    "DFAI puts right, longest first, { form, canonical, claims }: each term's spelling and " +
     "variants, and each person's and company's name as its own right spelling with its note's " +
     'variants — their aliases ' +
     'are not in it, they link people and never correct text. A form matches exactly as written, ' +

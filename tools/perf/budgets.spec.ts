@@ -791,13 +791,13 @@ async function runALongAtlasQuery(pass: Pass): Promise<void> {
       '[role="radiogroup"][aria-label="Query language"]',
     ),
   );
-  // Atlas, whichever language the query before this one left the page in.
+  // DFAI, whichever language the query before this one left the page in.
   await pass.setUp(
     phase(
       () =>
         page
           .getByRole('radiogroup', { name: 'Query language' })
-          .getByRole('radio', { name: 'Atlas query' })
+          .getByRole('radio', { name: 'DFAI query' })
           .click(),
       exists,
       '[role="radiogroup"][aria-label="Edit the query as"]',
@@ -815,7 +815,7 @@ async function runALongAtlasQuery(pass: Pass): Promise<void> {
     ),
   );
   // The text runs once it settles: typing it is running it.
-  await pass.budgeted('Run a 920-row Atlas query', [
+  await pass.budgeted('Run a 920-row DFAI query', [
     phase(
       () => page.locator(ATLAS_EDITOR).fill(ATLAS_EVERY_TYPED),
       (text) => document.querySelector('.query__count')?.textContent === text,

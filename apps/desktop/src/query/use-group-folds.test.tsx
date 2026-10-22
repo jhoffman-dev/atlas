@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import type { GroupFoldStore } from '@atlas/ui';
+import type { GroupFoldStore } from '@dfai/ui';
 import { useGroupFolds } from './use-group-folds.ts';
 
 /** A store held in a map, as localStorage would hold it. */

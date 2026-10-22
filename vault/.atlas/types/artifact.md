@@ -27,7 +27,7 @@ properties:
 
 # Artifact
 
-Something made in Claude — a page, a deck, a design, a doc — kept in Atlas.
+Something made in Claude — a page, a deck, a design, a doc — kept in DFAI.
 One note per artifact, in `artifacts/`: its `url` is the claude.ai link, and
 its body is whatever you want to remember about it.
 
@@ -42,7 +42,7 @@ for its copy.
 ## Ways in
 
 - **New artifact** (the sidebar's New menu, the search palette, or pasting a
-  claude.ai artifact link into it) keeps the link. Atlas cannot fetch a private
+  claude.ai artifact link into it) keeps the link. DFAI cannot fetch a private
   claude.ai page, so the copy comes from a file: drop the `.html` on the
   dialog, or on the note.
 - **From Claude**, over the local API: `atlas_save_artifact` in the MCP server
@@ -51,10 +51,10 @@ for its copy.
 ## The thumbnail
 
 `cover` fronts the note's card in the Artifacts gallery. When a copy is saved —
-from the dialog, by dropping a page on the note, or from Claude — Atlas pictures
+from the dialog, by dropping a page on the note, or from Claude — DFAI pictures
 its first screen in a webview of its own, with no way back to the app, and keeps
 the picture in the copy as `atlas-thumbnail.png`; `cover` then names it. A cover
-you set to anything else is yours: Atlas never replaces it on its own.
+you set to anything else is yours: DFAI never replaces it on its own.
 Regenerate (on the saved copy's toolbar, or on the Thumbnail row) pictures the
 copy again and makes it the cover whatever it was; Clear takes it off for good
 (`cover: false`), so only Regenerate puts one back. "Generate missing

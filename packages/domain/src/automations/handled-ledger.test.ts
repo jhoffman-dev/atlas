@@ -48,7 +48,7 @@ const letGo = (n: number): Extract<LogEntry, { kind: 'letGo' }> => ({
   count: 1,
 });
 
-/** Appends as Atlas does: at the instant the clock gives, which by default is the entry's wall time read as UTC. */
+/** Appends as DFAI does: at the instant the clock gives, which by default is the entry's wall time read as UTC. */
 const append = (
   text: string | null,
   entry: LogEntry,
@@ -328,7 +328,7 @@ describe.each([
   });
 });
 
-describe('a ledger and the entries a pre-ledger Atlas added after it', () => {
+describe('a ledger and the entries a pre-ledger DFAI added after it', () => {
   const oldAtlasAppends = (text: string, entry: LogEntry): string =>
     `${text.replace(/\n*$/, '\n')}\n${formatLogEntry(entry)}`;
 
@@ -363,7 +363,7 @@ describe('a ledger and the entries a pre-ledger Atlas added after it', () => {
   it('lays over only entries after the stamped time when the stamped entry is gone', () => {
     let text: string | null = null;
     for (const at of [0, 1, 2]) text = append(text, answeredRun(at), { maxLedgerRecords: 2 });
-    // The stamped entry (2) and the oldest (0) were dropped by an Atlas that keeps fewer.
+    // The stamped entry (2) and the oldest (0) were dropped by a DFAI that keeps fewer.
     const kept = [answeredRun(1), answeredRun(3)].map(formatLogEntry).join('\n');
     const handled = memoryOf(`${upToEntries(text!)}${kept}`);
 

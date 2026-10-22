@@ -10,7 +10,7 @@ import {
   type PropertyKind,
   type SidebarIcon,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { writeFrontmatterChanges } from '../query/set-property.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

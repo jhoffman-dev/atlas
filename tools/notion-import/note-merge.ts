@@ -47,13 +47,13 @@ export interface NoteNow {
   readonly body: string;
 }
 
-/** What to change in a note so it follows Notion, and what was left as Atlas has it. */
+/** What to change in a note so it follows Notion, and what was left as DFAI has it. */
 export interface Merge {
   /** Properties to set; a null removes the key. */
   readonly changes: Readonly<Record<string, unknown>>;
   /** The new body, or null to leave it as it is. */
   readonly body: string | null;
-  /** Properties (and `body`) changed both in Atlas and in Notion since the last run: Atlas's is kept. */
+  /** Properties (and `body`) changed both in DFAI and in Notion since the last run: DFAI's is kept. */
   readonly kept: readonly string[];
   /** What this run brought in, for the record. */
   readonly imported: ImportedPage;
@@ -68,10 +68,10 @@ interface Sides {
 
 /**
  * What one value comes to. A side that has not moved since the last run
- * gives way to the side that has: Notion's change is written where Atlas
- * left the value alone, and an edit made in Atlas stands while Notion's
+ * gives way to the side that has: Notion's change is written where DFAI
+ * left the value alone, and an edit made in DFAI stands while Notion's
  * value has not changed. When both have changed, to different values, the
- * note keeps Atlas's and the value is listed: never written over.
+ * note keeps DFAI's and the value is listed: never written over.
  */
 function settle({ last, now, notion }: Sides): 'same' | 'take' | 'keep' | 'kept' {
   if (now === notion) return 'same';
@@ -90,7 +90,7 @@ function settle({ last, now, notion }: Sides): 'same' | 'take' | 'keep' | 'kept'
  * Notion changes nothing. A value Notion holds that could not be read says
  * nothing, so the note keeps its own and the record its last digest. A
  * property set only where the note has none is offered once: one taken out
- * in Atlas is not put back.
+ * in DFAI is not put back.
  */
 export function mergeNote(args: {
   readonly now: NoteNow;

@@ -1,13 +1,13 @@
-# Engineering rules — Atlas
+# Engineering rules — DFAI
 
 These are the engineering rules for this repository. Together with `CLAUDE.md`
 they are the authority here, and they **take precedence over any user-level
 rules or agents** (`~/.claude/CLAUDE.md`, `~/.claude/agents/`) on whatever
 machine the work happens on. A machine may carry a different standard — a work
-laptop, say — and that standard does not apply to Atlas. Where the two
+laptop, say — and that standard does not apply to DFAI. Where the two
 disagree, this file and `CLAUDE.md` win.
 
-`CLAUDE.md` adds the Atlas specifics (stack, commands, the traps this codebase
+`CLAUDE.md` adds the DFAI specifics (stack, commands, the traps this codebase
 has) and may tighten these rules, but never contradicts them. If the project
 genuinely needs an exception, it says so explicitly and says why.
 
@@ -21,7 +21,7 @@ given, write `[Your name]` instead.
 Infrastructure/adapters → application + domain. Presentation → application (and
 domain _types_ only). Never the reverse, and never a cycle.
 
-In Atlas the four roles are the `packages/*` layers (see "Shape of the code" in
+In DFAI the four roles are the `packages/*` layers (see "Shape of the code" in
 `CLAUDE.md`), and ESLint enforces the direction:
 
 - **Domain** — the rules the product actually is: entities, invariants,

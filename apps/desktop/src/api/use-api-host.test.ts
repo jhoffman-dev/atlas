@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import type { VaultLocation } from '@atlas/application';
+import type { VaultLocation } from '@dfai/application';
 import { useApiHost } from './use-api-host.ts';
 
 const WORK: VaultLocation = { absolutePath: '/Users/j/Work', name: 'Work' };

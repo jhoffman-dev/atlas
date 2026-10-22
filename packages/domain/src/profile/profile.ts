@@ -21,7 +21,7 @@ export interface Profile {
 export const EMPTY_PROFILE: Profile = { name: null, preferredName: null };
 
 /**
- * What Atlas knows of the person: their profile, or 'unknown' while the
+ * What DFAI knows of the person: their profile, or 'unknown' while the
  * settings are being read or cannot be. Unknown is not the same as no name —
  * the model is told to ask, not to write a placeholder.
  */
@@ -94,7 +94,7 @@ export function changeProfile(profile: Profile, change: ProfileChange): Profile 
 /**
  * The settings changes that store a profile: only the names that differ from
  * what was read, so a key the person did not touch keeps whatever the file
- * holds — even a value Atlas cannot show, such as a list or a name past the
+ * holds — even a value DFAI cannot show, such as a list or a name past the
  * limit. A blank name removes its key rather than writing an empty one.
  */
 export function profileSettingsChanges(

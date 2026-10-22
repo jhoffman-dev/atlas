@@ -8,7 +8,7 @@ export const scheduleTask = defineTool({
   name: 'atlas_schedule_task',
   title: 'Schedule a task into a block',
   description:
-    'Set time aside for a task on the calendar, as dragging it onto empty time in Atlas does: ' +
+    'Set time aside for a task on the calendar, as dragging it onto empty time in DFAI does: ' +
     'makes a new block note (type: block) from "start" for "minutes", linking the task in its ' +
     '"tasks", from the Block template when the vault has one, at the top of the vault, named ' +
     '"<task> block" (numbered when taken). Call it again to split a task across another block. ' +

@@ -16,7 +16,7 @@ import {
   setRelation,
   splitFrontmatter,
   typeFrontmatterChanges,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { parseFrontmatterProperties } from './frontmatter.ts';
 import { updateFrontmatter } from './frontmatter-write.ts';
 

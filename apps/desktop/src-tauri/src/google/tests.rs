@@ -97,7 +97,7 @@ fn create_calendar() -> ApiCall {
     ApiCall {
         method: "POST".into(),
         path: "/calendar/v3/calendars".into(),
-        body: Some(r#"{"summary":"Atlas blocks"}"#.into()),
+        body: Some(r#"{"summary":"DFAI blocks"}"#.into()),
     }
 }
 
@@ -120,7 +120,7 @@ async fn connecting_keeps_the_refresh_token_and_lists_the_dedicated_calendar() {
     let listed = setup.session().call(&get(CALENDAR_LIST)).await.unwrap();
     assert_eq!(listed.status, 200);
     assert!(
-        listed.body.contains(r#""summary":"Atlas blocks""#),
+        listed.body.contains(r#""summary":"DFAI blocks""#),
         "{}",
         listed.body
     );
@@ -220,7 +220,7 @@ async fn a_browser_that_never_comes_back_times_out_and_the_next_sign_in_can_star
 #[tokio::test(flavor = "multi_thread")]
 async fn cancelling_ends_the_sign_in_waiting_in_the_browser() {
     let setup = Setup::new().await;
-    // The person clicks Cancel in Atlas once the browser is open.
+    // The person clicks Cancel in DFAI once the browser is open.
     let open = |_: &Url| {
         setup.state.cancel_sign_in();
         Ok(())
@@ -395,7 +395,7 @@ async fn disconnecting_while_google_cannot_be_told_still_forgets_and_says_so() {
 async fn disconnecting_a_sign_in_google_already_ended_counts_as_revoked() {
     let setup = Setup::new().await;
     setup.connect(Browser::Allows).await.unwrap();
-    // Removed from the Google account's settings, say, before Atlas was told.
+    // Removed from the Google account's settings, say, before DFAI was told.
     setup.google().revoke_everything();
 
     let disconnected = setup.session().disconnect().await.unwrap();
@@ -525,7 +525,7 @@ async fn the_browser_hears_connected_only_once_the_sign_in_is_kept() {
     setup.connect(Browser::Allows).await.unwrap();
     assert_eq!(
         pages_shown(&setup).await,
-        vec![page_saying("Atlas is connected to Google Calendar.")]
+        vec![page_saying("DFAI is connected to Google Calendar.")]
     );
 }
 
@@ -538,7 +538,7 @@ async fn the_browser_hears_not_connected_when_the_sign_in_is_not_kept() {
 
     let pages = pages_shown(&setup).await;
     assert_eq!(pages.len(), 1);
-    assert!(pages[0].contains("Atlas was not connected"), "{}", pages[0]);
+    assert!(pages[0].contains("DFAI was not connected"), "{}", pages[0]);
 }
 
 /// What the browser's tab showed, once it has read the page: the sign-in
@@ -561,12 +561,12 @@ async fn pages_shown(setup: &Setup) -> Vec<String> {
 /// The page the loopback answers with, around `text`.
 fn page_saying(text: &str) -> String {
     let pages = [
-        "Atlas is connected to Google Calendar. You can close this tab.",
-        "Atlas was not connected to Google Calendar. You can close this tab; Atlas says why in Settings.",
+        "DFAI is connected to Google Calendar. You can close this tab.",
+        "DFAI was not connected to Google Calendar. You can close this tab; DFAI says why in Settings.",
     ];
     let full = pages.iter().find(|page| page.starts_with(text)).unwrap();
     format!(
-        "<!doctype html><meta charset=\"utf-8\"><title>Atlas</title>\
+        "<!doctype html><meta charset=\"utf-8\"><title>DFAI</title>\
          <body style=\"font:16px system-ui;margin:3em\"><p>{full}</p>"
     )
 }
@@ -861,7 +861,7 @@ const FLOOD_CHILD: &str = "ATLAS_TEST_LOOPBACK_FLOOD_CHILD";
 
 /// ADR-0030: "another program on the Mac can neither end the sign-in nor slip
 /// its own code into it". A program that opens more connections to the
-/// loopback than Atlas has file descriptors makes `accept` fail once, and
+/// loopback than DFAI has file descriptors makes `accept` fail once, and
 /// `Loopback::wait` turns that one transient error into the end of the
 /// sign-in. (A Finder-launched app has 256 descriptors; the listener takes
 /// connections without limit.) The flood comes from this test process; the

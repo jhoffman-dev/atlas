@@ -64,7 +64,7 @@ async function openQueryPage(page: Page) {
   await page.getByRole('button', { name: 'New in Views' }).click();
   await page.getByRole('menuitem', { name: 'New query' }).click();
   await expect(page.getByRole('heading', { name: 'Query', exact: true })).toBeVisible();
-  // The page opens on an Atlas query (P24); these tests write SQL by hand.
+  // The page opens on a DFAI query (P24); these tests write SQL by hand.
   await page
     .getByRole('radiogroup', { name: 'Query language' })
     .getByRole('radio', { name: 'SQL' })

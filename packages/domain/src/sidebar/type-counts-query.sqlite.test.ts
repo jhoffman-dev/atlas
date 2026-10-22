@@ -54,7 +54,7 @@ describe('compileTypeCountsQuery', () => {
     expect(countsIn({ 'tasks/a.md': { type: 'task' } }, ['task', 'person'])).toEqual({ task: 1 });
   });
 
-  it('does not count the templates and definitions Atlas keeps in .atlas, but does a note in a folder named like it', () => {
+  it('does not count the templates and definitions DFAI keeps in .atlas, but does a note in a folder named like it', () => {
     expect(
       countsIn(
         {
@@ -85,7 +85,7 @@ describe('compileTypeCountsQuery', () => {
     expect(
       countsIn(
         {
-          'Atlas.md': { type: 'project' },
+          'DFAI.md': { type: 'project' },
           'Garden.md': { type: 'project', para: 'area' },
           'Old Plan.md': { type: 'project', para: ' Archive ' },
         },

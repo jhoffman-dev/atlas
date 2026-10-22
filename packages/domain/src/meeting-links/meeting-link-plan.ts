@@ -164,7 +164,7 @@ function isFiled(input: MeetingLinkInput): boolean {
   return linkedNotes(input.properties[MEETING_PROJECT_KEY]).length > 0;
 }
 
-/** Whether a relation's value is links Atlas can add to: none yet, one, or a list of them. */
+/** Whether a relation's value is links DFAI can add to: none yet, one, or a list of them. */
 function holdsLinks(value: unknown): boolean {
   if (value === undefined || value === null || typeof value === 'string') return true;
   return Array.isArray(value) && value.every((item) => typeof item === 'string');

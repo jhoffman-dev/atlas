@@ -5,15 +5,15 @@ import {
   type ObjectType,
   type VaultPath,
   type WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createBookmarkReader,
   type BookmarkReader,
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
-import type { BookmarkPreview, NoteBookmarks } from '@atlas/ui';
+} from '@dfai/application';
+import type { BookmarkPreview, NoteBookmarks } from '@dfai/ui';
 import { useVaultImages } from './use-images.ts';
 
 type LoadPicture = (args: { path: string; src: string }) => Promise<string | null>;

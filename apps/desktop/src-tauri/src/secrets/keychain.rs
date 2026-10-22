@@ -8,7 +8,17 @@
 
 use super::SecretStore;
 
-pub struct KeychainStore;
+/// The items filed under one service name: DFAI's own, or, for the one-time
+/// move from Atlas (`rename_migration`), the ones Atlas filed.
+pub struct KeychainStore {
+    service: &'static str,
+}
+
+impl KeychainStore {
+    pub fn for_service(service: &'static str) -> Self {
+        Self { service }
+    }
+}
 
 #[cfg(target_os = "macos")]
 mod platform {
@@ -19,20 +29,18 @@ mod platform {
     use keyring_core::api::CredentialStoreApi;
     use keyring_core::{Entry, Error};
 
-    use crate::secrets::SERVICE;
-
     fn store() -> Result<Arc<Store>, String> {
         Store::new().map_err(|error| describe(&error))
     }
 
-    pub fn entry(account: &str) -> Result<Entry, String> {
+    pub fn entry(service: &str, account: &str) -> Result<Entry, String> {
         store()?
-            .build(SERVICE, account, None)
+            .build(service, account, None)
             .map_err(|error| describe(&error))
     }
 
-    pub fn accounts() -> Result<Vec<String>, String> {
-        let spec = HashMap::from([("service", SERVICE)]);
+    pub fn accounts(service: &str) -> Result<Vec<String>, String> {
+        let spec = HashMap::from([("service", service)]);
         let entries = store()?.search(&spec).map_err(|error| describe(&error))?;
         Ok(entries
             .iter()
@@ -61,13 +69,13 @@ mod platform {
 #[cfg(target_os = "macos")]
 impl SecretStore for KeychainStore {
     fn set(&self, account: &str, value: &str) -> Result<(), String> {
-        platform::entry(account)?
+        platform::entry(self.service, account)?
             .set_password(value)
             .map_err(|error| platform::describe(&error))
     }
 
     fn get(&self, account: &str) -> Result<Option<String>, String> {
-        match platform::entry(account)?.get_password() {
+        match platform::entry(self.service, account)?.get_password() {
             Ok(value) => Ok(Some(value)),
             Err(platform::KeyringError::NoEntry) => Ok(None),
             Err(error) => Err(platform::describe(&error)),
@@ -75,18 +83,18 @@ impl SecretStore for KeychainStore {
     }
 
     fn delete(&self, account: &str) -> Result<(), String> {
-        match platform::entry(account)?.delete_credential() {
+        match platform::entry(self.service, account)?.delete_credential() {
             Ok(()) | Err(platform::KeyringError::NoEntry) => Ok(()),
             Err(error) => Err(platform::describe(&error)),
         }
     }
 
     fn accounts(&self) -> Result<Vec<String>, String> {
-        platform::accounts()
+        platform::accounts(self.service)
     }
 }
 
-/// Atlas ships for macOS only; elsewhere there is no keychain to use, and a
+/// DFAI ships for macOS only; elsewhere there is no keychain to use, and a
 /// source that names a secret says so rather than sending nothing.
 #[cfg(not(target_os = "macos"))]
 impl SecretStore for KeychainStore {
@@ -117,8 +125,8 @@ mod tests {
     #[test]
     #[ignore = "writes to the login Keychain of whoever runs it"]
     fn keychain_round_trip() {
-        let store = KeychainStore;
-        let account = "atlas-test/round-trip";
+        let store = KeychainStore::for_service(crate::secrets::SERVICE);
+        let account = "dfai-test/round-trip";
 
         store.set(account, "first").unwrap();
         store.set(account, "second").unwrap();

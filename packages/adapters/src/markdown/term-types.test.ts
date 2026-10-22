@@ -8,7 +8,7 @@ import {
   TERM_TYPE,
   VARIANTS_KEY,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { parseFrontmatterProperties } from './frontmatter.ts';
 
 /*

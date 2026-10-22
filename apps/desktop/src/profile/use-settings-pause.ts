@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { VAULT_SETTINGS_PATH } from '@atlas/domain';
-import type { ActivityRecorder } from '@atlas/application';
+import { VAULT_SETTINGS_PATH } from '@dfai/domain';
+import type { ActivityRecorder } from '@dfai/application';
 
 /** What Activity says when the settings note stops reading, and when it reads again. */
 export const pausedMessage = (problem: string): string =>

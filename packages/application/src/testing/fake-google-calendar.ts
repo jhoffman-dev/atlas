@@ -1,4 +1,4 @@
-import type { GoogleCalendar } from '@atlas/domain';
+import type { GoogleCalendar } from '@dfai/domain';
 import type { GoogleCalendarPort, GoogleConnection } from '../google-calendar/ports.ts';
 
 /**

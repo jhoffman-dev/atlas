@@ -9,7 +9,7 @@ import {
   linkTargets,
   resolveWikiLinkTarget,
   type MeetingIdentity,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { MEETING_BODY } from '../testing/meeting-files.ts';
 import {
   jsonLinesNote,

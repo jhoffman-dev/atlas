@@ -126,7 +126,7 @@ describe('a meeting file that follows meeting/v1', () => {
     expect(result.ok && result.meeting.transcriptClock).toBe('wall');
   });
 
-  it('may carry keys the contract does not name, which Atlas adds later', () => {
+  it('may carry keys the contract does not name, which DFAI adds later', () => {
     expect(validate({ properties: withValue('atlas_import_error', 'earlier') }).ok).toBe(true);
   });
 });

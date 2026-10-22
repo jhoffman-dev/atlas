@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TYPE_ICONS } from '@atlas/domain';
+import { TYPE_ICONS } from '@dfai/domain';
 import { NewTypeDialog } from './new-type-dialog.tsx';
 
 function dialog(error: string | null = null) {

@@ -19,7 +19,7 @@ import type {
   NoteEvent,
   RunTrigger,
   SetValue,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /** Every path the API serves starts with this. A breaking change gets `/v2`. */
 export const API_VERSION_PREFIX = '/v1';
@@ -88,14 +88,14 @@ export type ApiErrorCode =
   | 'invalid'
   /** `ifModified` did not match: the note changed since the caller read it. */
   | 'conflict'
-  /** The note is open in Atlas with unsaved edits, so a body write would clobber them. */
+  /** The note is open in DFAI with unsaved edits, so a body write would clobber them. */
   | 'unsaved_in_app'
   /**
    * A note already exists at the path a create asked for, or a tag rename
    * would merge into a tag in use and was not sent with `merge: true`.
    */
   | 'exists'
-  /** No vault is open in Atlas. */
+  /** No vault is open in DFAI. */
   | 'no_vault'
   /** The SQL was rejected by the read-only connection, or ran past its budget. */
   | 'query_failed'
@@ -110,7 +110,7 @@ export interface ApiErrorBody {
     readonly message: string;
     /** Seconds to wait before asking again; only on a `conflict` that is over with time. */
     readonly retryAfter?: number;
-    /** Where in an Atlas query's text the problem is; only on an `invalid` query. */
+    /** Where in a DFAI query's text the problem is; only on an `invalid` query. */
     readonly at?: ApiTextPosition;
   };
 }
@@ -315,7 +315,7 @@ export interface ApiRows {
 }
 
 /**
- * A group of an Atlas query's rows, as the app groups a list or a table: a
+ * A group of a DFAI query's rows, as the app groups a list or a table: a
  * select's groups in the type's order, a relation's named for the note, the
  * rows with no value last. A group no row is in is left out.
  */
@@ -329,7 +329,7 @@ export interface ApiQueryGroup {
   readonly groups: readonly ApiQueryGroup[];
 }
 
-/** An Atlas query's answer: its rows, and its groups when it has `GROUP BY`. */
+/** A DFAI query's answer: its rows, and its groups when it has `GROUP BY`. */
 export interface ApiAtlasQueryRows extends ApiRows {
   readonly groups?: readonly ApiQueryGroup[];
 }
@@ -406,7 +406,7 @@ export interface ApiTaskSchedule {
   readonly overBy: number;
 }
 
-/** An Atlas query (ADR-0019), run read-only against the vault's types and notes. */
+/** A DFAI query (ADR-0019), run read-only against the vault's types and notes. */
 export interface ApiAtlasQueryBody {
   /** The query's text, e.g. `FROM task WHERE status != done SORT BY due`. */
   readonly query: string;
@@ -575,7 +575,7 @@ export interface ApiArchiveOutcome {
    * Each path that did not move, with why — or that moved and was then not
    * fully updated, under where it went — and each note whose links to them
    * could not be rewritten. The rest of the batch carries on. `code` is
-   * `unsaved_in_app` for a note left alone because it is open in Atlas with
+   * `unsaved_in_app` for a note left alone because it is open in DFAI with
    * unsaved typing, which the API never saves.
    */
   readonly failed: readonly {
@@ -626,7 +626,7 @@ export interface ApiMeeting {
    * `duplicate` or `error` (a stamp cleared by hand reads `imported`, as the
    * import reads it); `pending` while it waits in `Inbox/Meetings/` for the
    * Mac that imports; null for a meeting elsewhere the import never handled —
-   * one filed before Atlas imported meetings, or made by hand.
+   * one filed before DFAI imported meetings, or made by hand.
    */
   readonly importOutcome: 'imported' | 'duplicate' | 'error' | 'pending' | null;
   /** Why it failed the import contract (`atlas_import_error`), or null when it imported. */
@@ -1078,7 +1078,7 @@ export interface ApiVocabularyClaim {
   readonly source: 'term' | 'person' | 'company';
 }
 
-/** A spelling Atlas puts right, what to, and every note that says so. */
+/** A spelling DFAI puts right, what to, and every note that says so. */
 export interface ApiVocabularyEntry {
   readonly form: string;
   readonly canonical: string;
@@ -1117,7 +1117,7 @@ export interface ApiAutomation {
   readonly when: string;
   /** The note that sets it off (P29-01), or null for a rule on a clock, on opening or by hand. */
   readonly note: ApiNoteTrigger | null;
-  /** The Atlas query naming its notes. */
+  /** The DFAI query naming its notes. */
   readonly which: string;
   /** Only notes not modified in this many days; null for any. */
   readonly olderThanDays: number | null;
@@ -1499,7 +1499,7 @@ export const API_ROUTES = [
     method: 'GET',
     path: '/v1/status',
     summary:
-      'What Atlas has open, whether its index is ready, and whether Google Calendar is connected.',
+      'What DFAI has open, whether its index is ready, and whether Google Calendar is connected.',
   },
   {
     method: 'GET',
@@ -1592,7 +1592,7 @@ export const API_ROUTES = [
     method: 'POST',
     path: '/v1/atlas-query',
     summary:
-      'Run an Atlas query across types: rows, and its groups and sub-groups. `context` names the note `this` means.',
+      'Run a DFAI query across types: rows, and its groups and sub-groups. `context` names the note `this` means.',
   },
   {
     method: 'POST',
@@ -1727,7 +1727,7 @@ export const API_ROUTES = [
   {
     method: 'GET',
     path: '/v1/terms',
-    summary: 'The vocabulary: every term, every spelling Atlas puts right, and the conflicts.',
+    summary: 'The vocabulary: every term, every spelling DFAI puts right, and the conflicts.',
   },
   {
     method: 'GET',

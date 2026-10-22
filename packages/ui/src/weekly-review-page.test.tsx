@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type ReviewProject, type ReviewTask } from '@atlas/domain';
-import type { WeeklyReviewReport } from '@atlas/application';
+import { createVaultPath, type ReviewProject, type ReviewTask } from '@dfai/domain';
+import type { WeeklyReviewReport } from '@dfai/application';
 import { WeeklyReviewPage, type WeeklyReviewPageProps } from './weekly-review-page.tsx';
 
 const task = (title: string, fields: Partial<ReviewTask> = {}): ReviewTask => ({

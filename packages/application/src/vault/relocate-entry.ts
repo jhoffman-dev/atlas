@@ -15,7 +15,7 @@ import {
   type MovableEntry,
   type NameClash,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { forgetNotes } from '../index/refresh-index.ts';
 import { withDeclaredType } from './declared-type.ts';

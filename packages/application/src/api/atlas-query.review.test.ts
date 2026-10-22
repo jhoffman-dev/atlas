@@ -1,4 +1,4 @@
-import type { BoardRow, RowGroup } from '@atlas/domain';
+import type { BoardRow, RowGroup } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
@@ -17,8 +17,8 @@ const FILES: Record<string, string> = {
   }),
   '.atlas/types/project.md': jsonNote({ name: 'project', label: 'Project', properties: {} }),
   '.atlas/templates/Project.md': jsonNote({ type: 'project', title: 'Secret plans' }),
-  'projects/Atlas.md': jsonNote({ type: 'project', title: 'Atlas app' }),
-  'tasks/A.md': jsonNote({ type: 'task', project: '[[Atlas]]' }),
+  'projects/DFAI.md': jsonNote({ type: 'project', title: 'DFAI app' }),
+  'tasks/A.md': jsonNote({ type: 'task', project: '[[DFAI]]' }),
   'tasks/B.md': jsonNote({ type: 'task', project: '[[.atlas/templates/Project]]' }),
   '.atlas/views/Tasks.md': jsonNote({ atlas: 'view', type: 'task', layout: 'table' }),
   '.atlas/views/Sql.md': jsonNote({
@@ -47,7 +47,7 @@ describe('POST /v1/atlas-query: group labels', () => {
     const response = await ask(vault(), { query: 'FROM task GROUP BY project' });
     const groups = bodyOf(response)['groups'] as ApiQueryGroup[];
     const labels = groups.map((group) => group.label);
-    expect(labels).toContain('Atlas app');
+    expect(labels).toContain('DFAI app');
     expect(labels).not.toContain('Secret plans');
   });
 });

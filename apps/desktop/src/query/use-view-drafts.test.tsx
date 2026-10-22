@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import type { VaultPath, ViewEdits } from '@atlas/domain';
+import type { VaultPath, ViewEdits } from '@dfai/domain';
 import { useViewDrafts } from './use-view-drafts.ts';
 
 const BOARD = '.atlas/views/Board.md';

@@ -20,7 +20,7 @@ import {
   type EventInRange,
   type EventTime,
   type ViewQuery,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ApiError } from './api-error.ts';
 import type { ApiCalendar, ApiCalendarEvent } from './contract.ts';
 import { bodyObject, countOf, optionalString, type Fields } from './fields.ts';

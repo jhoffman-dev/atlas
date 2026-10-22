@@ -5,9 +5,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { parseObjectType } from '@atlas/domain';
-import { fakeVaultFs, recordingActivity, TaskRuleRefusedError } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { parseObjectType } from '@dfai/domain';
+import { fakeVaultFs, recordingActivity, TaskRuleRefusedError } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useCardCreation } from './use-card-creation.ts';
 
 const TASK = parseObjectType({

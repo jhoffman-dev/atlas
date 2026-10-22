@@ -7,8 +7,8 @@ import {
   syncBadge,
   syncStanding,
   type SyncPhase,
-} from '@atlas/domain';
-import type { SyncSettingsView } from '@atlas/ui';
+} from '@dfai/domain';
+import type { SyncSettingsView } from '@dfai/ui';
 import type { SyncController } from './use-sync.ts';
 
 /** A time as this Mac's clock shows it, to the minute. */

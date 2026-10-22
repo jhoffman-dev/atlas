@@ -40,7 +40,7 @@ import {
   type VaultEntry,
   type VaultPath,
   typeShownAt,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createNoteChanges,
   createOwnWrites,
@@ -69,7 +69,7 @@ import {
   type GranolaPort,
   type GranolaPullRecords,
   type PageSnapshotPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   AppShell,
   ASIDE_WIDTH,
@@ -97,7 +97,7 @@ import {
   Toast,
   type AppInfoState,
   type OpenHow,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';

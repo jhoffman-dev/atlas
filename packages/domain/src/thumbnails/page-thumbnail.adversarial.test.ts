@@ -2,7 +2,7 @@
  * Attacks on the thumbnail property's rules (U-15).
  *
  * Each test states something `page-thumbnail.ts` already claims — "empty or
- * `auto` means Atlas pictures the page", "a cleared one falls back to the
+ * `auto` means DFAI pictures the page", "a cleared one falls back to the
  * note's cover or first image", "pictured once it rests" — and feeds it a
  * value the vault can really hold. A failure is a bug in the rules.
  */
@@ -82,7 +82,7 @@ describe('a thumbnail left empty means auto', () => {
     many: false,
   };
 
-  it('a required thumbnail left empty is valid: Atlas pictures the page', () => {
+  it('a required thumbnail left empty is valid: DFAI pictures the page', () => {
     expect(validatePropertyValue({ def: required, value: undefined })).toBeNull();
   });
 

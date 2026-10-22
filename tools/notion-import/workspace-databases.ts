@@ -84,7 +84,7 @@ interface PropertyRule {
 type ColumnRule =
   PropertyRule | { readonly special: 'status' | 'para-type' } | { readonly skip: string };
 
-const BACK_LINK = { skip: 'it links back here, and Atlas shows that as a backlink' };
+const BACK_LINK = { skip: 'it links back here, and DFAI shows that as a backlink' };
 const property = (key: string, kind: ValueKind, endKey?: string): PropertyRule => ({
   key,
   kind,
@@ -448,7 +448,7 @@ const STAMP = { source: 'notion' } as const;
 
 /**
  * The note a row of a Notion database should be: where it goes, its type,
- * and its properties, relations written as links to the names Atlas gives
+ * and its properties, relations written as links to the names DFAI gives
  * their notes. The page's id is kept as `notion_id`, which is how a later
  * run finds the note wherever it was moved.
  */

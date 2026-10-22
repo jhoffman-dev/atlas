@@ -4,7 +4,7 @@ import {
   granolaFailureWords,
   parseGranolaSettings,
   type GranolaSettings,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   GranolaError,
   type ExternalLinkPort,
@@ -12,8 +12,8 @@ import {
   type GranolaPullReport,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
-import type { GranolaKeyState, GranolaNoteLine, GranolaView } from '@atlas/ui';
+} from '@dfai/application';
+import type { GranolaKeyState, GranolaNoteLine, GranolaView } from '@dfai/ui';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { clockTime } from '../sync/sync-view.ts';

@@ -18,8 +18,8 @@ export function VaultEmptyState({
           Open a vault
         </h1>
         <p className="empty__body">
-          Choose the folder that holds your markdown notes. Atlas works on the files where they are
-          — nothing is imported, moved or converted.
+          Choose the folder that holds your markdown notes. DFAI works on the files where they are —
+          nothing is imported, moved or converted.
         </p>
         <div className="empty__actions">
           <button className="btn btn--secondary" type="button" onClick={onChooseVault}>

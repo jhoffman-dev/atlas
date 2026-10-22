@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardRow } from '@atlas/domain';
+import type { BoardRow } from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 import type { DoneTicks } from './done-checkbox.tsx';
 import { FeedView } from './feed-view.tsx';

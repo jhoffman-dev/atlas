@@ -1,4 +1,4 @@
-import { NO_SPAN, readQueryBlock, type ObjectType, type QueryBlockLayout } from '@atlas/domain';
+import { NO_SPAN, readQueryBlock, type ObjectType, type QueryBlockLayout } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { AtlasQueryError, runAtlasQuery, type AtlasQueryAnswer } from './run-atlas-query.ts';
 
@@ -10,7 +10,7 @@ export interface QueryBlockAnswer {
 
 /**
  * Answers a query block in a note (P30-05): its text read for a layout and a
- * query, and the query run as any Atlas query is, with `this` naming the note
+ * query, and the query run as any DFAI query is, with `this` naming the note
  * the block is in. A layout it cannot draw, or no query at all, is a problem
  * in its text, as a field that does not exist is.
  */

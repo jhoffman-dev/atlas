@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { plainText, type BoardColumn, type BoardRow, type PropertyKind } from '@atlas/domain';
+import { plainText, type BoardColumn, type BoardRow, type PropertyKind } from '@dfai/domain';
 import { CardCover, type CoverSource } from './card-cover.tsx';
 import { ChecklistProgress } from './checklist-progress.tsx';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';

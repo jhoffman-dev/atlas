@@ -59,7 +59,7 @@ const inbox = inboxIndex([
   { path: 'Inbox/Call the bank.md', title: 'Call the bank', modified: 3, type: 'task' },
   { path: 'inbox/Meetings/Standup.md', title: 'Standup', modified: 5, type: 'meeting' },
   { path: 'Inbox/Idea.md', title: 'Idea', modified: 1 },
-  { path: 'Projects/Atlas.md', title: 'Atlas', modified: 9, type: 'project' },
+  { path: 'Projects/DFAI.md', title: 'DFAI', modified: 9, type: 'project' },
   { path: 'Archive/Inbox/Old.md', title: 'Old', modified: 8 },
   { path: 'Inbox/.hidden/Secret.md', title: 'Secret', modified: 7 },
   { path: 'Inbox/Proposals/Send.md', title: 'Send', modified: 6, type: 'proposal' },
@@ -209,7 +209,7 @@ describe('compileInboxQuery — tasks, wherever they live', () => {
   ]);
   const paths = (rows: readonly Record<string, unknown>[]) => rows.map((row) => row['path']);
 
-  it('lists a task at Inbox outside the folder, in use: not archived, not Atlas’s own, not a note that only says inbox', () => {
+  it('lists a task at Inbox outside the folder, in use: not archived, not DFAI’s own, not a note that only says inbox', () => {
     expect(paths(vault())).toContain('Tasks/Imported.md');
     expect(paths(vault())).not.toContain('Archive/Tasks/Finished late.md');
     expect(paths(vault())).not.toContain('.atlas/templates/Task.md');
@@ -253,14 +253,14 @@ describe('compileInboxQuery — tasks, wherever they live', () => {
           ['due', '2026-11-02'],
         ],
         links: [
-          ['project', 'Projects/Atlas.md'],
+          ['project', 'Projects/DFAI.md'],
           ['waiting_on', 'People/Mara Quill.md'],
         ],
       },
     ]);
     expect(one()[0]).toMatchObject({
       status: 'inbox',
-      project: 'Projects/Atlas.md',
+      project: 'Projects/DFAI.md',
       waitingOn: 'People/Mara Quill.md',
       waitingOnNames: '[[Mara Quill]]',
       defer: '2026-10-20',
@@ -293,7 +293,7 @@ describe('compileInboxQuery — meetings by their import state (#214)', () => {
       title: 'Filed',
       modified: 7,
       type: 'meeting',
-      props: [contract, letIn, ['project', '[[Atlas]]']],
+      props: [contract, letIn, ['project', '[[DFAI]]']],
     },
     {
       path: 'Meetings/2026/10/By hand.md',
@@ -302,7 +302,7 @@ describe('compileInboxQuery — meetings by their import state (#214)', () => {
       type: 'meeting',
     },
     {
-      path: 'Projects/Atlas/Moved by hand.md',
+      path: 'Projects/DFAI/Moved by hand.md',
       title: 'Moved by hand',
       modified: 5,
       type: 'meeting',
@@ -328,7 +328,7 @@ describe('compileInboxQuery — meetings by their import state (#214)', () => {
     expect(meetings().map((row) => row['path'])).toEqual([
       'Meetings/2026/10/2026-10-06 Standup.md',
       'Meetings/2026/10/2026-10-07 Arriving.md',
-      'Projects/Atlas/Moved by hand.md',
+      'Projects/DFAI/Moved by hand.md',
     ]);
     expect(meetings.count()).toEqual([{ total: 3 }]);
   });

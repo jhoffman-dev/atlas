@@ -14,45 +14,45 @@ export default defineConfig({
     // A list, so one entry can match exactly; string entries also claim every
     // path below them, so a subpath comes before the package it is under.
     alias: [
-      // Before '@atlas/ui', which would otherwise claim it as a path inside its index file.
+      // Before '@dfai/ui', which would otherwise claim it as a path inside its index file.
       // A second entry point so the graph page, loaded lazily, keeps d3-force out of
       // the main bundle: the barrel is imported eagerly and everything it exports lands there.
       {
-        find: '@atlas/ui/graph',
+        find: '@dfai/ui/graph',
         replacement: fileURLToPath(new URL('./packages/ui/src/graph/index.ts', import.meta.url)),
       },
       // Test support (the render counter), kept out of the barrel the app is built from.
-      // Exact, so it does not claim `@atlas/ui/testing/settles` below.
+      // Exact, so it does not claim `@dfai/ui/testing/settles` below.
       {
-        find: /^@atlas\/ui\/testing$/,
+        find: /^@dfai\/ui\/testing$/,
         replacement: fileURLToPath(new URL('./packages/ui/src/testing/index.ts', import.meta.url)),
       },
       // Test support of its own entry point (see packages/ui/src/testing/index.ts).
       {
-        find: '@atlas/ui/testing/settles',
+        find: '@dfai/ui/testing/settles',
         replacement: fileURLToPath(
           new URL('./packages/ui/src/testing/settles.ts', import.meta.url),
         ),
       },
-      // Before '@atlas/application', for the same reason: test support that needs
+      // Before '@dfai/application', for the same reason: test support that needs
       // node:sqlite, kept out of the barrel the app's browser bundle is built from.
       {
-        find: '@atlas/application/testing/sqlite',
+        find: '@dfai/application/testing/sqlite',
         replacement: fileURLToPath(
           new URL('./packages/application/src/testing/sqlite.ts', import.meta.url),
         ),
       },
       // Test support (work counted rather than timed), kept out of the domain's barrel.
       {
-        find: '@atlas/domain/testing',
+        find: '@dfai/domain/testing',
         replacement: fileURLToPath(
           new URL('./packages/domain/src/testing/index.ts', import.meta.url),
         ),
       },
-      { find: '@atlas/domain', replacement: pkg('domain') },
-      { find: '@atlas/application', replacement: pkg('application') },
-      { find: '@atlas/adapters', replacement: pkg('adapters') },
-      { find: '@atlas/ui', replacement: pkg('ui') },
+      { find: '@dfai/domain', replacement: pkg('domain') },
+      { find: '@dfai/application', replacement: pkg('application') },
+      { find: '@dfai/adapters', replacement: pkg('adapters') },
+      { find: '@dfai/ui', replacement: pkg('ui') },
     ],
   },
   test: {
@@ -115,7 +115,7 @@ export default defineConfig({
         'packages/application/src/automations/**': { lines: 90, functions: 90, branches: 85 },
         // A sync merges other Macs' changes into the notes and settles conflicts (U-29).
         'packages/application/src/sync/**': { lines: 90, functions: 90, branches: 85 },
-        // Meeting import marks, and archives, files that arrived from outside Atlas (P28-04).
+        // Meeting import marks, and archives, files that arrived from outside DFAI (P28-04).
         'packages/application/src/meetings/**': { lines: 90, functions: 90, branches: 85 },
         // Linking a meeting writes its people and companies, and proposals, by itself (P29-04).
         'packages/application/src/meeting-links/**': { lines: 90, functions: 90, branches: 85 },

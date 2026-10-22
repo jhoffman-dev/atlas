@@ -1,5 +1,5 @@
-import { addDays, noteTitle, type ActivityEvent, type ActivitySubject } from '@atlas/domain';
-import type { ActivityRowView } from '@atlas/ui';
+import { addDays, noteTitle, type ActivityEvent, type ActivitySubject } from '@dfai/domain';
+import type { ActivityRowView } from '@dfai/ui';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

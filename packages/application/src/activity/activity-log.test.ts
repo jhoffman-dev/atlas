@@ -8,7 +8,7 @@ import {
   parseActivityLog,
   utf8Length,
   type ActivityReport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { createActivityLog } from './activity-log.ts';
 import type { ActivityStore } from './ports.ts';
 

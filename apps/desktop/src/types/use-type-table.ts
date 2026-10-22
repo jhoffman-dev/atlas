@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { typeTableQuery, type ObjectType, type QuerySort } from '@atlas/domain';
+import { typeTableQuery, type ObjectType, type QuerySort } from '@dfai/domain';
 import {
   runView,
   TaskRuleRefusedError,
@@ -9,7 +9,7 @@ import {
   type VaultFsPort,
   type ViewResult,
   FrontmatterRefusedError,
-} from '@atlas/application';
+} from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { writeNoteProperties } from '../query/use-view-writes.ts';

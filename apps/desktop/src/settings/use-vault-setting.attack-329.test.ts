@@ -5,8 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, recordingActivity, type VaultFsPort } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeVaultFs, recordingActivity, type VaultFsPort } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { vaultReadKey } from '../reads/query-client.ts';
 import { useVaultSetting } from './use-vault-setting.ts';

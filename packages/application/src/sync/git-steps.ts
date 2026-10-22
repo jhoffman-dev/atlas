@@ -8,7 +8,7 @@ import {
   type IndexEntry,
   type LeftOut,
   type RepositoryPlace,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   ProgramMissingError,
   type GitFoldersPort,
@@ -92,14 +92,14 @@ export async function repositoryPlace({
 export async function currentBranch(git: GitPort): Promise<string> {
   const branch = firstLine(await git.currentBranch());
   if (branch === null) {
-    throw new SyncError('The vault’s repository isn’t on a branch, so Atlas won’t sync it.');
+    throw new SyncError('The vault’s repository isn’t on a branch, so DFAI won’t sync it.');
   }
   return branch;
 }
 
 /**
  * At most this many characters of the Mac's name go into an author name: four
- * bytes each at most, so `Atlas on <name>` stays under the host's 256-byte limit.
+ * bytes each at most, so `DFAI on <name>` stays under the host's 256-byte limit.
  */
 const MAX_MAC_NAME = 60;
 /** What git drops from the ends of a name: control characters, spaces and `,:;"\'`. */
@@ -108,7 +108,7 @@ const GIT_TRIMS = /^[\0- ,:;"\\']+|[\0- ,:;"\\']+$/g;
 const MAX_HOST = 63;
 
 /**
- * The Mac's name as git will record it, so the author is exactly the one Atlas
+ * The Mac's name as git will record it, so the author is exactly the one DFAI
  * made: git drops `<` and `>`, and trims the ends; a line break makes a name
  * the host refuses.
  */
@@ -138,7 +138,7 @@ function hostName(mac: string): string {
 export async function identityFor(git: GitPort, mac: string): Promise<GitIdentity | null> {
   const [name, email] = await Promise.all([git.config('user.name'), git.config('user.email')]);
   if (firstLine(name) !== null && firstLine(email) !== null) return null;
-  return { name: `Atlas on ${authorName(mac)}`, email: `atlas@${hostName(mac)}.local` };
+  return { name: `DFAI on ${authorName(mac)}`, email: `dfai@${hostName(mac)}.local` };
 }
 
 /**

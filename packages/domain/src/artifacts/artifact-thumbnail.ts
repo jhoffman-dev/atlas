@@ -4,10 +4,10 @@ import { ARTIFACT_KEYS, isArtifactNote, savedFolderOf } from './artifact.ts';
 
 /*
  * An artifact's thumbnail: a picture of its saved copy's first screen, which
- * Atlas makes and keeps in the copy's folder, and which fronts its card in
+ * DFAI makes and keeps in the copy's folder, and which fronts its card in
  * the gallery by being the note's `cover`.
  *
- * Atlas owns the cover only while it is empty or names the thumbnail Atlas
+ * DFAI owns the cover only while it is empty or names the thumbnail DFAI
  * made; a cover anyone set to anything else is theirs and is left alone. A
  * cover of `false` is one cleared on purpose (Clear): nothing fills it again
  * but the person asking (Regenerate). The
@@ -55,7 +55,7 @@ export function thumbnailCover(folder: VaultPath): string {
 
 /**
  * A cover as text, '' for none. The cover is a thumbnail property, read as
- * any is (`thumbnailValue`): `auto` is none yet, for Atlas to fill.
+ * any is (`thumbnailValue`): `auto` is none yet, for DFAI to fill.
  */
 function coverText(properties: Readonly<Record<string, unknown>>): string {
   const cover = thumbnailValue(properties[ARTIFACT_KEYS.cover]);
@@ -73,8 +73,8 @@ function coverCleared(properties: Readonly<Record<string, unknown>>): boolean {
 }
 
 /**
- * Whether Atlas may set the cover of a note whose copy is `folder`: it has
- * none (and was not cleared), or it names this copy's thumbnail — relative to the note, as Atlas
+ * Whether DFAI may set the cover of a note whose copy is `folder`: it has
+ * none (and was not cleared), or it names this copy's thumbnail — relative to the note, as DFAI
  * writes it, or from the vault's top, which resolves to the same file.
  */
 export function coverIsAtlas({
@@ -112,7 +112,7 @@ export function thumbnailCoverChange({
 /**
  * Whether an artifact should be given a thumbnail without being asked: it
  * has a saved copy and no cover, and was not cleared. A cover it has —
- * Atlas's or anyone's — is left as it is; making one again is Regenerate's.
+ * DFAI's or anyone's — is left as it is; making one again is Regenerate's.
  */
 export function needsThumbnail(properties: Readonly<Record<string, unknown>>): boolean {
   return (

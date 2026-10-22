@@ -1,4 +1,4 @@
-import type { ReviewTask } from '@atlas/domain';
+import type { ReviewTask } from '@dfai/domain';
 import { readWeeklyReview } from '../review/read-weekly-review.ts';
 import { readToday } from '../today/read-today.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';

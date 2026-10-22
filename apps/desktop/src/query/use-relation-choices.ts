@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { relationTypes, type ObjectType } from '@atlas/domain';
-import { notesInUseOfTypes, type IndexPort } from '@atlas/application';
-import type { RelationChoice } from '@atlas/ui';
+import { relationTypes, type ObjectType } from '@dfai/domain';
+import { notesInUseOfTypes, type IndexPort } from '@dfai/application';
+import type { RelationChoice } from '@dfai/ui';
 import { errorMessage } from './error-message.ts';
 
 /** The notes each relation column may link, by its key. */

@@ -1,4 +1,4 @@
-import { untickedValue, type StatusProperty } from '@atlas/domain';
+import { untickedValue, type StatusProperty } from '@dfai/domain';
 import { propertyChange, type PropertyChanges } from './set-property.ts';
 
 /**

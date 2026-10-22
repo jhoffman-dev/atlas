@@ -6,7 +6,7 @@ import {
   isArtifactNote,
   savedCopyValues,
   savedFolderOf,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   addArtifactCopy,
   ArtifactRefusedError,
@@ -18,8 +18,8 @@ import {
   type PropertyChanges,
   type ThumbnailQueue,
   type VaultFsPort,
-} from '@atlas/application';
-import type { ArtifactViewerCopy } from '@atlas/ui';
+} from '@dfai/application';
+import type { ArtifactViewerCopy } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { pickedFiles } from './picked-files.ts';
 import { remadeCover, useThumbnailSnapshot } from './use-thumbnails.ts';

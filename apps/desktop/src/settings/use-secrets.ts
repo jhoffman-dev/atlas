@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createVaultPath, noteTitle } from '@atlas/domain';
+import { createVaultPath, noteTitle } from '@dfai/domain';
 import {
   bindSecret,
   deleteSecret,
@@ -10,8 +10,8 @@ import {
   type SecretListing,
   type SecretStorePort,
   type VaultFsPort,
-} from '@atlas/application';
-import type { SecretRow, SecretSave } from '@atlas/ui';
+} from '@dfai/application';
+import type { SecretRow, SecretSave } from '@dfai/ui';
 import type { IndexNewsFeed } from '../reads/use-scoped-index-news.ts';
 
 /** Settings → Secrets as the card draws it, and what it can ask for. */

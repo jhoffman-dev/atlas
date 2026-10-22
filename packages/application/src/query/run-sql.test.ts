@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DASHBOARD_MARKER, DASHBOARD_MARKER_VALUE, parseDashboard } from '@atlas/domain';
+import { DASHBOARD_MARKER, DASHBOARD_MARKER_VALUE, parseDashboard } from '@dfai/domain';
 import { runWidget } from '../dashboard/run-widget.ts';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { loadSchema, runSql, SqlQueryError } from './run-sql.ts';

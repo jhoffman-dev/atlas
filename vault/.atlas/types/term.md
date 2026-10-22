@@ -17,12 +17,12 @@ properties:
 
 # Term
 
-A name Atlas should spell right: a product, a colleague, a vendor, an acronym.
+A name DFAI should spell right: a product, a colleague, a vendor, an acronym.
 The note's title is the one right spelling; `variants` are the ways a
 notetaker mishears it (`lark spur`, `Larks Burr` for Larkspur). Terms are
 listed, added and edited on the Terms page.
 
-Term is built in: the Terms page lists its notes, and Atlas spells names by
+Term is built in: the Terms page lists its notes, and DFAI spells names by
 them, so it cannot be deleted. Its properties are yours to change.
 
 ## The vocabulary

@@ -7,7 +7,7 @@ import {
   type EditorNode,
   type StrandedEdit,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   fakeHostVaultFs,
   inVault,
@@ -16,8 +16,8 @@ import {
   NoteStillOpeningError,
   type HostVaultFsPort,
   type VaultFsPort,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { CHANGED_SINCE_KEPT, useNote, type NotePorts, type NoteView } from './use-note.ts';
 import { useStrandedEdits, type StrandedEditStore, type Stranding } from './stranded-edits.ts';
 import { memoryStrandedStore } from './testing/memory-stranded-store.ts';
@@ -837,7 +837,7 @@ describe('work stranded, then the app quit and started again', () => {
     const vault = fakeVault();
     const { store } = memoryStrandedStore();
     await strandAndQuit(vault, store);
-    vault.writeOutside('# Note\n\nWritten while Atlas was closed.\n');
+    vault.writeOutside('# Note\n\nWritten while DFAI was closed.\n');
 
     const second = runApp({ vault, store });
     await waitFor(() => expect(second.result.current.note.state.kind).toBe('ready'));
@@ -855,7 +855,7 @@ describe('work stranded, then the app quit and started again', () => {
  */
 describe('work handed back, until it is written or thrown away', () => {
   const VAULT = THIS_VAULT;
-  const WRITTEN_WHILE_CLOSED = '# Note\n\nWritten while Atlas was closed.\n';
+  const WRITTEN_WHILE_CLOSED = '# Note\n\nWritten while DFAI was closed.\n';
 
   function runApp({
     vault,
@@ -936,7 +936,7 @@ describe('work handed back, until it is written or thrown away', () => {
     act(() => view.result.current.note.discard());
     await settle();
 
-    expect(shown(view)).toContain('Written while Atlas was closed.');
+    expect(shown(view)).toContain('Written while DFAI was closed.');
     expect(stored(VAULT)).toEqual([]);
   });
 

@@ -6,7 +6,7 @@ import {
   type FilterChoiceSources,
   type NoteNames,
   type ObjectType,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { loadTagCounts } from '../tags/load-tags.ts';
 import { relationGroupLinks } from './relation-group-links.ts';

@@ -13,14 +13,14 @@ const CLIENT_ID = '123456789012-abcdef0123456789abcdef0123456789.apps.googleuser
 
 const calendar = (overrides: Partial<GoogleCalendar> = {}): GoogleCalendar => ({
   id: 'atlas-blocks@group.calendar.example.com',
-  name: 'Atlas blocks',
+  name: 'DFAI blocks',
   primary: false,
   owned: true,
   ...overrides,
 });
 
 describe('GOOGLE_CALENDAR_SCOPES', () => {
-  it('asks only for the calendars Atlas makes itself', () => {
+  it('asks only for the calendars DFAI makes itself', () => {
     expect(GOOGLE_CALENDAR_SCOPES).toEqual([
       'https://www.googleapis.com/auth/calendar.app.created',
     ]);
@@ -83,6 +83,11 @@ describe('needsBlocksCalendar', () => {
     expect(needsBlocksCalendar([calendar({ name: 'Other' })])).toBe(true);
     expect(needsBlocksCalendar([calendar({ owned: false })])).toBe(true);
     expect(needsBlocksCalendar([calendar({ name: 'Other' }), calendar()])).toBe(false);
+  });
+
+  it('takes the calendar Atlas made, before the rename, as the one to use (ADR-0042)', () => {
+    expect(needsBlocksCalendar([calendar({ name: 'Atlas blocks' })])).toBe(false);
+    expect(needsBlocksCalendar([calendar({ name: 'Atlas blocks', owned: false })])).toBe(true);
   });
 });
 

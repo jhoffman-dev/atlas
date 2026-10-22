@@ -1,4 +1,4 @@
-/** Saving a Claude artifact into Atlas: `/v1/artifacts`. */
+/** Saving a Claude artifact into DFAI: `/v1/artifacts`. */
 
 import { z } from 'zod';
 import { uploadArtifact } from '../artifact-upload.ts';
@@ -20,11 +20,11 @@ export const saveArtifact = defineTool({
   name: 'atlas_save_artifact',
   title: 'Save an artifact',
   description:
-    'Save a Claude artifact you made into Atlas in one call: a note in the "artifacts" folder ' +
+    'Save a Claude artifact you made into DFAI in one call: a note in the "artifacts" folder ' +
     'holding its link, kind, project and tags, and — when you pass "html" — a copy of the page ' +
-    'that opens offline inside Atlas. Pass the complete HTML of the page; any size works, large ' +
+    'that opens offline inside DFAI. Pass the complete HTML of the page; any size works, large ' +
     'pages are sent in chunks. Put its other files (stylesheets, scripts, pictures) in "files", ' +
-    "named as the page refers to them. Atlas then pictures the page as the note's thumbnail. " +
+    "named as the page refers to them. DFAI then pictures the page as the note's thumbnail. " +
     'Returns { note, files }, and "thumbnail" saying why when no picture could be made.',
   inputSchema: z.object({
     title: z.string().min(1).describe('What the artifact is called; the note is named after it.'),

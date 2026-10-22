@@ -6,7 +6,7 @@ import {
   typeViews,
   type SavedViewSummary,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

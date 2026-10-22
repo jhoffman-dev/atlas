@@ -44,8 +44,8 @@ async function existingPart(path: string): Promise<string> {
 }
 
 /**
- * A folder of Atlas's own in the vault (`.atlas/imports`), as the disk names
- * it: hidden, as Atlas's files are, but like any folder the import writes
+ * A folder of DFAI's own in the vault (`.atlas/imports`), as the disk names
+ * it: hidden, as DFAI's files are, but like any folder the import writes
  * into, never one whose existing part is linked out of the vault.
  */
 export async function ownFolder(vault: string, folder: string): Promise<string> {
@@ -58,7 +58,7 @@ export async function ownFolder(vault: string, folder: string): Promise<string> 
 
 /**
  * The vault and the folder the files go in. The vault must exist; the folder
- * is named relative to it, is not hidden (Atlas would never see a file there,
+ * is named relative to it, is not hidden (DFAI would never see a file there,
  * and the next run would not either), and stays inside the vault however its
  * existing part is linked.
  */
@@ -75,7 +75,7 @@ export async function importTarget(options: {
   const parts = named.split(/[\\/]/);
   if (parts.includes('..')) throw refuse('is not a folder inside the vault');
   if (parts.some((part) => part.startsWith('.'))) {
-    throw refuse('is hidden: Atlas, and the next run, would not see the meetings in it');
+    throw refuse('is hidden: DFAI, and the next run, would not see the meetings in it');
   }
   const folder = resolve(vault, named);
   if (!isInside(vault, folder) || !isInside(vault, await existingPart(folder))) {

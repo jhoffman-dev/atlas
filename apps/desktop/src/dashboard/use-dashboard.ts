@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { isDashboard, parseDashboard, type ObjectType, type Widget } from '@atlas/domain';
-import { runDashboard, type IndexPort, type OpenNote, type WidgetResult } from '@atlas/application';
-import { useNoteNames } from '@atlas/ui';
+import { isDashboard, parseDashboard, type ObjectType, type Widget } from '@dfai/domain';
+import { runDashboard, type IndexPort, type OpenNote, type WidgetResult } from '@dfai/application';
+import { useNoteNames } from '@dfai/ui';
 
 /**
  * Runs the open note when that note is a dashboard.

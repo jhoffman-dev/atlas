@@ -223,7 +223,7 @@ describe('parseAtlasQuery: problems point at what caused them', () => {
       'Expected =, !=, <, <=, >, >=, CONTAINS, STARTS WITH or IS EMPTY here.',
       '',
     ],
-    ['FROM task WHERE status ~ done', 'Atlas queries have no “~”.', '~'],
+    ['FROM task WHERE status ~ done', 'DFAI queries have no “~”.', '~'],
     ['FROM task WHERE status =', 'Expected a value after =.', ''],
     ['FROM task WHERE status = (', 'Expected a value after =.', '('],
     ['FROM task WHERE status IS done', 'IS is followed by EMPTY or NOT EMPTY.', 'done'],

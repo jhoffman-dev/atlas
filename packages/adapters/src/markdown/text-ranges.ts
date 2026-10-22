@@ -1,4 +1,4 @@
-import type { BodyRange } from '@atlas/domain';
+import type { BodyRange } from '@dfai/domain';
 import type { Nodes as MdastNode, Root } from 'mdast';
 import './mdast-custom-nodes.ts';
 

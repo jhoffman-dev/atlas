@@ -14,8 +14,8 @@ import {
   type YAMLError,
   type YAMLSeq,
 } from 'yaml';
-import { FrontmatterRefusedError } from '@atlas/application';
-import { KeyAsWritten } from '@atlas/domain';
+import { FrontmatterRefusedError } from '@dfai/application';
+import { KeyAsWritten } from '@dfai/domain';
 
 /**
  * Changes some keys of a frontmatter block and leaves everything else alone.
@@ -179,7 +179,7 @@ export function checkedBody({
   throw new FrontmatterRefusedError({
     key: [...edit.keys][0] ?? '',
     message:
-      "Atlas could not write this change without changing the note's other properties, so the note was left as it was. Change it in the source instead.",
+      "DFAI could not write this change without changing the note's other properties, so the note was left as it was. Change it in the source instead.",
   });
 }
 

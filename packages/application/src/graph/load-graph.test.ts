@@ -4,7 +4,7 @@ import {
   DEFAULT_GRAPH_FILTER,
   GRAPH_PAGE_SIZE,
   type GraphQueryPart,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import type { QueryResult } from '../index/ports.ts';
 import { loadGraph, pictureGraph, readVaultGraph } from './load-graph.ts';
@@ -98,7 +98,7 @@ describe('readVaultGraph', () => {
 });
 
 describe('loadGraph', () => {
-  it('shows the vault without Atlas’s own notes by default', async () => {
+  it('shows the vault without DFAI’s own notes by default', async () => {
     const { graph, hidden } = await loadGraph({
       ...indexOf(vault),
       scope: { kind: 'vault' },

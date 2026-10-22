@@ -14,7 +14,7 @@ import {
   type NoteChange,
   type NoteVersion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { archiveNotes, unarchiveNotes } from '../archive/archive-notes.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';

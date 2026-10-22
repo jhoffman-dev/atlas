@@ -5,7 +5,7 @@ import type { ModelMessage, ModelToolSpec, ToolCall } from './messages.ts';
  * Tool use for a model that only writes text (ADR-0021).
  *
  * Claude Code runs with its own tools switched off, and a local model may have
- * none, so Atlas's tools are described in the system prompt and a call is read
+ * none, so DFAI's tools are described in the system prompt and a call is read
  * out of the reply: `<atlas_tool>{"name": "...", "input": {...}}</atlas_tool>`.
  */
 
@@ -149,7 +149,7 @@ export function toolProtocolInstructions(tools: readonly ModelToolSpec[]): strin
     .join('\n\n');
   return [
     '## Tools',
-    'You have no tools of your own. Atlas runs these for you. To call one, write exactly',
+    'You have no tools of your own. DFAI runs these for you. To call one, write exactly',
     `${TOOL_OPEN}{"name": "<tool name>", "input": {…}}${TOOL_CLOSE}`,
     'with the input as JSON matching the schema. You may make several calls in one reply.',
     `Inside the JSON, write ${TOOL_CLOSE} as <\\/atlas_tool> so it does not end the call.`,

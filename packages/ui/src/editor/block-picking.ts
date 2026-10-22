@@ -1,4 +1,4 @@
-import type { NodePath, NoteSuggestion, OutlineEntry, VaultPath } from '@atlas/domain';
+import type { NodePath, NoteSuggestion, OutlineEntry, VaultPath } from '@dfai/domain';
 
 /**
  * What the `[[` and `![[` picker offers (P26-02): notes first; then, once a

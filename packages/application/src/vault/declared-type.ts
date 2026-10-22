@@ -4,7 +4,7 @@ import {
   splitFrontmatter,
   TYPES_DIRECTORY,
   type MovableEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from './ports.ts';
 
 /**

@@ -10,7 +10,7 @@ import {
   type GoogleCalendar,
   type GoogleCalendarSetting,
   type GoogleProblem,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings, type SettingsWriter } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -26,7 +26,7 @@ const NOT_A_CLIENT_ID =
   'That is not a Google OAuth client ID: it ends in .apps.googleusercontent.com.';
 
 /**
- * Signs in to Google Calendar with the client typed, asking for Atlas's one
+ * Signs in to Google Calendar with the client typed, asking for DFAI's one
  * scope. A client secret is sent only when one was typed: a client Google
  * issued none to needs none (ADR-0030).
  */
@@ -66,7 +66,7 @@ export async function blockCalendars({
   return calendars.filter(canHoldBlocks).sort((left, right) => left.name.localeCompare(right.name));
 }
 
-/** Makes the calendar blocks go to, under Atlas's name for it. */
+/** Makes the calendar blocks go to, under DFAI's name for it. */
 export function createBlocksCalendar({
   port,
   vault,
@@ -78,14 +78,14 @@ export function createBlocksCalendar({
 }
 
 const NOT_REVOKED: GoogleProblem = {
-  problem: 'Atlas forgot the sign-in, but could not tell Google to revoke it.',
-  fix: 'Remove Atlas from the third-party access in your Google Account’s security settings.',
+  problem: 'DFAI forgot the sign-in, but could not tell Google to revoke it.',
+  fix: 'Remove DFAI from the third-party access in your Google Account’s security settings.',
 };
 
 const SHARED: GoogleProblem = {
   problem:
-    'Atlas forgot the sign-in for this vault, but did not ask Google to revoke it: another vault on this Mac connects with the same client, and revoking could disconnect that one too.',
-  fix: 'To end Atlas’s access altogether, disconnect the other vault as well.',
+    'DFAI forgot the sign-in for this vault, but did not ask Google to revoke it: another vault on this Mac connects with the same client, and revoking could disconnect that one too.',
+  fix: 'To end DFAI’s access altogether, disconnect the other vault as well.',
 };
 
 /** Forgets the sign-in. Returns what the person still has to do, or null when nothing. */

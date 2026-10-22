@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
-import type { OpenNoteState } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import type { OpenNoteState } from '@dfai/application';
 import { createOverlayStore, openPeek, peekNow } from '../overlay-store.ts';
 import { leavePeek, leavingPeek, useHoldersFlushed } from './peek-moves.ts';
 

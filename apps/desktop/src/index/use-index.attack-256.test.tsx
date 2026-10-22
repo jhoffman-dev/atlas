@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   createNoteChanges,
   createOwnWrites,
@@ -10,7 +10,7 @@ import {
   fakeVaultFs,
   recordingActivity,
   type IndexEntry,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useIndex, type IndexPorts } from './use-index.ts';
 
 /**

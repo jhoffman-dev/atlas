@@ -4,7 +4,7 @@ import {
   parseDashboard,
   parseObjectType,
   queryWidgetDraft,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { previewWidget } from './edit-dashboard.ts';
@@ -22,8 +22,8 @@ const TYPES = [
   }),
   parseObjectType({ name: 'project', properties: {} }),
 ];
-const NOTE_PATHS = ['projects/Atlas.md', 'tasks/Write.md'];
-const QUERY = 'FROM task WHERE project = [[Atlas]]';
+const NOTE_PATHS = ['projects/DFAI.md', 'tasks/Write.md'];
+const QUERY = 'FROM task WHERE project = [[DFAI]]';
 
 function recordingIndex() {
   const asked: unknown[][] = [];
@@ -38,22 +38,22 @@ function recordingIndex() {
 
 describe('a query widget previewed while editing (adversarial)', () => {
   it('resolves a link in the query to the note the dashboard resolves it to', async () => {
-    // Why: previewWidget runs the widget without the vault's notes, so [[Atlas]]
+    // Why: previewWidget runs the widget without the vault's notes, so [[DFAI]]
     // resolves to nothing and is compared as written: a task linking
-    // [[projects/Atlas]] shows on the dashboard but not in its preview.
+    // [[projects/DFAI]] shows on the dashboard but not in its preview.
     const dashboard = recordingIndex();
     const widgets = parseDashboard({
       atlas: 'dashboard',
-      widgets: [{ kind: 'query', title: 'Atlas', query: QUERY }],
+      widgets: [{ kind: 'query', title: 'DFAI', query: QUERY }],
     });
     await runDashboard({ index: dashboard.index, widgets, types: TYPES, notePaths: NOTE_PATHS });
-    expect(dashboard.asked[0]).toContain('projects/Atlas.md');
+    expect(dashboard.asked[0]).toContain('projects/DFAI.md');
 
     const preview = recordingIndex();
     // Everything the dashboard is given is on hand to the editor too.
     const args = {
       index: preview.index,
-      draft: queryWidgetDraft({ query: QUERY, title: 'Atlas' }),
+      draft: queryWidgetDraft({ query: QUERY, title: 'DFAI' }),
       types: TYPES,
       notePaths: NOTE_PATHS,
     };
@@ -69,7 +69,7 @@ describe('a query widget grouped by a relation', () => {
     const index = fakeIndexPort({
       query: async () => ({
         columns: ['path', 'title', 'type', 'project'],
-        rows: [['tasks/Write.md', 'Write', 'task', '[[projects/Atlas]]']],
+        rows: [['tasks/Write.md', 'Write', 'task', '[[projects/DFAI]]']],
         truncated: false,
       }),
     });
@@ -77,9 +77,7 @@ describe('a query widget grouped by a relation', () => {
       atlas: 'dashboard',
       widgets: [{ kind: 'query', title: 'By project', query: 'FROM task GROUP BY project' }],
     });
-    const names = noteNames([
-      { path: createVaultPath('projects/Atlas.md'), title: 'The Atlas app' },
-    ]);
+    const names = noteNames([{ path: createVaultPath('projects/DFAI.md'), title: 'The DFAI app' }]);
     const [result] = await runDashboard({
       index,
       widgets,
@@ -88,6 +86,6 @@ describe('a query widget grouped by a relation', () => {
       names,
     });
     const data = result?.data as unknown as { groups: { label: string }[] };
-    expect(data.groups.map((group) => group.label)).toEqual(['The Atlas app']);
+    expect(data.groups.map((group) => group.label)).toEqual(['The DFAI app']);
   });
 });

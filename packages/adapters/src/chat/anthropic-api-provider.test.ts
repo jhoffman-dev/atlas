@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ChatCancelled, type ModelEvent, type ModelRequest } from '@atlas/application';
+import { ChatCancelled, type ModelEvent, type ModelRequest } from '@dfai/application';
 import {
   ANTHROPIC_ORIGIN,
   anthropicApiProvider,
@@ -57,7 +57,7 @@ async function collect(stream: AsyncIterable<ModelEvent>) {
 }
 
 describe('messagesBody', () => {
-  it("translates Atlas's conversation into the API's messages and tools", () => {
+  it("translates DFAI's conversation into the API's messages and tools", () => {
     expect(messagesBody(REQUEST)).toEqual({
       model: 'claude-opus-5-5',
       max_tokens: 8192,

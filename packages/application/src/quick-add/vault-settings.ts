@@ -1,4 +1,4 @@
-import { parseQuickAdd, QUICK_ADD_KEY } from '@atlas/domain';
+import { parseQuickAdd, QUICK_ADD_KEY } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings, type SettingsWriter } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

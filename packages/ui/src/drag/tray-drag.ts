@@ -16,7 +16,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Announcements, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core';
-import { dropSlot, slotValue, type TrayTask } from '@atlas/domain';
+import { dropSlot, slotValue, type TrayTask } from '@dfai/domain';
 import { planWords, type PlanLanding } from './announcements.ts';
 import { MINUTE_HEIGHT } from './clock-drag.ts';
 

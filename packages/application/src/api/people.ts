@@ -1,4 +1,4 @@
-import { vaultSpellingOf, type DuplicatePair, type VaultPath } from '@atlas/domain';
+import { vaultSpellingOf, type DuplicatePair, type VaultPath } from '@dfai/domain';
 import {
   applyPeopleMerge,
   loadPossibleDuplicates,
@@ -27,7 +27,7 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
  * merging them — the use-cases the People page runs, previewed unless the
  * caller confirms with the version of the preview it was shown, as a tag
  * rename is previewed. Templates linking to a merged person are rewritten as
- * the app rewrites them; any other note of Atlas's own refuses the merge.
+ * the app rewrites them; any other note of DFAI's own refuses the merge.
  */
 
 /** How many people one merge may take: each is a body, a Trash move and every link to them. */

@@ -1,4 +1,4 @@
-import type { VaultEntry } from '@atlas/domain';
+import type { VaultEntry } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { fakeMarkdown, fakeVaultFs } from './fake-ports.ts';
 

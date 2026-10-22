@@ -4,7 +4,7 @@ import {
   type GranolaNote,
   type GranolaNoteSummary,
   type GranolaUnreadableSummary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { GranolaSend } from './granola-requests.ts';
 import {
   GranolaError,
@@ -41,7 +41,7 @@ export const unreadableKey = ({ id, reason }: GranolaUnreadableSummary): string 
 
 /**
  * What the list of notes held: each note once, and those it named in a shape
- * Atlas cannot read, each once too. A note read on any page of the listing
+ * DFAI cannot read, each once too. A note read on any page of the listing
  * is not among the unreadable, whichever page came first.
  */
 export interface GranolaListing {

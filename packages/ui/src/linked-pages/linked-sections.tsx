@@ -5,8 +5,8 @@ import {
   RECENT_DAYS,
   type LinkedRange,
   type LinkedSectionId,
-} from '@atlas/domain';
-import type { LinkedSection } from '@atlas/application';
+} from '@dfai/domain';
+import type { LinkedSection } from '@dfai/application';
 import { GroupedResult } from '../query-language/grouped-result.tsx';
 import { SegmentedControl } from '../segmented-control.tsx';
 

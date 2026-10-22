@@ -4,12 +4,12 @@
  * it is made to, to show the check stops it. All names are made up.
  */
 import { expect, it, vi } from 'vitest';
-import { apiFixture, codeOf } from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import type * as Domain from '@atlas/domain';
+import { apiFixture, codeOf } from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
+import type * as Domain from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
-vi.mock('@atlas/domain', async (importOriginal) => {
+vi.mock('@dfai/domain', async (importOriginal) => {
   const original = await importOriginal<typeof Domain>();
   return {
     ...original,

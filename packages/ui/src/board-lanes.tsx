@@ -1,5 +1,5 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
-import { optionLabel, type BoardColumn, type BoardLane, type BoardRow } from '@atlas/domain';
+import { optionLabel, type BoardColumn, type BoardLane, type BoardRow } from '@dfai/domain';
 import type { GroupFolds } from './group-folds.ts';
 import { Icon } from './icon.tsx';
 import { StatusPill } from './status-pill.tsx';

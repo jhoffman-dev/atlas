@@ -8,15 +8,15 @@ import type { CompiledQuery } from '../query/view-query.ts';
  * Resolving the link is done here, in TypeScript, with the same rule every
  * link in the app is resolved by — the host only stores the answer
  * (ADR-0005). That is what lets a query follow `project.owner` with a join
- * instead of re-deciding in SQL which note `[[Atlas]]` means (ADR-0019).
+ * instead of re-deciding in SQL which note `[[DFAI]]` means (ADR-0019).
  */
 export interface IndexableRelation {
   readonly key: string;
   /** The item's place in a list, as the properties table numbers it; 0 for one value. */
   readonly index: number;
-  /** The link's target as written: `Atlas` for `[[Atlas|the app]]`. */
+  /** The link's target as written: `DFAI` for `[[DFAI|the app]]`. */
   readonly target: string;
-  /** The target as links compare it loosely ({@link foldedLinkName}): `atlas` for `Atlas.md`. */
+  /** The target as links compare it loosely ({@link foldedLinkName}): `atlas` for `DFAI.md`. */
   readonly name: string;
   /** The note it resolves to, or null when it points nowhere yet. */
   readonly path: string | null;

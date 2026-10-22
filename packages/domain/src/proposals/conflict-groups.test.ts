@@ -151,7 +151,7 @@ describe('conflictGroups', () => {
   });
 
   it('keeps the order the proposals came in, within a group and between groups', () => {
-    const quote1 = link('Quote 1', '[[Atlas]]', { property: 'project' });
+    const quote1 = link('Quote 1', '[[DFAI]]', { property: 'project' });
     const quote2 = link('Quote 2', '[[Garden]]', { property: 'project' });
     const groups = conflictGroups([quote1, MARA, quote2, MARA_LARKSPUR]);
     expect(groups.map((group) => group.slot.property)).toEqual(['project', 'people']);

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GranolaError } from '@atlas/application';
+import { GranolaError } from '@dfai/application';
 
 /*
  * The Granola adapter against a fake `invoke`: the commands and arguments

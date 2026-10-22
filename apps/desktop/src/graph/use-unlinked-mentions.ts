@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { NoteLinks, VaultPath } from '@atlas/domain';
+import type { NoteLinks, VaultPath } from '@dfai/domain';
 import {
   findUnlinkedMentions,
   linkUnlinkedMention,
@@ -8,8 +8,8 @@ import {
   type MarkdownPort,
   type OpenNotes,
   type VaultFsPort,
-} from '@atlas/application';
-import type { MentionsState } from '@atlas/ui';
+} from '@dfai/application';
+import type { MentionsState } from '@dfai/ui';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
 import { useScopedIndexKey } from '../reads/use-scoped-index-key.ts';
 

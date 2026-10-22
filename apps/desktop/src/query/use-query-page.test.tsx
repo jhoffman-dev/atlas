@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, type ObjectType, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { createVaultPath, type ObjectType, type VaultPath } from '@dfai/domain';
+import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useQueryPage } from './use-query-page.ts';
 import { useSqlView } from './use-sql-view.ts';
@@ -62,7 +62,7 @@ function vault({ refuse = null }: { refuse?: string | null } = {}) {
   return { fs, files, created };
 }
 
-// Held once, as the app holds them: a new list each render would re-run the Atlas query forever.
+// Held once, as the app holds them: a new list each render would re-run the DFAI query forever.
 const NO_TYPES: readonly ObjectType[] = [];
 const NO_NOTES: readonly string[] = [];
 

@@ -1,6 +1,6 @@
 # Response times (#217)
 
-How long Atlas takes to answer, on a 2,000-note fixture vault, and what was
+How long DFAI takes to answer, on a 2,000-note fixture vault, and what was
 found slow. Filing from the Inbox and opening a note are held to a budget in
 CI (`perf` job in `.github/workflows/gate.yml`): p95 under 250 ms for filing
 and 750 ms for opening a note. CI's Linux runner measured 52 ms and 335 ms

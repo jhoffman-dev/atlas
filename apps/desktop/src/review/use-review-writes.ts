@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import {
   ChangedSinceError,
   NoteChangedError,
@@ -9,7 +9,7 @@ import {
   type MarkdownPort,
   type PropertyChanges,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from '../query/error-message.ts';

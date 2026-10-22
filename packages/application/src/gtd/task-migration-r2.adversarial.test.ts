@@ -6,7 +6,7 @@
  * Each test names one invariant.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
@@ -130,7 +130,7 @@ function vault(files: Record<string, string>, overrides: Partial<VaultFsPort> = 
 const refuseViews =
   (fs: VaultFsPort): VaultFsPort['createNote'] =>
   async (args) => {
-    if (args.path.startsWith('.atlas/views/')) throw new Error('Atlas quit');
+    if (args.path.startsWith('.atlas/views/')) throw new Error('DFAI quit');
     return fs.createNote(args);
   };
 

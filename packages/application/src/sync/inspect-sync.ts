@@ -4,7 +4,7 @@ import {
   isOwnRepository,
   isSetUpByAtlas,
   parseGitStatus,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -24,7 +24,7 @@ export type SyncSetup =
 
 /**
  * Reads how the open vault stands with sync (U-29), writing nothing: set up
- * when it is a repository of its own with an `origin` and Atlas's mark — its
+ * when it is a repository of its own with an `origin` and DFAI's mark — its
  * `.gitignore` block and `sync: github` in the settings (A29-01); refused when
  * it sits in another repository's work tree; otherwise not set up. A code
  * project or a vault kept with obsidian-git has an origin but not the mark,

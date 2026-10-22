@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseObjectType } from '@atlas/domain';
+import { parseObjectType } from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { AtlasQueryError, runAtlasQuery } from './run-atlas-query.ts';
 

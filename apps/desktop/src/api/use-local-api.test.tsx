@@ -14,8 +14,8 @@ import {
   type ApiRequest,
   type ApiResponse,
   type ApiRouterDeps,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useLocalApi } from './use-local-api.ts';
 
 /** An open, empty vault that no pane is showing, whose creates land. */
@@ -26,7 +26,7 @@ function emptyVault(): ApiRouterDeps {
       currentVault: () => ({ absolutePath: '/Users/j/Vault', name: 'Vault' }),
       indexReady: () => true,
     },
-    appInfo: { read: async () => ({ name: 'Atlas', version: '1.0.0' }) },
+    appInfo: { read: async () => ({ name: 'DFAI', version: '1.0.0' }) },
     clock: { today: () => '2026-09-22', now: () => 1_000, localNow: () => '2026-09-22T09:00:00' },
     fs: fakeVaultFs({
       readTextFile: async (path) => {

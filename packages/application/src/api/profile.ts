@@ -1,4 +1,4 @@
-import { NAME_PLACEHOLDER } from '@atlas/domain';
+import { NAME_PLACEHOLDER } from '@dfai/domain';
 import { loadProfile } from '../profile/index.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 

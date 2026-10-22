@@ -1,11 +1,11 @@
 # Notion workspace import
 
 `tools/import-notion-workspace.mjs` (issue #79) brings a whole Notion
-workspace export into an Atlas vault: tasks, notes, meeting notes, people,
+workspace export into a DFAI vault: tasks, notes, meeting notes, people,
 PARA, teams and daily notes, with relations written as wiki links. Run it
 again whenever you like: it matches each page to its note by `notion_id`,
 updates in place, never makes a second copy, and never writes over a change
-you made in Atlas.
+you made in DFAI.
 
 The Meeting Notes database goes through the meeting import
 (`tools/import-notion-meetings.mjs`, P28-07, described in
@@ -15,7 +15,7 @@ The Meeting Notes database goes through the meeting import
 
 ## What goes where
 
-| Notion database                      | Atlas type                | Folder                        | Properties                                                                                                             |
+| Notion database                      | DFAI type                 | Folder                        | Properties                                                                                                             |
 | ------------------------------------ | ------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Tasks (`Tasks`, `Tasks Tracker`)     | `task`                    | `Tasks/`                      | `status` (GTD, below), `notion_status`, `priority`, `effort`, `task_type`, `tags`, `due`, `project`, `people`, `notes` |
 | Notes                                | `notes`                   | `Notes/`                      | `tags`, `date`, `project`, `people`, `tasks`, `related`                                                                |
@@ -37,7 +37,7 @@ People's Aliases column becomes `aliases`, a list: the person's **Also
 spelt**. A Tasks database's `Effort level` column is read as `Effort` is,
 into `effort`.
 
-- **Daily notes** go where Atlas keeps them: `<YYYY-MM-DD>.md` at the root,
+- **Daily notes** go where DFAI keeps them: `<YYYY-MM-DD>.md` at the root,
   the day read from the page's Date (else its title). A day that already has
   a note in the vault — at the root, or anywhere `[[YYYY-MM-DD]]` opens one,
   such as `Journal/2026-10-06.md` — has that note filled in, never written
@@ -45,13 +45,13 @@ into `effort`.
   another Notion page is refused and listed.
 - **PARA Archive items** go where archiving puts a project,
   `Archive/Projects/<name>.md`, stamped as archiving stamps it, so
-  unarchiving in Atlas takes it back to `Projects/`.
+  unarchiving in DFAI takes it back to `Projects/`.
 - **Types.** The import writes no type files. When the vault does not declare
   a type its notes are written as (`team`, `area`, `resource`, `daily`,
-  `notes`…), the report warns: open the vault in Atlas first, which adds the
+  `notes`…), the report warns: open the vault in DFAI first, which adds the
   types it builds in once the PARA and GTD work is merged, or add the type.
 
-- **Relations become links** to the names Atlas gives their notes: `project:
+- **Relations become links** to the names DFAI gives their notes: `project:
 "[[Larkspur Payroll renewal]]"`, `people: ["[[Mara Quill]]"]`. Every page's
   path is planned before anything is written, so a link names the note it
   will open, including one already in the vault under another name. Where a
@@ -68,7 +68,7 @@ into `effort`.
   a file name can hold, a `.md` or `.markdown` ending (after the cut) kept as
   a word so links open it, and
   numbered when a note of that name is already in the folder — or when the
-  name would take over `[[links]]` that open another note now (the rule Atlas
+  name would take over `[[links]]` that open another note now (the rule DFAI
   follows when it adds a person). A renamed note is listed.
 - **Rows with no title.** Notion writes the page of a row whose title is
   empty as `Untitled`. Such a row is paired with an `Untitled` page whose
@@ -95,10 +95,10 @@ into `effort`.
   its properties only when every label is one of its database's columns, the
   row has a value under at least one of them, and the page says what the row
   says under each; otherwise they stay in the body.
-- **Notes** are `.md` and `.markdown` files, as Atlas reads them, for names
+- **Notes** are `.md` and `.markdown` files, as DFAI reads them, for names
   taken, links and `notion_id`.
 - **Not imported, and listed:** columns that link back to the page that
-  holds the relation (People's Tasks, PARA's Tasks, Notes' Back Links: Atlas
+  holds the relation (People's Tasks, PARA's Tasks, Notes' Back Links: DFAI
   shows those as backlinks), columns the import does not map, subpages and
   other pages that are no database's row, databases it does not know,
   attachments, and a second column that maps to a property another column
@@ -111,7 +111,7 @@ the in-app GTD move first. Until then the import refuses to bring tasks in
 (exit 2, "run the GTD move first"); leave them out with `--only` to bring in
 the rest.
 
-| Notion                    | Atlas `status`                                        |
+| Notion                    | DFAI `status`                                         |
 | ------------------------- | ----------------------------------------------------- |
 | Inbox                     | `inbox`                                               |
 | Ready                     | `next-action`                                         |
@@ -125,11 +125,11 @@ the rest.
 
 A Due date still to come also sets `scheduled`. `completed` and `scheduled`
 are offered once: set only where the task has none, never changed after, and
-never put back once you take one out in Atlas. Change the
+never put back once you take one out in DFAI. Change the
 mapping with `--task-status "Later=longterm"` (repeat it); the right side must
 be one of the eight statuses.
 
-## Edits made in Atlas are never written over
+## Edits made in DFAI are never written over
 
 The import keeps a record of what it brought in, at
 `.atlas/imports/notion-workspace.md` in the vault: for each Notion page, a
@@ -144,7 +144,7 @@ ways — the last import, the note now, Notion now:
 | changed                        | changed to the same          | nothing to do                       |
 | changed                        | changed to something else    | leaves yours and lists it as `kept` |
 
-**A note you delete in Atlas stays deleted.** A page the record says was
+**A note you delete in DFAI stays deleted.** A page the record says was
 imported whose note is gone from the vault (deleted, or moved into a hidden
 folder) is listed as `deleted` and not made again; `--recreate-deleted`
 brings such notes back.
@@ -159,7 +159,7 @@ once it has been offered, so a difference is listed on the run that finds
 it, and a run with nothing new in Notion changes nothing at all, the record
 included.
 
-Only the keys the import writes are touched, through Atlas's byte-preserving
+Only the keys the import writes are touched, through DFAI's byte-preserving
 frontmatter writer: every other key, its comments, quoting and order, and
 an untouched body keep their bytes.
 
@@ -201,11 +201,11 @@ says which were (exit 1).
    skipped, "a database inside a page; not imported", and is not counted
    toward that rule.
 
-2. **Run the GTD move** in Atlas, if you have not.
+2. **Run the GTD move** in DFAI, if you have not.
 3. **Copy the vault** and run on the copy first, as a dry run, then for real:
 
    ```sh
-   rsync -a --exclude .git ~/"Atlas Vault/pkm-space/" /tmp/atlas-vault-copy/
+   rsync -a --exclude .git ~/"DFAI Vault/pkm-space/" /tmp/atlas-vault-copy/
    pnpm import:notion-workspace --export ~/Downloads/<export folder> \
      --vault /tmp/atlas-vault-copy --dry-run --gemini-dates arrival-local
    pnpm import:notion-workspace --export ~/Downloads/<export folder> \
@@ -217,20 +217,20 @@ says which were (exit 1).
    day first).
 
    Use absolute paths: pnpm runs the script from the repository's folder. Do
-   not open the copy in Atlas: it carries the vault's sync settings. Read the
+   not open the copy in DFAI: it carries the vault's sync settings. Read the
    notes in it instead. Run it once more: it should report every page
    `unchanged`.
 
-4. **Quit Atlas, then run it for real** on the vault, with the options you
+4. **Quit DFAI, then run it for real** on the vault, with the options you
    settled on. A note is replaced only while it still holds what the run read,
-   but that check and the write are a moment apart: an edit Atlas saves in
-   that moment could be lost. With Atlas closed, nothing else writes the
-   notes. Open Atlas again when the report is in.
+   but that check and the write are a moment apart: an edit DFAI saves in
+   that moment could be lost. With DFAI closed, nothing else writes the
+   notes. Open DFAI again when the report is in.
 
 ## The report
 
 A `warning` line for each type the vault does not declare, then one line per
-page that was created, updated, refused, deleted in Atlas or kept an edit, and a
+page that was created, updated, refused, deleted in DFAI or kept an edit, and a
 `note` line for anything about a page worth saying (a status it does not
 know, a related page not in the export, a date it could not read). Then what was skipped, the meeting import's own
 report, and the totals.
@@ -240,9 +240,9 @@ report, and the totals.
 | `created` | A new note, at this path                                                             |
 | `updated` | The note took Notion's change to these properties (or `body`)                        |
 | `filled`  | A note with no record of an earlier import: these properties it lacked were filled   |
-| `kept`    | You changed these in Atlas, and Notion changed them too: yours were left             |
+| `kept`    | You changed these in DFAI, and Notion changed them too: yours were left              |
 | `note`    | Something about the page: it was imported                                            |
-| `deleted` | Imported before and deleted in Atlas: not made again (see `--recreate-deleted`)      |
+| `deleted` | Imported before and deleted in DFAI: not made again (see `--recreate-deleted`)       |
 | `refused` | Not imported: no page for the row, two notes with its `notion_id`, a note not UTF-8… |
 | `stopped` | The record could not be saved partway: the notes listed as written were, no others   |
 | `warning` | The vault does not declare a type the notes are written as                           |
@@ -255,18 +255,18 @@ vault or export, a folder linked out of the vault, a page that is not UTF-8,
 a record it cannot read or write, a Task type that is not GTD, two databases
 of one kind in the export).
 
-| Option                 | Default               | What it does                                                                                                                  |
-| ---------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--export <folder>`    | (required)            | The unzipped export                                                                                                           |
-| `--vault <folder>`     | (required)            | The vault to write into. It must exist; there is no default                                                                   |
-| `--dry-run`            | off                   | Plans and reports everything, writes nothing                                                                                  |
-| `--recreate-deleted`   | off                   | Makes again the notes of imported pages deleted in Atlas (a day's note the app has made since is filled in as a first import) |
-| `--no-fill-unrecorded` | off                   | Leaves notes no run recorded importing as they are                                                                            |
-| `--only <list>`        | every database        | `tasks,notes,meetings,people,para,teams,daily`, comma-separated                                                               |
-| `--task-status <a=b>`  | the table above       | A Notion status and the GTD status it becomes; repeat it                                                                      |
-| `--gemini-dates <how>` | none: Gemini held     | Passed to the meeting import (issue #44)                                                                                      |
-| `--date-order <order>` | none: listed          | How a date written `10/06/2026` is read, meetings' too: `mdy` (month first) or `dmy` (day first)                              |
-| `--time-zone <zone>`   | `America/Los_Angeles` | The clock UTC times are read on, for meetings and every date                                                                  |
+| Option                 | Default               | What it does                                                                                                                 |
+| ---------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `--export <folder>`    | (required)            | The unzipped export                                                                                                          |
+| `--vault <folder>`     | (required)            | The vault to write into. It must exist; there is no default                                                                  |
+| `--dry-run`            | off                   | Plans and reports everything, writes nothing                                                                                 |
+| `--recreate-deleted`   | off                   | Makes again the notes of imported pages deleted in DFAI (a day's note the app has made since is filled in as a first import) |
+| `--no-fill-unrecorded` | off                   | Leaves notes no run recorded importing as they are                                                                           |
+| `--only <list>`        | every database        | `tasks,notes,meetings,people,para,teams,daily`, comma-separated                                                              |
+| `--task-status <a=b>`  | the table above       | A Notion status and the GTD status it becomes; repeat it                                                                     |
+| `--gemini-dates <how>` | none: Gemini held     | Passed to the meeting import (issue #44)                                                                                     |
+| `--date-order <order>` | none: listed          | How a date written `10/06/2026` is read, meetings' too: `mdy` (month first) or `dmy` (day first)                             |
+| `--time-zone <zone>`   | `America/Los_Angeles` | The clock UTC times are read on, for meetings and every date                                                                 |
 
 ## Safety
 
@@ -282,4 +282,4 @@ of one kind in the export).
   holds what the plan was made from (an update).
 - A page the vault holds twice by `notion_id` is refused: merge the notes,
   then run again.
-- Quit Atlas before a real run (step 4).
+- Quit DFAI before a real run (step 4).

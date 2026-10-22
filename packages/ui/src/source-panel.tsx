@@ -1,5 +1,5 @@
-import type { Datasource } from '@atlas/domain';
-import type { SourceReport } from '@atlas/application';
+import type { Datasource } from '@dfai/domain';
+import type { SourceReport } from '@dfai/application';
 
 /**
  * A source note: where it reads from, what the last refresh did, and a button.

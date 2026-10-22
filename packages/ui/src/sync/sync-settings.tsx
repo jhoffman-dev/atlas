@@ -42,7 +42,7 @@ export interface SyncSettingsView {
   }[];
   /** What stays on this Mac unsynced: files over GitHub's limit, repositories of their own. */
   readonly notSynced: readonly string[];
-  /** Atlas's own files a line of the vault's `.gitignore` keeps out of sync. */
+  /** DFAI's own files a line of the vault's `.gitignore` keeps out of sync. */
   readonly ignored: readonly string[];
   /** The person's GitHub repositories, for connecting one. */
   readonly repositories: RepositoryListView;
@@ -72,8 +72,8 @@ export function SyncSettings({
   return (
     <SettingsSection section={SETTINGS_SECTIONS.sync}>
       <p className="settings__lede">
-        Keep this vault the same on each of your Macs through a private GitHub repository. Atlas
-        uses the GitHub login already on this Mac and never stores it. Secrets stay in each Mac’s
+        Keep this vault the same on each of your Macs through a private GitHub repository. DFAI uses
+        the GitHub login already on this Mac and never stores it. Secrets stay in each Mac’s
         Keychain.
       </p>
       <div className="settings__row">

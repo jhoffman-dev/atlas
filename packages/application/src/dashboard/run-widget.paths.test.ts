@@ -1,4 +1,4 @@
-import { parseDashboard, parseObjectType, WIDGET_KINDS, type Widget } from '@atlas/domain';
+import { parseDashboard, parseObjectType, WIDGET_KINDS, type Widget } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { runWidget } from './run-widget.ts';

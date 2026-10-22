@@ -5,7 +5,7 @@ import { createVault, expectFile, installHost, type FakeHost } from './host.ts';
  * #10 / #1: Settings → Profile holds the person's name, in the vault's
  * settings note, and Claude is told it — or told to write "[Your name]"
  * rather than guess one. The model is the e2e host's stub Claude Code, so
- * what is proved is the system prompt Atlas hands it.
+ * what is proved is the system prompt DFAI hands it.
  */
 
 async function openVault(page: Page, settings?: string) {
@@ -68,7 +68,7 @@ test('a name set in Settings → Profile is kept in the vault and reaches Claude
 
   const system = lastSystemPrompt(host);
   expect(system).toContain('\nFull name: Ada Lovelace\n');
-  expect(system).not.toContain('has not told Atlas their name');
+  expect(system).not.toContain('has not told DFAI their name');
 });
 
 test('with no name set, Claude is told to write "[Your name]" and never guess', async ({
@@ -80,7 +80,7 @@ test('with no name set, Claude is told to write "[Your name]" and never guess', 
   await ask(page, 'Make me a meeting note', 'Done.');
 
   const system = lastSystemPrompt(host);
-  expect(system).toContain('The person has not told Atlas their name.');
+  expect(system).toContain('The person has not told DFAI their name.');
   expect(system).toContain('[Your name] exactly, or ask them for it.');
   expect(system).not.toContain('Full name:');
 });
@@ -107,7 +107,7 @@ test('with only a preferred name, the chat still offers to set the full name', a
   await expect(chat(page).getByRole('button', { name: 'Set your name' })).toBeVisible();
 });
 
-test('changing the preferred name leaves a full name Atlas cannot show as it was', async ({
+test('changing the preferred name leaves a full name DFAI cannot show as it was', async ({
   page,
 }) => {
   const { vault } = await openVault(page, '---\nprofileName:\n  - Ada\n  - Lovelace\n---\n');

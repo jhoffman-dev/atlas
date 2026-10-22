@@ -1,4 +1,4 @@
-import { createWikiLinkResolver, messageWithoutPaths, type VaultPath } from '@atlas/domain';
+import { createWikiLinkResolver, messageWithoutPaths, type VaultPath } from '@dfai/domain';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 import {
   deriveNotes,
@@ -10,7 +10,7 @@ import {
   type NoteDeriving,
   type NoteFile,
   type UnreadNote,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /** What the window's thread asks of the worker. Plain data: it is copied across. */
 export type DerivationRequest =

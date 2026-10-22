@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   createIndexSyncer,
   createNoteChanges,
   fakeIndexPort,
   fakeVaultFs,
   recordingActivity,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 import {
   serveNoteDerivation,

@@ -1,4 +1,4 @@
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { useEmptyFold } from '../empty-fold.ts';
 import { Icon } from '../icon.tsx';
 import { PropertiesPanel } from '../properties-panel.tsx';

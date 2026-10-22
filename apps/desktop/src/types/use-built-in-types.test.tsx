@@ -6,8 +6,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, memoryVault, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeVaultFs, memoryVault, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useBuiltInTypes } from './use-built-in-types.ts';
 
 const TASK = [
@@ -315,7 +315,7 @@ describe('useBuiltInTypes', () => {
       level: 'info',
       kind: 'app',
       message:
-        'Added Tasks, Decisions, Summary digest, Summary of and Summary model to the Meeting type, which was written before Atlas shipped them.',
+        'Added Tasks, Decisions, Summary digest, Summary of and Summary model to the Meeting type, which was written before DFAI shipped them.',
       subject: { kind: 'note', path: '.atlas/types/meeting.md' },
     });
 
@@ -335,7 +335,7 @@ describe('useBuiltInTypes', () => {
     await waitFor(() => expect(activity.reports).toHaveLength(1));
     expect(activity.reports[0]?.level).toBe('warning');
     expect(activity.reports[0]?.message).toMatch(
-      /^Atlas could not add its built-in properties to any type: .*cannot be read/,
+      /^DFAI could not add its built-in properties to any type: .*cannot be read/,
     );
     expect(files.get('.atlas/types/meeting.md')).toBe(OLDER_MEETING);
   });
@@ -349,7 +349,7 @@ describe('useBuiltInTypes', () => {
     expect(activity.reports[0]).toMatchObject({
       level: 'info',
       message:
-        'Added Tasks, Decisions, Summary digest, Summary of and Summary model to the Meeting type, which was written before Atlas shipped them.',
+        'Added Tasks, Decisions, Summary digest, Summary of and Summary model to the Meeting type, which was written before DFAI shipped them.',
     });
     expect(files.get('.atlas/types/meeting.md')).toContain('  decisions:\n');
   });
@@ -361,7 +361,7 @@ describe('useBuiltInTypes', () => {
     expect(activity.reports[0]).toMatchObject({
       level: 'warning',
       message: expect.stringMatching(
-        /^Atlas did not add its built-in properties to the Meeting type: its `properties` is not a map/,
+        /^DFAI did not add its built-in properties to the Meeting type: its `properties` is not a map/,
       ),
       subject: { kind: 'note', path: '.atlas/types/meeting.md' },
     });

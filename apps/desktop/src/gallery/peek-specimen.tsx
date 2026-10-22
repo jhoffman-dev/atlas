@@ -5,7 +5,7 @@ import {
   noteNames,
   type EditorDocument,
   type PropertyDef,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   LinkPreviewCard,
   NoteNamesProvider,
@@ -18,7 +18,7 @@ import {
   type LinkPreview,
   type PreviewTarget,
   type PropertyRow,
-} from '@atlas/ui';
+} from '@dfai/ui';
 
 /** The rows of a Task table the peek steps through. */
 const ROWS = [

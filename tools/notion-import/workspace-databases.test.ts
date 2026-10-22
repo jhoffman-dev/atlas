@@ -296,7 +296,7 @@ describe('the other rows', () => {
 describe('the columns not imported', () => {
   it('are listed with why: a link back, or a column the import does not map', () => {
     expect(columnsLeftOut('people', ['Name', 'Email', 'Tasks', 'Birthday'])).toEqual([
-      '"Tasks": it links back here, and Atlas shows that as a backlink',
+      '"Tasks": it links back here, and DFAI shows that as a backlink',
       '"Birthday": not a column this import maps',
     ]);
   });

@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/application",
+  "name": "@dfai/application",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -9,6 +9,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@atlas/domain": "workspace:*"
+    "@dfai/domain": "workspace:*"
   }
 }

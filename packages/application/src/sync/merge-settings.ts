@@ -12,7 +12,7 @@ import {
   type SettingsMerged,
   type SettingsText,
   type ShippedPropertiesRecord,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 
 /** The three versions of a file both Macs changed, as text; `base` is null when both made it. */
@@ -24,10 +24,10 @@ export interface SettingsVersions {
 }
 
 /**
- * One file holding both Macs' changes to a settings file of Atlas's own
+ * One file holding both Macs' changes to a settings file of DFAI's own
  * (#233), or null when only a person can merge them and both versions are to
- * be kept. The record of the properties Atlas added to built-in types is the
- * union of both, while each side is exactly as Atlas writes it. Any other
+ * be kept. The record of the properties DFAI added to built-in types is the
+ * union of both, while each side is exactly as DFAI writes it. Any other
  * `.atlas/` markdown file keeps one side byte for byte and gains, as written,
  * the keys or map entries the other side added — when adding them is all the
  * other side did (ADR-0003).
@@ -58,7 +58,7 @@ function mergeRecords({ base, ours, theirs }: SettingsVersions): string | null {
 const RECORD_JSON = /\n```json\n([^\n]*)\n```\n/;
 
 /**
- * A record read back, when its file is the text Atlas writes for it — but for
+ * A record read back, when its file is the text DFAI writes for it — but for
  * the order of its keys, which older builds did not sort, and an `added` older
  * builds left out. Null for one a person wrote in, around the JSON or inside
  * it (a field of their own, which reading drops): it is kept with a copy,
@@ -81,7 +81,7 @@ function readRecord(text: string): ShippedPropertiesRecord | null {
   try {
     return parseShippedPropertiesRecord(text);
   } catch (cause) {
-    // A record that is not one Atlas wrote is a person's: both are kept as they are.
+    // A record that is not one DFAI wrote is a person's: both are kept as they are.
     if (cause instanceof ShippedPropertiesRecordError) return null;
     throw cause;
   }
@@ -135,7 +135,7 @@ function mergeByKeys(markdown: MarkdownPort, versions: SettingsVersions): string
 const ANCHOR_OR_ALIAS = /(?:^|[\s[{,])[&*][^\s,\]}]/m;
 
 /**
- * A version whose frontmatter is a map Atlas can cut into its keys exactly as
+ * A version whose frontmatter is a map DFAI can cut into its keys exactly as
  * written; null for any other — no frontmatter, one that cannot be read, a
  * list or a bare value, CRLF line endings, anchors or aliases, or keys the reader and the text
  * disagree about (`__proto__`, say, which a reader drops).

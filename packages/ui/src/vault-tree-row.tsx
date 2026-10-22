@@ -1,11 +1,6 @@
 import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import {
-  isMarkdownFile,
-  type SidebarTreeRow,
-  type VaultEntry,
-  type VaultPath,
-} from '@atlas/domain';
+import { isMarkdownFile, type SidebarTreeRow, type VaultEntry, type VaultPath } from '@dfai/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { FavoriteStar } from './favorite-star.tsx';
 import { isImeKey } from './ime.ts';

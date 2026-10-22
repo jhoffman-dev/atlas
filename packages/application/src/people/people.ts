@@ -11,7 +11,7 @@ import {
   type KnownPerson,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { quickAddContents } from '../quick-add/quick-add-note.ts';

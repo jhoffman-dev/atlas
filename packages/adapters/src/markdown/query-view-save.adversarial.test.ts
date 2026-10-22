@@ -23,7 +23,7 @@ const HOSTILE_QUERIES = [
   'FROM task WHERE tag = #q3',
   "FROM task WHERE notes = 'a: b'",
   "'FROM' task",
-  'FROM task WHERE project = [[Atlas|the app]]',
+  'FROM task WHERE project = [[DFAI|the app]]',
   'FROM task\nWHERE status != done\nSORT BY due',
   'FROM task WHERE status = done   ',
   '  FROM task',

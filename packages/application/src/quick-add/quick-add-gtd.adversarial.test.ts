@@ -4,7 +4,7 @@
  * and Waiting never needs someone to wait on (#202).
  */
 import { describe, expect, it } from 'vitest';
-import { TASK_TYPE_FILE } from '@atlas/domain';
+import { TASK_TYPE_FILE } from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { quickAddNote } from './quick-add-note.ts';
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { createVaultPath, type LinkFragment } from '@atlas/domain';
+import { createVaultPath, type LinkFragment } from '@dfai/domain';
 import { createRevealStore, requestReveal, useTabReveal } from './reveals.ts';
 
 const NOTE = createVaultPath('Plan.md');

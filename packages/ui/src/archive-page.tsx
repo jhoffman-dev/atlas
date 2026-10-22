@@ -1,4 +1,4 @@
-import { formatPropertyDate, type ArchivedNote, type VaultPath } from '@atlas/domain';
+import { formatPropertyDate, type ArchivedNote, type VaultPath } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
 import { HiddenTitle } from './page-head.tsx';

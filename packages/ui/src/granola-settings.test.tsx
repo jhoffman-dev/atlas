@@ -79,20 +79,20 @@ describe('GranolaSettings', () => {
   });
 
   it('says it is pulling, and Sync now waits for the pull', () => {
-    renderWith({ pulling: true, lastPull: '2 new, 3 already in Atlas', lastPullAt: '9:40 AM' });
+    renderWith({ pulling: true, lastPull: '2 new, 3 already in DFAI', lastPullAt: '9:40 AM' });
     expect(pullStatus()).toBe('Pulling from Granola…');
     expect(button('Sync now')).toHaveProperty('disabled', true);
   });
 
   it('waits for the vault’s first sync before pulling', () => {
     renderWith({ waiting: true });
-    expect(card().textContent).toContain('Atlas pulls from Granola once this vault has synced.');
+    expect(card().textContent).toContain('DFAI pulls from Granola once this vault has synced.');
     expect(button('Sync now')).toHaveProperty('disabled', true);
   });
 
   it('says what the last pull did and when, with the meetings it did not write', async () => {
     const { onOpenNote } = renderWith({
-      lastPull: '3 new, 12 already in Atlas, 1 refused',
+      lastPull: '3 new, 12 already in DFAI, 1 refused',
       lastPullAt: '9:40 AM',
       notes: [
         {
@@ -104,7 +104,7 @@ describe('GranolaSettings', () => {
         { id: 'not_2', title: 'not_2', problem: 'Granola did not answer in time.', url: null },
       ],
     });
-    expect(pullStatus()).toBe('3 new, 12 already in Atlas, 1 refused at 9:40 AM');
+    expect(pullStatus()).toBe('3 new, 12 already in DFAI, 1 refused at 9:40 AM');
 
     const notes = within(card()).getByRole('list', { name: 'Meetings not written' });
     expect(within(notes).getAllByRole('listitem')).toHaveLength(2);

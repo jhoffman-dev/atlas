@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import type { ObjectType, VaultPath } from '@atlas/domain';
-import { createNoteOfType, type MarkdownPort, type VaultFsPort } from '@atlas/application';
+import type { ObjectType, VaultPath } from '@dfai/domain';
+import { createNoteOfType, type MarkdownPort, type VaultFsPort } from '@dfai/application';
 import { localToday } from '../today.ts';
 
 /**

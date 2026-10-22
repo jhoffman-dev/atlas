@@ -5,7 +5,7 @@ import {
   vaultPathSegments,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultFsPort } from './ports.ts';
 
 /**

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { QueryObserver, useQueryClient } from '@tanstack/react-query';
-import type { ReadScope } from '@atlas/application';
+import type { ReadScope } from '@dfai/application';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
 import { scopedIndexKeyQuery } from './use-scoped-index-key.ts';
 

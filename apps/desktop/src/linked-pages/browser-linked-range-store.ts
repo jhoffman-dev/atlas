@@ -1,5 +1,5 @@
-import { LINKED_RANGES, type LinkedRange, type LinkedSectionId } from '@atlas/domain';
-import type { LinkedRangeStore } from '@atlas/application';
+import { LINKED_RANGES, type LinkedRange, type LinkedSectionId } from '@dfai/domain';
+import type { LinkedRangeStore } from '@dfai/application';
 
 const KEY = 'atlas.linked-ranges';
 

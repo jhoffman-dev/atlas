@@ -1,6 +1,6 @@
 /** Attack on PR #428: a link clicked inside the peek is read against the peeked note. */
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { createRevealStore } from '../panes/reveals.ts';
 import { createOverlayStore, openPeek, peekNow } from '../overlay-store.ts';
 import { clickLink, openNote } from './open-place.ts';

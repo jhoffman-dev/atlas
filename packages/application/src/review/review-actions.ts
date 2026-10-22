@@ -1,4 +1,4 @@
-import { FINISHED_TASK_STATUS, REOPENED_TASK_STATUS, TASK_KEYS } from '@atlas/domain';
+import { FINISHED_TASK_STATUS, REOPENED_TASK_STATUS, TASK_KEYS } from '@dfai/domain';
 import { propertyChange, type PropertyChanges } from '../query/set-property.ts';
 
 /**

@@ -20,7 +20,7 @@ import {
   type NoteChange,
   type NoteVersion,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { runOnNoteChanges } from '../automations/run-automation.ts';
 import type { VaultGuard } from '../automations/vault-guard.ts';
 import { heldEntries } from '../index/refresh-index.ts';

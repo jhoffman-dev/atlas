@@ -1,4 +1,4 @@
-import { placeCrumb, type OutlineEntry } from '@atlas/domain';
+import { placeCrumb, type OutlineEntry } from '@dfai/domain';
 import { SuggestionPopup, type PopupItem } from './suggestion-popup.tsx';
 import type { LinkChoice } from './block-picking.ts';
 import type { WikiSuggestionView } from './wiki-link-suggestion.ts';

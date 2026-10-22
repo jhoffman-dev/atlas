@@ -5,7 +5,7 @@ import {
   standaloneBlockAnchor,
   type EditorMark,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { paragraphAnchor, withoutTrailingAnchor } from './block-anchors.ts';
 import type { Nodes as MdastNode, Parent as MdastParent, PhrasingContent } from 'mdast';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { digestOf, type NoteChange } from '@atlas/domain';
+import { digestOf, type NoteChange } from '@dfai/domain';
 import { createNoteChanges } from '../index/note-changes.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';

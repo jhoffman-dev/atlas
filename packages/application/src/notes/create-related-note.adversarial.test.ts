@@ -6,7 +6,7 @@ import {
   splitWikiLinks,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { createRelatedNote, RelatedNoteRefusedError } from './create-related-note.ts';
 

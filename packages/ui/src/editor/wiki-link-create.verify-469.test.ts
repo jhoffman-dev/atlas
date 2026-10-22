@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor } from '@tiptap/core';
-import { splitWikiLinks, type NoteSuggestion } from '@atlas/domain';
+import { splitWikiLinks, type NoteSuggestion } from '@dfai/domain';
 import { createEditorExtensions } from './extensions.ts';
 import { withCreate, type WikiSuggestionView } from './wiki-link-suggestion.ts';
 

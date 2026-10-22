@@ -6,7 +6,7 @@ import {
   type LinkFragment,
   type Transclusion,
   type WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { BookmarkSource } from './editor/bookmark.tsx';
 import type { TransclusionSource } from './editor/block-embed.tsx';
 import type { QueryBlockShown, QueryBlockSource } from './editor/query-block.tsx';

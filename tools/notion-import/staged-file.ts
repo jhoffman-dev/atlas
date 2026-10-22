@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 /**
  * A file's whole content written beside where it goes, under a hidden name
- * (Atlas, and the import's own look over the vault, pass hidden files by),
+ * (DFAI, and the import's own look over the vault, pass hidden files by),
  * and flushed to the disk. It is then linked to its names one at a time:
  * a name is taken only by the whole file, never by part of one.
  */

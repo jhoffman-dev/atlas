@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
-import type { HostVaultFsPort, NoteContents } from '@atlas/application';
+import { createVaultPath, type VaultEntry, type VaultPath } from '@dfai/domain';
+import type { HostVaultFsPort, NoteContents } from '@dfai/application';
 import { throughHost } from './host-error.ts';
 
 /** The shape the Rust side sends back. Validated here before it becomes a domain type. */

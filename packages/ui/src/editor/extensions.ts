@@ -26,7 +26,7 @@ lowlight.registerAlias({
   xml: ['html', 'svg'],
   yaml: ['yml'],
 });
-import type { MentionSuggestion, NoteSuggestion, TagSuggestion } from '@atlas/domain';
+import type { MentionSuggestion, NoteSuggestion, TagSuggestion } from '@dfai/domain';
 import { BlockId } from './block-id.ts';
 import { BlockAnchor } from './block-anchor.ts';
 import { RevealedBlock } from './revealed-block.ts';

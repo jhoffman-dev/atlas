@@ -8,7 +8,7 @@ import {
   paragraphWithBookmark,
   type EditorNode,
   type LinkSwitch,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /*
  * The editor's side of switching a link between a link and a bookmark

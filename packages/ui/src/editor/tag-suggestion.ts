@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
-import { formatTag, type TagSuggestion } from '@atlas/domain';
+import { formatTag, type TagSuggestion } from '@dfai/domain';
 import { pickerSuggestion, type PickerView } from './picker-suggestion.ts';
 
 export type TagSuggestionView = PickerView<TagSuggestion>;

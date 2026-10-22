@@ -1,8 +1,8 @@
-import { AtlasQueryPanel, ViewSaveControls, ViewTabs, type OverlaySlots } from '@atlas/ui';
+import { AtlasQueryPanel, ViewSaveControls, ViewTabs, type OverlaySlots } from '@dfai/ui';
 import type { QueryViewState } from '../query/use-query-view.ts';
 
 /**
- * A saved Atlas query as a page (P24-04): the other saved queries as tabs,
+ * A saved DFAI query as a page (P24-04): the other saved queries as tabs,
  * then the query and its answer. While the query or its layout differs from
  * the file, the unsaved-changes notice is a strip above the query, where
  * `ViewToolbar` puts it — not a band inside the layout row (#341).

@@ -4,7 +4,7 @@ import {
   withAnchorsAtPlaces,
   type EditorMark,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * A block as markdown can hold it, which is how the writer writes it and what

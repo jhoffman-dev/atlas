@@ -1,4 +1,4 @@
-import { personInitial, placeCrumb, type MentionSuggestion } from '@atlas/domain';
+import { personInitial, placeCrumb, type MentionSuggestion } from '@dfai/domain';
 import { SuggestionPopup, type PopupItem } from './suggestion-popup.tsx';
 import type { MentionSuggestionView } from './mention-suggestion.ts';
 

@@ -1,5 +1,5 @@
-//! Two fetches of the same model file at once, as two Atlas processes on one
-//! Mac (they share `~/Library/Application Support/dev.jhoffman.atlas`, and the
+//! Two fetches of the same model file at once, as two DFAI processes on one
+//! Mac (they share `~/Library/Application Support/com.dailyflowai.dfai`, and the
 //! in-process lock does not reach across processes) make on a first use.
 //!
 //! Needs the network: the 711 KB tokenizer is fetched through a local CONNECT
@@ -13,8 +13,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use atlas_lib::embeddings::fetch::ensure_model;
-use atlas_lib::embeddings::{model_folder, MODEL};
+use dfai_lib::embeddings::fetch::ensure_model;
+use dfai_lib::embeddings::{model_folder, MODEL};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};

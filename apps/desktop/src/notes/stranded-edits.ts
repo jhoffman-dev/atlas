@@ -5,7 +5,7 @@ import {
   redateStrandedEdit,
   type StrandedEdit,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { UnstoredWork } from './unstored-work.ts';
 
 /**
@@ -72,18 +72,18 @@ function describeHere(kept: readonly StrandedEdit[], unstored: readonly Stranded
   const volatile = kept.filter((edit) => unstored.some((held) => held.path === edit.path));
   return volatile.length === 0
     ? said
-    : `${said} Changes to ${namesOf(volatile)} could not be stored either, so they will be lost if Atlas quits first.`;
+    : `${said} Changes to ${namesOf(volatile)} could not be stored either, so they will be lost if DFAI quits first.`;
 }
 
 /**
  * Work held only in memory for vaults that are not open. It is not offered
  * here — its paths name another vault's notes — but nothing else says it
- * exists, and it is gone if Atlas quits.
+ * exists, and it is gone if DFAI quits.
  */
 const describeElsewhere = (held: readonly (readonly [string, readonly StrandedEdit[]])[]) =>
   held.map(
     ([vault, edits]) =>
-      `Unsaved changes to ${namesOf(edits)} in ${vaultName(vault)} could not be saved or stored. Open ${vaultName(vault)} again before Atlas quits to get them back.`,
+      `Unsaved changes to ${namesOf(edits)} in ${vaultName(vault)} could not be saved or stored. Open ${vaultName(vault)} again before DFAI quits to get them back.`,
   );
 
 function describe({

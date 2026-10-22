@@ -4,7 +4,7 @@
  * names causes; `pnpm perf` (WebKit) is what says how long things take.
  *
  * Build without minifying first so the names are the source's:
- * `pnpm --filter @atlas/desktop exec vite build --minify false`.
+ * `pnpm --filter @dfai/desktop exec vite build --minify false`.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';

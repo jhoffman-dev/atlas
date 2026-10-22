@@ -224,7 +224,7 @@ const WAITING_ON = TASK_TYPE_FILE.type.properties.find(
 
 /**
  * Why a note cannot be who a task waits on, or null when it can: a person
- * still in use — not archived, not one of Atlas's own files.
+ * still in use — not archived, not one of DFAI's own files.
  */
 export function waitingOnRefusal({
   path,
@@ -234,7 +234,7 @@ export function waitingOnRefusal({
   /** The note's `type:`, or null when it has none. */
   type: string | null;
 }): string | null {
-  if (isAtlasNote(path)) return 'A task waits on a person, not on one of Atlas’s own files.';
+  if (isAtlasNote(path)) return 'A task waits on a person, not on one of DFAI’s own files.';
   if (isArchivedPath(path)) return 'That person is archived: unarchive them to wait on them.';
   if (type === null) return 'A task waits on a person, and that note is not one.';
   if (WAITING_ON === undefined) return null;

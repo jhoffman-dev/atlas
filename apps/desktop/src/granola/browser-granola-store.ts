@@ -1,4 +1,4 @@
-import type { GranolaPullRecord, GranolaPullRecords } from '@atlas/application';
+import type { GranolaPullRecord, GranolaPullRecords } from '@dfai/application';
 
 const PREFIX = 'atlas.granola-pull:';
 

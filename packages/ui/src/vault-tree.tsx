@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import type { SidebarTreeRow, VaultEntry, VaultPath } from '@atlas/domain';
+import type { SidebarTreeRow, VaultEntry, VaultPath } from '@dfai/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import type { OpenHow } from './open-how.ts';
 import type { MenuCommand } from './menu-items.tsx';

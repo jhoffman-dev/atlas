@@ -1,4 +1,4 @@
-import type { GoogleCalendar, GoogleFailure } from '@atlas/domain';
+import type { GoogleCalendar, GoogleFailure } from '@dfai/domain';
 
 /** Whether this vault has a Google sign-in on this Mac, and what it is for. Never a token. */
 export interface GoogleConnection {

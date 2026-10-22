@@ -1,4 +1,4 @@
-import type { ActivityEvent, ActivityReport } from '@atlas/domain';
+import type { ActivityEvent, ActivityReport } from '@dfai/domain';
 import type { ActivityLog, ActivityStore } from '../activity/ports.ts';
 
 /** An Activity log that keeps what it is told, for a test to read back. */

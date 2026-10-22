@@ -129,7 +129,7 @@ pub fn write_secret(
     if let Some(value) = write.value {
         ensure_strikable(value).map_err(|_| {
             format!(
-                "the secret {:?} is too long to protect: Atlas could not strike it from what comes back, so it is not kept",
+                "the secret {:?} is too long to protect: DFAI could not strike it from what comes back, so it is not kept",
                 write.name
             )
         })?;

@@ -6,10 +6,10 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import * as domain from '@atlas/domain';
+import * as domain from '@dfai/domain';
 import { TableView, type TableResult } from './table-view.tsx';
 
-vi.mock('@atlas/domain', async (importOriginal) => {
+vi.mock('@dfai/domain', async (importOriginal) => {
   const actual = await importOriginal<typeof domain>();
   return { ...actual, toBoardRows: vi.fn(actual.toBoardRows) };
 });

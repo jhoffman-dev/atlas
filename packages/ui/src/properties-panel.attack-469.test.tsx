@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, noteNames, type PropertyDef } from '@atlas/domain';
+import { createVaultPath, noteNames, type PropertyDef } from '@dfai/domain';
 import { NoteNamesProvider } from './note-names.tsx';
 import { PropertiesPanel, type PropertyRow } from './properties-panel.tsx';
 

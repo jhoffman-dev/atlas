@@ -24,7 +24,7 @@ async function openVault(page: Page) {
   await vault.mkdir('.secret');
   await vault.write('.secret/private.md', '# Private\n\nGraveyard text kept back.\n');
 
-  // Atlas's own configuration: ordinary notes, meant to be opened and edited.
+  // DFAI's own configuration: ordinary notes, meant to be opened and edited.
   await vault.mkdir('.atlas/types');
   await vault.write(
     '.atlas/types/task.md',

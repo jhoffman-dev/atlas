@@ -13,7 +13,7 @@ import {
   parseRunLog,
   type AutomationRule,
   type LogEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { adoptAutomations } from './adopt-automations.ts';
 import { AutomationLogError } from './automation-log.ts';

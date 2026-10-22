@@ -1,4 +1,4 @@
-import { ARCHIVE_SCOPE } from '@atlas/application';
+import { ARCHIVE_SCOPE } from '@dfai/application';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { archivePage } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';

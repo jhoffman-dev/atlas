@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NoteChange } from '@atlas/domain';
+import type { NoteChange } from '@dfai/domain';
 import { REVIEW_SCOPE, scopeTouched } from '../reads/scoped-reads.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';

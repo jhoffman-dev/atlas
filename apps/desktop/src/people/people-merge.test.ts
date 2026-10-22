@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
-import type { IndexPort, MarkdownPort, QueryResult, VaultFsPort } from '@atlas/application';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
+import type { IndexPort, MarkdownPort, QueryResult, VaultFsPort } from '@dfai/application';
 import type { Overlay } from '../overlay.ts';
 import {
   createPeopleMergeStore,

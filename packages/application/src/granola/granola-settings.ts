@@ -1,4 +1,4 @@
-import { parseGranolaSettings, type GranolaSettings } from '@atlas/domain';
+import { parseGranolaSettings, type GranolaSettings } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings } from '../settings/index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

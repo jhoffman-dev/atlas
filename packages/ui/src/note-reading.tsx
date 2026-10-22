@@ -1,6 +1,6 @@
 import { useEffect, useMemo, type KeyboardEvent, type MouseEvent } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
-import type { EditorDocument } from '@atlas/domain';
+import type { EditorDocument } from '@dfai/domain';
 import { createReadingExtensions } from './editor/extensions.ts';
 import { showAsRead } from './editor/block-anchor.ts';
 

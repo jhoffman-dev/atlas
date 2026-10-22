@@ -4,7 +4,7 @@ import { backoff, paceOf, RETRIES } from './granola-pace.ts';
 /*
  * How fast a pull may ask Granola, and how long it waits after a 429
  * (plan §5). Granola allows bursts of 25 in 5 s and 5 a second sustained;
- * Atlas keeps to 4 a second. The clock is passed in.
+ * DFAI keeps to 4 a second. The clock is passed in.
  */
 
 describe('backoff', () => {

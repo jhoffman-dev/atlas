@@ -1,4 +1,4 @@
-import { createVaultPath, isArchivedPath, toSearchQuery } from '@atlas/domain';
+import { createVaultPath, isArchivedPath, toSearchQuery } from '@dfai/domain';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import { countOf, queryFlag, requiredText } from './fields.ts';
 import { isApiNotePath } from './paths.ts';
@@ -17,7 +17,7 @@ interface Asked {
 
 /**
  * Full-text search, answered by the index as the search palette is. Hits the
- * API could not then read — Atlas's own notes in `.atlas` — are left out, and
+ * API could not then read — DFAI's own notes in `.atlas` — are left out, and
  * so is the Archive unless `includeArchived` asks for it, when each archived
  * hit says so.
  */

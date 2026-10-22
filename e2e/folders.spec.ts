@@ -173,7 +173,7 @@ test('a dashboard can be deleted from its own "…" menu', async ({ page }) => {
   await dashboards.getByRole('button', { name: 'Progress', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Progress' })).toBeVisible();
 
-  // A dashboard stays where Atlas keeps it: it can go, but not move.
+  // A dashboard stays where DFAI keeps it: it can go, but not move.
   await page.getByRole('button', { name: 'More' }).click();
   // The menu is open before its absence is read, or the check passes on nothing.
   const remove = page.getByRole('menuitem', { name: /^Delete…/ });

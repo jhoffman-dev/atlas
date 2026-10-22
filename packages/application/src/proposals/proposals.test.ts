@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { digestOf, type VaultPath } from '@atlas/domain';
+import { digestOf, type VaultPath } from '@dfai/domain';
 import {
   jsonLinesNote,
   proposalVault,
@@ -364,7 +364,7 @@ describe('listProposals', () => {
       PROPOSAL,
     ]);
     expect(listing.unreadable).toEqual([
-      { path: 'Inbox/Proposals/Broken.md', problem: expect.stringMatching(/no kind Atlas knows/) },
+      { path: 'Inbox/Proposals/Broken.md', problem: expect.stringMatching(/no kind DFAI knows/) },
     ]);
     // Answered but never filed away: listed apart, never just gone.
     expect(listing.stranded.map((listed) => listed.proposal.path)).toEqual([
@@ -409,7 +409,7 @@ describe('acceptProposalNote — when the vault moves under it', () => {
 
   it('refuses a proposal it cannot read, saying why', async () => {
     const setup = vault({ [PROPOSAL]: taskProposal({ kind: 'meeting' }) });
-    await expect(accept(setup)).rejects.toThrow(/no kind Atlas knows/);
+    await expect(accept(setup)).rejects.toThrow(/no kind DFAI knows/);
   });
 
   it('refuses a link when its note changes between the read and the write', async () => {

@@ -18,7 +18,7 @@ describe('preloadAll', () => {
     ).resolves.toBeUndefined();
     expect(ran).toEqual(['graph', 'terms']);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith('A part of Atlas could not preload:', broken);
+    expect(warn).toHaveBeenCalledWith('A part of DFAI could not preload:', broken);
   });
 
   it('warns of nothing when every preload succeeds', async () => {

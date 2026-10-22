@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, renderHook, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import type { NoteChange, ObjectType } from '@atlas/domain';
-import type { IndexPort } from '@atlas/application';
+import type { NoteChange, ObjectType } from '@dfai/domain';
+import type { IndexPort } from '@dfai/application';
 import { ArchiveContainer } from '../archive/archive-container.tsx';
 import { AutomationsContainer } from '../automations/automations-container.tsx';
 import { createAutomationsStore, publishAutomations } from '../automations/automations-store.ts';

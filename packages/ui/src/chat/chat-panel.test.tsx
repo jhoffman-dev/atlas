@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { EditorDocument } from '@atlas/domain';
+import type { EditorDocument } from '@dfai/domain';
 import { PageBar } from '../page-bar.tsx';
 import { ChatPanel } from './chat-panel.tsx';
 import { ChatToggleProvider } from './chat-toggle.tsx';

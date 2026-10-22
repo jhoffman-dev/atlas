@@ -1,4 +1,4 @@
-import type { EditorDocument } from '@atlas/domain';
+import type { EditorDocument } from '@dfai/domain';
 
 /**
  * Drawing a note's body as the app draws it to be read, as HTML: the

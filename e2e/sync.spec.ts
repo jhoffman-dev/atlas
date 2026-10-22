@@ -61,7 +61,7 @@ test('sets up sync with a private repository, then keeps both versions of a note
   const log = await gitIn(remote, ['log', '--format=%s', 'main'], host.git.env);
   expect(log.stdout).toContain('Atlas sync set up on Studio');
   await expectFile(vault, '.gitignore').toContain('.atlas-cache/');
-  // Atlas's mark, and this Mac for the automations — by an id of its own, and its name to show.
+  // DFAI's mark, and this Mac for the automations — by an id of its own, and its name to show.
   const settings = await readFile(join(vault.root, '.atlas/settings.md'), 'utf8');
   expect(settings).toContain('sync: github');
   expect(settings).toMatch(/^automationsMac: \S+$/m);
@@ -72,7 +72,7 @@ test('sets up sync with a private repository, then keeps both versions of a note
   const laptop = await otherMac(host.git, remote, 'Laptop');
   await writeFile(join(laptop.root, 'Welcome.md'), '# Welcome\n\nFrom the laptop.\n');
   await writeFile(join(laptop.root, 'Laptop only.md'), '# Laptop only\n');
-  await laptop.commitAndPush('Atlas sync from Laptop 2026-09-28 10:00');
+  await laptop.commitAndPush('DFAI sync from Laptop 2026-09-28 10:00');
   await vault.write('Welcome.md', '# Welcome\n\nFrom the studio.\n');
 
   await syncCard(page).getByRole('button', { name: 'Sync now' }).click();
@@ -147,7 +147,7 @@ test('opens a vault from GitHub into a folder of its name', async ({ page }) => 
   await gitIn(seed, ['init', '--quiet', '--bare', '--initial-branch=main', bare], host.git.env);
   const laptop = await otherMac(host.git, bare, 'Laptop');
   await writeFile(join(laptop.root, 'From GitHub.md'), '# From GitHub\n');
-  await laptop.commitAndPush('Atlas sync set up on Laptop');
+  await laptop.commitAndPush('DFAI sync set up on Laptop');
 
   const parent = await makeTempFolder('atlas-e2e-clones-');
   host.offerFolder(parent);
@@ -177,7 +177,7 @@ test('opens a vault from GitHub into a folder of its name', async ({ page }) => 
 });
 
 // Issue #8: an empty repository "opened from GitHub" into the open vault became
-// a folder inside it, and Atlas opened that empty folder in place of the vault.
+// a folder inside it, and DFAI opened that empty folder in place of the vault.
 test('refuses to copy a vault from GitHub into the vault that is open, and says where sync is set up', async ({
   page,
 }) => {
@@ -246,7 +246,7 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   const remote = await host.git.bareRepository('old-vault', 'master');
   const laptop = await otherMac(host.git, remote, 'Laptop');
   await writeFile(join(laptop.root, 'Kept for years.md'), '# Kept for years\n');
-  await laptop.commitAndPush('notes from before Atlas');
+  await laptop.commitAndPush('notes from before DFAI');
   host.git.setRepositories([
     {
       name: 'notes-archive',
@@ -307,7 +307,7 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   // Another Mac pushes; within the minute this one looks, and brings it in by itself.
   await laptop.pull();
   await writeFile(join(laptop.root, 'From the laptop.md'), '# From the laptop\n');
-  await laptop.commitAndPush('Atlas sync from Laptop 2026-09-28 10:00');
+  await laptop.commitAndPush('DFAI sync from Laptop 2026-09-28 10:00');
   await page.clock.fastForward('01:05');
   await expectFile(vault, 'From the laptop.md').toBe('# From the laptop\n');
   await expect(page.getByRole('treeitem', { name: 'From the laptop' })).toBeVisible();
@@ -338,7 +338,7 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   await closeSettings(page);
   await laptop.pull();
   await writeFile(join(laptop.root, 'Later.md'), '# Later\n');
-  await laptop.commitAndPush('Atlas sync from Laptop 2026-09-28 10:05');
+  await laptop.commitAndPush('DFAI sync from Laptop 2026-09-28 10:05');
   await vault.write('Welcome.md', '# Welcome\n\nStill typing.\n');
   await emitVaultChanged(page, ['Welcome.md']);
   await page.clock.fastForward('01:05');

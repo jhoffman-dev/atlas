@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PullStanding } from '@atlas/domain';
+import type { PullStanding } from '@dfai/domain';
 import {
   createMeetingImporter,
   createMeetingLinker,
@@ -9,7 +9,7 @@ import {
   type MeetingImporter,
   type MeetingImportPorts,
   type NoteChanges,
-} from '@atlas/application';
+} from '@dfai/application';
 import type { PulledFilesGate } from '../sync/use-pulled-files.ts';
 
 /**

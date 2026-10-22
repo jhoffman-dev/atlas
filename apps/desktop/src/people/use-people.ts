@@ -5,7 +5,7 @@ import {
   type KnownPerson,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createPerson,
   loadPeople,
@@ -13,8 +13,8 @@ import {
   type MarkdownPort,
   type NoteTemplate,
   type VaultFsPort,
-} from '@atlas/application';
-import type { NotePeople } from '@atlas/ui';
+} from '@dfai/application';
+import type { NotePeople } from '@dfai/ui';
 
 /**
  * The vault's people, read once per index revision, as a note needs them:

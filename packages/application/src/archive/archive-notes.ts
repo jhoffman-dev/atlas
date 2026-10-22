@@ -16,7 +16,7 @@ import {
   type EntryMove,
   type Unstamp,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { moveEntryTo, type Relocation, type RelocationPorts } from '../vault/relocate-entry.ts';
@@ -156,8 +156,7 @@ export function panesFor(batch: NoteBatch): ArchivePorts['editors'] {
   return { ...editors, flush: () => Promise.resolve() };
 }
 
-export const UNSAVED_REASON =
-  'It is open in Atlas with unsaved typing, so it was left where it is.';
+export const UNSAVED_REASON = 'It is open in DFAI with unsaved typing, so it was left where it is.';
 
 /**
  * One note after another, so each lands knowing where the ones before it

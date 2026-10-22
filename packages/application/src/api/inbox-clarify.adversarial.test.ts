@@ -37,7 +37,7 @@ const HOSTILE: [string, unknown][] = [
   ['a path that is a list', { path: [T], status: 'backlog' }],
   ['a null path', { path: null, status: 'backlog' }],
   ['no path', { status: 'backlog' }],
-  ['one of Atlas’s own type files', { path: '.atlas/types/task.md', status: 'backlog' }],
+  ['one of DFAI’s own type files', { path: '.atlas/types/task.md', status: 'backlog' }],
   ['a template (ADR-0026)', { path: '.atlas/templates/Task.md', status: 'backlog' }],
   ['a template, in another case', { path: '.ATLAS/Templates/Task.md', status: 'backlog' }],
   ['a note in a hidden folder', { path: 'Inbox/.hidden/Secret.md', status: 'backlog' }],
@@ -63,7 +63,7 @@ const HOSTILE: [string, unknown][] = [
   ['nothing chosen', { path: T }],
   ['only a field it does not know', { path: T, statuz: 'backlog' }],
   [
-    'waiting on one of Atlas’s own files',
+    'waiting on one of DFAI’s own files',
     { path: T, status: 'waiting', waitingOn: '.atlas/types/person.md' },
   ],
   [

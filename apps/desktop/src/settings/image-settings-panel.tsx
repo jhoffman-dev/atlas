@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ImageSettings } from '@atlas/ui';
+import { ImageSettings } from '@dfai/ui';
 import type { ImagePlacementStore } from '../notes/browser-image-placement-store.ts';
 
 /** Settings → Images, wired to where the choice is kept. */

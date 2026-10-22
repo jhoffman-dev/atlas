@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueryObserver } from '@tanstack/react-query';
-import type { NoteChange } from '@atlas/domain';
-import type { ReadScope, VaultRead } from '@atlas/application';
+import type { NoteChange } from '@dfai/domain';
+import type { ReadScope, VaultRead } from '@dfai/application';
 import {
   createWindowQueryClient,
   scopedReadKey,

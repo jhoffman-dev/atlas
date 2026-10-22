@@ -6,7 +6,7 @@ import {
   projectBackfillLine,
   projectBackfillUndoLine,
   type ProjectBackfillRow,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   applyProjectBackfill,
   previewProjectBackfill,
@@ -14,8 +14,8 @@ import {
   type ActivityRecorder,
   type ArchivePorts,
   type ProjectBackfillRun,
-} from '@atlas/application';
-import type { MeetingProjectRow, MeetingProjectsProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { MeetingProjectRow, MeetingProjectsProps } from '@dfai/ui';
 import { localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
 

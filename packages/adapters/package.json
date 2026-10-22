@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/adapters",
+  "name": "@dfai/adapters",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -9,8 +9,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@atlas/application": "workspace:*",
-    "@atlas/domain": "workspace:*",
+    "@dfai/application": "workspace:*",
+    "@dfai/domain": "workspace:*",
     "@tauri-apps/api": "^2.11.1",
     "mdast-util-to-markdown": "^2.1.2",
     "micromark-util-classify-character": "^2.0.1",

@@ -7,7 +7,7 @@ import {
   EMPTY_WORKSPACE,
   openInActiveTab,
   splitWithTab,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   createWorkspaceStore,
   focusPane,

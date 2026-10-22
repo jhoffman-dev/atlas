@@ -10,7 +10,7 @@ import {
   type InboxItem,
   type InboxTask,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import type { RelationChoice } from '../properties-panel.tsx';
 import { LinkCombobox } from '../link-suggest/link-combobox.tsx';

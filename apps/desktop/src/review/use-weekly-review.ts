@@ -8,7 +8,7 @@ import {
   taskTypeOf,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   archiveTaskChange,
   readWeeklyReview,
@@ -18,7 +18,7 @@ import {
   type MarkdownPort,
   type VaultFsPort,
   type WeeklyReviewReport,
-} from '@atlas/application';
+} from '@dfai/application';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { useReviewWrites } from './use-review-writes.ts';

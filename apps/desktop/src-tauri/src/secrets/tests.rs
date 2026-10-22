@@ -476,7 +476,7 @@ pub(crate) fn a_signed_token(len: usize) -> String {
     drawn_from(&alphabet, len)
 }
 
-/// Past the 1,024 bytes Atlas once capped a secret at: a signed token is
+/// Past the 1,024 bytes DFAI once capped a secret at: a signed token is
 /// kept, and struck from what comes back.
 #[test]
 fn a_signed_token_of_some_kilobytes_is_kept_and_struck() {
@@ -517,7 +517,7 @@ fn a_secret_too_long_to_protect_is_refused_and_not_stored() {
 
     assert_eq!(
         refused.unwrap_err(),
-        "the secret \"k\" is too long to protect: Atlas could not strike it from what comes back, so it is not kept"
+        "the secret \"k\" is too long to protect: DFAI could not strike it from what comes back, so it is not kept"
     );
     assert_eq!(store.accounts().unwrap(), Vec::<String>::new());
 }
@@ -624,7 +624,7 @@ pub(crate) async fn assert_never_stalls_the_worker<T>(work: impl Future<Output =
 /// matcher is built before anything else about the write is checked, and
 /// held whether or not the value is then kept: a write refused for its
 /// origins (or a Keychain that would not take it) leaves a matcher spelling a
-/// value Atlas never kept. That is accepted, within a bound: it is let go
+/// value DFAI never kept. That is accepted, within a bound: it is let go
 /// once eight other values have been used.
 #[test]
 fn a_secret_refused_at_saving_is_let_go_once_eight_other_values_are_used() {

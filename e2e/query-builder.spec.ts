@@ -60,12 +60,12 @@ async function openVault(page: Page): Promise<FakeVault> {
   );
   await vault.write('people/Julie.md', front(['type: person'], '# Julie'));
   await vault.write('people/Sam.md', front(['type: person'], '# Sam'));
-  await vault.write('projects/Atlas.md', front(['type: project', 'owner: "[[Julie]]"'], '# Atlas'));
+  await vault.write('projects/DFAI.md', front(['type: project', 'owner: "[[Julie]]"'], '# DFAI'));
   await vault.write('projects/Garden.md', front(['type: project', 'owner: "[[Sam]]"'], '# Garden'));
-  await vault.write('tasks/Write ADR.md', task('doing', 'Atlas', 'For #q3.'));
-  await vault.write('tasks/Ship.md', task('done', 'Atlas', 'Also #q3.'));
+  await vault.write('tasks/Write ADR.md', task('doing', 'DFAI', 'For #q3.'));
+  await vault.write('tasks/Ship.md', task('done', 'DFAI', 'Also #q3.'));
   await vault.write('tasks/Weed.md', task('backlog', 'Garden', 'Not Julie’s, but #q3.'));
-  await vault.write('tasks/Plan.md', task('doing', 'Atlas'));
+  await vault.write('tasks/Plan.md', task('doing', 'DFAI'));
 
   await installHost(page, vault);
   await page.goto('/');
@@ -153,11 +153,11 @@ test('a query across types is built in the builder, read as text, saved, grouped
   // its sub-groups one step in, each with its count.
   const header = (name: RegExp, depth: number) =>
     page.locator(`.table__group-toggle[data-depth="${depth}"]`).filter({ hasText: name });
-  const atlas = header(/^Atlas/, 0);
+  const atlas = header(/^DFAI/, 0);
   await expect(atlas).toHaveAttribute('aria-expanded', 'true');
   await expect(atlas.locator('.table__group-count')).toHaveText('2');
   await expect(page.locator('.table__group-toggle')).toHaveText([
-    /^Atlas\s*2$/,
+    /^DFAI\s*2$/,
     /^Doing\s*2$/,
     /^Garden\s*1$/,
     /^Backlog\s*1$/,
@@ -169,14 +169,14 @@ test('a query across types is built in the builder, read as text, saved, grouped
     'Plan',
     'Write ADR',
     'Weed',
-    'Atlas',
+    'DFAI',
     'Garden',
   ]);
 
   // A group folds shut and says so; its neighbour stays open.
   await atlas.click();
   await expect(atlas).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.locator('.qresult__title')).toHaveText(['Weed', 'Atlas', 'Garden']);
+  await expect(page.locator('.qresult__title')).toHaveText(['Weed', 'DFAI', 'Garden']);
   await expect(header(/^Garden/, 0)).toHaveAttribute('aria-expanded', 'true');
 
   // Saved: the query changes, and nothing else in the file does.
@@ -199,7 +199,7 @@ test('a query across types is built in the builder, read as text, saved, grouped
     .getByRole('button', { name: 'Home', exact: true })
     .click();
   const widget = page.getByRole('region', { name: 'Open work' });
-  await expect(widget.getByRole('group', { name: 'Atlas', exact: true })).toBeVisible();
+  await expect(widget.getByRole('group', { name: 'DFAI', exact: true })).toBeVisible();
   await expect(widget.getByRole('button', { name: 'Weed' })).toBeVisible();
 });
 
@@ -217,13 +217,13 @@ test('a query the builder cannot show stays text, and says why', async ({ page }
   await expect(rows(page)).toHaveText([]);
   await page
     .getByRole('textbox', { name: 'Query' })
-    .fill('FROM task WHERE status = backlog OR (status = doing AND project = [[Atlas]])');
+    .fill('FROM task WHERE status = backlog OR (status = doing AND project = [[DFAI]])');
   await expect(rows(page)).toHaveText(['Plan', 'Weed', 'Write ADR']);
 
   await modes.getByRole('radio', { name: 'Builder' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'cannot show' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Query builder' })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Query' })).toHaveValue(
-    'FROM task WHERE status = backlog OR (status = doing AND project = [[Atlas]])',
+    'FROM task WHERE status = backlog OR (status = doing AND project = [[DFAI]])',
   );
 });

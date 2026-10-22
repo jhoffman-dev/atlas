@@ -5,7 +5,7 @@
  */
 
 /** The words for a thrown value that cannot be turned into any. */
-export const UNDESCRIBED_ERROR = 'an error Atlas could not put into words';
+export const UNDESCRIBED_ERROR = 'an error DFAI could not put into words';
 
 /**
  * An error's own words, for a refusal whose cause the caller can act on.

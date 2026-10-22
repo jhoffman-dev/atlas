@@ -252,7 +252,7 @@ fn a_query_whose_rows_add_up_to_too_much_is_refused() {
 
     let error = query_file(&path, sql).expect_err("20 MB of rows were read");
 
-    assert!(error.contains("larger than Atlas will read"), "{error}");
+    assert!(error.contains("larger than DFAI will read"), "{error}");
 }
 
 /// The control: the same query, a tenth the size, is read whole.

@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { TAGS_SCOPE } from '@atlas/application';
+import { TAGS_SCOPE } from '@dfai/application';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { tagsScreen } from '../pages-on-first-use.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';

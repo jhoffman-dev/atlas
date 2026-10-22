@@ -9,10 +9,10 @@ import {
   type GraphScope,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
-import { pictureGraph } from '@atlas/application';
-import type { PageHistory } from '@atlas/ui';
-import { GraphView, type GraphContent, type OpenRequest } from '@atlas/ui/graph';
+} from '@dfai/domain';
+import { pictureGraph } from '@dfai/application';
+import type { PageHistory } from '@dfai/ui';
+import { GraphView, type GraphContent, type OpenRequest } from '@dfai/ui/graph';
 import type { VaultGraphState } from './use-vault-graph.ts';
 
 /**

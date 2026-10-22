@@ -1,4 +1,4 @@
-import type { ImagePlacement, VaultPath } from '@atlas/domain';
+import type { ImagePlacement, VaultPath } from '@dfai/domain';
 import type { ThumbnailQueue } from '../artifacts/thumbnail-queue.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { refreshIndex } from '../index/refresh-index.ts';
@@ -90,7 +90,7 @@ export function vaultRequest({
   deps: ApiRouterDeps;
 }): VaultRequest {
   const vault = deps.host.currentVault()?.absolutePath ?? null;
-  if (vault === null) throw noVault('No vault is open in Atlas');
+  if (vault === null) throw noVault('No vault is open in DFAI');
 
   const fs = inVault({ fs: deps.fs, vault });
   return {

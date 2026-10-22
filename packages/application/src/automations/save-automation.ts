@@ -13,7 +13,7 @@ import {
   type AutomationDraft,
   type AutomationRule,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
@@ -36,7 +36,7 @@ interface RuleWrite {
 /**
  * Writes a new automation into `.atlas/automations/`, named for it. A rule
  * that starts out on is logged as turned on, so a daily rule made in the
- * afternoon runs at its next time even if Atlas is closed until after it.
+ * afternoon runs at its next time even if DFAI is closed until after it.
  */
 export async function createAutomation({
   draft,
@@ -107,7 +107,7 @@ export async function updateAutomation({
 }
 
 /**
- * Writes the prompt a rule's Claude step names when it is one Atlas ships and
+ * Writes the prompt a rule's Claude step names when it is one DFAI ships and
  * the vault has no note there (P29-05) — so a ready-made rule runs as saved.
  * A prompt that is there is the person's, edited or not, and is left as it is.
  */

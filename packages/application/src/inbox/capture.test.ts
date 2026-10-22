@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { capturedTaskContents, captureToInbox } from './capture.ts';
@@ -11,13 +11,13 @@ function vault(files: Record<string, string>) {
 
 describe('captureToInbox', () => {
   it('lands the captured note in the Inbox, making the folder when the vault has none', async () => {
-    const v = vault({ 'Projects/Atlas.md': 'x\n' });
+    const v = vault({ 'Projects/DFAI.md': 'x\n' });
     const path = await captureToInbox({
       markdown: fakeMarkdown(),
       today: '2026-10-08',
       fs: v.fs,
       name: 'Renew the passport',
-      notePaths: [createVaultPath('Projects/Atlas.md')],
+      notePaths: [createVaultPath('Projects/DFAI.md')],
       contents: '---\ntype: task\n---\n',
     });
     expect(path).toBe('Inbox/Renew the passport.md');

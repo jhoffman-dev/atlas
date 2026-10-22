@@ -19,7 +19,7 @@ import {
   type VaultPath,
   type ViewDisplay,
   type ViewQuery,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { cardMoveChanges, movesToDone, type CardPlacement } from '../query/card-move.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError } from './api-error.ts';
@@ -250,7 +250,7 @@ function requireCardOf(
 
 /**
  * Where the card goes at one level: the group asked for, as the board spells
- * it — so ` done` is the done column and `[[atlas]]` the Atlas one — or null
+ * it — so ` done` is the done column and `[[atlas]]` the DFAI one — or null
  * when that level is not asked about or the card is in that group already.
  * A group the board does not draw is refused.
  */

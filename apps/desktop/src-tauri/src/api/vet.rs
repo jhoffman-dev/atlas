@@ -81,12 +81,12 @@ impl Refusal {
     pub const TIMEOUT: Refusal = Refusal {
         status: 504,
         code: "timeout",
-        message: "Atlas did not answer in time",
+        message: "DFAI did not answer in time",
     };
     pub const INTERNAL: Refusal = Refusal {
         status: 500,
         code: "internal",
-        message: "the request could not be handed to Atlas",
+        message: "the request could not be handed to DFAI",
     };
 
     /// The router is not listening yet: the app is starting, or its page is
@@ -94,7 +94,7 @@ impl Refusal {
     pub const STARTING: Refusal = Refusal {
         status: 500,
         code: "internal",
-        message: "Atlas is still starting — try again in a moment",
+        message: "DFAI is still starting — try again in a moment",
     };
 
     /// The contract's error body: `{"error":{"code":..,"message":..}}`.

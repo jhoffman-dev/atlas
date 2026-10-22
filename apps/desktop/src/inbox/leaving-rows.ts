@@ -1,5 +1,5 @@
-import type { VaultPath } from '@atlas/domain';
-import { readAnswers, type InboxListing, type ReadMoment } from '@atlas/application';
+import type { VaultPath } from '@dfai/domain';
+import { readAnswers, type InboxListing, type ReadMoment } from '@dfai/application';
 
 /**
  * A row taken off the page the moment it was clarified, before the index has

@@ -23,25 +23,25 @@ const DEFAULT_CONNECTION = join(
   homedir(),
   'Library',
   'Application Support',
-  'dev.jhoffman.atlas',
+  'com.dailyflowai.dfai',
   'api.json',
 );
 
 const HELP = `Usage: pnpm smoke:api --vault <dir>
 
-Drives every atlas_* MCP tool against the running Atlas app, checks the API's
+Drives every atlas_* MCP tool against the running DFAI app, checks the API's
 host guards over raw HTTP, and reads the vault's files to confirm the writes.
 
-  --vault <dir>   REQUIRED. The vault Atlas has open right now. It MUST be a
+  --vault <dir>   REQUIRED. The vault DFAI has open right now. It MUST be a
                   scratch vault made for this run: the smoke creates and edits
                   notes in it. Never point it at a vault you care about. A
                   path inside any repository (this repo's vault/ included) is
-                  refused, and the run stops before writing anything if Atlas
+                  refused, and the run stops before writing anything if DFAI
                   has a vault of another name open.
   --help          Show this.
 
-Before running: build the MCP server (pnpm --filter @atlas/mcp build), open the
-scratch vault in Atlas, and turn the API on in Settings -> Connections.
+Before running: build the MCP server (pnpm --filter @dfai/mcp build), open the
+scratch vault in DFAI, and turn the API on in Settings -> Connections.
 ATLAS_CONNECTION_FILE overrides where the connection file is read from.
 Exits non-zero if any check fails.
 `;
@@ -100,7 +100,7 @@ function repoAround(dir) {
 }
 
 async function connectMcp() {
-  expect(existsSync(MCP_MAIN), `${MCP_MAIN} is missing; run pnpm --filter @atlas/mcp build`);
+  expect(existsSync(MCP_MAIN), `${MCP_MAIN} is missing; run pnpm --filter @dfai/mcp build`);
   const client = new Client({ name: 'atlas-smoke', version: '1.0.0' });
   await client.connect(
     new StdioClientTransport({ command: process.execPath, args: [MCP_MAIN], stderr: 'inherit' }),
@@ -175,7 +175,7 @@ function statusSteps(ctx) {
         });
         expect(
           status.vault.name === basename(ctx.vault),
-          `Atlas has "${status.vault.name}" open, not ${basename(ctx.vault)}; stopping before any write`,
+          `DFAI has "${status.vault.name}" open, not ${basename(ctx.vault)}; stopping before any write`,
         );
         ctx.vaultConfirmed = true;
         return `${status.vault.name}, ${status.index.notes} notes`;

@@ -53,7 +53,7 @@ export interface WidgetDraft {
   readonly sql: string;
   /** How a `sql` widget draws its result. */
   readonly show: SqlShow;
-  /** A `query` widget's Atlas query. Blank for every other kind. */
+  /** A `query` widget's DFAI query. Blank for every other kind. */
   readonly atlasQuery: string;
 }
 
@@ -68,7 +68,7 @@ export const WIDGET_KIND_LABELS: Readonly<Record<WidgetKind, string>> = {
   line: 'Line',
   rank: 'Ranking',
   sql: 'SQL query',
-  query: 'Atlas query',
+  query: 'DFAI query',
 };
 
 /** A fresh widget of a kind: every setting at the value the parser would give it. */
@@ -103,7 +103,7 @@ export function sqlWidgetDraft({
   return { ...newWidgetDraft({ kind: 'sql', type: '' }), sql: normaliseSql(sql), show, title };
 }
 
-/** A widget that draws an Atlas query's rows — what "Add to dashboard" on a query makes. */
+/** A widget that draws a DFAI query's rows — what "Add to dashboard" on a query makes. */
 export function queryWidgetDraft({ query, title }: { query: string; title: string }): WidgetDraft {
   return { ...newWidgetDraft({ kind: 'query', type: '' }), atlasQuery: query, title };
 }

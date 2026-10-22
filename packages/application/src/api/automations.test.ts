@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { digestOf, newLogText, VAULT_WALK_DEPTH, type LogEntry } from '@atlas/domain';
+import { digestOf, newLogText, VAULT_WALK_DEPTH, type LogEntry } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT, VAULT } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
@@ -34,7 +34,7 @@ const RAN: LogEntry = {
   at: '2026-09-21T03:00:04',
   trigger: 'schedule',
   done: [{ kind: 'archived', from: 'tasks/Old.md' as never, to: 'Archive/tasks/Old.md' as never }],
-  left: [{ path: '.atlas/x.md' as never, reason: 'Atlas keeps its own files as they are.' }],
+  left: [{ path: '.atlas/x.md' as never, reason: 'DFAI keeps its own files as they are.' }],
   capped: false,
 };
 const FAILED: LogEntry = {
@@ -249,7 +249,7 @@ describe('GET /v1/automations/{id}/log', () => {
           trigger: 'schedule',
           capped: false,
           done: [{ kind: 'archived', from: 'tasks/Old.md', to: 'Archive/tasks/Old.md' }],
-          left: [{ path: '.atlas/x.md', reason: 'Atlas keeps its own files as they are.' }],
+          left: [{ path: '.atlas/x.md', reason: 'DFAI keeps its own files as they are.' }],
         },
       ],
       truncated: false,
@@ -430,7 +430,7 @@ describe('POST /v1/automations/{id}/dry-run', () => {
     expect(plan.passedOver).toEqual([
       {
         path: DEEP('Z'),
-        reason: 'It is too many folders deep: in the Archive, Atlas would no longer read it.',
+        reason: 'It is too many folders deep: in the Archive, DFAI would no longer read it.',
       },
     ]);
     expect(plan).toMatchObject({ passedOverMore: 0 });
@@ -563,7 +563,7 @@ describe('a rule a note sets off, through the API (P29-01)', () => {
     at: '2026-10-08T09:00:00',
     trigger: 'note',
     done: [],
-    left: [{ path: 'tasks/B.md' as never, reason: 'It is open in Atlas with unsaved typing.' }],
+    left: [{ path: 'tasks/B.md' as never, reason: 'It is open in DFAI with unsaved typing.' }],
     capped: false,
     versions: [
       { path: 'tasks/B.md' as never, digest: digestOf(FILES['tasks/B.md']!), wrote: false },

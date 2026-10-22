@@ -62,7 +62,7 @@ export function isGranolaFailureKind(value: unknown): value is GranolaFailureKin
  *   timeout, 408, 429, a 5xx, or a 413 for a whole transcript (the next pull
  *   reads it in pages) — which holds the watermark so the next pull lists
  *   the note again.
- * - `skip` for the rest — 404, 403, any other refusal, an answer Atlas could
+ * - `skip` for the rest — 404, 403, any other refusal, an answer DFAI could
  *   not read or would not read for its size, a 413 for a page — which would fail the same way on every
  *   pull. It settles the note (logged, the watermark not held); Sync now's
  *   full listing tries it again, once the key or Granola has changed.
@@ -106,8 +106,8 @@ export function granolaFailureEffect(failure: GranolaFailure): GranolaFailureEff
 
 /** What the pull did, in the person's words: one clause per effect. */
 const OUTCOME: Readonly<Record<GranolaFailureEffect, string>> = {
-  stop: 'Atlas stops pulling until it has a key Granola accepts.',
-  retry: 'Atlas tries again on the next pull.',
+  stop: 'DFAI stops pulling until it has a key Granola accepts.',
+  retry: 'DFAI tries again on the next pull.',
   skip: 'It was skipped; Sync now tries it again.',
 };
 
@@ -115,7 +115,7 @@ const OUTCOME: Readonly<Record<GranolaFailureEffect, string>> = {
  * What a pull did that the host would not send for, or whose key the Keychain
  * would not give: it stopped this pull, and the next one asks again.
  */
-const STOPPED_THIS_PULL = 'Atlas stops pulling; the next pull asks again.';
+const STOPPED_THIS_PULL = 'DFAI stops pulling; the next pull asks again.';
 
 /** What a pull did whose list of notes failed: nothing was skipped, and the next one lists again. */
 const LISTING_FAILED = 'The notes could not be listed; the next pull lists them again.';
@@ -157,11 +157,11 @@ function refusal(status: number | undefined, transcriptPage: boolean): Cause {
   if (status === 413) {
     return {
       problem: 'The meeting’s transcript is too large for Granola to send in one answer.',
-      remedy: 'Atlas reads a transcript that large in pages.',
+      remedy: 'DFAI reads a transcript that large in pages.',
     };
   }
   if (status === 408) return { problem: 'Granola did not answer in time.', remedy: null };
-  if (status === 429) return { problem: 'Granola asked Atlas to slow down.', remedy: null };
+  if (status === 429) return { problem: 'Granola asked DFAI to slow down.', remedy: null };
   if (status !== undefined && status >= 500 && status <= 599) {
     return {
       problem: `Granola is having trouble (status ${status}).`,
@@ -179,14 +179,14 @@ function causeOf(failure: GranolaFailure): Cause {
     case 'no_key':
       return { problem: 'No Granola API key is set on this Mac.', remedy: MAKE_A_KEY };
     case 'invalid':
-      return { problem: `Atlas could not ask Granola: ${failure.message}.`, remedy: null };
+      return { problem: `DFAI could not ask Granola: ${failure.message}.`, remedy: null };
     case 'keychain':
       return {
-        problem: `The Keychain did not give Atlas the Granola API key: ${failure.message}.`,
+        problem: `The Keychain did not give DFAI the Granola API key: ${failure.message}.`,
         remedy: 'Unlock the Keychain, or paste the key again in Settings → Granola.',
       };
     case 'too_large':
-      return { problem: 'Granola answered with more than Atlas will read.', remedy: null };
+      return { problem: 'Granola answered with more than DFAI will read.', remedy: null };
     case 'unreachable':
       return {
         problem: `Granola could not be reached: ${failure.message}.`,
@@ -196,7 +196,7 @@ function causeOf(failure: GranolaFailure): Cause {
       return { problem: 'Granola did not answer in time.', remedy: 'Check the connection.' };
     case 'malformed':
       return {
-        problem: `Granola answered in a way Atlas does not understand: ${failure.message}.`,
+        problem: `Granola answered in a way DFAI does not understand: ${failure.message}.`,
         remedy: null,
       };
     default:

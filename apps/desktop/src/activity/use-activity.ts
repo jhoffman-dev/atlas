@@ -14,8 +14,8 @@ import {
   unseenErrorCount,
   type ActivityEvent,
   type ActivityQuery,
-} from '@atlas/domain';
-import type { ActivityLog, ActivityNews, Clock } from '@atlas/application';
+} from '@dfai/domain';
+import type { ActivityLog, ActivityNews, Clock } from '@dfai/application';
 import { errorMessage } from '../query/error-message.ts';
 import type { ActivitySeenStore } from './browser-activity-seen-store.ts';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, resolveWikiLinkTarget, type ParsedBody } from '@atlas/domain';
+import { createVaultPath, resolveWikiLinkTarget, type ParsedBody } from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { OpenNoteState } from '../api/ports.ts';
 import {

@@ -3,8 +3,8 @@ import {
   messageWithoutPaths,
   screenWriteFailedReport,
   type ScreenWrite,
-} from '@atlas/domain';
-import type { ActivityLog } from '@atlas/application';
+} from '@dfai/domain';
+import type { ActivityLog } from '@dfai/application';
 
 /** An error a write throws to refuse what the person asked for, rather than failing. */
 type Refusal = abstract new (...args: never[]) => Error;

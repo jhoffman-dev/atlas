@@ -10,7 +10,7 @@ import {
   type GraphScope,
   type NamedNote,
   type VaultGraph,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 
 /**

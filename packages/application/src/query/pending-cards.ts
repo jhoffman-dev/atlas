@@ -1,4 +1,4 @@
-import { DUE_KEY, repeatingTaskUpdate, type BoardRow } from '@atlas/domain';
+import { DUE_KEY, repeatingTaskUpdate, type BoardRow } from '@dfai/domain';
 import { readAnswers, type ReadMoment } from '../pending/read-moment.ts';
 import { finishingRule, type CardMove } from './card-move.ts';
 

@@ -10,7 +10,7 @@ import {
   type NodePath,
   type OutlineEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Rng } from '../ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { modifiedTimes } from '../index/modified-times.ts';

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, readProposal, type ProposalNote, type VaultPath } from '@atlas/domain';
+import { createVaultPath, readProposal, type ProposalNote, type VaultPath } from '@dfai/domain';
 import type { RowSelection } from '../row-selection.tsx';
 import {
   ProposalsSection,

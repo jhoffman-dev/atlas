@@ -112,7 +112,7 @@ describe('shippedPropertiesPlan', () => {
     expect(addedKeys([type('meeting', MEETING_KEYS)], record)).toEqual([]);
   });
 
-  it('counts a key the file declares as there even when Atlas could not read it', () => {
+  it('counts a key the file declares as there even when DFAI could not read it', () => {
     const unread = (found: ObjectType) => new Set([...parsedKeys(found), 'tasks']);
     const [change] = shippedPropertiesPlan([type('meeting')], NO_SHIPPED_PROPERTIES_RECORD, {
       declaredKeys: unread,
@@ -125,7 +125,7 @@ describe('shippedPropertiesPlan', () => {
     expect(addedKeys([type('constructor'), type('__proto__'), type('toString')])).toEqual([]);
   });
 
-  it('covers every built-in type of Atlas’s own that it ships properties for, and no PARA type', () => {
+  it('covers every built-in type of DFAI’s own that it ships properties for, and no PARA type', () => {
     const names = ['proposal', 'decision', 'daily', 'block'];
     const planned = addedKeys(names.map((name) => type(name)));
     expect(planned.map(([name]) => name)).toEqual(names);
@@ -158,7 +158,7 @@ describe('shippedPropertiesPlan, on a type it must leave alone', () => {
         types: [first, copy],
         label: 'Meeting',
         reason:
-          'two files say they are the Meeting type: merge them into one, and Atlas will add its properties to it.',
+          'two files say they are the Meeting type: merge them into one, and DFAI will add its properties to it.',
       },
     ]);
   });
@@ -298,10 +298,10 @@ describe('the record file', () => {
 describe('shippedPropertiesLine', () => {
   it('names the properties and the type', () => {
     expect(shippedPropertiesLine({ label: 'Meeting', added: ['Tasks', 'Decisions'] })).toBe(
-      'Added Tasks and Decisions to the Meeting type, which was written before Atlas shipped them.',
+      'Added Tasks and Decisions to the Meeting type, which was written before DFAI shipped them.',
     );
     expect(shippedPropertiesLine({ label: 'Daily', added: ['Tags'] })).toBe(
-      'Added Tags to the Daily type, which was written before Atlas shipped it.',
+      'Added Tags to the Daily type, which was written before DFAI shipped it.',
     );
   });
 });

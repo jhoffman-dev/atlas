@@ -3,7 +3,7 @@ import {
   type EditorDocument,
   type EditorMark,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 
 /**
  * Seeded editor documents for the writer's property test (A21-03), and the

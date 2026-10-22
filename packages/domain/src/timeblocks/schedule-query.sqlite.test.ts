@@ -101,8 +101,8 @@ describe('compileScheduledTasksQuery', () => {
   });
 
   it('leaves out a note that is not a task, and one that is not there', () => {
-    const { tasks } = readSchedule({ 'Atlas.md': { type: 'project', estimate: 60 } }, [
-      'Atlas.md',
+    const { tasks } = readSchedule({ 'DFAI.md': { type: 'project', estimate: 60 } }, [
+      'DFAI.md',
       'Gone.md',
     ]);
     expect(tasks).toEqual([]);
@@ -164,8 +164,8 @@ describe('compileTimeblocksQuery', () => {
   it('counts only links to tasks: a link to another type, or to nothing, is no task of the block’s', () => {
     const notes = {
       'tasks/Report.md': REPORT,
-      'Atlas.md': { type: 'project' },
-      'blocks/Focus.md': block('2026-10-12T09:00', '2026-10-12T10:00', ['Report', 'Atlas', 'Gone']),
+      'DFAI.md': { type: 'project' },
+      'blocks/Focus.md': block('2026-10-12T09:00', '2026-10-12T10:00', ['Report', 'DFAI', 'Gone']),
     };
 
     const { blocks } = readSchedule(notes, ['tasks/Report.md']);
@@ -179,7 +179,7 @@ describe('compileTimeblocksQuery', () => {
   it('reads only blocks: another note linking tasks under the same key is no block', () => {
     const notes = {
       'tasks/Report.md': REPORT,
-      'Atlas.md': { type: 'project', tasks: ['[[Report]]'] },
+      'DFAI.md': { type: 'project', tasks: ['[[Report]]'] },
     };
     expect(readSchedule(notes, ['tasks/Report.md']).blocks).toEqual([]);
   });

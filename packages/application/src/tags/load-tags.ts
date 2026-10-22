@@ -6,7 +6,7 @@ import {
   TAG_PAGE_SIZE,
   type TagCount,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 
 /** A note using a tag, and how many times. */

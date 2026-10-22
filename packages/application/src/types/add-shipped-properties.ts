@@ -14,14 +14,14 @@ import {
   type ShippedPropertiesChange,
   type ShippedPropertiesRecord,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { findVaultEntry } from '../vault/find-entry.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { loadObjectTypes, type DefinedType } from './load-types.ts';
 
-/** A built-in type file that gained properties Atlas ships, for Activity to say so. */
+/** A built-in type file that gained properties DFAI ships, for Activity to say so. */
 export interface ShippedPropertiesGained {
   readonly path: VaultPath;
   readonly label: string;
@@ -58,9 +58,9 @@ interface TypePorts {
 }
 
 /**
- * Gives each of Atlas's own built-in type files the vault has (Meeting,
+ * Gives each of DFAI's own built-in type files the vault has (Meeting,
  * Proposal, Decision, Daily, Block — never PARA's or Task's) the properties
- * Atlas ships on it and the file predates (#162), and records its shipped keys
+ * DFAI ships on it and the file predates (#162), and records its shipped keys
  * as settled in `.atlas/migrations/type-properties.md` so it is done once —
  * including those a complete file already had, so a key the person removes
  * later stays removed.

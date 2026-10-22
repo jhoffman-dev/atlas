@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type SidebarTreeRow } from '@atlas/domain';
+import { createVaultPath, type SidebarTreeRow } from '@dfai/domain';
 import { VaultTree } from './vault-tree.tsx';
 
 // Labelled with the file's own name, so the keyboard tests below can find a row

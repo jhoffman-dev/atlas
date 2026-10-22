@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type InboxItem, type InboxTask } from '@atlas/domain';
+import { createVaultPath, type InboxItem, type InboxTask } from '@dfai/domain';
 import { asksWhoItWaitsOn, clarificationOf, rowAfter, rowAfterLeaving } from './inbox-triage.ts';
 
 const TASK: InboxTask = {
   status: 'inbox',
-  project: createVaultPath('Projects/Atlas.md'),
+  project: createVaultPath('Projects/DFAI.md'),
   waitingOn: null,
   waitingOnNames: '',
   defer: '2026-10-20',
@@ -17,7 +17,7 @@ describe('clarificationOf', () => {
     expect(
       clarificationOf(TASK, {
         status: 'inbox',
-        project: createVaultPath('Projects/Atlas.md'),
+        project: createVaultPath('Projects/DFAI.md'),
         defer: '2026-10-20',
         due: '',
       }),
@@ -28,7 +28,7 @@ describe('clarificationOf', () => {
     expect(
       clarificationOf(TASK, {
         status: 'waiting',
-        project: createVaultPath('Projects/Atlas.md'),
+        project: createVaultPath('Projects/DFAI.md'),
         waitingOn: createVaultPath('People/Mara Quill.md'),
       }),
     ).toEqual({ status: 'waiting', waitingOn: 'People/Mara Quill.md' });

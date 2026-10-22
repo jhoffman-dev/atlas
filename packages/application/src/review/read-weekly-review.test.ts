@@ -15,7 +15,7 @@ const CLOCK = { today: () => '2026-10-08', now: () => NOW };
 const note = (frontmatter: readonly string[]) => ['---', ...frontmatter, '---', ''].join('\n');
 
 const FILES = {
-  'Projects/Atlas.md': note(['type: project', 'status: active']),
+  'Projects/DFAI.md': note(['type: project', 'status: active']),
   'Projects/Garden.md': note(['type: project', 'status: active']),
   'Projects/Paused.md': note(['type: project', 'status: paused']),
   'People/Mara Quill.md': note(['type: person']),
@@ -27,7 +27,7 @@ const FILES = {
   'Tasks/Ship the review.md': note([
     'type: task',
     'status: next-action',
-    'project: "[[Atlas]]"',
+    'project: "[[DFAI]]"',
     'due: 2026-10-05',
   ]),
   'Tasks/Learn the cello.md': note(['type: task', 'status: someday']),

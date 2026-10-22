@@ -4,7 +4,7 @@ import {
   sqlProblem,
   SCHEMA_SQL,
   type SchemaTable,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { messageWithoutPaths } from '../api/api-error.ts';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 

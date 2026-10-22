@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from 'react';
-import type { ActivityLog, ApiSettingsPort } from '@atlas/application';
-import type { SettingsSectionLink, ThemeStore } from '@atlas/ui';
+import type { ActivityLog, ApiSettingsPort } from '@dfai/application';
+import type { SettingsSectionLink, ThemeStore } from '@dfai/ui';
 import { settingsDialog } from '../pages-on-first-use.ts';
 import type { ClipboardWriter } from './clipboard.ts';
 import { mcpAddCommand } from './mcp-command.ts';

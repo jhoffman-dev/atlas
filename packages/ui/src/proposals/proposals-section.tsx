@@ -9,7 +9,7 @@ import {
   type ProposalNote,
   type ProposalSlot,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { SelectAllBox, SelectionBar, type RowSelection } from '../row-selection.tsx';
 import { ConflictGroupRow } from './conflict-group.tsx';

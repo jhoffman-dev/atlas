@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CLEANUP_REASON_WORDS, createVaultPath, noteTitle, type VaultPath } from '@atlas/domain';
+import { CLEANUP_REASON_WORDS, createVaultPath, noteTitle, type VaultPath } from '@dfai/domain';
 import {
   applyMeetingCleanup,
   keepMeetingCleanupTasks,
@@ -11,8 +11,8 @@ import {
   type CleanupOwner,
   type ListedCleanupTask,
   type MeetingCleanupPorts,
-} from '@atlas/application';
-import type { MeetingCleanupProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { MeetingCleanupProps } from '@dfai/ui';
 import { localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
 
@@ -21,7 +21,7 @@ const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : S
 
 /** What the offer says when it cannot judge the tasks meetings made: it lists none, so nothing is ticked. */
 export const NEEDS_OWNER_NOTICE =
-  'Atlas can’t tell which tasks meetings made are yours, so it offers none to archive. Add your name or email in Settings → Profile.';
+  'DFAI can’t tell which tasks meetings made are yours, so it offers none to archive. Add your name or email in Settings → Profile.';
 
 /**
  * The offered cleanup on the Inbox page (#226): the tasks the "After a

@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ComponentProps } from 'react';
-import { INDEX_BATCH_SIZE } from '@atlas/application';
-import { IndexSettings, indexStatusText } from '@atlas/ui';
+import { INDEX_BATCH_SIZE } from '@dfai/application';
+import { IndexSettings, indexStatusText } from '@dfai/ui';
 import type { IndexProgressStore, IndexStatus } from './use-index.ts';
 
 /**

@@ -7,7 +7,7 @@ export const weeklyReview = defineTool({
   name: 'atlas_weekly_review',
   title: 'Weekly review',
   description:
-    "GTD's weekly review, as Atlas's Weekly review page shows it, read on the app's clock: " +
+    "GTD's weekly review, as DFAI's Weekly review page shows it, read on the app's clock: " +
     '{ review: { today, staleWaiting, projectsWithoutNextAction, overdue, untouchedSomeday, ' +
     'inbox: { count, toFile, toAnswer, more }, truncated } }. inbox counts the one Inbox as ' +
     'the sidebar does: notes to file plus proposals to answer. ' +
@@ -35,7 +35,7 @@ export const today = defineTool({
   name: 'atlas_today',
   title: 'Today',
   description:
-    "What needs the person today, as Atlas's Today page shows it, read on the app's clock: " +
+    "What needs the person today, as DFAI's Today page shows it, read on the app's clock: " +
     '{ today: { today, sections, stalledProjects, inbox: { count, toFile, toAnswer, more }, ' +
     'truncated } }. sections are always these six, in order, each { id, count, groups }: ' +
     'overdue (open tasks due before today), dueToday, backToday (tasks whose "defer" is ' +

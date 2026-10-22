@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { NavigationPlace, VaultPath } from '@atlas/domain';
+import type { NavigationPlace, VaultPath } from '@dfai/domain';
 import type { AsideStore } from '../aside/aside-store.ts';
 import type { ShownNotes } from '../aside/shown-notes.ts';
 import type { OverlayStore } from '../overlay-store.ts';

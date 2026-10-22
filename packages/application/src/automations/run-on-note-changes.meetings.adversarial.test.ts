@@ -7,7 +7,7 @@
  * import for good.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, parseObjectType, type AutomationRule } from '@atlas/domain';
+import { createVaultPath, parseObjectType, type AutomationRule } from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';
 import { dryRunAutomation } from './dry-run-automation.ts';

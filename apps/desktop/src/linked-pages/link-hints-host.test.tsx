@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
-import { LINK_HINTS_QUERY_COLUMNS } from '@atlas/domain';
-import type { IndexPort } from '@atlas/application';
-import { useLinkHints, type LinkHintsSource } from '@atlas/ui';
+import { LINK_HINTS_QUERY_COLUMNS } from '@dfai/domain';
+import type { IndexPort } from '@dfai/application';
+import { useLinkHints, type LinkHintsSource } from '@dfai/ui';
 import { createIndexStatusStore } from '../index/index-status-store.ts';
 import { LinkHintsHost } from './link-hints-host.tsx';
 

@@ -5,12 +5,12 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, parseObjectType, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeMarkdown, fakeVaultFs, type OpenNote } from '@atlas/application';
+import { createVaultPath, parseObjectType, type VaultPath } from '@dfai/domain';
+import { fakeIndexPort, fakeMarkdown, fakeVaultFs, type OpenNote } from '@dfai/application';
 import { useNoteProperties } from './use-note-properties.ts';
 
 const FILES: Record<string, string> = {
-  'Projects/Atlas.md': '---\ntype: project\n---\n',
+  'Projects/DFAI.md': '---\ntype: project\n---\n',
   'People/Mara Quill.md': '---\ntype: person\n---\n',
 };
 const TYPES = [
@@ -42,7 +42,7 @@ const errorOf = (rows: readonly { def: { key: string }; error: string | null }[]
 
 describe('useNoteProperties: a relation linking the wrong kind of note', () => {
   const wrong = note('[[Mara Quill]]');
-  const right = note('[[Atlas]]');
+  const right = note('[[DFAI]]');
 
   it('says the relation does not take a person', async () => {
     const { result } = renderHook(() =>
@@ -58,7 +58,7 @@ describe('useNoteProperties: a relation linking the wrong kind of note', () => {
       useNoteProperties({ note: right, types: TYPES, index, links }),
     );
     // Once the linked note has been read and judged, there is still nothing to say.
-    await waitFor(() => expect(readNotes).toHaveBeenCalledWith(['Projects/Atlas.md']));
+    await waitFor(() => expect(readNotes).toHaveBeenCalledWith(['Projects/DFAI.md']));
     await act(async () => {});
     expect(errorOf(result.current.rows)).toBeNull();
   });

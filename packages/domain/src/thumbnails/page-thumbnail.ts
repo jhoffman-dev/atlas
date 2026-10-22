@@ -10,7 +10,7 @@ import { createVaultPath, joinVaultPath, type VaultPath } from '../vault/vault-p
  * have one (`kind: thumbnail`), and what the note holds under it says which
  * picture it is:
  *
- * - nothing, or `auto` — Atlas pictures the note's own page and keeps that
+ * - nothing, or `auto` — DFAI pictures the note's own page and keeps that
  *   picture in the cache, which is derived and disposable: it is never in the
  *   vault, and is made again whenever the note is not the version it was
  *   taken from;
@@ -23,7 +23,7 @@ import { createVaultPath, joinVaultPath, type VaultPath } from '../vault/vault-p
  * the copy and the property names it.
  */
 
-/** What a thumbnail property holds to mean "Atlas pictures the page". */
+/** What a thumbnail property holds to mean "DFAI pictures the page". */
 export const THUMBNAIL_AUTO = 'auto';
 
 /** What a thumbnail property's value means. */
@@ -237,7 +237,7 @@ export function pageThumbnailStale({
 }
 
 /**
- * Whether Atlas may picture a note's page for its thumbnail property: the
+ * Whether DFAI may picture a note's page for its thumbnail property: the
  * note's value is `auto`, or the person asked (Regenerate), which puts it
  * back to `auto` whatever it was.
  */

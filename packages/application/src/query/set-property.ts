@@ -1,4 +1,4 @@
-import { createVaultPath, repeatingTaskUpdate, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, repeatingTaskUpdate, splitFrontmatter } from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
@@ -131,7 +131,7 @@ interface FrontmatterWrite {
 
 /**
  * The byte-preserving read-change-write of a file's frontmatter, with no
- * rules about what a note may hold: for Atlas's own files — a type's
+ * rules about what a note may hold: for DFAI's own files — a type's
  * definition, the vault's settings — which are not notes. A note is written
  * with {@link setNoteProperties}.
  */

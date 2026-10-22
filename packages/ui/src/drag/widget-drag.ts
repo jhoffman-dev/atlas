@@ -16,8 +16,8 @@ import type {
   DragStartEvent,
   KeyboardCoordinateGetter,
 } from '@dnd-kit/core';
-import { moveItem, spanAfterDrag, stepPlacement, type Placement, type Widget } from '@atlas/domain';
-import type { WidgetResult } from '@atlas/application';
+import { moveItem, spanAfterDrag, stepPlacement, type Placement, type Widget } from '@dfai/domain';
+import type { WidgetResult } from '@dfai/application';
 import { dashboardWords, type WidgetSpot } from './announcements.ts';
 import { useDragSensors } from './dnd.ts';
 import { dashboardStep, directionOf } from './snapping.ts';

@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, digestOf, type NoteChange } from '@atlas/domain';
+import { createVaultPath, digestOf, type NoteChange } from '@dfai/domain';
 import {
   createNoteChanges,
   fakeIndexPort,
@@ -16,8 +16,8 @@ import {
   readsTouchedByPaths,
   recordingActivity,
   type MeetingImportPorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useMeetingImport } from '../meetings/use-meeting-import.ts';
 import { useProfileSetting } from './use-profile-setting.ts';
 import { useSelfEmailsSetting } from './use-self-emails-setting.ts';

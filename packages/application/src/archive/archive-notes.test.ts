@@ -13,7 +13,7 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { archiveNotes, unarchiveNotes, type ArchivePorts } from './archive-notes.ts';
@@ -203,7 +203,7 @@ describe('archiveNotes', () => {
 
     expect(outcome.moves.map((each) => each.move.to)).toEqual(['Archive/A.md']);
     expect(outcome.failed).toEqual([
-      { path: '.atlas/views/Board.md', reason: 'Atlas keeps its own files where they are.' },
+      { path: '.atlas/views/Board.md', reason: 'DFAI keeps its own files where they are.' },
       { path: 'Archive/Old.md', reason: 'It is already archived.' },
     ]);
   });

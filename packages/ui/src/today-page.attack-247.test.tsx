@@ -11,8 +11,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { createVaultPath, todayLists, type ReviewTask, type VaultPath } from '@atlas/domain';
-import type { TodayReport } from '@atlas/application';
+import { createVaultPath, todayLists, type ReviewTask, type VaultPath } from '@dfai/domain';
+import type { TodayReport } from '@dfai/application';
 import { TodayPage, type TodayPageProps } from './today-page.tsx';
 
 const TODAY = '2026-10-13';

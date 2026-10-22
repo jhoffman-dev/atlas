@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT } from '../testing/api-fixture.ts';
 import { fakeMarkdown, fakeOpenNotes } from '../testing/fake-ports.ts';
 import { tagIndexQuery } from '../testing/tag-index.ts';

@@ -36,7 +36,7 @@ export interface VocabularyClaim {
   readonly source: VocabularySource;
 }
 
-/** A spelling Atlas corrects, what to, and every note that says so. */
+/** A spelling DFAI corrects, what to, and every note that says so. */
 export interface VocabularyEntry {
   readonly form: string;
   readonly canonical: string;
@@ -64,7 +64,7 @@ export interface Vocabulary {
 }
 
 /**
- * The spellings Atlas knows and what each should be: every term's right
+ * The spellings DFAI knows and what each should be: every term's right
  * spelling and the ways it is misheard, and every person's and company's
  * name as its own right spelling — so `Mara Quill` is left alone and a
  * misheard spelling inside it is not corrected — with the ways their note

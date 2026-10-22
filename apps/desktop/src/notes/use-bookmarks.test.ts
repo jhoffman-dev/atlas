@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { createVaultPath, pageThumbnailPath } from '@atlas/domain';
+import { createVaultPath, pageThumbnailPath } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeMarkdown,
   fakeVaultFs,
   type IndexPort,
   type MarkdownPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useBookmarks } from './use-bookmarks.ts';
 
 /** A body is read as one paragraph holding its text. */

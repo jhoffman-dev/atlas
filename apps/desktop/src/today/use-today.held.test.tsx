@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, REVIEW_TASKS_QUERY_MARK, type ObjectType } from '@atlas/domain';
+import { createVaultPath, REVIEW_TASKS_QUERY_MARK, type ObjectType } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   memoryVault,
   recordingActivity,
   type QueryResult,
-} from '@atlas/application';
+} from '@dfai/application';
 import type { OpenEditors } from '../panes/open-editors.ts';
-import { remarkMarkdown } from '@atlas/adapters';
+import { remarkMarkdown } from '@dfai/adapters';
 import { createTodayWrites } from './today-writes.ts';
 import { useToday } from './use-today.ts';
 

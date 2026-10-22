@@ -1,6 +1,6 @@
 import { createStore, useStore, type StoreApi } from 'zustand';
-import type { LinkFragment, TabId, VaultPath } from '@atlas/domain';
-import type { NoteReveal } from '@atlas/ui';
+import type { LinkFragment, TabId, VaultPath } from '@dfai/domain';
+import type { NoteReveal } from '@dfai/ui';
 
 /** A block or heading asked to be brought into view in a tab, and the note it is in. */
 interface TabReveal {

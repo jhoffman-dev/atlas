@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { EditorDocument, EditorNode } from '@atlas/domain';
+import type { EditorDocument, EditorNode } from '@dfai/domain';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /**
  * A mention made with `@` is a plain wiki link in the document, drawn as a
  * person's chip only on screen (P21-02). Whatever happens to the paragraph
  * around it, the file keeps `[[Name]]` as Obsidian writes it — never escaped
- * (`\[\[`), never turned into anything Atlas alone would read.
+ * (`\[\[`), never turned into anything DFAI alone would read.
  */
 const body = (paragraph: string) => `# Standup\n\n${paragraph}\n\nLast paragraph.\n`;
 

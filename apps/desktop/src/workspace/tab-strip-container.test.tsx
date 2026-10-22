@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type NavigationPlace } from '@atlas/domain';
+import { createVaultPath, type NavigationPlace } from '@dfai/domain';
 import { createAsideStore } from '../aside/aside-store.ts';
 import { createShownNotes } from '../aside/shown-notes.ts';
 import { createOverlayStore } from '../overlay-store.ts';

@@ -6,7 +6,7 @@ import {
   linkOfNode,
   splitWikiLinksAndEmbeds,
   type EditorNode,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Paragraph, RootContent } from 'mdast';
 import './mdast-custom-nodes.ts';
 

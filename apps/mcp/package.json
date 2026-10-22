@@ -1,11 +1,12 @@
 {
-  "name": "@atlas/mcp",
+  "name": "@dfai/mcp",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "MCP server that lets AI tools read and write an Atlas vault through the running app.",
+  "description": "MCP server that lets AI tools read and write a DFAI vault through the running app.",
   "bin": {
+    "dfai-mcp": "./dist/main.js",
     "atlas-mcp": "./dist/main.js"
   },
   "scripts": {
@@ -17,7 +18,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@atlas/application": "workspace:*",
+    "@dfai/application": "workspace:*",
     "@modelcontextprotocol/client": "2.0.0",
     "esbuild": "^0.28.2"
   }

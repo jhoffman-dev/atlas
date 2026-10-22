@@ -18,7 +18,7 @@ import {
   type NotePayload,
   type ProposalWrite,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   checkUndo,
   ProposalRefused,

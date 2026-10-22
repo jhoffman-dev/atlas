@@ -1,4 +1,4 @@
-import type { ImageProbePort } from '@atlas/application';
+import type { ImageProbePort } from '@dfai/application';
 
 /** Long enough for a 20 MB photo to decode; short enough that a hung decode is not a hung paste. */
 const DECODE_TIMEOUT_MS = 10_000;

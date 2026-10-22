@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from 'react';
-import type { PagePlace, Tab, TabId } from '@atlas/domain';
+import type { PagePlace, Tab, TabId } from '@dfai/domain';
 import { ActivityContainer } from '../activity/activity-container.tsx';
 import { ArchiveContainer } from '../archive/archive-container.tsx';
 import { AutomationsContainer } from '../automations/automations-container.tsx';

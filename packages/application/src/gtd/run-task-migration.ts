@@ -10,7 +10,7 @@ import {
   type MigrationRecord,
   type RecordedFile,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { UNSAVED_TYPING } from '../automations/apply-changes.ts';
 import type { Clock } from '../ports.ts';
 import type { LinkUpdatePanes } from '../vault/update-links.ts';

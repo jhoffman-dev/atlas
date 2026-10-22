@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { newWidgetDraft, optionsOfKind, parseDashboard, type WidgetDraft } from '@atlas/domain';
+import { newWidgetDraft, optionsOfKind, parseDashboard, type WidgetDraft } from '@dfai/domain';
 import { WidgetEditor, type WidgetEditorProps } from './widget-editor.tsx';
 
 const bar: WidgetDraft = { ...newWidgetDraft({ kind: 'bar', type: 'task' }), groupBy: 'status' };

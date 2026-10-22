@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type EditorDocument, type ParsedBody } from '@atlas/domain';
+import { createVaultPath, type EditorDocument, type ParsedBody } from '@dfai/domain';
 import { openNote } from './open-note.ts';
 import { saveNote } from './save-note.ts';
 import type { MarkdownPort } from './ports.ts';

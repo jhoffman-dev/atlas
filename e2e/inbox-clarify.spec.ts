@@ -68,7 +68,7 @@ async function gtdVault(): Promise<FakeVault> {
   }
   await vault.write('.atlas/types/task.md', GTD_TASK_TYPE);
   await vault.write('.atlas/types/person.md', PERSON_TYPE);
-  await vault.write('Projects/Atlas.md', note(['type: project'], 'The app.'));
+  await vault.write('Projects/DFAI.md', note(['type: project'], 'The app.'));
   await vault.write('People/Mara Quill.md', note(['type: person'], 'A neighbour.'));
   await vault.write('Inbox/Call the bank.md', CALL);
   await vault.write(
@@ -143,7 +143,7 @@ test('a task is clarified to Next Action with a project: one Done sets the statu
   await inbox
     .getByRole('combobox', { name: 'Status of Call the bank' })
     .selectOption({ label: 'Next Action' });
-  await pickSuggestion(inbox.getByRole('combobox', { name: 'File Call the bank under' }), 'Atlas');
+  await pickSuggestion(inbox.getByRole('combobox', { name: 'File Call the bank under' }), 'DFAI');
   // Nothing is written until Done.
   expect(await vault.read('Inbox/Call the bank.md')).toBe(CALL);
   await row(page, 'Call the bank')
@@ -151,16 +151,16 @@ test('a task is clarified to Next Action with a project: one Done sets the statu
     .press('Enter');
 
   // The link is stamped once the note has landed: waited for, not read once.
-  await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
+  await expectFile(vault, FILED_CALL).toContain('[[DFAI]]');
   const filed = await vault.read(FILED_CALL);
   expect(filed).toContain('status: next-action');
-  expect(filed).toMatch(/^project: "?\[\[Atlas\]\]"?$/m);
+  expect(filed).toMatch(/^project: "?\[\[DFAI\]\]"?$/m);
   // Every other byte is as it was written: the comment, the spacing, the checklist.
   expect(filed.replace(/^project: .*\n/m, '')).toBe(
     CALL.replace('status: inbox', 'status: next-action'),
   );
   expect(await vault.exists('Inbox/Call the bank.md')).toBe(false);
-  expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
+  expect(await vault.exists('Projects/DFAI/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toHaveCount(0);
   await expect(row(page, 'Chase the quote')).toBeVisible();
   await expect(sidebarInbox(page)).toContainText('4');
@@ -243,7 +243,7 @@ test('a task at Inbox outside the Inbox folder is clarified where it lives, link
     .selectOption({ label: 'Backlog' });
   await pickSuggestion(
     inbox.getByRole('combobox', { name: 'File Renew the passport under' }),
-    'Atlas',
+    'DFAI',
   );
   await inbox.getByLabel('Renew the passport is due').fill('2027-04-01');
   await row(page, 'Renew the passport')
@@ -252,9 +252,9 @@ test('a task at Inbox outside the Inbox folder is clarified where it lives, link
 
   await expectFile(vault, 'Tasks/Renew the passport.md').toContain('status: backlog');
   const clarified = await vault.read('Tasks/Renew the passport.md');
-  expect(clarified).toMatch(/^project: "?\[\[Atlas\]\]"?$/m);
+  expect(clarified).toMatch(/^project: "?\[\[DFAI\]\]"?$/m);
   expect(clarified).toMatch(/^due: "?2027-04-01"?$/m);
-  expect(await vault.exists('Projects/Atlas/Renew the passport.md')).toBe(false);
+  expect(await vault.exists('Projects/DFAI/Renew the passport.md')).toBe(false);
   await expect(row(page, 'Renew the passport')).toHaveCount(0);
 });
 
@@ -273,13 +273,13 @@ test('Undo takes the last clarification back: the file returns, saying what it s
     inbox.getByRole('combobox', { name: 'Who Call the bank waits on' }),
     'Mara Quill',
   );
-  await pickSuggestion(inbox.getByRole('combobox', { name: 'File Call the bank under' }), 'Atlas');
+  await pickSuggestion(inbox.getByRole('combobox', { name: 'File Call the bank under' }), 'DFAI');
   await row(page, 'Call the bank')
     .getByRole('button', { name: 'Save', exact: true })
     .press('Enter');
-  await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
+  await expectFile(vault, FILED_CALL).toContain('[[DFAI]]');
   expect(await vault.read(FILED_CALL)).toContain('status: waiting');
-  expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
+  expect(await vault.exists('Projects/DFAI/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toHaveCount(0);
 
   const said = toastSaying(page, 'Clarified “Call the bank”.');
@@ -287,7 +287,7 @@ test('Undo takes the last clarification back: the file returns, saying what it s
 
   await expectFile(vault, 'Inbox/Call the bank.md').toBe(CALL);
   expect(await vault.exists(FILED_CALL)).toBe(false);
-  expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
+  expect(await vault.exists('Projects/DFAI/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toBeVisible();
   // Its Undo spent, the toast has gone, and the page draws no undo of its own.
   await expect(said).toHaveCount(0);

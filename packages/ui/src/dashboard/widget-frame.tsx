@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
-import type { WidgetResult } from '@atlas/application';
+import type { WidgetResult } from '@dfai/application';
 import { Icon } from '../icon.tsx';
 import type { OverlaySlot } from '../overlay-slot.ts';
 

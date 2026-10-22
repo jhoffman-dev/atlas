@@ -16,7 +16,7 @@ import {
   splitFrontmatter,
   vaultPathName,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ArtifactRefusedError } from '../artifacts/artifact-copy.ts';
 import { listArtifactCopy } from '../artifacts/load-artifact-copy.ts';
 import { saveArtifact } from '../artifacts/save-artifact.ts';

@@ -114,7 +114,7 @@ an update to an app macOS will not open is no update.
 1. Make the updater's key pair, on James's Mac, and keep the private key out of the repo:
 
    ```sh
-   pnpm --filter @atlas/desktop tauri signer generate -w ~/.tauri/updater.key
+   pnpm --filter @dfai/desktop tauri signer generate -w ~/.tauri/updater.key
    ```
 
 2. Add the repository secrets `TAURI_SIGNING_PRIVATE_KEY` (the contents of
@@ -127,7 +127,7 @@ an update to an app macOS will not open is no update.
    "plugins": {
      "updater": {
        "pubkey": "<contents of updater.key.pub>",
-       "endpoints": ["https://github.com/jhoffman-dev/atlas/releases/latest/download/latest.json"]
+       "endpoints": ["https://github.com/jhoffman-dev/dfai/releases/latest/download/latest.json"]
      }
    }
    ```

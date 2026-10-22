@@ -180,7 +180,7 @@ export interface HandledContext {
 /**
  * Every version a rule's log says it handled, or left by its own write —
  * read from the handled ledger (which outlives the log's entries) with the
- * entries it has not folded in laid over it, oldest first — runs an Atlas
+ * entries it has not folded in laid over it, oldest first — runs a DFAI
  * that did not know the ledger appended — so a path a note has left since has
  * no history: a new note there is new to the rule. A note left a path when
  * the log says it `went` — deleted, moved, renamed or archived by someone
@@ -277,9 +277,9 @@ export interface HeldNote extends NoteVersionRef {
 
 /**
  * The meetings whose arrival a `created` rule never ran on (ADR-0028,
- * "Catching up when Atlas opens"), from what the files and the rule's log
+ * "Catching up when DFAI opens"), from what the files and the rule's log
  * say — the feed cannot: an arrival heard and not yet run on is held in
- * memory, and is gone once Atlas is quit.
+ * memory, and is gone once DFAI is quit.
  *
  * A meeting counts when it sits where meeting files land and the import let
  * it in, is of the trigger's type, was last written after the rule's own file

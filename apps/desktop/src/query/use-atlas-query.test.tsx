@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { parseObjectType } from '@atlas/domain';
-import { fakeIndexPort } from '@atlas/application';
+import { parseObjectType } from '@dfai/domain';
+import { fakeIndexPort } from '@dfai/application';
 import { useAtlasQuery } from './use-atlas-query.ts';
 
 const TYPES = [parseObjectType({ name: 'task', properties: {} })];

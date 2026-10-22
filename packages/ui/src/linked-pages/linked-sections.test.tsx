@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardRow, RowGroup } from '@atlas/domain';
-import type { LinkedSection } from '@atlas/application';
+import type { BoardRow, RowGroup } from '@dfai/domain';
+import type { LinkedSection } from '@dfai/application';
 import { LinkedSections } from './linked-sections.tsx';
 
 const row = (title: string, values: Record<string, unknown> = {}): BoardRow => ({

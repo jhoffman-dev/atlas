@@ -1,13 +1,13 @@
 import { useCallback } from 'react';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import {
   embedImage,
   ImageRefusedError,
   type ActivityLog,
   type ImageProbePort,
   type VaultFsPort,
-} from '@atlas/application';
-import type { EmbedImage } from '@atlas/ui';
+} from '@dfai/application';
+import type { EmbedImage } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { ImagePlacementStore } from './browser-image-placement-store.ts';
 

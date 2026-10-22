@@ -15,7 +15,7 @@ import {
   withoutLink,
   type PropertyDef,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { pillPaint } from './pill-paint.ts';
 import { AddPropertyPopover, type NewProperty } from './add-property-popover.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';

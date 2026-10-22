@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, planAutomation, type AutomationRule, type LogEntry } from '@atlas/domain';
+import { createVaultPath, planAutomation, type AutomationRule, type LogEntry } from '@dfai/domain';
 import { automationRows, dryRunView, logViews, shownTime } from './automation-rows.ts';
 
 const p = createVaultPath;
@@ -25,7 +25,7 @@ const RUN: LogEntry = {
   at: '2026-09-27T03:00:05',
   trigger: 'schedule',
   done: [{ kind: 'archived', from: p('Tasks/Old.md'), to: p('Archive/Tasks/Old.md') }],
-  left: [{ path: p('Tasks/Busy.md'), reason: 'It is open in Atlas with unsaved typing.' }],
+  left: [{ path: p('Tasks/Busy.md'), reason: 'It is open in DFAI with unsaved typing.' }],
   capped: false,
 };
 
@@ -101,7 +101,7 @@ describe('logViews', () => {
     ]);
     expect(second?.lines).toEqual([
       { kind: 'done', text: 'Archived Old (Tasks/Old.md)' },
-      { kind: 'left', text: 'Left Busy: It is open in Atlas with unsaved typing.' },
+      { kind: 'left', text: 'Left Busy: It is open in DFAI with unsaved typing.' },
     ]);
   });
 });

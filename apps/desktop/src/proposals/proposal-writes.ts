@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from 'zustand';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { createAnswerQueue, type AnswerQueue } from './answer-queue.ts';
 
 /** What every Inbox tab's Proposals section draws from. */

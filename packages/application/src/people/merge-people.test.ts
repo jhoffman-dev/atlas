@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, splitFrontmatter } from '@dfai/domain';
 import { refreshIndex } from '../index/refresh-index.ts';
 import {
   jsonFrontmatterMarkdown as markdown,
@@ -401,14 +401,14 @@ describe('finding every link before a merge (#467)', () => {
     expect(vault.text('.atlas/templates/Brief.md')).toBe('Ask [[Mara Quill]] first.\n');
   });
 
-  it('refuses while another of Atlas’s own files links to a merged person', async () => {
+  it('refuses while another of DFAI’s own files links to a merged person', async () => {
     const { preview, vault } = await setUp({
       ...VAULT,
       '.atlas/types/contact.md': 'Ask [[Mara]] about contacts.\n',
     });
     const shown = await preview([SHORT]);
     expect(shown.refusal).toBe(
-      ".atlas/types/contact.md links to Mara but is one of Atlas's own files, which a merge does not rewrite. Change those links by hand, then merge.",
+      ".atlas/types/contact.md links to Mara but is one of DFAI's own files, which a merge does not rewrite. Change those links by hand, then merge.",
     );
     expect(vault.writes).toEqual([]);
   });

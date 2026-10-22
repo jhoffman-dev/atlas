@@ -1,4 +1,4 @@
-import { REVIEW_SCOPE } from '@atlas/application';
+import { REVIEW_SCOPE } from '@dfai/application';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { weeklyReviewPage } from '../pages-on-first-use.ts';
 import { localClock } from '../today.ts';

@@ -24,7 +24,7 @@ import {
   type EditorNode,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { OpenNotes } from '../api/ports.ts';
 import type { Rng } from '../ports.ts';
 import { createNote } from '../notes/create-note.ts';

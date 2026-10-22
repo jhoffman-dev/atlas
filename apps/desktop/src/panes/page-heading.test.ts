@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
-import type { OpenNote } from '@atlas/application';
+import { createVaultPath } from '@dfai/domain';
+import type { OpenNote } from '@dfai/application';
 import { pageHeading } from './page-heading.ts';
 
 const note = (path: string, properties: Record<string, unknown>): OpenNote =>

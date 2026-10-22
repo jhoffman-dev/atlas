@@ -132,8 +132,8 @@ describe('tags shown through a relation keep their written order (adversarial)',
     // three columns, which is h.idx (0) for every tag, so the order is SQLite's
     // GROUP BY order (alphabetical), not the order written.
     const index = indexOf([
-      { path: 'projects/Atlas.md', frontmatter: { type: 'project' }, tags: ['zeta', 'alpha'] },
-      task('Write', { project: '[[Atlas]]' }),
+      { path: 'projects/DFAI.md', frontmatter: { type: 'project' }, tags: ['zeta', 'alpha'] },
+      task('Write', { project: '[[DFAI]]' }),
     ]);
     const { objects } = index.run('FROM task SHOW project.tag');
     expect(objects[0]?.['project.tag']).toBe('#zeta, #alpha');

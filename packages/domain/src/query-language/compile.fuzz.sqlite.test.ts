@@ -57,7 +57,7 @@ interface Note {
 
 // ---------------------------------------------------------------- the vault
 
-const PROJECT_PATHS = ['projects/Atlas.md', 'projects/Beacon.md', 'Archive/projects/Old.md'];
+const PROJECT_PATHS = ['projects/DFAI.md', 'projects/Beacon.md', 'Archive/projects/Old.md'];
 const PERSON_PATHS = ['people/Julie.md', 'people/Sam.md'];
 
 function randomVault(rng: Rng): Note[] {
@@ -96,7 +96,7 @@ function randomVault(rng: Rng): Note[] {
     maybe('notes', ['alpha', 'Beta', 'alphabet', '', 'x_y', '50%', 5, "it's"]);
     maybe('flagged', [true, false, 'true', 'yes', null]);
     maybe('labels', [['red'], ['blue'], ['red', 'blue'], [], 'red']);
-    maybe('project', ['[[Atlas]]', '[[projects/Beacon]]', '[[Ghost]]', '[[atlas]]', '[[Old]]']);
+    maybe('project', ['[[DFAI]]', '[[projects/Beacon]]', '[[Ghost]]', '[[atlas]]', '[[Old]]']);
     maybe('owner', ['[[Julie]]', '[[Sam]]', '[[Nobody]]']);
     maybe('due', ['2026-09-29', '2026-09-30', '2026-10-01', '2026-09-30T18:00', 'soon']);
     const tags = ['q3', 'q3/okr', 'q4', 'Q3', 'q3x'].filter(() => chance(rng, 0.3));
@@ -154,11 +154,11 @@ const FIELDS: readonly FuzzField[] = [
   {
     text: 'project',
     ops: WORDY,
-    values: [link('Atlas'), link('Beacon'), link('Ghost'), link('ghost'), link('Old'), text('Atl')],
+    values: [link('DFAI'), link('Beacon'), link('Ghost'), link('ghost'), link('Old'), text('Atl')],
   },
   { text: 'project.status', ops: WORDY, values: ['active', 'paused', 'act'].map(text) },
   { text: 'project.owner', ops: EQ, values: [link('Julie'), link('Sam'), link('Nobody')] },
-  { text: 'project.title', ops: WORDY, values: ['Atlas', 'atlas', 'Bea'].map(text) },
+  { text: 'project.title', ops: WORDY, values: ['DFAI', 'atlas', 'Bea'].map(text) },
   { text: 'owner.role', ops: WORDY, values: ['lead', 'dev'].map(text) },
   { text: 'due', ops: ORDERED, values: ['2026-09-29', '2026-09-30', '2026-10-01'].map(text) },
   { text: 'project.due', ops: ORDERED, values: ['2026-09-30', '2026-10-01'].map(text) },
@@ -506,7 +506,7 @@ function randomBuilder(rng: Rng): BuilderQuery {
 const SEEDS = Array.from({ length: 25 }, (_, at) => 1000 + at);
 const QUERIES_PER_SEED = 40;
 
-describe('compiled Atlas queries against a naive evaluator (adversarial, seeded fuzz)', () => {
+describe('compiled DFAI queries against a naive evaluator (adversarial, seeded fuzz)', () => {
   it.each(SEEDS)('prints and reads back every random query unchanged (seed %i)', (seed) => {
     const rng = mulberry32(seed);
     for (let at = 0; at < QUERIES_PER_SEED; at += 1) {

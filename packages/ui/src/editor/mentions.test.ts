@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor, type JSONContent } from '@tiptap/core';
 import { closeHistory } from '@tiptap/pm/history';
-import { createVaultPath, type MentionSuggestion, type PersonChip } from '@atlas/domain';
+import { createVaultPath, type MentionSuggestion, type PersonChip } from '@dfai/domain';
 import { createEditorExtensions, type EditorPeople } from './extensions.ts';
 import type { MentionSuggestionView } from './mention-suggestion.ts';
 import { redrawPersonChips } from './person-chips.ts';

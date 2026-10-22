@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { movedPath, type EntryMove, type TabId, type VaultPath } from '@atlas/domain';
-import type { OpenNoteState, PropertyChanges } from '@atlas/application';
+import { movedPath, type EntryMove, type TabId, type VaultPath } from '@dfai/domain';
+import type { OpenNoteState, PropertyChanges } from '@dfai/application';
 
 /**
  * One tab's live editor, as the rest of the app needs to reach it.

@@ -110,20 +110,20 @@ describe('cardChip', () => {
 
 describe('cardChip, for a relation', () => {
   const names = noteNames([
-    { path: 'Atlas.md' as VaultPath, title: 'Atlas' },
+    { path: 'DFAI.md' as VaultPath, title: 'DFAI' },
     { path: 'people/Ada.md' as VaultPath, title: 'Ada Lovelace' },
   ]);
 
   it('names the linked notes, never the links', () => {
-    expect(cardChip({ key: 'project', value: '[[Atlas]]', kind: 'relation', names })).toEqual({
+    expect(cardChip({ key: 'project', value: '[[DFAI]]', kind: 'relation', names })).toEqual({
       key: 'project',
       icon: 'note',
-      text: 'Atlas',
+      text: 'DFAI',
       you: false,
       missing: false,
     });
-    expect(cardChip({ key: 'people', value: '[[Atlas]], [[Ada]]', names })?.text).toBe(
-      'Atlas, Ada Lovelace',
+    expect(cardChip({ key: 'people', value: '[[DFAI]], [[Ada]]', names })?.text).toBe(
+      'DFAI, Ada Lovelace',
     );
   });
 
@@ -136,12 +136,12 @@ describe('cardChip, for a relation', () => {
       text: 'Gone',
       missing: true,
     });
-    expect(cardChip({ key: 'people', value: '[[Gone]], [[Atlas]]', names })?.missing).toBe(false);
+    expect(cardChip({ key: 'people', value: '[[Gone]], [[DFAI]]', names })?.missing).toBe(false);
   });
 
   it('shows bare names before the notes are known', () => {
-    expect(cardChip({ key: 'project', value: '[[projects/Atlas]]' })).toMatchObject({
-      text: 'Atlas',
+    expect(cardChip({ key: 'project', value: '[[projects/DFAI]]' })).toMatchObject({
+      text: 'DFAI',
       missing: false,
     });
   });

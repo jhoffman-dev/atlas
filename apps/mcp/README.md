@@ -1,26 +1,26 @@
-# atlas-mcp
+# dfai-mcp
 
 An MCP server that lets AI tools — Claude Code, Claude Desktop, anything that
-speaks MCP over stdio — search, read and write your Atlas vault.
+speaks MCP over stdio — search, read and write your DFAI vault.
 
 It is a translator and nothing more (ADR-0016): each tool is one call to the
-local API of the **running** Atlas app (`vault/docs/api/v1.md`). It never reads
+local API of the **running** DFAI app (`vault/docs/api/v1.md`). It never reads
 vault files itself, so writes go through the same rules as the app — templates,
 types, the byte-preserving save, and the panes you have open.
 
 ## Before you start
 
-1. Open Atlas.
-2. Turn on the API in **Settings → Connections**. Atlas writes the port and
-   token to `~/Library/Application Support/dev.jhoffman.atlas/api.json`, which
-   this server reads on every call — rotating the token or restarting Atlas
+1. Open DFAI.
+2. Turn on the API in **Settings → Connections**. DFAI writes the port and
+   token to `~/Library/Application Support/com.dailyflowai.dfai/api.json`, which
+   this server reads on every call — rotating the token or restarting DFAI
    needs no restart here.
 
 ## Build
 
 ```sh
 pnpm install
-pnpm --filter @atlas/mcp build   # → apps/mcp/dist/main.js, one self-contained file
+pnpm --filter @dfai/mcp build   # → apps/mcp/dist/main.js, one self-contained file
 ```
 
 `pnpm build` at the root builds it too. Needs Node 22 or later.
@@ -33,9 +33,9 @@ HTTP, and reads the vault's files to confirm each write landed. It prints a
 PASS/FAIL table and exits non-zero on any failure.
 
 It creates and edits notes, so point it only at a **scratch vault**: a copy of
-a vault's `.atlas/` plus a few notes, outside any git repository, open in Atlas
+a vault's `.atlas/` plus a few notes, outside any git repository, open in DFAI
 with the API on. It refuses a path inside a repository and stops before writing
-if Atlas has a vault of another name open.
+if DFAI has a vault of another name open.
 
 ## Claude Code
 
@@ -220,7 +220,7 @@ or editing one stay on the app's Automations page, since rules and their logs
 live in `.atlas`, which the API never writes, and a run changes many notes at
 once (ADR-0016).
 
-`atlas_run_query` runs an Atlas query — the text the app's query builder
+`atlas_run_query` runs a DFAI query — the text the app's query builder
 writes, such as `FROM task, project WHERE status != done GROUP BY project` —
 and answers its rows, with `groups` and sub-groups for `GROUP BY` as the app
 groups them. It leaves archived notes out unless the query says
@@ -241,7 +241,7 @@ gets one answer that does not say which.
 
 An image that fits in 512 KiB is sent whole. A larger one is sent as an
 upload: the first chunk is answered with an upload id, each next chunk carries
-it, and the last says `last: true`, when Atlas checks the whole image and puts
+it, and the last says `last: true`, when DFAI checks the whole image and puts
 it in place (numbered when the name was taken). Unless `insert` is false it
 then appends the image's `![alt](src)` to the note; when that append is
 refused (the note has unsaved edits in the app), the error says where the
@@ -269,11 +269,11 @@ be written so it reads back), and `mergesInto` — a tag in use already, or the
 parent of one, that this one would join. A merge cannot be undone by renaming
 back, so it is refused with `exists` unless `merge: true` is sent. Renaming a
 tag to its own name in another case rewrites every use to that spelling. A note
-open in Atlas with unsaved typing is left alone and reported in `failed`. A
+open in DFAI with unsaved typing is left alone and reported in `failed`. A
 rename that timed out may still finish: preview again before retrying.
 
 A failure is a tool result with `isError: true` and a message the model can act
-on: `Atlas is not running — …` when the app is closed, how to turn the API on
+on: `DFAI is not running — …` when the app is closed, how to turn the API on
 when it is off, and `code: message` for an error from the API itself (e.g.
 `conflict: Tasks/Call Sam.md changed since you read it`). Nothing is written to
 stdout but the protocol; diagnostics go to stderr, and the token never appears

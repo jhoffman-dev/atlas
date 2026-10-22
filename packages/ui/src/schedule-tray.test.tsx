@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardRow, TaskSchedule, TrayTask } from '@atlas/domain';
+import type { BoardRow, TaskSchedule, TrayTask } from '@dfai/domain';
 import { shown } from './calendar-test-support.ts';
 import { CalendarView } from './calendar-view.tsx';
 import { announced, layOut, type Box } from './drag/test-layout.ts';

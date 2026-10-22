@@ -6,7 +6,9 @@ import {
 } from './connection.ts';
 
 const TOKEN = 'a'.repeat(64);
-const MAC_FILE = '/Users/sam/Library/Application Support/dev.jhoffman.atlas/api.json';
+const MAC_FILE = '/Users/sam/Library/Application Support/com.dailyflowai.dfai/api.json';
+/** Where Atlas, the app's name before DFAI, wrote it (#482). */
+const LEGACY_MAC_FILE = '/Users/sam/Library/Application Support/dev.jhoffman.atlas/api.json';
 
 function source(overrides: Partial<ConnectionSource> & { files?: Record<string, string> } = {}) {
   const { files = {}, ...rest } = overrides;
@@ -49,6 +51,37 @@ describe('resolveConnection', () => {
     expect(read).toEqual([MAC_FILE]);
   });
 
+  it('falls back to the file Atlas wrote when DFAI has not written one yet', async () => {
+    const { src, read } = source({
+      files: { [LEGACY_MAC_FILE]: file({ port: 27183, token: TOKEN, version: 1, enabled: true }) },
+    });
+    expect((await resolveConnection(src)).baseUrl).toBe('http://127.0.0.1:27183');
+    expect(read).toEqual([MAC_FILE, LEGACY_MAC_FILE]);
+  });
+
+  it("prefers DFAI's file over the one Atlas left behind", async () => {
+    const { src, read } = source({
+      files: {
+        [MAC_FILE]: file({ port: 2, token: TOKEN, version: 1, enabled: true }),
+        [LEGACY_MAC_FILE]: file({ port: 1, token: TOKEN, version: 1, enabled: true }),
+      },
+    });
+    expect((await resolveConnection(src)).baseUrl).toBe('http://127.0.0.1:2');
+    expect(read).toEqual([MAC_FILE]);
+  });
+
+  it('never falls back past a DFAI file it could not read: that error is the one to fix', async () => {
+    const { src, read } = source({
+      files: { [LEGACY_MAC_FILE]: file({ port: 1, token: TOKEN, version: 1, enabled: true }) },
+      readFile: async (path) => {
+        read.push(path);
+        throw Object.assign(new Error('denied'), { code: 'EACCES' });
+      },
+    });
+    expect(await failure(src)).toMatch(/Could not read .*com\.dailyflowai\.dfai.*EACCES/);
+    expect(read).toEqual([MAC_FILE]);
+  });
+
   it('accepts a file without "enabled", as the v1 doc writes it', async () => {
     const { src } = source({
       files: { [MAC_FILE]: file({ port: 1, token: TOKEN, version: 1 }) },
@@ -87,6 +120,7 @@ describe('resolveConnection', () => {
     expect(message).toContain('has not been turned on');
     expect(message).toContain('Settings → Connections');
     expect(message).toContain(MAC_FILE);
+    expect(message).toContain('Open DFAI');
   });
 
   it('says the API is off when the file says enabled: false, without leaking the token', async () => {
@@ -127,16 +161,16 @@ describe('resolveConnection', () => {
 describe('defaultConnectionFile', () => {
   it('follows Tauri appDataDir on Linux, honouring XDG_DATA_HOME', () => {
     expect(defaultConnectionFile({ env: {}, platform: 'linux', homeDir: '/home/sam' })).toBe(
-      '/home/sam/.local/share/dev.jhoffman.atlas/api.json',
+      '/home/sam/.local/share/com.dailyflowai.dfai/api.json',
     );
     expect(
       defaultConnectionFile({ env: { XDG_DATA_HOME: '/data' }, platform: 'linux', homeDir: '/h' }),
-    ).toBe('/data/dev.jhoffman.atlas/api.json');
+    ).toBe('/data/com.dailyflowai.dfai/api.json');
   });
 
   it('uses APPDATA on Windows', () => {
     expect(
       defaultConnectionFile({ env: { APPDATA: '/roaming' }, platform: 'win32', homeDir: '/h' }),
-    ).toMatch(/roaming.dev\.jhoffman\.atlas.api\.json$/);
+    ).toMatch(/roaming.com\.dailyflowai\.dfai.api\.json$/);
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Opening a vault that files by project writes the PARA types it has no file
- * for, and gives each of Atlas's own built-in type files (Meeting, Proposal,
+ * for, and gives each of DFAI's own built-in type files (Meeting, Proposal,
  * Decision, Daily, Block) the properties it ships that the file predates
  * (#162) — once, never changing a key the file has. Anything else — PARA for a
  * vault that has not taken it up, PARA's `project` and PARA's own types' keys,
@@ -16,7 +16,7 @@ import {
   relationTypes,
   splitFrontmatter,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
@@ -271,7 +271,7 @@ describe('ensureBuiltInTypes', () => {
   });
 });
 
-describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ships (#162)', () => {
+describe('ensureBuiltInTypes, on a built-in type file older than what DFAI ships (#162)', () => {
   const RECORD = '.atlas/migrations/type-properties.md';
   /** A Meeting type from before `tasks` and `decisions`, as Mara Quill's vault has it. */
   const OLDER_MEETING = note(
@@ -343,7 +343,7 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     expect(parseShippedPropertiesRecord(record).added).toEqual({ meeting: MEETING_ADDED });
   });
 
-  it('leaves a property the person changed as it is, even where it differs from what Atlas ships', async () => {
+  it('leaves a property the person changed as it is, even where it differs from what DFAI ships', async () => {
     const theirs = { kind: 'text', label: 'To-dos' };
     const v = vault({
       '.atlas/types/meeting.md': note({
@@ -401,7 +401,7 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     expect(again.properties.gained).toEqual([]);
   });
 
-  it('gives every built-in type file what Atlas ships on it, not only Meeting', async () => {
+  it('gives every built-in type file what DFAI ships on it, not only Meeting', async () => {
     const v = vault({
       '.atlas/types/daily.md': note({ name: 'daily', properties: { date: 'date' } }),
       '.atlas/types/decision.md': note({ name: 'decision', label: 'Decision' }),
@@ -481,7 +481,7 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     expect(v.files.get('.atlas/types/meeting.md')).toBe(without);
   });
 
-  it('does not report a key as added when the file declares it in a shape Atlas cannot read', async () => {
+  it('does not report a key as added when the file declares it in a shape DFAI cannot read', async () => {
     const unread = note({
       name: 'meeting',
       label: 'Meeting',

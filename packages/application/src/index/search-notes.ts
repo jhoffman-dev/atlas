@@ -1,4 +1,4 @@
-import { ARCHIVE_PREFIX, isTemplateNote } from '@atlas/domain';
+import { ARCHIVE_PREFIX, isTemplateNote } from '@dfai/domain';
 import type { IndexPort, SearchHit, SearchScope } from './ports.ts';
 
 /**

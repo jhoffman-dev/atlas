@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { BoardRow, StatusProperty } from '@atlas/domain';
+import type { BoardRow, StatusProperty } from '@dfai/domain';
 import { cardAsMoved, resultAsPending, rowsAsPending, type PendingCard } from './pending-cards.ts';
 
 const STATUS: StatusProperty = {
@@ -26,7 +26,7 @@ describe('cardAsMoved', () => {
   it('reads as the column it was dropped in, spelled as the column holds it', () => {
     expect(
       cardAsMoved({
-        values: { status: 'backlog', project: '[[Atlas]]' },
+        values: { status: 'backlog', project: '[[DFAI]]' },
         move: {
           column: { key: 'project', value: '[[Garden]]', kind: 'relation' },
           lane: null,

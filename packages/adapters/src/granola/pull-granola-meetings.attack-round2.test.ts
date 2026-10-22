@@ -10,9 +10,9 @@ import {
   granolaNote,
   type GranolaPullRecord,
   type GranolaPullRecords,
-} from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import { unreadableSummaryProblem, type GranolaNote } from '@atlas/domain';
+} from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
+import { unreadableSummaryProblem, type GranolaNote } from '@dfai/domain';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 
 const VAULT = '/Users/j/Vault';

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isArchivedPath, isInInbox } from '@atlas/domain';
+import { isArchivedPath, isInInbox } from '@dfai/domain';
 import { apiFixture, bodyOf } from '../testing/api-fixture.ts';
 
 const PROJECT = '---\ntype: project\n---\n\nThe plan.\n';

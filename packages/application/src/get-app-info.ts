@@ -1,4 +1,4 @@
-import { createAppInfo, type AppInfo } from '@atlas/domain';
+import { createAppInfo, type AppInfo } from '@dfai/domain';
 import type { AppInfoPort } from './ports.ts';
 
 /** Reads identity from the host and validates it against the domain rules. */

@@ -18,7 +18,7 @@ import {
   type AutomationRule,
   type ClaudeAction,
   type LogEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ChatCancelled, ModelProviderError, type ModelEvent } from '../chat/ports.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';
@@ -357,11 +357,11 @@ describe('a Claude step that fails writes nothing, and says why', () => {
         status: {
           ready: false,
           problem: 'not_installed',
-          message: 'Claude Code is not installed on this Mac, or not where Atlas looks for it.',
+          message: 'Claude Code is not installed on this Mac, or not where DFAI looks for it.',
           fix: 'curl -fsSL https://claude.ai/install.sh | bash',
         },
       },
-      'Claude Code is not installed on this Mac, or not where Atlas looks for it. Fix: curl -fsSL https://claude.ai/install.sh | bash',
+      'Claude Code is not installed on this Mac, or not where DFAI looks for it. Fix: curl -fsSL https://claude.ai/install.sh | bash',
     );
     expect(claude.fake.requests).toEqual([]);
     expect(messages()[0]).toContain('Fix: curl -fsSL https://claude.ai/install.sh | bash.');

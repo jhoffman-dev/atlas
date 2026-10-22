@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import type { OpenNotes } from './ports.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';

@@ -1,11 +1,11 @@
 /**
  * P31-01, adversarial: a schedule is refused rather than read short when the
  * index's row cap cuts it (ADR-0030). The cap is the host's; how many tasks
- * one question carries is Atlas's own choice, and should not be what refuses
+ * one question carries is DFAI's own choice, and should not be what refuses
  * a schedule every task of which the index can return whole.
  */
 import { describe, expect, it } from 'vitest';
-import { GTD_STATUS_PROPERTY, type ObjectType } from '@atlas/domain';
+import { GTD_STATUS_PROPERTY, type ObjectType } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';

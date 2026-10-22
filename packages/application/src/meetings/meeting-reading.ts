@@ -2,7 +2,7 @@ import {
   validateMeetingImport,
   type FrontmatterReading,
   type MeetingImportResult,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 
 /** A frontmatter block's values, or none and why, as the meeting validator is handed them. */

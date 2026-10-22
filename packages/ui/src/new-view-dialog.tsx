@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import { viewIcon, type NewViewRequest, type ViewLayout } from '@atlas/domain';
+import { viewIcon, type NewViewRequest, type ViewLayout } from '@dfai/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { KeyHints } from './key-hints.tsx';

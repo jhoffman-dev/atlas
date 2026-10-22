@@ -6,7 +6,7 @@ import {
   recordingActivity,
   type ApiConnectionStatus,
   type ApiSettingsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { settingsDialog } from '../pages-on-first-use.ts';
 import { createBrowserThemeStore } from '../theme/browser-theme-store.ts';
 import { SettingsPanel } from './settings-panel.tsx';
@@ -20,7 +20,7 @@ beforeAll(() => settingsDialog.preload(), 30_000);
  * token, and what the panel says after each.
  */
 
-const FILE = '/Users/j/Library/Application Support/dev.jhoffman.atlas/api.json';
+const FILE = '/Users/j/Library/Application Support/com.dailyflowai.dfai/api.json';
 
 function fakeHost({ failToStart = null }: { failToStart?: string | null } = {}) {
   let status: ApiConnectionStatus = { enabled: false, port: null, running: false, file: FILE };

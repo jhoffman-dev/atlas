@@ -44,7 +44,7 @@ describe('explainGranolaFailure', () => {
     expect(fix).toMatch(/pages/);
   });
 
-  it('says Granola asked Atlas to slow down, and that it will try again', () => {
+  it('says Granola asked DFAI to slow down, and that it will try again', () => {
     const { problem, fix } = explainGranolaFailure(refused(429));
     expect(problem).toMatch(/slow down/);
     expect(fix).toMatch(/next pull/);
@@ -82,11 +82,9 @@ describe('explainGranolaFailure', () => {
     expect(explainGranolaFailure(failure('timeout')).problem).toMatch(/did not answer in time/);
   });
 
-  it('names an answer Atlas cannot read, without its body, and says it was skipped', () => {
+  it('names an answer DFAI cannot read, without its body, and says it was skipped', () => {
     const { problem, fix } = explainGranolaFailure(failure('malformed'));
-    expect(problem).toBe(
-      'Granola answered in a way Atlas does not understand: what the host said.',
-    );
+    expect(problem).toBe('Granola answered in a way DFAI does not understand: what the host said.');
     expect(fix).toBe('It was skipped; Sync now tries it again.');
   });
 
@@ -98,18 +96,16 @@ describe('explainGranolaFailure', () => {
 
   it('names a request the host would not make, with what it said, and that the next pull asks again', () => {
     expect(explainGranolaFailure(failure('invalid'))).toEqual({
-      problem: 'Atlas could not ask Granola: what the host said.',
-      fix: 'Atlas stops pulling; the next pull asks again.',
+      problem: 'DFAI could not ask Granola: what the host said.',
+      fix: 'DFAI stops pulling; the next pull asks again.',
     });
   });
 
   it('points a Keychain that would not give up the key at the Keychain and the card', () => {
     const { problem, fix } = explainGranolaFailure(failure('keychain'));
-    expect(problem).toBe(
-      'The Keychain did not give Atlas the Granola API key: what the host said.',
-    );
+    expect(problem).toBe('The Keychain did not give DFAI the Granola API key: what the host said.');
     expect(fix).toBe(
-      'Unlock the Keychain, or paste the key again in Settings → Granola. Atlas stops pulling; the next pull asks again.',
+      'Unlock the Keychain, or paste the key again in Settings → Granola. DFAI stops pulling; the next pull asks again.',
     );
     expect(fix).not.toMatch(/until it has a key/);
   });
@@ -136,9 +132,9 @@ describe('explainGranolaFailure', () => {
     }
   });
 
-  it('says an answer larger than Atlas reads was skipped', () => {
+  it('says an answer larger than DFAI reads was skipped', () => {
     const { problem, fix } = explainGranolaFailure(failure('too_large'));
-    expect(problem).toBe('Granola answered with more than Atlas will read.');
+    expect(problem).toBe('Granola answered with more than DFAI will read.');
     expect(fix).toBe('It was skipped; Sync now tries it again.');
   });
 
@@ -171,7 +167,7 @@ describe('granolaFailureEffect', () => {
     expect(granolaFailureEffect({ ...failure('keychain'), transcriptPage: true })).toBe('stop');
   });
 
-  it('skips an answer larger than Atlas reads: it is as large on every pull', () => {
+  it('skips an answer larger than DFAI reads: it is as large on every pull', () => {
     expect(granolaFailureEffect(failure('too_large'))).toBe('skip');
   });
 
@@ -224,7 +220,7 @@ describe('granolaFailureEffect', () => {
     },
   );
 
-  it('skips an answer Atlas cannot read, and a refusal with no status', () => {
+  it('skips an answer DFAI cannot read, and a refusal with no status', () => {
     expect(granolaFailureEffect(failure('malformed'))).toBe('skip');
     expect(granolaFailureEffect({ kind: 'api_refused', message: 'x' })).toBe('skip');
   });
@@ -233,7 +229,7 @@ describe('granolaFailureEffect', () => {
 /*
  * The person is told what the pull did. Every failure there can be — each
  * kind, an unknown one, every status from 99 to 1000, and none, as a page of
- * a transcript or not — says it was skipped, that Atlas tries again, or that
+ * a transcript or not — says it was skipped, that DFAI tries again, or that
  * it stopped, exactly as granolaFailureEffect decides, and says nothing else.
  */
 describe('explainGranolaFailure, against granolaFailureEffect', () => {

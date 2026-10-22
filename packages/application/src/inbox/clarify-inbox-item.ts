@@ -6,7 +6,7 @@ import {
   waitingOnRefusal,
   type Clarification,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   moveAndStampNotes,
   type ArchiveFailure,

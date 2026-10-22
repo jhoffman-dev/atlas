@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import type { EditorDocument } from '@atlas/domain';
+import type { EditorDocument } from '@dfai/domain';
 import { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts';
 
 const DOC: EditorDocument = {

@@ -36,7 +36,7 @@ export const RawBlock = Node.create({
 });
 
 /**
- * Whether a raw block is one HTML comment and nothing else — a marker Atlas
+ * Whether a raw block is one HTML comment and nothing else — a marker DFAI
  * writes around a meeting's summary (#186), say — which nobody reads: it is
  * drawn small and muted rather than as a block of source.
  */

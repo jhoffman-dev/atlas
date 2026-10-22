@@ -7,8 +7,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, proposalEntries, type VaultPath } from '@atlas/domain';
-import { recordingActivity, type ProposalPorts } from '@atlas/application';
+import { createVaultPath, proposalEntries, type VaultPath } from '@dfai/domain';
+import { recordingActivity, type ProposalPorts } from '@dfai/application';
 import { inMemoryProposalVault as vault, windowToasts } from './proposals.test-support.ts';
 import { useProposals } from './use-proposals.ts';
 

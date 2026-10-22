@@ -18,7 +18,7 @@ const NOW = Date.UTC(2026, 9, 13, 15);
 const DAY = 86_400_000;
 const AT = { today: TODAY, now: NOW };
 
-const ATLAS = createVaultPath('Projects/Atlas.md');
+const ATLAS = createVaultPath('Projects/DFAI.md');
 const GARDEN = createVaultPath('Projects/Garden.md');
 
 function task(
@@ -41,7 +41,7 @@ function task(
   };
 }
 
-const inAtlas = { project: ATLAS, projectTitle: 'Atlas' };
+const inAtlas = { project: ATLAS, projectTitle: 'DFAI' };
 const inGarden = { project: GARDEN, projectTitle: 'Garden' };
 
 const project = (title: string, fields: Partial<ReviewProject> = {}): ReviewProject => ({
@@ -255,7 +255,7 @@ describe('next actions', () => {
     ];
     const groups = section(tasks, 'nextActions').groups;
     expect(groups.map((group) => [group.label, group.tasks.map((item) => item.title)])).toEqual([
-      ['Atlas', ['Fix the build', 'Ship it']],
+      ['DFAI', ['Fix the build', 'Ship it']],
       ['Garden', ['Sow beans']],
       [null, ['Another loose end', 'Loose end']],
     ]);
@@ -264,8 +264,8 @@ describe('next actions', () => {
   });
 
   it('keeps two projects of one title apart', () => {
-    const other = createVaultPath('Archive Ideas/Atlas.md');
-    const tasks = [task('One', inAtlas), task('Two', { project: other, projectTitle: 'Atlas' })];
+    const other = createVaultPath('Archive Ideas/DFAI.md');
+    const tasks = [task('One', inAtlas), task('Two', { project: other, projectTitle: 'DFAI' })];
     expect(section(tasks, 'nextActions').groups.map((group) => group.key)).toEqual([other, ATLAS]);
   });
 });
@@ -312,7 +312,7 @@ describe('stalled projects', () => {
   it('counts the active projects the index says are not moving', () => {
     const projects = [
       project('Garden'),
-      project('Atlas', { moving: true }),
+      project('DFAI', { moving: true }),
       project('Shed', { status: 'paused' }),
       project('Beds'),
     ];

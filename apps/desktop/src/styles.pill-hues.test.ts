@@ -1,4 +1,4 @@
-import { PILL_HUES } from '@atlas/domain';
+import { PILL_HUES } from '@dfai/domain';
 import { describe, expect, it } from 'vitest';
 import { readStylesheet } from './styles.test-support.ts';
 

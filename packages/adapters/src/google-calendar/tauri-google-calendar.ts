@@ -1,10 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
-import { isGoogleFailureKind, type GoogleCalendar, type GoogleFailure } from '@atlas/domain';
+import { isGoogleFailureKind, type GoogleCalendar, type GoogleFailure } from '@dfai/domain';
 import {
   GoogleCalendarError,
   type GoogleCalendarPort,
   type GoogleConnection,
-} from '@atlas/application';
+} from '@dfai/application';
 import { calendarListPage, createdCalendarOf } from './calendar-list.ts';
 
 /** A Calendar API answer as the host hands it back, with every token struck from it. */
@@ -80,7 +80,7 @@ async function listCalendars({ vault }: { vault: string }): Promise<GoogleCalend
     const listed = calendarListPage(
       await callApi(vault, { method: 'GET', path: CALENDAR_LIST + query }),
     );
-    if (listed === null) throw malformed('the calendar list is not one Atlas can read');
+    if (listed === null) throw malformed('the calendar list is not one DFAI can read');
     calendars.push(...listed.calendars);
     if (listed.next === null) return calendars;
     pageToken = listed.next;

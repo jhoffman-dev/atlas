@@ -3,7 +3,7 @@ import {
   LINK_HINTS_PAGE_SIZE,
   LINK_HINTS_QUERY_COLUMNS,
   LINK_HINTS_QUERY_MARK,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { readLinkHints } from './link-hints.ts';
 

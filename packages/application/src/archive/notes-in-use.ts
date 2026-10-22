@@ -9,13 +9,13 @@ import {
   paraOf,
   PROJECT_TYPE,
   type ParaValue,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 
 /** What reading the notes in use asks of the index: a type's notes, and their PARA. */
 type NotesIndex = Pick<IndexPort, 'notesOfType' | 'query'>;
 
-/** Out of the way (U-22), or one of Atlas's own files: never offered. */
+/** Out of the way (U-22), or one of DFAI's own files: never offered. */
 const inUse = (note: { readonly path: string }) =>
   !isArchivedPath(note.path) && !isAtlasNote(note.path);
 
@@ -105,7 +105,7 @@ async function paraNotesInUse(
 }
 
 /**
- * Each note of `typeName` that holds a PARA Atlas can read, and that value.
+ * Each note of `typeName` that holds a PARA DFAI can read, and that value.
  * A note whose PARA says nothing readable is left out, and reads as the
  * default where it is asked for.
  */

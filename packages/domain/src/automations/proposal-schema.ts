@@ -93,9 +93,9 @@ export interface AnswerContext {
   readonly vault?: AnswerVault;
 }
 
-/** Something Atlas tells the model beside the notes: data, fenced as the notes are. */
+/** Something DFAI tells the model beside the notes: data, fenced as the notes are. */
 export interface PromptData {
-  /** What it is, in Atlas's own words: the fence's label. */
+  /** What it is, in DFAI's own words: the fence's label. */
   readonly about: string;
   /** The vault's text: neutralised before it is shown. */
   readonly text: string;
@@ -363,7 +363,7 @@ export function registerProposalSchema<Item>(
 ): RegisteredProposalSchema {
   for (const relation of schema.meetingRelations ?? []) {
     const problem = setKeyProblem(relation);
-    // A schema is code: one that names a key Atlas keeps is a bug, found when the app starts.
+    // A schema is code: one that names a key DFAI keeps is a bug, found when the app starts.
     if (problem !== null) throw new Error(`The ${schema.name} output cannot link: ${problem}`);
   }
   return {

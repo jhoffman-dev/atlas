@@ -1,4 +1,4 @@
-import { weeklyReview, type WeeklyReview } from '@atlas/domain';
+import { weeklyReview, type WeeklyReview } from '@dfai/domain';
 import type { Clock } from '../ports.ts';
 import {
   readReviewSources,

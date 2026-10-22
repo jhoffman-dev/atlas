@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type PropertyDef, type PropertyKind } from '@atlas/domain';
+import { createVaultPath, type PropertyDef, type PropertyKind } from '@dfai/domain';
 import { CommitField } from '../commit-field.tsx';
 import type { PropertyRow } from '../properties-panel.tsx';
 import { PeekDialog, type PeekDialogProps } from './peek-dialog.tsx';

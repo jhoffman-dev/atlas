@@ -17,7 +17,7 @@ import {
   type EditorNode,
   type ParsedBody,
   type SourceBlock,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { Nodes, Root, RootContent } from 'mdast';
 import type { Options as StringifyOptions } from 'remark-stringify';
 import type { Join } from 'mdast-util-to-markdown';

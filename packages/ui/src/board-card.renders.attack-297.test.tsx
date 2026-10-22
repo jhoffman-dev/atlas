@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { noteNames, type BoardColumn, type BoardRow, type VaultPath } from '@atlas/domain';
+import { noteNames, type BoardColumn, type BoardRow, type VaultPath } from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 import { NoteNamesProvider } from './note-names.tsx';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';

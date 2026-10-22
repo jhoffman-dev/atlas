@@ -33,7 +33,7 @@ export const ARTIFACT_KEYS = {
   savedAt: 'saved_at',
   /**
    * The picture a gallery card is fronted with: the note's `cover`, as any
-   * note's is — the copy's thumbnail, once Atlas has made one (`artifact-thumbnail.ts`).
+   * note's is — the copy's thumbnail, once DFAI has made one (`artifact-thumbnail.ts`).
    */
   cover: 'cover',
 } as const;

@@ -7,7 +7,7 @@ import {
   versionsAfter,
   type NoteChange,
   type NoteVersion,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChanges } from './note-changes.ts';
 import type { IndexPort, IndexStats } from './ports.ts';

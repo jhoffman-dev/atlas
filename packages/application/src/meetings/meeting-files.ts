@@ -14,7 +14,7 @@ import {
   type MeetingImportHappening,
   type VaultPath,
   type Vocabulary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { archiveNotes, type ArchivePorts } from '../archive/archive-notes.ts';
 import type { ActivityRecorder } from '../activity/ports.ts';
 import { loadTerms } from '../terms/terms.ts';

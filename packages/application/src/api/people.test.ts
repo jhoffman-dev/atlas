@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type VaultPath } from '@dfai/domain';
 import { refreshIndex } from '../index/refresh-index.ts';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import {

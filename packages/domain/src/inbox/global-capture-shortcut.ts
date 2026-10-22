@@ -1,5 +1,5 @@
 /**
- * The system-wide shortcut that brings Atlas forward with quick capture open,
+ * The system-wide shortcut that brings DFAI forward with quick capture open,
  * whatever app has the keyboard (#81).
  *
  * It is written as the host registers it, modifiers first and then the key by
@@ -7,7 +7,7 @@
  * letter, because Alt turns a letter into a dead key on a Mac layout.
  */
 
-/** ⌃⌥N: unused by macOS and by the apps Atlas sits beside, and close to ⌥⌘N, which opens capture in the app. */
+/** ⌃⌥N: unused by macOS and by the apps DFAI sits beside, and close to ⌥⌘N, which opens capture in the app. */
 export const DEFAULT_GLOBAL_CAPTURE_SHORTCUT = 'Control+Alt+KeyN';
 
 /** The modifiers, in the order a Mac menu shows them and the shortcut is written. */
@@ -19,7 +19,7 @@ const MODIFIERS = [
 ] as const;
 
 /**
- * A global shortcut reaches Atlas before any other app sees the press, so it
+ * A global shortcut reaches DFAI before any other app sees the press, so it
  * holds two of these. One alone is how every app copies (⌘C), quits (⌘Q) and
  * types (⌥E is é); Shift adds nothing, since ⇧ is typing too.
  */

@@ -105,7 +105,7 @@ test('an offer read while the rows are held lands above them before they show (#
   expect(await largestMove(page, 'Item 1', 30)).toBe(0);
 });
 
-/** What Atlas records of the properties it added to built-in types: read only as the types are set up. */
+/** What DFAI records of the properties it added to built-in types: read only as the types are set up. */
 const SHIPPED_RECORD = '.atlas/migrations/type-properties.md';
 const NOTHING_RECORDED = [
   '---',

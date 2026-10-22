@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FileChangedError, ProgramMissingError } from '@atlas/application';
+import { FileChangedError, ProgramMissingError } from '@dfai/application';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
@@ -18,20 +18,20 @@ describe('tauriGit', () => {
   it('runs each step as the one argument shape the host allows, naming its vault', async () => {
     const git = tauriGit('/v');
     await git.status();
-    await git.commit({ message: 'Atlas sync', identity: null });
-    await git.commit({ message: 'm', identity: { name: 'Atlas on Mac', email: 'a@b' } });
+    await git.commit({ message: 'DFAI sync', identity: null });
+    await git.commit({ message: 'm', identity: { name: 'DFAI on Mac', email: 'a@b' } });
     await git.merge({ branch: 'main', identity: null });
-    await git.merge({ branch: 'main', identity: { name: 'Atlas on Mac', email: 'a@b' } });
+    await git.merge({ branch: 'main', identity: { name: 'DFAI on Mac', email: 'a@b' } });
     await git.remoteBranchExists('main');
     await git.checkout({ side: 'theirs', path: 'Ideas.md', seen: null });
     await git.setRemote({ url: 'git@github.com:j/n.git', exists: true });
     await git.setRemote({ url: 'git@github.com:j/n.git', exists: false });
     expect(invoke.mock.calls.map(([, args]) => (args as { args: string[] }).args)).toEqual([
       ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'],
-      ['commit', '--quiet', '--no-verify', '-m', 'Atlas sync'],
+      ['commit', '--quiet', '--no-verify', '-m', 'DFAI sync'],
       [
         '-c',
-        'user.name=Atlas on Mac',
+        'user.name=DFAI on Mac',
         '-c',
         'user.email=a@b',
         'commit',
@@ -43,7 +43,7 @@ describe('tauriGit', () => {
       ['merge', '--no-edit', '--allow-unrelated-histories', 'origin/main'],
       [
         '-c',
-        'user.name=Atlas on Mac',
+        'user.name=DFAI on Mac',
         '-c',
         'user.email=a@b',
         'merge',

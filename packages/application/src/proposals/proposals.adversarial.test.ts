@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { digestOf, type VaultPath } from '@atlas/domain';
+import { digestOf, type VaultPath } from '@dfai/domain';
 import { apiFixture } from '../testing/api-fixture.ts';
 import { jsonLinesMarkdown, jsonLinesNote, vaultPath } from '../testing/proposal-vault.ts';
 import { acceptProposalNote } from './accept-proposal.ts';

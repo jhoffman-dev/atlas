@@ -10,7 +10,7 @@
  * rule (not a backfill), in a vault that says who its owner is.
  *
  * What the owner should still see goes into the meeting's one review
- * proposal (`meetingReview`): their own items Atlas is less sure of, a
+ * proposal (`meetingReview`): their own items DFAI is less sure of, a
  * waiting-for they asked for, and a decision they took part in that the
  * model is sure was made. Everything else is left out: low confidence, other
  * people's items, items nobody can be named for, and decisions the owner

@@ -15,9 +15,9 @@ pub enum FailureKind {
     Refused,
     /// The browser never came back.
     Timeout,
-    /// The person cancelled the sign-in in Atlas.
+    /// The person cancelled the sign-in in DFAI.
     Cancelled,
-    /// Google gave a token without every scope Atlas asked for.
+    /// Google gave a token without every scope DFAI asked for.
     ScopeNotGranted,
     /// Google's token endpoint answered with an OAuth error.
     TokenRefused,

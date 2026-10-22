@@ -1,6 +1,6 @@
 import { Extension, type Editor, type Range } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
-import { QUERY_BLOCK_NODE } from '@atlas/domain';
+import { QUERY_BLOCK_NODE } from '@dfai/domain';
 import { pickerSuggestion, type PickerView } from './picker-suggestion.ts';
 
 export interface SlashCommand {

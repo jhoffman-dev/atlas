@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ViewLayout } from '@atlas/domain';
+import type { ViewLayout } from '@dfai/domain';
 import { ChoiceSelect, type Choice } from '../choice-select.tsx';
 import type { OverlaySlot } from '../overlay-slot.ts';
 import { Notice, PopoverForm } from '../popover-form.tsx';

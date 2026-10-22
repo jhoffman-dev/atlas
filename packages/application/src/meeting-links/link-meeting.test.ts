@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import { acceptProposalNote } from '../proposals/accept-proposal.ts';
 import { listProposals } from '../proposals/list-proposals.ts';
 import { MEETING_BODY } from '../testing/meeting-files.ts';

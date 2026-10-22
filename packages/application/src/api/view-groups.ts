@@ -15,7 +15,7 @@ import {
   type ViewDisplay,
   type ViewQuery,
   withChecklistProgress,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { readNamedNotes } from '../graph/load-graph.ts';
 import { relationGroupLinks } from '../query/relation-group-links.ts';
 import { loadObjectTypes } from '../types/load-types.ts';

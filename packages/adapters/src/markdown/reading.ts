@@ -1,4 +1,4 @@
-import { BLOCK_ID_ATTR, type EditorMark, type EditorNode } from '@atlas/domain';
+import { BLOCK_ID_ATTR, type EditorMark, type EditorNode } from '@dfai/domain';
 
 /**
  * What blocks read as in the editor: one token for each node's start and end

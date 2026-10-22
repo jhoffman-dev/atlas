@@ -4,7 +4,7 @@ import {
   GLOBAL_CAPTURE_EVENT,
   type GlobalCapturePort,
   type GlobalCaptureShortcut,
-} from '@atlas/application';
+} from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 /** Not a vault failure: the shortcut could not be read or changed. */

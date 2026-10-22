@@ -11,8 +11,8 @@ import {
   fakeVaultFs,
   recordingActivity,
   type ApiRouterDeps,
-} from '@atlas/application';
-import { remarkMarkdown, tauriApiBridge } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown, tauriApiBridge } from '@dfai/adapters';
 import { useLocalApi } from './use-local-api.ts';
 
 /**
@@ -76,7 +76,7 @@ function emptyVault(): ApiRouterDeps {
       currentVault: () => ({ absolutePath: '/Users/j/Vault', name: 'Vault' }),
       indexReady: () => true,
     },
-    appInfo: { read: async () => ({ name: 'Atlas', version: '1.0.0' }) },
+    appInfo: { read: async () => ({ name: 'DFAI', version: '1.0.0' }) },
     clock: { today: () => '2026-09-22', now: () => 1_000, localNow: () => '2026-09-22T09:00:00' },
     fs: fakeVaultFs(),
     markdown: remarkMarkdown,

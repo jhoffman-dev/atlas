@@ -165,7 +165,7 @@ describe('which keys an answer may carry', () => {
     ).toMatchObject({ ok: false, problem: expect.stringContaining('path') });
   });
 
-  it('refuses keys Atlas keeps in a proposal’s properties, as a note answer does', () => {
+  it('refuses keys DFAI keeps in a proposal’s properties, as a note answer does', () => {
     for (const key of [
       'atlas',
       'archived',

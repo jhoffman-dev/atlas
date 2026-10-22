@@ -7,7 +7,7 @@ import {
   type StatusTone,
   type VaultGraph,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { useForceLayout, type Point } from './use-force-layout.ts';
 
 /** Pan and zoom: a translation in screen pixels and a scale. */

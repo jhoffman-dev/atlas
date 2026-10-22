@@ -30,7 +30,7 @@ const run = taskIndex([
 ]);
 
 describe('compileViewQuery, run against SQLite', () => {
-  it('lists the notes of the type and leaves out what Atlas keeps in .atlas', () => {
+  it('lists the notes of the type and leaves out what DFAI keeps in .atlas', () => {
     const paths = run(tasks).map((row) => row['path']);
     expect(paths).toEqual(['tasks/P16-03.md', 'tasks/P16-04.md']);
   });
@@ -57,7 +57,7 @@ describe('compileViewQuery, run against SQLite', () => {
     expect(withLookalike(tasks).map((row) => row['path'])).toEqual(['.atlas-notes/Mine.md']);
   });
 
-  it('leaves out exactly the notes isAtlasNote calls Atlas’s own, so views and counts agree', () => {
+  it('leaves out exactly the notes isAtlasNote calls DFAI’s own, so views and counts agree', () => {
     const paths = [
       '.atlas/templates/Tâche.md',
       '.atlas/😀.md',

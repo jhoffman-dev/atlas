@@ -4,7 +4,7 @@
  * second run changing nothing.
  */
 import { describe, expect, it } from 'vitest';
-import { splitFrontmatter } from '@atlas/domain';
+import { splitFrontmatter } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
@@ -13,7 +13,7 @@ import {
   runParaMigration,
   type MigrationPanes,
   type ParaMigrationPorts,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const GARDEN = [

@@ -27,7 +27,7 @@ Its properties are yours to change.
 
 `aliases` are other spellings of their name — a nickname — for matching
 attendees to them; they never change text. `variants` are how a notetaker
-mishears the name: Atlas corrects each to it, as it does a term's, and the
+mishears the name: DFAI corrects each to it, as it does a term's, and the
 Terms page lists and edits them. Adding a term named like the person on the
 Terms page adds its misheard spellings here.
 

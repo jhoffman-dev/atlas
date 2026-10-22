@@ -19,7 +19,7 @@ import {
   type OwnerSettings,
   type SummaryActionItem,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ProposalRefused } from '../chat/proposals.ts';
 import type { IndexPort } from '../index/ports.ts';
 import {

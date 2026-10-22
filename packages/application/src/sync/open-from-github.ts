@@ -4,7 +4,7 @@ import {
   hasBranches,
   remoteUrlProblem,
   repositoryNameOf,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { VaultLocation, VaultLocationStore } from '../vault/ports.ts';
 import { expectOk, SyncError, withPrograms } from './git-steps.ts';
 import type { GitFoldersPort } from './ports.ts';
@@ -46,7 +46,7 @@ export async function openVaultFromGitHub({
     const around = await folders.topLevelOf(parent.absolutePath);
     if (around.code === 0 && around.stdout.trim() !== '') {
       throw new SyncError(
-        `${parent.name} is inside another git repository, so Atlas won’t put a vault there. Choose a folder outside it.`,
+        `${parent.name} is inside another git repository, so DFAI won’t put a vault there. Choose a folder outside it.`,
       );
     }
     const branches = await folders.branchesAt({ url: url.trim(), folder: parent.absolutePath });

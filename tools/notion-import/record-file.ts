@@ -80,7 +80,7 @@ export async function saveRecord(path: string, record: ImportRecord): Promise<vo
  * about to be made, appended (and flushed) before the note is written, and
  * cleared each time the record is saved. A run cut off between two saves
  * leaves every page it may have made a note for in the log, so the next run
- * knows it imported them: a note deleted in Atlas since stays deleted.
+ * knows it imported them: a note deleted in DFAI since stays deleted.
  */
 export const pendingFile = (recordPath: string): string => recordPath.replace(/\.md$/, '.pending');
 

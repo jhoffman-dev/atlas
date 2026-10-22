@@ -1,4 +1,4 @@
-import { withDatePart } from '@atlas/domain';
+import { withDatePart } from '@dfai/domain';
 import type { CellEditorHooks } from './cell-editing.ts';
 import { CellInput } from './cell-input.tsx';
 import { isIsoDay } from './cell-keys.ts';

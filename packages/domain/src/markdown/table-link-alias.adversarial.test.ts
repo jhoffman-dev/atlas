@@ -5,7 +5,7 @@ import { splitWikiLinks } from './wikilink.ts';
 
 /**
  * In a table cell an alias's pipe is written `\|` — Obsidian's convention, and
- * since A21-03 the one Atlas's writer uses and its reader reads. The domain's
+ * since A21-03 the one DFAI's writer uses and its reader reads. The domain's
  * link grammar, which the index and a rename use, must read it the same way.
  */
 

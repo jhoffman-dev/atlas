@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LINK_DIRECTORY_PAGE_SIZE } from '@atlas/domain';
+import { LINK_DIRECTORY_PAGE_SIZE } from '@dfai/domain';
 import type { QueryResult } from '../index/ports.ts';
 import { loadLinkDirectory, loadProjectTies } from './link-directory.ts';
 import { vaultPath } from '../testing/proposal-vault.ts';

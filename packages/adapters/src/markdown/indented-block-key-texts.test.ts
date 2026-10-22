@@ -16,8 +16,8 @@ import {
   unarchiveNotes,
   type ArchivePorts,
   type PropertyChanges,
-} from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const markdown = remarkMarkdown;

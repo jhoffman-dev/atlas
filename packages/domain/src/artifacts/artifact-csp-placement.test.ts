@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ARTIFACT_CSP, withArtifactCsp } from './artifact-inline.ts';
 
 /*
- * The policy only governs a page when the parser puts Atlas's `<meta>` in the
+ * The policy only governs a page when the parser puts DFAI's `<meta>` in the
  * document's head, ahead of anything that can run or load. These parse the
  * page the way the frame will (a string, as `srcdoc` is) and look at where the
  * meta actually landed, rather than at the text around it.

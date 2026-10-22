@@ -6,7 +6,7 @@
  * adapters' integration test.
  */
 import { describe, expect, it } from 'vitest';
-import { MIGRATION_RECORD_PATH, createVaultPath, type VaultPath } from '@atlas/domain';
+import { MIGRATION_RECORD_PATH, createVaultPath, type VaultPath } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

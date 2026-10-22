@@ -14,7 +14,7 @@ import {
   type EntryMove,
   type VaultEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   clarifyInboxItem,
   ClarifyRefusedError,
@@ -22,7 +22,7 @@ import {
   type ArchivePorts,
   type IndexPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TODAY = '2026-10-12';

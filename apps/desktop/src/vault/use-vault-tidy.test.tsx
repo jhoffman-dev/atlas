@@ -6,15 +6,15 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useVaultTidy } from './use-vault-tidy.ts';
 
 function setup({

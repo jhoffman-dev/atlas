@@ -381,7 +381,7 @@ async fn answers_500_at_once_until_the_router_is_listening() {
     assert_eq!((reply.status, error_code(&reply)), (500, "internal"));
     assert_eq!(
         reply.body["error"]["message"],
-        "Atlas is still starting — try again in a moment"
+        "DFAI is still starting — try again in a moment"
     );
     assert!(server.forwarded.lock().unwrap().is_empty());
     assert_eq!(server.broker.waiting(), 0);

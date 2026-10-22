@@ -3,7 +3,7 @@ import { unified } from 'unified';
 import remarkGfm from 'remark-gfm';
 import remarkStringify, { type Options as StringifyOptions } from 'remark-stringify';
 import type { Root } from 'mdast';
-import type { EditorDocument, EditorMark, EditorNode } from '@atlas/domain';
+import type { EditorDocument, EditorMark, EditorNode } from '@dfai/domain';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 import { editorNodeToMdastBlock } from './editor-to-mdast.ts';
 import './mdast-custom-nodes.ts';

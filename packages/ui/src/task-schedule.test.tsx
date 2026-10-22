@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import type { TaskSchedule } from '@atlas/domain';
+import type { TaskSchedule } from '@dfai/domain';
 import { TaskScheduleSummary } from './task-schedule.tsx';
 
 /** P31-01: a task shows its estimate beside what its blocks schedule and what is done. */

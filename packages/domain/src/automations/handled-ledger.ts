@@ -14,7 +14,7 @@
  * ## Handled so far
  * <!-- atlas:handled-ledger v1 -->
  *
- * Atlas keeps this list so the rule remembers ... Leave it as it is.
+ * DFAI keeps this list so the rule remembers ... Leave it as it is.
  *
  * - through `"2026-10-08T09:00:00"` `"5e6f7a8b"`
  * - records `2`
@@ -31,7 +31,7 @@
  *
  * - `through` is the last log entry the ledger had folded in (its wall-clock
  *   heading time, and a digest of its text). Entries after it were written by
- *   an Atlas that did not know the ledger, and are laid over it.
+ *   a DFAI that did not know the ledger, and are laid over it.
  * - `records` is how many `handled` and `answered` lines were written, so a
  *   line lost is told from a line never there.
  * - `vouches from` is set once something was forgotten: the ledger cannot say
@@ -131,6 +131,8 @@ export const LEDGER_HEADING = '## Handled so far';
 export const LEDGER_VERSION = 1;
 const MARKER = /^<!-- atlas:handled-ledger v(\d+) -->$/;
 const LEDGER_MARKER = `<!-- atlas:handled-ledger v${LEDGER_VERSION} -->`;
+// Says "Atlas", the app's name before DFAI (ADR-0042): the ledger is rewritten
+// whole, so a Mac on each name would otherwise trade the words back and forth.
 const LEDGER_NOTE =
   'Atlas keeps this list so the rule remembers what it has handled after old entries leave this log. Leave it as it is.';
 
@@ -249,7 +251,7 @@ export function ledgerFromEntries(entries: readonly LogEntry[], keep: number): H
 
 /**
  * The entries a ledger has not folded in: those after the one it names. An
- * Atlas that does not know the ledger appends to the log and drops from its
+ * DFAI that does not know the ledger appends to the log and drops from its
  * front, so the named entry may be gone, and then those written after its
  * time are the newer. A ledger that did not add up folds in nothing it can
  * trust, and every entry is laid over it.
@@ -278,9 +280,9 @@ export function layOver(ledger: HandledLedger, entries: readonly LogEntry[]): Ha
 
 /**
  * What a rule remembers now: its ledger with the entries written after it
- * laid over — a run from an Atlas that did not know the ledger (a second Mac,
+ * laid over — a run from a DFAI that did not know the ledger (a second Mac,
  * a rollback) is not forgotten — or, for a log with none, what its entries
- * imply. A ledger that did not add up vouches for nothing until Atlas next
+ * imply. A ledger that did not add up vouches for nothing until DFAI next
  * writes the log, which sets the floor to that moment.
  */
 export function ledgerNow(
@@ -421,7 +423,7 @@ export function formatLedger(ledger: HandledLedger): string {
       ? []
       : [`- through ${code(ledger.through.at)} ${code(ledger.through.digest)}`]),
     `- records ${code(records)}`,
-    // Only a finite floor is an instant to write; Atlas sets one before it writes.
+    // Only a finite floor is an instant to write; DFAI sets one before it writes.
     ...(ledger.vouchesFrom === null || !Number.isFinite(ledger.vouchesFrom)
       ? []
       : [`- vouches from ${code(instant(ledger.vouchesFrom))}`]),
@@ -630,7 +632,7 @@ export interface LocatedLedger {
 
 /**
  * The one place a ledger is found: a section whose heading is at the start
- * of its line and whose next line is the marker Atlas writes. A section
+ * of its line and whose next line is the marker DFAI writes. A section
  * titled the same without it is a person's own, and is not here. A marker of
  * another version is a ledger this reader cannot read; two ledgers are
  * merged. Both are damaged, so the next write mends them.

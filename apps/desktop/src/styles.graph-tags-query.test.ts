@@ -26,7 +26,7 @@ const canvas = read('../../../packages/ui/src/graph/graph-canvas.tsx');
 
 /** The `.tags*` and `.tag-rename*` rules, which share the editor's sheet. */
 const tags = editor.slice(editor.indexOf('.tags {'), editor.indexOf('.atlas-suggestion {'));
-/** The Query page and the Atlas query rules, after the saved-view popovers. */
+/** The Query page and the DFAI query rules, after the saved-view popovers. */
 const query = queries.slice(queries.indexOf('.query {'));
 
 /** The declarations of the first block whose selector starts with `opening`. */
@@ -217,7 +217,7 @@ describe('the Tags page', () => {
 });
 
 describe('the Query page', () => {
-  it('writes SQL and an Atlas query in radius-6 fields in 12px mono', () => {
+  it('writes SQL and a DFAI query in radius-6 fields in 12px mono', () => {
     for (const field of [sqlEditor, textArea]) {
       expect(tokenIn(field.get('border'))).toBe('--line-strong');
       expect(tokenIn(field.get('border-radius'))).toBe('--radius-control');

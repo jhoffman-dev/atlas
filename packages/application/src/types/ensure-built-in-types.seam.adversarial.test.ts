@@ -7,7 +7,7 @@
  * writes the other plan's change too, which nobody was shown.
  */
 import { describe, expect, it } from 'vitest';
-import { splitFrontmatter } from '@atlas/domain';
+import { splitFrontmatter } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';

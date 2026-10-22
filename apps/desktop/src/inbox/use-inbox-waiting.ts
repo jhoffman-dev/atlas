@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { tasksStartInInbox, type ObjectType } from '@atlas/domain';
+import { tasksStartInInbox, type ObjectType } from '@dfai/domain';
 import {
   countInboxWaiting,
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { vaultReadKey } from '../reads/query-client.ts';
 
 /**

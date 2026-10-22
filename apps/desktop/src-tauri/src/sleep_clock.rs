@@ -11,7 +11,7 @@
 //!
 //! On any other system there is no reading: the command fails, and the
 //! webview takes no reading as "not known", which never lets a Mac act on a
-//! synced vault. Atlas is built for macOS; a vault that does not sync is not
+//! synced vault. DFAI is built for macOS; a vault that does not sync is not
 //! asked for one.
 
 use std::time::Duration;

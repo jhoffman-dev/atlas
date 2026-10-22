@@ -11,7 +11,7 @@ import {
   type MeetingFile,
   type MeetingIdentity,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { holdingAt, meetingHoldersIn, type HolderPorts } from './meeting-files.ts';
 import { validateMeetingFile } from './meeting-reading.ts';

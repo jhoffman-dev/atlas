@@ -209,14 +209,14 @@ describe('undo of the declared step’s run', () => {
         path: createVaultPath('.atlas/settings.md'),
         digest: 'x',
       }),
-    ).toMatch(/Atlas keeps its own files/);
+    ).toMatch(/DFAI keeps its own files/);
     expect(
       loggedActionProblem(DECLARED, {
         kind: 'created',
         path: createVaultPath('.atlas/x.md'),
         digest: 'x',
       }),
-    ).toMatch(/Atlas keeps its own files/);
+    ).toMatch(/DFAI keeps its own files/);
   });
 
   it('writes what undo did, and reads it back', () => {

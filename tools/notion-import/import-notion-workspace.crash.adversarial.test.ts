@@ -92,7 +92,7 @@ async function taskNotes(): Promise<string[]> {
 }
 
 describe('a run cut off one note past a save of the record', () => {
-  it('leaves the note written after the save deleted when it is deleted in Atlas before the next run', async () => {
+  it('leaves the note written after the save deleted when it is deleted in DFAI before the next run', async () => {
     cutOff.after = 26;
     await expect(run()).rejects.toThrow('the power went');
     cutOff.after = 0;

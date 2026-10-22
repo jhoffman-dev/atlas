@@ -12,8 +12,8 @@ import {
   memoryVault,
   recordingActivity,
   type ArchivePorts,
-} from '@atlas/application';
-import { createVaultPath, INBOX_QUERY_COLUMNS, TASK_TYPE_FILE } from '@atlas/domain';
+} from '@dfai/application';
+import { createVaultPath, INBOX_QUERY_COLUMNS, TASK_TYPE_FILE } from '@dfai/domain';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 
 const CALL = createVaultPath('Inbox/Call Tobias Fenn.md');

@@ -12,12 +12,12 @@ import {
   type MappingOptions,
   type MeetingFields,
   type MeetingImport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*
  * The mapper's output is held to the contract by both of its checks: the
- * validator Atlas runs (with the YAML reader it reads every note with) and the
+ * validator DFAI runs (with the YAML reader it reads every note with) and the
  * JSON Schema n8n could check the frontmatter against. All names here are
  * made up.
  */
@@ -30,7 +30,7 @@ const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 const schemaAccepts = ajv.compile(JSON.parse(readFileSync(schemaFile, 'utf8')) as object);
 
-/** The meeting as Atlas reads it; fails the test with every problem when the file breaks the contract. */
+/** The meeting as DFAI reads it; fails the test with every problem when the file breaks the contract. */
 function accepted(content: string): MeetingImport {
   const result = validateMeetingImport({
     text: content,

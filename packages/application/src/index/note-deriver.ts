@@ -1,4 +1,4 @@
-import { createWikiLinkResolver, messageWithoutPaths, type VaultPath } from '@atlas/domain';
+import { createWikiLinkResolver, messageWithoutPaths, type VaultPath } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { NoteFile } from '../vault/ports.ts';
 import type { IndexedNote } from './ports.ts';

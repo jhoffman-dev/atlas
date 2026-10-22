@@ -15,7 +15,7 @@ const PATHS: Readonly<Record<string, boolean>> = {
   'a.b/c.md': true,
   'notes/node_modules.md': true,
   'notes/x.trash/y.md': true,
-  // Atlas's own notes, the parts the sidebar lists elsewhere and the parts it does not.
+  // DFAI's own notes, the parts the sidebar lists elsewhere and the parts it does not.
   '.atlas/templates/Project.md': false,
   '.atlas/views/Tasks.md': false,
   '.atlas/types/task.md': false,

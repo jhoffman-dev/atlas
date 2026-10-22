@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { hueOf, noteNames, type BoardColumn, type VaultPath } from '@atlas/domain';
+import { hueOf, noteNames, type BoardColumn, type VaultPath } from '@dfai/domain';
 import { BoardView } from './board-view.tsx';
 import { NoteNamesProvider } from './note-names.tsx';
 import { announced, dragByKeyboard, layOut, type Box } from './drag/test-layout.ts';
@@ -58,14 +58,14 @@ describe('BoardView', () => {
         {...props}
         groupBy="project"
         columns={[
-          { value: '[[Atlas]]', label: 'Atlas', rows: [], tone: null },
+          { value: '[[DFAI]]', label: 'DFAI', rows: [], tone: null },
           { value: 'in review', label: 'in review', rows: [], tone: 'review' },
         ]}
       />,
     );
-    const atlas = screen.getByRole('region', { name: 'Atlas' });
+    const atlas = screen.getByRole('region', { name: 'DFAI' });
     expect(atlas.querySelector('.status-pill')).toBeNull();
-    expect(atlas.querySelector('.board__group-label')?.textContent).toBe('Atlas');
+    expect(atlas.querySelector('.board__group-label')?.textContent).toBe('DFAI');
     const review = screen.getByRole('region', { name: 'In review' });
     expect(review.querySelector('.status-pill--dot')?.getAttribute('data-tone')).toBe('review');
     expect(review.querySelector('.board__group-label')?.textContent).toBe('In review');

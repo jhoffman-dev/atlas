@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { PageSnapshotPort, PageSnapshotRequest } from '@atlas/application';
+import type { PageSnapshotPort, PageSnapshotRequest } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 /** The headers `snapshot_page` reads, as `page_snapshot.rs` names them. */

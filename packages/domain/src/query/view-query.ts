@@ -203,7 +203,7 @@ export function compileViewQuery(
 }
 
 /**
- * Leaves out the notes Atlas keeps for itself (see `isAtlasNote`): a Task
+ * Leaves out the notes DFAI keeps for itself (see `isAtlasNote`): a Task
  * template is `type: task`, and without this it is a card on the board, a row
  * in every task view and one more in every count.
  *
@@ -341,7 +341,7 @@ export function filtersByLink(query: ViewQuery): boolean {
  * A link compared by the note it opens, from the index's `relations` table,
  * which keeps where each link a property holds resolves (ADR-0019) — so every
  * way of writing a link to the note is one value. A link to no note matches
- * links written the same way, as an Atlas query's does.
+ * links written the same way, as a DFAI query's does.
  */
 function relationCondition(
   filter: QueryFilter,

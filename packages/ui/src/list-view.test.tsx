@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardRow } from '@atlas/domain';
+import type { BoardRow } from '@dfai/domain';
 import { GalleryView, ListView } from './list-view.tsx';
 
 const rows: BoardRow[] = [

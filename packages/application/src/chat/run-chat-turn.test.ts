@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ToolCall } from '@atlas/domain';
+import type { ToolCall } from '@dfai/domain';
 import { fakeModel } from '../testing/fake-model.ts';
 import { ChatCancelled, ModelProviderError, type ModelEvent } from './ports.ts';
 import { MAX_TOOL_ROUNDS, runChatTurn, type ChatTurnEvent } from './run-chat-turn.ts';

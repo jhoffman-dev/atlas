@@ -1,6 +1,6 @@
-import type { PagePlace, TabId, VaultPath } from '@atlas/domain';
-import type { ArchivePorts } from '@atlas/application';
-import type { OpenHow } from '@atlas/ui';
+import type { PagePlace, TabId, VaultPath } from '@dfai/domain';
+import type { ArchivePorts } from '@dfai/application';
+import type { OpenHow } from '@dfai/ui';
 import type { ActivityWiring } from '../activity/activity-container.tsx';
 import type { AutomationsWiring } from '../automations/automations-container.tsx';
 import type { GraphWiring } from '../graph/graph-container.tsx';

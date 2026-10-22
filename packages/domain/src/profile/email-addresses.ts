@@ -293,7 +293,7 @@ function asciiDomain(domain: string): string {
 
 /**
  * An address as two are compared: composed, trimmed, in lower case, and its
- * domain in its ASCII form, so an address Atlas holds and one a meeting
+ * domain in its ASCII form, so an address DFAI holds and one a meeting
  * lists are one however either was typed or sent.
  */
 export function comparableAddress(email: string): string {

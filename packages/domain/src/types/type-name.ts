@@ -11,7 +11,7 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
  * Type names that already mean something else in a vault. `type:` on a view,
  * a dashboard or a source names the notes it lists, and the others are what
- * Atlas calls its own files; a type called any of them would be confused with
+ * DFAI calls its own files; a type called any of them would be confused with
  * the thing it names.
  */
 const RESERVED_TYPE_NAMES: ReadonlySet<string> = new Set([
@@ -68,7 +68,7 @@ export function typeNameProblem({
     return `"${name}" can only hold letters, digits and _, and cannot start with a digit`;
   }
   if (RESERVED_TYPE_NAMES.has(name.toLowerCase())) {
-    return `"${name}" is a name Atlas uses itself; choose another`;
+    return `"${name}" is a name DFAI uses itself; choose another`;
   }
   if (existing.some((taken) => taken.toLowerCase() === name.toLowerCase())) {
     return `There is already a type called "${name}"`;

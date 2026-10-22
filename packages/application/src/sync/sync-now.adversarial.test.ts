@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { journalText } from '@atlas/domain';
+import { journalText } from '@dfai/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import {
   fakeBlob,
@@ -256,7 +256,7 @@ describe('syncNow, adversarially', () => {
     ).toBe('theirs');
   });
 
-  it('names the copy for the other Mac even when its last commit was not made by Atlas', async () => {
+  it('names the copy for the other Mac even when its last commit was not made by DFAI', async () => {
     const sides = { 'Ideas.md': { ours: 'mine', theirs: 'theirs' } };
     const { run, files } = setUp({
       script: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GranolaFailure } from '@atlas/domain';
+import type { GranolaFailure } from '@dfai/domain';
 import { pacedRequests } from './granola-requests.ts';
 import { GranolaError } from './ports.ts';
 

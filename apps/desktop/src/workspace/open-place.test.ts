@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import { createRevealStore } from '../panes/reveals.ts';
 import { createOverlayStore, openPeek, peekNow, showOverlay } from '../overlay-store.ts';
 import { clickLink, followLink, openNote } from './open-place.ts';

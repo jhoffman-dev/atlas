@@ -15,7 +15,7 @@ import {
   toBoardRows,
   viewGroupLevels,
   type RowGroup,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { RowSelection } from './row-selection.tsx';
 import { TableView, type TableResult, type TableViewProps } from './table-view.tsx';
 import { tableRowsMeasured } from './testing/table-rows-measured.ts';

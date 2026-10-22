@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 
 /** What a person focuses on purpose: something to press or type into. */
 export const CONTROLS = 'button, input, select, textarea, a[href], [contenteditable="true"]';

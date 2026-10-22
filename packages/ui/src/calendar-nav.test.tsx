@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { CalendarRange } from '@atlas/domain';
+import type { CalendarRange } from '@dfai/domain';
 import { CalendarNav, useCalendarNav } from './calendar-nav.tsx';
 import { CalendarView } from './calendar-view.tsx';
 

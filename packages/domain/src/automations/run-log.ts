@@ -13,7 +13,7 @@
  *
  * - archived `"Tasks/A.md"` → `"Archive/Tasks/A.md"`
  * - set `"Tasks/B.md"` `"status"`: `"todo"` → `"done"`
- * - left `"Tasks/C.md"`: It is open in Atlas with unsaved typing.
+ * - left `"Tasks/C.md"`: It is open in DFAI with unsaved typing.
  * ```
  *
  * A rule a note sets off (P29-01) also writes which version of each note it
@@ -220,7 +220,7 @@ export interface MeetingTally {
 
 /**
  * What became of a meeting's summary (#185): written at the top; left as the
- * person has it (edited, taken out, or not a block Atlas can read); dropped,
+ * person has it (edited, taken out, or not a block DFAI can read); dropped,
  * its answer not reading; or none to write, the meeting being a backfill of
  * nothing new.
  */
@@ -268,7 +268,7 @@ export type LogEntry =
       readonly done?: readonly DoneAction[];
     }
   | { readonly kind: 'turnedOn'; readonly at: LocalTime }
-  /** A rule Atlas found that had never run nor been turned on here: its schedule counts from then. */
+  /** A rule DFAI found that had never run nor been turned on here: its schedule counts from then. */
   | { readonly kind: 'seen'; readonly at: LocalTime }
   /**
    * A rule a note sets off that, while it could not run — held back by the
@@ -291,7 +291,7 @@ export function logPathFor(ruleId: string): VaultPath {
 
 const TRIGGER_WORDS: Readonly<Record<RunTrigger, string>> = {
   schedule: 'Ran on schedule',
-  open: 'Ran when Atlas opened',
+  open: 'Ran when DFAI opened',
   hand: 'Ran by hand',
   note: 'Ran when a note appeared or changed',
 };
@@ -574,7 +574,7 @@ export interface AppendedLog {
  *
  * What the rule has handled is not the entries' to hold (they are dropped):
  * the handled ledger, a section of its own at the top, is brought up to date
- * in this same write, with whatever runs an older Atlas added after it laid
+ * in this same write, with whatever runs an older DFAI added after it laid
  * over it first, and is built from the entries the first time a log without
  * one is added to. `now` is the clock's instant: it dates what the ledger
  * records and what it prunes, and is never derived from an entry's heading,

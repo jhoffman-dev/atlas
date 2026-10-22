@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Editor } from '@tiptap/core';
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
-import type { EditorDocument, EditorNode, NoteSuggestion, WikiLink } from '@atlas/domain';
+import type { EditorDocument, EditorNode, NoteSuggestion, WikiLink } from '@dfai/domain';
 import { NoteEditor, type NoteBookmarks } from './note-editor.tsx';
 import type { BookmarkPreview } from './bookmark-card.tsx';
 

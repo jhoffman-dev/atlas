@@ -96,7 +96,7 @@ describe('whose an item is, when the answer names the owner sloppily', () => {
     },
   );
 
-  // Atlas itself tells the model "- Mara Quill: the vault’s owner" and "written “You”": these are its own words back.
+  // DFAI itself tells the model "- Mara Quill: the vault’s owner" and "written “You”": these are its own words back.
   it.each([
     'You.',
     'You (Mara Quill)',

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { newLogText, placeSummary, renderSummaryBlock, type LogEntry } from '@atlas/domain';
+import { newLogText, placeSummary, renderSummaryBlock, type LogEntry } from '@dfai/domain';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';

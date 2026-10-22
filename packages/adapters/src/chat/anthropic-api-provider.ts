@@ -1,4 +1,4 @@
-import type { ModelMessage, TemplatePart } from '@atlas/domain';
+import type { ModelMessage, TemplatePart } from '@dfai/domain';
 import {
   ChatCancelled,
   ModelProviderError,
@@ -7,7 +7,7 @@ import {
   type ModelRequest,
   type ProviderStatus,
   type SecretStorePort,
-} from '@atlas/application';
+} from '@dfai/application';
 
 /** The secret the key is kept under, and the one site it may go to (ADR-0017). */
 export const ANTHROPIC_SECRET = 'anthropic';
@@ -106,7 +106,7 @@ async function* reply({
   yield* eventsOf(answer);
 }
 
-/** The request body, Atlas's conversation translated into the API's messages. */
+/** The request body, DFAI's conversation translated into the API's messages. */
 export function messagesBody(request: ModelRequest): Record<string, unknown> {
   return {
     model: request.model,

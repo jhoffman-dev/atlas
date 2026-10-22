@@ -4,7 +4,7 @@ import {
   API_RESPOND_COMMAND,
   type ApiRequest,
   type ApiResponse,
-} from '@atlas/application';
+} from '@dfai/application';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));

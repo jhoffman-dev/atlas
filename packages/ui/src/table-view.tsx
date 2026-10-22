@@ -15,7 +15,7 @@ import {
   type PropertyDef,
   type PropertyKind,
   type QuerySort,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { CellEdit, CellEditing, CellEditorHooks } from './cells/cell-editing.ts';
 import { CellPickers, picksFrom } from './cells/cell-pickers.tsx';
 import { useCellEditing } from './cells/use-cell-editing.ts';

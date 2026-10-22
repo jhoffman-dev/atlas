@@ -35,7 +35,7 @@ describe('the name is kept for Atlas', () => {
   it('is refused as a file of the copy, in any case, and only at the top', () => {
     expect(isThumbnailName('Atlas-Thumbnail.PNG')).toBe(true);
     expect(artifactFileRefusal(ARTIFACT_THUMBNAIL)).toBe(
-      'atlas-thumbnail.png is kept for the thumbnail Atlas makes',
+      'atlas-thumbnail.png is kept for the thumbnail DFAI makes',
     );
     expect(artifactFileRefusal('ATLAS-THUMBNAIL.png')).not.toBeNull();
     expect(artifactFileRefusal('img/atlas-thumbnail.png')).toBeNull();
@@ -52,7 +52,7 @@ describe('the name is kept for Atlas', () => {
     expect(plan?.skipped).toEqual([
       {
         name: 'atlas-thumbnail.png',
-        reason: 'atlas-thumbnail.png is kept for the thumbnail Atlas makes',
+        reason: 'atlas-thumbnail.png is kept for the thumbnail DFAI makes',
       },
     ]);
   });

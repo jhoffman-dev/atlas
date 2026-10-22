@@ -6,7 +6,7 @@ import {
   type BoardRow,
   type OptionColors,
   type PropertyKind,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { chipGlyph, Icon } from './icon.tsx';
 import { useNoteNames } from './note-names.tsx';
 import { StatusPill, TintedPill } from './status-pill.tsx';

@@ -23,7 +23,7 @@ export const moveCard = defineTool({
   title: 'Move a card on a board',
   description:
     'Move a note on a board view to another column ("group"), swimlane ("subGroup"), or both, ' +
-    'exactly as dragging the card in Atlas does: one write, and a move into the done column (or ' +
+    'exactly as dragging the card in DFAI does: one write, and a move into the done column (or ' +
     'done lane) finishes the task, rolling a repeating one forward to its next date. Such a ' +
     'finishing move needs ifModified (the note\'s "modified" from atlas_read_note), so a retry ' +
     'is refused as stale rather than finishing the task twice; without it the move is refused. ' +

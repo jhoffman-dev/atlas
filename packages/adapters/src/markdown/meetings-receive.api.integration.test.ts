@@ -12,14 +12,14 @@ import {
   codeOf,
   recordingActivity,
   type IndexPort,
-} from '@atlas/application';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
+} from '@dfai/application';
+import { atlasQueryIndex } from '@dfai/application/testing/sqlite';
 import {
   mapMeeting,
   splitFrontmatter,
   validateMeetingImport,
   type MeetingImport,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 type ApiFixture = ReturnType<typeof apiFixture>;
@@ -68,7 +68,7 @@ const SENT = {
 const PATH = 'Meetings/2026/10/2026-10-06 Larkspur Payroll onboarding sync.md';
 const COLLISION_PATH = mapMeeting({ ...fieldsOf(SENT) }, { timeZone: 'UTC' }).collisionPath;
 
-/** The request's fields under the mapper's names, as n8n's "Meeting fields for Atlas" node gives them. */
+/** The request's fields under the mapper's names, as n8n's "Meeting fields for DFAI" node gives them. */
 function fieldsOf(sent: typeof SENT) {
   return {
     source: sent.provider,

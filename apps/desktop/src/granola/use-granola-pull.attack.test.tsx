@@ -3,7 +3,7 @@
 import { StrictMode, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { type GranolaNote } from '@atlas/domain';
+import { type GranolaNote } from '@dfai/domain';
 import {
   fakeGranola,
   fakeIndexPort,
@@ -13,9 +13,9 @@ import {
   type GranolaKeyStatus,
   type GranolaPullRecord,
   type GranolaPullRecords,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
-import { settles } from '@atlas/ui/testing/settles';
+} from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
+import { settles } from '@dfai/ui/testing/settles';
 import {
   GRANOLA_PULL_INTERVAL_MS,
   useGranolaPull,

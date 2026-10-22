@@ -7,7 +7,7 @@ import {
   fakeVaultFs,
   type MarkdownPort,
   type SecretStorePort,
-} from '@atlas/application';
+} from '@dfai/application';
 import { useSecrets } from './use-secrets.ts';
 import { SecretsSettingsCard } from './secrets-settings-card.tsx';
 

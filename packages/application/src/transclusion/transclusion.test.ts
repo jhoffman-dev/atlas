@@ -5,7 +5,7 @@ import {
   type EditorNode,
   type VaultPath,
   type WikiLink,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { IndexEntry } from '../index/ports.ts';

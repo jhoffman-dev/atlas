@@ -18,7 +18,7 @@ export {
   TimelineView,
   WeeklyReviewPage,
   WidgetEditor,
-} from '@atlas/ui';
+} from '@dfai/ui';
 export { GoogleCalendarSettingsCard } from './settings/google-calendar-settings-card.tsx';
 export { GranolaSettingsCard } from './settings/granola-settings-card.tsx';
 export { ImageSettingsPanel } from './settings/image-settings-panel.tsx';

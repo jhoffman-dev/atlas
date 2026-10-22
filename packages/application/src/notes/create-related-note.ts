@@ -4,7 +4,7 @@ import {
   wikiLinkTargetFor,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { quickAddNote } from '../quick-add/quick-add-note.ts';
 import { findTypeTemplate, loadTemplates, readTemplate } from '../types/templates.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

@@ -1,4 +1,4 @@
-import { noteTitle, writeUndo, type VaultPath, type WriteRecord } from '@atlas/domain';
+import { noteTitle, writeUndo, type VaultPath, type WriteRecord } from '@dfai/domain';
 import { ChangedSinceError } from '../today/today-actions.ts';
 import { UnsavedTypingError, type LinkUpdatePanes } from '../vault/update-links.ts';
 import type { OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';

@@ -64,8 +64,8 @@ describe('archiveRefusal', () => {
     expect(archiveRefusal(path('X.md'))).toBeNull();
   });
 
-  it('refuses what Atlas keeps for itself', () => {
-    expect(archiveRefusal(path('.atlas/views/Board.md'))).toMatch(/Atlas keeps/);
+  it('refuses what DFAI keeps for itself', () => {
+    expect(archiveRefusal(path('.atlas/views/Board.md'))).toMatch(/DFAI keeps/);
   });
 
   it('refuses a note already in the Archive', () => {

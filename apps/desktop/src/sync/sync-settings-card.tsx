@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { searchRepositories } from '@atlas/domain';
-import { SyncSettings } from '@atlas/ui';
+import { searchRepositories } from '@dfai/domain';
+import { SyncSettings } from '@dfai/ui';
 import { syncSettingsView } from './sync-view.ts';
 import type { SyncController } from './use-sync.ts';
 

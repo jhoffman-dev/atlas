@@ -43,7 +43,7 @@ pub fn load(store: &dyn SecretStore, scope: &str) -> Result<Option<String>, Gran
         .map_err(keychain)
 }
 
-/// Keeps `key` once it is a Granola key that Atlas can strike from every
+/// Keeps `key` once it is a Granola key that DFAI can strike from every
 /// answer. Finding that out builds its matcher, off the async worker.
 pub async fn save(store: &dyn SecretStore, scope: &str, key: &str) -> Result<(), GranolaFailure> {
     check(key)?;
@@ -52,7 +52,7 @@ pub async fn save(store: &dyn SecretStore, scope: &str, key: &str) -> Result<(),
         .map_err(|_| {
             GranolaFailure::new(
                 FailureKind::Invalid,
-                "that is too long to protect: Atlas could not strike it from Granola's answers, so it is not kept",
+                "that is too long to protect: DFAI could not strike it from Granola's answers, so it is not kept",
             )
         })?;
     store
@@ -114,7 +114,7 @@ mod tests {
         assert!(store.accounts().unwrap().is_empty());
     }
 
-    /// Past the 1,024 bytes Atlas once capped a secret at: a key the length
+    /// Past the 1,024 bytes DFAI once capped a secret at: a key the length
     /// of a signed token is kept.
     #[tokio::test]
     async fn a_key_as_long_as_a_signed_token_is_kept() {

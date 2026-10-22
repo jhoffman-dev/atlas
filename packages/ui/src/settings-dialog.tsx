@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, type ReactNode } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import type { ApiConnectionStatus } from '@atlas/application';
+import type { ApiConnectionStatus } from '@dfai/application';
 import { AppearanceSettings } from './appearance-settings.tsx';
 import { Icon } from './icon.tsx';
 import { SettingsSection } from './settings-section.tsx';
@@ -39,7 +39,7 @@ const OWN_SECTIONS: readonly SettingsSectionLink[] = [
  * Settings, as a dialog: a list of its sections on the left and the sections
  * as hairline groups on the right. Appearance and Connections — the local API
  * that lets other tools on this machine read and write the vault through
- * Atlas — are its own; the app adds its sections after them.
+ * DFAI — are its own; the app adds its sections after them.
  *
  * Focus trapping, Escape and the portal are Base UI's, as for the palettes
  * (ADR-0015).
@@ -87,8 +87,8 @@ export function SettingsDialog({
         <AppearanceSettings store={themeStore} />
         <SettingsSection section={SETTINGS_SECTIONS.connections}>
           <p className="settings__lede">
-            Let other tools on this Mac, such as Claude Code, read and write this vault through
-            Atlas while it is open.
+            Let other tools on this Mac, such as Claude Code, read and write this vault through DFAI
+            while it is open.
           </p>
           <div className="settings__row">
             <span className="settings__row-text">
@@ -195,7 +195,7 @@ function McpCommand({
       <code className="settings__code">{mcp.command}</code>
       {mcp.placeholder && (
         <p className="settings__lede">
-          Replace the path with where Atlas is checked out, after building it.
+          Replace the path with where DFAI is checked out, after building it.
         </p>
       )}
       <div className="settings__actions">

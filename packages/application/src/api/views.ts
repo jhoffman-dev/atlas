@@ -9,7 +9,7 @@ import {
   splitFrontmatter,
   viewOrderOf,
   type SidebarEntry,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { runDashboard } from '../dashboard/run-widget.ts';
 import { loadSidebarCatalog } from '../sidebar/load-catalog.ts';
 import { ApiError } from './api-error.ts';

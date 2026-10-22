@@ -1,4 +1,4 @@
-import type { VaultPath } from '@atlas/domain';
+import type { VaultPath } from '@dfai/domain';
 import type { Toasts } from '../toasts/toasts.ts';
 
 /** What an answer to a proposal, or an undo of one, leaves to say. */

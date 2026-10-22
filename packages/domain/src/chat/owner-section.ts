@@ -22,7 +22,7 @@ const AS_GIVEN =
 /**
  * Who the model is working for, as the system prompt says it (#1, #10).
  *
- * Atlas starts Claude Code with no settings of the person's own (ADR-0021),
+ * DFAI starts Claude Code with no settings of the person's own (ADR-0021),
  * so the profile is the only name it has. Without one, the model once took
  * "jhoffman" from a path and wrote "Jordan Hoffman"; so with no name it is
  * told, in so many words, to write the placeholder or ask, never to guess.
@@ -34,7 +34,7 @@ export function ownerSection(profile: ProfileState): string {
   if (profile === 'unknown') {
     return [
       heading,
-      `Atlas couldn't read the person's name. Where a note needs it — ${WHERE} —`,
+      `DFAI couldn't read the person's name. Where a note needs it — ${WHERE} —`,
       `ask them for it rather than writing a placeholder or guessing. ${NEVER_INVENT}`,
     ].join('\n');
   }
@@ -43,7 +43,7 @@ export function ownerSection(profile: ProfileState): string {
   if (profile.name !== null) {
     return [
       heading,
-      `The person using Atlas gave their name below, each line ${AS_GIVEN}`,
+      `The person using DFAI gave their name below, each line ${AS_GIVEN}`,
       nameLine('Full name', profile.name),
       ...goesBy,
       `Use exactly this name wherever a note needs theirs — ${WHERE} —`,
@@ -52,9 +52,9 @@ export function ownerSection(profile: ProfileState): string {
   }
   const opening =
     profile.preferredName === null
-      ? ['The person has not told Atlas their name.']
+      ? ['The person has not told DFAI their name.']
       : [
-          `The person has not told Atlas their full name. What they go by is below, ${AS_GIVEN}`,
+          `The person has not told DFAI their full name. What they go by is below, ${AS_GIVEN}`,
           ...goesBy,
         ];
   return [

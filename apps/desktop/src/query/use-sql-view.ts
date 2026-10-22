@@ -6,8 +6,8 @@ import {
   toggledSorts,
   type QuerySort,
   type ViewLayout,
-} from '@atlas/domain';
-import { runSql, type IndexPort, type OpenNote, type ViewResult } from '@atlas/application';
+} from '@dfai/domain';
+import { runSql, type IndexPort, type OpenNote, type ViewResult } from '@dfai/application';
 import { errorMessage } from './error-message.ts';
 
 const NO_SORTS: readonly QuerySort[] = [];

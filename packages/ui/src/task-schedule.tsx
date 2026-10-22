@@ -1,4 +1,4 @@
-import { durationLabel, type TaskSchedule } from '@atlas/domain';
+import { durationLabel, type TaskSchedule } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 
 /** "1h 30m of 2h", or the minutes alone when the task has no estimate. */

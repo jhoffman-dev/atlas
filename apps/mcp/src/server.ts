@@ -1,4 +1,4 @@
-/** The MCP server: every Atlas tool, bound to one client. */
+/** The MCP server: every DFAI tool, bound to one client. */
 
 import { McpServer } from '@modelcontextprotocol/server';
 import mcpPackage from '../package.json' with { type: 'json' };
@@ -24,7 +24,7 @@ import { termTools } from './tools/terms.ts';
 import { vaultTools } from './tools/vault.ts';
 import { viewTools } from './tools/views.ts';
 
-export const SERVER_NAME = 'atlas';
+export const SERVER_NAME = 'dfai';
 /** The app's version: `pnpm version:set` keeps this package's in step with it (#481). */
 export const SERVER_VERSION = mcpPackage.version;
 
@@ -52,7 +52,7 @@ export const ATLAS_TOOLS = [
 ];
 
 const INSTRUCTIONS =
-  'Atlas is a local notes app; these tools read and write its vault while it is running. ' +
+  'DFAI is a local notes app; these tools read and write its vault while it is running. ' +
   'Notes are named by vault-relative paths with ".md". Read a note before changing it and pass ' +
   'its "modified" back as "ifModified". Call atlas_list_types before creating typed notes or ' +
   'querying, so property keys and values are real ones.';

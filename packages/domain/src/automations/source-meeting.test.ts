@@ -195,7 +195,7 @@ describe('a schema whose proposals join the meeting they cite', () => {
     expect(checkDraft(draft({ joinsMeeting: 'tasks' }), CONTEXT, ['tasks']).ok).toBe(true);
   });
 
-  it('refuses to register a schema that would link through a key Atlas keeps', () => {
+  it('refuses to register a schema that would link through a key DFAI keeps', () => {
     for (const relation of ['atlas_import_outcome', 'type', '__proto__', 'a:b']) {
       expect(() => registerProposalSchema({ ...ACTIONS, meetingRelations: [relation] })).toThrow(
         /meeting-actions output cannot link/,

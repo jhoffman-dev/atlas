@@ -40,7 +40,7 @@ import {
   type TabId,
   type VaultGraph,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type {
   ActivityLog,
   DefinedType,
@@ -52,8 +52,8 @@ import type {
   SourceRefresher,
   ThumbnailQueue,
   VaultFsPort,
-} from '@atlas/application';
-import { notePaneScope } from '@atlas/application';
+} from '@dfai/application';
+import { notePaneScope } from '@dfai/application';
 import {
   ThumbnailValue,
   ChatToggleProvider,
@@ -79,7 +79,7 @@ import {
   type TemplateNotice,
   type ViewTabEditing,
   useSteadyCallback,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import { useNote, type NotePorts } from '../notes/use-note.ts';
 import type { IndexStatusStore } from '../index/index-status-store.ts';
 import type { ReadTypesAgain } from '../types/use-types.ts';
@@ -213,7 +213,7 @@ export interface PaneContext {
   readonly savedViews: readonly SavedViewSummary[];
   /** What a type's tabs can do, opening what they make where they are (ADR-0023). */
   readonly typeTabs: (landing: TabLanding) => ViewTabEditing | undefined;
-  /** Every saved Atlas query, for a query view's tabs (ADR-0019). */
+  /** Every saved DFAI query, for a query view's tabs (ADR-0019). */
   readonly queryViews: readonly QueryViewSummary[];
   /** Every dashboard, which a query view can be added to. */
   readonly dashboards: readonly SidebarEntry[];

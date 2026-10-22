@@ -23,5 +23,5 @@ const client = new AtlasClient({
 });
 
 serveStdio(() => createAtlasServer(client), {
-  onerror: (error) => console.error('atlas-mcp:', error.message),
+  onerror: (error) => console.error('dfai-mcp:', error.message),
 });

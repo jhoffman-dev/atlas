@@ -2,13 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMemo } from 'react';
-import {
-  fakeIndexPort,
-  fakeVaultFs,
-  recordingActivity,
-  type QueryResult,
-} from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { fakeIndexPort, fakeVaultFs, recordingActivity, type QueryResult } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useProfileSetting } from '../profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from '../profile/use-self-emails-setting.ts';
 import { vaultOwnerKnown } from '../profile/vault-owner-known.ts';

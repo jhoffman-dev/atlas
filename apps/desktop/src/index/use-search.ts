@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { matchingCommands, toSearchQuery, type PaletteCommand } from '@atlas/domain';
-import { searchNotes, type IndexPort, type SearchHit } from '@atlas/application';
+import { matchingCommands, toSearchQuery, type PaletteCommand } from '@dfai/domain';
+import { searchNotes, type IndexPort, type SearchHit } from '@dfai/application';
 import { withArchived, withMoved, withQuery } from '../overlay.ts';
 import { changePalette, usePaletteInput, type OverlayStore } from '../overlay-store.ts';
 

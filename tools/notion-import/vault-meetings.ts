@@ -15,7 +15,7 @@ import { remarkMarkdown } from '../../packages/adapters/src/index.ts';
 export const meetingKey = ({ provider, externalId }: MeetingIdentity) =>
   `${provider}\n${externalId.trim()}`;
 
-/** A frontmatter block read with the YAML reader Atlas reads every note with; no values when it does not read. */
+/** A frontmatter block read with the YAML reader DFAI reads every note with; no values when it does not read. */
 export function readFrontmatter(frontmatter: string): FrontmatterReading {
   const problem = remarkMarkdown.frontmatterProblem(frontmatter);
   return {
@@ -28,13 +28,13 @@ export function readFrontmatter(frontmatter: string): FrontmatterReading {
 export const holdsMeeting = (text: string, meeting: MeetingIdentity): boolean =>
   meetingHolding({ text, readFrontmatter, meeting }) !== null;
 
-/** Whether a file is a note as Atlas reads one: `.md` or `.markdown`. */
+/** Whether a file is a note as DFAI reads one: `.md` or `.markdown`. */
 const isNote = (name: string, path: string) =>
   isMarkdownFile({ kind: 'file', name, path: path as VaultPath });
 
 /**
- * Every note under `folder` (`.md` and `.markdown`, as Atlas reads them),
- * hidden files and folders left out as everywhere in Atlas (ADR-0014).
+ * Every note under `folder` (`.md` and `.markdown`, as DFAI reads them),
+ * hidden files and folders left out as everywhere in DFAI (ADR-0014).
  */
 export async function markdownFiles(folder: string): Promise<string[]> {
   const entries = await readdir(folder, { withFileTypes: true });

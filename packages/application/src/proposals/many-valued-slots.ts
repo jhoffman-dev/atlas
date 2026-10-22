@@ -5,7 +5,7 @@ import {
   type ProposalNote,
   type ProposalSlot,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { VaultAccessError, type VaultFsPort } from '../vault/ports.ts';

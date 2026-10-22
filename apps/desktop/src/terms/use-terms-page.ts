@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { spellingWarnings, tidySpelling, type ObjectType, type VaultPath } from '@atlas/domain';
+import { spellingWarnings, tidySpelling, type ObjectType, type VaultPath } from '@dfai/domain';
 import {
   addTerm,
   loadTerms,
@@ -15,8 +15,8 @@ import {
   type NoteTemplate,
   type TermsCatalog,
   type VaultFsPort,
-} from '@atlas/application';
-import type { NewTerm, TermsPageProps } from '@atlas/ui';
+} from '@dfai/application';
+import type { NewTerm, TermsPageProps } from '@dfai/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';

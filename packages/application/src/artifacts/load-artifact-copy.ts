@@ -15,7 +15,7 @@ import {
   vaultPathName,
   type InlineFile,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { VaultAccessError, type VaultFsPort } from '../vault/ports.ts';
 
 /** An artifact's saved copy, as the viewer shows it. */

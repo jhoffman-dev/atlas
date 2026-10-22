@@ -3,7 +3,7 @@
  * another tool, decide that the vault's own rules do not.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type Clarification } from '@atlas/domain';
+import { createVaultPath, type Clarification } from '@dfai/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';

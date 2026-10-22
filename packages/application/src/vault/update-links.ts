@@ -6,7 +6,7 @@ import {
   type EntryMove,
   type NotesAcrossMove,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { OpenEditorsPort, VaultFsPort } from './ports.ts';
 
 /** The links a move left pointing at where a note was, by the note holding them. */

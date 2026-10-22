@@ -1,4 +1,4 @@
-import type { MarkdownPort } from '@atlas/application';
+import type { MarkdownPort } from '@dfai/application';
 import { parseMarkdownBody, serializeMarkdownBody, parseBodyToMdast } from './markdown-blocks.ts';
 import { frontmatterProblem, parseFrontmatterProperties } from './frontmatter.ts';
 import { addToFrontmatterMap } from './frontmatter-add.ts';

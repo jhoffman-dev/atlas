@@ -1,4 +1,4 @@
-import type { ToolCall } from '@atlas/domain';
+import type { ToolCall } from '@dfai/domain';
 
 /**
  * A tool call in a few words, as the transcript shows it and the chat note

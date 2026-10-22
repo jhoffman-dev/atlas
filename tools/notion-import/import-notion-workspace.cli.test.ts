@@ -23,7 +23,7 @@ beforeEach(async () => {
   exportDir = join(home, 'Downloads/Export-1');
   copy = join(home, 'vault copy');
   await cp(FIXTURE, exportDir, { recursive: true });
-  await mkdir(join(home, 'Atlas Vault'));
+  await mkdir(join(home, 'DFAI Vault'));
   await mkdir(join(copy, '.atlas', 'types'), { recursive: true });
   await writeFile(join(copy, '.atlas', 'types', 'task.md'), taskType(GTD_STATUSES, 'archive'));
 });
@@ -35,7 +35,7 @@ afterEach(async () => {
 /** The command run in the real vault's folder, with HOME the test's, so a default would land there. */
 const run = (...args: string[]) =>
   spawnSync(process.execPath, [CLI, ...args], {
-    cwd: join(home, 'Atlas Vault'),
+    cwd: join(home, 'DFAI Vault'),
     env: { ...process.env, HOME: home },
     encoding: 'utf8',
     timeout: 60_000,
@@ -49,7 +49,7 @@ describe('import-notion-workspace', { timeout: 120_000 }, () => {
       const result = run(...args);
       expect(result.status).toBe(2);
       expect(result.stderr).toContain('usage: node tools/import-notion-workspace.mjs --export');
-      expect(await readdir(join(home, 'Atlas Vault'))).toEqual([]);
+      expect(await readdir(join(home, 'DFAI Vault'))).toEqual([]);
     },
   );
 
@@ -99,13 +99,13 @@ describe('import-notion-workspace', { timeout: 120_000 }, () => {
     const again = run('--export', exportDir, '--vault', copy, '--gemini-dates', 'arrival-local');
     expect(again.status, again.stderr).toBe(0);
     expect(again.stdout).toMatch(/18 pages: 0 created, 0 updated, 18 unchanged, 0 refused/);
-    expect(await readdir(join(home, 'Atlas Vault'))).toEqual([]);
+    expect(await readdir(join(home, 'DFAI Vault'))).toEqual([]);
 
     await rm(join(copy, 'Teams', 'Platform.md'));
     const deleted = run('--export', exportDir, '--vault', copy, '--gemini-dates', 'arrival-local');
     expect(deleted.status, deleted.stderr).toBe(0);
     expect(deleted.stdout).toContain(
-      'deleted   Teams "Platform": imported before and deleted in Atlas',
+      'deleted   Teams "Platform": imported before and deleted in DFAI',
     );
     const back = run(
       '--export',

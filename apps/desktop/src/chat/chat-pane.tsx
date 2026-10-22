@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
-import type { ChatNameHint } from '@atlas/ui';
-import { DEFAULT_CHAT_MODEL } from '@atlas/domain';
+import type { ChatNameHint } from '@dfai/ui';
+import { DEFAULT_CHAT_MODEL } from '@dfai/domain';
 import { chatPanel, claudeSettings } from '../pages-on-first-use.ts';
 import type { ChatController } from './use-chat.ts';
 

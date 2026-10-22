@@ -41,7 +41,7 @@ const vault = (query: (sql: string) => void) =>
 const run = (api: ReturnType<typeof vault>, path: string) =>
   api.send({ method: 'POST', path: `/v1/views/${encoded(path)}/run` });
 
-describe('POST /v1/views/{path}/run with Atlas queries (adversarial)', () => {
+describe('POST /v1/views/{path}/run with DFAI queries (adversarial)', () => {
   it('runs a query view, rather than answering that it names no type', async () => {
     // Why: runViewRoute knows sql: and type: views only; parseSavedView returns
     // null for a query view, so the API answers 400 "does not say which type it lists".

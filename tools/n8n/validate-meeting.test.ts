@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-/* The CLI James runs on a dry run's output: Atlas's own validator, from plain `node`. */
+/* The CLI James runs on a dry run's output: DFAI's own validator, from plain `node`. */
 
 const cli = fileURLToPath(new URL('validate-meeting.mjs', import.meta.url));
 const fixture = (path: string) =>

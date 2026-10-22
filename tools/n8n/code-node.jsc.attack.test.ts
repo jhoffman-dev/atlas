@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { mapGranolaNote, mapMeeting } from '@atlas/domain';
+import { mapGranolaNote, mapMeeting } from '@dfai/domain';
 import { codeNodeScript } from './code-node.ts';
 
 /*

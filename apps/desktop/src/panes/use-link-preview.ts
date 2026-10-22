@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ObjectType } from '@atlas/domain';
-import { readLinkPreview, type LinkPreviewRead } from '@atlas/application';
+import type { ObjectType } from '@dfai/domain';
+import { readLinkPreview, type LinkPreviewRead } from '@dfai/application';
 import type { NotePorts } from '../notes/use-note.ts';
 import { scopedReadKey, scopedReadMeta } from '../reads/query-client.ts';
 

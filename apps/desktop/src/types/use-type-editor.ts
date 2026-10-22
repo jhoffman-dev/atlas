@@ -7,7 +7,7 @@ import {
   type TypeChange,
   type TypeEdit,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   countValuesThatWontFit,
   migrateNotes,
@@ -19,8 +19,8 @@ import {
   type MigrationReport,
   type OpenNotes,
   type VaultFsPort,
-} from '@atlas/application';
-import type { TypeEditorNotice, TypeEditorPrompt } from '@atlas/ui';
+} from '@dfai/application';
+import type { TypeEditorNotice, TypeEditorPrompt } from '@dfai/ui';
 import { localToday } from '../today.ts';
 import type { ReadTypesAgain } from './use-types.ts';
 

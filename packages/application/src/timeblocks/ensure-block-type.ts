@@ -1,4 +1,4 @@
-import { blockTypeToWrite, type VaultPath } from '@atlas/domain';
+import { blockTypeToWrite, type VaultPath } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { writeTypeFiles, type TypeSetupFailure } from '../types/ensure-built-in-types.ts';
 import { loadObjectTypes } from '../types/load-types.ts';

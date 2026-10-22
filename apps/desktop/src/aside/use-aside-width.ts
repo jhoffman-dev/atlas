@@ -1,6 +1,6 @@
 import { useStore } from 'zustand';
-import { typeShownAt, type ObjectType, type SavedViewSummary } from '@atlas/domain';
-import { ASIDE_WIDTH, ASIDE_WIDTH_TYPE } from '@atlas/ui';
+import { typeShownAt, type ObjectType, type SavedViewSummary } from '@dfai/domain';
+import { ASIDE_WIDTH, ASIDE_WIDTH_TYPE } from '@dfai/ui';
 import { activePlace, type WorkspaceStore } from '../workspace/workspace-store.ts';
 import type { AsideStore } from './aside-store.ts';
 

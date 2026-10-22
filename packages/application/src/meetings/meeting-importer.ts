@@ -3,7 +3,7 @@ import {
   messageWithoutPaths,
   type VaultPath,
   type Vocabulary,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChangeNews, NoteChanges } from '../index/note-changes.ts';
 import type { Clock } from '../ports.ts';

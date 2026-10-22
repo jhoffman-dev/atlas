@@ -16,7 +16,7 @@ import { statusOf } from '../types/status-property.ts';
  * linked with it — and what a Task or Decision shows of the meeting it came
  * from.
  *
- * Each section is an Atlas query (ADR-0019) in which `this` is the page,
+ * Each section is a DFAI query (ADR-0019) in which `this` is the page,
  * written here from the vault's own types: a section names only fields the
  * types declare, so a vault whose Meeting has no `people` still gets its
  * meetings (by any link), and one with no Decision type gets no Decisions

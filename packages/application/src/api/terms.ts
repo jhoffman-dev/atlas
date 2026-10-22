@@ -1,4 +1,4 @@
-import type { TermNote, VocabularyClaim, VocabularyConflict, VocabularyEntry } from '@atlas/domain';
+import type { TermNote, VocabularyClaim, VocabularyConflict, VocabularyEntry } from '@dfai/domain';
 import { loadTerms } from '../terms/terms.ts';
 import type {
   ApiTerm,
@@ -15,7 +15,7 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
  * with `PATCH /v1/notes/{path}/properties` — and no route here writes.
  */
 
-/** `GET /v1/terms`: every term, every spelling Atlas puts right, and the spellings in conflict. */
+/** `GET /v1/terms`: every term, every spelling DFAI puts right, and the spellings in conflict. */
 export async function termsRoute(request: VaultRequest): Promise<RouteResult> {
   const { terms, vocabulary } = await loadTerms({ index: request.index });
   request.assertStillOpen();

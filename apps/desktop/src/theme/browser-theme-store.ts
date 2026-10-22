@@ -1,4 +1,4 @@
-import type { Theme, ThemeStore } from '@atlas/ui';
+import type { Theme, ThemeStore } from '@dfai/ui';
 
 const KEY = 'atlas.theme';
 

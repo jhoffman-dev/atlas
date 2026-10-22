@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath } from '@dfai/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import { deleteEntry } from '../vault/delete-entry.ts';

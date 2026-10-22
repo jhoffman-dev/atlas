@@ -9,7 +9,7 @@ import { parseObjectType } from '../types/property-def.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
 /**
- * P30-03: `progress` in an Atlas query, run for real against SQLite over the
+ * P30-03: `progress` in a DFAI query, run for real against SQLite over the
  * index's own tables, each file holding the progress refreshing the index
  * worked out from its checklist (`checklistProgress`) — null with no box.
  */
@@ -68,7 +68,7 @@ function run(text: string): Record<string, unknown>[] {
 
 const titles = (text: string) => run(text).map((row) => row['title']);
 
-describe('progress in an Atlas query', () => {
+describe('progress in a DFAI query', () => {
   it('compares as a number', () => {
     expect(titles('FROM task WHERE progress >= 40')).toEqual(['Book the hall', 'Order chairs']);
     expect(titles('FROM task WHERE progress < 40')).toEqual(['Ring Mara']);

@@ -9,7 +9,7 @@ import {
   type EditorNode,
   type OutlineEntry,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { NoteEditor } from './note-editor.tsx';
 import type { BlockPicking } from './editor/block-picking.ts';
 

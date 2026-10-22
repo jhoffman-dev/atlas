@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { memo } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, todayLists, type ReviewTask } from '@atlas/domain';
-import type { TodayReport } from '@atlas/application';
+import { createVaultPath, todayLists, type ReviewTask } from '@dfai/domain';
+import type { TodayReport } from '@dfai/application';
 import { useSteadyCallback } from './steady-callback.ts';
 import { TodayPage, type TodayPageProps } from './today-page.tsx';
 

@@ -7,7 +7,7 @@ import {
   type DoneAction,
   type PassedOver,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { changeProperties, type PropertyChange } from '../automations/apply-changes.ts';
 import type { MeetingLinkPorts, MeetingLinkRun } from './link-meeting.ts';
 

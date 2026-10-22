@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import type { ObjectType } from '@atlas/domain';
+import type { ObjectType } from '@dfai/domain';
 import type { QueryResult } from '../index/ports.ts';
 import { notesInUseOfType } from '../archive/notes-in-use.ts';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
@@ -71,7 +71,7 @@ describe('countNotesByType against the per-type counting it replaced', () => {
     const index = indexOver({
       'Projects/Garden.md': { type: 'project', para: ['project', 'archive'] },
       'Projects/Shed.md': { type: 'project', para: 'archive' },
-      'Projects/Atlas.md': { type: 'project' },
+      'Projects/DFAI.md': { type: 'project' },
     });
     const names = ['project'];
 

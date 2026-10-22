@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { correctionDigestOf, createVaultPath } from '@atlas/domain';
-import { fakeVaultFs, recordingActivity } from '@atlas/application';
-import { remarkMarkdown } from '@atlas/adapters';
+import { correctionDigestOf, createVaultPath } from '@dfai/domain';
+import { fakeVaultFs, recordingActivity } from '@dfai/application';
+import { remarkMarkdown } from '@dfai/adapters';
 import { useMeetingCorrections } from './use-meeting-corrections.ts';
 
 const PATH = createVaultPath('Inbox/Meetings/2026-10-06 Standup.md');

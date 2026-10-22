@@ -13,7 +13,7 @@ import {
   parseObjectType,
   parseRunLog,
   type AutomationRule,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { ModelEvent } from '../chat/ports.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';

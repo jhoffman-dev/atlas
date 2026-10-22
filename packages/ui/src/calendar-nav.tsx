@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { rangeTitle, rangeUnit, stepAnchor, type CalendarRange } from '@atlas/domain';
+import { rangeTitle, rangeUnit, stepAnchor, type CalendarRange } from '@dfai/domain';
 import { Icon } from './icon.tsx';
 import { SegmentedControl, type SegmentedOption } from './segmented-control.tsx';
 

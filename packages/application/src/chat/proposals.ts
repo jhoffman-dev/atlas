@@ -18,7 +18,7 @@ import {
   type ParsedBody,
   type TextEdit,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { OpenNotes } from '../api/index.ts';
 import { taskRuleProperties } from '../gtd/task-rules.ts';
 import { FrontmatterRefusedError } from '../notes/frontmatter-refused-error.ts';

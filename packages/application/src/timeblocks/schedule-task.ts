@@ -13,7 +13,7 @@ import {
   type BlockTimes,
   type ObjectType,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { createNote } from '../notes/create-note.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { journalText, type GitConflict } from '@atlas/domain';
+import { journalText, type GitConflict } from '@dfai/domain';
 import { failed, fakeBlob, memorySyncFiles, said, scriptedGit } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { mergeHeadOf, recordMerge, settleConflicts } from './settle-conflicts.ts';
 
-/** No file here is Atlas's own settings, so nothing is merged by its keys. */
+/** No file here is DFAI's own settings, so nothing is merged by its keys. */
 const settings = { vault: fakeVaultFs({}), markdown: fakeMarkdown() };
 
 const MERGE_HEAD = 'f'.repeat(40);

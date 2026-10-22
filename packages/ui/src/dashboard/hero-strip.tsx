@@ -7,8 +7,8 @@ import {
   percentOf,
   type GroupCount,
   type Widget,
-} from '@atlas/domain';
-import type { HeroData } from '@atlas/application';
+} from '@dfai/domain';
+import type { HeroData } from '@dfai/application';
 import { stackedSegments } from '../charts/geometry.ts';
 import { useNoteNames } from '../note-names.tsx';
 import { counted } from './counted.ts';

@@ -10,9 +10,9 @@ import {
   applyMeetingCleanup,
   meetingCleanupNeedsOwner,
   previewMeetingCleanup,
-} from '@atlas/application';
-import { automationVault } from '@atlas/application/testing/sqlite';
-import { createVaultPath } from '@atlas/domain';
+} from '@dfai/application';
+import { automationVault } from '@dfai/application/testing/sqlite';
+import { createVaultPath } from '@dfai/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const TODAY = '2026-10-14';

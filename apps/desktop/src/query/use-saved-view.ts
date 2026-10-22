@@ -34,7 +34,7 @@ import {
   type ViewEdits,
   type ViewLayout,
   type ViewQuery,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import {
   readCellValue,
   relationGroupLinks,
@@ -46,7 +46,7 @@ import {
   type VaultFsPort,
   type ViewResult,
   type ActivityLog,
-} from '@atlas/application';
+} from '@dfai/application';
 import {
   useNoteNames,
   useSteadyCallback,
@@ -55,7 +55,7 @@ import {
   type CellEdit,
   type DoneTicks,
   type ReadHeldCell,
-} from '@atlas/ui';
+} from '@dfai/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from './error-message.ts';
 import type { TickMemory } from './tick-memory.ts';

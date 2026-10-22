@@ -108,14 +108,14 @@ describe('chatSystemPrompt', () => {
 
   it('tells the model not to guess when the profile has no name', () => {
     const prompt = chatSystemPrompt({ today: '2026-09-27', context: null, profile: EMPTY_PROFILE });
-    expect(prompt).toContain('has not told Atlas their name');
+    expect(prompt).toContain('has not told DFAI their name');
     expect(prompt).toContain('[Your name]');
   });
 
   it('tells the model to ask when the profile has not been read, rather than that there is no name', () => {
     const prompt = chatSystemPrompt({ today: '2026-09-27', context: null, profile: 'unknown' });
-    expect(prompt).toContain("Atlas couldn't read the person's name");
-    expect(prompt).not.toContain('has not told Atlas their name');
+    expect(prompt).toContain("DFAI couldn't read the person's name");
+    expect(prompt).not.toContain('has not told DFAI their name');
   });
 });
 

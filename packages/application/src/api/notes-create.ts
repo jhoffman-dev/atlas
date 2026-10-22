@@ -9,7 +9,7 @@ import {
   splitFrontmatter,
   VAULT_ROOT,
   type VaultPath,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { newNoteTaskRules } from '../gtd/task-rules.ts';
 import { createNote, NoteNameTakenError } from '../notes/create-note.ts';
 import { homeFolderFor } from '../notes/home-folder.ts';

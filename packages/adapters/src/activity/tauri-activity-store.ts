@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ActivityStore } from '@atlas/application';
+import type { ActivityStore } from '@dfai/application';
 import { throughHost } from '../vault/host-error.ts';
 
 const asError = (message: string) => new Error(message);

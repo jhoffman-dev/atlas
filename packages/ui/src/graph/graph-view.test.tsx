@@ -12,7 +12,7 @@ import {
   UNTYPED,
   type GraphFilter,
   type VaultGraph,
-} from '@atlas/domain';
+} from '@dfai/domain';
 import { GraphView, type GraphViewProps } from './graph-view.tsx';
 
 const vault: VaultGraph = buildVaultGraph({

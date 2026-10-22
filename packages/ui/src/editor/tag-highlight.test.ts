@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Editor, type JSONContent } from '@tiptap/core';
 import type { EditorState } from '@tiptap/pm/state';
 import type { DecorationSet } from '@tiptap/pm/view';
-import { tagHue } from '@atlas/domain';
+import { tagHue } from '@dfai/domain';
 import { createEditorExtensions } from './extensions.ts';
 
 const editors: Editor[] = [];

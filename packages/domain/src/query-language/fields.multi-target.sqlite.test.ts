@@ -25,9 +25,9 @@ const TYPES = [
 ];
 
 const NOTES = [
-  { path: 'Projects/Atlas.md', title: 'Atlas', frontmatter: { type: 'project', status: 'active' } },
+  { path: 'Projects/DFAI.md', title: 'DFAI', frontmatter: { type: 'project', status: 'active' } },
   { path: 'Areas/Garden.md', title: 'Garden', frontmatter: { type: 'area', steward: 'Mara' } },
-  { path: 'Tasks/Ship.md', title: 'Ship', frontmatter: { type: 'task', project: '[[Atlas]]' } },
+  { path: 'Tasks/Ship.md', title: 'Ship', frontmatter: { type: 'task', project: '[[DFAI]]' } },
   { path: 'Tasks/Weed.md', title: 'Weed', frontmatter: { type: 'task', project: '[[Garden]]' } },
 ];
 
