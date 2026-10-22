@@ -41,10 +41,11 @@ export function useLibraryRead({ index, vault, ready }: ResearchReadPorts): Read
   const queryKey = scopedReadKey(vault ?? '', 'library');
   // The scope is what the kept read is filed under, so it follows each read and refresh.
   const kept = useQueryClient().getQueryData<LibraryRead>(queryKey);
+  const scope = useMemo(() => libraryScope(kept), [kept]);
   const { data, error } = useQuery({
     queryKey,
     queryFn: () => readLibrary({ index }),
-    meta: scopedReadMeta(libraryScope(kept), false, (previous: LibraryRead, changes) =>
+    meta: scopedReadMeta(scope, false, (previous: LibraryRead, changes) =>
       refreshLibrary({ index, previous, changes }),
     ),
     enabled: ready && vault !== null,

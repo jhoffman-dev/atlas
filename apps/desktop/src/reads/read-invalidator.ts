@@ -94,6 +94,9 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
           query.state.data === undefined ? null : await refresh?.(query.state.data, changes);
         if (!stillCurrent(query, count)) return;
         if (next === null || next === undefined) return await readAgain(client, query.queryKey);
+        // A whole read that failed meanwhile bumped no `dataUpdateCount`, so this lands over its
+        // error: the refresh built the value from the kept data and these changes, which is
+        // right, and the error was only that read's failure to see them.
         client.setQueryData(query.queryKey, next);
       } catch {
         // A refresh that failed falls back to reading the whole again, which shows its own error.
