@@ -238,15 +238,15 @@
       }
     },
     "Open the Library (2,000 sources)": {
-      "commits": 6,
-      "renders": 165,
+      "commits": 4,
+      "renders": 161,
       "calls": {
-        "index_query": 3
+        "index_query": 1
       }
     },
     "Open All highlights (20,000)": {
-      "commits": 6,
-      "renders": 111,
+      "commits": 4,
+      "renders": 108,
       "calls": {
         "index_query": 9
       }
