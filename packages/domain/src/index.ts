@@ -48,5 +48,6 @@ export * from './export/index.ts';
 export * from './google-calendar/index.ts';
 export * from './daily/index.ts';
 export * from './granola/index.ts';
+export * from './kindle/index.ts';
 export * from './home-folders/index.ts';
 export * from './highlights/index.ts';
