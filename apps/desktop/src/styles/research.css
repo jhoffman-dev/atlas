@@ -185,6 +185,21 @@
   border-left: 2px solid var(--pill-ink);
 }
 
+/* The keyboard's way to the embed a drag makes: shown on the row's hover or focus. */
+.highlight__copy {
+  flex: none;
+  opacity: 0;
+}
+
+.highlight__row:hover .highlight__copy,
+.highlight__row:focus-within .highlight__copy {
+  opacity: 1;
+}
+
+.research__clear {
+  margin-left: auto;
+}
+
 .highlight__quote {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

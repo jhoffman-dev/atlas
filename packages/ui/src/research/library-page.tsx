@@ -1,6 +1,8 @@
 import { memo, useRef } from 'react';
 import {
   changedOn,
+  isLibraryFiltered,
+  NO_LIBRARY_FILTER,
   SOURCE_KIND_HUES,
   SOURCE_KIND_LABELS,
   withToggled,
@@ -20,6 +22,7 @@ import { HiddenTitle } from '../page-head.tsx';
 import { ROW_SCROLLER_MARK, RowScrollerContext } from '../row-scroller.ts';
 import {
   ChipToggles,
+  ClearFilters,
   FilterSelect,
   ResearchNotice,
   shownCount,
@@ -107,6 +110,7 @@ export function LibraryPage(props: LibraryPageProps) {
                     key={entry.path}
                     entry={entry}
                     index={place.index}
+                    size={place.size}
                     measure={place.measure}
                     covers={props.covers}
                     onOpen={props.onOpen}
@@ -145,6 +149,7 @@ function LibraryToolbar({ choices, filter, onFilter, sort, onSort }: LibraryPage
         choices={choices.projects}
         onChange={(project) => onFilter({ ...filter, project })}
       />
+      <ClearFilters on={isLibraryFiltered(filter)} onClear={() => onFilter(NO_LIBRARY_FILTER)} />
       <span className="research__sort">
         <ChoiceSelect
           label="Sort by"
@@ -171,19 +176,27 @@ function LibraryToolbar({ choices, filter, onFilter, sort, onSort }: LibraryPage
 const LibraryRow = memo(function LibraryRow({
   entry,
   index,
+  size,
   measure,
   covers,
   onOpen,
 }: {
   entry: LibraryEntry;
   index: number;
+  size: number;
   measure: RowPlace['measure'];
   covers: CoverSource;
   onOpen: (path: VaultPath, how: OpenHow) => void;
 }) {
   const count = `${entry.highlights.toLocaleString('en-US')} ${entry.highlights === 1 ? 'highlight' : 'highlights'}`;
   return (
-    <li ref={measure} data-index={index} className="research__row library__row">
+    <li
+      ref={measure}
+      data-index={index}
+      className="research__row library__row"
+      aria-setsize={size}
+      aria-posinset={index + 1}
+    >
       <span className="library__cover" aria-hidden="true">
         <CardCover path={entry.path} covers={covers} fallback={<Icon name="book" size={18} />} />
       </span>

@@ -1,9 +1,11 @@
-import { memo, useRef, type DragEvent } from 'react';
+import { memo, useRef, type DragEvent, type KeyboardEvent } from 'react';
 import {
   hasComment,
   HIGHLIGHT_HUES,
   highlightColor,
   highlightPlace,
+  isHighlightFiltered,
+  NO_HIGHLIGHT_FILTER,
   withToggled,
   type ChangedWithin,
   type CommentFilter,
@@ -13,6 +15,7 @@ import {
   type VaultPath,
 } from '@dfai/domain';
 import { ChoiceSelect } from '../choice-select.tsx';
+import { Icon } from '../icon.tsx';
 import { blockEmbedTransfer } from '../editor/embed-transfer.ts';
 import { openHowFrom, type OpenHow } from '../open-how.ts';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
@@ -20,6 +23,7 @@ import { HiddenTitle } from '../page-head.tsx';
 import { ROW_SCROLLER_MARK, RowScrollerContext } from '../row-scroller.ts';
 import {
   ChipToggles,
+  ClearFilters,
   FilterSelect,
   ResearchNotice,
   shownCount,
@@ -36,6 +40,8 @@ export interface HighlightsPageProps {
   readonly onOpen: (path: VaultPath, block: string, how: OpenHow) => void;
   /** What to write inside `![[…]]` so an embed opens the source note: asked as a row is dragged. */
   readonly linkTargetOf: (path: VaultPath) => string;
+  /** Puts a highlight's embed, `![[Source#^id]]`, on the clipboard: for the keyboard, where a row cannot be dragged. */
+  readonly onCopyEmbed: (embed: string) => void;
   readonly onShowSidebar?: () => void;
   readonly history?: PageHistory;
 }
@@ -56,7 +62,8 @@ const CHANGED: readonly { value: ChangedWithin; label: string }[] = [
   { value: 'year', label: 'Source changed this year' },
 ];
 
-const keyOf = (entry: HighlightEntry) => `${entry.path}#^${entry.id}`;
+// By place, not id: two highlights of one note can share an id (a note edited by hand).
+const keyOf = (entry: HighlightEntry) => `${entry.path}#${entry.index}`;
 
 /**
  * All highlights (#507): every highlight across the literature notes — its
@@ -100,9 +107,11 @@ export function HighlightsPage(props: HighlightsPageProps) {
                     key={keyOf(entry)}
                     entry={entry}
                     index={place.index}
+                    size={place.size}
                     measure={place.measure}
                     onOpen={props.onOpen}
                     linkTargetOf={props.linkTargetOf}
+                    onCopyEmbed={props.onCopyEmbed}
                   />
                 )}
               />
@@ -152,6 +161,10 @@ function HighlightsToolbar({ choices, filter, onFilter }: HighlightsPageProps) {
         choices={CHANGED}
         onChange={(changed) => onFilter({ ...filter, changed })}
       />
+      <ClearFilters
+        on={isHighlightFiltered(filter)}
+        onClear={() => onFilter(NO_HIGHLIGHT_FILTER)}
+      />
     </div>
   );
 }
@@ -160,34 +173,50 @@ function HighlightsToolbar({ choices, filter, onFilter }: HighlightsPageProps) {
 const HighlightRow = memo(function HighlightRow({
   entry,
   index,
+  size,
   measure,
   onOpen,
   linkTargetOf,
+  onCopyEmbed,
 }: {
   entry: HighlightEntry;
   index: number;
+  size: number;
   measure: RowPlace['measure'];
   onOpen: HighlightsPageProps['onOpen'];
   linkTargetOf: HighlightsPageProps['linkTargetOf'];
+  onCopyEmbed: HighlightsPageProps['onCopyEmbed'];
 }) {
   const place = highlightPlace(entry);
+  const color = highlightColor(entry.color);
+  const transfer = () => blockEmbedTransfer({ target: linkTargetOf(entry.path), id: entry.id });
   const onDragStart = (event: DragEvent<HTMLLIElement>) => {
-    const transfer = blockEmbedTransfer({ target: linkTargetOf(entry.path), id: entry.id });
-    event.dataTransfer.setData('text/plain', transfer.text);
-    event.dataTransfer.setData('text/html', transfer.html);
+    const dragged = transfer();
+    event.dataTransfer.setData('text/plain', dragged.text);
+    event.dataTransfer.setData('text/html', dragged.html);
     event.dataTransfer.effectAllowed = 'copy';
+  };
+  // ⌘C on a focused row copies its embed, unless words are selected: that copy is theirs.
+  const onKeyDown = (event: KeyboardEvent<HTMLLIElement>) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'c') return;
+    if ((window.getSelection()?.toString() ?? '') !== '') return;
+    event.preventDefault();
+    onCopyEmbed(transfer().text);
   };
   return (
     <li
       ref={measure}
       data-index={index}
       className="research__row highlight__row"
+      aria-setsize={size}
+      aria-posinset={index + 1}
       draggable
       onDragStart={onDragStart}
+      onKeyDown={onKeyDown}
     >
       <span
         className="highlight__swatch"
-        data-hue={HIGHLIGHT_HUES[highlightColor(entry.color)]}
+        data-hue={HIGHLIGHT_HUES[color]}
         data-mark={entry.mark === 'underline' ? 'underline' : 'highlight'}
         aria-hidden="true"
       />
@@ -196,12 +225,23 @@ const HighlightRow = memo(function HighlightRow({
         className="research__open highlight__open"
         onClick={(event) => onOpen(entry.path, entry.id, openHowFrom(event))}
       >
+        <span className="visually-hidden">
+          {color} {entry.mark === 'underline' ? 'underline' : 'highlight'}:{' '}
+        </span>
         <span className="highlight__quote">{entry.quote}</span>
         {hasComment(entry) && <span className="highlight__comment">{entry.comment}</span>}
         <span className="highlight__source">
           <span className="research__title">{entry.source}</span>
           {place !== null && <span className="research__byline">{place}</span>}
         </span>
+      </button>
+      <button
+        type="button"
+        className="btn btn--sm highlight__copy"
+        aria-label={`Copy embed of this ${color} highlight`}
+        onClick={() => onCopyEmbed(transfer().text)}
+      >
+        <Icon name="copy" size={14} />
       </button>
     </li>
   );

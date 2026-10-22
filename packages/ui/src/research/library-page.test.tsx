@@ -62,6 +62,24 @@ function renderPage(props: Partial<LibraryPageProps> = {}) {
 const rows = () => within(screen.getByRole('list', { name: 'Sources' })).getAllByRole('listitem');
 
 describe('LibraryPage (#507)', () => {
+  it('tells a screen reader where each row is among all of them', () => {
+    renderPage();
+    const rows = within(screen.getByRole('list', { name: 'Sources' })).getAllByRole('listitem');
+    expect(rows[1]?.getAttribute('aria-setsize')).toBe('2');
+    expect(rows[1]?.getAttribute('aria-posinset')).toBe('2');
+  });
+
+  it('offers Clear filters while a filter or the search is on, and clears them all', async () => {
+    const { onFilter } = renderPage({ filter: { ...NO_LIBRARY_FILTER, search: 'mar' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onFilter).toHaveBeenLastCalledWith(NO_LIBRARY_FILTER);
+  });
+
+  it('offers no Clear filters while none is on', () => {
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  });
+
   it('lists each source: title, author, kind in its pastel, highlights and the day it changed', () => {
     renderPage();
     const [art, stoic] = rows();

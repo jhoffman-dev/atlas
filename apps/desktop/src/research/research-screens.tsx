@@ -9,6 +9,7 @@ import {
   type OpenHow,
 } from '@dfai/ui';
 import { useVaultImages } from '../notes/use-images.ts';
+import { browserClipboard } from '../settings/clipboard.ts';
 import type { PageChrome } from '../page-frame-fallback.tsx';
 import { useHighlightsPage, useLibraryPage } from './use-research-pages.ts';
 import { useHighlightsRead, useLibraryRead, type ResearchReadPorts } from './use-research-reads.ts';
@@ -34,7 +35,7 @@ export function LibraryScreen({
 }: LibraryScreenProps) {
   const read = useLibraryRead(ports);
   const page = useLibraryPage(read);
-  const load = useVaultImages({ fs, resetKey: ports.vault });
+  const load = useVaultImages({ fs, resetKey: ports.vault, vaultOnly: true });
   const covers = useMemo<CoverSource>(() => {
     const byPath = new Map(
       read.kind === 'ready' ? read.entries.map((entry) => [entry.path, entry.cover]) : [],
@@ -72,11 +73,16 @@ export function HighlightsScreen({
   // Worked out only as a row is dragged — the source's bare name, or its path where the
   // name is shared — and steady, so a note added elsewhere draws no row again.
   const linkTargetOf = useSteadyCallback((path: VaultPath) => wikiLinkTargetFor(path, notePaths));
+  const onCopyEmbed = useSteadyCallback((embed: string) => {
+    // A denied clipboard leaves the embed uncopied; there is nothing here to retry or undo.
+    browserClipboard.write(embed).catch(() => undefined);
+  });
   return (
     <HighlightsPage
       {...page}
       onOpen={onOpen}
       linkTargetOf={linkTargetOf}
+      onCopyEmbed={onCopyEmbed}
       {...(onShowSidebar !== undefined && { onShowSidebar })}
       {...(history !== undefined && { history })}
     />

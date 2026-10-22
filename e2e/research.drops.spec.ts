@@ -13,7 +13,7 @@ import { researchVault } from '../tools/perf/research-vault.ts';
 import { writeVault } from '../tools/perf/session.ts';
 
 /**
- * Attack tests for PR #525 (#507): a highlight dragged where an embed has
+ * Tests for the research area (#507): a highlight dragged where an embed has
  * no place (a code block, a table), a drag let go, and All highlights at
  * 20,000 highlights as its filters change.
  */

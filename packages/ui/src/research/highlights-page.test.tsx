@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   createVaultPath,
@@ -18,6 +18,7 @@ function highlight(id: string, rest: Partial<HighlightEntry> = {}): HighlightEnt
     path: ART,
     source: 'The Art of War',
     modified: 0,
+    index: 0,
     id,
     kind: 'pdf',
     quote: `Quote ${id}`,
@@ -53,6 +54,7 @@ function renderPage(props: Partial<HighlightsPageProps> = {}) {
   const handlers = {
     onFilter: vi.fn(),
     onOpen: vi.fn(),
+    onCopyEmbed: vi.fn(),
     linkTargetOf: vi.fn((path: string) => path.replace(/^Library\//, '').replace(/\.md$/, '')),
   };
   render(
@@ -71,6 +73,59 @@ const rows = () =>
   within(screen.getByRole('list', { name: 'Highlights' })).getAllByRole('listitem');
 
 describe('HighlightsPage (#507)', () => {
+  it("names a row's colour and mark in its accessible name, not only by its swatch", () => {
+    renderPage();
+    const [deception, fate] = rows();
+    expect(within(deception!).getByRole('button', { name: /^green highlight:/ })).toBeTruthy();
+    // An unknown colour is drawn yellow, and is called so.
+    expect(within(fate!).getByRole('button', { name: /^yellow underline:/ })).toBeTruthy();
+  });
+
+  it('tells a screen reader where each row is among all of them', () => {
+    renderPage();
+    const [first, second] = rows();
+    expect(first?.getAttribute('aria-setsize')).toBe('2');
+    expect(first?.getAttribute('aria-posinset')).toBe('1');
+    expect(second?.getAttribute('aria-posinset')).toBe('2');
+  });
+
+  it("copies a highlight's embed from the keyboard: Cmd+C on its row, and its Copy embed button", async () => {
+    const { onCopyEmbed } = renderPage();
+    const user = userEvent.setup();
+    within(rows()[0]!)
+      .getByRole('button', { name: /^green highlight:/ })
+      .focus();
+    await user.keyboard('{Meta>}c{/Meta}');
+    expect(onCopyEmbed).toHaveBeenLastCalledWith('![[The Art of War#^k3x9q2]]');
+    await user.click(within(rows()[1]!).getByRole('button', { name: /Copy embed/ }));
+    expect(onCopyEmbed).toHaveBeenLastCalledWith('![[Meditations#^m1n2o3]]');
+  });
+
+  it('leaves Cmd+C to the browser while words are selected', async () => {
+    const { onCopyEmbed } = renderPage();
+    const open = within(rows()[0]!).getByRole('button', { name: /^green highlight:/ });
+    open.focus();
+    const range = document.createRange();
+    range.selectNodeContents(within(rows()[0]!).getByText('All warfare is based on deception.'));
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    fireEvent.keyDown(open, { key: 'c', metaKey: true });
+    expect(onCopyEmbed).not.toHaveBeenCalled();
+    window.getSelection()?.removeAllRanges();
+    fireEvent.keyDown(open, { key: 'c', metaKey: true });
+    expect(onCopyEmbed).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers Clear filters only while a filter is on, and clears them all', async () => {
+    const { onFilter } = renderPage();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+    cleanup();
+    const again = renderPage({ filter: { ...NO_HIGHLIGHT_FILTER, tag: 'strategy' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(again.onFilter).toHaveBeenLastCalledWith(NO_HIGHLIGHT_FILTER);
+    expect(onFilter).not.toHaveBeenCalled();
+  });
+
   it('lists each highlight: quote, comment, source, place, and its colour as a pastel', () => {
     renderPage();
     const [deception, fate] = rows();
@@ -90,11 +145,11 @@ describe('HighlightsPage (#507)', () => {
 
   it("opens a highlight's place — its note, at its block — where the click asks", async () => {
     const { onOpen } = renderPage();
-    await userEvent.click(within(rows()[0]!).getByRole('button'));
+    await userEvent.click(within(rows()[0]!).getByRole('button', { name: /highlight:/ }));
     expect(onOpen).toHaveBeenLastCalledWith(ART, 'k3x9q2', 'here');
     const user = userEvent.setup();
     await user.keyboard('{Meta>}{Shift>}');
-    await user.click(within(rows()[1]!).getByRole('button'));
+    await user.click(within(rows()[1]!).getByRole('button', { name: /underline:/ }));
     expect(onOpen).toHaveBeenLastCalledWith(STOIC, 'm1n2o3', 'split');
   });
 
@@ -157,6 +212,7 @@ describe('HighlightsPage (#507)', () => {
           filter={NO_HIGHLIGHT_FILTER}
           onFilter={() => {}}
           onOpen={() => {}}
+          onCopyEmbed={() => {}}
           linkTargetOf={() => ''}
         />,
       );
@@ -167,7 +223,7 @@ describe('HighlightsPage (#507)', () => {
   });
 
   it('puts only a screenful of 20,000 highlights in the page', () => {
-    const many = Array.from({ length: 20_000 }, (_, at) => highlight(`h${at}`));
+    const many = Array.from({ length: 20_000 }, (_, at) => highlight(`h${at}`, { index: at }));
     renderPage({ state: { kind: 'ready', shown: many, total: many.length } });
     const drawn = rows().length;
     expect(drawn).toBeGreaterThan(5);

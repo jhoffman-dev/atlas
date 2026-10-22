@@ -4,6 +4,8 @@ import { useVirtualRows } from '../virtual-rows.ts';
 /** What a row is handed to place itself: its index, for `data-index`, and the ref that measures it. */
 export interface RowPlace {
   readonly index: number;
+  /** How many rows the list holds, for `aria-setsize`: the rows not drawn are not in the page to be counted. */
+  readonly size: number;
   readonly measure: (element: Element | null) => void;
 }
 
@@ -38,7 +40,7 @@ export function ResearchRows<Item>({
         return (
           <Fragment key={key}>
             {gapBefore > 0 && <Gap height={gapBefore} />}
-            {renderRow(item, { index, measure: list.measure })}
+            {renderRow(item, { index, size: items.length, measure: list.measure })}
           </Fragment>
         );
       })}
