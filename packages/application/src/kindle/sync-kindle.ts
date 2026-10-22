@@ -372,7 +372,10 @@ export type KindleSync = (ports: KindleSyncPorts) => Promise<KindleSyncReport>;
 
 interface InFlight {
   readonly ports: KindleSyncPorts;
-  readonly startedAt: number;
+  /** When the deadline of a join began counting, by the sync's clock; null while it has not. */
+  readonly countsFrom: number | null;
+  /** When it begins counting: once the sync is running, or the sync ahead of it given up. */
+  readonly counting: Promise<number>;
   readonly report: Promise<KindleSyncReport>;
   /** Aborted when a join gives the sync up; the sync stops at its next fetch or write. */
   readonly giveUp: AbortController;
@@ -383,9 +386,29 @@ function sameVault(a: KindleSyncPorts, b: KindleSyncPorts): boolean {
   return a.vault !== undefined && b.vault !== undefined ? a.vault === b.vault : a.sink === b.sink;
 }
 
+/**
+ * When the deadline of a sync begins counting: now, unless it waits its turn
+ * behind `before`, a healthy sync of another vault, which may rightly run
+ * long; then once that has settled, or been given up, whichever comes first.
+ */
+function countingOf(
+  before: InFlight | null,
+  now: () => number,
+): Pick<InFlight, 'countsFrom' | 'counting'> {
+  if (before === null || before.giveUp.signal.aborted) {
+    const at = now();
+    return { countsFrom: at, counting: Promise.resolve(at) };
+  }
+  const givenUp = new Promise<number>((given) => {
+    before.giveUp.signal.addEventListener('abort', () => given(now()), { once: true });
+  });
+  // The sync ahead's own call has its report or failure; here it only has to have ended.
+  return { countsFrom: null, counting: Promise.race([before.report.then(now, now), givenUp]) };
+}
+
 /** What is left of the deadline at `now`: never less than none, nor more than all of it. */
-function deadlineLeft(slot: InFlight, now: number): number {
-  const left = KINDLE_SYNC_JOIN_DEADLINE_MS - (now - slot.startedAt);
+function deadlineLeft(countsFrom: number, now: number): number {
+  const left = KINDLE_SYNC_JOIN_DEADLINE_MS - (now - countsFrom);
   return Math.max(0, Math.min(KINDLE_SYNC_JOIN_DEADLINE_MS, left));
 }
 
@@ -411,7 +434,8 @@ function deadlineLeft(slot: InFlight, now: number): number {
  * own vault, so Amazon is still read by one sync at a time. The composition root creates
  * **one** `createKindleSync` per app and every caller (launch, schedule, ⌘K)
  * uses it. A join waits at most until {@link KINDLE_SYNC_JOIN_DEADLINE_MS}
- * after the running sync started; then it gives that sync up and fails with
+ * after the running sync started (a sync waiting its turn starts when it
+ * runs, or when the one ahead of it is given up); then it gives that sync up and fails with
  * {@link KindleSyncStuckError}, as does the sync's own call when it next
  * would fetch or write (one with nothing left to do reports what it did). The slot is held
  * until the given-up sync settles, never freed while it may still write: a
@@ -429,7 +453,7 @@ export function createKindleSync({ deadline }: KindleSyncOptions): KindleSync {
     const after = before?.report.then(go, go);
     const slot: InFlight = {
       ports,
-      startedAt: ports.clock.now(),
+      ...countingOf(before, () => ports.clock.now()),
       giveUp,
       report: (after ?? go()).finally(() => {
         if (inFlight === slot) inFlight = null;
@@ -439,8 +463,9 @@ export function createKindleSync({ deadline }: KindleSyncOptions): KindleSync {
     return slot;
   }
 
-  async function join(slot: InFlight, now: number): Promise<KindleSyncReport> {
-    const left = deadlineLeft(slot, now);
+  async function join(slot: InFlight, clock: Pick<Clock, 'now'>): Promise<KindleSyncReport> {
+    const countsFrom = slot.countsFrom ?? (await slot.counting);
+    const left = deadlineLeft(countsFrom, clock.now());
     const passed = left === 0 ? Promise.resolve() : deadline.wait(left);
     const settled = await Promise.race([
       slot.report.then((report) => ({ report })),
@@ -455,8 +480,8 @@ export function createKindleSync({ deadline }: KindleSyncOptions): KindleSync {
     const running = inFlight;
     if (running === null) return start(ports, null).report;
     if (!running.giveUp.signal.aborted && sameVault(running.ports, ports)) {
-      return join(running, ports.clock.now());
+      return join(running, ports.clock);
     }
-    return join(start(ports, running), ports.clock.now());
+    return join(start(ports, running), ports.clock);
   };
 }

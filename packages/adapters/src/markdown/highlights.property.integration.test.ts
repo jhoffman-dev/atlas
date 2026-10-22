@@ -104,9 +104,18 @@ const style = (): HighlightStyle => ({
   color: pick(HIGHLIGHT_COLORS),
 });
 
-/** The note without its tombstones, and the blank lines they stood between. */
+const TOMBSTONE_LINE = '<!-- atlas:highlight-removed [^\\n]*-->\\n';
+
+/**
+ * The note without each tombstone line and the one blank line written before
+ * it, as its highlight was appended — or none, for one appended first in an
+ * empty body, right after the frontmatter. No other blank line is folded, so
+ * one lost anywhere else still shows.
+ */
 const withoutTombstones = (text: string): string =>
-  text.replace(/^<!-- atlas:highlight-removed [^\n]*-->\n/gm, '').replace(/\n{2,}/g, '\n');
+  text
+    .replace(new RegExp(`^\\n${TOMBSTONE_LINE}`, 'gm'), '')
+    .replace(new RegExp(`^(---\\n[\\s\\S]*?\\n---\\n)${TOMBSTONE_LINE}`), '$1');
 
 const newHighlight = (): NewHighlight => ({
   quote: words(12),
@@ -289,7 +298,7 @@ describe('literature notes under any edits', () => {
             emptied = withoutHighlight({ text: emptied, id, noteBlocks });
         }
         // A Kindle highlight leaves its tombstone where it was (ADR-0043 §5): all else comes back.
-        expect(withoutTombstones(emptied)).toBe(withoutTombstones(before));
+        expect(withoutTombstones(emptied)).toBe(before);
       }
     },
     TIMEOUT,

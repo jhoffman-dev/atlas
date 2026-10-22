@@ -20,6 +20,7 @@ import {
   kindleHighlightKey,
   kindleKeyOfWordsHash,
   kindleNoteKey,
+  noteHasWords,
   kindleNoteKeysOfRuns,
   removedKindleKey,
 } from './kindle-highlight-key.ts';
@@ -235,6 +236,10 @@ function withFollowUp(args: {
   return { text, added: text !== args.text };
 }
 
+/** Whether `highlight` is written at all: a typed note with no words (`noteHasWords`) is not. */
+const isWritten = (highlight: KindleHighlight): boolean =>
+  highlight.style !== 'note' || noteHasWords(highlight.note ?? '');
+
 /** What a write of a book's Kindle highlights did to its note. */
 export interface KindleNoteWrite {
   readonly text: string;
@@ -266,9 +271,10 @@ export function withKindleHighlights(args: {
   readonly noteBlocks: ReadNoteBlocks;
 }): KindleNoteWrite {
   const { asin, noteBlocks } = args;
+  const highlights = args.highlights.filter(isWritten);
   const held = blocksByPassage(args.text, asin, noteBlocks);
   const unplaced = new Map<string, string>();
-  const blocks = args.highlights.flatMap((highlight) => {
+  const blocks = highlights.flatMap((highlight) => {
     if (isFollowUp(highlight, held)) return [];
     const block = newBlockOf(highlight);
     if (block === null) unplaced.set(highlight.key, unplacedPlace(highlight));
@@ -288,7 +294,7 @@ export function withKindleHighlights(args: {
   let text = appended.text;
   let written = appended.highlights.filter((answer) => answer.added).length;
   const skipped: string[] = [];
-  for (const highlight of args.highlights.filter((h) => isFollowUp(h, held))) {
+  for (const highlight of highlights.filter((h) => isFollowUp(h, held))) {
     const passage = passageOf(highlight);
     const id = ids.get(passage);
     if (id === undefined && unplaced.has(passage)) {

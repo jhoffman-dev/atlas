@@ -34,6 +34,16 @@ export function kindleKeyOfWordsHash(args: {
 }
 
 /**
+ * Whether a typed note has words: one of only characters `passageWords` takes
+ * out (a zero-width space, a soft hyphen, a bidi mark, whitespace) is not a
+ * note. It keys as no paragraph of a comment does, so were it written, every
+ * sync would write it again.
+ */
+export function noteHasWords(note: string): boolean {
+  return passageWords(note) !== '';
+}
+
+/**
  * The identity of a note typed on a passage: the passage's key and a hash of
  * the note. The passage keeps its own key whatever is typed on it, so a note
  * typed later arrives on its own; an edited note is a new entry after the old.

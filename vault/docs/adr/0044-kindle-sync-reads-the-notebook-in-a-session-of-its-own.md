@@ -166,7 +166,11 @@ note>`, so an edited one arrives as a new entry and an unedited one is
   running one has settled, reads and writes its own vault, and gets its own
   report, so Amazon is still read by one sync at a time and the second vault's
   notes are not skipped. A join waits at most 10 minutes from when the running
-  sync started (`KINDLE_SYNC_JOIN_DEADLINE_MS`, through an injected delay); past
+  sync started (`KINDLE_SYNC_JOIN_DEADLINE_MS`, through an injected delay). A
+  call for another vault waiting its turn starts its 10 minutes when it starts
+  running, not when it was asked: a healthy sync ahead of it may rightly run
+  longer (a large library, a gap between fetches), and never makes it fail;
+  only if the sync ahead is given up does its deadline start then. Past
   that the running sync is taken as stuck, the join is told so
   (`KindleSyncStuckError`), and the running sync is **given up** (an abort
   signal it checks before every fetch and every note write): it fetches and

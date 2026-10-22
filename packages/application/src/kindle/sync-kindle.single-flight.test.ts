@@ -513,3 +513,47 @@ describe('createKindleSync: a sync for another vault waiting its turn (verify)',
     expect(behind.calls).toEqual([{ call: 'library' }]);
   });
 });
+
+describe('createKindleSync: a sync for another vault behind one given up while it waits', () => {
+  it('counts its deadline from the give-up, so a sync that never settles cannot hold it forever', async () => {
+    const deadline = heldKindleDelay();
+    const syncKindle = createKindleSync({ deadline });
+    void syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: '/Vault A',
+      clock,
+      delay,
+    }).catch(
+      // Never settles here: its fetch never comes back. The catch only keeps the test tidy.
+      () => {},
+    );
+    const joined = syncKindle({
+      source: stuckNotebook(),
+      sink: fakeKindleSink(),
+      vault: '/Vault A',
+      clock,
+      delay,
+    });
+    joined.catch(() => {});
+    const behind = fakeKindleNotebook({ library: libraryOf() });
+    const waiting = syncKindle({
+      source: behind,
+      sink: fakeKindleSink(),
+      vault: '/Vault B',
+      clock,
+      delay,
+    });
+    waiting.catch(() => {});
+    await new Promise((settle) => setImmediate(settle));
+    // Only the join counts down; the sync waiting its turn behind a healthy one does not.
+    expect(deadline.waits).toEqual([KINDLE_SYNC_JOIN_DEADLINE_MS]);
+    deadline.elapse();
+    await expect(joined).rejects.toBeInstanceOf(KindleSyncStuckError);
+    await new Promise((settle) => setImmediate(settle));
+    expect(deadline.waits).toEqual([KINDLE_SYNC_JOIN_DEADLINE_MS, KINDLE_SYNC_JOIN_DEADLINE_MS]);
+    deadline.elapse();
+    await expect(waiting).rejects.toBeInstanceOf(KindleSyncStuckError);
+    expect(behind.calls).toEqual([]);
+  });
+});
