@@ -75,6 +75,13 @@ describe('placing a highlight whose words tie on its own page', () => {
   });
 });
 
+describe('placing a highlight whose own page could not be read', () => {
+  it('keeps it on its page at its saved boxes, its words unknown rather than missing', () => {
+    const placed = placeOnItsPage(anchorFor('north channel', 2), { count: 3, text: null });
+    expect(placed).toEqual({ kind: 'boxes', page: 2, rects: [SAVED_BOX] });
+  });
+});
+
 describe('placing a highlight by its words anywhere', () => {
   it('finds words that moved to another page', () => {
     expect(placeByWords(anchorFor('ferry waited', 3, 1), PAGES)).toMatchObject({

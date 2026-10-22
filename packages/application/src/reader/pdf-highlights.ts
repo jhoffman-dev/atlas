@@ -1,6 +1,7 @@
 import {
   areaHighlight,
   areaImageName,
+  heldHighlight,
   imageFolderFor,
   readHighlights,
   readLiteratureNote,
@@ -11,6 +12,7 @@ import {
   type HighlightStyle,
   type ImagePlacement,
   type LiteratureNote,
+  type NewHighlight,
   type PageRect,
   type PdfPageText,
   type TextSelection,
@@ -71,10 +73,12 @@ export async function highlightSelection(
 /**
  * Saves the picture of `box` on page `page` of `pdf`, then adds an area
  * highlight showing it to the note. `picture` draws the box as a PNG, and is
- * asked only when the note is free to be written (no unsaved typing in it).
- * The picture is made for the highlight alone: when the note then refuses
- * it, or already holds that area, the picture is put in the Trash again — it
- * is DFAI's own file, made a moment ago, and nothing links it.
+ * asked only when the note is free to be written (no unsaved typing in it)
+ * and does not already hold that area: a repeat makes no picture at all
+ * (ADR-0043). The picture is made for the highlight alone: when the note
+ * then refuses it, the picture is put in the Trash again — it is DFAI's own
+ * file, made a moment ago — but only once the note, read again, is seen not
+ * to embed it, since a write can land and still report a failure.
  */
 export async function highlightArea(
   ports: WritePorts & {
@@ -104,37 +108,49 @@ export async function highlightArea(
   },
 ): Promise<AppendedHighlight> {
   if (ports.openNotes.state(note) === 'dirty') throw new UnsavedTypingError(note);
+  const folder = imageFolderFor({ notePath: note, placement });
+  const name = areaImageName({ file: pdf, page });
+  const area = (image: string) =>
+    areaHighlight({ page, box, image, style, ...(comment !== undefined && { comment }) });
+  const held = await heldInNote(ports, { note, highlight: area(`${folder}/${name}`) });
+  if (held !== null) return { id: held, added: false };
   const image = await writeImageUnderFreeName({
     fs: ports.fs,
-    folder: imageFolderFor({ notePath: note, placement }),
-    name: areaImageName({ file: pdf, page }),
+    folder,
+    name,
     bytes: await picture(),
   });
-  const highlight = areaHighlight({
-    page,
-    box,
-    image,
-    style,
-    ...(comment !== undefined && { comment }),
-  });
   try {
-    const added = await addHighlight(ports, { path: note, highlight });
-    if (!added.added) await discardPicture(ports.fs, image);
+    const added = await addHighlight(ports, { path: note, highlight: area(image) });
+    if (!added.added) await discardUnlessEmbedded(ports, { note, image });
     return added;
   } catch (error) {
-    await discardPicture(ports.fs, image);
+    await discardUnlessEmbedded(ports, { note, image });
     throw error;
   }
 }
 
-async function discardPicture(
-  fs: Pick<VaultFsPort, 'trashEntry'>,
-  image: VaultPath,
+/** The id of the highlight the note already holds for `highlight`'s passage, or null. */
+async function heldInNote(
+  ports: Pick<LiteratureNoteWritePorts, 'fs' | 'markdown'>,
+  { note, highlight }: { note: VaultPath; highlight: NewHighlight },
+): Promise<string | null> {
+  const { text } = await ports.fs.readTextFile(note);
+  return heldHighlight({ text, highlight, noteBlocks: (body) => ports.markdown.noteBlocks(body) });
+}
+
+/** Puts the picture in the Trash unless the note, read again, embeds it. */
+async function discardUnlessEmbedded(
+  ports: { readonly fs: Pick<VaultFsPort, 'readTextFile' | 'trashEntry'> },
+  { note, image }: { note: VaultPath; image: VaultPath },
 ): Promise<void> {
   try {
-    await fs.trashEntry({ path: image });
+    const { text } = await ports.fs.readTextFile(note);
+    if (text.includes(`![[${image}]]`)) return;
+    await ports.fs.trashEntry({ path: image });
   } catch {
-    // The refusal that sent us here is the news; a picture left unlinked in the vault costs nothing.
+    // The refusal that sent us here is the news. A note that cannot be read again may embed the
+    // picture, so it is kept; a picture left unlinked in the vault costs nothing.
   }
 }
 

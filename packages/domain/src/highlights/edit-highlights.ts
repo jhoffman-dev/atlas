@@ -132,6 +132,29 @@ export function appendHighlights({
 }
 
 /**
+ * The id of the highlight in the note that already holds `highlight`'s
+ * passage, by the rule `appendHighlights` adds by, or null when appending it
+ * would write it. Asked before anything is made for a highlight — an area's
+ * picture — so a repeat makes nothing.
+ */
+export function heldHighlight({
+  text,
+  highlight,
+  noteBlocks,
+}: {
+  text: string;
+  highlight: NewHighlight;
+  noteBlocks: ReadNoteBlocks;
+}): string | null {
+  const [match] = passagesOf(
+    readHighlights(text, noteBlocks),
+    [highlight],
+    [exactWords(highlight)],
+  );
+  return match !== undefined && 'held' in match ? match.held : null;
+}
+
+/**
  * Writes the block of the highlight at `writer` the first time it is asked
  * for, with a new id, and answers that id every time after.
  */

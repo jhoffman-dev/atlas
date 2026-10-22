@@ -5,6 +5,7 @@ import {
   type PageRect,
   type PagePoint,
   type PdfPageText,
+  type PlacedTextRun,
 } from '@dfai/domain';
 import type { ReaderDocument, ReaderHighlight, ReaderPageSize } from './reader-types.ts';
 
@@ -165,33 +166,62 @@ const TextLayer = memo(function TextLayer({
     spans.forEach((span, at) => {
       const wanted = Number(span.dataset['width']);
       const own = natural[at] ?? 0;
-      span.style.transform = own > 0 && wanted > 0 ? `scaleX(${wanted / own})` : '';
+      const stretch = own > 0 && wanted > 0 ? `scaleX(${wanted / own})` : '';
+      const turn = span.dataset['turn'];
+      span.style.transform = turn === undefined ? stretch : `rotate(${turn}rad) ${stretch}`.trim();
     });
   }, [text, width, height]);
   return (
     <div ref={layer} className="pdf-text">
-      {text.runs.map((run) =>
-        run.text === '' ? null : (
-          <span
-            key={run.start}
-            data-start={run.start}
-            data-end={run.end}
-            data-width={run.box.width * width}
-            className="pdf-text__run"
-            style={{
-              left: run.box.x * width,
-              top: run.box.y * height,
-              fontSize: run.box.height * height,
-              lineHeight: 1,
-            }}
-          >
-            {run.text}
-          </span>
-        ),
-      )}
+      {text.runs.map((run) => (run.text === '' ? null : runSpan(run, width, height)))}
     </div>
   );
 });
+
+/**
+ * One run where it is drawn: along its box, or, for a turned run, from its
+ * first letter's top corner and turned the way it reads, so a drag along
+ * turned text selects the part of it under the pointer.
+ */
+function runSpan(run: PlacedTextRun, width: number, height: number) {
+  const placed = spanPlacement(run, width, height);
+  return (
+    <span
+      key={run.start}
+      data-start={run.start}
+      data-end={run.end}
+      data-width={placed.length}
+      data-turn={placed.turn}
+      className="pdf-text__run"
+      style={{ left: placed.left, top: placed.top, fontSize: placed.size, lineHeight: 1 }}
+    >
+      {run.text}
+    </span>
+  );
+}
+
+function spanPlacement(run: PlacedTextRun, width: number, height: number) {
+  const { box, direction } = run;
+  if (direction === undefined) {
+    return {
+      left: box.x * width,
+      top: box.y * height,
+      size: box.height * height,
+      length: box.width * width,
+      turn: undefined,
+    };
+  }
+  const advance = { x: direction.advance.x * width, y: direction.advance.y * height };
+  const rise = { x: direction.rise.x * width, y: direction.rise.y * height };
+  return {
+    // The span's top-left corner is the top of the run's first letter.
+    left: direction.origin.x * width + rise.x,
+    top: direction.origin.y * height + rise.y,
+    size: Math.hypot(rise.x, rise.y),
+    length: Math.hypot(advance.x, advance.y),
+    turn: Math.atan2(advance.y, advance.x),
+  };
+}
 
 const Marks = memo(function Marks({
   page,

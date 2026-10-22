@@ -18,7 +18,8 @@ import type { PdfDocument } from './ports.ts';
  * page's text to read; only when some are not there is every page read, to
  * look outward. What is still not found is drawn at its saved boxes, or
  * listed as not found. A page that cannot be read costs the highlights
- * on it their words, never the other pages' highlights theirs.
+ * on it their words — each is drawn at its saved boxes there, never taken
+ * for a copy of its words elsewhere — and never the other pages' theirs.
  */
 
 /** A PDF highlight of the note, and where it is drawn. */
@@ -68,7 +69,7 @@ async function placeOnOwnPage(
   anchor: PdfAnchor,
 ): Promise<HighlightPlacement | null> {
   if (anchor.quote === null || anchor.page > opened.pageCount) return null;
-  const text = await pageTextOrEmpty(opened, anchor.page);
+  const text = await pageTextOrUnknown(opened, anchor.page);
   return placeOnItsPage(anchor, { count: opened.pageCount, text });
 }
 
@@ -82,11 +83,16 @@ async function offsetOf(opened: TextSource, placement: HighlightPlacement): Prom
 
 /** Page `page`'s text, or a page with none when pdf.js cannot read it. */
 async function pageTextOrEmpty(opened: TextSource, page: number): Promise<PdfPageText> {
+  return (await pageTextOrUnknown(opened, page)) ?? EMPTY_PAGE_TEXT;
+}
+
+/** Page `page`'s text, or null when pdf.js cannot read it: its words are unknown, not absent. */
+async function pageTextOrUnknown(opened: TextSource, page: number): Promise<PdfPageText | null> {
   try {
     return await opened.pageText(page);
   } catch {
-    // One damaged page is a page without words, not a document without highlights.
-    return EMPTY_PAGE_TEXT;
+    // One damaged page is a page whose words are unknown, not a document without highlights.
+    return null;
   }
 }
 

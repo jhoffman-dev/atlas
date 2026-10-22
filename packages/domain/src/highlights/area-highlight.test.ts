@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lineNoteBlocks as noteBlocks } from '../testing/line-note-blocks.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
-import { appendHighlights, type NewHighlight } from './edit-highlights.ts';
+import { appendHighlights, heldHighlight, type NewHighlight } from './edit-highlights.ts';
 import { readHighlights } from './highlight-block.ts';
 import { literatureFileOf, literatureNoteText, UnsafeSourceFileError } from './literature-note.ts';
 
@@ -50,6 +50,17 @@ describe('an area highlight', () => {
     const again = append(AREA, once);
     expect(again.highlights[0]?.added).toBe(false);
     expect(again.text).toBe(once);
+  });
+
+  it('is known to be held before anything is made for it, whatever picture it would embed', () => {
+    const once = append(AREA);
+    const elsewhere = { ...AREA, image: 'attachments/another name.png' };
+    expect(heldHighlight({ text: once.text, highlight: elsewhere, noteBlocks })).toBe(
+      once.highlights[0]?.id,
+    );
+    expect(heldHighlight({ text: SOURCE, highlight: AREA, noteBlocks })).toBeNull();
+    const moved = { ...AREA, anchor: { ...AREA.anchor, page: 5 } };
+    expect(heldHighlight({ text: once.text, highlight: moved, noteBlocks })).toBeNull();
   });
 
   it('refuses a picture a link could not name', () => {

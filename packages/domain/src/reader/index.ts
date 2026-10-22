@@ -12,7 +12,13 @@ export {
   rectsForRange,
   textOffsetNear,
 } from './pdf-page-text.ts';
-export type { PdfPageText, PdfTextRun, PlacedTextRun } from './pdf-page-text.ts';
+export type {
+  PageVector,
+  PdfPageText,
+  PdfTextRun,
+  PlacedTextRun,
+  RunDirection,
+} from './pdf-page-text.ts';
 export {
   areaHighlight,
   draggedBox,

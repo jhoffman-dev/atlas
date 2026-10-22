@@ -69,6 +69,36 @@ describe("an area highlight's picture is never trashed while its note embeds it"
   });
 });
 
+describe("an area highlight's picture when the pane's reload after the write fails", () => {
+  it('is kept, since the note was written and embeds it', async () => {
+    const { fs, files } = memoryFiles({ [NOTE]: SOURCE, [PDF]: new Uint8Array([37]) });
+    let draws = 0;
+    const ports = {
+      fs,
+      markdown: readerMarkdown(),
+      openNotes: fakeOpenNotes({
+        state: () => 'clean',
+        reload: () => {
+          throw new Error('the pane is gone');
+        },
+      }),
+      rng: { next: () => ((draws += 1) % 36) / 36 + 0.001 },
+    };
+    await expect(
+      highlightArea(ports, {
+        note: NOTE,
+        pdf: PDF,
+        page: 2,
+        box: { x: 0.1, y: 0.2, width: 0.3, height: 0.2 },
+        picture: async () => new Uint8Array([137, 80, 78, 71]),
+        placement: 'attachments',
+        style: DEFAULT_HIGHLIGHT_STYLE,
+      }),
+    ).rejects.toThrow('the pane is gone');
+    expect(files.has('attachments/The Lantern Keepers p2 area.png')).toBe(true);
+  });
+});
+
 describe('a note that already holds the area writes no picture for it again (ADR-0043)', () => {
   it('writes no file at all when the same box is highlighted a second time', async () => {
     const memory = memoryFiles({ [NOTE]: SOURCE, [PDF]: new Uint8Array([37]) });

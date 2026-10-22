@@ -8,11 +8,35 @@ import type { PageRect } from '../highlights/anchor.ts';
  * corner, as ADR-0043 stores a box, so they hold at any zoom.
  */
 
-/** One run of text as the PDF lays it out: its words, its box, and whether a line ends after it. */
+/** A point on the page, or a step across it, in fractions of the page's width and height. */
+export interface PageVector {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * Which way a run reads as it is shown, for a run not set left to right
+ * across the page: from `origin`, where its first letter sits on its
+ * baseline, `advance` to where its last letter ends, and `rise` from the
+ * baseline to the top of its letters. A page turned upside down reads right
+ * to left, a quarter turn reads down the page.
+ */
+export interface RunDirection {
+  readonly origin: PageVector;
+  readonly advance: PageVector;
+  readonly rise: PageVector;
+}
+
+/**
+ * One run of text as the PDF lays it out: its words, its box, whether a line
+ * ends after it, and, when it is turned, which way it reads. A run with no
+ * direction reads left to right along its box.
+ */
 export interface PdfTextRun {
   readonly text: string;
   readonly box: PageRect;
   readonly endsLine: boolean;
+  readonly direction?: RunDirection;
 }
 
 /** A run with where its words are in the page's text: `[start, end)`. */
@@ -54,9 +78,10 @@ const SAME_LINE = 0.002;
 
 /**
  * The boxes that cover `[start, end)` of the page's text: a part of each run
- * it touches, in proportion to the characters it takes, then the parts that
- * sit side by side on one line made one box. A range of only line breaks,
- * or outside the text, covers nothing.
+ * it touches, in proportion to the characters it takes, cut along the way
+ * the run reads from its first letter, then the parts that sit side by side
+ * on one line made one box. A range of only line breaks, or outside the
+ * text, covers nothing.
  */
 export function rectsForRange(page: PdfPageText, start: number, end: number): PageRect[] {
   const parts: PageRect[] = [];
@@ -64,17 +89,35 @@ export function rectsForRange(page: PdfPageText, start: number, end: number): Pa
     const from = Math.max(start, run.start);
     const to = Math.min(end, run.end);
     if (to <= from || run.text.length === 0) continue;
-    const share = run.box.width / run.text.length;
-    parts.push(
-      onPage({
-        x: run.box.x + share * (from - run.start),
-        y: run.box.y,
-        width: share * (to - from),
-        height: run.box.height,
-      }),
-    );
+    parts.push(onPage(partOfRun(run, from - run.start, to - run.start)));
   }
   return joinLines(parts.filter((rect) => rect.width > 0 && rect.height > 0));
+}
+
+/** The box round characters `[from, to)` of a run, measured from its first letter. */
+function partOfRun(run: PdfTextRun, from: number, to: number): PageRect {
+  const { box, direction } = run;
+  if (direction === undefined) {
+    const share = box.width / run.text.length;
+    return { x: box.x + share * from, y: box.y, width: share * (to - from), height: box.height };
+  }
+  const { origin, advance, rise } = direction;
+  const at = (share: number) => ({
+    x: origin.x + advance.x * share,
+    y: origin.y + advance.y * share,
+  });
+  const first = at(from / run.text.length);
+  const last = at(to / run.text.length);
+  const corners = [
+    first,
+    last,
+    ...[first, last].map((p) => ({ x: p.x + rise.x, y: p.y + rise.y })),
+  ];
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
 
 /**

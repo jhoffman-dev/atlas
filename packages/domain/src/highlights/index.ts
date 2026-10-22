@@ -44,6 +44,7 @@ export type {
 export { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
 export {
   appendHighlights,
+  heldHighlight,
   HighlightNotFoundError,
   HighlightNotReadBackError,
   highlightNamed,

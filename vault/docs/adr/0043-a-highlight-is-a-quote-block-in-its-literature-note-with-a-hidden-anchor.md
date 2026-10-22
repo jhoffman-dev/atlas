@@ -116,7 +116,11 @@ Options weighed for where a highlight lives:
    `exact`/`prefix`/`suffix` is the W3C TextQuoteSelector. A Kindle highlight
    has `location` or, for a book whose export has pages and no locations,
    `page`; its `exact` is the export's own words, written when it is added. A PDF box is in
-   fractions of its page from the top-left, so it holds at any zoom. A PDF
+   fractions of its page from the top-left, so it holds at any zoom. A part
+   of a run of text is cut along the way the run reads, from its first
+   letter — down a page turned a quarter, leftward on one upside down, down
+   a column of a font written top to bottom — and stored as the box round
+   that part, so `rects` keep one shape whatever the page's turn. A PDF
    highlight with no words — an area on a scanned page — has no `exact` and
    at least one box. Its quote is a picture of the area, saved among the
    vault's images and embedded as the quote's line — `> ![[attachments/The Art
@@ -127,8 +131,11 @@ of War p4 area.png]]` — so the highlight shows something wherever it is
    `UnsafeSourceFileError`; the picture is named from the PDF's name with those
    characters made spaces and the name cut to fit a file name once numbered. The
    picture is written only for a highlight that is added: a note with unsaved
-   typing, or one that already holds the area, writes none, and a picture
-   written for a highlight the note then refuses goes to the Trash again. Removing
+   typing, or one that already holds the area (`heldHighlight`, asked before
+   the picture is drawn), writes none, and a picture written for a highlight
+   the note then refuses goes to the Trash again — but only once the note,
+   read again, does not embed it, since a write can land and still report a
+   failure (a lost answer, a pane's reload failing). Removing
    an area highlight takes out the block and **keeps the picture**: it is a file
    in the person's vault that DFAI will not delete on their behalf, another note
    may embed it, and an orphan costs only disk space. The style is `mark` (`highlight` or `underline`) and
@@ -303,6 +310,10 @@ of War p4 area.png]]` — so the highlight shows something wherever it is
    it matches count, so copies whose surroundings differ in whitespace alone
    tie, and copies that tie are no match at all rather than the first. The page `near` is made a section index first: a fraction rounds
    down, a number out of range is the nearest end, and NaN is the first.
+   A PDF highlight whose own page cannot be read is drawn at its saved boxes
+   on that page: its words there are unknown, not missing, so a copy of them
+   on another page is not taken for it. A page that failed to read is read
+   again the next time it is asked for.
 
 10. **The index has a `highlights` table** (schema 19): `path, idx, id, kind,
 quote, comment, mark, color, anchor` — the quote's plain words, the

@@ -273,6 +273,38 @@ describe('the PDF reader', () => {
   });
 });
 
+describe('a turned run in the text layer', () => {
+  it('starts at its first letter and turns the way it reads, so a drag along it picks part of it', async () => {
+    const down = pdfPageText([
+      {
+        text: 'Down the margin',
+        box: { x: 0.5, y: 0.1, width: 0.02, height: 0.4 },
+        endsLine: false,
+        direction: {
+          origin: { x: 0.5, y: 0.1 },
+          advance: { x: 0, y: 0.4 },
+          rise: { x: 0.02, y: 0 },
+        },
+      },
+    ]);
+    reader({ pdf: fakeDocument([down]), highlights: [] });
+    const span = (await screen.findByText('Down the margin')) as HTMLElement;
+    // 612 x 792 at the first zoom: its letters' top is 0.02 of the width right of its start.
+    const zoomed = Number.parseFloat(span.style.fontSize) / (0.02 * 612);
+    expect(Number.parseFloat(span.style.left)).toBeCloseTo(0.52 * 612 * zoomed, 3);
+    expect(Number.parseFloat(span.style.top)).toBeCloseTo(0.1 * 792 * zoomed, 3);
+    // Turned a quarter, then stretched along the way it reads.
+    expect(span.style.transform.startsWith(`rotate(${Math.PI / 2}rad) scaleX(`)).toBe(true);
+  });
+
+  it('leaves a run that reads across the page untouched', async () => {
+    reader();
+    const span = (await screen.findByText('A light kept is a promise kept.')) as HTMLElement;
+    expect(span.dataset['turn']).toBeUndefined();
+    expect(span.style.transform).toMatch(/^scaleX\([\d.]+\)$/);
+  });
+});
+
 describe('the highlights panel', () => {
   const panel = (highlights: ReaderHighlight[]) => {
     const props = {

@@ -32,14 +32,17 @@ export type DrawnPlacement = Exclude<HighlightPlacement, { kind: 'lost' }>;
  * The highlight's words on the page it names, or null when they are not
  * there. Two copies that tie (`findQuote` finds neither) are not a reason to
  * look on another page, where a copy is a different passage: the highlight
- * stays on its own page, at the boxes it was saved with. An area has no
- * words, and a page out of the document has none either.
+ * stays on its own page, at the boxes it was saved with. So does one whose
+ * page could not be read (`text` null): its words are not known to be
+ * missing, so a copy elsewhere is not taken for it. An area has no words,
+ * and a page out of the document has none either.
  */
 export function placeOnItsPage(
   anchor: PdfAnchor,
-  pages: { readonly count: number; readonly text: PdfPageText },
+  pages: { readonly count: number; readonly text: PdfPageText | null },
 ): HighlightPlacement | null {
   if (anchor.quote === null || anchor.page > pages.count) return null;
+  if (pages.text === null) return placeByBoxes(anchor, pages.count);
   const match = findQuote(pages.text.text, anchor.quote);
   if (match === null) {
     return hasWordsOf(anchor.quote.exact, pages.text) ? placeByBoxes(anchor, pages.count) : null;

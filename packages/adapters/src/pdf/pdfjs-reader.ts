@@ -12,6 +12,7 @@ import {
   type PdfMetadata,
   type PdfPageText,
   type PdfTextRun,
+  type RunDirection,
 } from '@dfai/domain';
 import { drawInto, MAX_CANVAS_PIXELS, pictureOf, type PageDrawing } from './page-drawing.ts';
 import {
@@ -97,11 +98,12 @@ function openedDocument(proxy: PDFDocumentProxy): PdfJsDocument {
       return sizeOf(await pageAt(page));
     },
     pageText(page) {
-      let text = texts.get(page);
-      if (text === undefined) {
-        text = pageAt(page).then(textOf);
-        texts.set(page, text);
-      }
+      const known = texts.get(page);
+      if (known !== undefined) return known;
+      const text = pageAt(page).then(textOf);
+      texts.set(page, text);
+      // A failed read is not remembered: the next ask reads the page again. The caller gets the failure.
+      text.catch(() => texts.get(page) === text && texts.delete(page));
       return text;
     },
     metadata: async () => metadataOf(await proxy.getMetadata()),
@@ -124,13 +126,57 @@ async function textOf(page: PDFPageProxy): Promise<PdfPageText> {
   const runs: PdfTextRun[] = [];
   for (const item of content.items) {
     if (!('str' in item)) continue;
+    const vertical = content.styles[item.fontName]?.vertical === true;
+    const shape = shapeOf(item, vertical);
+    const direction = directionOnPage(shape, viewport);
     runs.push({
       text: item.str,
       endsLine: item.hasEOL,
-      box: boxOnPage(item, viewport),
+      box: boxOnPage(shape, viewport),
+      ...(!upright(direction) && { direction }),
     });
   }
   return pdfPageText(runs);
+}
+
+/** A point, or a step, in the PDF's user space (points, y up). */
+interface UserPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** A text item in the PDF's user space: its first letter's baseline point, the step to its end, the step up its letters. */
+interface ItemShape {
+  readonly start: UserPoint;
+  readonly along: UserPoint;
+  readonly rise: UserPoint;
+}
+
+interface Viewport {
+  readonly transform: number[];
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * A text item's shape from its transform. A font written top to bottom
+ * advances down its letters by `height` (pdf.js gives such an item its
+ * length there, not in `width`), and its column is centred on the item's
+ * origin, as vertical writing places a glyph.
+ */
+function shapeOf(
+  item: { transform: number[]; width: number; height: number },
+  vertical: boolean,
+): ItemShape {
+  const [a = 0, b = 0, c = 0, d = 0, left = 0, baseline = 0] = item.transform;
+  if (vertical) {
+    return {
+      start: { x: left - a / 2, y: baseline - b / 2 },
+      along: unit(-c, -d, item.height),
+      rise: { x: a, y: b },
+    };
+  }
+  return { start: { x: left, y: baseline }, along: unit(a, b, item.width), rise: { x: c, y: d } };
 }
 
 /**
@@ -139,18 +185,12 @@ async function textOf(page: PDFPageProxy): Promise<PdfPageText> {
  * page turned a quarter, and text set sideways or at an angle, are boxed
  * where they are, not as a line along the page's width.
  */
-function boxOnPage(
-  item: { transform: number[]; width: number },
-  viewport: { transform: number[]; width: number; height: number },
-): PageRect {
-  const [a = 0, b = 0, c = 0, d = 0, left = 0, baseline = 0] = item.transform;
-  // The item's own axes in the PDF's user space: along the text (item.width long) and up the letters.
-  const along = Math.hypot(a, b) === 0 ? { x: 0, y: 0 } : unit(a, b, item.width);
+function boxOnPage({ start, along, rise }: ItemShape, viewport: Viewport): PageRect {
   const corners = [
-    [left, baseline],
-    [left + along.x, baseline + along.y],
-    [left + c, baseline + d],
-    [left + along.x + c, baseline + along.y + d],
+    [start.x, start.y],
+    [start.x + along.x, start.y + along.y],
+    [start.x + rise.x, start.y + rise.y],
+    [start.x + along.x + rise.x, start.y + along.y + rise.y],
   ].map(([x = 0, y = 0]) => shown([x, y], viewport.transform));
   const xs = corners.map(([x = 0]) => x);
   const ys = corners.map(([, y = 0]) => y);
@@ -164,14 +204,35 @@ function boxOnPage(
   });
 }
 
+/** Which way a text item reads as it is shown, in fractions of the page. */
+function directionOnPage({ start, along, rise }: ItemShape, viewport: Viewport): RunDirection {
+  const [a = 1, b = 0, c = 0, d = 1] = viewport.transform;
+  const fraction = ([x = 0, y = 0]: number[]) => ({
+    x: x / viewport.width,
+    y: y / viewport.height,
+  });
+  // A step is turned by the viewport but not moved: only its linear part applies.
+  const step = (by: UserPoint) => fraction([a * by.x + c * by.y, b * by.x + d * by.y]);
+  return {
+    origin: fraction(shown([start.x, start.y], viewport.transform)),
+    advance: step(along),
+    rise: step(rise),
+  };
+}
+
+/** Whether a run reads left to right across the page with its letters upright, as its box alone says. */
+const upright = ({ advance, rise }: RunDirection): boolean =>
+  advance.y === 0 && advance.x >= 0 && rise.x === 0 && rise.y <= 0;
+
 /** A point of the PDF's user space where the viewport puts it. */
 function shown([x, y]: [number, number], [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0]: number[]) {
   return [a * x + c * y + e, b * x + d * y + f];
 }
 
+/** A step of `length` the way `(x, y)` points; no step when it points nowhere. */
 const unit = (x: number, y: number, length: number) => {
   const size = Math.hypot(x, y);
-  return { x: (x / size) * length, y: (y / size) * length };
+  return size === 0 ? { x: 0, y: 0 } : { x: (x / size) * length, y: (y / size) * length };
 };
 
 function metadataOf({ info }: { info: object }): PdfMetadata {

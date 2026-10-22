@@ -80,6 +80,53 @@ describe('the boxes a range covers', () => {
   });
 });
 
+describe('the boxes a range covers in a turned run', () => {
+  // "Downward" reads down the page from (0.5, 0.1), its letters' tops to its right.
+  const down = pdfPageText([
+    {
+      text: 'Downward',
+      box: { x: 0.5, y: 0.1, width: 0.02, height: 0.4 },
+      endsLine: false,
+      direction: { origin: { x: 0.5, y: 0.1 }, advance: { x: 0, y: 0.4 }, rise: { x: 0.02, y: 0 } },
+    },
+  ]);
+  // "Backward" is upside down: it starts at x 0.9 and reads leftward to 0.5.
+  const upsideDown = pdfPageText([
+    {
+      text: 'Backward',
+      box: { x: 0.5, y: 0.2, width: 0.4, height: 0.02 },
+      endsLine: false,
+      direction: {
+        origin: { x: 0.9, y: 0.2 },
+        advance: { x: -0.4, y: 0 },
+        rise: { x: 0, y: 0.02 },
+      },
+    },
+  ]);
+
+  it('cuts down a run that reads down the page, from its first letter', () => {
+    const [box] = rectsForRange(down, 0, 4);
+    expect(box?.x).toBeCloseTo(0.5);
+    expect(box?.width).toBeCloseTo(0.02);
+    expect(box?.y).toBeCloseTo(0.1);
+    expect(box?.height).toBeCloseTo(0.2);
+  });
+
+  it('cuts from the right end of a run that reads right to left', () => {
+    const [first] = rectsForRange(upsideDown, 0, 4);
+    expect(first?.x).toBeCloseTo(0.7);
+    expect(first?.width).toBeCloseTo(0.2);
+    const [last] = rectsForRange(upsideDown, 4, 8);
+    expect(last?.x).toBeCloseTo(0.5);
+  });
+
+  it('covers the whole box for the whole run', () => {
+    const [box] = rectsForRange(down, 0, 8);
+    expect(box?.y).toBeCloseTo(0.1);
+    expect(box?.height).toBeCloseTo(0.4);
+  });
+});
+
 describe('a box cut to its page', () => {
   it('keeps the part on the page, and takes a number that is not one as the edge', () => {
     const cut = onPage({ x: -0.1, y: 0.5, width: 0.3, height: 0.8 });

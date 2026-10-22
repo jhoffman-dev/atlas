@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { findQuote, hasWords, quoteSelectorAt, rectsForRange } from '@dfai/domain';
 import { PdfUnreadableError } from '@dfai/application';
 import { fixturePdf, lanternFixturePdf } from '../../../../tools/pdf/fixture-pdf.ts';
@@ -103,5 +104,27 @@ describe('a PDF pdf.js cannot read', () => {
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(PdfUnreadableError);
     expect((error as PdfUnreadableError).reason).toMatch(/^it is damaged or not a PDF/);
+  });
+});
+
+describe("a page's words that pdf.js failed to read once", () => {
+  it('are read again on the next ask, not remembered as the failure', async () => {
+    const probe = await getDocument({ data: new Uint8Array(lanternFixturePdf()), verbosity: 0 })
+      .promise;
+    const pageType = Object.getPrototypeOf(await probe.getPage(1)) as {
+      getTextContent: () => Promise<unknown>;
+    };
+    await probe.loadingTask.destroy();
+    const failOnce = vi
+      .spyOn(pageType, 'getTextContent')
+      .mockRejectedValueOnce(new Error('the content stream ran short'));
+    try {
+      const document = await open();
+      await expect(document.pageText(2)).rejects.toThrow('the content stream ran short');
+      expect((await document.pageText(2)).text).toContain('Fog');
+      await document.close();
+    } finally {
+      failOnce.mockRestore();
+    }
   });
 });
