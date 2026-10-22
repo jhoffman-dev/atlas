@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { NoteChange } from '@dfai/domain';
 import type { IndexedNote, IndexPort } from '@dfai/application';
@@ -97,9 +97,15 @@ describe('All highlights, told that a note changed', () => {
     const { invalidator, statements, quotes } = await openHighlights();
     statements.length = 0;
 
-    invalidator.noteChanges(VAULT, [changed('Notes/Plain.md', 'note')]);
-    invalidator.indexMoved(VAULT);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Fake timers, so everything the news set off — promises and timers alike — has run when it is checked.
+    vi.useFakeTimers();
+    try {
+      invalidator.noteChanges(VAULT, [changed('Notes/Plain.md', 'note')]);
+      invalidator.indexMoved(VAULT);
+      await vi.runAllTimersAsync();
+    } finally {
+      vi.useRealTimers();
+    }
 
     expect(statements).toEqual([]);
     expect(quotes()).toEqual(['Alpha one', 'Beta one']);
