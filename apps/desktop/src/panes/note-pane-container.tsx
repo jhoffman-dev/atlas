@@ -55,7 +55,7 @@ import type {
   ThumbnailQueue,
   VaultFsPort,
 } from '@dfai/application';
-import { notePaneScope } from '@dfai/application';
+import { notePaneScope, readerHighlightLinks } from '@dfai/application';
 import {
   ThumbnailValue,
   ChatToggleProvider,
@@ -95,7 +95,7 @@ import {
   rowPeek,
   type Peek,
 } from '../overlay.ts';
-import { clickLink } from '../workspace/open-place.ts';
+import { clickLink, type LinkPlaces } from '../workspace/open-place.ts';
 import { useTabPageHistory } from '../workspace/tab-history.ts';
 import {
   closePane,
@@ -243,6 +243,8 @@ export interface PaneContext {
   readonly exporting: ExportCommands | null;
   /** Told the problem with a link — one that could not be made or followed — or null once one leads somewhere. */
   readonly onLinkProblem: (message: string | null) => void;
+  /** Where a link to a highlight or a PDF leads (#506), read from the vault. */
+  readonly linkPlaces: LinkPlaces;
   /** What `[[` is making, the window over, so no two panes make one name twice. */
   readonly notesBeingMade: NotesBeingMade;
   /** A template's own ways to be renamed, deleted and made a note, and the page listing them all (ADR-0026). */
@@ -364,6 +366,7 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
           overlays,
           notePaths: wiring.pane.notePaths,
           onProblem: wiring.pane.onLinkProblem,
+          places: wiring.pane.linkPlaces,
         },
         {
           pane,
@@ -550,6 +553,17 @@ export function useNotePane({
   });
   const dashboard = useDashboard({ note: note.open, index, types, notePaths, indexKey });
   const literaturePdf = literaturePdfOf(note.open?.properties ?? null);
+  // Each highlight of a PDF's literature note offers "Open in PDF" (#506), as its file reads.
+  const highlightLinks = useMemo(
+    () =>
+      note.open === null
+        ? null
+        : readerHighlightLinks(notes.markdown, {
+            properties: note.open.properties,
+            text: note.open.onDisk,
+          }),
+    [notes.markdown, note.open],
+  );
   const dashboardEditing = useDashboardEditing({
     note: note.open,
     isDashboard: dashboard.results !== null,
@@ -897,6 +911,7 @@ export function useNotePane({
       people={context.people}
       bookmarks={bookmarks}
       transclusions={transclusions}
+      highlightLinks={highlightLinks}
       {...(queries !== undefined && { queries })}
       picking={picking}
       // A template's lines are what new notes start with, not work to promote.

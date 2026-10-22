@@ -27,6 +27,7 @@ mod sqlite_source;
 pub mod page_snapshot;
 mod vault;
 mod vault_entries;
+mod vault_file_list;
 mod vault_files;
 mod watcher;
 
@@ -105,6 +106,7 @@ pub fn run() {
             vault::current_vault,
             vault::list_directory,
             vault::list_notes,
+            vault_file_list::list_vault_files,
             index::index_open,
             index::index_clear,
             index::index_manifest,

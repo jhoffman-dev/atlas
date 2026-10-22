@@ -45,6 +45,18 @@ export interface VaultFsPort {
     skipDirectories: readonly string[];
     maxDepth: number;
   }): Promise<readonly NoteListing[]>;
+  /**
+   * Every file in the vault whose name ends `.extension` (any case), in one
+   * walk: what `[[name.pdf]]` is looked for among (#506). Told what to skip
+   * and how deep to go as `listNotes` is. A link to a folder is not walked; a
+   * folder that cannot be read is left out, the vault that cannot be read is
+   * an error.
+   */
+  listFiles(options: {
+    extension: string;
+    skipDirectories: readonly string[];
+    maxDepth: number;
+  }): Promise<readonly VaultPath[]>;
   /** Reads many notes at once, so indexing is not thousands of round trips. */
   readNotes(paths: readonly string[]): Promise<readonly NoteFile[]>;
   readTextFile(path: VaultPath): Promise<NoteContents>;

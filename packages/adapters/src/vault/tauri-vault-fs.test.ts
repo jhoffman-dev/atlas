@@ -59,6 +59,34 @@ describe('tauriVaultFs.listDirectory', () => {
   });
 });
 
+describe('tauriVaultFs.listFiles', () => {
+  beforeEach(() => {
+    invoke.mockReset();
+  });
+
+  it('asks the host for one walk, with the extension, the folders to skip and the depth', async () => {
+    invoke.mockResolvedValue(['Library/a.pdf', '.trash/b.pdf']);
+    await expect(
+      tauriVaultFs.listFiles({ extension: 'pdf', skipDirectories: ['.git'], maxDepth: 7 }),
+    ).resolves.toEqual(['Library/a.pdf', '.trash/b.pdf']);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith('list_vault_files', {
+      extension: 'pdf',
+      skipDirectories: ['.git'],
+      maxDepth: 7,
+    });
+  });
+
+  it('propagates a vault that cannot be listed', async () => {
+    invoke.mockImplementation(() =>
+      Promise.reject(new VaultAccessError('the vault could not be listed')),
+    );
+    await expect(
+      tauriVaultFs.listFiles({ extension: 'pdf', skipDirectories: [], maxDepth: 32 }),
+    ).rejects.toThrow('the vault could not be listed');
+  });
+});
+
 describe('tauriVaultFs.listNotes', () => {
   beforeEach(() => {
     invoke.mockReset();

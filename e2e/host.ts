@@ -914,6 +914,35 @@ export async function installHost(
         };
         return walk('', '');
       }
+      case 'list_vault_files': {
+        // Like the real host (`FileWalk::list`): one walk, the told folders
+        // skipped, a link to a folder not walked, a folder that cannot be read
+        // left out, and the vault that cannot be read an error.
+        const asked = args as { extension: string; skipDirectories: string[]; maxDepth: number };
+        const skip = new Set(asked.skipDirectories);
+        const suffix = `.${asked.extension.toLowerCase()}`;
+        const root = openRoot();
+        const found: string[] = [];
+        const walk = async (dir: string, depth: number): Promise<void> => {
+          const listed = await readdir(join(root, dir), { withFileTypes: true }).catch(
+            (error: unknown) => {
+              if (dir === '') throw error;
+              return null;
+            },
+          );
+          for (const entry of listed ?? []) {
+            if (skip.has(entry.name)) continue;
+            const relative = dir === '' ? entry.name : `${dir}/${entry.name}`;
+            if (entry.isDirectory()) {
+              if (depth < asked.maxDepth) await walk(relative, depth + 1);
+            } else if (entry.isFile() && entry.name.toLowerCase().endsWith(suffix)) {
+              found.push(relative);
+            }
+          }
+        };
+        await walk('', 0);
+        return found.sort();
+      }
       // What @tauri-apps/api/app asks for; without these the status bar reports
       // a failure on every page, which shows up as an alert in every test.
       case 'plugin:app|name':

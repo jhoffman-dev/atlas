@@ -158,6 +158,33 @@
   border-color: var(--focus);
 }
 
+/* A highlight in its literature note offers to open it in its reader (#506): a
+   quiet button in the block's corner, the block's own link. */
+.raw-block:has(.raw-block__open) {
+  position: relative;
+}
+
+.raw-block .raw-block__open {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  color: var(--ink-2);
+  cursor: pointer;
+  font: 500 var(--text-header) / 1.4 var(--font-ui);
+  padding: 1px 8px;
+  position: absolute;
+  right: 8px;
+  text-decoration: none;
+  top: 8px;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.raw-block .raw-block__open:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
 /* A comment on its own, kept but not read: the markers round a meeting's summary (#186). */
 .raw-block--comment {
   background: none;
@@ -1112,6 +1139,40 @@
   font-weight: 500;
   margin-left: 4px;
   padding: 1px 6px;
+}
+
+/* A shown highlight's source (#506): its title and page, in its kind's pastel
+   (`data-hue`), the embed's link to the document at the highlight. */
+.block-embed__source-chip {
+  align-items: center;
+  background: var(--pill);
+  border-radius: var(--radius-chip);
+  color: var(--pill-ink);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--text-header);
+  font-weight: 500;
+  gap: 5px;
+  max-width: 100%;
+  padding: 1px 7px;
+  text-decoration: none;
+}
+
+.block-embed__source-chip:hover {
+  background: var(--pill);
+  color: var(--pill-ink);
+  filter: brightness(0.96);
+}
+
+.block-embed__source-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block-embed__source-place {
+  flex: none;
+  opacity: 0.8;
 }
 
 /* The block reads as it does in its own note, not at a feed's smaller size. */

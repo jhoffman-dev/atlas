@@ -93,6 +93,7 @@ export function PdfReader(props: PdfReaderProps) {
       setPanelOpen(true);
       show(id);
     },
+    onPage: (page) => goTo(page),
   });
   return (
     <>
@@ -298,26 +299,36 @@ function useFlash() {
   return { flashing, flash };
 }
 
-/** Shows the highlight asked for, once per ask, as soon as it is among the highlights placed. */
+/**
+ * Shows the highlight asked for, once per ask, as soon as it is among the
+ * highlights placed; or the page asked for, as soon as it is asked.
+ */
 function useReveal({
   reveal,
   highlights,
   onReveal,
+  onPage,
 }: {
   reveal: ReaderReveal | null;
   highlights: readonly ReaderHighlight[];
   onReveal: (id: string) => void;
+  onPage: (page: number) => void;
 }) {
   const handled = useRef<number | null>(null);
-  const latest = useRef(onReveal);
+  const latest = useRef({ onReveal, onPage });
   useEffect(() => {
-    latest.current = onReveal;
+    latest.current = { onReveal, onPage };
   });
   useEffect(() => {
     if (reveal === null || handled.current === reveal.key) return;
+    if ('page' in reveal) {
+      handled.current = reveal.key;
+      latest.current.onPage(reveal.page);
+      return;
+    }
     if (!highlights.some((highlight) => highlight.id === reveal.id)) return;
     handled.current = reveal.key;
-    latest.current(reveal.id);
+    latest.current.onReveal(reveal.id);
   }, [reveal, highlights]);
 }
 

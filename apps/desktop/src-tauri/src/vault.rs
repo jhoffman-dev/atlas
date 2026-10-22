@@ -354,7 +354,7 @@ pub async fn create_note(
     .await
 }
 
-fn root_of(state: &State<'_, VaultState>) -> Result<PathBuf, String> {
+pub(crate) fn root_of(state: &State<'_, VaultState>) -> Result<PathBuf, String> {
     state.get().ok_or_else(|| "no vault is open".to_string())
 }
 

@@ -407,6 +407,65 @@ asin, file: null })` in the literature type's home folder (`Library` by
       says it wrote (`written`) counts only entries that changed the note, so
       the sync's "Added N" is what the notes took.
 
+12. **A highlight followed opens where it lives** (#506). A link to a
+    highlight, `[[Source#^id]]`, its embed's source chip, and the "Open in
+    PDF" a highlight offers in its own note open the source's reader at the
+    highlight, scrolled to it and flashed, when the app has a reader for the
+    source's kind (`READER_KINDS`: `pdf`; #505 adds `epub`) and the note
+    names its file. Anything else — a Kindle book, a block of the note that
+    is no highlight, a note that is no literature note — opens the note at
+    the block, as ADR-0022 has every block link do. The rule is the
+    domain's (`highlightOpening`); `whereHighlightOpens` and
+    `openHighlightPlace` are the application's, for links and for the
+    library's rows. An embed of a highlight wears a chip of its source's
+    title and its page (`p. 3`) or Kindle location (`loc. 41`), in its
+    kind's pastel. A highlight whose words are not found opens at its saved
+    page, and the reader says it could not find the exact spot.
+    The reader opens only a file it can read: a `kind: pdf` note whose
+    `file:` is not a `.pdf` opens its note at the block and offers no
+    "Open in PDF".
+
+    `[[file.pdf]]` names a PDF of the vault, found among the vault's real
+    files, not the literature notes, so a PDF with no literature note is
+    found. The host lists them in one walk (`list_vault_files`, told what to
+    skip and how deep as the note walk is, ADR-0014): it does not follow a
+    link to a folder, leaves out a folder it cannot read, and fails only
+    when the vault itself cannot be read; the hidden entries are left out
+    in TypeScript (`isVisibleEntry`). Names are compared with accents
+    composed and case folded, as note links are, so a file written
+    decomposed is found by a link typed composed. As in Obsidian a link writes the
+    end of a path: `[[reading.pdf]]` or `[[Courses/reading.pdf]]` matches
+    `Library/Courses/reading.pdf`. Where several files match, one is picked
+    the same way every time: the exact path, else the shortest path, else
+    the first alphabetically. A link never opens a path no file has; where
+    no PDF matches, the link is read as a note's (`[[Budget review.pdf]]`
+    opens a note of that name), and where neither exists it says "No PDF or
+    note called …". `[[paper.pdf#^id]]` opens at that highlight and
+    `[[paper.pdf#page=3]]` at page 3; an id the PDF's note does not have
+    opens the reader, which says it couldn't find that highlight.
+
+    A link whose target takes a read to know opens late, so it opens only
+    while the vault it was clicked in is still the open one, it is still
+    the latest click on its surface (a pane, or the peek), and the tab it
+    was made in still shows what it showed — in the peek, the same opening
+    of the peek, not just the same note; a ⌘-click opens a tab of its own
+    and needs only its pane, found by the pane's key, so a pane renumbered
+    by another's closing still gets it. A reveal a reader tab holds
+    belongs to its document and is spent: another PDF in the same tab, or
+    coming back, is not brought to it. The chip, "Open in PDF" and an
+    embed's name are links in the tab order and follow on Enter, with the
+    click's modifiers. A key pressed on any such control drawn inside the
+    note — not editable, its nearest `contenteditable` false — is the
+    control's, never the editor's (`ControlKeys`): no keymap sees it. On a
+    focused non-field control inside the document, Backspace, Delete,
+    Enter (with any modifiers), typed characters and ⌘/Ctrl+z/y/b/i/u are
+    kept from the browser as well as the editor, so no key on it changes
+    the note or goes Back; fields keep every key, and buttons keep Enter
+    and Space. Tab, Escape, the arrows and composition keys are left alone.
+    This runs as a capture-phase listener on `view.dom`, not
+    `handleDOMEvents`, because a React node view's `stopEvent` hides keys
+    from ProseMirror's handlers. It also fixes #529, a bug on main.
+
 ## Consequences
 
 - A literature note reads as a list of quotes with comments in Obsidian; its

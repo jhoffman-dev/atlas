@@ -73,6 +73,7 @@ function fakeVault(text: string = ORIGINAL, { coarse = false }: { coarse?: boole
 
   const fs: VaultFsPort = {
     listDirectory: async () => [],
+    listFiles: async () => [],
     listNotes: async () => [],
     readNotes: async () => [],
     readBinaryFile: async () => new ArrayBuffer(0),

@@ -11,6 +11,7 @@ import {
   BLOCK_EMBED_NODE,
   linkOfNode,
   type EditorDocument,
+  type HighlightChip,
   type Transclusion,
   type WikiLink,
 } from '@dfai/domain';
@@ -66,23 +67,65 @@ function EmbedView({ node, extension, selected }: NodeViewProps) {
       aria-label={`Embedded block from ${title || 'this note'}`}
     >
       <div className="block-embed__source" contentEditable={false}>
-        <Icon name="doc" size={13} />
-        <span
-          className="block-embed__name wikilink"
-          role="link"
-          tabIndex={0}
-          data-wikilink={link.target}
-          {...(link.heading !== null && { 'data-heading': link.heading })}
-          title="Open the block where it is written"
-        >
-          {title || 'This note'}
-        </span>
+        {state.kind === 'block' && state.highlight !== null ? (
+          <SourceChip chip={state.highlight} link={link} />
+        ) : (
+          <>
+            <Icon name="doc" size={13} />
+            <span
+              className="block-embed__name wikilink"
+              role="link"
+              tabIndex={0}
+              {...linkTargetAttributes(link)}
+              title="Open the block where it is written"
+            >
+              {title || 'This note'}
+            </span>
+          </>
+        )}
         {(state.kind === 'block' || state.kind === 'missing-block') && state.archived && (
           <span className="block-embed__chip">Archived</span>
         )}
       </div>
       <EmbedBody state={state} link={link} options={{ source, reading }} />
     </NodeViewWrapper>
+  );
+}
+
+/** The attributes a click is read from: the note's editor follows any element carrying them as its link. */
+function linkTargetAttributes(link: WikiLink) {
+  return {
+    'data-wikilink': link.target,
+    ...(link.heading !== null && { 'data-heading': link.heading }),
+  };
+}
+
+/**
+ * A shown highlight's source (#506): its title and page or location, in its
+ * kind's pastel. It is the embed's link, so a click — ⌘-click, ⌘⇧-click —
+ * follows it as any link: to the reader at the highlight, or to the note.
+ */
+function SourceChip({ chip, link }: { chip: HighlightChip; link: WikiLink }) {
+  const where = chip.place === null ? chip.title : `${chip.title}, ${chip.place}`;
+  return (
+    <span
+      className="block-embed__source-chip wikilink"
+      data-hue={chip.hue}
+      data-source-kind={chip.kind}
+      role="link"
+      tabIndex={0}
+      {...linkTargetAttributes(link)}
+      aria-label={chip.opensInReader ? `Open ${where} in the reader` : `Open ${where} in its note`}
+      title={
+        chip.opensInReader
+          ? 'Open the document at this highlight'
+          : 'Open the highlight in its note'
+      }
+    >
+      <Icon name="book" size={12} />
+      <span className="block-embed__source-title">{chip.title}</span>
+      {chip.place !== null && <span className="block-embed__source-place">{chip.place}</span>}
+    </span>
   );
 }
 

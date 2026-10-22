@@ -111,6 +111,7 @@ const shownBlock = (content: EditorNode[]): Transclusion => ({
   archived: false,
   fragment: { kind: 'block', id: 'p1' },
   content: doc(...content),
+  highlight: null,
 });
 
 describe('a wiki link', () => {
@@ -428,6 +429,7 @@ describe('footnotes on one page', () => {
     archived: false,
     fragment: { kind: 'heading', heading: 'Cited' },
     content: doc(...content),
+    highlight: null,
   });
   const cited = blockEmbedNode({ target: 'Sources', heading: '#Cited', alias: null });
 
@@ -483,6 +485,7 @@ describe('footnotes on one page, attacked again (P32-07)', () => {
     archived: false,
     fragment: { kind: 'heading', heading: 'Cited' },
     content: doc(raw('Theirs.[^1]'), raw('[^1]: C.')),
+    highlight: null,
   });
   /** Each footnote defined on the page, as markdown matches one: case folded. */
   const definedLabels = (page: readonly EditorNode[]) =>

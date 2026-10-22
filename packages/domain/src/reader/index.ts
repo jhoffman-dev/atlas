@@ -60,3 +60,14 @@ export {
 } from './pdf-library.ts';
 export type { IncomingPdf, PdfCheck, PdfMetadata } from './pdf-library.ts';
 export { placeOfFile } from './document-place.ts';
+export {
+  highlightChip,
+  highlightOpening,
+  namesPdf,
+  pdfLinkTarget,
+  placeLabel,
+  READER_KINDS,
+  readerLinkLabel,
+  SOURCE_KIND_HUES,
+} from './highlight-opening.ts';
+export type { HighlightChip, HighlightOpening, LiteratureNoteRead } from './highlight-opening.ts';
