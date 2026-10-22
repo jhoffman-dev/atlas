@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures.ts';
-import { createVault, installHost, sidebarSection } from './host.ts';
+import { createVault, installHost, saveStatus, sidebarSection } from './host.ts';
 import { lanternFixturePdf } from '../tools/pdf/fixture-pdf.ts';
 
 /*
@@ -31,6 +31,8 @@ const literature = (title: string, file: string, id: string) =>
   `---\ntype: literature\nkind: pdf\ntitle: "${title}"\nfile: "[[${file}]]"\n---\n` +
   highlight(id, 'The last lamp was lit');
 
+const LITERATURE = 'Library/The Lantern Keepers.md';
+
 const READING =
   '# Reading notes\n\n![[The Lantern Keepers#^lamp03]]\n\n![[Lantern Summary Source#^sum001]]\n\n' +
   '- In a list: [[The Lantern Keepers#^lamp03|the last lamp]]\n\n' +
@@ -38,7 +40,8 @@ const READING =
   'No literature note: [[loose.pdf]]\n\n' +
   'A note named like a PDF: [[Budget review.pdf]]\n\n' +
   'At a page: [[the-lantern-keepers.pdf#page=4]]\n\n' +
-  'Missing: [[Nowhere.pdf]]\n';
+  'Missing: [[Nowhere.pdf]]\n\n' +
+  'A spot its note does not have: [[the-lantern-keepers.pdf#^gone99]]\n';
 
 async function openVault(page: Page) {
   const vault = await createVault();
@@ -46,7 +49,7 @@ async function openVault(page: Page) {
     [PDF]: lanternFixturePdf(),
     'Courses/Spring/reading.pdf': lanternFixturePdf(),
     'Courses/Autumn/reading.pdf': lanternFixturePdf(),
-    'Library/The Lantern Keepers.md': literature('The Lantern Keepers', PDF, 'lamp03'),
+    [LITERATURE]: literature('The Lantern Keepers', PDF, 'lamp03'),
     // kind: pdf, but the file: it names is a Markdown note.
     'Library/Lantern Summary Source.md': literature(
       'Lantern Summary Source',
@@ -79,6 +82,7 @@ async function openVault(page: Page) {
     .getByRole('treeitem', { name: 'Reading notes', exact: true })
     .click();
   await expect(page.getByRole('article', { name: 'Reading notes' })).toBeVisible();
+  return vault;
 }
 
 const reader = (page: Page) => page.locator('.pdf-reader');
@@ -148,4 +152,72 @@ test('[[Nowhere.pdf]] says no PDF or note is called so', async ({ page }) => {
   await openVault(page);
   await page.locator('.editor [data-wikilink="Nowhere.pdf"]').click();
   await expect(page.getByRole('alert')).toContainText('No PDF or note called "Nowhere.pdf"');
+});
+
+test('[[the-lantern-keepers.pdf#^gone99]], a spot its note does not have, opens the reader and says so', async ({
+  page,
+}) => {
+  await openVault(page);
+  await page
+    .locator('.editor [data-wikilink="the-lantern-keepers.pdf"][data-heading="#^gone99"]')
+    .click();
+  await expect(reader(page)).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText("Couldn't find the highlight ^gone99");
+});
+
+/*
+ * Verification (#506, PR #522 after 54f53fc3): "Open in PDF" followed from
+ * the keyboard with a modifier opens where it is asked and leaves the note
+ * as it was. Found red: with the highlight's block selected (as it is when
+ * the note opens on it), ⌘↩ and ⇧↩ reach the editor's hard-break keys,
+ * which replace the block, and the note is saved without its highlight.
+ */
+
+const tabs = (page: Page) => page.getByRole('tablist', { name: 'Pane 1 tabs' }).getByRole('tab');
+async function openLiteratureNote(page: Page) {
+  const vault = await openVault(page);
+  await sidebarSection(page, 'userSpace').getByRole('treeitem', { name: 'Library' }).click();
+  await sidebarSection(page, 'userSpace')
+    .getByRole('treeitem', { name: 'The Lantern Keepers', exact: true })
+    .click();
+  const offer = page.getByRole('link', { name: 'Open in PDF' });
+  await expect(offer).toBeVisible();
+  return { vault, note: page.getByRole('article', { name: 'The Lantern Keepers' }), offer };
+}
+
+// The note opens with its highlight block selected, as a note whose first block is one does.
+for (const keys of ['Meta+Enter', 'Shift+Enter']) {
+  test(`${keys} on "Open in PDF" leaves the highlight in its note`, async ({ page }) => {
+    const { note, offer } = await openLiteratureNote(page);
+    await offer.focus();
+    await page.keyboard.press(keys);
+    await expect(note.getByText('The last lamp was lit', { exact: false })).toHaveCount(1);
+  });
+}
+
+test('Meta+Enter on "Open in PDF" opens the reader in a new tab', async ({ page }) => {
+  const { offer } = await openLiteratureNote(page);
+  await offer.focus();
+  await page.keyboard.press('Meta+Enter');
+  await expect(tabs(page)).toHaveCount(2);
+  await expect(page.locator('.pdf-reader')).toBeVisible();
+});
+
+test('keys that edit text, pressed on "Open in PDF", leave the note as it is on disk', async ({
+  page,
+}) => {
+  const { vault, note, offer } = await openLiteratureNote(page);
+  const before = await vault.read(LITERATURE);
+  await offer.focus();
+  for (const key of ['x', 'Backspace', 'Delete', 'Shift+Enter', 'Meta+Enter']) {
+    await page.keyboard.press(key);
+    // A key that follows the link leaves the note: back to it for the next.
+    if (key.endsWith('Enter')) {
+      await tabs(page).filter({ hasText: 'The Lantern Keepers' }).first().click();
+      await page.getByRole('link', { name: 'Open in PDF' }).focus();
+    }
+  }
+  await expect(note.getByText('The last lamp was lit', { exact: false })).toHaveCount(1);
+  await expect(saveStatus(note)).toHaveText('Saved');
+  expect(await vault.read(LITERATURE)).toBe(before);
 });

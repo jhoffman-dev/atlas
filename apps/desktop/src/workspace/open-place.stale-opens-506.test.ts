@@ -273,3 +273,101 @@ describe('the highlight a reader tab holds, when the tab moves to another PDF', 
     expect(result.current).toBeNull();
   });
 });
+
+/*
+ * Verification (#506, PR #522 after 54f53fc3): a `[[…pdf]]` link opens
+ * once the vault has been walked, which on a large vault is a quarter of a
+ * second or more. Whether the late answer is still wanted must say which
+ * vault, which pane, and which peek the click was made in.
+ */
+
+function slowPdfWiring() {
+  const walk = deferred<VaultPath | null>();
+  const places: LinkPlaces = {
+    blockOpening: async ({ note, blockId }) => ({ kind: 'note', note, blockId }),
+    linkedPdf: () => walk.promise,
+  };
+  const store = createWorkspaceStore({ remembered: { read: () => null, write: () => {} } });
+  loadVault(store, '/vaults/first');
+  openNote(store, PLAN);
+  return {
+    walk,
+    linking: {
+      store,
+      reveals: createRevealStore(),
+      overlays: createOverlayStore(),
+      notePaths: [PLAN, ELSEWHERE],
+      onProblem: vi.fn(),
+      places,
+    },
+  };
+}
+
+const everyPlace = (w: ReturnType<typeof slowPdfWiring>) =>
+  workspaceNow(w.linking.store).panes.flatMap((pane) =>
+    pane.tabs.map((tab) => tab.history.current),
+  );
+
+describe('a [[…pdf]] link still being looked up when the vault is switched', () => {
+  it('a ⌘-click does not open the first vault’s PDF path in the second vault', async () => {
+    const w = slowPdfWiring();
+    clickLink(w.linking, {
+      pane: 0,
+      target: 'the-lantern-keepers.pdf',
+      how: 'new-tab',
+      inPeek: false,
+    });
+    loadVault(w.linking.store, '/vaults/second');
+    openNote(w.linking.store, PLAN);
+    w.walk.resolve(PDF);
+    await flush();
+    expect(everyPlace(w)).not.toContainEqual({ kind: 'document', path: PDF });
+  });
+
+  it('a plain click does not open it either, though the second vault shows a note of the same path', async () => {
+    const w = slowPdfWiring();
+    clickLink(w.linking, {
+      pane: 0,
+      target: 'the-lantern-keepers.pdf',
+      how: 'here',
+      inPeek: false,
+    });
+    loadVault(w.linking.store, '/vaults/second');
+    openNote(w.linking.store, PLAN);
+    w.walk.resolve(PDF);
+    await flush();
+    expect(everyPlace(w)).not.toContainEqual({ kind: 'document', path: PDF });
+  });
+});
+
+describe('a ⌘-click on [[…pdf]] in the right-hand pane, when the left-hand one is closed', () => {
+  it('still opens its tab: the pane it was made in is still there, only renumbered', async () => {
+    const w = slowPdfWiring();
+    splitPane(w.linking.store, 0);
+    openNote(w.linking.store, ELSEWHERE);
+    clickLink(w.linking, {
+      pane: 1,
+      target: 'the-lantern-keepers.pdf',
+      how: 'new-tab',
+      inPeek: false,
+    });
+    closePane(w.linking.store, 0);
+    w.walk.resolve(PDF);
+    await flush();
+    expect(everyPlace(w)).toContainEqual({ kind: 'document', path: PDF });
+  });
+});
+
+describe('a [[…pdf]] link clicked in the peek, the peek closed and opened again on the same note', () => {
+  it('does not close the new peek nor replace the pane', async () => {
+    const w = slowPdfWiring();
+    openPeek(w.linking.overlays, { path: ELSEWHERE, from: null });
+    clickLink(w.linking, { pane: 0, target: 'the-lantern-keepers.pdf', how: 'here', inPeek: true });
+    closePeek(w.linking.overlays);
+    openPeek(w.linking.overlays, { path: ELSEWHERE, from: null });
+    w.walk.resolve(PDF);
+    await flush();
+    expect(everyPlace(w)).toEqual([{ kind: 'note', path: PLAN }]);
+    expect(peekNow(w.linking.overlays)?.path).toBe(ELSEWHERE);
+  });
+});

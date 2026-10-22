@@ -5,6 +5,8 @@ import {
   literatureNoteText,
   type HighlightAnchor,
   type LiteratureNote,
+  type VaultEntry,
+  type VaultPath,
 } from '@dfai/domain';
 import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
 import { memoryFiles, readerMarkdown } from '../testing/fake-reader.ts';
@@ -229,17 +231,120 @@ describe('the PDF a `[[…pdf]]` link names', () => {
 
   it('is none for a link to a note, and the vault is not read for it', async () => {
     const listDirectory = vi.fn(async () => []);
-    const fs = fakeVaultFs({ listDirectory });
+    const listFiles = vi.fn(async () => []);
+    const fs = fakeVaultFs({ listDirectory, listFiles });
     expect(await linkedPdf({ fs }, 'The Lantern Keepers')).toBeNull();
     expect(listDirectory).not.toHaveBeenCalled();
+    expect(listFiles).not.toHaveBeenCalled();
   });
 
   it('is an error, not a guess, when the vault cannot be read', async () => {
     const fs = fakeVaultFs({
-      listDirectory: async () => {
+      listFiles: async () => {
         throw new Error('the disk went away');
       },
     });
     await expect(linkedPdf({ fs }, 'fog.pdf')).rejects.toThrow('the disk went away');
+  });
+});
+
+/*
+ * Verification (#506, PR #522 after 54f53fc3): `[[…pdf]]` walked the vault
+ * folder by folder, one host call per folder, on every click; and one folder
+ * that could not be listed failed every PDF link, where the note walk skips it.
+ * The fake host below answers both ways of asking from one tree, as the real
+ * one does: by folder (`listDirectory`) and in one walk (`listFiles`).
+ */
+
+const directory = (path: string): VaultEntry =>
+  ({ kind: 'directory', name: path.split('/').at(-1), path: createVaultPath(path) }) as VaultEntry;
+const file = (path: string): VaultEntry =>
+  ({ kind: 'file', name: path.split('/').at(-1), path: createVaultPath(path) }) as VaultEntry;
+
+/** A host over a tree of listings, counting every call made to it; a folder in `unreadable` cannot be listed. */
+function treeHost(
+  tree: ReadonlyMap<string, readonly VaultEntry[]>,
+  unreadable = new Set<string>(),
+) {
+  let calls = 0;
+  const listed = (path: string): readonly VaultEntry[] => {
+    if (unreadable.has(path)) throw new Error(`Permission denied: ${path}`);
+    return tree.get(path) ?? [];
+  };
+  const fs = fakeVaultFs({
+    listDirectory: async (path: VaultPath) => {
+      calls += 1;
+      return listed(path);
+    },
+    // As the host walks: a folder it cannot read is skipped, the vault's own root is not.
+    listFiles: async ({ extension }) => {
+      calls += 1;
+      const found: VaultPath[] = [];
+      const walk = (path: string) => {
+        let entries: readonly VaultEntry[];
+        try {
+          entries = listed(path);
+        } catch (error) {
+          if (path === '') throw error;
+          return;
+        }
+        for (const entry of entries) {
+          if (entry.kind === 'directory') walk(entry.path);
+          else if (entry.name.toLowerCase().endsWith(`.${extension}`)) found.push(entry.path);
+        }
+      };
+      walk('');
+      return found;
+    },
+  });
+  return { fs, calls: () => calls };
+}
+
+/** A vault of `areas` × 10 × 20 folders, ten notes in each, as a tree of listings. */
+function largeVault(areas: number): Map<string, VaultEntry[]> {
+  const tree = new Map<string, VaultEntry[]>([['', []]]);
+  const add = (parent: string, entry: VaultEntry) => {
+    const listed = tree.get(parent) ?? [];
+    if (!listed.some((known) => known.path === entry.path)) listed.push(entry);
+    tree.set(parent, listed);
+    if (entry.kind === 'directory' && !tree.has(entry.path)) tree.set(entry.path, []);
+  };
+  for (let a = 0; a < areas; a += 1) {
+    add('', directory(`Area ${a}`));
+    for (let b = 0; b < 10; b += 1) {
+      add(`Area ${a}`, directory(`Area ${a}/Topic ${b}`));
+      for (let c = 0; c < 20; c += 1) {
+        const folder = `Area ${a}/Topic ${b}/Folder ${c}`;
+        add(`Area ${a}/Topic ${b}`, directory(folder));
+        for (let n = 0; n < 10; n += 1) add(folder, file(`${folder}/Note ${n}.md`));
+      }
+    }
+  }
+  add('Area 3/Topic 4/Folder 5', file('Area 3/Topic 4/Folder 5/the-lantern-keepers.pdf'));
+  return tree;
+}
+
+describe('following [[…pdf]] in a vault of 2,000 folders and 20,000 notes', () => {
+  it('does not ask the host to list every folder of the vault on each click', async () => {
+    const host = treeHost(largeVault(10));
+    expect(await linkedPdf({ fs: host.fs }, 'the-lantern-keepers.pdf')).toBe(
+      'Area 3/Topic 4/Folder 5/the-lantern-keepers.pdf',
+    );
+    // Measured: 2,111 calls per click, 250–360 ms on disk for this vault
+    // (readdir + stat, before IPC); the note walk does it in one `listNotes`.
+    expect(host.calls()).toBeLessThanOrEqual(33);
+  });
+});
+
+describe('following [[…pdf]] when one folder of the vault cannot be listed', () => {
+  it('still finds the PDF in the folders that can, as the note walk does', async () => {
+    const pdf = 'Library/the-lantern-keepers.pdf';
+    const tree = new Map<string, VaultEntry[]>([
+      ['', [directory('Library'), directory('Private')]],
+      ['Library', [file(pdf)]],
+    ]);
+    // A folder this user may not read, or one a sync removed mid-walk.
+    const host = treeHost(tree, new Set(['Private']));
+    expect(await linkedPdf({ fs: host.fs }, 'the-lantern-keepers.pdf')).toBe(pdf);
   });
 });
