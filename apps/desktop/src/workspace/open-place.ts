@@ -1,5 +1,6 @@
 import {
   linkFragment,
+  placeOfFile,
   resolveWikiLinkTarget,
   type NavigationPlace,
   type VaultPath,
@@ -22,7 +23,30 @@ import {
  * you are working.
  */
 export function openNote(store: WorkspaceStore, path: VaultPath, how: OpenHow = 'here'): void {
-  openPlace(store, { kind: 'note', path }, how);
+  // A PDF in Pages or search opens in the reader (#504), not as a note.
+  openPlace(store, placeOfFile(path), how);
+}
+
+/**
+ * Opens the PDF at `path` in the reader, where asked, brought to highlight
+ * `highlightId` and flashing it once the reader has placed it (#504); no
+ * highlight opens it at its start. What a transcluded highlight's click
+ * calls (#506).
+ */
+export function openDocumentAt(
+  { store, reveals }: { store: WorkspaceStore; reveals: RevealStore },
+  {
+    path,
+    highlightId,
+    how = 'here',
+  }: { path: VaultPath; highlightId: string | null; how?: OpenHow },
+): void {
+  openPlace(store, { kind: 'document', path }, how);
+  if (highlightId === null) return;
+  const ws = workspaceNow(store);
+  const shown = ws.panes[ws.focused];
+  if (shown === undefined) return;
+  requestReveal(reveals, { tab: shown.active, path, fragment: { kind: 'block', id: highlightId } });
 }
 
 /** What following a link needs beside the store. */

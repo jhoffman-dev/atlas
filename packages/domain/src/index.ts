@@ -50,3 +50,4 @@ export * from './daily/index.ts';
 export * from './granola/index.ts';
 export * from './home-folders/index.ts';
 export * from './highlights/index.ts';
+export * from './reader/index.ts';

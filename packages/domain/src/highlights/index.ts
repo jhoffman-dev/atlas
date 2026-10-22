@@ -59,6 +59,7 @@ export {
   readLiteratureNote,
   LITERATURE_NOTE_TYPE,
   LIBRARY_HOME,
+  literatureFileOf,
   literatureNotePath,
   literatureNoteText,
   safeSourceFileName,

@@ -118,7 +118,13 @@ Options weighed for where a highlight lives:
    `page`; its `exact` is the export's own words, written when it is added. A PDF box is in
    fractions of its page from the top-left, so it holds at any zoom. A PDF
    highlight with no words — an area on a scanned page — has no `exact` and
-   at least one box. The style is `mark` (`highlight` or `underline`) and
+   at least one box. Its quote is a picture of the area, saved among the
+   vault's images and embedded as the quote's line — `> ![[attachments/The Art
+of War p4 area.png]]` — so the highlight shows something wherever it is
+   transcluded (#504). The embed is markdown DFAI writes, not the source's
+   words, so it is not escaped; a picture whose path a link could not name
+   (`#`, `^`, `|`, `[`, `]`, a line break) is refused with
+   `UnsafeSourceFileError`. The style is `mark` (`highlight` or `underline`) and
    `color` (yellow, green, blue, pink, purple, orange); one this build does
    not know is drawn as a yellow highlight, and its bytes are kept.
 

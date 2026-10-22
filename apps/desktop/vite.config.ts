@@ -1,7 +1,9 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const pkg = (name: string) =>
@@ -49,6 +51,60 @@ function chunkFilesMeta(): Plugin {
   };
 }
 
+/** pdf.js's own folder, found through the adapters' dependency on it, as the entity table is. */
+const pdfjsRoot = dirname(
+  dirname(dirname(fromAdapters.resolve('pdfjs-dist/legacy/build/pdf.mjs'))),
+);
+
+/**
+ * pdf.js's files that are not code (#504): the standard fonts a PDF names
+ * without embedding, the character maps of East Asian text, and the image
+ * decoders scans are often made with. pdf.js fetches them by address, so they
+ * are part of the build, under `pdfjs/`, and never fetched from anywhere else.
+ * The JavaScript sandbox in `wasm/` is left out: DFAI runs no PDF's scripts.
+ */
+const PDFJS_FOLDERS: Readonly<Record<string, (name: string) => boolean>> = {
+  cmaps: () => true,
+  standard_fonts: () => true,
+  wasm: (name) => !name.startsWith('quickjs'),
+};
+
+function pdfjsFiles(): Plugin {
+  const fileOf = (folder: string, name: string): string | null => {
+    const keep = PDFJS_FOLDERS[folder];
+    if (keep === undefined || !keep(name)) return null;
+    const path = normalize(join(pdfjsRoot, folder, name));
+    return path.startsWith(join(pdfjsRoot, folder) + sep) && existsSync(path) ? path : null;
+  };
+  return {
+    name: 'atlas-pdfjs-files',
+    configureServer(server) {
+      server.middlewares.use('/pdfjs', (request, response, next) => {
+        const [folder = '', name = ''] = (request.url ?? '')
+          .split('?')[0]!
+          .split('/')
+          .filter(Boolean);
+        const path = fileOf(folder, decodeURIComponent(name));
+        if (path === null || !statSync(path).isFile()) return next();
+        response.end(readFileSync(path));
+      });
+    },
+    generateBundle() {
+      for (const folder of Object.keys(PDFJS_FOLDERS)) {
+        for (const name of readdirSync(join(pdfjsRoot, folder))) {
+          const path = fileOf(folder, name);
+          if (path === null) continue;
+          this.emitFile({
+            type: 'asset',
+            fileName: `pdfjs/${folder}/${name}`,
+            source: readFileSync(path),
+          });
+        }
+      }
+    },
+  };
+}
+
 /**
  * The commit this build is made from, short, for Settings → About and the
  * API's status (#481). Null outside a git checkout — a build from a source
@@ -68,7 +124,7 @@ function buildCommit(): string | null {
 }
 
 export default defineConfig({
-  plugins: [react(), chunkFilesMeta()],
+  plugins: [react(), chunkFilesMeta(), pdfjsFiles()],
   // The MCP server's path in this checkout, so Settings can offer a command that
   // runs it. Only right for a build made from source, which is how DFAI is run.
   define: {
@@ -89,6 +145,11 @@ export default defineConfig({
       'decode-named-character-reference': entityTable,
       '@dfai/domain': pkg('domain'),
       '@dfai/application': pkg('application'),
+      // Before '@dfai/adapters', as '@dfai/ui/graph' is before '@dfai/ui': pdf.js stays in
+      // the reader's chunk, loaded the first time a PDF opens.
+      '@dfai/adapters/pdf': fileURLToPath(
+        new URL('../../packages/adapters/src/pdf/index.ts', import.meta.url),
+      ),
       '@dfai/adapters': pkg('adapters'),
       '@dfai/ui': pkg('ui'),
     },

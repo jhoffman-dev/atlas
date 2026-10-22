@@ -38,6 +38,9 @@ export function activeSidebarPageOf(
       const owner = viewOwner(place.path);
       return owner === null ? { kind: 'note', path: place.path } : { kind: 'type', name: owner };
     }
+    case 'document':
+      // The PDF's own row in Pages is marked, as a note's is.
+      return { kind: 'note', path: place.path };
     case 'type':
       return { kind: 'type', name: place.name };
     case 'query':

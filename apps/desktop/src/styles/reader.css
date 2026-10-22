@@ -1,0 +1,508 @@
+/* The PDF reader (#504).
+   One of the section files styles/index.css imports in cascade order. The
+   reader is a page tab: its bar (page-bar), then three columns — the outline
+   or page pictures, the pages on the well, the highlights panel — with the
+   find bar and any notice over the pages. A page is drawn white whatever the
+   theme, as paper is; the highlights on it are the --mark hues. */
+
+.pdf-reader {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdf-reader__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pdf-reader__pages {
+  background: var(--well);
+  flex: 1;
+  outline: none;
+  overflow: auto;
+  position: relative;
+}
+
+.pdf-reader__slot {
+  display: flex;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.pdf-reader__zoom {
+  color: var(--ink-2);
+  font-size: var(--text-meta);
+  min-width: 3.5em;
+  text-align: center;
+}
+
+.pdf-reader__notice {
+  margin: var(--space-2) var(--space-4) 0;
+}
+
+.pdf-reader__opening {
+  color: var(--ink-3);
+  padding: var(--space-6);
+}
+
+/* ---- A page ---- */
+
+.pdf-page {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  position: relative;
+}
+
+.pdf-page__canvas {
+  display: block;
+}
+
+.pdf-page__failed {
+  color: var(--ink-3);
+  left: 0;
+  padding: var(--space-4);
+  position: absolute;
+  top: 0;
+}
+
+/* The words over the drawing, invisible but there to select. */
+.pdf-text {
+  inset: 0;
+  line-height: 1;
+  overflow: hidden;
+  position: absolute;
+}
+
+.pdf-text__run {
+  color: transparent;
+  cursor: text;
+  position: absolute;
+  transform-origin: 0 0;
+  white-space: pre;
+}
+
+.pdf-text__run::selection {
+  background: var(--selected);
+  color: transparent;
+}
+
+.pdf-marks {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.pdf-mark {
+  position: absolute;
+}
+
+.pdf-mark--highlight {
+  mix-blend-mode: multiply;
+}
+
+.pdf-mark--highlight.pdf-mark--yellow {
+  background: var(--mark-yellow);
+}
+.pdf-mark--highlight.pdf-mark--green {
+  background: var(--mark-green);
+}
+.pdf-mark--highlight.pdf-mark--blue {
+  background: var(--mark-blue);
+}
+.pdf-mark--highlight.pdf-mark--pink {
+  background: var(--mark-pink);
+}
+.pdf-mark--highlight.pdf-mark--purple {
+  background: var(--mark-purple);
+}
+.pdf-mark--highlight.pdf-mark--orange {
+  background: var(--mark-orange);
+}
+
+.pdf-mark--underline {
+  border-bottom: 2px solid var(--mark-yellow-line);
+}
+.pdf-mark--underline.pdf-mark--green {
+  border-bottom-color: var(--mark-green-line);
+}
+.pdf-mark--underline.pdf-mark--blue {
+  border-bottom-color: var(--mark-blue-line);
+}
+.pdf-mark--underline.pdf-mark--pink {
+  border-bottom-color: var(--mark-pink-line);
+}
+.pdf-mark--underline.pdf-mark--purple {
+  border-bottom-color: var(--mark-purple-line);
+}
+.pdf-mark--underline.pdf-mark--orange {
+  border-bottom-color: var(--mark-orange-line);
+}
+
+/* Drawn where it was saved because its words were not found: said by a dashed edge. */
+.pdf-mark--approximate {
+  outline: 1px dashed var(--ink-3);
+}
+
+.pdf-mark--flash {
+  animation: pdf-flash 1.6s ease-out;
+}
+
+@keyframes pdf-flash {
+  0%,
+  40% {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+}
+
+.pdf-find {
+  background: var(--mark-orange);
+  mix-blend-mode: multiply;
+  opacity: 0.6;
+  position: absolute;
+}
+
+.pdf-find--current {
+  opacity: 1;
+  outline: 2px solid var(--mark-orange-line);
+}
+
+/* A page with no words: a box is dragged on it instead. */
+.pdf-area {
+  cursor: crosshair;
+  inset: 0;
+  position: absolute;
+}
+
+.pdf-area__box {
+  background: var(--mark-yellow);
+  border: 1px solid var(--mark-yellow-line);
+  mix-blend-mode: multiply;
+  position: absolute;
+}
+
+/* ---- What a selection offers ---- */
+
+.pdf-popover {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-popover);
+  padding: var(--space-2);
+  position: absolute;
+  z-index: 2;
+}
+
+.pdf-popover__row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.pdf-popover__comment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 18rem;
+}
+
+.pdf-popover__field,
+.pdf-entry__field {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  padding: var(--space-2);
+  resize: vertical;
+}
+
+.pdf-swatch {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  height: 20px;
+  padding: 0;
+  width: 20px;
+}
+
+.pdf-swatch[aria-pressed='true'] {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.pdf-swatch--yellow {
+  background: var(--mark-yellow);
+}
+.pdf-swatch--green {
+  background: var(--mark-green);
+}
+.pdf-swatch--blue {
+  background: var(--mark-blue);
+}
+.pdf-swatch--pink {
+  background: var(--mark-pink);
+}
+.pdf-swatch--purple {
+  background: var(--mark-purple);
+}
+.pdf-swatch--orange {
+  background: var(--mark-orange);
+}
+
+/* ---- Find ---- */
+
+.pdf-find-bar {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+}
+
+.pdf-find-bar__field {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  max-width: 24rem;
+  padding: var(--space-1) var(--space-2);
+}
+
+.pdf-find-bar__count {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  min-width: 6em;
+}
+
+/* ---- The outline and the page pictures ---- */
+
+.pdf-side {
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  width: 15rem;
+}
+
+.pdf-side__tabs {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.pdf-side__tab {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--ink-2);
+  cursor: pointer;
+  font: inherit;
+  padding: var(--space-1) var(--space-2);
+}
+
+.pdf-side__tab[aria-selected='true'] {
+  background: var(--selected);
+  color: var(--ink);
+}
+
+.pdf-side__empty {
+  color: var(--ink-3);
+  padding: var(--space-3);
+}
+
+.pdf-outline {
+  list-style: none;
+  margin: 0;
+  overflow: auto;
+  padding: 0 0 0 var(--space-2);
+}
+
+.pdf-side > .pdf-outline {
+  flex: 1;
+  padding: var(--space-2);
+}
+
+.pdf-outline__entry {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-row);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: var(--space-2);
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  width: 100%;
+}
+
+.pdf-outline__entry:hover {
+  background: var(--hover);
+}
+
+.pdf-outline__page {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+}
+
+.pdf-thumbs {
+  flex: 1;
+  overflow: auto;
+}
+
+.pdf-thumb {
+  align-items: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  left: 0;
+  padding: var(--space-2) 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.pdf-thumb__canvas {
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+
+.pdf-thumb[aria-current='page'] .pdf-thumb__canvas {
+  outline: 2px solid var(--focus);
+}
+
+.pdf-thumb__number {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+}
+
+/* ---- The highlights panel ---- */
+
+.pdf-panel {
+  border-left: 1px solid var(--line);
+  overflow: auto;
+  padding: var(--space-3);
+  width: 20rem;
+}
+
+.pdf-panel__title {
+  font-size: var(--text-section);
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+}
+
+.pdf-panel__count,
+.pdf-panel__empty {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.pdf-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pdf-entry {
+  border-left: 3px solid var(--mark-yellow);
+  border-radius: var(--radius-row);
+  padding: var(--space-1) var(--space-2);
+}
+
+.pdf-entry--green {
+  border-left-color: var(--mark-green);
+}
+.pdf-entry--blue {
+  border-left-color: var(--mark-blue);
+}
+.pdf-entry--pink {
+  border-left-color: var(--mark-pink);
+}
+.pdf-entry--purple {
+  border-left-color: var(--mark-purple);
+}
+.pdf-entry--orange {
+  border-left-color: var(--mark-orange);
+}
+
+.pdf-entry--flash {
+  background: var(--selected);
+}
+
+.pdf-entry__show {
+  background: none;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: var(--space-1);
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.pdf-entry__show:disabled {
+  cursor: default;
+}
+
+.pdf-entry__page {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+}
+
+.pdf-entry__quote {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.pdf-entry__lost {
+  color: var(--warning);
+  font-size: var(--text-meta);
+  margin: var(--space-1) 0 0;
+}
+
+.pdf-entry__comment {
+  color: var(--ink-2);
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+}
+
+.pdf-entry__actions,
+.pdf-entry__confirm {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.pdf-entry__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
