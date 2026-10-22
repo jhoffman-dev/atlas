@@ -9,6 +9,7 @@ import type { OverlayStore } from '../overlay-store.ts';
 import type { PageHolds } from './page-holds.ts';
 import type { PageChrome } from '../page-frame-fallback.tsx';
 import type { PaneContext } from '../panes/note-pane-container.tsx';
+import type { RevealStore } from '../panes/reveals.ts';
 import type { QueryWiring } from '../query/query-container.tsx';
 import type { TagsWiring } from '../tags/tags-container.tsx';
 import type { TemplatesWiring } from '../templates/templates-container.tsx';
@@ -53,6 +54,8 @@ export interface PageWiringContext {
   readonly pages: PageWiring;
   readonly pane: PaneContext;
   readonly overlays: OverlayStore;
+  /** Where each tab was asked to scroll to: a PDF's tab, to a highlight (#504). */
+  readonly reveals: RevealStore;
 }
 
 /** What every page container is handed: the wiring, the tab it draws in, and that tab's frame. */

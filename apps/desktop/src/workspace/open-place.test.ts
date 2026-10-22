@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createVaultPath } from '@dfai/domain';
 import { createRevealStore } from '../panes/reveals.ts';
 import { createOverlayStore, openPeek, peekNow, showOverlay } from '../overlay-store.ts';
-import { clickLink, followLink, openNote } from './open-place.ts';
+import { clickLink, followLink, openDocumentAt, openNote } from './open-place.ts';
 import { createWorkspaceStore, loadVault, splitPane, workspaceNow } from './workspace-store.ts';
 
 const PLAN = createVaultPath('Plan.md');
@@ -30,6 +30,38 @@ describe('openNote', () => {
     ]);
     openNote(store, PLAN, 'split');
     expect(workspaceNow(store).panes).toHaveLength(2);
+  });
+});
+
+describe('opening a PDF (#504)', () => {
+  const PDF = createVaultPath('Library/The Lantern Keepers.pdf');
+
+  it('opens a PDF from Pages or search in the reader, not as a note', () => {
+    const { store } = following();
+    openNote(store, PDF);
+    expect(placesOf(store)).toEqual([{ kind: 'document', path: PDF }]);
+  });
+
+  it('opens a PDF at a highlight: the reader tab is asked to reveal its block', () => {
+    const wiring = following();
+    openNote(wiring.store, PLAN);
+    openDocumentAt(wiring, { path: PDF, highlightId: 'k3x9q2', how: 'new-tab' });
+    expect(placesOf(wiring.store)).toEqual([
+      { kind: 'note', path: PLAN },
+      { kind: 'document', path: PDF },
+    ]);
+    const tab = workspaceNow(wiring.store).panes[0]?.active ?? '';
+    expect(wiring.reveals.getState().byTab.get(tab)).toMatchObject({
+      path: PDF,
+      reveal: { fragment: { kind: 'block', id: 'k3x9q2' } },
+    });
+  });
+
+  it('opens a PDF at its start, asking no reveal, when no highlight is named', () => {
+    const wiring = following();
+    openDocumentAt(wiring, { path: PDF, highlightId: null });
+    expect(placesOf(wiring.store)).toEqual([{ kind: 'document', path: PDF }]);
+    expect(wiring.reveals.getState().byTab.size).toBe(0);
   });
 });
 

@@ -152,6 +152,22 @@
   --hue-pink-ink: #84375e;
   --hue-red-bg: #fdcbca;
   --hue-red-ink: #953835;
+  /* A highlight in the PDF reader (#504): the hues again, a step deeper so they
+     show on a page, and a line for an underline. The same in every theme, since
+     a PDF's page is drawn white whatever the window is. */
+  --mark-yellow: #f7e08a;
+  --mark-yellow-line: #a67c0c;
+  --mark-green: #bfe2c6;
+  --mark-green-line: #3f8a54;
+  --mark-blue: #bcd8f3;
+  --mark-blue-line: #2f6fa8;
+  --mark-pink: #f7c9dc;
+  --mark-pink-line: #b04f7f;
+  --mark-purple: #d3c9f1;
+  --mark-purple-line: #6b5bb5;
+  --mark-orange: #f9cfac;
+  --mark-orange-line: #b0602a;
+  --paper: #ffffff; /* a PDF's page, white in every theme */
 
   /* Buttons: fill, text, border. Pastel, but Accept and Reject must differ. */
   --btn-primary-bg: #e3ecfb;
@@ -268,6 +284,22 @@
     --hue-pink-ink: #f2bdd8;
     --hue-red-bg: #4b2625;
     --hue-red-ink: #fbb9b6;
+    /* A highlight in the PDF reader (#504): the hues again, a step deeper so they
+       show on a page, and a line for an underline. The same in every theme, since
+       a PDF's page is drawn white whatever the window is. */
+    --mark-yellow: #f7e08a;
+    --mark-yellow-line: #a67c0c;
+    --mark-green: #bfe2c6;
+    --mark-green-line: #3f8a54;
+    --mark-blue: #bcd8f3;
+    --mark-blue-line: #2f6fa8;
+    --mark-pink: #f7c9dc;
+    --mark-pink-line: #b04f7f;
+    --mark-purple: #d3c9f1;
+    --mark-purple-line: #6b5bb5;
+    --mark-orange: #f9cfac;
+    --mark-orange-line: #b0602a;
+    --paper: #ffffff; /* a PDF's page, white in every theme */
 
     --btn-primary-bg: rgba(126, 162, 221, 0.18);
     --btn-primary-ink: #b5cbf0;
@@ -372,6 +404,22 @@
   --hue-pink-ink: #f2bdd8;
   --hue-red-bg: #4b2625;
   --hue-red-ink: #fbb9b6;
+  /* A highlight in the PDF reader (#504): the hues again, a step deeper so they
+     show on a page, and a line for an underline. The same in every theme, since
+     a PDF's page is drawn white whatever the window is. */
+  --mark-yellow: #f7e08a;
+  --mark-yellow-line: #a67c0c;
+  --mark-green: #bfe2c6;
+  --mark-green-line: #3f8a54;
+  --mark-blue: #bcd8f3;
+  --mark-blue-line: #2f6fa8;
+  --mark-pink: #f7c9dc;
+  --mark-pink-line: #b04f7f;
+  --mark-purple: #d3c9f1;
+  --mark-purple-line: #6b5bb5;
+  --mark-orange: #f9cfac;
+  --mark-orange-line: #b0602a;
+  --paper: #ffffff; /* a PDF's page, white in every theme */
 
   --btn-primary-bg: rgba(126, 162, 221, 0.18);
   --btn-primary-ink: #b5cbf0;

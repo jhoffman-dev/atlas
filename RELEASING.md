@@ -67,6 +67,16 @@ fails instead of touching it.
 Every action the workflows use is pinned to a commit SHA, with its version in a comment;
 Dependabot (`.github/dependabot.yml`) proposes updates weekly.
 
+## Third-party notices
+
+`THIRD_PARTY_NOTICES.md` names the work of others that the app carries and where each
+licence is. The build copies it into `dist` as `THIRD_PARTY_NOTICES.txt` and puts
+pdf.js's Apache-2.0 text at `pdfjs/LICENSE`, beside the fonts, character maps and
+decoders whose own licence files already ship in `pdfjs/`. When you bump `pdfjs-dist`
+or add a bundled font or decoder, check that file still lists everything under
+`pdfjs/`, and confirm the built app has both (`ls apps/desktop/dist/pdfjs/LICENSE
+apps/desktop/dist/THIRD_PARTY_NOTICES.txt`) before tagging.
+
 ## Dry run
 
 **Actions → release → Run workflow**, on any branch, with **dry_run** ticked (the

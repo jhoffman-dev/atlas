@@ -26,6 +26,8 @@ import {
   noteLinks,
   noteTitle,
   NO_LINKS,
+  placeOfFile,
+  readLiteratureNote,
   writeFailedReport,
   type NoteSuggestion,
   type TagSuggestion,
@@ -61,6 +63,7 @@ import {
   NoteNamesProvider,
   LinkedSections,
   NotePane,
+  PageAction,
   SourcePanel,
   TaskScheduleSummary,
   useCalendarNav,
@@ -345,7 +348,8 @@ function useNoteTab({ wiring, names, chat, pane, tab, hidden }: NoteTabProps) {
     onPeek: (peek) => openPeek(overlays, peek),
     aside: { store: wiring.aside, shown: wiring.shown, workspace: store },
     onOpenNote: (target, how = 'here') => {
-      const place: NavigationPlace = { kind: 'note', path: target };
+      // A PDF — a literature note's file — opens in the reader (#504).
+      const place: NavigationPlace = placeOfFile(target);
       if (how === 'here') openInPane(store, { pane, place });
       else {
         focusPane(store, pane);
@@ -545,6 +549,7 @@ export function useNotePane({
     beingMade: context.notesBeingMade,
   });
   const dashboard = useDashboard({ note: note.open, index, types, notePaths, indexKey });
+  const literaturePdf = literaturePdfOf(note.open?.properties ?? null);
   const dashboardEditing = useDashboardEditing({
     note: note.open,
     isDashboard: dashboard.results !== null,
@@ -998,6 +1003,13 @@ export function useNotePane({
         dashboardEditing.toggle !== null && {
           actions: <CustomizeToggle {...dashboardEditing.toggle} />,
         })}
+      {...(template === null &&
+        dashboardEditing.toggle === null &&
+        literaturePdf !== null && {
+          actions: (
+            <PageAction icon="book" label="Open PDF" onPress={() => onOpenNote(literaturePdf)} />
+          ),
+        })}
       toolbar={
         template === null && (
           <ViewHeadToolbar
@@ -1332,4 +1344,10 @@ function templateNoticeFor(path: VaultPath | null, context: PaneContext): Templa
     onOpenTemplates: context.templateCommands.onOpenTemplates,
     onMoveToNotes: () => context.templateCommands.askMoveToNotes(path),
   };
+}
+
+/** The PDF a literature note is a note of, which its bar offers to open (#504); null for any other note. */
+function literaturePdfOf(properties: Readonly<Record<string, unknown>> | null): VaultPath | null {
+  const source = properties === null ? null : readLiteratureNote(properties);
+  return source?.kind === 'pdf' ? source.file : null;
 }

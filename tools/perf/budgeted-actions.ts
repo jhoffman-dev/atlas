@@ -26,6 +26,8 @@ export const BUDGETED_ACTIONS = [
   'Drag a board card',
   'Run a 2,000-row SQL query',
   'Run a 920-row DFAI query',
+  'Open a 500-page PDF',
+  'Scroll a 500-page PDF to its middle',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];

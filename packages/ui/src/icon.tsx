@@ -139,6 +139,13 @@ const GLYPHS = {
       {...joined}
     />
   ),
+  // An open book: a PDF in the reader (#504).
+  book: (
+    <path
+      d="M12 6.5c-1.8-1.3-4.3-2-7-2v13c2.7 0 5.2.7 7 2 1.8-1.3 4.3-2 7-2v-13c-2.7 0-5.2.7-7 2zM12 6.5v13"
+      {...joined}
+    />
+  ),
   // A page drawn in dashes — a note's outline, not yet a note.
   template: (
     <>

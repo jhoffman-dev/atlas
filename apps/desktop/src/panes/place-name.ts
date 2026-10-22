@@ -1,4 +1,4 @@
-import { formatTag, type NavigationPlace, type VaultPath } from '@dfai/domain';
+import { formatTag, vaultPathName, type NavigationPlace, type VaultPath } from '@dfai/domain';
 
 /**
  * What a place Back or Forward leads to is called, for the button's tooltip:
@@ -45,5 +45,7 @@ export function placeName(
       return 'Templates';
     case 'terms':
       return 'Terms';
+    case 'document':
+      return vaultPathName(place.path);
   }
 }
