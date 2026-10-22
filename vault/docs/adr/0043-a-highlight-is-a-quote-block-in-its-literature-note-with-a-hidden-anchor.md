@@ -140,7 +140,13 @@ Options weighed for where a highlight lives:
    author's), so `*`, `#word`, `==`, `%%` or `^id` in a book never become
    markup, a tag, a highlight, a comment or an id. A paragraph that is only a
    list number (`1.`, `2)`) is escaped too, since alone it is an empty list
-   item.
+   item. A comment is the person's markdown and is written as given, but for
+   two escapes: a line that would read as a second marker gets `\<`, and
+   each `%` straight after another gets `\` (`50%%` is written `50%\%`,
+   which Obsidian shows as `50%%`), so no comment DFAI writes opens an
+   Obsidian comment that hides the rest of the note. Markdown with neither
+   is kept byte for byte, so a comment written back as it reads is the same
+   bytes.
 
 5. **Writes change only their highlight's bytes** (ADR-0003). Adding appends
    a block after the note's last byte, after a blank line of its own — never
@@ -153,17 +159,23 @@ Options weighed for where a highlight lives:
    newline stays so: the block is written without one, and removing it gives
    the note back byte for byte. So removing every highlight added gives the
    note back byte for byte, whatever it ended in (`\n\n`, `\n  \n`,
-   `\r\n\r\n`, no line ending). Each write goes
+   `\r\n\r\n`, no line ending). A byte order mark that starts a note with no
+   frontmatter is the file's, not the body's: a block is written straight
+   after it, and no write moves or removes it. Each write goes
    through the vault against the version just read, and is refused while a
    pane holds unsaved typing in the note (as linking a block is, ADR-0022).
 
-   Appending checks itself before it writes. Every highlight added must read
-   back from the note it was added to, parsed again as §8 parses it, or
-   `HighlightNotReadBackError` is thrown and nothing is written: a note that
-   ends inside an unclosed code
-   fence, raw HTML block (`<pre>`, `<script>`, `<style>`, `<textarea>`), HTML
-   comment or Obsidian `%%` comment would hide the block, and every sync would add the
-   same passage again. And a note that holds a marker this build cannot read
+   Every write checks itself before it is written. Each highlight the note
+   read before the write — but the one removed — and each one added must
+   read back from the note it would write, parsed again as §8 parses it, or
+   `HighlightNotReadBackError` is thrown, naming them, and nothing is
+   written. So a note that ends inside an unclosed code fence, raw HTML
+   block (`<pre>`, `<script>`, `<style>`, `<textarea>`), HTML comment or
+   Obsidian `%%` comment refuses an append that it would hide, which every
+   sync would otherwise add again; and a comment edit or a removal that
+   would let a `%%` the person put in a quote, a comment or the words
+   between blocks open a comment that hides the highlights after it is
+   refused too. And a note that holds a marker this build cannot read
    (a newer version's, or one broken by hand) is refused with
    `UnreadableHighlightMarkerError`, because that marker may be a passage the
    build would add a second time; editing a comment or removing a highlight
@@ -188,6 +200,23 @@ Options weighed for where a highlight lives:
    two that share neither are two passages, as are two different words at one
    place and two different ids. An export that gives blank words for `exact` gives none, and the
    quote stands in for them.
+
+   Being the same place is not transitive — a copy with a page alone is the
+   same place as two copies at different locations on that page, which are
+   not the same place as each other — so matching is one passage to one
+   passage. A highlight of an append joins a passage (one the note holds, or
+   one the append writes) only when it is the same place as every copy
+   already in it, with no two annotation ids; so a held copy is claimed by
+   at most one passage of the export, and two highlights with different ids
+   are always two passages. Which claims first is fixed, not the export's
+   order: a highlight its key finds; then those with a location, each taking
+   a passage at its location before one with a page alone; then those with a
+   page alone; among each, by key. Every order of one append gives the same
+   note, and a sync run again adds nothing. An export that grew between
+   syncs gives as many passages as one synced at once, as long as each
+   export is one shape (all with locations, or all with pages alone, a
+   location always on one page); one that mixes shapes in one export can
+   pair its copies differently as it grows.
    Adding one the note holds answers the id it has. So a Kindle sync can hand
    over every highlight each time.
 
@@ -218,7 +247,9 @@ Options weighed for where a highlight lives:
    Obsidian may read it otherwise — a `%%` inside code that sits within a
    comment does not close the comment here — DFAI errs to reading the comment
    as still open, which at worst refuses an append (`HighlightNotReadBackError`)
-   rather than writing a highlight nobody sees. Only a note that says
+   rather than writing a highlight nobody sees. The parser reads no maths,
+   so `$…$` is text and a `%%` in it counts, where Obsidian, which renders
+   maths, may read it otherwise. Only a note that says
    `type: literature` has highlights; the same text pasted elsewhere is a
    quote.
 

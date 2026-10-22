@@ -57,7 +57,11 @@ function obsidianComments(root: Root, text: string, offset: number): TextSpan[] 
   return hidden;
 }
 
-/** The source spans of every text node, in document order; code, maths and HTML carry none. */
+/**
+ * The source spans of every text node, in document order; code and HTML carry
+ * none. The parser reads no maths, so `$…$` is text and a `%%` in it counts
+ * (ADR-0043 §8).
+ */
 function textSpans(node: Nodes): TextSpan[] {
   if (node.type === 'text') {
     const start = node.position?.start.offset;

@@ -1,4 +1,5 @@
 import { standaloneBlockAnchor } from '../markdown/block-anchor.ts';
+import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import type { HighlightAnchor, HighlightStyle } from './anchor.ts';
 import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
 
@@ -191,8 +192,23 @@ function linesOf(text: string, from: number, to: number): Line[] {
   return lines;
 }
 
-const lineStartAt = (text: string, offset: number): number =>
-  text.lastIndexOf('\n', offset - 1) + 1;
+/** Where the line `offset` is in starts; a byte order mark before the first line is not the line's. */
+function lineStartAt(text: string, offset: number): number {
+  const start = text.lastIndexOf('\n', offset - 1) + 1;
+  return start === 0 && text.startsWith(BYTE_ORDER_MARK) ? 1 : start;
+}
+
+const BYTE_ORDER_MARK = '\uFEFF';
+
+/**
+ * Where a note's body starts: after its frontmatter, or, with none, after a
+ * byte order mark, which is the file's and not the body's, so no write moves
+ * or removes it.
+ */
+export function bodyStartOf(text: string): number {
+  const { frontmatter, bodyOffset } = splitFrontmatter(text);
+  return frontmatter === null && text.startsWith(BYTE_ORDER_MARK) ? 1 : bodyOffset;
+}
 
 /**
  * A quote line's own text: its `>` — up to three spaces in, as CommonMark

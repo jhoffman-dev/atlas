@@ -81,7 +81,8 @@ export async function addHighlight(
 /**
  * Makes the comment of highlight `id` in the note at `path` say `comment`;
  * a blank one takes the comment off. Throws `HighlightNotFoundError` when
- * the note no longer holds it.
+ * the note no longer holds it, and `HighlightNotReadBackError`, writing
+ * nothing, when the note would then hide another highlight.
  */
 export async function editHighlightComment(
   ports: LiteratureNoteWritePorts,
@@ -100,7 +101,8 @@ export async function editHighlightComment(
 /**
  * Removes highlight `id` from the note at `path`: its quote, comment and
  * place. Only ever on the person's command. Throws `HighlightNotFoundError`
- * when the note no longer holds it.
+ * when the note no longer holds it, and `HighlightNotReadBackError`, writing
+ * nothing, when the note would then hide another highlight.
  */
 export async function removeHighlight(
   ports: LiteratureNoteWritePorts,
