@@ -175,13 +175,22 @@ export function useKindleSync(options: KindleWindowOptions): KindleController {
     [],
   );
 
-  return {
-    view: viewOf(record, { busy, problem, now: clock.now() }),
-    connect: () => void connect(),
-    syncNow: () => void run('asked'),
-    disconnect: () => void disconnect(),
-    toast: toast.message,
-    toastShown: toast.shown,
-    dismissToast,
-  };
+  const now = clock.now;
+  const view = useMemo(
+    () => viewOf(record, { busy, problem, now: now() }),
+    [record, busy, problem, now],
+  );
+  // One object while nothing in it changes: the window's toasts and Settings are drawn from it.
+  return useMemo(
+    () => ({
+      view,
+      connect: () => void connect(),
+      syncNow: () => void run('asked'),
+      disconnect: () => void disconnect(),
+      toast: toast.message,
+      toastShown: toast.shown,
+      dismissToast,
+    }),
+    [view, connect, run, disconnect, toast, dismissToast],
+  );
 }

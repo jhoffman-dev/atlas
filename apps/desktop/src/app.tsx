@@ -1852,6 +1852,13 @@ function AppWindow({
       onDismiss={() => granolaPull.dismissToast(granolaShown)}
     />
   );
+  // One child, `false` with no toast up, so the toast host is not drawn again with the window.
+  const connectionToasts = (granolaToast !== false || kindleToast !== false) && (
+    <>
+      {granolaToast}
+      {kindleToast}
+    </>
+  );
 
   // The panes' wiring that changes only with what it holds, so a window
   // redrawn for the index's news draws no pane that shows nothing new (#325).
@@ -2091,8 +2098,7 @@ function AppWindow({
             <>
               {notices}
               <ToastHost toasts={toasts} activity={activityLog} vault={vaultKey}>
-                {granolaToast}
-                {kindleToast}
+                {connectionToasts}
               </ToastHost>
             </>
           }

@@ -13,7 +13,7 @@ export interface KindleCommands {
 
 /** ⌘K's Kindle commands (#508): Connect while it is not connected, Sync now and Disconnect once it is. */
 export function paletteKindleCommands(connected: boolean): PaletteCommand[] {
-  const keywords = ['amazon', 'highlights', 'books', 'notebook', 'reading'];
+  const keywords = ['amazon', 'highlights'];
   if (!connected) return [{ id: CONNECT_KINDLE, label: 'Connect Kindle', keywords }];
   return [
     { id: SYNC_KINDLE_NOW, label: 'Sync Kindle now', keywords },
