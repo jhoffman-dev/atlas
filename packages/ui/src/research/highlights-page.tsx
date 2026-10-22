@@ -64,6 +64,19 @@ const CHANGED: readonly { value: ChangedWithin; label: string }[] = [
 // By place, not id: two highlights of one note can share an id (a note edited by hand).
 const keyOf = (entry: HighlightEntry) => `${entry.path}#${entry.index}`;
 
+/** Words of a quote a control's name opens with, so a screen reader tells one row's button from the next. */
+const QUOTE_WORDS_NAMED = 6;
+
+/** The first words of `quote`, with an ellipsis when it goes on. */
+function quoteOpening(quote: string): string {
+  const words = quote
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word !== '');
+  const opening = words.slice(0, QUOTE_WORDS_NAMED).join(' ');
+  return words.length > QUOTE_WORDS_NAMED ? `${opening}…` : opening;
+}
+
 /**
  * All highlights (#507): every highlight across the literature notes — its
  * quote, comment, colour and source, and its page or location. Filtered by
@@ -236,7 +249,7 @@ const HighlightRow = memo(function HighlightRow({
       <button
         type="button"
         className="btn btn--sm highlight__copy"
-        aria-label={`Copy embed of this ${color} highlight`}
+        aria-label={`Copy embed of the ${color} highlight “${quoteOpening(entry.quote)}”`}
         onClick={() => onCopyEmbed(transfer().text)}
       >
         Copy embed

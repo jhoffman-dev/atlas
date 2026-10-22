@@ -156,6 +156,18 @@ describe('HighlightsPage (#507)', () => {
     expect(onCopyEmbed).toHaveBeenLastCalledWith('![[Meditations#^m1n2o3]]');
   });
 
+  it("names each Copy embed button by its highlight's opening words", () => {
+    renderPage();
+    expect(
+      within(rows()[0]!)
+        .getByRole('button', { name: /^Copy embed of/ })
+        .getAttribute('aria-label'),
+    ).toBe('Copy embed of the green highlight “All warfare is based on deception.”');
+    expect(
+      within(rows()[1]!).getByRole('button', { name: /^Copy embed of/ }).getAttribute('aria-label'),
+    ).toMatch(/ highlight “Accept the things to which fate…”$/);
+  });
+
   it('leaves Cmd+C to the browser while words are selected', async () => {
     const { onCopyEmbed } = renderPage();
     const open = within(rows()[0]!).getByRole('button', { name: /^green highlight:/ });
