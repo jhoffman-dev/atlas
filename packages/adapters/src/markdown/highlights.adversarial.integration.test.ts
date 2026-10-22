@@ -542,15 +542,15 @@ describe('every write keeps the other highlights readable (verify3, PR #510)', (
   const two = `> Two.\n> ${marker(2, 'Two.')}\n\n^bbb222\n`;
   const ids = (text: string) => readHighlights(text, noteBlocks).map((block) => block.id);
 
-  it('writes a `%%` in a comment so Obsidian shows it, and reads it back as written', () => {
+  it('writes an unbalanced `%%` in a comment so Obsidian shows it, and reads it back as written', () => {
     const before = `${PDF_NOTE}${one('One.')}\n^aaa111\n\n${two}`;
     const text = withHighlightComment({
       text: before,
       id: 'aaa111',
-      comment: 'Up 50%% on the year, %%% more.',
+      comment: 'Up 50%% on the year.',
       noteBlocks,
     });
-    expect(text).toContain('> Up 50%\\% on the year, %\\%\\% more.\n');
+    expect(text).toContain('> Up 50%\\% on the year.\n');
     expect(text).not.toMatch(/%%/);
     expect(ids(text)).toEqual(['aaa111', 'bbb222']);
     const [read] = readHighlights(text, noteBlocks);
@@ -558,6 +558,36 @@ describe('every write keeps the other highlights readable (verify3, PR #510)', (
       withHighlightComment({ text, id: 'aaa111', comment: read?.comment ?? '', noteBlocks }),
     ).toBe(text);
   });
+
+  it.each([
+    ['a balanced pair', 'Keep %%this private%% and Up 50% on the year.'],
+    ['a code span and a fence', 'Use `x %% y`.\n\n```matlab\n%% Section one\nx = 1;\n```'],
+  ])(
+    'keeps %s the person wrote, byte for byte, when saved unchanged or edited elsewhere',
+    (_label, comment) => {
+      const before = `${PDF_NOTE}${one('One.')}\n^aaa111\n\n${two}`;
+      const written = withHighlightComment({ text: before, id: 'aaa111', comment, noteBlocks });
+      const quoted = comment.split('\n').map((line) => (line === '' ? '>' : `> ${line}`));
+      expect(written).toContain(`${quoted.join('\n')}\n`);
+      expect(ids(written)).toEqual(['aaa111', 'bbb222']);
+      const [first] = readHighlights(written, noteBlocks);
+      const saved = withHighlightComment({
+        text: written,
+        id: 'aaa111',
+        comment: first?.comment ?? '',
+        noteBlocks,
+      });
+      expect(saved).toBe(written);
+      const elsewhere = withHighlightComment({
+        text: written,
+        id: 'bbb222',
+        comment: 'Another thought.',
+        noteBlocks,
+      });
+      const beforeSecond = written.indexOf('> Two.');
+      expect(elsewhere.slice(0, beforeSecond)).toBe(written.slice(0, beforeSecond));
+    },
+  );
 
   it('writes a `%%` in the comment of a highlight it appends so Obsidian shows it', () => {
     const { text } = appendHighlights({
@@ -585,6 +615,29 @@ describe('every write keeps the other highlights readable (verify3, PR #510)', (
     }
     expect(refused).toBeInstanceOf(HighlightNotReadBackError);
     expect((refused as HighlightNotReadBackError).ids).toEqual(['bbb222']);
+  });
+
+  it('refuses to save back, as it reads, a comment whose `%%` closes one opened in the quote', () => {
+    // Saved as it reads, the comment's lone `%%` is escaped (it is unbalanced on its own), so the
+    // quote's `%%` is left open and would hide the highlight after it: the edit is refused.
+    const before = `${PDF_NOTE}${one('One %% opened.')}>\n> Closed %% here.\n\n^aaa111\n\n${two}`;
+    const [first] = readHighlights(before, noteBlocks);
+    expect(first?.comment).toBe('Closed %% here.');
+    expect(() =>
+      withHighlightComment({
+        text: before,
+        id: 'aaa111',
+        comment: first?.comment ?? '',
+        noteBlocks,
+      }),
+    ).toThrow(HighlightNotReadBackError);
+  });
+
+  it('refuses a balanced comment after a quote that opened a `%%`, which would hide the rest', () => {
+    const before = `${PDF_NOTE}${one('One %% opened.')}>\n> Closed %% here.\n\n^aaa111\n\n${two}`;
+    expect(() =>
+      withHighlightComment({ text: before, id: 'aaa111', comment: 'A %%b%% c', noteBlocks }),
+    ).toThrow(HighlightNotReadBackError);
   });
 
   it('refuses a removal that would let a `%%` written between blocks hide the highlights after it', () => {

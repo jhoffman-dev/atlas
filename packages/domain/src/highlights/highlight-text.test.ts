@@ -71,3 +71,72 @@ describe("a comment's lines", () => {
     ]);
   });
 });
+
+describe("a comment's Obsidian `%%` marks", () => {
+  const written = (comment: string) => commentLines(comment).join('\n');
+
+  it.each([
+    ['a balanced pair on one line', 'a %%private%% b'],
+    ['a balanced pair across lines', '%%private\nthought%% shown'],
+    ['two balanced pairs', '%%a%% and %%b%%'],
+    ['four marks, two of them in one run', '%%a%%%%b%%'],
+    ['a code span', 'use `x %% y` here'],
+    ['a double-backtick span', 'use ``x%%y`` here'],
+    ['a fence', '```matlab\n%% Section one\nx = 1;\n```'],
+    ['a fence with a blank line in it', '```\n%% one\n\nx\n```'],
+    ['a tilde fence', '~~~\n%% one\n~~~'],
+    ['a fence never closed', '```\n%% one\nmore %% text'],
+    ['an indented code block', 'Example:\n\n    printf("100%%\\n");\n'],
+    ['an HTML comment', 'x <!-- 50%% --> y'],
+    ['an already escaped pair', 'Up 50%\\% on the year.'],
+  ])('keeps %s as written', (_label, comment) => {
+    expect(written(comment)).toBe(comment.replace(/\n+$/, ''));
+  });
+
+  it.each([
+    ['a single mark', 'Up 50%% on the year.', 'Up 50%\\% on the year.'],
+    ['a mark outside a code span that holds one', 'a `x %% y` b 50%% c', 'a `x %% y` b 50%\\% c'],
+    [
+      'a mark after a fence that holds one',
+      '```\n%%\n```\nthen %% here',
+      '```\n%%\n```\nthen %\\% here',
+    ],
+    ['a mark beside a backtick with no closer', 'a ` %% b', 'a ` %\\% b'],
+    ['three in a row', '50%%% off', '50%\\%\\% off'],
+    ['the last of three marks', 'a %%b%% c %%d', 'a %%b%% c %\\%d'],
+    ['an earlier run too, when the last holds an even number', '%% a %%%%', '%\\% a %\\%\\%\\%'],
+    [
+      'a mark after an escaped backtick, which opens no span',
+      'a \\`x %% y\\` z',
+      'a \\`x %\\% y\\` z',
+    ],
+    ['the last mark of an odd count held in a long run', '%%%% x %%', '%%%% x %\\%'],
+  ])('escapes %s', (_label, comment, expected) => {
+    expect(written(comment)).toBe(expected);
+  });
+
+  it('never escapes what it wrote again', () => {
+    const comments = [
+      'Up 50%% on the year.',
+      '50%%% off',
+      'a %%b%% c %%d',
+      '%%%%%',
+      '`a` %% ```\n%%\n```\n %%',
+      '%\\%\\%',
+    ];
+    for (const comment of comments) {
+      const once = written(comment);
+      expect(written(once)).toBe(once);
+    }
+  });
+
+  it('leaves no unbalanced pair outside code, whatever the comment holds', () => {
+    for (const comment of ['%%', '%%%', 'a%%b', '%%%%%', '%%a%%b%%', '`%%` %%']) {
+      const marks =
+        written(comment)
+          .replace(/`[^`]*`/g, '')
+          .match(/%%/g) ?? [];
+      expect(marks.length % 2).toBe(0);
+    }
+  });
+});

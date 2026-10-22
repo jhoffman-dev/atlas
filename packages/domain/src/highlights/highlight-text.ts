@@ -1,3 +1,4 @@
+import { escapeUnbalancedMarks } from './comment-marks.ts';
 import { looksLikeHighlightMarker } from './highlight-marker.ts';
 
 /*
@@ -34,24 +35,21 @@ export function plainQuote(markdown: string): string {
 /**
  * The lines of a comment, as the person's markdown: line endings made one
  * kind, the blank lines at either end taken off. A line that would read as a
- * second marker is escaped, so the block stays one highlight; so is each `%`
- * straight after another (`%\%`, which Obsidian shows as `%%`), so a comment
- * never opens an Obsidian comment that hides the rest of the note. Markdown
- * that holds neither is kept as written, so a comment written back as it
+ * second marker is escaped, so the block stays one highlight; so is a `%%`
+ * that would leave an Obsidian comment open past the comment's own text (an
+ * unbalanced one outside code, as `%\%`), so a comment never hides the rest
+ * of the note. Markdown that holds neither — a balanced `%%private%%`, code
+ * with a `%%` in it — is kept as written, so a comment written back as it
  * reads is the same bytes.
  */
 export function commentLines(comment: string): string[] {
   const lines = comment.replace(/\r\n?/g, '\n').split('\n');
   while (lines.length > 0 && lines[0]?.trim() === '') lines.shift();
   while (lines.length > 0 && lines.at(-1)?.trim() === '') lines.pop();
-  return lines.map((line) => {
-    const shown = line.replace(OBSIDIAN_COMMENT, '\\%');
-    return looksLikeHighlightMarker(shown) ? shown.replace('<', '\\<') : shown;
-  });
+  return escapeUnbalancedMarks(lines).map((line) =>
+    looksLikeHighlightMarker(line) ? line.replace('<', '\\<') : line,
+  );
 }
-
-/** A `%` straight after another: with it, Obsidian reads `%%` as a comment's start or end. */
-const OBSIDIAN_COMMENT = /(?<=%)%/g;
 
 function paragraphsOf(words: string): string[] {
   return words

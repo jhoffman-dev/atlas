@@ -141,12 +141,23 @@ Options weighed for where a highlight lives:
    markup, a tag, a highlight, a comment or an id. A paragraph that is only a
    list number (`1.`, `2)`) is escaped too, since alone it is an empty list
    item. A comment is the person's markdown and is written as given, but for
-   two escapes: a line that would read as a second marker gets `\<`, and
-   each `%` straight after another gets `\` (`50%%` is written `50%\%`,
-   which Obsidian shows as `50%%`), so no comment DFAI writes opens an
-   Obsidian comment that hides the rest of the note. Markdown with neither
-   is kept byte for byte, so a comment written back as it reads is the same
-   bytes.
+   two escapes: a line that would read as a second marker gets `\<`, and a
+   `%%` that would leave an Obsidian comment open past the comment's own
+   text gets `\` between its `%` (`50%%` is written `50%\%`, which Obsidian
+   shows as `50%%`). Marks are counted as §8 counts them: only in text,
+   never in a fenced or indented code block, an inline code span or inline
+   HTML, one per pair of `%` in a run (`%%%` is one mark and a stray `%`).
+   A comment whose count is even is balanced and cannot hide what follows
+   it, so a `%%private%%` the person wrote stays as written; code with a
+   `%%` in it keeps no backslash. An odd count escapes marks, last first,
+   until it is even, and what is written no longer holds an unbalanced
+   mark, so escaping again changes nothing. This reads the comment on its
+   own, so a `%%` that closes one opened in the quote (a hand edit) is
+   escaped as unbalanced, and a balanced comment after such a quote would
+   open one: both are left to the postcondition in §5, which refuses the
+   write. Markdown with neither escape is kept byte for byte, so a comment
+   written back as it reads — saved unchanged, or left alone while another
+   highlight is edited — is the same bytes, for balanced comments and code.
 
 5. **Writes change only their highlight's bytes** (ADR-0003). Adding appends
    a block after the note's last byte, after a blank line of its own — never
@@ -175,7 +186,8 @@ Options weighed for where a highlight lives:
    sync would otherwise add again; and a comment edit or a removal that
    would let a `%%` the person put in a quote, a comment or the words
    between blocks open a comment that hides the highlights after it is
-   refused too. And a note that holds a marker this build cannot read
+   refused too, and so is a comment whose balanced `%%` pair would pair with
+   one the quote opened and open another. And a note that holds a marker this build cannot read
    (a newer version's, or one broken by hand) is refused with
    `UnreadableHighlightMarkerError`, because that marker may be a passage the
    build would add a second time; editing a comment or removing a highlight
