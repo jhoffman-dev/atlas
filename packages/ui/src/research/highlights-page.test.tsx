@@ -164,7 +164,9 @@ describe('HighlightsPage (#507)', () => {
         .getAttribute('aria-label'),
     ).toBe('Copy embed of the green highlight “All warfare is based on deception.”');
     expect(
-      within(rows()[1]!).getByRole('button', { name: /^Copy embed of/ }).getAttribute('aria-label'),
+      within(rows()[1]!)
+        .getByRole('button', { name: /^Copy embed of/ })
+        .getAttribute('aria-label'),
     ).toMatch(/ highlight “Accept the things to which fate…”$/);
   });
 
