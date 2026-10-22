@@ -49,9 +49,9 @@ describe('a source note DFAI writes reads back as the same source (attack on #51
     );
   });
 
-  it('keeps the file of a PDF whose name holds `#`', () => {
+  it('refuses the file of a PDF whose name holds `#`, which no wiki link could name back', () => {
     const file = createVaultPath('Sources/F# for Fun.pdf');
-    expect(readBack({ kind: 'pdf', title: 'F# for Fun', author: null, file })?.file).toBe(file);
+    expect(() => readBack({ kind: 'pdf', title: 'F# for Fun', author: null, file })).toThrow();
   });
 });
 

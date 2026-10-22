@@ -12,11 +12,11 @@ import { readHighlights } from './highlight-block.ts';
 import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
 import { quoteLines } from './highlight-text.ts';
 import { findQuote, findQuoteNear, quoteSelectorAt } from './reanchor.ts';
-import { readSourceNote, sourceNoteText } from './source-note.ts';
+import { sourceNoteText } from './source-note.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
 /**
- * Attack on PR #510 (#503, ADR-0043): the source-note format under hostile
+ * Adversarial tests for #503, ADR-0043 (found in PR #510): the source-note format under hostile
  * markers, Obsidian edits, Kindle re-syncs and re-anchoring. Each test is
  * one invariant the ADR states, and fails while the bug it names stands.
  */
@@ -216,29 +216,19 @@ describe('a highlight edited in Obsidian (attack on #510)', () => {
   });
 });
 
-describe('source note frontmatter round trip (attack on #510)', () => {
-  const roundTrip = (file: string) => {
-    const text = sourceNoteText({
-      kind: 'pdf',
-      title: 'T',
-      author: null,
-      file: createVaultPath(file),
-    });
-    const value = /^file: (.*)$/m.exec(text)?.[1] as string;
-    return readSourceNote({
-      type: 'source',
-      kind: 'pdf',
-      title: 'T',
-      file: JSON.parse(value) as string,
-    })?.file;
-  };
+describe('a source file the note could not name back (attack on #510)', () => {
+  // The `file:` is a wiki link, and `#`, `[`, `]`, `^` and `|` mean something inside one,
+  // so such a name would read back as a different file. Decision A5: the writer refuses it.
+  const noteFor = (file: string) =>
+    sourceNoteText({ kind: 'pdf', title: 'T', author: null, file: createVaultPath(file) });
 
-  it('reads back the file of a book whose name holds `#`', () => {
-    expect(roundTrip('Sources/C# in Depth.pdf')).toBe('Sources/C# in Depth.pdf');
-  });
-
-  it('reads back the file of a book whose name holds square brackets', () => {
-    expect(roundTrip('Sources/Notes [draft].pdf')).toBe('Sources/Notes [draft].pdf');
+  it.each([
+    'Sources/C# in Depth.pdf',
+    'Sources/Notes [draft].pdf',
+    'Sources/A^b.pdf',
+    'Sources/A|b.pdf',
+  ])('refuses the file %j', (file) => {
+    expect(() => noteFor(file)).toThrow();
   });
 });
 
