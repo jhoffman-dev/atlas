@@ -325,12 +325,12 @@ jobs:
           echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
           echo "image=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
 
-      # Fail a dead mirror fast and retry, rather than crawl until the step's
-      # limit. A conf file, because `playwright install-deps` runs apt itself.
+      # Fail a dead connection fast and retry it. A trickling one is caught by
+      # the time limits in tools/ci/install-webkit-deps.sh instead.
       - name: Make apt time out and retry
         run: |
           printf '%s\n' 'Acquire::Retries "3";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' \
-            'Binary::apt::APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99-ci-519 > /dev/null
+            | sudo tee /etc/apt/apt.conf.d/99-ci-519 > /dev/null
 
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: webkit
@@ -357,27 +357,15 @@ jobs:
           path: ~/.cache/webkit-debs
           key: webkit-debs-${{ steps.playwright.outputs.image }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
 
-      # A hit installs from the cached files with no download at all, and falls
-      # back to the mirror if they no longer fit. A miss is today's install,
-      # then keeps the files it fetched for the next run.
+      # A hit installs from the cached files with no download at all. A miss
+      # downloads only what WebKit lacks, under a time limit with retries (the
+      # script says how), and keeps the files for the next run. A failure here
+      # stops the job: nothing after it can run without these packages.
       - name: Install WebKit's system packages
-        timeout-minutes: 8
+        timeout-minutes: 9
         env:
-          CACHE_HIT: ${{ steps.webkit-debs.outputs.cache-hit }}
-        run: |
-          set -euo pipefail
-          debs="$HOME/.cache/webkit-debs"
-          if [ "$CACHE_HIT" = 'true' ] && compgen -G "$debs/*.deb" > /dev/null; then
-            if sudo apt-get install -y --no-install-recommends --no-download "$debs"/*.deb; then
-              exit 0
-            fi
-            echo "::warning::The cached WebKit packages did not install; installing from the mirror."
-          fi
-          pnpm exec playwright install-deps webkit
-          mkdir -p "$debs"
-          if compgen -G '/var/cache/apt/archives/*.deb' > /dev/null; then
-            cp /var/cache/apt/archives/*.deb "$debs"/
-          fi
+          WEBKIT_DEBS_CACHE_HIT: ${{ steps.webkit-debs.outputs.cache-hit }}
+        run: tools/ci/install-webkit-deps.sh "$HOME/.cache/webkit-debs"
 
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: steps.webkit-debs.outputs.cache-hit != 'true'
@@ -391,14 +379,17 @@ jobs:
       # their headroom covers. `pnpm perf` locally builds minified, so its
       # times differ a little from this job's.
       - name: Build the frontend, keeping component names
+        id: build
         run: pnpm --filter @dfai/desktop exec vite build --minify false
 
       - name: Response times on the fixture vault
         run: pnpm exec playwright test --config playwright.perf.config.ts --project latency --reporter=list
 
-      # Run even when a time budget failed, so a red run still says what the counts were.
+      # Run even when a time budget failed, so a red run still says what the
+      # counts were, but only on a build: without one (WebKit's packages did not
+      # install, say) the run would only time out waiting for the server.
       - name: Work budgets on the fixture vault
-        if: success() || failure()
+        if: (success() || failure()) && steps.build.outcome == 'success'
         run: pnpm exec playwright test --config playwright.perf.config.ts --project budgets --reporter=list
         env:
           # Counted twice: a count that differs between the two runs fails, so the
