@@ -36,8 +36,8 @@ export interface PdfPageProps {
 
 export const PdfPage = memo(function PdfPage(props: PdfPageProps) {
   const { pdf, page, zoom } = props;
-  const size = usePageSize(pdf, page) ?? props.estimate;
-  const text = usePageText(pdf, page);
+  const { size: read, text } = usePageFacts(pdf, page);
+  const size = read ?? props.estimate;
   const width = size.width * zoom;
   const height = size.height * zoom;
   const scanned = text !== null && !hasWords(text);
@@ -52,45 +52,52 @@ export const PdfPage = memo(function PdfPage(props: PdfPageProps) {
     >
       <PageCanvas pdf={pdf} page={page} zoom={zoom} width={width} height={height} />
       {text !== null && <TextLayer text={text} width={width} height={height} />}
-      <Marks {...props} />
+      <Marks
+        page={page}
+        zoom={zoom}
+        highlights={props.highlights}
+        matches={props.matches}
+        currentMatch={props.currentMatch}
+        flashing={props.flashing}
+      />
       {scanned && <AreaLayer page={page} onAreaDrawn={props.onAreaDrawn} />}
     </div>
   );
 });
 
-function usePageSize(pdf: ReaderDocument, page: number): ReaderPageSize | null {
-  const [size, setSize] = useState<ReaderPageSize | null>(null);
+/** What the PDF says of a page: its own size and its words, each null until read. */
+interface PageFacts {
+  readonly size: ReaderPageSize | null;
+  readonly text: PdfPageText | null;
+}
+
+const UNREAD: PageFacts = { size: null, text: null };
+
+/**
+ * A page's size and words, read together so the page is drawn again once
+ * for both, not once for each.
+ */
+function usePageFacts(pdf: ReaderDocument, page: number): PageFacts {
+  const [facts, setFacts] = useState<PageFacts>(UNREAD);
   useEffect(() => {
     let live = true;
-    pdf.pageSize(page).then(
-      (read) => live && setSize(read),
-      // The first page's size stands in: the page still draws, only perhaps at the wrong height.
-      () => undefined,
-    );
+    void Promise.allSettled([pdf.pageSize(page), pdf.pageText(page)]).then(([size, text]) => {
+      if (!live) return;
+      setFacts({
+        // The first page's size stands in: the page still draws, only perhaps at the wrong height.
+        size: size.status === 'fulfilled' ? size.value : null,
+        // A page whose words cannot be read is still drawn; it only has nothing to select.
+        text: text.status === 'fulfilled' ? text.value : { text: '', runs: [] },
+      });
+    });
     return () => {
       live = false;
     };
   }, [pdf, page]);
-  return size;
+  return facts;
 }
 
-function usePageText(pdf: ReaderDocument, page: number): PdfPageText | null {
-  const [text, setText] = useState<PdfPageText | null>(null);
-  useEffect(() => {
-    let live = true;
-    pdf.pageText(page).then(
-      (read) => live && setText(read),
-      // A page whose words cannot be read is still drawn; it only has nothing to select.
-      () => live && setText({ text: '', runs: [] }),
-    );
-    return () => {
-      live = false;
-    };
-  }, [pdf, page]);
-  return text;
-}
-
-function PageCanvas({
+const PageCanvas = memo(function PageCanvas({
   pdf,
   page,
   zoom,
@@ -135,13 +142,21 @@ function PageCanvas({
       {failed && <p className="pdf-page__failed">This page could not be drawn.</p>}
     </>
   );
-}
+});
 
 /**
  * The page's words, each run where it sits, stretched to the width the PDF
  * gives it so a selection covers what is drawn under it.
  */
-function TextLayer({ text, width, height }: { text: PdfPageText; width: number; height: number }) {
+const TextLayer = memo(function TextLayer({
+  text,
+  width,
+  height,
+}: {
+  text: PdfPageText;
+  width: number;
+  height: number;
+}) {
   const layer = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const spans = [...(layer.current?.querySelectorAll<HTMLElement>('[data-start]') ?? [])];
@@ -176,9 +191,18 @@ function TextLayer({ text, width, height }: { text: PdfPageText; width: number; 
       )}
     </div>
   );
-}
+});
 
-function Marks({ page, highlights, matches, currentMatch, flashing, zoom }: PdfPageProps) {
+const Marks = memo(function Marks({
+  page,
+  highlights,
+  matches,
+  currentMatch,
+  flashing,
+  zoom,
+}: Pick<PdfPageProps, 'page' | 'highlights' | 'matches' | 'currentMatch' | 'flashing'> & {
+  zoom: number;
+}) {
   const here = highlights.filter(
     (highlight) => highlight.placement.kind !== 'lost' && highlight.placement.page === page,
   );
@@ -208,7 +232,7 @@ function Marks({ page, highlights, matches, currentMatch, flashing, zoom }: PdfP
       )}
     </div>
   );
-}
+});
 
 function markClass(highlight: ReaderHighlight, flashing: string | null): string {
   const classes = [

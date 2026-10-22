@@ -834,14 +834,13 @@ async function runALongAtlasQuery(pass: Pass): Promise<void> {
 }
 
 /** The 500-page PDF the reader is held to (#504): a file in the vault, no note of its own, so nothing else counts it. */
-const LONG_PDF = 'Library/A Long Crossing.pdf';
+const LONG_PDF = 'Areas/A Long Crossing.pdf';
 const LONG_PDF_PAGES = 500;
 /** The most pages the reader may have drawn at once: the ones on screen and a couple either side. */
 const PDF_MOST_DRAWN = 8;
 
 /** Written beside the fixture's notes; a PDF is not a note, so opening the vault does not read it. */
 async function writeLongPdf(vault: FakeVault): Promise<void> {
-  await mkdir(join(vault.root, 'Library'), { recursive: true });
   await writeFile(join(vault.root, LONG_PDF), longFixturePdf(LONG_PDF_PAGES));
 }
 
@@ -870,7 +869,7 @@ async function readALongPdf(pass: Pass): Promise<void> {
   await pdfWorkerOnThePage(page);
   await pass.setUp(
     phase(
-      () => tree.getByRole('treeitem', { name: 'Library', exact: true }).click(),
+      () => tree.getByRole('treeitem', { name: 'Areas', exact: true }).click(),
       exists,
       '[role="treeitem"][aria-label="A Long Crossing.pdf"]',
     ),

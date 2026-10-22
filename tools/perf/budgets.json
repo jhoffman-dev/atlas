@@ -239,7 +239,7 @@
     },
     "Open a 500-page PDF": {
       "commits": 11,
-      "renders": 191,
+      "renders": 171,
       "calls": {
         "index_notes_of_type": 3,
         "read_binary_file": 3,
@@ -248,7 +248,7 @@
     },
     "Scroll a 500-page PDF to its middle": {
       "commits": 5,
-      "renders": 85,
+      "renders": 41,
       "calls": {}
     }
   }

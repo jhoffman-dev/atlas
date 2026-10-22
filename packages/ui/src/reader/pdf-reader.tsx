@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
 import {
   draggedBox,
@@ -72,6 +72,14 @@ export function PdfReader(props: PdfReaderProps) {
   const goTo = useGoTo({ pages, size: props.firstPageSize, zoom });
   const find = useFind({ onSearch: props.onSearch, goTo });
   const marking = useMarking({ props, scroller });
+  // Stable, so the bar of buttons is drawn again only when what it shows changes.
+  const pageWidth = props.firstPageSize.width;
+  const onFit = useCallback(
+    () => setZoom(fitWidthZoom({ available: scroller.current?.clientWidth ?? 0, pageWidth })),
+    [pageWidth],
+  );
+  const onSide = useCallback(() => setSide((was) => (was === null ? 'outline' : null)), []);
+  const onPanel = useCallback(() => setPanelOpen((was) => !was), []);
   const show = (id: string) => {
     const placement = props.highlights.find((highlight) => highlight.id === id)?.placement;
     if (placement !== undefined && placement.kind !== 'lost')
@@ -96,19 +104,13 @@ export function PdfReader(props: PdfReaderProps) {
           <ReaderActionsBar
             zoom={zoom}
             onZoom={setZoom}
-            onFit={() =>
-              setZoom(
-                fitWidthZoom({
-                  available: scroller.current?.clientWidth ?? 0,
-                  pageWidth: props.firstPageSize.width,
-                }),
-              )
-            }
-            find={find}
+            onFit={onFit}
+            findOpen={find.open}
+            onFind={find.toggle}
             side={side}
-            onSide={() => setSide((was) => (was === null ? 'outline' : null))}
+            onSide={onSide}
             panelOpen={panelOpen}
-            onPanel={() => setPanelOpen((was) => !was)}
+            onPanel={onPanel}
             onOpenNote={props.onOpenNote}
           />
         }
@@ -186,11 +188,12 @@ export function PdfReader(props: PdfReaderProps) {
   );
 }
 
-function ReaderActionsBar({
+const ReaderActionsBar = memo(function ReaderActionsBar({
   zoom,
   onZoom,
   onFit,
-  find,
+  findOpen,
+  onFind,
   side,
   onSide,
   panelOpen,
@@ -200,7 +203,8 @@ function ReaderActionsBar({
   zoom: number;
   onZoom: (zoom: number) => void;
   onFit: () => void;
-  find: ReturnType<typeof useFind>;
+  findOpen: boolean;
+  onFind: () => void;
   side: SidebarTab | null;
   onSide: () => void;
   panelOpen: boolean;
@@ -220,14 +224,14 @@ function ReaderActionsBar({
         icon="search"
         label="Find"
         title="Find in document (⌘F)"
-        pressed={find.open}
-        onPress={find.toggle}
+        pressed={findOpen}
+        onPress={onFind}
       />
       <PageAction icon="panel" label="Highlights" pressed={panelOpen} onPress={onPanel} />
       {onOpenNote !== null && <PageAction icon="doc" label="Open note" onPress={onOpenNote} />}
     </>
   );
-}
+});
 
 function usePages({
   scroller,
@@ -331,11 +335,14 @@ function useMarking({
 }) {
   const [popover, setPopover] = useState<Popover | null>(null);
   const canMark = props.onOpenNote !== null;
-  const where = (rect: DOMRect) => {
-    const frame = scroller.current?.getBoundingClientRect();
-    const top = (scroller.current?.scrollTop ?? 0) + rect.top - (frame?.top ?? 0) - 44;
-    return { left: Math.max(8, rect.left - (frame?.left ?? 0)), top: Math.max(8, top) };
-  };
+  const where = useCallback(
+    (rect: DOMRect) => {
+      const frame = scroller.current?.getBoundingClientRect();
+      const top = (scroller.current?.scrollTop ?? 0) + rect.top - (frame?.top ?? 0) - 44;
+      return { left: Math.max(8, rect.left - (frame?.left ?? 0)), top: Math.max(8, top) };
+    },
+    [scroller],
+  );
   const onSelectionEnd = () => {
     if (!canMark) return;
     const selected = globalThis.getSelection?.() ?? null;
@@ -347,27 +354,21 @@ function useMarking({
       selection,
     });
   };
-  const onAreaDrawn = ({
-    page,
-    from,
-    to,
-    at,
-  }: {
-    page: number;
-    from: PagePoint;
-    to: PagePoint;
-    at: DOMRect;
-  }) => {
-    const box = canMark ? draggedBox(from, to) : null;
-    if (box === null) return;
-    const top = at.top + box.y * at.height;
-    setPopover({
-      kind: 'area',
-      at: where(new DOMRect(at.left + box.x * at.width, top, 0, 0)),
-      page,
-      box,
-    });
-  };
+  // Stable: every page holds it, and a page is drawn again when it changes.
+  const onAreaDrawn = useCallback(
+    ({ page, from, to, at }: { page: number; from: PagePoint; to: PagePoint; at: DOMRect }) => {
+      const box = canMark ? draggedBox(from, to) : null;
+      if (box === null) return;
+      const top = at.top + box.y * at.height;
+      setPopover({
+        kind: 'area',
+        at: where(new DOMRect(at.left + box.x * at.width, top, 0, 0)),
+        page,
+        box,
+      });
+    },
+    [canMark, where],
+  );
   const dismiss = () => setPopover(null);
   const onMark = async (request: MarkRequest) => {
     const asked = popover;

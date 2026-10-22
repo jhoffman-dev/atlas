@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { stepMatch, type DocumentMatch, type PageRect } from '@dfai/domain';
 import type { ReaderActions } from './reader-types.ts';
 
@@ -48,6 +48,9 @@ export function useFind({
   useEffect(() => {
     if (currentMatch !== null) goTo(currentMatch.page, currentMatch.rects[0]);
   }, [currentMatch, goTo]);
+  // Stable, so a button bar that holds them is not drawn again for every keystroke in the field.
+  const toggle = useCallback(() => setOpen((was) => !was), []);
+  const close = useCallback(() => setOpen(false), []);
   const step = (back: boolean) => setCurrent((was) => stepMatch(was, matches.length, back));
   const onKeyDown = (event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
@@ -65,8 +68,8 @@ export function useFind({
     currentMatch,
     step,
     onKeyDown,
-    toggle: () => setOpen((was) => !was),
-    close: () => setOpen(false),
+    toggle,
+    close,
   };
 }
 
