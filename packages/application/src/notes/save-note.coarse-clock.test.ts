@@ -24,6 +24,7 @@ const markdown: MarkdownPort = {
   }),
   serializeBody: ({ doc }) => String(doc.content[0]?.attrs?.['text'] ?? ''),
   rawParts: () => [],
+  noteBlocks: () => ({ quotes: [], hidden: [] }),
   addToFrontmatterMap: () => null,
 };
 

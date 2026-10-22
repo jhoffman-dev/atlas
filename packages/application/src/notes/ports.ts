@@ -1,4 +1,4 @@
-import type { BodyRange, EditorDocument, ParsedBody, RawPart } from '@dfai/domain';
+import type { BodyRange, EditorDocument, NoteBlocks, ParsedBody, RawPart } from '@dfai/domain';
 
 /**
  * Turning markdown into an editable document and back. The implementation is a
@@ -73,4 +73,10 @@ export interface MarkdownPort {
    * markdown — in reach, as the note reads them. Nothing in code.
    */
   rawParts(markdown: string, definitions: readonly string[]): RawPart[];
+  /**
+   * The note's top-level block quotes and what its Obsidian `%%` comments
+   * hide, by offset into the whole `text`, frontmatter included: what its
+   * highlights are read from (ADR-0043 §2), as the note renders.
+   */
+  noteBlocks(text: string): NoteBlocks;
 }

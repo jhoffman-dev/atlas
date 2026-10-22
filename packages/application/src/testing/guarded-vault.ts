@@ -13,6 +13,7 @@ export const jsonFrontmatterMarkdown: MarkdownPort = {
   parseBody: () => ({ blocks: [], doc: { type: 'doc', content: [] } }),
   serializeBody: () => '',
   rawParts: () => [],
+  noteBlocks: () => ({ quotes: [], hidden: [] }),
   addToFrontmatterMap: () => null,
   frontmatterProblem: (frontmatter) =>
     frontmatter !== null && frontmatter.includes('BROKEN') ? 'a bad line' : null,
