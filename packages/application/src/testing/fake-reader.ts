@@ -42,6 +42,18 @@ export function memoryFiles(initial: Record<string, string | Uint8Array> = {}) {
   };
   const fs: VaultFsPort = fakeVaultFs({
     listDirectory,
+    // As the host walks: told folders skipped, no deeper than asked.
+    listFiles: async ({ extension, skipDirectories, maxDepth }) =>
+      [...files.keys()]
+        .filter((path) => {
+          const folders = path.split('/').slice(0, -1);
+          return (
+            path.toLowerCase().endsWith(`.${extension.toLowerCase()}`) &&
+            folders.length <= maxDepth &&
+            !folders.some((folder) => skipDirectories.includes(folder))
+          );
+        })
+        .map((path) => createVaultPath(path)),
     createFolder: async ({ path }) => {
       if (folders.has(path) || files.has(path)) throw new Error('already exists');
       folders.add(path);

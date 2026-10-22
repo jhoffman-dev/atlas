@@ -14,6 +14,7 @@ const entry = (name: string, kind: VaultEntry['kind'] = 'file'): VaultEntry =>
 
 const fakeFs = (entries: VaultEntry[], text = ''): VaultFsPort => ({
   listDirectory: async () => entries,
+  listFiles: async () => [],
   listNotes: async () => [],
   readNotes: async () => [],
   readBinaryFile: async () => new ArrayBuffer(0),
@@ -46,6 +47,7 @@ describe('listVaultDirectory', () => {
   it('propagates a read failure rather than showing an empty directory', async () => {
     const fs: VaultFsPort = {
       listDirectory: () => Promise.reject(new Error('permission denied')),
+      listFiles: async () => [],
       listNotes: async () => [],
       readNotes: async () => [],
       readBinaryFile: async () => new ArrayBuffer(0),
@@ -75,6 +77,7 @@ describe('listVaultNotes', () => {
 
   const hostReturning = (paths: string[]): VaultFsPort => ({
     ...fakeFs([]),
+    listFiles: async () => [],
     listNotes: async () => paths.map(listing),
   });
 
@@ -154,6 +157,7 @@ describe('readVaultFile', () => {
   it('propagates a read failure', async () => {
     const fs: VaultFsPort = {
       listDirectory: async () => [],
+      listFiles: async () => [],
       listNotes: async () => [],
       readNotes: async () => [],
       readBinaryFile: async () => new ArrayBuffer(0),

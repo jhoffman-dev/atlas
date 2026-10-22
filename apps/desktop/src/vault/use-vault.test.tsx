@@ -16,6 +16,7 @@ const B: VaultLocation = { absolutePath: '/Users/j/B', name: 'B' };
 
 const fs: VaultFsPort = {
   listDirectory: async () => [] as VaultEntry[],
+  listFiles: async () => [],
   listNotes: async () => [],
   readNotes: async () => [],
   readBinaryFile: async () => new ArrayBuffer(0),
@@ -85,6 +86,7 @@ describe('useVault, switching vaults (R14-01)', () => {
     let listed: VaultPath[] = [];
     const listing: VaultFsPort = {
       ...fs,
+      listFiles: async () => [],
       listNotes: async () => listed.map((path) => ({ name: path, path, modified: 1, size: 1 })),
     };
     const remembered: VaultLocationStore = { read: async () => A, write: async () => {} };
@@ -107,6 +109,7 @@ describe('useVault, switching vaults (R14-01)', () => {
     let release: (() => void) | null = null;
     const slowA: VaultFsPort = {
       ...fs,
+      listFiles: async () => [],
       listNotes: async () => {
         if (release === null) {
           // The first vault's listing waits; the next vault's answers at once.

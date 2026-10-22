@@ -61,6 +61,25 @@ export const tauriVaultFs: HostVaultFsPort = {
     }));
   },
 
+  async listFiles({
+    extension,
+    skipDirectories,
+    maxDepth,
+  }: {
+    extension: string;
+    skipDirectories: readonly string[];
+    maxDepth: number;
+  }) {
+    const raw = await throughHost(
+      invoke<string[]>('list_vault_files', {
+        extension,
+        skipDirectories: [...skipDirectories],
+        maxDepth,
+      }),
+    );
+    return raw.map((path) => createVaultPath(path));
+  },
+
   readNotes(paths: readonly string[]) {
     return throughHost(invoke<RawNoteFile[]>('read_notes', { paths }));
   },

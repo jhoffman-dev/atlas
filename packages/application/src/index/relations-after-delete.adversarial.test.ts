@@ -47,6 +47,7 @@ function memoryVault(files: Map<string, string>): VaultFsPort {
     }));
   return {
     listDirectory: async () => [],
+    listFiles: async () => [],
     listNotes: async () => entries(),
     readNotes: async (paths) =>
       paths.flatMap((path) => {

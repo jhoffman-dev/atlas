@@ -3,12 +3,13 @@ import {
   isPdfName,
   isVisibleEntry,
   namesPdf,
-  VAULT_ROOT,
+  HIDDEN_DIRECTORY_NAMES,
   VAULT_WALK_DEPTH,
   pdfLinkTarget,
   readerLinkLabel,
   readHighlights,
   readLiteratureNote,
+  vaultPathName,
   type HighlightOpening,
   type VaultPath,
 } from '@dfai/domain';
@@ -102,7 +103,7 @@ export function readerHighlightLinks(
 
 /** What finding the PDF a wiki link names needs: the vault's files. */
 export interface LinkedPdfPorts {
-  readonly fs: Pick<VaultFsPort, 'listDirectory'>;
+  readonly fs: Pick<VaultFsPort, 'listFiles'>;
 }
 
 /**
@@ -117,17 +118,20 @@ export async function linkedPdf(ports: LinkedPdfPorts, target: string): Promise<
   return pdfLinkTarget(target, await listVaultPdfs(ports));
 }
 
-/** Every PDF in user space, walked folder by folder, hidden entries left out as everywhere (`isVisibleEntry`). */
+/**
+ * Every PDF in user space, in one walk by the host told what to skip as the
+ * note walk is, hidden entries left out as everywhere (`isVisibleEntry`).
+ */
 async function listVaultPdfs({ fs }: LinkedPdfPorts): Promise<VaultPath[]> {
-  const found: VaultPath[] = [];
-  let level: VaultPath[] = [VAULT_ROOT];
-  for (let depth = 0; level.length > 0 && depth <= VAULT_WALK_DEPTH; depth += 1) {
-    const listed = await Promise.all(level.map((path) => fs.listDirectory(path)));
-    level = [];
-    for (const entry of listed.flat().filter(isVisibleEntry)) {
-      if (entry.kind === 'directory') level.push(entry.path);
-      else if (isPdfName(entry.name)) found.push(entry.path);
-    }
-  }
-  return found;
+  const files = await fs.listFiles({
+    extension: PDF_EXTENSION,
+    skipDirectories: HIDDEN_DIRECTORY_NAMES,
+    maxDepth: VAULT_WALK_DEPTH,
+  });
+  return files.filter(
+    (path) => isPdfName(path) && isVisibleEntry({ kind: 'file', name: vaultPathName(path), path }),
+  );
 }
+
+/** What the host is asked to list for `[[…pdf]]`: the files `isPdfName` names. */
+const PDF_EXTENSION = 'pdf';

@@ -50,6 +50,7 @@ function noticingFs(fs: HostVaultFsPort, onWrote: () => void): HostVaultFsPort {
   return {
     listDirectory: (path) => fs.listDirectory(path),
     listNotes: (options) => fs.listNotes(options),
+    listFiles: (options) => fs.listFiles(options),
     readNotes: (paths) => fs.readNotes(paths),
     readTextFile: (path) => fs.readTextFile(path),
     readBinaryFile: (path) => fs.readBinaryFile(path),
