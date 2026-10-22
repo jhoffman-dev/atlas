@@ -168,3 +168,36 @@ describe('describeKindleSync', () => {
     ).toBe("Nothing new from Kindle. Couldn't sync 1 book.");
   });
 });
+
+describe('describeKindleSync of a book whose note has unsaved typing', () => {
+  const waiting = (title: string, asin: string): KindleBookOutcome => ({
+    kind: 'unsaved_typing',
+    asin,
+    title,
+  });
+
+  it('names the book it skipped and says it comes next time, not that it failed', () => {
+    const described = describeKindleSync({
+      kind: 'synced',
+      books: [added(2), waiting('Emma', 'B0EXAMPLE2')],
+      added: 2,
+    });
+    expect(described).toEqual({
+      message:
+        'Added 2 highlights from 1 book. Skipped Emma: its note has unsaved typing. Kindle sync adds it next time.',
+      ok: false,
+    });
+  });
+
+  it('names every book it skipped', () => {
+    expect(
+      describeKindleSync({
+        kind: 'synced',
+        books: [waiting('Emma', 'B0EXAMPLE2'), waiting('Persuasion', 'B0EXAMPLE3')],
+        added: 0,
+      }).message,
+    ).toBe(
+      'Nothing new from Kindle. Skipped Emma, Persuasion: their notes have unsaved typing. Kindle sync adds them next time.',
+    );
+  });
+});

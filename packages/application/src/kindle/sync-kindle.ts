@@ -14,6 +14,7 @@ import {
   type KindleSyncReport,
 } from '@dfai/domain';
 import type { Clock } from '../ports.ts';
+import { UnsavedTypingError } from '../vault/update-links.ts';
 import {
   KindleFetchError,
   type KindleDelay,
@@ -230,6 +231,7 @@ async function writeBook(
     try {
       await ports.sink.addHighlights({ book, highlights: fresh, syncedAt: ports.clock.now() });
     } catch (error) {
+      if (error instanceof UnsavedTypingError) return { ...named, kind: 'unsaved_typing' };
       return notWritten(error);
     }
   }

@@ -67,7 +67,9 @@ export interface KindleHighlightSink {
   recordedKeys(book: KindleBook): Promise<ReadonlySet<string>>;
   /**
    * Adds `highlights` to the book's note, making the note when there is none.
-   * All or nothing: a failure leaves the note as it was.
+   * All or nothing: a failure leaves the note as it was. Throws
+   * `UnsavedTypingError` when a pane holds unsaved typing in the note: the
+   * sync leaves the book for the next one rather than write behind it.
    */
   addHighlights(args: {
     readonly book: KindleBook;

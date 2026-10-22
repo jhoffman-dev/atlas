@@ -47,3 +47,20 @@ export type {
   KindlePageProblem,
   KindleRawPage,
 } from './kindle-types.ts';
+export { kindleLiteratureNote, kindleNoteMatch, kindleNoteOf } from './kindle-note-match.ts';
+export type { KindleNoteMatch } from './kindle-note-match.ts';
+export {
+  KindleHighlightUnplaceableError,
+  KindlePassageGoneError,
+  recordedKindleKeys,
+  withKindleHighlights,
+} from './kindle-note-writes.ts';
+export {
+  KINDLE_AUTO_SYNC_INTERVAL_MS,
+  KINDLE_AUTO_SYNC_MIN_GAP_MS,
+  kindleAutoSyncSkip,
+  kindleRecordAfterFailure,
+  kindleRecordAfterSync,
+  NO_KINDLE_SYNC_RECORD,
+} from './kindle-auto-sync.ts';
+export type { KindleAutoSyncSkip, KindleLastSync, KindleSyncRecord } from './kindle-auto-sync.ts';
