@@ -3981,4 +3981,116 @@ ORDER BY 1, 3"#;
         let paths: Vec<&str> = hits.iter().map(|hit| hit.path.as_str()).collect();
         assert!(paths.is_empty(), "no note says md, yet: {paths:?}");
     }
+
+    // --- Attack tests for PR #525 (#507): highlights_fts under hostile input. ---
+
+    fn attack_525_index() -> Connection {
+        let mut index = empty_index();
+        let mut source = note("Library/Art.md", "The Art of War", "notes body");
+        let mut commented = highlight("k1", "All warfare is based on deception");
+        commented.comment = "Compare the Larkspur pitch".to_string();
+        source.highlights = vec![
+            commented,
+            highlight("k2", "Know the enemy and know yourself"),
+        ];
+        put_notes(&mut index, &[source]).unwrap();
+        index
+    }
+
+    /// What `toSearchQuery` makes of what was typed: each word quoted, the last a prefix.
+    fn typed(words: &str) -> String {
+        let terms: Vec<String> = words
+            .split_whitespace()
+            .map(|term| term.replace('"', ""))
+            .filter(|term| !term.is_empty())
+            .collect();
+        let last = terms.len().saturating_sub(1);
+        terms
+            .iter()
+            .enumerate()
+            .map(|(at, term)| {
+                if at == last {
+                    format!("\"{term}\"*")
+                } else {
+                    format!("\"{term}\"")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn attack_525_fts_syntax_typed_into_search_neither_errors_nor_matches_everything() {
+        let index = attack_525_index();
+        for words in [
+            "-", "*", ":", "^", "NEAR", "NEAR(", "quote:", "-enemy", "enemy*", "\"enemy", "AND",
+            "OR", "NOT", "(", ")", "{quote}", "+", "a:b", "'", "‐", "…",
+        ] {
+            let query = typed(words);
+            let found = search_highlights(&index, &query, 10, None)
+                .unwrap_or_else(|error| panic!("{words:?} as {query:?} failed: {error}"));
+            assert!(
+                found.len() < 2,
+                "{words:?} as {query:?} matched every highlight: {found:?}",
+                found = found
+                    .iter()
+                    .map(|hit| hit.block.clone())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn attack_525_a_very_long_typed_query_is_answered_not_an_error() {
+        let index = attack_525_index();
+        let words = vec!["enemy"; 400].join(" ");
+        let found = search_highlights(&index, &typed(&words), 10, None);
+        assert!(found.is_ok(), "400 words failed: {:?}", found.err());
+        let long_word = "x".repeat(20_000);
+        assert!(search_highlights(&index, &typed(&long_word), 10, None).is_ok());
+    }
+
+    #[test]
+    fn attack_525_reordering_a_notes_highlights_keeps_each_hit_on_its_own_block() {
+        let mut index = attack_525_index();
+        let mut reordered = note("Library/Art.md", "The Art of War", "notes body");
+        reordered.highlights = vec![
+            highlight("k2", "Know the enemy and know yourself"),
+            highlight("k1", "All warfare is based on deception"),
+            highlight("k3", "Supreme excellence"),
+        ];
+        put_notes(&mut index, &[reordered]).unwrap();
+        let block = |query: &str| {
+            search_highlights(&index, query, 10, None)
+                .unwrap()
+                .into_iter()
+                .map(|hit| hit.block)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(block("\"enemy\""), vec![Some("k2".to_string())]);
+        assert_eq!(block("\"deception\""), vec![Some("k1".to_string())]);
+        assert_eq!(block("\"excellence\""), vec![Some("k3".to_string())]);
+        // The comment went with its highlight: k1 is rewritten without one.
+        assert!(block("\"larkspur\"").is_empty());
+        let (rows, searchable): (i64, i64) = index
+            .query_row(
+                "SELECT (SELECT count(*) FROM highlights), (SELECT count(*) FROM highlights_fts)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((rows, searchable), (3, 3));
+    }
+
+    #[test]
+    fn attack_525_a_prefix_finds_a_longer_word_and_a_folded_accent() {
+        let index = attack_525_index();
+        let hits = search_highlights(&index, &typed("war"), 10, None).unwrap();
+        assert_eq!(
+            hits.iter().map(|hit| hit.block.clone()).collect::<Vec<_>>(),
+            vec![Some("k1".to_string())]
+        );
+        let hits = search_highlights(&index, &typed("décéption"), 10, None).unwrap();
+        assert_eq!(hits.len(), 1);
+    }
 }
