@@ -104,7 +104,10 @@ ADR-0017's rule for secrets, applied to cookies.
   marks, embeddings and isolates — then NFC-normalised, so an invisible
   between a letter and its accent cannot keep them from composing). The sink is told only highlights it has not recorded; it adds
   them and never rewrites, reorders or removes what the note holds
-  (ADR-0003). A highlight deleted on the Kindle stays in the note.
+  (ADR-0003). A highlight deleted on the Kindle stays in the note. A
+  highlight the person removed from the note stays removed: removing it leaves
+  a hidden tombstone (`atlas:highlight-removed`, ADR-0043 §5) that counts as
+  recorded, for the highlight and every note typed on it.
 - **A note typed on a passage is an entry of its own**, keyed
   `amazon:<id>:note:<hash of the note>` and marked `commentOn` the passage's
   key, added after the passage as a follow-up comment. A note typed on a
@@ -153,13 +156,18 @@ note>`, so an edited one arrives as a new entry and an unedited one is
   has been, so the whole gap is waited. A forward jump under a minute reads
   as time passed and may shorten one gap; a monotonic clock port would close
   that, and is not worth a port of its own here.
-- **One sync is in flight per app.** The slot is owned by the use-case
-  factory, `createKindleSync`, not keyed by the sink: the composition root
-  creates **one** per app and every caller (launch, schedule, ⌘K) uses it. A
-  call made while a sync runs joins it and gets its report, failed or not. A
-  join waits at most 10 minutes from when the running sync started
-  (`KINDLE_SYNC_JOIN_DEADLINE_MS`, through an injected delay); past that the
-  running sync is taken as stuck, the join is told so
+- **One sync is in flight per app, and per vault.** The slot is owned by the
+  use-case factory, `createKindleSync`, not keyed by the sink: the composition
+  root creates **one** per app and every caller (launch, schedule, ⌘K) uses it.
+  A call made while a sync runs **for the same vault** joins it and gets its
+  report, failed or not. The same vault is the same `vault` (the root the
+  window passes), else the same sink. A call for **another vault** — the person
+  opened one while a sync ran — is not that sync's to answer: it runs once the
+  running one has settled, reads and writes its own vault, and gets its own
+  report, so Amazon is still read by one sync at a time and the second vault's
+  notes are not skipped. A join waits at most 10 minutes from when the running
+  sync started (`KINDLE_SYNC_JOIN_DEADLINE_MS`, through an injected delay); past
+  that the running sync is taken as stuck, the join is told so
   (`KindleSyncStuckError`), and the running sync is **given up** (an abort
   signal it checks before every fetch and every note write): it fetches and
   writes nothing more, and its own call fails the same way; a given-up sync with
@@ -174,11 +182,25 @@ note>`, so an edited one arrives as a new entry and an unedited one is
   session no longer needs. That is accepted: the next sync reads the new
   session, and two at once would add everything twice.
 
-### Off by default
+### Off by default, and off in every vault
 
 Nothing runs until the person connects. Connecting is the opt-in, for their
 own highlights. Settings → Kindle says what it does and the limits below
 before the person connects.
+
+**Writing into a vault is a second opt-in, per vault.** The Amazon session,
+the 24-hour hold and the one-hour gap are this Mac's and concern Amazon; where
+the highlights go concerns the vault. Settings → Kindle has a switch, **Sync
+Kindle into this vault**, off for every vault until the person turns it on for
+that one. It is kept per vault root in the app's own storage
+(`atlas.kindle-vaults`, `browserKindleVaults`), never in the vault, since the
+choice is this Mac's and the vault syncs. Automatic syncs (on launch and every
+four hours) and ⌘K's Sync Kindle now write only into a vault that opted in;
+asking for a sync in one that has not (Sync now, ⌘K, or the sync right after
+Connect) syncs nothing and says how to turn it on
+(`KINDLE_NOT_INTO_VAULT_MESSAGE`), and with no vault open nothing is on.
+Turning the switch on tries an automatic sync at once if Kindle is connected and the index is
+ready. Connect and Disconnect do not need it.
 
 ### When it runs, and what this Mac keeps (#508, second part)
 
@@ -186,7 +208,8 @@ before the person connects.
   `createKindleSync`, with the window's real timer as its delay and join
   deadline; launch, the schedule, Settings' Sync now and ⌘K all go through
   it, so two never run at once.
-- **Automatically**: once the open vault's index is ready (literature notes
+- **Automatically**, into a vault the person turned Kindle sync on for: once
+  the open vault's index is ready (literature notes
   are looked up in it), then every 4 hours (`KINDLE_AUTO_SYNC_INTERVAL_MS`)
   while it is open — only while connected, never within 24 hours of a robot
   check or rate limit (`mayAutoSyncKindle`), and not within an hour of the last
@@ -202,10 +225,28 @@ before the person connects.
   deleted behind DFAI's back) or `unsupported` marks it not connected, so the
   schedule stops; Disconnect does too, and keeps the hold.
 - **Connect** opens the sign-in window and, once the person closes it, records
-  the connection and syncs at once: that sync is what says whether they signed
-  in. **Disconnect** deletes the session's store (Amazon is not signed out).
+  the connection and syncs at once (into a vault that opted in): that sync is
+  what says whether they signed in. **Disconnect** deletes the session's store
+  (Amazon is not signed out).
+- **A Disconnect during a sync stands.** A sync that began connected and ends
+  after the person disconnected neither connects the record again nor puts its
+  own words on it (`runKindleSync` compares the record it began with to the one
+  it ends with); the sync itself, losing its session, stops at its next fetch.
+  Connect, Sync now and Disconnect pressed twice (⌘K has no disabled button)
+  do their work once: Connect and Sync now are ignored while anything is under
+  way, Disconnect while a sign-in window is open or a Disconnect is, but not
+  while a sync runs.
 - **Words**: the card and a toast say `describeKindleSync`'s message. A book
-  whose note has unsaved typing is named and said to come next time.
+  whose note has unsaved typing is named and said to come next time, and
+  highlights a note cannot place (a page `xiv`) are counted and located. "Added
+  N" is what the notes took (the sink says what it wrote), not what it was
+  handed. The card says the notes go in the folder the Literature type names
+  rather than naming `Library`, which a vault may have renamed; finding the
+  folder's name would read the vault each time Settings opens.
+- **Covers are not fetched.** Amazon's cover URLs would be hotlinked (a request to
+  Amazon from every reader of the note, outside the session this ADR keeps
+  apart). A later option is to download a cover into the vault once, as an
+  attachment, through the same session; until then a note has no cover.
 - ⌘K offers **Connect Kindle** while not connected, **Sync Kindle now** and
   **Disconnect Kindle** once connected. How the highlights are written is
   ADR-0043 §11.
