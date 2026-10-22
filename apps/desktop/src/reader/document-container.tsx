@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { VaultPath } from '@dfai/domain';
-import type { ReaderReveal } from '@dfai/ui';
 import { LoadedLater } from '../page-frame-fallback.tsx';
 import { documentReader } from '../pages-on-first-use.ts';
 import { useTabReveal } from '../panes/reveals.ts';
 import type { PageContainerProps } from '../workspace/page-wiring.ts';
 import type { DocumentPorts } from './use-document-highlights.ts';
+import { useHeldReveal } from './held-reveal.ts';
 
 const DocumentReader = documentReader.Component;
 
@@ -45,22 +45,4 @@ export function DocumentContainer({
       />
     </LoadedLater>
   );
-}
-
-/**
- * The last highlight the tab was asked to show, held here once the ask is
- * spent: the reader may still be loading, or its highlights still being
- * placed, and shows it when it can.
- */
-function useHeldReveal(asked: ReturnType<typeof useTabReveal>): ReaderReveal | null {
-  const [held, setHeld] = useState<ReaderReveal | null>(null);
-  const [seen, setSeen] = useState(asked);
-  if (asked !== seen) {
-    setSeen(asked);
-    if (asked?.fragment.kind === 'block')
-      setHeld({ id: asked.fragment.id, key: Number(asked.key) });
-  }
-  // Spent once held, so the tab opened on this file again later is not brought there again.
-  useEffect(() => asked?.done?.(), [asked]);
-  return held;
 }
