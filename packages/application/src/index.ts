@@ -11,6 +11,7 @@ export * from './sidebar/index.ts';
 export * from './graph/index.ts';
 export * from './artifacts/index.ts';
 export * from './thumbnails/index.ts';
+export * from './export/index.ts';
 export * from './quick-add/index.ts';
 export * from './settings/index.ts';
 export * from './google-calendar/index.ts';
@@ -22,6 +23,12 @@ export { memoryIndexPort } from './testing/memory-index.ts';
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
 export { apiFixture, bodyOf, codeOf, encoded } from './testing/api-fixture.ts';
 export { fakeGoogleCalendar } from './testing/fake-google-calendar.ts';
+export {
+  fakeGoogleDrive,
+  fakePdfRenderer,
+  readOnlyVault,
+  recordingExportFiles,
+} from './testing/fake-export.ts';
 export { fakeGranola, granolaNote, granolaTurn } from './testing/fake-granola.ts';
 export type { GranolaCall, GranolaCallKey } from './testing/fake-granola.ts';
 export { fakeClaudeStepPorts } from './testing/fake-claude-step.ts';

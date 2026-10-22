@@ -136,6 +136,13 @@ export interface InboxQuery {
   readonly cursor?: string;
 }
 
+export interface ExportNoteQuery {
+  /** Default `confluence`, as the tool first offered. */
+  readonly format?: ApiNoteExport['format'];
+  /** `standalone` only: whether the frontmatter stays. The route's default is `keep`. */
+  readonly frontmatter?: 'keep' | 'drop';
+}
+
 export interface ListNotesQuery {
   readonly folder?: string;
   readonly type?: string;
@@ -217,11 +224,11 @@ export class AtlasClient {
       query: { ...query },
     });
 
-  exportNote = (path: string) =>
+  exportNote = (path: string, { format = 'confluence', frontmatter }: ExportNoteQuery = {}) =>
     this.json<{ export: ApiNoteExport }>({
       method: 'GET',
       path: notePath(path, '/export'),
-      query: { format: 'confluence' },
+      query: { format, frontmatter },
     });
 
   search = ({ q, limit, includeArchived }: SearchQuery) =>

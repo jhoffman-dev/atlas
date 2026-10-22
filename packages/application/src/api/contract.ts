@@ -178,14 +178,54 @@ export interface ApiExportDrops {
   readonly items: readonly string[];
 }
 
-/** `GET /v1/notes/{path}/export`: a note made ready for a page elsewhere (P32-07). */
-export interface ApiNoteExport {
+/**
+ * `GET /v1/notes/{path}/export`: a note made ready to leave DFAI, by `format`
+ * — for a Confluence page (P32-07), or as Markdown (#501). DFAI writes nothing.
+ */
+export type ApiNoteExport = ApiConfluenceExport | ApiMarkdownExport | ApiStandaloneExport;
+
+/** `format=confluence`: the note as a Confluence page's body. */
+export interface ApiConfluenceExport {
   readonly path: string;
   readonly format: 'confluence';
   /** The note's title, as its page shows it: the title for the page. */
   readonly title: string;
   /** The page's body, as markdown: properties left out, links as their words. */
   readonly markdown: string;
+  /** Everything left out, by kind. Empty when nothing was. */
+  readonly dropped: readonly ApiExportDrops[];
+}
+
+/** A picture in the vault an exported note shows, and the name a copy of it goes by. */
+export interface ApiExportAttachment {
+  /** The picture's vault path, in user space. */
+  readonly path: string;
+  /** For `markdown`, the file name a copy takes; for `standalone`, the path the Markdown links to. */
+  readonly as: string;
+}
+
+/** `format=markdown`: the note as it is, and the pictures its own blocks show. */
+export interface ApiMarkdownExport {
+  readonly path: string;
+  readonly format: 'markdown';
+  readonly title: string;
+  /** The file's text, byte for byte: frontmatter, line endings and a byte-order mark as they are. */
+  readonly markdown: string;
+  readonly attachments: readonly ApiExportAttachment[];
+}
+
+/** `format=standalone`: the note as Markdown that reads without DFAI or the vault. */
+export interface ApiStandaloneExport {
+  readonly path: string;
+  readonly format: 'standalone';
+  readonly title: string;
+  /**
+   * Wiki links as their words, embeds inlined, each picture linked at
+   * `attachments/<name>`; the frontmatter kept unless `frontmatter=drop`.
+   */
+  readonly markdown: string;
+  /** Each picture the Markdown links to, `as` the `attachments/<name>` it links to. */
+  readonly attachments: readonly ApiExportAttachment[];
   /** Everything left out, by kind. Empty when nothing was. */
   readonly dropped: readonly ApiExportDrops[];
 }
@@ -1536,7 +1576,8 @@ export const API_ROUTES = [
   {
     method: 'GET',
     path: '/v1/notes/{path}/export',
-    summary: 'A note as markdown for a Confluence page, and what it leaves out. Query: format.',
+    summary:
+      'A note as markdown for a Confluence page, as it is, or standalone. Query: format, frontmatter.',
   },
   {
     method: 'PUT',

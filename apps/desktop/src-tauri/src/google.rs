@@ -27,7 +27,7 @@ use crate::opener::open_web_link;
 use crate::secrets::{redact_off_worker, vault_scope, SecretState, SecretStore};
 use crate::vault::{root_for_write, VaultState};
 
-pub use api::{ApiCall, GoogleAnswer};
+pub use api::{ApiCall, GoogleAnswer, Service};
 pub use failure::{FailureKind, GoogleFailure};
 use grant::Grant;
 use held::{Access, HeldSignIns};
@@ -212,7 +212,11 @@ fn authorization_url(authorize: &Url, request: &Authorization) -> Url {
         // consent screen: without `prompt=consent`, connecting again after a
         // disconnect would bring back an access token alone.
         .append_pair("access_type", "offline")
-        .append_pair("prompt", "consent");
+        .append_pair("prompt", "consent")
+        // Asking for one more scope (Drive, for an export) keeps those
+        // granted before: Google answers with all of them, so the grant kept
+        // still reaches the Calendar (#501).
+        .append_pair("include_granted_scopes", "true");
     url
 }
 
@@ -343,8 +347,13 @@ impl Session<'_> {
         let scopes = match granted_scopes(tokens.scope.as_deref(), &request.scopes) {
             Ok(scopes) => scopes,
             Err(failure) => {
-                // Not kept, so not left live at Google either.
-                token::revoke(&self.endpoints.revoke, &refresh_token).await;
+                // Not kept. Revoking it would end the app's whole grant at
+                // Google — with `include_granted_scopes` that is the Calendar
+                // sign-in kept here or in another vault too — so it is only
+                // revoked when nothing on this Mac rides on that grant (#502).
+                if !self.grant_in_use(&request.client_id)? {
+                    token::revoke(&self.endpoints.revoke, &refresh_token).await;
+                }
                 return Err(failure);
             }
         };
@@ -367,6 +376,25 @@ impl Session<'_> {
         )?;
         log::info!("Google Calendar connected");
         Ok(GoogleConnection::of(Some(&grant)))
+    }
+
+    /// Whether a sign-in with this client is kept for this vault or another:
+    /// one Google grant, which a revocation would end for all of them.
+    fn grant_in_use(&self, client_id: &str) -> Result<bool, GoogleFailure> {
+        let kept = grant::load(self.store, self.scope).ok().flatten();
+        if kept
+            .as_ref()
+            .is_some_and(|kept| kept.client_id == client_id)
+        {
+            return Ok(true);
+        }
+        let probe = Grant {
+            client_id: client_id.to_string(),
+            client_secret: None,
+            refresh_token: String::new(),
+            scopes: Vec::new(),
+        };
+        grant::shared_with_another_vault(self.store, self.scope, &probe)
     }
 
     /// The client secret kept with the last sign-in, when it was for the same
@@ -427,9 +455,13 @@ impl Session<'_> {
         ))
     }
 
-    /// Sends one Calendar API call and hands back its answer.
-    pub async fn call(&self, call: &ApiCall) -> Result<GoogleAnswer, GoogleFailure> {
-        let checked = api::check(&self.endpoints.api, call)?;
+    /// Sends one call to `service` and hands back its answer.
+    pub async fn call(
+        &self,
+        call: &ApiCall,
+        service: Service,
+    ) -> Result<GoogleAnswer, GoogleFailure> {
+        let checked = api::check(&self.endpoints.api, call, service)?;
         let mut access = self.access_token(false).await?;
         let mut answer = api::send(&checked, &access).await?;
         if answer.0 == 401 {
@@ -443,7 +475,7 @@ impl Session<'_> {
         let text = String::from_utf8(body).map_err(|_| {
             GoogleFailure::new(
                 FailureKind::Malformed,
-                "the Calendar API did not answer with text",
+                "the Google API did not answer with text",
             )
         })?;
         let sent = [("google-access-token".to_string(), access)];
@@ -582,7 +614,30 @@ pub async fn google_calendar_request(
         scope: &scope,
         state: &google,
     }
-    .call(&call)
+    .call(&call, Service::Calendar)
+    .await
+}
+
+/// One Drive API call for an export (#501), as TypeScript builds it; the
+/// host adds the token. Only files and the upload are reachable, and with
+/// `drive.file` Google keeps those to the files this app made.
+#[tauri::command]
+pub async fn google_drive_request(
+    vaults: State<'_, VaultState>,
+    secrets: State<'_, SecretState>,
+    google: State<'_, GoogleState>,
+    vault: String,
+    call: ApiCall,
+) -> Result<GoogleAnswer, GoogleFailure> {
+    let scope = scope_of(&vaults, &vault)?;
+    let endpoints = Endpoints::google();
+    Session {
+        endpoints: &endpoints,
+        store: secrets.store(),
+        scope: &scope,
+        state: &google,
+    }
+    .call(&call, Service::Drive)
     .await
 }
 

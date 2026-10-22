@@ -4,6 +4,7 @@ import { App } from './app.tsx';
 import {
   resolveActivityPorts,
   resolveAppInfoPort,
+  resolveExportPorts,
   resolveExternalLinks,
   resolveGlobalCapture,
   resolveGoogleCalendar,
@@ -44,6 +45,7 @@ createRoot(root).render(
       googleCalendar={resolveGoogleCalendar()}
       granola={resolveGranola()}
       globalCapture={resolveGlobalCapture()}
+      exporting={resolveExportPorts()}
     />
     {/* What start-up does not draw loads once it has committed, so pages open with no fallback. */}
     <PreloadAfterStart preload={preloadPages} />

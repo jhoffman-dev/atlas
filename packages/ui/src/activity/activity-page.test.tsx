@@ -123,6 +123,7 @@ describe('ActivityPage', () => {
       'Claude',
       'Index',
       'Saves',
+      'Exports',
       'Sync',
       'App',
     ]);

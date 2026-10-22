@@ -202,7 +202,7 @@ async function readImage({
 }
 
 /** The file at `path` as its folder lists it; null when it is not there. Each folder is listed once. */
-async function listedFile({
+export async function listedFile({
   fs,
   path,
   listings,

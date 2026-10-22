@@ -9,8 +9,8 @@ use reqwest::Url;
 use super::fake_google::{Browser, CodeAnswer, FakeGoogle, CLIENT_ID, SCOPE};
 use super::grant;
 use super::{
-    ApiCall, ConnectRequest, FailureKind, GoogleConnection, GoogleFailure, GoogleState, Session,
-    SignIn,
+    ApiCall, ConnectRequest, FailureKind, GoogleConnection, GoogleFailure, GoogleState, Service,
+    Session, SignIn,
 };
 use crate::secrets::{MemoryStore, SecretStore};
 
@@ -90,6 +90,7 @@ fn get(path: &str) -> ApiCall {
         method: "GET".into(),
         path: path.into(),
         body: None,
+        content_type: None,
     }
 }
 
@@ -98,6 +99,7 @@ fn create_calendar() -> ApiCall {
         method: "POST".into(),
         path: "/calendar/v3/calendars".into(),
         body: Some(r#"{"summary":"DFAI blocks"}"#.into()),
+        content_type: None,
     }
 }
 
@@ -116,8 +118,16 @@ async fn connecting_keeps_the_refresh_token_and_lists_the_dedicated_calendar() {
     assert!(kept.refresh_token.starts_with("1//REFRESH-"));
     assert_eq!(setup.session().status().unwrap(), connection);
 
-    setup.session().call(&create_calendar()).await.unwrap();
-    let listed = setup.session().call(&get(CALENDAR_LIST)).await.unwrap();
+    setup
+        .session()
+        .call(&create_calendar(), Service::Calendar)
+        .await
+        .unwrap();
+    let listed = setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
     assert_eq!(listed.status, 200);
     assert!(
         listed.body.contains(r#""summary":"DFAI blocks""#),
@@ -166,6 +176,7 @@ async fn the_authorization_url_asks_for_a_refresh_token_with_s256() {
     assert_eq!(query["code_challenge_method"], "S256");
     assert_eq!(query["access_type"], "offline");
     assert_eq!(query["prompt"], "consent");
+    assert_eq!(query["include_granted_scopes"], "true");
     assert_eq!(query["scope"], SCOPE);
     assert_eq!(query["client_id"], CLIENT_ID);
 }
@@ -301,7 +312,11 @@ async fn an_access_token_google_ended_early_is_renewed_and_the_call_tried_once_m
     setup.connect(Browser::Allows).await.unwrap();
     setup.google().expire_access_tokens();
 
-    let listed = setup.session().call(&get(CALENDAR_LIST)).await.unwrap();
+    let listed = setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
 
     assert_eq!(listed.status, 200);
     let google = setup.google();
@@ -328,7 +343,11 @@ async fn an_access_token_near_its_end_is_renewed_before_the_call() {
         .replace(VAULT, || Ok(()), Some(&nearly_over))
         .unwrap();
 
-    setup.session().call(&get(CALENDAR_LIST)).await.unwrap();
+    setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
 
     let google = setup.google();
     assert!(google
@@ -342,7 +361,11 @@ async fn a_held_access_token_with_time_left_is_used_without_a_refresh() {
     let setup = Setup::new().await;
     setup.connect(Browser::Allows).await.unwrap();
 
-    setup.session().call(&get(CALENDAR_LIST)).await.unwrap();
+    setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
 
     let google = setup.google();
     assert!(google
@@ -357,7 +380,11 @@ async fn a_refresh_token_google_no_longer_honours_is_reported_as_invalid_grant()
     setup.connect(Browser::Allows).await.unwrap();
     setup.google().revoke_everything();
 
-    let failure = setup.session().call(&get(CALENDAR_LIST)).await.unwrap_err();
+    let failure = setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap_err();
 
     assert_eq!(failure.kind, FailureKind::TokenRefused);
     assert_eq!(failure.code.as_deref(), Some("invalid_grant"));
@@ -375,7 +402,11 @@ async fn disconnecting_revokes_the_sign_in_and_forgets_it() {
     assert!(setup.kept().is_none());
     assert_eq!(setup.google().revoked, vec![refresh]);
     assert!(!setup.session().status().unwrap().connected);
-    let failure = setup.session().call(&get(CALENDAR_LIST)).await.unwrap_err();
+    let failure = setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap_err();
     assert_eq!(failure.kind, FailureKind::NotConnected);
 }
 
@@ -419,7 +450,11 @@ async fn a_client_secret_is_sent_when_google_needs_one_and_kept_for_the_next_sig
     // Connecting again, for the same client, need not ask for it twice.
     setup.connect(Browser::Allows).await.unwrap();
     setup.google().expire_access_tokens();
-    setup.session().call(&get(CALENDAR_LIST)).await.unwrap();
+    setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -430,7 +465,10 @@ async fn one_vaults_sign_in_is_never_used_for_another() {
     let other = setup.session_for("v2");
 
     assert!(!other.status().unwrap().connected);
-    let failure = other.call(&get(CALENDAR_LIST)).await.unwrap_err();
+    let failure = other
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap_err();
     assert_eq!(failure.kind, FailureKind::NotConnected);
 }
 
@@ -440,7 +478,11 @@ async fn a_call_off_the_calendar_api_is_refused_before_any_token_is_sent() {
     setup.connect(Browser::Allows).await.unwrap();
 
     for path in ["/oauth2/v4/token", "/calendar/v3/../../gmail/v1/users/me"] {
-        let failure = setup.session().call(&get(path)).await.unwrap_err();
+        let failure = setup
+            .session()
+            .call(&get(path), Service::Calendar)
+            .await
+            .unwrap_err();
         assert_eq!(failure.kind, FailureKind::Invalid, "{path}");
     }
 }
@@ -467,14 +509,18 @@ async fn no_answer_or_failure_handed_to_the_webview_carries_a_token() {
         as_handed(setup.connect_as(Browser::Allows, Some(CLIENT_SECRET)).await),
         as_handed(session.status()),
     ];
-    let echoed = session.call(&get(CALENDAR_LIST)).await;
+    let echoed = session.call(&get(CALENDAR_LIST), Service::Calendar).await;
     assert!(echoed.as_ref().unwrap().body.contains("authorization"));
     handed.push(as_handed(echoed));
     setup.google().expire_access_tokens();
-    handed.push(as_handed(session.call(&get(CALENDAR_LIST)).await));
+    handed.push(as_handed(
+        session.call(&get(CALENDAR_LIST), Service::Calendar).await,
+    ));
     setup.google().revoke_everything();
     setup.state.held.forget_access(VAULT);
-    handed.push(as_handed(session.call(&get(CALENDAR_LIST)).await));
+    handed.push(as_handed(
+        session.call(&get(CALENDAR_LIST), Service::Calendar).await,
+    ));
     handed.push(as_handed(setup.connect(Browser::Denies).await));
     handed.push(as_handed(session.disconnect().await));
 
@@ -589,7 +635,10 @@ async fn disconnecting_a_vault_whose_client_another_vault_shares_forgets_without
     assert!(!disconnected.revoked);
     assert!(setup.kept().is_none());
     assert!(setup.google().revoked.is_empty());
-    other.call(&get(CALENDAR_LIST)).await.unwrap();
+    other
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -709,8 +758,13 @@ async fn an_access_token_expiry_past_the_clocks_range_is_answered_not_a_panic() 
     let session = leaked_session(endpoints);
     grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-REFRESH")).unwrap();
 
-    let outcome =
-        tokio::spawn(async move { session.call(&get(CALENDAR_LIST)).await.map(|_| ()) }).await;
+    let outcome = tokio::spawn(async move {
+        session
+            .call(&get(CALENDAR_LIST), Service::Calendar)
+            .await
+            .map(|_| ())
+    })
+    .await;
 
     // Refused as malformed or held for a bounded time: either answers.
     assert!(
@@ -797,7 +851,7 @@ async fn a_refresh_that_lands_after_disconnecting_does_not_bring_the_sign_in_bac
     grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
 
     let listing = get(CALENDAR_LIST);
-    let (_, disconnected) = tokio::join!(session.call(&listing), async {
+    let (_, disconnected) = tokio::join!(session.call(&listing, Service::Calendar), async {
         hold.reached.notified().await;
         let disconnected = session.disconnect().await;
         hold.release.notify_one();
@@ -835,7 +889,7 @@ async fn no_access_token_outlives_a_disconnect() {
     grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
 
     let listing = get(CALENDAR_LIST);
-    let (_, disconnected) = tokio::join!(session.call(&listing), async {
+    let (_, disconnected) = tokio::join!(session.call(&listing, Service::Calendar), async {
         hold.reached.notified().await;
         let disconnected = session.disconnect().await;
         hold.release.notify_one();
@@ -844,7 +898,7 @@ async fn no_access_token_outlives_a_disconnect() {
     assert!(!disconnected.unwrap().revoked);
     assert!(!session.status().unwrap().connected);
 
-    let after = session.call(&get(CALENDAR_LIST)).await;
+    let after = session.call(&get(CALENDAR_LIST), Service::Calendar).await;
 
     assert_eq!(
         after
@@ -993,7 +1047,7 @@ async fn a_refresh_that_lands_after_connecting_again_leaves_the_new_sign_in_kept
     grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
 
     let listing = get(CALENDAR_LIST);
-    let (late, _) = tokio::join!(session.call(&listing), async {
+    let (late, _) = tokio::join!(session.call(&listing, Service::Calendar), async {
         hold.reached.notified().await;
         // What connecting again keeps, as `keep` does.
         let newer = kept_grant("1//FICTIONAL-NEWER");
@@ -1046,7 +1100,7 @@ async fn a_call_whose_refresh_lands_after_disconnecting_is_not_connected() {
     grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
 
     let listing = get(CALENDAR_LIST);
-    let (late, _) = tokio::join!(session.call(&listing), async {
+    let (late, _) = tokio::join!(session.call(&listing, Service::Calendar), async {
         hold.reached.notified().await;
         session.disconnect().await.unwrap();
         hold.release.notify_one();
@@ -1084,19 +1138,207 @@ async fn a_refresh_made_during_the_revocation_leaves_no_token_held() {
 
     let (disconnected, during) = tokio::join!(session.disconnect(), async {
         hold.reached.notified().await;
-        let during = session.call(&get(CALENDAR_LIST)).await;
+        let during = session.call(&get(CALENDAR_LIST), Service::Calendar).await;
         hold.release.notify_one();
         during
     });
     assert!(disconnected.unwrap().revoked);
     assert_eq!(during.unwrap().status, 200);
 
-    let after = session.call(&get(CALENDAR_LIST)).await;
+    let after = session.call(&get(CALENDAR_LIST), Service::Calendar).await;
 
     assert_eq!(
         after
             .map(|answer| answer.status)
             .map_err(|failure| failure.kind),
         Err(FailureKind::NotConnected)
+    );
+}
+
+const DRIVE: &str = "https://www.googleapis.com/auth/drive.file";
+
+fn drive_call(method: &str, path: &str, body: &str, content_type: Option<&str>) -> ApiCall {
+    ApiCall {
+        method: method.into(),
+        path: path.into(),
+        body: Some(body.into()),
+        content_type: content_type.map(str::to_string),
+    }
+}
+
+/// Signs in again asking for the Calendar's scope and Drive's, as an export does (#501).
+async fn connect_with_drive(setup: &Setup) -> GoogleConnection {
+    setup.google().granted_scope = Some(format!("{SCOPE} {DRIVE}"));
+    let open = setup.fake.browser(Browser::Allows);
+    let sign_in = SignIn {
+        open: &open,
+        timeout: PATIENCE,
+    };
+    let asking = ConnectRequest {
+        scopes: vec![SCOPE.into(), DRIVE.into()],
+        ..request(None)
+    };
+    setup.session().connect(&asking, &sign_in).await.unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn asking_for_drive_keeps_the_calendar_and_a_doc_is_uploaded_as_multipart() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    let connection = connect_with_drive(&setup).await;
+    assert_eq!(
+        connection.scopes,
+        vec![SCOPE.to_string(), DRIVE.to_string()]
+    );
+    // The Calendar still answers on the grant that now reaches Drive too.
+    setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
+
+    let folder = r#"{"name":"Northwind exports","mimeType":"application/vnd.google-apps.folder"}"#;
+    let made = setup
+        .session()
+        .call(
+            &drive_call("POST", "/drive/v3/files", folder, None),
+            Service::Drive,
+        )
+        .await
+        .unwrap();
+    assert_eq!(made.body, r#"{"id":"folder-1"}"#);
+
+    let multipart = "multipart/related; boundary=atlas-export-1";
+    let page =
+        "--atlas-export-1\r\n\r\n{}\r\n--atlas-export-1\r\n\r\n<p>Hi</p>\r\n--atlas-export-1--";
+    let path = "/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink";
+    let uploaded = setup
+        .session()
+        .call(
+            &drive_call("POST", path, page, Some(multipart)),
+            Service::Drive,
+        )
+        .await
+        .unwrap();
+    assert_eq!(uploaded.status, 200);
+    assert!(uploaded.body.contains("docs.example.com/document/d/doc-1"));
+    assert_eq!(
+        setup.google().uploads,
+        vec![(multipart.to_string(), page.to_string())]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_drive_call_off_files_or_through_the_calendar_command_is_refused_before_any_token() {
+    let setup = Setup::new().await;
+    connect_with_drive(&setup).await;
+    for path in [
+        "/drive/v3/about",
+        "/gmail/v1/users/me/messages",
+        "/calendar/v3/calendars",
+    ] {
+        let failure = setup
+            .session()
+            .call(&drive_call("GET", path, "", None), Service::Drive)
+            .await
+            .unwrap_err();
+        assert_eq!(failure.kind, FailureKind::Invalid, "{path}");
+    }
+    let through_calendar = setup
+        .session()
+        .call(
+            &drive_call("GET", "/drive/v3/files", "", None),
+            Service::Calendar,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(through_calendar.kind, FailureKind::Invalid);
+    assert!(setup.google().drive_files.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_drive_sign_in_the_person_unticked_is_not_kept() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    // Google granted the Calendar only: the consent screen's Drive box was unticked.
+    let open = setup.fake.browser(Browser::Allows);
+    let sign_in = SignIn {
+        open: &open,
+        timeout: PATIENCE,
+    };
+    let asking = ConnectRequest {
+        scopes: vec![SCOPE.into(), DRIVE.into()],
+        ..request(None)
+    };
+    let failure = setup
+        .session()
+        .connect(&asking, &sign_in)
+        .await
+        .unwrap_err();
+    assert_eq!(failure.kind, FailureKind::ScopeNotGranted);
+}
+
+/// Attack on PR #502: asking for Drive uses `include_granted_scopes=true`, so
+/// the refresh token Google hands back carries the Calendar's scope as well.
+/// Google ends the app's whole combined grant when any token of it is
+/// revoked, so revoking the new token when the person unticks Drive also ends
+/// the Calendar sign-in still kept in the Keychain. The unticked sign-in must
+/// be dropped without revoking it.
+#[tokio::test(flavor = "multi_thread")]
+async fn attack_502_unticking_drive_never_revokes_the_combined_grant_the_calendar_rides_on() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    let open = setup.fake.browser(Browser::Allows);
+    let sign_in = SignIn {
+        open: &open,
+        timeout: PATIENCE,
+    };
+    let asking = ConnectRequest {
+        scopes: vec![SCOPE.into(), DRIVE.into()],
+        ..request(None)
+    };
+    let failure = setup
+        .session()
+        .connect(&asking, &sign_in)
+        .await
+        .unwrap_err();
+    assert_eq!(failure.kind, FailureKind::ScopeNotGranted);
+    assert!(
+        setup.google().revoked.is_empty(),
+        "revoked {:?}: at Google that ends the Calendar's grant too",
+        setup.google().revoked
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_calendar_still_refreshes_after_the_person_declines_drive() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    let open = setup.fake.browser(Browser::Allows);
+    let sign_in = SignIn {
+        open: &open,
+        timeout: PATIENCE,
+    };
+    let asking = ConnectRequest {
+        scopes: vec![SCOPE.into(), DRIVE.into()],
+        ..request(None)
+    };
+    let declined = setup
+        .session()
+        .connect(&asking, &sign_in)
+        .await
+        .unwrap_err();
+    assert_eq!(declined.kind, FailureKind::ScopeNotGranted);
+    // The hour runs out: the Calendar's kept refresh token must still be live at Google.
+    setup.google().expire_access_tokens();
+    setup.state.held.forget_access(VAULT);
+    setup
+        .session()
+        .call(&get(CALENDAR_LIST), Service::Calendar)
+        .await
+        .unwrap();
+    assert_eq!(
+        setup.session().status().unwrap().scopes,
+        vec![SCOPE.to_string()]
     );
 }

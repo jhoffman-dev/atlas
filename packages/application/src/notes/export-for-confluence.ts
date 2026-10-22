@@ -1,24 +1,21 @@
 import {
-  createVaultPath,
   exportForConfluence,
   formatWikiLink,
   isBlankFrontmatter,
-  linkTargetsOf,
   missingTransclusion,
   noteTitle,
   pageTitle,
-  resolveWikiLinkTarget,
-  shownBlocksOf,
   splitFrontmatter,
   type EditorDocument,
   type ExportDrops,
-  type RawPartsReader,
-  type Transclusion,
   type VaultPath,
 } from '@dfai/domain';
-import type { IndexPort } from '../index/ports.ts';
-import { createTransclusionReader } from '../transclusion/read-transclusions.ts';
-import type { VaultFsPort } from '../vault/ports.ts';
+import {
+  linkTitles,
+  readRawOf,
+  shownBlocks,
+  type ExportReadPorts,
+} from '../export/export-reading.ts';
 import type { MarkdownPort } from './ports.ts';
 
 /** A note as a Confluence page takes it (P32-07). */
@@ -37,11 +34,7 @@ export const UNREADABLE_FRONTMATTER = '(frontmatter DFAI cannot read)';
 /** What it reads as when the frontmatter is YAML but no map of properties: a list, a value, comments. */
 export const NOT_PROPERTIES = '(frontmatter that is not properties)';
 
-interface ExportPorts {
-  readonly fs: VaultFsPort;
-  readonly markdown: MarkdownPort;
-  readonly index: IndexPort;
-}
+type ExportPorts = ExportReadPorts;
 
 /**
  * A note made ready to share on Confluence: its links as words, the blocks it
@@ -94,58 +87,6 @@ function propertyKeysOf(
   if (markdown.frontmatterProblem(frontmatter) !== null) return [UNREADABLE_FRONTMATTER];
   const keys = Object.keys(properties);
   return keys.length > 0 ? keys : [NOT_PROPERTIES];
-}
-
-const readRawOf =
-  (markdown: MarkdownPort): RawPartsReader =>
-  (raw, definitions) =>
-    markdown.rawParts(raw, definitions);
-
-/** What each block the note shows in place shows, by its link as written. */
-async function shownBlocks(
-  ports: ExportPorts,
-  {
-    doc,
-    holder,
-    notePaths,
-  }: { doc: EditorDocument; holder: VaultPath; notePaths: readonly VaultPath[] },
-): Promise<Map<string, Transclusion>> {
-  const links = shownBlocksOf(doc);
-  if (links.length === 0) return new Map();
-  const read = await createTransclusionReader(ports).read({ links, holder, notePaths });
-  return new Map(
-    links.map((link, at) => [formatWikiLink(link), read[at] ?? missingTransclusion(link)]),
-  );
-}
-
-/** The title of each note the export will name, by the target that names it. */
-async function linkTitles(
-  { fs, markdown }: ExportPorts,
-  { docs, notePaths }: { docs: readonly EditorDocument[]; notePaths: readonly VaultPath[] },
-): Promise<Map<string, string>> {
-  const pathOf = new Map(
-    linkTargetsOf(docs, readRawOf(markdown)).flatMap((target) => {
-      const path = resolveWikiLinkTarget(target, notePaths);
-      return path === null ? [] : [[target, path] as const];
-    }),
-  );
-  if (pathOf.size === 0) return new Map();
-  const files = await fs.readNotes([...new Set(pathOf.values())]);
-  const titleAt = new Map(
-    files.map((file) => {
-      const properties = markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter);
-      return [
-        file.path,
-        pageTitle({ fileTitle: noteTitle(createVaultPath(file.path)), properties }).text,
-      ];
-    }),
-  );
-  return new Map(
-    [...pathOf].flatMap(([target, path]) => {
-      const found = titleAt.get(path);
-      return found === undefined ? [] : [[target, found] as const];
-    }),
-  );
 }
 
 /** The exported blocks as markdown, every one written afresh. */

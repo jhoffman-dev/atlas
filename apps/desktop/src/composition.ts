@@ -12,7 +12,10 @@ import {
   tauriExternalLinks,
   tauriHttp,
   tauriSecrets,
+  tauriExportFiles,
   tauriGoogleCalendar,
+  tauriGoogleDrive,
+  tauriPdfRenderer,
   tauriGranola,
   tauriSqliteSource,
   tauriPageSnapshot,
@@ -43,7 +46,12 @@ import type {
   GranolaPort,
   GranolaPullRecords,
   PageSnapshotPort,
+  ExportFilesPort,
+  GoogleDrivePort,
+  NotePageRenderer,
+  PdfRendererPort,
 } from '@dfai/application';
+import { createExportPageRenderer } from '@dfai/ui';
 import type { VaultPorts } from './vault/use-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import type { IndexPorts } from './index/use-index.ts';
@@ -125,6 +133,25 @@ export function resolveExternalLinks(): ExternalLinkPort {
 
 export function resolvePageSnapshot(): PageSnapshotPort {
   return tauriPageSnapshot;
+}
+
+/**
+ * Exporting notes (#501): the host's save dialogs and writes, the system
+ * WebKit's PDF, Google Drive through the Calendar's sign-in, and the note
+ * drawn as the reading view draws it.
+ */
+export function resolveExportPorts(): {
+  files: ExportFilesPort;
+  pdf: PdfRendererPort;
+  drive: GoogleDrivePort;
+  renderer: NotePageRenderer;
+} {
+  return {
+    files: tauriExportFiles,
+    pdf: tauriPdfRenderer,
+    drive: tauriGoogleDrive,
+    renderer: createExportPageRenderer(),
+  };
 }
 
 export function resolveLocalApiPorts(): LocalApiPorts {

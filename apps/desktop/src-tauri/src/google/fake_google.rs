@@ -1,6 +1,7 @@
 //! A local stand-in for Google, for the tests: an authorization server that
-//! checks PKCE as Google does, a token endpoint, revocation, and enough of the
-//! Calendar API to list and make calendars. It runs over real TCP on
+//! checks PKCE as Google does, a token endpoint, revocation, enough of the
+//! Calendar API to list and make calendars, and enough of Drive to find and
+//! make a folder and upload a Doc (#501). It runs over real TCP on
 //! 127.0.0.1, so the host's requests are the ones the app sends. No test
 //! reaches Google.
 
@@ -79,6 +80,12 @@ pub struct Google {
     /// What the browser's tab said once the loopback answered it, in order.
     pub pages: Vec<String>,
     pub calendars: Vec<String>,
+    /// The scopes the token endpoint says it granted; the Calendar's alone when None.
+    pub granted_scope: Option<String>,
+    /// Drive's files, as (id, the metadata JSON it was made with).
+    pub drive_files: Vec<(String, String)>,
+    /// Every upload, as its content type and body.
+    pub uploads: Vec<(String, String)>,
 }
 
 impl Google {
@@ -184,9 +191,12 @@ fn code_tokens(google: &mut Google) -> Answer {
     google.refresh_tokens.insert(refresh.clone());
     google.access_tokens.insert(access.clone(), refresh.clone());
     let scope = if answer == CodeAnswer::WithoutTheScope {
-        "openid"
+        "openid".to_string()
     } else {
-        SCOPE
+        google
+            .granted_scope
+            .clone()
+            .unwrap_or_else(|| SCOPE.to_string())
     };
     let refresh_field = if answer == CodeAnswer::WithoutRefreshToken {
         String::new()
@@ -203,15 +213,34 @@ fn code_tokens(google: &mut Google) -> Answer {
 
 fn revoke_answer(google: &mut Google, form: &HashMap<String, String>) -> Answer {
     let token = form.get("token").cloned().unwrap_or_default();
-    if !google.refresh_tokens.remove(&token) {
+    if !google.refresh_tokens.contains(&token) {
         return json(400, r#"{"error":"invalid_token"}"#.into());
     }
-    google.access_tokens.retain(|_, refresh| *refresh != token);
+    // As Google does: revoking any token of the app's grant ends all of it —
+    // every refresh token the person's consents gave this client, and every
+    // access token made from them (#502).
+    google.refresh_tokens.clear();
+    google.access_tokens.clear();
     google.revoked.push(token);
     json(200, "{}".into())
 }
 
-fn api_answer(google: &mut Google, method: &str, path: &str, authorization: &str) -> Answer {
+/// A call to the fake's API, as it arrived.
+struct Call<'a> {
+    method: &'a str,
+    path: &'a str,
+    authorization: &'a str,
+    content_type: &'a str,
+    body: &'a [u8],
+}
+
+fn api_answer(google: &mut Google, call: &Call) -> Answer {
+    let Call {
+        method,
+        path,
+        authorization,
+        ..
+    } = *call;
     let bearer = authorization.strip_prefix("Bearer ").unwrap_or_default();
     if !google.access_tokens.contains_key(bearer) {
         return json(
@@ -241,6 +270,31 @@ fn api_answer(google: &mut Google, method: &str, path: &str, authorization: &str
             let id = calendar_id("DFAI blocks");
             json(200, format!(r#"{{"id":"{id}","summary":"DFAI blocks"}}"#))
         }
+        ("GET", "/drive/v3/files") => {
+            let ids: Vec<String> = google
+                .drive_files
+                .iter()
+                .map(|(id, _)| format!(r#"{{"id":"{id}"}}"#))
+                .collect();
+            json(200, format!(r#"{{"files":[{}]{echo}}}"#, ids.join(",")))
+        }
+        ("POST", "/drive/v3/files") => {
+            let id = format!("folder-{}", google.drive_files.len() + 1);
+            let metadata = String::from_utf8_lossy(call.body).into_owned();
+            google.drive_files.push((id.clone(), metadata));
+            json(200, format!(r#"{{"id":"{id}"}}"#))
+        }
+        ("POST", "/upload/drive/v3/files") => {
+            let body = String::from_utf8_lossy(call.body).into_owned();
+            google.uploads.push((call.content_type.to_string(), body));
+            let id = format!("doc-{}", google.uploads.len());
+            json(
+                200,
+                format!(
+                    r#"{{"id":"{id}","webViewLink":"https://docs.example.com/document/d/{id}/edit"}}"#
+                ),
+            )
+        }
         _ => json(404, r#"{"error":{"code":404}}"#.into()),
     }
 }
@@ -261,6 +315,12 @@ async fn answer(google: Arc<Mutex<Google>>, request: Request<Incoming>) -> Answe
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default()
         .to_string();
+    let content_type = request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
     let body = request.into_body().collect().await.unwrap().to_bytes();
     let mut google = google.lock().unwrap();
     match path.as_str() {
@@ -271,7 +331,16 @@ async fn answer(google: Arc<Mutex<Google>>, request: Request<Incoming>) -> Answe
         }
         "/revoke" if google.revoke_unreachable => json(503, "unavailable".into()),
         "/revoke" => revoke_answer(&mut google, &form_of(&body)),
-        _ => api_answer(&mut google, &method, &path, &authorization),
+        _ => api_answer(
+            &mut google,
+            &Call {
+                method: &method,
+                path: &path,
+                authorization: &authorization,
+                content_type: &content_type,
+                body: &body,
+            },
+        ),
     }
 }
 

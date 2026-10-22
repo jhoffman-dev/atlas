@@ -127,6 +127,7 @@ td:first-child { white-space: nowrap; }
     <a href="#notes">Notes</a>
     <a href="#images">Pictures in notes</a>
     <a href="#pages">Folders, move, delete</a>
+    <a href="#export">Exporting notes</a>
     <a href="#archive">Archive</a>
     <a href="#para">PARA and the Inbox</a>
     <a href="#home-folders">Where notes live</a>
@@ -206,7 +207,7 @@ pnpm tauri:dev</pre>
         <li><b>Spark</b> button: <b>Ask Claude (⌘J)</b> — see <a href="#claude">Claude in DFAI</a>.</li>
         <li><b>Right sidebar</b> button, beside the spark: <b>Show right sidebar (⌥⌘\)</b>, pressed while it is showing. See <a href="#right-sidebar">The right sidebar</a> below.</li>
         <li><b>Split</b> button, just before the <b>…</b>: <b>Split right (⇧⌘\)</b>. See <a href="#two-panes">Two pages side by side</a> below.</li>
-        <li><b>…</b> menu: Link to…, Show in graph, Move to…, Archive (or Unarchive), Delete…, Split right, Close pane, and more for views and dashboards.</li>
+        <li><b>…</b> menu: Link to…, Show in graph, Move to…, <a href="#export">Export…</a>, Archive (or Unarchive), Delete…, Split right, Close pane, and more for views and dashboards.</li>
         <li><b>×</b> <b>Close pane</b>, at the very end of the bar, once the window is split.</li>
       </ul>
       <p><b>In a narrow window</b> the bar gives way a step at a time: first the folder goes and the note's name shortens, then <b>Saved</b> hides, then the Back and Forward arrows (<kbd>⌘[</kbd> <kbd>⌘]</kbd> still work). The <b>×</b> and the <b>…</b> always stay.</p>
@@ -242,8 +243,9 @@ pnpm tauri:dev</pre>
         <li><b>Close it</b> with <kbd>Esc</kbd> — from the text too — <b>×</b>, or a click outside it. The focus goes back to the row or the link that opened it. <kbd>Esc</kbd> closes only what is on top: a suggestion list or search above the peek first, then the peek.</li>
         <li>While the peek is up, the shortcuts that make or arrange notes — <kbd>⌘N</kbd>, <kbd>⇧⌘D</kbd>, <kbd>⌥⌘N</kbd>, <kbd>⇧⌘\</kbd>, the tab keys, Back and Forward — do nothing, and <kbd>⌘W</kbd> closes no tab under it. <kbd>⌘S</kbd> saves the peeked note.</li>
         <li><b>Link cards.</b> Rest the pointer on a link in a note's text, in a pane or in the peek, or on a relation's value — a task's project in a table, say — and after a moment a card shows the note's title, its type and folder (<i>Project · Projects</i>) and its first lines. Moving off, a key, a click or a scroll hides it. A link to a note that does not exist yet shows no card. Sidebar rows and board cards show none.</li>
+        <li><b>The peek's …</b> menu has <b>Export…</b> for the peeked note — see <a href="#export">Exporting notes</a>.</li>
       </ul>
-      <p class="muted">Not yet: the peek's <b>…</b> menu, and peeking a row of a dashboard's table, a query page or a linked page — those still open the note.</p>
+      <p class="muted">Not yet: peeking a row of a dashboard's table, a query page or a linked page — those still open the note.</p>
       <h3 id="right-sidebar">The right sidebar</h3>
       <p>A panel on the right that follows whatever has the focus. Show or hide it with the <b>Right sidebar</b> button in any page's bar or <kbd>⌥⌘\</kbd>; the <b>×</b> at the end of its tab row hides it too. Whether it is open, and which tab, is remembered per vault.</p>
       <ul>
@@ -327,6 +329,47 @@ pnpm tauri:dev</pre>
         <li>Views and dashboards are deleted from their own <b>…</b> menu. They stay in their sections and can't be moved.</li>
         <li>The Archive has rules of its own. Nothing can be moved into it — <i>“Archive a note from its menu, so it can go back where it was.”</i> — and nothing in it can be moved out except by <b>Unarchive</b>. Nothing can be moved or renamed to become the top-level <code>Archive</code> folder: <i>“Only archiving puts notes in the Archive — choose another name.”</i> And the Archive folder can't be deleted in one go: <i>“Delete notes from the Archive instead.”</i></li>
       </ul>
+    </section>
+
+    <section id="export">
+      <h2>Exporting notes</h2>
+      <p class="sub">Take a note — or a meeting and its transcript — out of DFAI as Markdown, a PDF or a Google Doc. Exporting only reads; it never changes the note.</p>
+      <h3>Start one</h3>
+      <ul>
+        <li>A note's <b>…</b> menu → <b>Export…</b>, or the same in the <a href="#peek">peek's</a> <b>…</b> menu.</li>
+        <li><kbd>⌘K</kbd> → <b>Export…</b>, for the note on screen — or the peeked one.</li>
+        <li>Several at once: in a view or table, press <b>Select</b>, tick the notes, then <b>Export N notes…</b> on the bar — see <a href="#views">Act on several rows</a>.</li>
+      </ul>
+      <h3>Pick a format</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Format</th><th scope="col">What you get</th></tr></thead>
+          <tbody>
+            <tr><td><b>Markdown, as is</b></td><td>The file exactly as it is, byte for byte. Its pictures are copied to a <i>&lt;name&gt; attachments</i> folder beside it.</td></tr>
+            <tr><td><b>Markdown, standalone</b></td><td>Reads in any tool. A <code>[[link]]</code> becomes its plain words — or, when the notes it names are exported with it, a relative link to their files. Embedded notes and blocks are written in as quotes, under <i>From &lt;note&gt;</i>. Pictures are copied; callouts stay; Obsidian block ids like <code>^t0001</code> are dropped. Tick <b>Keep the properties as frontmatter</b> to keep them at the top.</td></tr>
+            <tr><td><b>PDF</b></td><td>The note as it reads in DFAI: title, a summary of its properties, the text, tables, checklists and pictures, in the light theme on US Letter pages. A table row or a line is never cut across two pages. A meeting's transcript keeps each speaker's turn with its time.</td></tr>
+            <tr><td><b>Google Doc</b></td><td>A real Google Doc in your Drive, named as the note, in a folder called <i>DFAI exports</i>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Choose where</h3>
+      <ol class="steps">
+        <li>Press <b>Export…</b>. For a file, the Mac's own save dialog asks where it goes.</li>
+        <li>For several notes, pick a folder: DFAI makes a new dated folder in it, <i>Exported notes 2026-10-21</i>, with the notes side by side and their pictures shared in <code>attachments/</code>.</li>
+        <li>Cancel the save dialog and nothing is written; the export dialog stays open to try again.</li>
+      </ol>
+      <p>Afterwards a notice says where it went — for one Google Doc, with <b>Open in Google Docs</b>. <a href="#activity">Activity</a> records it under <b>Exports</b>.</p>
+      <h3>Google Docs</h3>
+      <p>DFAI uses the <a href="#google-calendar">Google Calendar</a> sign-in from Settings → <b>Google Calendar</b>. The first time, your browser asks once to allow one more permission: making and changing only the files DFAI creates (<code>drive.file</code>) — never anything else in your Drive. The sign-in stays in your Mac's Keychain. If Google isn't connected yet, DFAI says to connect in Settings → <b>Google Calendar</b> first.</p>
+      <h3>When it can't</h3>
+      <ul>
+        <li>The reason is said: the folder can't be written to, Google isn't connected or wasn't allowed, you're offline, or it's too large — a PDF page over 64 MB, or a Doc over 45 MB with its pictures.</li>
+        <li>Pictures that can't be found, or are too big, are left out, and the notice counts them.</li>
+        <li>A PDF or a Google Doc fetches nothing from the web: a picture on the web becomes its words, linked to its address, and is counted as left out too.</li>
+        <li>An export never goes inside the vault, and never into a folder that's already there: if <i>Kickoff attachments</i> exists beside the file, the pictures go to <i>Kickoff attachments 2</i>. If an export fails part-way, what it made is taken away again; nothing that was there before is touched.</li>
+        <li>If one of several Google Docs fails, the ones already made are listed in Activity, and the notice opens the first. Google being busy for a moment is tried again a few times first.</li>
+      </ul>
+      <p class="muted">Claude and scripts can read a note's Markdown through the <a href="#connect">Local API and MCP</a>; PDFs and Google Docs are made only in the app.</p>
     </section>
 
     <section id="archive">
@@ -690,7 +733,7 @@ pnpm tauri:dev</pre>
       <ol class="steps">
         <li>In a table view, press <b>Select</b>. Each row gets a checkbox; the one in the heading ticks them all.</li>
         <li>Tick the notes. <kbd>Shift</kbd>-click a second box — or <kbd>⇧</kbd> <kbd>Space</kbd> on it — to take every row between, in the order the table shows them, across its groups and down past the rows you have scrolled by. Rows in a folded group are left out. A bar says how many are selected.</li>
-        <li>Press <b>Archive N notes</b> — or, for archived rows shown with <b>Include archived</b>, <b>Unarchive N notes</b>. One batch runs at a time; any note that couldn't go stays ticked.</li>
+        <li>Press <b>Archive N notes</b> — or, for archived rows shown with <b>Include archived</b>, <b>Unarchive N notes</b>. One batch runs at a time; any note that couldn't go stays ticked. <b>Export N notes…</b> on the same bar exports them together — see <a href="#export">Exporting notes</a>.</li>
       </ol>
       <p class="muted">Leaving select mode, or the view, clears the ticks.</p>
     </section>
@@ -752,6 +795,7 @@ pnpm tauri:dev</pre>
           </tbody>
         </table>
       </div>
+      <p>The same sign-in makes Google Docs when you <a href="#export">export a note</a> — the first time, Google asks once more, for files DFAI makes in your Drive.</p>
       <p class="muted">The <a href="#connect">Local API and MCP</a> can only see whether Google Calendar is connected. They can't read your calendar or the sign-in.</p>
     </section>
 
@@ -1738,7 +1782,7 @@ do: archive</pre>
       <h3>The page</h3>
       <ul>
         <li>Newest first. Each line: time, level (<b>Info</b>, <b>Warning</b>, <b>Error</b>), kind, and one line of what happened.</li>
-        <li><b>Show</b>: <b>Everything</b>, <b>Warnings and errors</b> or <b>Errors only</b>. Kinds: <b>Automations</b>, <b>Sources</b>, <b>Meetings</b>, <b>API &amp; MCP</b>, <b>Claude</b>, <b>Index</b>, <b>Saves</b>, <b>Sync</b>, <b>App</b>. Search box: <b>Search the activity…</b></li>
+        <li><b>Show</b>: <b>Everything</b>, <b>Warnings and errors</b> or <b>Errors only</b>. Kinds: <b>Automations</b>, <b>Sources</b>, <b>Meetings</b>, <b>API &amp; MCP</b>, <b>Claude</b>, <b>Index</b>, <b>Saves</b>, <b>Sync</b>, <b>Exports</b>, <b>App</b>. Search box: <b>Search the activity…</b></li>
         <li>Click a line to open its note or source — or the Automations page, for a rule.</li>
       </ul>
       <h3>What's recorded</h3>
@@ -1749,6 +1793,7 @@ do: archive</pre>
         <li>Notes written through the Local API or MCP: the route and the note, never the contents.</li>
         <li>Claude's edits accepted and undone, failed turns, and a chat that couldn't be saved to <code>Chats/</code>, in fixed wording — never your question. A line never names a chat note, since its name is the start of your question: it says “a chat note” instead. So do the notices about links left, archiving and kept edits.</li>
         <li>Index rebuilds and failures.</li>
+        <li><a href="#export">Exports</a>: what was exported, in which format, and where it went — or why it couldn't be.</li>
         <li>Each <a href="#sync">sync</a> — what it saved, brought in and sent — plus conflicts, files left out and failures.</li>
         <li>Saves a note gives up on; edits kept on screen after a failed save show as a warning.</li>
         <li>Writes a screen gives up on, under <b>Saves</b>: an edit in a view or dashboard, a view saved, a query added to a dashboard, a card added, an image, an artifact or its copy, a setting, the Local API's switch and token, a weekly review action, a task planned on the calendar or its Undo, a proposal answered, a note filed from the Inbox, <b>Make task</b> or its Undo, and a term added or its spellings changed. One line each. Something refused before anything is written — a name already taken, a file that isn't an image, a block changed since — isn't recorded; the screen says why.</li>
@@ -1947,7 +1992,7 @@ do: archive</pre>
         <li><b>Read your name</b> (<code>atlas_profile</code>): the full name and preferred name from <a href="#profile">Settings → Profile</a>, and <code>[Your name]</code> to write when there's no full name. Claude is told to use exactly that name for an owner, author, assignee or attendee, and never to guess one from a username, an email address or a path. Read-only: the name is changed only in Settings. If the settings can't be read, it says so rather than answer “no name”.</li>
         <li><b>List and read templates</b> (<code>atlas_list_templates</code>, <code>atlas_read_template</code>): every <a href="#templates">template</a> with what it's used for — new notes of a type, today's note, captured tasks or saved artifacts — and which types have none, so their new notes start empty; and one template's properties and text, exactly what a new note made from it would start as. A template's name can be passed when making a note. Making, editing, renaming, deleting and moving templates to notes stay in the app.</li>
         <li><b>Rename or merge a tag</b> (<code>atlas_rename_tag</code>), by the <a href="#tags">same rules</a> as the Tags page. It only previews unless told <code>dryRun: false</code>, and merges into a tag in use only when told to. Renaming to the same name in other capitals makes every spelling match. A rename that timed out may still finish, so preview again before retrying.</li>
-        <li><b>Export a note for Confluence</b> (<code>atlas_export_note</code>), read-only — see <a href="#confluence">Share a note on Confluence</a> below.</li>
+        <li><b>Export a note as Markdown</b> (<code>atlas_export_note</code>, <code>GET /v1/notes/{path}/export?format=markdown|standalone|confluence</code>), read-only: <code>markdown</code> is the file as it is, <code>standalone</code> the Markdown that reads in any tool, as <a href="#export">Export…</a> writes it, and <code>confluence</code> a page for Confluence — see <a href="#confluence">Share a note on Confluence</a> below. The answer is the Markdown itself; nothing is written. A PDF or a Google Doc is made only in the app, since the API never writes outside the vault.</li>
       </ul>
       <h3 id="confluence">Share a note on Confluence</h3>
       <p>Ask Claude something like “put my Weekly sync note on Confluence, in the Team space”. Claude asks DFAI for the note as a page (<code>atlas_export_note</code>), then creates the page itself with its <b>Atlassian connector</b>, so that connector has to be connected in Claude too. DFAI never talks to Confluence and writes nothing — not to the note, not anywhere.</p>
@@ -2100,7 +2145,7 @@ pnpm tauri:dev</pre>
         <table>
           <thead><tr><th scope="col">Keys</th><th scope="col">Does</th></tr></thead>
           <tbody>
-            <tr><td><kbd>⌘K</kbd></td><td>Search, and commands like New query, Archive this note and Open Archive</td></tr>
+            <tr><td><kbd>⌘K</kbd></td><td>Search, and commands like New query, Archive this note, Export… and Open Archive</td></tr>
             <tr><td><kbd>⌘N</kbd></td><td>New note</td></tr>
             <tr><td><kbd>⇧⌘N</kbd></td><td>Quick capture a task</td></tr>
             <tr><td><kbd>⌃⌥N</kbd></td><td>Quick capture from any app — DFAI comes forward with capture open (<a href="#capture-anywhere">change it in Settings</a>)</td></tr>

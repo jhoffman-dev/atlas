@@ -209,6 +209,9 @@ export type {
 export { sidebarGlyph } from './icon.tsx';
 export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts';
 export type { NotePageRendering } from './note-page-renderer.ts';
+export { createExportPageRenderer } from './export-page-renderer.ts';
+export { ExportDialog } from './export-dialog.tsx';
+export type { ExportChoice, ExportDialogState } from './export-dialog.tsx';
 export { ArchivePage } from './archive-page.tsx';
 export { InboxPage } from './inbox-page.tsx';
 export { TaskScheduleSummary } from './task-schedule.tsx';
