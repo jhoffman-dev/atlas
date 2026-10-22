@@ -456,9 +456,15 @@ asin, file: null })` in the literature type's home folder (`Library` by
     embed's name are links in the tab order and follow on Enter, with the
     click's modifiers. A key pressed on any such control drawn inside the
     note — not editable, its nearest `contenteditable` false — is the
-    control's, never the editor's (`ControlKeys`): no keymap sees it, and
-    on a link the browser's own answer to an editing key (Backspace's Back,
-    typing, Delete, Enter) is prevented, so no key on it changes the note.
+    control's, never the editor's (`ControlKeys`): no keymap sees it. On a
+    focused non-field control inside the document, Backspace, Delete,
+    Enter (with any modifiers), typed characters and ⌘/Ctrl+z/y/b/i/u are
+    kept from the browser as well as the editor, so no key on it changes
+    the note or goes Back; fields keep every key, and buttons keep Enter
+    and Space. Tab, Escape, the arrows and composition keys are left alone.
+    This runs as a capture-phase listener on `view.dom`, not
+    `handleDOMEvents`, because a React node view's `stopEvent` hides keys
+    from ProseMirror's handlers. It also fixes #529, a bug on main.
 
 ## Consequences
 
