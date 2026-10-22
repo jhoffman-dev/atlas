@@ -57,7 +57,7 @@ describe('a block embed dropped over code (#507)', () => {
     expect(embedDropOverCode(editor.state, { pos: positionOf(editor, 'After'), html })).toBeNull();
   });
 
-  it('writes nothing into the code for dropped HTML that is not a block embed', () => {
+  it('leaves dropped HTML that is not a block embed to the editor, over code too', () => {
     const editor = journal();
     const before = shape(editor);
     for (const hostile of [
@@ -70,7 +70,7 @@ describe('a block embed dropped over code (#507)', () => {
         pos: positionOf(editor, 'ledger'),
         html: hostile,
       });
-      expect(dropped?.docChanged, hostile).toBe(false);
+      expect(dropped, hostile).toBeNull();
     }
     expect(shape(editor)).toEqual(before);
   });

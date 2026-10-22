@@ -23,9 +23,10 @@ function embedsIn(html: string, state: EditorState): ProseNode[] {
 
 /**
  * The drop of the embeds in `html` at `pos` when `pos` is inside a code
- * block: after that block. Null when it is not inside code, which is
- * ProseMirror's own drop to make; and for what is not an embed the drop
- * would write as text into the code, a transaction that changes nothing.
+ * block: after that block. Null — ProseMirror's own drop to make, as any
+ * drop over code was before #507 — when it is not inside code, or `html` is
+ * not block embeds alone: text that only names `data-block-embed`, or an
+ * embed dragged with other blocks.
  */
 export function embedDropOverCode(
   state: EditorState,
@@ -38,7 +39,7 @@ export function embedDropOverCode(
   }
   if (codeDepth < 0) return null;
   const embeds = embedsIn(html, state);
-  return embeds.length === 0 ? state.tr : state.tr.insert($pos.after(codeDepth), embeds);
+  return embeds.length === 0 ? null : state.tr.insert($pos.after(codeDepth), embeds);
 }
 
 /** The plugin that applies {@link embedDropOverCode} to a drop from All highlights. */
