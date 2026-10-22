@@ -1,6 +1,6 @@
 import { classesOf, findFirst, textOf, withClass, withId } from './html-tree.ts';
 import type { HtmlElement } from './html-tree.ts';
-import { kindleHighlightKey } from './kindle-highlight-key.ts';
+import { findKindleKeyClash, kindleHighlightKey, kindleNoteKey } from './kindle-highlight-key.ts';
 import { allWithClass, checkKindlePage, inputValue } from './kindle-notebook-page.ts';
 import { KINDLE_HIGHLIGHT_COLOURS } from './kindle-types.ts';
 import type {
@@ -16,7 +16,7 @@ import type {
  * One page of a book's annotations. Each annotation is a row whose id is
  * Amazon's annotation id; inside it, a header ("Yellow highlight | Location:
  * 128"), a hidden input with the location, the passage in `#highlight` and
- * what was typed in `#note`. The page ends with hidden inputs saying where
+ * what was typed in `#note` (an entry of its own, after the passage). The page ends with hidden inputs saying where
  * the next page starts. A row this cannot read means the page is not the
  * shape it knows, and the page is refused rather than read in part.
  */
@@ -32,7 +32,8 @@ const COLOUR_CLASS_PREFIX = `${HIGHLIGHT_CLASS}-`;
 const ANNOTATION_ID = /^[A-Za-z0-9_+=/-]{8,256}$/;
 
 const LOCATION_IN_HEADER = /location:?\s*([\d,]+)/i;
-const PAGE_IN_HEADER = /page:?\s*([^\s|]+)/i;
+// The page starts with a letter or digit: "Page: | Location: 12" has none.
+const PAGE_IN_HEADER = /\bpage:?\s*([a-z0-9][^\s|]*)/i;
 
 function isAnnotationRow(element: HtmlElement): boolean {
   return withClass('a-row', 'a-spacing-base')(element) && element.attributes.has('id');
@@ -69,10 +70,13 @@ function styleOf(quote: string, header: string): KindleHighlightStyle {
 }
 
 type RowReading =
-  | { readonly highlight: KindleHighlight }
-  | { readonly skipped: true }
-  | { readonly problem: string };
+  { readonly highlights: readonly KindleHighlight[] } | { readonly problem: string };
 
+/**
+ * A row's entries: the passage, and after it the note typed on it, if any,
+ * as an entry of its own with a key built on the passage's. A note at a
+ * place with no passage is the one entry, under the row's id.
+ */
 function readRow(row: HtmlElement, asin: string): RowReading {
   const quoteElement = findFirst(row, withId('highlight'));
   const noteElement = findFirst(row, withId('note'));
@@ -82,25 +86,37 @@ function readRow(row: HtmlElement, asin: string): RowReading {
   const quote = quoteElement === null ? '' : textOf(quoteElement);
   const note = noteElement === null ? '' : textOf(noteElement);
   // A bookmark: a place, with nothing marked or typed.
-  if (quote === '' && note === '') return { skipped: true };
+  if (quote === '' && note === '') return { highlights: [] };
   const header = headerOf(row);
   const style = styleOf(quote, header);
   const rowId = row.attributes.get('id') ?? '';
   const annotationId = ANNOTATION_ID.test(rowId) ? rowId : null;
   const location = locationOf(row, header);
-  return {
-    highlight: {
-      key: kindleHighlightKey({ asin, annotationId, location, words: quote || note }),
-      asin,
-      annotationId,
-      style,
-      colour: style === 'highlight' ? colourOf(row) : null,
-      quote,
-      note: note === '' ? null : note,
-      location,
-      page: PAGE_IN_HEADER.exec(header)?.[1] ?? null,
-    },
+  const page = PAGE_IN_HEADER.exec(header)?.[1] ?? null;
+  const key = kindleHighlightKey({ asin, annotationId, location, words: quote || note });
+  const entry: KindleHighlight = {
+    key,
+    asin,
+    annotationId,
+    style,
+    colour: style === 'highlight' ? colourOf(row) : null,
+    quote,
+    note: quote === '' ? note : null,
+    location,
+    page,
+    commentOn: null,
   };
+  if (quote === '' || note === '') return { highlights: [entry] };
+  const comment: KindleHighlight = {
+    ...entry,
+    key: kindleNoteKey(key, note),
+    style: 'note',
+    colour: null,
+    quote: '',
+    note,
+    commentOn: key,
+  };
+  return { highlights: [entry, comment] };
 }
 
 function nextCursorOf(tree: HtmlElement): KindlePageCursor | null {
@@ -123,7 +139,11 @@ export function readKindleAnnotations(page: KindleRawPage, asin: string): Kindle
   for (const row of allWithClass(annotations, 'a-row').filter(isAnnotationRow)) {
     const reading = readRow(row, asin);
     if ('problem' in reading) return { kind: 'unrecognised', reason: reading.problem };
-    if ('highlight' in reading) highlights.push(reading.highlight);
+    highlights.push(...reading.highlights);
+  }
+  // Two passages under one id: one would be lost behind the other, so the page is refused.
+  if (findKindleKeyClash(highlights) !== null) {
+    return { kind: 'unrecognised', reason: 'two different annotations share one id' };
   }
   return { kind: 'annotations', highlights, next: nextCursorOf(checked.tree) };
 }

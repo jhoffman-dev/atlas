@@ -14,15 +14,60 @@ describe('checkKindlePage', () => {
     expect(checked.kind).toBe('page');
   });
 
-  it('reads a redirect to any of Amazon’s /ap/ pages, or to its robot check, as a sign-in', () => {
+  it('reads a redirect to any of Amazon’s /ap/ pages as a sign-in', () => {
     for (const to of [
       'https://www.amazon.com/ap/signin',
       'https://www.amazon.com/ap/mfa',
       'https://www.amazon.com/ap/cvf/request',
-      'https://www.amazon.com/errors/validateCaptcha',
     ]) {
       expect(checkKindlePage(page(302, '', to))).toEqual({ kind: 'sign_in_required' });
     }
+  });
+
+  it('reads a redirect to Amazon’s robot check as a robot check, not a sign-in', () => {
+    for (const to of [
+      'https://www.amazon.com/errors/validateCaptcha',
+      'https://read.amazon.com/errors/validateCaptcha',
+    ]) {
+      expect(checkKindlePage(page(302, '', to))).toEqual({ kind: 'robot_check' });
+    }
+  });
+
+  it('reads the robot check’s own page as a robot check, even beside a sign-in form', () => {
+    expect(
+      checkKindlePage(
+        page(200, '<form action="/errors/validateCaptcha"><input id="ap_email"></form>'),
+      ),
+    ).toEqual({ kind: 'robot_check' });
+  });
+
+  it('names another Amazon store’s notebook when the notebook is sent there', () => {
+    for (const [to, store] of [
+      ['https://read.amazon.co.uk/notebook', 'read.amazon.co.uk'],
+      ['https://read.amazon.de/kp/notebook?asin=B0EXAMPLE1', 'read.amazon.de'],
+      ['https://read.amazon.com.au/notebook', 'read.amazon.com.au'],
+      ['https://READ.AMAZON.CO.JP/notebook', 'read.amazon.co.jp'],
+    ] as const) {
+      expect(checkKindlePage(page(302, '', to))).toEqual({ kind: 'unsupported_store', store });
+    }
+  });
+
+  it('does not take a lookalike host for another store', () => {
+    for (const to of [
+      'https://read.amazon.com.evil.invalid/notebook',
+      'https://read.amazon.co.uk.invalid/notebook',
+      'https://readamazon.co.uk/notebook',
+    ]) {
+      expect(checkKindlePage(page(302, '', to))).toMatchObject({ kind: 'unrecognised' });
+    }
+  });
+
+  it('refuses a page nested deeper than a page may, rather than read what is past it as missing', () => {
+    const deep = '<div>'.repeat(300) + '<div id="kp-notebook-library"></div>';
+    expect(checkKindlePage(page(200, deep))).toMatchObject({
+      kind: 'unrecognised',
+      reason: expect.stringMatching(/deeper/) as string,
+    });
   });
 
   it('reads a redirect anywhere else, or to no readable address, as a page it does not know', () => {
@@ -53,12 +98,12 @@ describe('checkKindlePage', () => {
 });
 
 describe('asksToSignIn', () => {
-  it('knows the sign-in form by its name or its action, and the robot check by its action', () => {
+  it('knows the sign-in form by its name or its action, and not the robot check, which is its own problem', () => {
     expect(asksToSignIn(parseHtml('<form name="signIn"></form>'))).toBe(true);
     expect(asksToSignIn(parseHtml('<form action="https://www.amazon.com/ap/signin?x=1">'))).toBe(
       true,
     );
-    expect(asksToSignIn(parseHtml('<form action="/errors/validateCaptcha">'))).toBe(true);
+    expect(asksToSignIn(parseHtml('<form action="/errors/validateCaptcha">'))).toBe(false);
     expect(asksToSignIn(parseHtml('<input id="ap_email">'))).toBe(true);
   });
 

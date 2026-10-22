@@ -1,10 +1,21 @@
 import type { KindleHighlight, KindleHighlightKey } from './kindle-types.ts';
 
+/** Characters with no width, which a page may carry in a passage and a later page not. */
+const INVISIBLE = /[\u00ad\u200b-\u200d\u2060\ufeff]/g;
+
+/**
+ * Words as a key reads them: composed (NFC), without zero-width characters or
+ * soft hyphens, white space collapsed. So a passage the notebook writes with
+ * a combining accent one day and a composed one the next is the same one.
+ */
+function keyWords(words: string): string {
+  return words.normalize('NFC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
+}
+
 /**
  * A highlight's identity across syncs (#508): Amazon's annotation id when
- * there is one, else the book, the location and a hash of the words. The
- * words are hashed with their white space collapsed, so a page that wraps
- * the same passage differently is still the same highlight.
+ * there is one, else the book, the location and a hash of the words, read as
+ * {@link keyWords} does.
  */
 export function kindleHighlightKey(args: {
   readonly asin: string;
@@ -14,9 +25,35 @@ export function kindleHighlightKey(args: {
   readonly words: string;
 }): KindleHighlightKey {
   if (args.annotationId !== null) return `amazon:${args.annotationId}` as KindleHighlightKey;
-  const words = args.words.replace(/\s+/g, ' ').trim();
   const location = args.location === null ? '-' : String(args.location);
-  return `quote:${args.asin}:${location}:${hashOf(words)}` as KindleHighlightKey;
+  return `quote:${args.asin}:${location}:${hashOf(keyWords(args.words))}` as KindleHighlightKey;
+}
+
+/**
+ * The identity of a note typed on a passage: the passage's key and a hash of
+ * the note. The passage keeps its own key whatever is typed on it, so a note
+ * typed later arrives on its own; an edited note is a new entry after the old.
+ */
+export function kindleNoteKey(passage: KindleHighlightKey, note: string): KindleHighlightKey {
+  return `${passage}:note:${hashOf(keyWords(note))}` as KindleHighlightKey;
+}
+
+/**
+ * A key that two entries share while holding different words: two passages,
+ * or two notes, that claim one annotation id. Either the page is not what
+ * this reads, or one of them would be lost behind the other. Null when none.
+ */
+export function findKindleKeyClash(
+  highlights: readonly KindleHighlight[],
+): KindleHighlightKey | null {
+  const seen = new Map<string, string>();
+  for (const { key, quote, note } of highlights) {
+    const words = `${keyWords(quote)}\u0000${keyWords(note ?? '')}`;
+    const before = seen.get(key);
+    if (before !== undefined && before !== words) return key;
+    seen.set(key, words);
+  }
+  return null;
 }
 
 /**

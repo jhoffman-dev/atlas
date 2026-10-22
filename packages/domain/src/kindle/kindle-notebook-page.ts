@@ -1,4 +1,4 @@
-import { findAll, findFirst, parseHtml, withClass, withId, withTag } from './html-tree.ts';
+import { findAll, findFirst, parseHtmlDocument, withClass, withId, withTag } from './html-tree.ts';
 import type { HtmlElement } from './html-tree.ts';
 import type { KindlePageProblem, KindleRawPage } from './kindle-types.ts';
 
@@ -12,7 +12,7 @@ import type { KindlePageProblem, KindleRawPage } from './kindle-types.ts';
 
 /** Amazon's sign-in, two-step and "verify it's you" pages live under `/ap/`. */
 const SIGN_IN_PATH = /^\/ap\//;
-/** A robot check: the remedy is the same as for a sign-in — open the window and answer it. */
+/** A robot check: the person answers it in the Connect Kindle window; syncing on only makes it worse. */
 const CAPTCHA_PATH = /\/errors\/validatecaptcha/i;
 
 const UNAUTHORIZED = 401;
@@ -20,31 +20,42 @@ const UNAUTHORIZED = 401;
 /** The page read into a tree, or why it cannot be read at all. */
 export type CheckedPage = { readonly kind: 'page'; readonly tree: HtmlElement } | KindlePageProblem;
 
-function pathOf(address: string): string | null {
+function parsed(address: string): URL | null {
   try {
-    return new URL(address).pathname;
+    return new URL(address);
   } catch {
-    // Not an absolute URL: there is no path to judge by, which the caller says.
+    // Not an absolute URL: there is nothing to judge by, which the caller says.
     return null;
   }
 }
 
+/** Another store's notebook host: `read.amazon.co.uk`, `read.amazon.de`, `read.amazon.com.au`. */
+const OTHER_STORE_NOTEBOOK = /^read\.amazon\.(?:com?\.[a-z]{2}|[a-z]{2,3})$/;
+const THIS_STORE_NOTEBOOK = 'read.amazon.com';
+
 function redirectProblem(redirectedTo: string): KindlePageProblem {
-  const path = pathOf(redirectedTo);
-  if (path !== null && (SIGN_IN_PATH.test(path) || CAPTCHA_PATH.test(path))) {
-    return { kind: 'sign_in_required' };
+  const url = parsed(redirectedTo);
+  const host = url?.hostname.toLowerCase() ?? '';
+  if (host !== THIS_STORE_NOTEBOOK && OTHER_STORE_NOTEBOOK.test(host)) {
+    return { kind: 'unsupported_store', store: host };
   }
+  const path = url?.pathname ?? null;
+  if (path !== null && CAPTCHA_PATH.test(path)) return { kind: 'robot_check' };
+  if (path !== null && SIGN_IN_PATH.test(path)) return { kind: 'sign_in_required' };
   return { kind: 'unrecognised', reason: 'Amazon sent the notebook somewhere else' };
+}
+
+function isCaptchaForm(element: HtmlElement): boolean {
+  return element.tag === 'form' && CAPTCHA_PATH.test(element.attributes.get('action') ?? '');
 }
 
 function isSignInForm(element: HtmlElement): boolean {
   if (element.tag !== 'form') return false;
   if (element.attributes.get('name') === 'signIn') return true;
-  const action = element.attributes.get('action') ?? '';
-  return /\/ap\/signin/i.test(action) || CAPTCHA_PATH.test(action);
+  return /\/ap\/signin/i.test(element.attributes.get('action') ?? '');
 }
 
-/** Whether the page asks the person to sign in, or to prove they are one. */
+/** Whether the page asks the person to sign in. */
 export function asksToSignIn(tree: HtmlElement): boolean {
   return (
     findFirst(tree, isSignInForm) !== null ||
@@ -52,6 +63,16 @@ export function asksToSignIn(tree: HtmlElement): boolean {
       null
   );
 }
+
+/** Whether the page asks the person to prove they are one: Amazon's robot check. */
+export function asksForRobotCheck(tree: HtmlElement): boolean {
+  return findFirst(tree, isCaptchaForm) !== null;
+}
+
+const TOO_DEEP: KindlePageProblem = {
+  kind: 'unrecognised',
+  reason: 'the page nests deeper than a notebook page does',
+};
 
 /** Checks `page` is an answer that can be read, and reads it into a tree. */
 export function checkKindlePage(page: KindleRawPage): CheckedPage {
@@ -62,7 +83,11 @@ export function checkKindlePage(page: KindleRawPage): CheckedPage {
       ? { kind: 'unavailable', status: page.status }
       : { kind: 'unrecognised', reason: `Amazon answered ${page.status} with nowhere to go` };
   }
-  const tree = parseHtml(page.html);
+  const { tree, tooDeep } = parseHtmlDocument(page.html);
+  // What is past the depth limit sits flat in the tree: a reader asking for it
+  // would find it missing and call the book empty, so the page is refused.
+  if (tooDeep) return TOO_DEEP;
+  if (asksForRobotCheck(tree)) return { kind: 'robot_check' };
   if (asksToSignIn(tree)) return { kind: 'sign_in_required' };
   return { kind: 'page', tree };
 }

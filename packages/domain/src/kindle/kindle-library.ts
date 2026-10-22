@@ -18,7 +18,7 @@ const BOOK_CLASS = 'kp-notebook-library-each-book';
 const SEARCHABLE_CLASS = 'kp-notebook-searchable';
 const COVER_CLASS = 'kp-notebook-cover-image';
 
-/** The library shows an author as "By: Mara Quill". */
+/** The library shows an author as "By: Ida Brenwick". */
 const BY_PREFIX = /^by:?\s*/i;
 
 function httpsOrNull(address: string | undefined): string | null {

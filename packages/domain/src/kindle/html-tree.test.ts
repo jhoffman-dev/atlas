@@ -7,6 +7,7 @@ import {
   isElement,
   MAX_HTML_DEPTH,
   parseHtml,
+  parseHtmlDocument,
   textOf,
   withClass,
   withId,
@@ -27,6 +28,31 @@ describe('decodeEntities', () => {
     expect(decodeEntities('&bogus; &amp &#0; &#x110000; AT&T')).toBe(
       '&bogus; &amp &#0; &#x110000; AT&T',
     );
+  });
+
+  it('reads the named references an accented or typeset book is written with', () => {
+    expect(
+      decodeEntities('caf&eacute; na&iuml;ve &Eacute;cole &euro;5 &copy; &frac12; &sup2;'),
+    ).toBe('café naïve École €5 © ½ ²');
+    expect(
+      decodeEntities('&auml;&ouml;&uuml;&szlig; &ntilde; &ccedil; &oslash; &aring; &aelig;'),
+    ).toBe('äöüß ñ ç ø å æ');
+    expect(
+      decodeEntities('&alpha;&beta;&Omega; &rarr; &hearts; &there4; &check; &bull; &dagger;'),
+    ).toBe('αβΩ → ♥ ∴ ✓ • †');
+  });
+
+  it('keeps the case of a name, as HTML does: Eacute is not eacute', () => {
+    expect(decodeEntities('&Eacute; &eacute; &AMP; &LT;')).toBe('É é & <');
+  });
+
+  it('reads a reference that stands for two characters, and a numeric one in the old Windows range', () => {
+    expect(decodeEntities('&NotEqualTilde;')).toBe('\u2242\u0338');
+    expect(decodeEntities('&#146;s &#150; &#x93;q&#x94;')).toBe('’s – “q”');
+  });
+
+  it('leaves a surrogate code point as written rather than make half a character', () => {
+    expect(decodeEntities('&#xD800; &#55357;')).toBe('&#xD800; &#55357;');
   });
 });
 
@@ -99,6 +125,26 @@ describe('parseHtml', () => {
     );
   });
 
+  it('reads a page of tags that are never closed in time that grows with its size, not with its square', () => {
+    const budgetMs = 250;
+    const pages = [
+      '<a '.repeat(20_000),
+      '<a b="'.repeat(20_000),
+      '</a '.repeat(20_000),
+      `<a${' '.repeat(100_000)}"`,
+      `<a b=${"'".repeat(1)}${'<a b="'.repeat(10_000)}`,
+    ];
+    for (const html of pages) {
+      const started = performance.now();
+      parseHtml(html);
+      expect(performance.now() - started).toBeLessThan(budgetMs);
+    }
+  });
+
+  it('reads the rest of a page as text once a tag is cut off, wherever it starts', () => {
+    expect(textOf(parseHtml('<p>a</p> b </i and <b c="d'))).toBe('a b </i and <b c="d');
+  });
+
   it('steps over junk inside a tag, and reads a tag cut off at the end as text', () => {
     const tree = parseHtml('<div / id="j" "odd">x</div>');
     expect(findFirst(tree, withId('j'))).not.toBeNull();
@@ -137,6 +183,12 @@ describe('textOf', () => {
 });
 
 describe('depth', () => {
+  it('says when a page nested deeper than a page may, so what is past the limit is not read as absent', () => {
+    expect(parseHtmlDocument('<div>'.repeat(MAX_HTML_DEPTH + 1)).tooDeep).toBe(true);
+    expect(parseHtmlDocument('<div>'.repeat(MAX_HTML_DEPTH - 1)).tooDeep).toBe(false);
+    expect(parseHtmlDocument('<div><br><img><div></div></div>').tooDeep).toBe(false);
+  });
+
   it('stops nesting past the most a page may nest, so a query cannot run out of stack', () => {
     const deep = '<div>'.repeat(100_000) + '<span id="end">x</span>';
     const tree = parseHtml(deep);

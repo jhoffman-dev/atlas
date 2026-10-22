@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { readKindleAnnotations } from './kindle-annotations.ts';
-import { kindleHighlightKey } from './kindle-highlight-key.ts';
-import type { KindleRawPage } from './kindle-types.ts';
+import { hashOf, kindleHighlightKey, kindleNoteKey } from './kindle-highlight-key.ts';
+import type { KindleHighlightKey, KindleRawPage } from './kindle-types.ts';
 
 /*
  * A book's annotation pages, from hand-made fixtures in the shape of
@@ -23,6 +23,9 @@ const annotations = (rows: string, extra = '') =>
 const row = (id: string, inner: string) =>
   `<div id="${id}" class="a-row a-spacing-base">${inner}</div>`;
 
+const NOTE_ON_OPENING =
+  "The famous opening — Ida Brenwick says it is ironic.\nCheck the narrator's voice.";
+
 const ROW_ID = 'QTBFWEFNUExFMTpaWjpISUdITElHSFQ';
 
 describe('readKindleAnnotations', () => {
@@ -39,9 +42,25 @@ describe('readKindleAnnotations', () => {
           colour: 'yellow',
           quote:
             'It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.',
-          note: "The famous opening — Mara Quill says it is ironic.\nCheck the narrator's voice.",
+          note: null,
           location: 12,
           page: null,
+          commentOn: null,
+        },
+        {
+          key: kindleNoteKey(
+            'amazon:QTBFWEFNUExFMTpBMTpISUdITElHSFQ' as KindleHighlightKey,
+            NOTE_ON_OPENING,
+          ),
+          asin: ASIN,
+          annotationId: 'QTBFWEFNUExFMTpBMTpISUdITElHSFQ',
+          style: 'note',
+          colour: null,
+          quote: '',
+          note: NOTE_ON_OPENING,
+          location: 12,
+          page: null,
+          commentOn: 'amazon:QTBFWEFNUExFMTpBMTpISUdITElHSFQ',
         },
         {
           key: 'amazon:QTBFWEFNUExFMTpBMjpISUdITElHSFQ',
@@ -53,6 +72,7 @@ describe('readKindleAnnotations', () => {
           note: null,
           location: 1204,
           page: '14',
+          commentOn: null,
         },
         {
           key: 'amazon:QTBFWEFNUExFMTpBMzpVTkRFUkxJTkU',
@@ -65,6 +85,7 @@ describe('readKindleAnnotations', () => {
           note: null,
           location: 2310,
           page: null,
+          commentOn: null,
         },
         {
           key: 'amazon:QTBFWEFNUExFMTpBNDpOT1RF',
@@ -76,9 +97,97 @@ describe('readKindleAnnotations', () => {
           note: 'Compare with Emma & Persuasion.',
           location: 2400,
           page: null,
+          commentOn: null,
         },
       ],
       next: { token: 'CgUIAhCeAg', contentLimitState: 'eyJjb250ZW50TGltaXQiOiJleGFtcGxlIn0' },
+    });
+  });
+
+  it('reads a typed note as an entry of its own, after the passage it was typed on', () => {
+    const reading = readKindleAnnotations(
+      annotations(
+        row(
+          ROW_ID,
+          '<span id="annotationHighlightHeader">Yellow highlight | Page: 9 | Location: 77</span>' +
+            '<span id="highlight">A passage</span><span id="note">A thought</span>',
+        ),
+      ),
+      ASIN,
+    );
+    expect(reading).toMatchObject({
+      kind: 'annotations',
+      highlights: [
+        {
+          key: `amazon:${ROW_ID}`,
+          style: 'highlight',
+          quote: 'A passage',
+          note: null,
+          commentOn: null,
+        },
+        {
+          key: `amazon:${ROW_ID}:note:${hashOf('A thought')}`,
+          style: 'note',
+          quote: '',
+          note: 'A thought',
+          commentOn: `amazon:${ROW_ID}`,
+          annotationId: ROW_ID,
+          location: 77,
+          page: '9',
+          colour: null,
+        },
+      ],
+    });
+  });
+
+  it('keeps a passage’s key when a note is typed on it later or edited, and gives the note a key of its own', () => {
+    const keysOf = (html: string) => {
+      const reading = readKindleAnnotations(annotations(html), ASIN);
+      return reading.kind === 'annotations' ? reading.highlights.map((h) => h.key) : [];
+    };
+    const bare = keysOf(row(ROW_ID, '<span id="highlight">A passage</span>'));
+    const noted = keysOf(
+      row(ROW_ID, '<span id="highlight">A passage</span><span id="note">First</span>'),
+    );
+    const edited = keysOf(
+      row(ROW_ID, '<span id="highlight">A passage</span><span id="note">Second</span>'),
+    );
+    expect(noted[0]).toBe(bare[0]);
+    expect(edited[0]).toBe(bare[0]);
+    expect(noted[1]).not.toBe(edited[1]);
+    expect(bare).toHaveLength(1);
+  });
+
+  it('keeps a note-only annotation as one entry, under its id, whatever the note is edited to', () => {
+    const keysOf = (note: string) => {
+      const reading = readKindleAnnotations(
+        annotations(row(ROW_ID, `<span id="note">${note}</span>`)),
+        ASIN,
+      );
+      return reading.kind === 'annotations' ? reading.highlights.map((h) => h.key) : [];
+    };
+    expect(keysOf('First')).toEqual([`amazon:${ROW_ID}`]);
+    expect(keysOf('Second')).toEqual([`amazon:${ROW_ID}`]);
+  });
+
+  it('gives a typed note on a passage with no usable id a key built on the passage’s', () => {
+    const reading = readKindleAnnotations(
+      annotations(
+        row('x', '<span id="highlight">A passage</span><span id="note">A thought</span>'),
+      ),
+      ASIN,
+    );
+    const passage = kindleHighlightKey({
+      asin: ASIN,
+      annotationId: null,
+      location: null,
+      words: 'A passage',
+    });
+    expect(reading).toMatchObject({
+      highlights: [
+        { key: passage },
+        { key: `${passage}:note:${hashOf('A thought')}`, commentOn: passage },
+      ],
     });
   });
 

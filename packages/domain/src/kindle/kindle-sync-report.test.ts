@@ -13,9 +13,67 @@ const added = (count: number, asin = 'B0EXAMPLE1'): KindleBookOutcome => ({
   added: count,
 });
 
+describe('describeKindleSync of a sync that was stopped', () => {
+  it('keeps what was added before a sign-in stopped it, and says so', () => {
+    expect(
+      describeKindleSync({
+        kind: 'sign_in_required',
+        books: [added(2), added(1, 'B0EXAMPLE2')],
+        added: 3,
+      }),
+    ).toEqual({
+      message: `${KINDLE_SIGN_IN_MESSAGE} Before it stopped, 3 highlights were added from 2 books.`,
+      ok: false,
+    });
+  });
+
+  it('says a robot check is its own thing, and that Kindle sync will not run by itself for a day', () => {
+    const described = describeKindleSync({ kind: 'robot_check', books: [], added: 0 });
+    expect(described.ok).toBe(false);
+    expect(described.message).toMatch(/robot/i);
+    expect(described.message).toMatch(/24 hours/);
+    expect(described.message).not.toMatch(/sign in again/i);
+  });
+
+  it('says Kindle is not connected, without saying it will try again', () => {
+    const described = describeKindleSync({ kind: 'not_connected', books: [], added: 0 });
+    expect(described).toEqual({
+      message: "Kindle isn't connected on this Mac. Connect it in Settings to sync.",
+      ok: false,
+    });
+  });
+
+  it('says what the Mac cannot do, in the host’s words', () => {
+    expect(
+      describeKindleSync({
+        kind: 'unsupported',
+        message: 'Kindle sync needs macOS 14 or later',
+        books: [],
+        added: 0,
+      }),
+    ).toEqual({
+      message: "Kindle sync can't run on this Mac: Kindle sync needs macOS 14 or later.",
+      ok: false,
+    });
+  });
+
+  it('names the store Amazon sent the notebook to, rather than say the page changed', () => {
+    const described = describeKindleSync({
+      kind: 'unsupported_store',
+      store: 'read.amazon.co.uk',
+      books: [],
+      added: 0,
+    });
+    expect(described.message).toContain('read.amazon.co.uk');
+    expect(described.message).toContain('read.amazon.com');
+    expect(described.message).not.toMatch(/Couldn't read Amazon's page/);
+    expect(described.ok).toBe(false);
+  });
+});
+
 describe('describeKindleSync', () => {
   it('asks the person to sign in again, plainly', () => {
-    expect(describeKindleSync({ kind: 'sign_in_required' })).toEqual({
+    expect(describeKindleSync({ kind: 'sign_in_required', books: [], added: 0 })).toEqual({
       message: KINDLE_SIGN_IN_MESSAGE,
       ok: false,
     });

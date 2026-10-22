@@ -1,3 +1,5 @@
+import { NAMED_ENTITIES } from './html-entities.ts';
+
 /**
  * A small, forgiving reader of HTML into a tree, enough to pick values out of
  * a page someone else wrote (Amazon's Kindle notebook). Pure: no DOM, which
@@ -50,22 +52,6 @@ const RAW_TEXT_ELEMENTS = new Set(['script', 'style', 'textarea', 'title']);
 /** Raw-text elements whose content is code rather than words: dropped. */
 const DROPPED_ELEMENTS = new Set(['script', 'style']);
 
-const NAMED_ENTITIES: Readonly<Record<string, string>> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-  rsquo: '’',
-  lsquo: '‘',
-  rdquo: '”',
-  ldquo: '“',
-  mdash: '—',
-  ndash: '–',
-  hellip: '…',
-};
-
 const MAX_CODE_POINT = 0x10ffff;
 
 /**
@@ -75,15 +61,63 @@ const MAX_CODE_POINT = 0x10ffff;
  */
 export const MAX_HTML_DEPTH = 256;
 
-/** `&amp;`, `&#39;`, `&#x2019;` and the like as the characters they stand for; unknown ones as written. */
+/**
+ * What a numeric reference in the old Windows range (`&#146;`, `&#150;`) stands
+ * for. Pages written for the 1990s browsers still use them, and browsers read
+ * them as these characters, not as the control codes the numbers name.
+ */
+const WINDOWS_1252: Readonly<Record<number, string>> = {
+  0x80: '€',
+  0x82: '‚',
+  0x83: 'ƒ',
+  0x84: '„',
+  0x85: '…',
+  0x86: '†',
+  0x87: '‡',
+  0x88: 'ˆ',
+  0x89: '‰',
+  0x8a: 'Š',
+  0x8b: '‹',
+  0x8c: 'Œ',
+  0x8e: 'Ž',
+  0x91: '‘',
+  0x92: '’',
+  0x93: '“',
+  0x94: '”',
+  0x95: '•',
+  0x96: '–',
+  0x97: '—',
+  0x98: '˜',
+  0x99: '™',
+  0x9a: 'š',
+  0x9b: '›',
+  0x9c: 'œ',
+  0x9e: 'ž',
+  0x9f: 'Ÿ',
+};
+
+const FIRST_SURROGATE = 0xd800;
+const LAST_SURROGATE = 0xdfff;
+
+function characterOf(code: number): string | null {
+  const windows = WINDOWS_1252[code];
+  if (windows !== undefined) return windows;
+  const surrogate = code >= FIRST_SURROGATE && code <= LAST_SURROGATE;
+  return code > 0 && code <= MAX_CODE_POINT && !surrogate ? String.fromCodePoint(code) : null;
+}
+
+/**
+ * `&amp;`, `&eacute;`, `&#39;`, `&#x2019;` and the like as the characters they
+ * stand for (every named reference HTML5 has, in its own case); one that is
+ * unknown, or stands for no character, is left as written.
+ */
 export function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (whole, body: string) => {
+  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z][a-z0-9]*);/gi, (whole, body: string) => {
     if (body.startsWith('#')) {
       const hex = body[1] === 'x' || body[1] === 'X';
-      const code = Number.parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10);
-      return code > 0 && code <= MAX_CODE_POINT ? String.fromCodePoint(code) : whole;
+      return characterOf(Number.parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10)) ?? whole;
     }
-    return NAMED_ENTITIES[body.toLowerCase()] ?? whole;
+    return NAMED_ENTITIES.get(body) ?? whole;
   });
 }
 
@@ -92,6 +126,9 @@ export function decodeEntities(text: string): string {
 const TAG_NAME = /[a-zA-Z][a-zA-Z0-9-]*/y;
 const TAG_CLOSE = /\s*(\/?)>/y;
 const ATTRIBUTE = /\s*([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/y;
+// A run of white space and the one character after it: junk in a tag is
+// stepped over with the white space before it, so a long run is read once.
+const JUNK = /\s*[\s\S]/y;
 
 function matchAt(pattern: RegExp, text: string, at: number): RegExpExecArray | null {
   pattern.lastIndex = at;
@@ -106,8 +143,14 @@ interface StartTag {
   readonly end: number;
 }
 
-/** The start tag at `at` (just past its `<`), or null when what follows is not one. */
-function readStartTag(html: string, at: number): StartTag | null {
+/** What a start tag that never ends is: the rest of the page is inside it. */
+const UNTERMINATED = 'unterminated';
+
+/**
+ * The start tag at `at` (just past its `<`); null when what follows is not
+ * one, and {@link UNTERMINATED} when the page ends before the tag does.
+ */
+function readStartTag(html: string, at: number): StartTag | typeof UNTERMINATED | null {
   const name = matchAt(TAG_NAME, html, at);
   if (name === null) return null;
   const attributes = new Map<string, string>();
@@ -121,7 +164,7 @@ function readStartTag(html: string, at: number): StartTag | null {
     const attribute = matchAt(ATTRIBUTE, html, cursor);
     if (attribute === null) {
       // Junk inside a tag (a stray `/` or quote): step over it, as a browser does.
-      cursor += 1;
+      cursor += matchAt(JUNK, html, cursor)?.[0].length ?? 1;
       continue;
     }
     const key = (attribute[1] ?? '').toLowerCase();
@@ -130,12 +173,13 @@ function readStartTag(html: string, at: number): StartTag | null {
     }
     cursor += attribute[0].length;
   }
-  return null;
+  return UNTERMINATED;
 }
 
 class TreeBuilder {
   private readonly root: OpenElement = { tag: '#root', attributes: new Map(), children: [] };
   private readonly open: OpenElement[] = [this.root];
+  tooDeep = false;
 
   text(text: string): void {
     if (text.length > 0) this.top().children.push({ text: decodeEntities(text) });
@@ -145,7 +189,9 @@ class TreeBuilder {
     const element: OpenElement = { tag: tag.tag, attributes: tag.attributes, children: [] };
     this.top().children.push(element);
     const opens = !tag.selfClosing && !VOID_ELEMENTS.has(tag.tag);
-    if (opens && this.open.length < MAX_HTML_DEPTH) this.open.push(element);
+    if (!opens) return;
+    if (this.open.length < MAX_HTML_DEPTH) this.open.push(element);
+    else this.tooDeep = true;
   }
 
   /** Closes the nearest open element named `tag`; a stray end tag closes nothing. */
@@ -182,20 +228,46 @@ function readRawText(html: string, from: number, tag: string): { text: string; e
   return { text: html.slice(from, close.index), end: close.index + close[0].length };
 }
 
-/** Reads `html` into a tree under a root element named `#root`. */
-export function parseHtml(html: string): HtmlElement {
-  const tree = new TreeBuilder();
+/** A page read into a tree, and whether it nested deeper than a page may. */
+export interface HtmlDocument {
+  readonly tree: HtmlElement;
+  /**
+   * Some element was nested past {@link MAX_HTML_DEPTH}, so what is inside it
+   * sits flat in the tree: a reader that must not mistake that for absence
+   * refuses the page.
+   */
+  readonly tooDeep: boolean;
+}
+
+/** Reads `html` into a tree under a root element named `#root`, and says whether it was too deep. */
+export function parseHtmlDocument(html: string): HtmlDocument {
+  const builder = new TreeBuilder();
   let cursor = 0;
   while (cursor < html.length) {
     const lt = html.indexOf('<', cursor);
     if (lt < 0) {
-      tree.text(html.slice(cursor));
+      builder.text(html.slice(cursor));
       break;
     }
-    tree.text(html.slice(cursor, lt));
-    cursor = readMarkup(html, lt, tree);
+    builder.text(html.slice(cursor, lt));
+    cursor = readMarkup(html, lt, builder);
   }
-  return tree.finish();
+  return { tree: builder.finish(), tooDeep: builder.tooDeep };
+}
+
+/** Reads `html` into a tree under a root element named `#root`. */
+export function parseHtml(html: string): HtmlElement {
+  return parseHtmlDocument(html).tree;
+}
+
+/**
+ * A tag that never ends takes the rest of the page as its text, in one step.
+ * Looking again for its end from each later `<` would read the page once per
+ * `<`, and a page of eight megabytes of them is some 10^11 steps.
+ */
+function restAsText(html: string, from: number, tree: TreeBuilder): number {
+  tree.text(html.slice(from));
+  return html.length;
 }
 
 /** Reads the markup at `lt` into `tree`; where the source continues. */
@@ -204,15 +276,17 @@ function readMarkup(html: string, lt: number, tree: TreeBuilder): number {
   if (next === '!' || next === '?') return skipDeclaration(html, lt);
   if (next === '/') {
     const name = matchAt(TAG_NAME, html, lt + 2);
-    const close = html.indexOf('>', lt);
-    if (name === null || close < 0) {
+    if (name === null) {
       tree.text('</');
       return lt + 2;
     }
+    const close = html.indexOf('>', lt);
+    if (close < 0) return restAsText(html, lt, tree);
     tree.end(name[0].toLowerCase());
     return close + 1;
   }
   const tag = readStartTag(html, lt + 1);
+  if (tag === UNTERMINATED) return restAsText(html, lt, tree);
   if (tag === null) {
     tree.text('<');
     return lt + 1;
