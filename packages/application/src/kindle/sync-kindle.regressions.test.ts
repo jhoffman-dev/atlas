@@ -5,7 +5,7 @@ import { KindleFetchError } from './ports.ts';
 import { syncKindle } from './sync-kindle.ts';
 
 /*
- * Attack on PR #511: the sync under orders and answers it was not written
+ * Regressions found in review of PR #511: the sync under orders and answers it was not written
  * for. The books are invented; the quotes are public domain.
  */
 
@@ -32,7 +32,7 @@ const highlightRow = (id: string, quote: string, note?: string) =>
     note === undefined ? '' : `<span id="note">${note}</span>`
   }</div>`;
 
-describe('syncKindle under orders it was not written for (attack on #511)', () => {
+describe('syncKindle under orders it was not written for', () => {
   it('adds each highlight once when two syncs run at the same time', async () => {
     const page = bookPage('B0EXAMPLE1', highlightRow('IDCONCURRENT1', 'Call me Ishmael.'));
     const source = () =>
@@ -71,7 +71,6 @@ describe('syncKindle under orders it was not written for (attack on #511)', () =
       clock,
     });
     const notes = sink.writes.flatMap((write) => write.highlights.map((h) => h.note));
-    // Observed: [null] -- the key ignores the note, so the note never arrives.
     expect(notes).toContain('The famous last chapter.');
   });
 
@@ -80,7 +79,6 @@ describe('syncKindle under orders it was not written for (attack on #511)', () =
       library: new KindleFetchError('not_connected', 'Kindle is not connected on this Mac'),
     });
     const report = await syncKindle({ source, sink: fakeKindleSink(), clock });
-    // Observed: "Couldn't reach Amazon's Kindle notebook (...). Kindle sync will try again later."
     expect(describeKindleSync(report).message).not.toMatch(/try again later/);
   });
 

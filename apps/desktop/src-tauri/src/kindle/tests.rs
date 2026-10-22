@@ -330,14 +330,14 @@ fn the_sign_in_window_may_go_to_amazon_over_https_and_nowhere_else() {
     }
 }
 
-// ---- Attack on PR #511 -------------------------------------------------
+// ---- Regressions found in review of PR #511 ------------------------------
 // Every server below binds 127.0.0.1; nothing here names a host off this Mac.
 
 /// The fake session's value as a page would echo it percent-encoded (`|` as `%7C`).
 const SESSION_PERCENT_ENCODED: &str = "Atza%7CFAKE-SESSION-TOKEN-0123456789";
 
 #[tokio::test(flavor = "multi_thread")]
-async fn attack_511_a_redirect_off_the_notebook_never_hands_the_webview_the_session_in_its_path() {
+async fn a_redirect_off_the_notebook_never_hands_the_webview_the_session_in_its_path() {
     let amazon = FakeAmazon::start(Reply::Page(LIBRARY)).await;
     amazon.reply(
         "/notebook",
@@ -352,7 +352,7 @@ async fn attack_511_a_redirect_off_the_notebook_never_hands_the_webview_the_sess
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn attack_511_a_page_that_echoes_the_session_percent_encoded_hands_the_webview_none_of_it() {
+async fn a_page_that_echoes_the_session_percent_encoded_hands_the_webview_none_of_it() {
     const ECHO: &str = concat!(
         r#"<div id="kp-notebook-library"><a href="/x?s="#,
         "Atza%7CFAKE-SESSION-TOKEN-0123456789",
@@ -368,7 +368,7 @@ async fn attack_511_a_page_that_echoes_the_session_percent_encoded_hands_the_web
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn attack_511_a_page_that_echoes_the_session_as_html_entities_hands_the_webview_none_of_it() {
+async fn a_page_that_echoes_the_session_as_html_entities_hands_the_webview_none_of_it() {
     // What the parser decodes `&#124;` to is the session itself.
     const ECHO: &str = concat!(
         r#"<div id="kp-notebook-library"><input value=""#,
@@ -385,7 +385,7 @@ async fn attack_511_a_page_that_echoes_the_session_as_html_entities_hands_the_we
 }
 
 #[test]
-fn attack_511_hostile_addresses_are_all_refused() {
+fn hostile_addresses_are_all_refused() {
     let origin = Url::parse("https://read.amazon.com").unwrap();
     for raw in [
         "https://read.amazon.com.evil.example/notebook",
@@ -445,7 +445,7 @@ async fn truncating_amazon() -> Url {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn attack_511_a_page_cut_off_mid_way_is_a_failure_not_part_of_a_page() {
+async fn a_page_cut_off_mid_way_is_a_failure_not_part_of_a_page() {
     let origin = truncating_amazon().await;
     let result = fetch_notebook(NotebookRequest {
         origin: &origin,
@@ -463,14 +463,14 @@ async fn attack_511_a_page_cut_off_mid_way_is_a_failure_not_part_of_a_page() {
 
 /// Run only as the child of the test below, with a proxy in its environment.
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "the child half of attack_511_the_fetcher_s_requests_never_go_through_a_proxy_in_the_environment"]
-async fn attack_511_child_fetches_the_fake_notebook() {
+#[ignore = "the child half of the_fetcher_s_requests_never_go_through_a_proxy_in_the_environment"]
+async fn child_fetches_the_fake_notebook() {
     let amazon = FakeAmazon::start(Reply::Page(LIBRARY)).await;
     let _ = fetch(&amazon, "/notebook", &session()).await;
 }
 
 #[test]
-fn attack_511_the_fetcher_s_requests_never_go_through_a_proxy_in_the_environment() {
+fn the_fetcher_s_requests_never_go_through_a_proxy_in_the_environment() {
     // The guard that the fetcher's tests stay on 127.0.0.1 whatever shell runs
     // them: a proxy variable must not reroute the session. The "proxy" here is
     // a listener on 127.0.0.1 that only records that it was asked, so nothing
@@ -500,7 +500,7 @@ fn attack_511_the_fetcher_s_requests_never_go_through_a_proxy_in_the_environment
     }
     let status = std::process::Command::new(std::env::current_exe().unwrap())
         .args([
-            "kindle::tests::attack_511_child_fetches_the_fake_notebook",
+            "kindle::tests::child_fetches_the_fake_notebook",
             "--exact",
             "--ignored",
             "--quiet",

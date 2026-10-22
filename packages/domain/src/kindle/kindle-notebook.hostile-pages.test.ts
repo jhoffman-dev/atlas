@@ -5,7 +5,7 @@ import { kindleHighlightKey } from './kindle-highlight-key.ts';
 import type { KindleRawPage } from './kindle-types.ts';
 
 /*
- * Attack on PR #511: the notebook reader against pages it was not written
+ * Regressions found in review of PR #511: the notebook reader against pages it was not written
  * for. The books are invented; the quotes are public domain.
  */
 
@@ -25,7 +25,7 @@ function timed(read: () => void): number {
 // tenth of what the quadratic pass takes: a timing with room either side.
 const LINEAR_BUDGET_MS = 250;
 
-describe('the notebook reader against hostile pages (attack on #511)', () => {
+describe('the notebook reader against hostile pages', () => {
   it('reads a page of unclosed start tags in one pass, not one pass per tag', () => {
     // 18 KB. An 8 MB page, which the host lets through, is some 200 000 times this work.
     const html = '<a '.repeat(6_000);
@@ -42,7 +42,6 @@ describe('the notebook reader against hostile pages (attack on #511)', () => {
       '<div>'.repeat(MAX_HTML_DEPTH + 5) +
       annotations(row('IDDEEP000001', '<span id="highlight">Call me Ishmael.</span>'));
     const reading = readKindleAnnotations(page(deep), 'B0EXAMPLE1');
-    // Observed: { kind: 'annotations', highlights: [] } -- "Nothing new from Kindle".
     expect(reading.kind === 'annotations' && reading.highlights.length === 0).toBe(false);
   });
 
@@ -52,7 +51,6 @@ describe('the notebook reader against hostile pages (attack on #511)', () => {
         row('IDDUPLICATE1', '<span id="highlight">It was the worst of times.</span>'),
     );
     const reading = readKindleAnnotations(page(html), 'B0EXAMPLE1');
-    // Observed: both come back under one key, and the sync keeps only the first.
     if (reading.kind === 'annotations') {
       const keys = new Set(reading.highlights.map((highlight) => highlight.key));
       expect(keys.size).toBe(reading.highlights.length);
