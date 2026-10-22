@@ -103,6 +103,9 @@ const passages = (text: string): string[] =>
     .map(({ quote, comment, style, anchor }) => JSON.stringify({ quote, comment, style, anchor }))
     .sort();
 
+/** Some of `items`: an export synced again with highlights since deleted. */
+const part = <T>(items: readonly T[]): T[] => items.filter(() => random() < 0.5);
+
 function permutations<T>(items: readonly T[]): T[][] {
   if (items.length <= 1) return [[...items]];
   return items.flatMap((item, at) =>
@@ -119,6 +122,7 @@ describe('Kindle passages matched by place, in any order (ADR-0043 §7)', () => 
         const exported = batch(4);
         const once = sync(held, exported);
         expect(sync(once, exported)).toBe(once);
+        expect(sync(once, part(exported))).toBe(once);
         const expected = passages(once);
         for (const order of permutations(exported)) {
           expect(passages(sync(held, order))).toEqual(expected);
@@ -142,7 +146,24 @@ describe('Kindle passages matched by place, in any order (ADR-0043 §7)', () => 
           readHighlights(atOnce, noteBlocks).length,
         );
         expect(sync(atOnce, exported)).toBe(atOnce);
+        expect(sync(atOnce, part(exported))).toBe(atOnce);
         expect(sync(grown, exported)).toBe(grown);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'adds nothing when any export, or any part of it, is synced again into a note grown from mixed ones',
+    () => {
+      for (let run = 0; run < RUNS; run += 1) {
+        const exported = batch(4);
+        let grown = sync(SOURCE, batch(3));
+        for (let size = 1; size <= exported.length; size += 1) {
+          grown = sync(grown, exported.slice(0, size));
+        }
+        expect(sync(grown, exported)).toBe(grown);
+        expect(sync(grown, part(exported))).toBe(grown);
       }
     },
     TIMEOUT,

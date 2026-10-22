@@ -16,12 +16,19 @@ import {
  * same place as two copies at different locations on that page, which are
  * not the same place as each other — so a highlight joins a passage only
  * when it is the same place as every highlight already in it, and two with
- * different annotation ids are never one passage. Which joins which is
- * decided in one order, whatever order the export lists them in: a
- * highlight its key (an annotation id, or a place and words) finds first;
- * then those with a location, each joining a passage with a location before
- * one with a page alone, so a location match is taken before a page match;
- * then those with a page alone; among each, by key.
+ * different annotation ids are never one passage. Two blocks the note holds
+ * are never one passage either.
+ *
+ * The held blocks are matched as if they were highlights of the append:
+ * every key — of a held block, an incoming highlight, or both — is placed
+ * in one order, whatever order the export lists them in and whichever of
+ * them the note already holds: those with a location, each joining a
+ * passage with a location before one with a page alone, so a location match
+ * is taken before a page match; then those with a page alone; among each, by
+ * key. A passage with a held block in it answers that block; one without is
+ * written. A block a sync wrote has the key of the highlight it was written
+ * from, so a sync run again places the same keys in the same order, finds
+ * the same passages, and each of them now holds its block: it adds nothing.
  */
 
 /** A highlight of the append, as matching reads it. */
@@ -44,15 +51,24 @@ export interface HeldPassage {
 export type PassageMatch = { readonly held: string } | { readonly writer: number };
 
 interface Passage {
-  readonly match: PassageMatch;
+  /** The held block it answers, once one joins it. */
+  held: string | undefined;
+  /** The highlight written for it when no held block joins it: that of the key that began it. */
+  readonly writer: number | undefined;
   readonly kindle: { anchor: KindleAnchor; quote: string }[];
 }
 
-/** The highlights of the append that share a key, read as one, and the one of them written. */
+/** The held blocks and highlights of the append that share a key, read as one. */
 interface KeyGroup {
   readonly key: string;
+  /** The held blocks with this key, in the note's order. */
+  readonly held: readonly HeldPassage[];
+  /** The highlights of the append with this key, by index. */
   readonly members: readonly number[];
-  readonly writer: number;
+  /** Of `members`, the one written, by what it writes; none when there are none. */
+  readonly writer: number | undefined;
+  /** Where the key is placed: as the note holds it, else as it would be written. */
+  readonly placed: HighlightAnchor;
 }
 
 /** Each candidate's passage, by index. */
@@ -60,77 +76,75 @@ export function matchPassages(
   held: readonly HeldPassage[],
   candidates: readonly PassageCandidate[],
 ): PassageMatch[] {
-  const passages = held.map((passage): Passage => ({
-    match: { held: passage.id },
-    kindle: kindleOf([passage]),
-  }));
-  const heldByKey = firstByKey(held, passages);
-  const answer = new Array<PassageMatch>(candidates.length);
-  const assign = (group: KeyGroup, passage: Passage) => {
-    passage.kindle.push(...kindleOf(group.members.map((at) => candidates[at] as PassageCandidate)));
-    for (const at of group.members) answer[at] = passage.match;
-  };
-  const unmatched: KeyGroup[] = [];
-  for (const group of keyGroups(candidates)) {
-    const passage = heldByKey.get(group.key);
-    if (passage === undefined) unmatched.push(group);
-    else assign(group, passage);
-  }
-  for (const group of orderForClaim(unmatched, candidates)) {
-    const own = kindleOf(group.members.map((at) => candidates[at] as PassageCandidate));
-    const joined = own.length === 0 ? undefined : placedAlike(passages, own);
-    if (joined !== undefined) assign(group, joined);
-    else {
-      const passage: Passage = { match: { writer: group.writer }, kindle: [] };
+  const passages: Passage[] = [];
+  const passageOf = new Array<Passage>(candidates.length);
+  for (const group of orderForClaim(keyGroups(held, candidates))) {
+    const own = kindleOf([
+      ...group.held,
+      ...group.members.map((at) => candidates[at] as PassageCandidate),
+    ]);
+    const joinable =
+      group.held.length === 0 ? passages : passages.filter((other) => other.held === undefined);
+    let passage = own.length === 0 ? undefined : placedAlike(joinable, own);
+    if (passage === undefined) {
+      passage = { held: undefined, writer: group.writer, kindle: [] };
       passages.push(passage);
-      assign(group, passage);
     }
+    passage.kindle.push(...own);
+    passage.held ??= group.held[0]?.id;
+    for (const at of group.members) passageOf[at] = passage;
   }
-  return answer;
+  return passageOf.map(answerOf);
 }
 
-/** The groups with a location first, so a location match is taken before a page match. */
-function orderForClaim(
-  groups: readonly KeyGroup[],
-  candidates: readonly PassageCandidate[],
-): KeyGroup[] {
-  const located = (group: KeyGroup) =>
-    group.members.some((at) => isLocated((candidates[at] as PassageCandidate).anchor));
+/** A passage a held block joined answers it; any other was begun by a key with a highlight to write. */
+function answerOf(passage: Passage): PassageMatch {
+  if (passage.held !== undefined) return { held: passage.held };
+  // A key with no highlight of the append has a held block, which `held` names.
+  return { writer: passage.writer as number };
+}
+
+/**
+ * The groups placed at a location first, so a location match is taken before
+ * a page match. A key is placed as the note holds it, so whether a sync is
+ * handed a copy of it with a location never moves it.
+ */
+function orderForClaim(groups: readonly KeyGroup[]): KeyGroup[] {
+  const located = (group: KeyGroup) => isLocated(group.placed);
   return [...groups.filter(located), ...groups.filter((group) => !located(group))];
-}
-
-/** Each held passage by its key; of two with one key, the first in the note. */
-function firstByKey(
-  held: readonly HeldPassage[],
-  passages: readonly Passage[],
-): Map<string, Passage> {
-  const byKey = new Map<string, Passage>();
-  held.forEach((passage, at) => {
-    const key = highlightKey(passage.anchor, passage.quote);
-    if (!byKey.has(key)) byKey.set(key, passages[at] as Passage);
-  });
-  return byKey;
 }
 
 const isLocated = (anchor: HighlightAnchor): boolean =>
   anchor.kind === 'kindle' && anchor.location !== null;
 
 /**
- * The candidates grouped by key, in the order of their keys whatever the
- * candidates' order, each written from the first of its members by what it
- * writes.
+ * The held blocks and candidates grouped by key, in the order of their keys
+ * whatever the candidates' order, each written from the first of its
+ * candidates by what it writes.
  */
-function keyGroups(candidates: readonly PassageCandidate[]): KeyGroup[] {
-  const byKey = new Map<string, number[]>();
+function keyGroups(
+  held: readonly HeldPassage[],
+  candidates: readonly PassageCandidate[],
+): KeyGroup[] {
+  const byKey = new Map<string, { held: HeldPassage[]; members: number[] }>();
+  const groupOf = (key: string) => {
+    const group = byKey.get(key) ?? { held: [], members: [] };
+    byKey.set(key, group);
+    return group;
+  };
+  for (const passage of held) {
+    groupOf(highlightKey(passage.anchor, passage.quote)).held.push(passage);
+  }
   candidates.forEach((candidate, at) => {
-    const key = highlightKey(candidate.anchor, candidate.quote);
-    byKey.set(key, [...(byKey.get(key) ?? []), at]);
+    groupOf(highlightKey(candidate.anchor, candidate.quote)).members.push(at);
   });
   const tieBreakOf = (at: number) => (candidates[at] as PassageCandidate).tieBreak;
   return [...byKey.entries()]
-    .map(([key, members]): KeyGroup => {
-      const [writer] = [...members].sort((a, b) => compare(tieBreakOf(a), tieBreakOf(b)));
-      return { key, members, writer: writer as number };
+    .map(([key, group]): KeyGroup => {
+      const [writer] = [...group.members].sort((a, b) => compare(tieBreakOf(a), tieBreakOf(b)));
+      // Every key has a held block or a highlight of the append, so one of them places it.
+      const placed = (group.held[0] ?? candidates[writer as number]) as { anchor: HighlightAnchor };
+      return { key, ...group, writer, placed: placed.anchor };
     })
     .sort((a, b) => compare(a.key, b.key));
 }

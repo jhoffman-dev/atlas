@@ -216,19 +216,32 @@ Options weighed for where a highlight lives:
    Being the same place is not transitive — a copy with a page alone is the
    same place as two copies at different locations on that page, which are
    not the same place as each other — so matching is one passage to one
-   passage. A highlight of an append joins a passage (one the note holds, or
-   one the append writes) only when it is the same place as every copy
-   already in it, with no two annotation ids; so a held copy is claimed by
-   at most one passage of the export, and two highlights with different ids
-   are always two passages. Which claims first is fixed, not the export's
-   order: a highlight its key finds; then those with a location, each taking
-   a passage at its location before one with a page alone; then those with a
-   page alone; among each, by key. Every order of one append gives the same
-   note, and a sync run again adds nothing. An export that grew between
-   syncs gives as many passages as one synced at once, as long as each
-   export is one shape (all with locations, or all with pages alone, a
-   location always on one page); one that mixes shapes in one export can
-   pair its copies differently as it grows.
+   passage. A highlight of an append joins a passage only when it is the
+   same place as every copy already in it, with no two annotation ids; so a
+   held copy is claimed by at most one passage of the export, two highlights
+   with different ids are always two passages, and two blocks the note holds
+   are never one passage. The held blocks are matched as if they were
+   highlights of the append: every key — a held block's, an incoming
+   highlight's, or both — is placed in one order, not the export's and not
+   by which of them the note already holds: those with a location, each
+   taking a passage at its location before one with a page alone; then
+   those with a page alone; among each, by key. A key is placed as the note
+   holds it, else as it would be written. A passage a held block is in
+   answers that block; any other is written. Since a block a sync writes
+   has the key of the highlight it was written from, a sync run again
+   places the same keys the same way, and every passage it finds holds its
+   block: it adds nothing. Placing a key as the note holds it keeps a sync
+   handed only part of that export from moving it, so that adds nothing
+   either (property-tested, not proven). (Matching the held passages first, then the export, broke
+   this: a located copy that had joined a page-only held block took, on the
+   next sync, the block its located sibling had written, and the page-only
+   copy that had joined that sibling was appended again — PR #510, property
+   seeds 101 and 303.) Every order of one append gives the same note. An
+   export that grew between syncs gives as many passages as one synced at
+   once, as long as each export is one shape (all with locations, or all
+   with pages alone, a location always on one page); one that mixes shapes
+   in one export can pair its copies differently as it grows, but a sync
+   run again still adds nothing.
    Adding one the note holds answers the id it has. So a Kindle sync can hand
    over every highlight each time.
 
