@@ -117,6 +117,8 @@ export default defineConfig({
         'packages/application/src/proposals/**': { lines: 90, functions: 90, branches: 85 },
         // Writes highlights into, and takes them out of, a literature note in the vault (#503).
         'packages/application/src/highlights/**': { lines: 90, functions: 90, branches: 85 },
+        // Reads every source and highlight for the research views; a wrong read hides them (#507).
+        'packages/application/src/research/**': { lines: 90, functions: 90, branches: 85 },
         // Copies a PDF into the vault and makes its literature note; writes the reader's highlights (#504).
         'packages/application/src/reader/**': { lines: 90, functions: 90, branches: 85 },
         // A task's schedule is read from the index and answered to the API (P31-01);

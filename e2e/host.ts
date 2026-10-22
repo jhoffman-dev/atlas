@@ -106,6 +106,16 @@ interface StoredNote {
     number?: number | null;
     date?: string | null;
   }[];
+  /** A literature note's highlights, as the app read them (#503). */
+  highlights?: {
+    id: string;
+    kind: string;
+    quote: string;
+    comment: string;
+    mark: string;
+    color: string;
+    anchor: string;
+  }[];
 }
 
 /** A declared property as the index is told it, to become a column of its type's view. */
@@ -252,7 +262,16 @@ function runAtlasQuery(
   bound: readonly unknown[],
   notes: Iterable<StoredNote>,
 ): { columns: string[]; rows: unknown[][]; truncated: boolean } {
-  const stored = [...notes];
+  const database = atlasDatabase([...notes]);
+  try {
+    return answerFrom(database, statement, bound);
+  } finally {
+    database.close();
+  }
+}
+
+/** The tables `src-tauri/src/index.rs` makes — files, props, relations, links, tags — filled from what the app indexed. */
+function atlasDatabase(stored: readonly StoredNote[]): DatabaseSync {
   const database = filesAndProps(stored);
   database.exec(`
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
@@ -271,13 +290,130 @@ function runAtlasQuery(
     for (const row of note.links ?? []) link.run(note.path, row.path, row.target, row.leaf);
     (note.tags ?? []).forEach((use, at) => tag.run(note.path, at, use.key, use.name));
   }
+  return database;
+}
+
+/** A compiled statement's answer from `database`, run for real with what it binds. */
+function answerFrom(
+  database: DatabaseSync,
+  statement: string,
+  bound: readonly unknown[],
+): { columns: string[]; rows: unknown[][]; truncated: boolean } {
   const prepared = database.prepare(statement);
   const columns = prepared.columns().map((column) => column.name);
   const rows = (
     prepared.all(...(bound as (string | number | null)[])) as Record<string, unknown>[]
   ).map((row) => columns.map((column) => row[column] ?? null));
-  database.close();
   return { columns, rows, truncated: false };
+}
+
+/**
+ * The research views' tables (#507) — the index's, and its `highlights` —
+ * made once for what the app has indexed and kept until it indexes again:
+ * the views read a page at a time, and remaking 20,000 highlights for each
+ * page would time the stand-in rather than the app.
+ */
+function researchTables(): (writes: number, notes: Iterable<StoredNote>) => DatabaseSync {
+  let kept: { writes: number; database: DatabaseSync } | null = null;
+  return (writes, notes) => {
+    if (kept?.writes === writes) return kept.database;
+    kept?.database.close();
+    const stored = [...notes];
+    const database = atlasDatabase(stored);
+    fillHighlights(database, stored);
+    // The indexes `src-tauri/src/index.rs` makes on what these views read by note.
+    database.exec(`
+      CREATE INDEX props_path ON props(path, key, value_text);
+      CREATE INDEX tags_path ON tags(path);
+      CREATE INDEX relations_src ON relations(src, key);
+      CREATE INDEX highlights_path_idx ON highlights(path, idx);`);
+    kept = { writes, database };
+    return database;
+  };
+}
+
+/** The words around the last term searched for, marked as the index marks them. */
+function snippetOf(text: string, terms: readonly string[]): string {
+  const last = terms[terms.length - 1] ?? '';
+  const at = text.toLowerCase().indexOf(last);
+  return at === -1
+    ? text.slice(0, 60)
+    : `${text.slice(Math.max(0, at - 20), at)}<<${text.slice(at, at + last.length)}>>${text.slice(at + last.length, at + last.length + 30)}`;
+}
+
+/** A term of a search as `toSearchQuery` writes it: quoted, and a prefix when it ends in `*`. */
+interface SearchTerm {
+  readonly word: string;
+  readonly prefix: boolean;
+}
+
+/** The words of `text` as the index folds them: accents off, case folded, split off anything that is not a letter or digit. */
+const searchWords = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word !== '');
+
+/**
+ * The highlights whose quote or comment hold every term, each naming its note
+ * and block, as index.rs answers them: whole words, and only the term marked
+ * as a prefix may be the start of one (FTS5 has no "contains"), at most `limit`.
+ */
+function highlightHits(
+  notes: readonly StoredNote[],
+  { terms, skip, limit }: { terms: readonly SearchTerm[]; skip: string | null; limit: number },
+): { path: string; title: string; snippet: string; block: string }[] {
+  const words = terms.map((term) => ({ ...term, word: searchWords(term.word).join(' ') }));
+  return notes
+    .filter((note) => skip === null || !note.path.toLowerCase().startsWith(skip))
+    .flatMap((note) =>
+      (note.highlights ?? []).flatMap((each) => {
+        const text = `${each.quote} ${each.comment}`;
+        const held = searchWords(text);
+        const found = words.every(({ word, prefix }) =>
+          held.some((have) => (prefix ? have.startsWith(word) : have === word)),
+        );
+        if (!found) return [];
+        return [
+          {
+            path: note.path,
+            title: note.title,
+            snippet: snippetOf(
+              text,
+              terms.map((term) => term.word.toLowerCase()),
+            ),
+            block: each.id,
+          },
+        ];
+      }),
+    )
+    .slice(0, limit);
+}
+
+/** The index's `highlights` table, filled from what the app indexed (#503): what the research views read. */
+function fillHighlights(database: DatabaseSync, notes: readonly StoredNote[]): void {
+  database.exec(`
+    CREATE TABLE highlights (path TEXT NOT NULL, idx INTEGER NOT NULL, id TEXT NOT NULL,
+                             kind TEXT NOT NULL, quote TEXT NOT NULL, comment TEXT NOT NULL,
+                             mark TEXT NOT NULL, color TEXT NOT NULL, anchor TEXT NOT NULL);`);
+  const row = database.prepare('INSERT INTO highlights VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  for (const note of notes) {
+    (note.highlights ?? []).forEach((each, at) =>
+      row.run(
+        note.path,
+        at,
+        each.id,
+        each.kind,
+        each.quote,
+        each.comment,
+        each.mark,
+        each.color,
+        each.anchor,
+      ),
+    );
+  }
 }
 
 /**
@@ -616,6 +752,9 @@ export async function installHost(
   // A stand-in for the SQLite index: enough behaviour to drive the interface.
   // The real queries are covered by the Rust tests.
   const indexed = new Map<string, StoredNote>();
+  // How many times what was indexed changed, so a table made from it knows when it is stale.
+  let indexWrites = 0;
+  const research = researchTables();
   const views = new Map<string, ViewSpec>();
   // A build of the index stopped part-way (`holdIndexAfter`), so a test can act while one is under way.
   let indexPuts = 0;
@@ -1032,6 +1171,7 @@ export async function installHost(
         return { fresh: true };
       case 'index_clear':
         indexed.clear();
+        indexWrites += 1;
         return null;
       case 'index_manifest':
         // Lists what was indexed, as the real index does: a refresh re-reads
@@ -1047,10 +1187,12 @@ export async function installHost(
         indexPuts += 1;
         if (indexPuts > indexPutsBeforeHold) await indexHeld;
         for (const note of (args as { notes: StoredNote[] }).notes) indexed.set(note.path, note);
+        indexWrites += 1;
         return null;
       }
       case 'index_remove': {
         for (const target of (args as { paths: string[] }).paths) indexed.delete(target);
+        indexWrites += 1;
         return null;
       }
       case 'index_stats':
@@ -1170,6 +1312,11 @@ export async function installHost(
         // A task's schedule (P31-01): the tasks and the blocks linking them, run for real.
         if (statement.startsWith('/* task schedule */')) {
           return runAtlasQuery(statement, bound, indexed.values());
+        }
+        // The Library and All highlights (#507): the literature notes and their highlights,
+        // over files, props, tags, relations and highlights, run for real.
+        if (statement.startsWith('/* research:')) {
+          return answerFrom(research(indexWrites, indexed.values()), statement, bound);
         }
         // SQL written by hand — the query page, a SQL view or widget — binds
         // nothing, where everything the app compiles binds at least its LIMIT.
@@ -1355,10 +1502,10 @@ export async function installHost(
           .sort();
       }
       case 'index_search': {
-        const terms = [...String((args as { query: string }).query).matchAll(/"([^"]+)"/g)].map(
-          (match) => (match[1] ?? '').toLowerCase(),
-        );
+        const searched = [...String((args as { query: string }).query).matchAll(/"([^"]+)"(\*)?/g)];
+        const terms = searched.map((match) => (match[1] ?? '').toLowerCase());
         if (terms.length === 0) return [];
+        const limit = Number((args as { limit?: number }).limit ?? 20);
         // As index.rs does: the prefix it is handed is left out, in lower case.
         const skip = (args as { skipPrefix?: string | null }).skipPrefix ?? null;
         return [...indexed.values()]
@@ -1368,16 +1515,25 @@ export async function installHost(
             const haystack = `${note.path} ${note.title} ${note.body}`.toLowerCase();
             return terms.every((term) => haystack.includes(term));
           })
-          .slice(0, 20)
-          .map((note) => {
-            const last = terms[terms.length - 1] ?? '';
-            const at = note.body.toLowerCase().indexOf(last);
-            const snippet =
-              at === -1
-                ? note.body.slice(0, 60)
-                : `${note.body.slice(Math.max(0, at - 20), at)}<<${note.body.slice(at, at + last.length)}>>${note.body.slice(at + last.length, at + last.length + 30)}`;
-            return { path: note.path, title: note.title, snippet };
-          });
+          .slice(0, limit)
+          .map((note) => ({
+            path: note.path,
+            title: note.title,
+            snippet: snippetOf(note.body, terms),
+          }))
+          .concat(
+            // As index.rs does when asked (#507): then the highlights whose quote or comment match.
+            (args as { highlights?: boolean }).highlights === true
+              ? highlightHits([...indexed.values()], {
+                  terms: searched.map((match) => ({
+                    word: match[1] ?? '',
+                    prefix: match[2] === '*',
+                  })),
+                  skip,
+                  limit,
+                })
+              : [],
+          );
       }
       case 'http_get': {
         /**

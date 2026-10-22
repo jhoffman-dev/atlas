@@ -111,6 +111,8 @@ export interface SearchHit {
   readonly title: string;
   /** The matching text with `<<` and `>>` around the words that matched. */
   readonly snippet: string;
+  /** For a highlight in the note that matched (#507), its block id: the hit opens there. */
+  readonly block?: string;
 }
 
 /**
@@ -120,6 +122,8 @@ export interface SearchHit {
 export interface SearchScope {
   /** Notes whose path starts with this, compared in lower case, are not searched. */
   readonly skipPrefix?: string;
+  /** Whether the highlights in literature notes are searched too, after the notes (#507). */
+  readonly highlights?: boolean;
 }
 
 export interface IndexStats {

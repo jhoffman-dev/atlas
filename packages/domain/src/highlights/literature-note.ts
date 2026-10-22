@@ -62,10 +62,17 @@ const LINK_CHARACTERS = /[#^|[\]]/;
 export const safeSourceFileName = (fileName: string): string =>
   fileName.replace(new RegExp(LINK_CHARACTERS.source, 'g'), '-');
 
-/** Whether a note's frontmatter, as the markdown port read it, makes it a literature note. */
+/**
+ * Whether a note's frontmatter, as the markdown port read it, makes it a
+ * literature note: a `type` of `literature`, or a `type` list holding it
+ * (`[literature, book]`), as the index's own type check reads both.
+ */
 export function isLiteratureNote(frontmatter: Readonly<Record<string, unknown>>): boolean {
   const type = frontmatter.type;
-  return typeof type === 'string' && type.trim().toLowerCase() === LITERATURE_NOTE_TYPE;
+  const types: readonly unknown[] = Array.isArray(type) ? type : [type];
+  return types.some(
+    (each) => typeof each === 'string' && each.trim().toLowerCase() === LITERATURE_NOTE_TYPE,
+  );
 }
 
 /**

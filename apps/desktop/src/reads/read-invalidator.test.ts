@@ -334,3 +334,66 @@ describe('the panes’ reads, judged by what they are made from (#325)', () => {
     stop();
   });
 });
+
+describe('a scoped read that kept a way to refresh itself', () => {
+  /** A read of the notes of one type, counting its whole reads, with a refresh that adds the changed paths. */
+  function listedReads(refresh: () => Promise<unknown>) {
+    const client = createWindowQueryClient();
+    let wholeReads = 0;
+    const observer = new QueryObserver(client, {
+      queryKey: scopedReadKey('/one', 'listed'),
+      queryFn: async () => ({ paths: [`whole ${++wholeReads}`] }),
+      meta: scopedReadMeta({ types: ['literature'] }, false, refresh),
+    });
+    const stop = observer.subscribe(() => {});
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const data = () => client.getQueryData<{ paths: string[] }>(scopedReadKey('/one', 'listed'));
+    return { client, stop, settled, data, wholeReads: () => wholeReads };
+  }
+
+  it('is brought up to date from the notes that touched it, not read whole', async () => {
+    const { client, stop, settled, data, wholeReads } = listedReads(async () => ({
+      paths: ['refreshed'],
+    }));
+    await settled();
+    const reads = createReadInvalidator({ client });
+
+    reads.noteChanges('/one', [edited('Library/A.md', 'literature'), edited('Notes/B.md', 'note')]);
+    reads.indexMoved('/one');
+    await settled();
+
+    expect(data()).toEqual({ paths: ['refreshed'] });
+    expect(wholeReads()).toBe(1);
+    stop();
+  });
+
+  it('is read whole when its refresh says it cannot, or fails, or the news does not say which notes', async () => {
+    for (const refresh of [async () => null, () => Promise.reject(new Error('busy'))]) {
+      const { client, stop, settled, wholeReads } = listedReads(refresh);
+      await settled();
+      const reads = createReadInvalidator({ client });
+      reads.noteChanges('/one', [edited('Library/A.md', 'literature')]);
+      reads.indexMoved('/one');
+      await settled();
+      expect(wholeReads()).toBe(2);
+      stop();
+    }
+    const { client, stop, settled, wholeReads } = listedReads(async () => ({ paths: ['x'] }));
+    await settled();
+    createReadInvalidator({ client }).indexMoved('/one', false);
+    await settled();
+    expect(wholeReads()).toBe(2);
+    stop();
+  });
+
+  it('is not read at all for news that is not of its type', async () => {
+    const { client, stop, settled, wholeReads } = listedReads(async () => ({ paths: ['x'] }));
+    await settled();
+    const reads = createReadInvalidator({ client });
+    reads.noteChanges('/one', [edited('Notes/B.md', 'note')]);
+    reads.indexMoved('/one');
+    await settled();
+    expect(wholeReads()).toBe(1);
+    stop();
+  });
+});

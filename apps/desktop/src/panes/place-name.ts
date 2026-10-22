@@ -45,6 +45,10 @@ export function placeName(
       return 'Templates';
     case 'terms':
       return 'Terms';
+    case 'library':
+      return 'Library';
+    case 'highlights':
+      return 'All highlights';
     case 'document':
       return vaultPathName(place.path);
   }

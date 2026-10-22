@@ -11,6 +11,8 @@ import { ReviewContainer } from '../review/review-container.tsx';
 import { TagsContainer } from '../tags/tags-container.tsx';
 import { TemplatesContainer } from '../templates/templates-container.tsx';
 import { TermsContainer } from '../terms/terms-container.tsx';
+import { HighlightsContainer } from '../research/highlights-container.tsx';
+import { LibraryContainer } from '../research/library-container.tsx';
 import { TodayContainer } from '../today/today-container.tsx';
 import { TypeContainer } from '../types/type-container.tsx';
 import { DocumentContainer } from '../reader/document-container.tsx';
@@ -108,6 +110,10 @@ function containerFor({
       return <TemplatesContainer {...props} />;
     case 'terms':
       return <TermsContainer {...props} />;
+    case 'library':
+      return <LibraryContainer {...props} />;
+    case 'highlights':
+      return <HighlightsContainer {...props} />;
     case 'document':
       return <DocumentContainer {...props} path={place.path} />;
   }

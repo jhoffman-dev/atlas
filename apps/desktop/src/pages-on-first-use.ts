@@ -74,6 +74,10 @@ export const activityScreen = laterPage(
   chunk('activity-screen', () => import('./activity/activity-screen.tsx')),
   (m) => m.ActivityScreen,
 );
+/** The Library and All highlights (#507): one chunk, since one is often opened from the other. */
+const researchScreens = chunk('research-screens', () => import('./research/research-screens.tsx'));
+export const libraryScreen = laterPage(researchScreens, (m) => m.LibraryScreen);
+export const highlightsScreen = laterPage(researchScreens, (m) => m.HighlightsScreen);
 // The PDF reader, with pdf.js, in a chunk of its own (#504): half a megabyte nobody pays for until a PDF opens.
 export const documentReader = laterPage(
   chunk('document-reader', () => import('./reader/document-reader.tsx')),

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { createVaultPath, placeCrumb, type PaletteCommand } from '@dfai/domain';
 import type { SearchHit } from '@dfai/application';
@@ -6,6 +6,7 @@ import { Icon, sidebarGlyph } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { Key, KeyHints } from './key-hints.tsx';
 import { useReturnFocus, type FocusFallback } from './return-focus.ts';
+import { useSteadyCallback } from './steady-callback.ts';
 import { Toggle } from './toggle.tsx';
 import type { ArchivedToggle } from './view-toolbar.tsx';
 
@@ -57,7 +58,8 @@ export function SearchPalette({
   selected: number;
   onQuery: (query: string) => void;
   onMove: (delta: number) => void;
-  onPick: (path: string) => void;
+  /** A hit chosen: its note, and the highlight's block when the hit is a highlight in it (#507). */
+  onPick: (path: string, block?: string) => void;
   onClose: () => void;
   /** Where focus goes on close if what opened the palette has gone. */
   fallbackFocus?: FocusFallback;
@@ -68,6 +70,8 @@ export function SearchPalette({
   archived?: ArchivedToggle;
 }) {
   const finalFocus = useReturnFocus(fallbackFocus);
+  // Steady, so a command still listed after a key is typed is not drawn again for it.
+  const runCommand = useSteadyCallback(onCommand);
   const hitsRef = useRef<HTMLUListElement>(null);
   // The selection the list was last scrolled for. It starts at the one the
   // palette opens on, which is already drawn in view: opening does no scroll work.
@@ -112,7 +116,7 @@ export function SearchPalette({
                     const command = commands[selected];
                     const hit = hits[selected - commands.length];
                     if (command !== undefined) onCommand(command.id);
-                    else if (hit !== undefined) onPick(hit.path);
+                    else if (hit !== undefined) pickHit(hit, onPick);
                   }
                 }}
               />
@@ -140,12 +144,12 @@ export function SearchPalette({
                     <CommandRow
                       command={command}
                       selected={index === selected}
-                      onRun={() => onCommand(command.id)}
+                      onRun={runCommand}
                     />
                   </li>
                 ))}
                 {hits.map((hit, index) => (
-                  <li key={hit.path}>
+                  <li key={hitKey(hit)}>
                     <Hit
                       hit={hit}
                       selected={index + commands.length === selected}
@@ -163,15 +167,19 @@ export function SearchPalette({
   );
 }
 
-/** Something to do rather than a note to open: a plus in the kind's tile, and its name. */
-function CommandRow({
+/**
+ * Something to do rather than a note to open: a plus in the kind's tile, and
+ * its name. Drawn again only when it is chosen or let go, or its command
+ * changes: typing on draws the commands still listed as they were.
+ */
+const CommandRow = memo(function CommandRow({
   command,
   selected,
   onRun,
 }: {
   command: PaletteCommand;
   selected: boolean;
-  onRun: () => void;
+  onRun: (id: string) => void;
 }) {
   return (
     <button
@@ -181,7 +189,7 @@ function CommandRow({
       className={selected ? 'palette__hit palette__hit--on' : 'palette__hit'}
       onMouseDown={(event) => {
         event.preventDefault();
-        onRun();
+        onRun(command.id);
       }}
     >
       <span className="palette__kind" aria-hidden="true">
@@ -197,11 +205,22 @@ function CommandRow({
       )}
     </button>
   );
+});
+
+/** What tells one hit from another: its note, and its block for a highlight in it. */
+const hitKey = (hit: SearchHit) =>
+  hit.block === undefined ? hit.path : `${hit.path}#^${hit.block}`;
+
+/** Opens a hit: its note, at its block when it is a highlight. */
+function pickHit(hit: SearchHit, onPick: (path: string, block?: string) => void) {
+  if (hit.block === undefined) onPick(hit.path);
+  else onPick(hit.path, hit.block);
 }
 
 /**
  * One result: what kind of note it is and where it lives (never `.atlas/…`),
- * its title, and the words around the match.
+ * its title, and the words around the match. A highlight says so, and which
+ * source it is in, in place of the folder.
  */
 function Hit({
   hit,
@@ -210,9 +229,10 @@ function Hit({
 }: {
   hit: SearchHit;
   selected: boolean;
-  onPick: (path: string) => void;
+  onPick: (path: string, block?: string) => void;
 }) {
   const place = placeCrumb(createVaultPath(hit.path));
+  const isHighlight = hit.block !== undefined;
   return (
     <button
       type="button"
@@ -221,16 +241,16 @@ function Hit({
       className={selected ? 'palette__hit palette__hit--on' : 'palette__hit'}
       onMouseDown={(event) => {
         event.preventDefault();
-        onPick(hit.path);
+        pickHit(hit, onPick);
       }}
     >
       <span className="palette__kind" aria-hidden="true">
-        <Icon name={sidebarGlyph(place.icon)} size={16} />
+        <Icon name={isHighlight ? 'quote' : sidebarGlyph(place.icon)} size={16} />
       </span>
       <span className="palette__text">
         <span className="palette__title">{hit.title}</span>
         <span className="palette__detail">
-          <span className="palette__place">{place.parent}</span>
+          <span className="palette__place">{isHighlight ? 'Highlight' : place.parent}</span>
           {hit.snippet !== '' && <span className="palette__snippet">{highlight(hit.snippet)}</span>}
         </span>
       </span>
