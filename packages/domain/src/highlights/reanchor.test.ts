@@ -44,8 +44,18 @@ describe('finding a quote by its words', () => {
     ).toBe(first);
   });
 
-  it('takes the first of copies with nothing to tell them apart', () => {
-    expect(findQuote('ab ab ab', { exact: 'ab', prefix: '', suffix: '' })?.start).toBe(0);
+  it('finds nothing among copies with nothing to tell them apart (ADR-0043 section 9)', () => {
+    expect(findQuote('ab ab ab', { exact: 'ab', prefix: '', suffix: '' })).toBeNull();
+  });
+
+  it('tells copies apart by their whitespace when the loose comparison cannot', () => {
+    const text = 'x  deception\ny deception';
+    const selector = quoteSelectorAt({
+      text,
+      start: text.lastIndexOf('deception'),
+      end: text.length,
+    });
+    expect(findQuote(text, selector)?.start).toBe(text.lastIndexOf('deception'));
   });
 
   it('finds the words across line breaks and runs of spaces, in the text as given', () => {

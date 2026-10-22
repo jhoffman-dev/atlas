@@ -45,33 +45,67 @@ export function quoteSelectorAt({
 }
 
 /**
- * Where `selector`'s words are in `text`, or null when they are not. Of two
- * or more copies, the one whose surroundings match `prefix` and `suffix`
- * best; of equals, the first.
+ * Where `selector`'s words are in `text`, or null when they are not, or when
+ * two or more copies match their surroundings (`prefix` and `suffix`) equally
+ * well: changed words are not found rather than found in the wrong place.
+ * Whitespace at either end of `exact` is taken as part of the surroundings,
+ * so a selection `quoteSelectorAt` took from a space finds its own copy.
  */
 export function findQuote(text: string, selector: TextQuoteSelector): QuoteMatch | null {
   const folded = foldSpaces(text);
   const exact = foldSpaces(selector.exact).text.trim();
   if (exact === '') return null;
-  const prefix = foldSpaces(selector.prefix).text;
-  const suffix = foldSpaces(selector.suffix).text;
-  let best: { at: number; score: number } | null = null;
+  const leading = /^\s*/.exec(selector.exact)?.[0] ?? '';
+  const trailing = /\s*$/.exec(selector.exact)?.[0] ?? '';
+  const prefix = foldSpaces(selector.prefix + leading).text;
+  const suffix = foldSpaces(trailing + selector.suffix).text;
+  const around = { prefix: selector.prefix + leading, suffix: trailing + selector.suffix };
+  let best: { at: number; score: number; exactScore: number; tied: boolean } | null = null;
   for (let at = folded.text.indexOf(exact); at !== -1; at = folded.text.indexOf(exact, at + 1)) {
     const score =
-      commonSuffix(folded.text.slice(0, at), prefix) +
-      commonPrefix(folded.text.slice(at + exact.length), suffix);
-    if (best === null || score > best.score) best = { at, score };
+      commonSuffix(folded.text, at, prefix) + commonPrefix(folded.text, at + exact.length, suffix);
+    const exactScore = surroundingsScore(text, rangeOf(folded, at, exact), around);
+    const candidate = { at, score, exactScore, tied: false };
+    if (best === null || beats(candidate, best)) best = candidate;
+    else if (score === best.score && exactScore === best.exactScore) best.tied = true;
   }
-  if (best === null) return null;
-  const start = folded.origins[best.at] as number;
-  const last = folded.origins[best.at + exact.length - 1] as number;
-  return { start, end: last + 1 };
+  if (best === null || best.tied) return null;
+  const { start, end } = rangeOf(folded, best.at, exact);
+  return { start, end };
+}
+
+/** Whether `candidate` fits its surroundings better: loosely first, then to the letter, whitespace and all. */
+const beats = (
+  candidate: { score: number; exactScore: number },
+  best: { score: number; exactScore: number },
+): boolean =>
+  candidate.score > best.score ||
+  (candidate.score === best.score && candidate.exactScore > best.exactScore);
+
+/** The match at `at` in the folded text, as `[start, end)` of the text as given. */
+function rangeOf(folded: Folded, at: number, exact: string): QuoteMatch {
+  const last = folded.origins[at + exact.length - 1] as number;
+  return { start: folded.origins[at] as number, end: last + 1 };
+}
+
+/** How far the text either side of `range` matches the selector's, whitespace compared as written. */
+function surroundingsScore(
+  text: string,
+  range: QuoteMatch,
+  expected: { prefix: string; suffix: string },
+): number {
+  return (
+    commonSuffix(text, range.start, expected.prefix) +
+    commonPrefix(text, range.end, expected.suffix)
+  );
 }
 
 /**
  * Where `selector`'s words are among `sections`, looked for in section `near`
  * first — the page or chapter the anchor last named — then outward from it,
- * nearer before farther and earlier before later. Null when no section has them.
+ * nearer before farther and earlier before later. Null when no section has
+ * them. `near` is made a section index first: a fraction rounds down, one
+ * out of range or not a number is the nearest end (the first for NaN).
  */
 export function findQuoteNear({
   sections,
@@ -91,7 +125,7 @@ export function findQuoteNear({
 
 /** Every index of `count`, `near` first, then by distance from it, the earlier of two first. */
 function outwardFrom(near: number, count: number): number[] {
-  const start = Math.min(Math.max(near, 0), count - 1);
+  const start = Math.min(Math.max(Number.isNaN(near) ? 0 : Math.floor(near), 0), count - 1);
   const order: number[] = [];
   for (let distance = 0; order.length < count; distance += 1) {
     if (start - distance >= 0 && distance > 0) order.push(start - distance);
@@ -100,8 +134,13 @@ function outwardFrom(near: number, count: number): number[] {
   return order;
 }
 
+interface Folded {
+  readonly text: string;
+  readonly origins: number[];
+}
+
 /** `text` with every run of whitespace one space, and where each character came from. */
-function foldSpaces(text: string): { text: string; origins: number[] } {
+function foldSpaces(text: string): Folded {
   let folded = '';
   const origins: number[] = [];
   for (let index = 0; index < text.length; index += 1) {
@@ -114,20 +153,28 @@ function foldSpaces(text: string): { text: string; origins: number[] } {
   return { text: folded, origins };
 }
 
-function commonSuffix(left: string, right: string): number {
+/** How many characters before `end` in `text` are the last ones of `expected`. */
+function commonSuffix(text: string, end: number, expected: string): number {
   let count = 0;
   while (
-    count < left.length &&
-    count < right.length &&
-    left[left.length - 1 - count] === right[right.length - 1 - count]
+    count < end &&
+    count < expected.length &&
+    text[end - 1 - count] === expected[expected.length - 1 - count]
   ) {
     count += 1;
   }
   return count;
 }
 
-function commonPrefix(left: string, right: string): number {
+/** How many characters from `from` in `text` are the first ones of `expected`. */
+function commonPrefix(text: string, from: number, expected: string): number {
   let count = 0;
-  while (count < left.length && count < right.length && left[count] === right[count]) count += 1;
+  while (
+    from + count < text.length &&
+    count < expected.length &&
+    text[from + count] === expected[count]
+  ) {
+    count += 1;
+  }
   return count;
 }
