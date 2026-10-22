@@ -258,15 +258,20 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Read the Playwright version
+      # The OS release goes in the key (`ImageOS`, e.g. macos15): Playwright
+      # builds WebKit per release, so a runner moving to a new one must not
+      # restore the old build. `ImageOS` is a runner variable, not in `env`.
+      - name: Read the Playwright version and the OS release
         id: playwright
-        run: echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+          echo "os=${ImageOS}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: webkit
         with:
           path: ~/Library/Caches/ms-playwright
-          key: playwright-webkit-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+          key: playwright-webkit-${{ runner.os }}-${{ steps.playwright.outputs.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
 
       - name: Install WebKit for end-to-end tests
         if: steps.webkit.outputs.cache-hit != 'true'
@@ -322,8 +327,11 @@ jobs:
       - name: Read the Playwright version and the runner image
         id: playwright
         run: |
-          echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
-          echo "image=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)"
+            echo "os=${ImageOS}"
+            echo "image=${ImageOS}-${ImageVersion}"
+          } >> "$GITHUB_OUTPUT"
 
       # Fail a dead connection fast and retry it. A trickling one is caught by
       # the time limits in tools/ci/install-webkit-deps.sh instead.
@@ -336,7 +344,9 @@ jobs:
         id: webkit
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-webkit-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+          # The release (ubuntu24) but not the image version: WebKit is built
+          # per Ubuntu release, and weekly image updates do not change it.
+          key: playwright-webkit-${{ runner.os }}-${{ steps.playwright.outputs.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
 
       - name: Install WebKit
         if: steps.webkit.outputs.cache-hit != 'true'
