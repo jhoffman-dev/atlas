@@ -310,3 +310,76 @@ fn neither_window_has_a_way_into_the_app() {
         );
     }
 }
+
+// ---- Verification of PR #511 after its fix round ---------------------------
+
+#[test]
+fn a_redirect_to_an_address_with_no_origin_is_shown_as_nothing_not_its_contents() {
+    // An opaque address's "path" is all of it: a mail address, a data payload.
+    for raw in [
+        "mailto:ida.brenwick@example.com",
+        "data:text/html;base64,U0VTU0lPTj1zZWNyZXQ=",
+    ] {
+        assert_eq!(shown_target(raw), "", "{raw}");
+    }
+}
+
+#[test]
+fn every_accepted_address_is_fetched_on_the_notebook_origin_at_a_notebook_path() {
+    // The window resolves the target against the notebook page it is on, as `fetch` does.
+    let page = Url::parse("https://read.amazon.com/notebook").unwrap();
+    let mut accepted = 0;
+    for raw in [
+        "https://read.amazon.com/notebook?asin=//evil.example/x",
+        "https://read.amazon.com/notebook?asin=\\\\evil.example\\x",
+        "https://read.amazon.com/notebook?token=%2F%2Fevil.example&x=@evil.example",
+        "https://read.amazon.com//notebook",
+        "https://read.amazon.com/\\notebook",
+        "https://read.amazon.com/kp/notebook?asin=B0\tEX\nAMPLE",
+        "https://read.amazon.com/notebook?a=\u{2028}\u{2029}</script>",
+    ] {
+        let Ok(url) = notebook_url(&origin(), raw) else {
+            continue;
+        };
+        accepted += 1;
+        let fetched = page.join(&path_and_query(&url)).unwrap();
+        assert_eq!(fetched.origin(), origin().origin(), "{raw}");
+        assert!(reader_may_load(fetched.as_str()), "{raw} -> {fetched}");
+    }
+    // The hostile queries are accepted (and so reach the script); the paths are not.
+    assert_eq!(accepted, 5);
+}
+
+#[test]
+fn the_cookie_and_http_guard_scans_every_kindle_source_file() {
+    // A new file under kindle/ that the guard does not include is a file it does not police.
+    let guard = include_str!("tests.rs");
+    let folder = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/kindle");
+    for entry in std::fs::read_dir(folder).unwrap() {
+        let name = entry.unwrap().file_name().into_string().unwrap();
+        if name.ends_with(".rs") && name != "tests.rs" {
+            assert!(
+                guard.contains(&format!("include_str!(\"{name}\")")),
+                "{name} is not scanned"
+            );
+        }
+    }
+}
+
+#[test]
+fn kindle_names_reqwest_only_for_its_url_type() {
+    // `use reqwest::{Client, Url}` would pass the guard's "reqwest::Client" check unseen.
+    for source in [
+        code(include_str!("../kindle.rs")),
+        code(include_str!("notebook_url.rs")),
+        code(include_str!("page_script.rs")),
+        code(include_str!("session_macos.rs")),
+        code(include_str!("failure.rs")),
+    ] {
+        assert_eq!(
+            source.matches("reqwest").count(),
+            source.matches("reqwest::Url").count(),
+            "{source}"
+        );
+    }
+}
