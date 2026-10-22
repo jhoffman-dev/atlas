@@ -334,8 +334,30 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
     title and its page (`p. 3`) or Kindle location (`loc. 41`), in its
     kind's pastel. A highlight whose words are not found opens at its saved
     page, and the reader says it could not find the exact spot.
-    `[[file.pdf]]` names a PDF, not a note: by its path, or by its name
-    alone when one literature note's file has it.
+    The reader opens only a file it can read: a `kind: pdf` note whose
+    `file:` is not a `.pdf` opens its note at the block and offers no
+    "Open in PDF".
+
+    `[[file.pdf]]` names a PDF of the vault, found among the vault's real
+    files (a walk of its visible folders, not the literature notes), so a
+    PDF with no literature note is found. As in Obsidian a link writes the
+    end of a path: `[[reading.pdf]]` or `[[Courses/reading.pdf]]` matches
+    `Library/Courses/reading.pdf`. Where several files match, one is picked
+    the same way every time: the exact path, else the shortest path, else
+    the first alphabetically. A link never opens a path no file has; where
+    no PDF matches, the link is read as a note's (`[[Budget review.pdf]]`
+    opens a note of that name), and where neither exists it says "No PDF or
+    note called …". `[[paper.pdf#^id]]` opens at that highlight and
+    `[[paper.pdf#page=3]]` at page 3.
+
+    A link whose target takes a read to know opens late, so it opens only
+    if it is still the latest click on its surface (a pane, or the peek)
+    and the tab it was made in still shows what it showed; a ⌘-click opens
+    a tab of its own and needs only its pane. A reveal a reader tab holds
+    belongs to its document and is spent: another PDF in the same tab, or
+    coming back, is not brought to it. The chip, "Open in PDF" and an
+    embed's name are links in the tab order and follow on Enter, with the
+    click's modifiers.
 
 ## Consequences
 
