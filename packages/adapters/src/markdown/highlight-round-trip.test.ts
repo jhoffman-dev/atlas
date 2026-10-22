@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { noteBlocks } from './note-blocks.ts';
 import {
   anchoredBlocks,
   appendHighlights,
@@ -41,6 +42,7 @@ const NOTE = appendHighlights({
     },
   ],
   random: drawn(),
+  noteBlocks,
 });
 
 const body = splitFrontmatter(NOTE.text).body;
@@ -75,6 +77,7 @@ describe('a literature note in the editor and the index', () => {
       text: NOTE.text,
       id: first as string,
       comment: 'Changed.',
+      noteBlocks,
     });
     const editedBody = splitFrontmatter(edited).body;
     expect(save(editedBody, remarkMarkdown.parseBody(editedBody).doc)).toBe(editedBody);

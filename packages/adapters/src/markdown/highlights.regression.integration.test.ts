@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { HighlightAnchor } from './anchor.ts';
 import {
+  type HighlightAnchor,
   appendHighlights,
   HighlightNotReadBackError,
   withoutHighlight,
   type NewHighlight,
-} from './edit-highlights.ts';
-import { readHighlights } from './highlight-block.ts';
-import { highlightMarker } from './highlight-marker.ts';
-import { findQuote } from './reanchor.ts';
-import { literatureNoteText } from './literature-note.ts';
-import { createVaultPath } from '../vault/vault-path.ts';
+  readHighlights,
+  highlightMarker,
+  findQuote,
+  literatureNoteText,
+  createVaultPath,
+} from '@dfai/domain';
+import { noteBlocks } from './note-blocks.ts';
 
 /**
  * Verification of the fix round on PR #510 (#503, ADR-0043): each test is one
@@ -51,7 +52,7 @@ const pdf = (exact: string): HighlightAnchor => ({
 });
 
 const appended = (text: string, highlights: readonly NewHighlight[], seed = 1) =>
-  appendHighlights({ text, highlights, random: seeded(seed) });
+  appendHighlights({ text, highlights, random: seeded(seed), noteBlocks });
 
 const KNOW = { quote: 'Know the enemy.', anchor: pdf('Know the enemy.') };
 
@@ -109,7 +110,7 @@ describe('R2: a lazy line in Obsidian stays part of the highlight (verify #510)'
     ],
     ['an autolink at the line start', '<https://example.org/sun-tzu> has the rest.'],
   ])('keeps the highlight when its comment continues with %s', (_, lazy) => {
-    const found = readHighlights(PDF_NOTE + block(lazy));
+    const found = readHighlights(PDF_NOTE + block(lazy), noteBlocks);
     expect(found.map((highlight) => highlight.id)).toEqual(['k3x9q2']);
   });
 });
@@ -162,7 +163,7 @@ describe('A11: removing what was added gives the note back (verify #510)', () =>
   ])('gives the note back byte for byte when it ended in %s', (_, body) => {
     const note = PDF_NOTE.replace(/\n/g, body.includes('\r') ? '\r\n' : '\n') + body;
     const { text, highlights } = appended(note, [KNOW]);
-    expect(withoutHighlight({ text, id: highlights[0]?.id as string })).toBe(note);
+    expect(withoutHighlight({ text, id: highlights[0]?.id as string, noteBlocks })).toBe(note);
   });
 });
 
@@ -187,7 +188,7 @@ const WARFARE = {
   anchor: pdf('All warfare is based on deception.'),
 };
 
-const idsOf = (text: string) => readHighlights(text).map((block) => block.id);
+const idsOf = (text: string) => readHighlights(text, noteBlocks).map((block) => block.id);
 
 describe('R1: a %% inside code hides nothing (verify2 #510)', () => {
   /*
@@ -305,6 +306,6 @@ describe('A11: removing what was appended gives the note back byte for byte (ver
   ])('to a frontmatter-only note with no final newline (%s)', (_, note) => {
     const added = appended(note, [KNOW]);
     const id = added.highlights[0]?.id as string;
-    expect(withoutHighlight({ text: added.text, id })).toBe(note);
+    expect(withoutHighlight({ text: added.text, id, noteBlocks })).toBe(note);
   });
 });

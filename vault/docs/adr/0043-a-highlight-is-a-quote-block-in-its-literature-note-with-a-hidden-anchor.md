@@ -91,16 +91,16 @@ Options weighed for where a highlight lives:
    comment only separates them (the quote is the lines before the marker, the
    comment the lines after it). A comment line that lost its `>` in Obsidian
    is a CommonMark lazy continuation, still part of the quote there, so it is
-   still part of the highlight; the next comment write puts the `>` back. A
-   line ends the quote only when CommonMark lets it interrupt a paragraph,
-   and what follows is then no highlight: an ATX heading (`#` to `######`
-   then a space, a tab or the line's end — `#tag` is text), a thematic break,
-   a fence (three or more backticks or tildes; `~~struck~~` and `` `code` ``
-   are text), a `>`, a list item that may interrupt (a bullet, or an ordered
-   item numbered 1, with words after it — `-`, `1.` and `2. more` are text),
-   and HTML blocks 1 to 6 (`<pre>`, `<!--`, `<div>`, …; inline HTML such as
-   `<b>` and an autolink `<https://…>` are text). A setext underline cannot
-   be lazy, so `===` and `--` stay text, and `---` is a thematic break.
+   still part of the highlight; the next comment write puts the `>` back.
+   Where the quote ends is the markdown parser's answer (§8), not a list of
+   line rules: a heading, a thematic break, a fence, an HTML block or a list
+   item without its `>` ends it, and what follows is then no highlight;
+   words, inline HTML, an autolink or a setext underline (`===`) stay in it.
+   A list item ends the quote whether or not it could interrupt a paragraph
+   (`-`, `1.`, `2. more`): the line is outside the quote, so there is no
+   paragraph of the quote for it to interrupt, and CommonMark starts the list
+   there. A quote line may have up to three spaces before its `>`, as
+   CommonMark allows, and is still the quote's.
 
 3. **The marker holds the anchor and the style, as one line of JSON.**
    `<!-- atlas:highlight {…} -->`, `atlas:` as every marker is (ADR-0042),
@@ -158,8 +158,9 @@ Options weighed for where a highlight lives:
    pane holds unsaved typing in the note (as linking a block is, ADR-0022).
 
    Appending checks itself before it writes. Every highlight added must read
-   back from the note it was added to, or `HighlightNotReadBackError` is
-   thrown and nothing is written: a note that ends inside an unclosed code
+   back from the note it was added to, parsed again as §8 parses it, or
+   `HighlightNotReadBackError` is thrown and nothing is written: a note that
+   ends inside an unclosed code
    fence, raw HTML block (`<pre>`, `<script>`, `<style>`, `<textarea>`), HTML
    comment or Obsidian `%%` comment would hide the block, and every sync would add the
    same passage again. And a note that holds a marker this build cannot read
@@ -178,30 +179,48 @@ Options weighed for where a highlight lives:
    `annotationId`, or without one a Kindle place (location or page) and the
    export's words, `exact`, never the quote as the person has since edited it.
    An export that learns an annotation id later still matches the copy synced
-   without one, on place and words (`kindlePlaceKey`): the place is where the
-   location starts — My Clippings gives `Location 77-79` where the notebook
-   export gives `Location 77` — or the page when there is no location, so two
-   different words at one place stay two passages; two different ids are two
-   passages. An export that gives blank words for `exact` gives none, and the
+   without one, on place and words (`sameKindlePlace`). Places are compared,
+   not keyed, since one export may give a location and a page where another
+   gives either: by where the location starts when both have one — My
+   Clippings gives `Location 77-79` where the notebook export gives
+   `Location 77` — else by page when both have one (`page 5 | Location 77-79`
+   and a notebook export's `Page 5` are one passage, whichever came first);
+   two that share neither are two passages, as are two different words at one
+   place and two different ids. An export that gives blank words for `exact` gives none, and the
    quote stands in for them.
    Adding one the note holds answers the id it has. So a Kindle sync can hand
    over every highlight each time.
 
-8. **What is a highlight is read from the lines, one rule.** A quote at a
-   line's first column, after a blank line or the start of the body, outside
-   a code fence, holding exactly one marker this build reads with words
-   before it, then a blank line and `^id`. A quote without the id, with two
-   markers, a broken or newer marker, inside a list, or inside a code fence,
-   an HTML comment, a raw HTML block (CommonMark block 1: `<pre>`,
-   `<script>`, `<style>`, `<textarea>`, to the line that closes the tag) or
-   an Obsidian `%%` comment (a line with an odd number of `%%` outside HTML
-   comments and inline code opens or closes one), closed or not: not a
-   highlight, and kept exactly as written. One nobody closed runs to the end
-   of the note — except that a fence or HTML block opened in a list item ends
-   with the item, at the first non-blank line indented less than the item's
-   content (CommonMark's container rule), so a list that ends in a fence
-   neither refuses appends nor hides the highlights after it. Only a note that says `type: literature` has
-   highlights; the same text pasted elsewhere is a quote.
+8. **The markdown parser finds the blocks; the domain reads them.** Which
+   lines are a top-level block quote is answered by the CommonMark parser
+   that renders the note (`mdast-util-from-markdown` / micromark with GFM, as
+   the editor and the index use it), through the markdown port's
+   `noteBlocks(text)`: each top-level block quote's span, the top-level
+   paragraph straight after it, and what Obsidian `%%` comments hide. The
+   domain takes that as `NoteBlocks` and reads only a quote's own lines:
+   a highlight is a top-level block quote holding exactly one marker this
+   build reads with words before it, then exactly one blank line and a
+   paragraph of one line that is `^id`. A quote without the id, with two
+   markers, a broken or newer marker, inside a list item, or inside a fence,
+   indented code, an HTML block or comment — closed or not, since the parser
+   runs an unclosed one to the end of the note, and ends one opened in a list
+   item with the item — is not a highlight, and is kept exactly as written.
+   An earlier draft tracked fences, HTML blocks and list items line by line;
+   three rounds of verification kept finding notes where it and the renderer
+   disagreed, so the rule went to the parser.
+
+   Obsidian's `%%` comments are not CommonMark, and no parser here reads
+   them, so they are approximated over the parse: a `%%` counts only in text
+   the parser reads as words — never in a fence, indented code, a code span
+   (of any number of backticks), an HTML block or comment, or inline HTML —
+   and each pair hides from the first to the second, one left open to the end
+   of the note. A highlight whose first line is hidden is not one. Where
+   Obsidian may read it otherwise — a `%%` inside code that sits within a
+   comment does not close the comment here — DFAI errs to reading the comment
+   as still open, which at worst refuses an append (`HighlightNotReadBackError`)
+   rather than writing a highlight nobody sees. Only a note that says
+   `type: literature` has highlights; the same text pasted elsewhere is a
+   quote.
 
 9. **Re-anchoring uses the words first.** `findQuote` looks for `exact` in a
    page's or chapter's text, whitespace compared loosely, and of two copies
@@ -231,7 +250,9 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
   `editHighlightComment` meanwhile).
 - The domain's public API — `appendHighlights`, `withHighlightComment`,
   `withoutHighlight`, `readHighlights`, `findQuote`, `literatureNoteText` — is
-  pure; the application's `addHighlight(s)`, `editHighlightComment` and
+  pure, and takes the note's blocks as a `noteBlocks` function (the markdown
+  port's), so DFAI, its index and the editor read every note alike; the
+  application's `addHighlight(s)`, `editHighlightComment` and
   `removeHighlight` are the vault writes the readers and sync call.
 - The note type is `literature`, so a vault can define a `literature` type
   file (its views and columns) and the library (#507) reads it from

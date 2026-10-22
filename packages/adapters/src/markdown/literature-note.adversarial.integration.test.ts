@@ -4,6 +4,7 @@
  * reach the index, whatever the title or the note's encoding.
  */
 import { describe, expect, it } from 'vitest';
+import { noteBlocks } from './note-blocks.ts';
 import {
   appendHighlights,
   createVaultPath,
@@ -69,7 +70,12 @@ describe('a literature note saved by another editor (attack on #510)', () => {
         /\n/g,
         '\r\n',
       );
-    const { text } = appendHighlights({ text: note, highlights: [highlight], random: steps() });
+    const { text } = appendHighlights({
+      text: note,
+      highlights: [highlight],
+      random: steps(),
+      noteBlocks,
+    });
     expect(indexedHighlights(text).map((row) => row.quote)).toEqual([highlight.quote]);
   });
 });

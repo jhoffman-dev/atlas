@@ -1,11 +1,6 @@
 import { standaloneBlockAnchor } from '../markdown/block-anchor.ts';
-import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import type { HighlightAnchor, HighlightStyle } from './anchor.ts';
-import {
-  highlightMarker,
-  looksLikeHighlightMarker,
-  readHighlightMarker,
-} from './highlight-marker.ts';
+import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
 
 /*
  * A highlight in its literature note (ADR-0043): a quote, the hidden marker, the
@@ -20,20 +15,45 @@ import {
  *
  *     ^k3x9q2
  *
- * The marker is what makes it a highlight and what parts the quote from the
- * comment: the lines before it are the quote, the lines after it the comment,
- * and the blank `>` line DFAI writes between marker and comment is only the
- * separator. A line without its `>` that continues a paragraph of the block
- * (CommonMark's lazy continuation, which Obsidian still shows as part of the
- * quote) belongs to the block; the next comment write puts its `>` back.
- * The block is read from its lines, not from how markdown parses it, as a
- * bookmark is (ADR-0020): a quote starting at a line's first column, after a
- * blank line or the start of the body, outside a code fence, holding exactly
- * one marker this build reads with words before it, then a blank line and
- * `^id`. Outside a code fence, an HTML comment, a raw HTML block and an
- * Obsidian `%%` comment, which hide what they hold from every reader. Anything else is not a highlight and is kept exactly
- * as written.
+ * Which lines make a quote block, and which the note hides, is the markdown
+ * parser's to say, not this module's: it is handed them as `NoteBlocks`,
+ * worked out by the same parser that renders the note, so DFAI, its index
+ * and the editor agree on every note however it is written. Here only a
+ * quote block's own lines are read. The marker is what makes it a highlight
+ * and what parts the quote from the comment: the lines before it are the
+ * quote, the lines after it the comment, and the blank `>` line DFAI writes
+ * between marker and comment is only the separator. A line without its `>`
+ * that the parser keeps in the block (CommonMark's lazy continuation, which
+ * Obsidian shows as part of the quote) belongs to it; the next comment write
+ * puts its `>` back. A block is a highlight when it holds exactly one marker
+ * this build reads with words before it, a blank line and `^id` follow it,
+ * and its first line is not in an Obsidian `%%` comment.
+ * Anything else is not a highlight and is kept exactly as written.
  */
+
+/** A stretch of a note's text, by offset into the whole note, frontmatter included. */
+export interface TextSpan {
+  readonly start: number;
+  /** Just after its last character. */
+  readonly end: number;
+}
+
+/** A block quote at the top level of a note's body, as the parser reads it. */
+export interface QuoteBlockSpan extends TextSpan {
+  /** The top-level paragraph straight after the quote; null when the next block is another kind, or there is none. */
+  readonly paragraphAfter: TextSpan | null;
+}
+
+/** What the markdown parser says of a note's blocks that highlights are read from (ADR-0043 §2). */
+export interface NoteBlocks {
+  /** Every block quote at the top level of the body, in the order written; none in the frontmatter. */
+  readonly quotes: readonly QuoteBlockSpan[];
+  /** What Obsidian `%%` comments hide, in order; one never closed runs to the end of the note. */
+  readonly hidden: readonly TextSpan[];
+}
+
+/** Works out a note's `NoteBlocks` from its whole text: the markdown port's `noteBlocks`. */
+export type ReadNoteBlocks = (text: string) => NoteBlocks;
 
 /** A highlight block as the note holds it, with where its parts are in the note's text. */
 export interface HighlightBlock {
@@ -62,109 +82,68 @@ interface Line {
   readonly end: number;
 }
 
-/** Every highlight in a note's text, in the order written. The frontmatter holds none. */
-export function readHighlights(text: string): HighlightBlock[] {
-  const lines = linesOf(text, splitFrontmatter(text).bodyOffset);
-  const blocks: HighlightBlock[] = [];
-  const hidden = new HiddenBlockTracker();
-  let index = 0;
-  while (index < lines.length) {
-    const line = lines[index] as Line;
-    const opensQuote = isQuoteLine(line) && (index === 0 || isBlank(lines[index - 1]));
-    if (hidden.inside(line) || !opensQuote) {
-      index += 1;
-      continue;
-    }
-    const after = quoteEnd(lines, index);
-    const block = highlightOf(lines, index, after);
-    if (block !== null) blocks.push(block);
-    // Its lines are text, which can still open a `%%` comment that hides what follows.
-    lines.slice(index + 1, after).forEach((quoted) => hidden.passText(quoted));
-    index = after;
-  }
-  return blocks;
+/** Every highlight in a note's text, in the order written, read from the blocks `noteBlocks` finds. */
+export function readHighlights(text: string, noteBlocks: ReadNoteBlocks): HighlightBlock[] {
+  const { quotes, hidden } = noteBlocks(text);
+  const shown = (offset: number) =>
+    !hidden.some((span) => span.start <= offset && offset < span.end);
+  return quotes.flatMap((quote) => {
+    const block = highlightOf(text, quote, shown);
+    return block === null ? [] : [block];
+  });
 }
 
-/** Just past the last line of the quote block that starts at line `first`. */
-function quoteEnd(lines: readonly Line[], first: number): number {
-  let after = first;
-  let paragraphOpen = false;
-  while (after < lines.length) {
-    const line = lines[after] as Line;
-    const quoted = isQuoteLine(line);
-    if (!quoted && !(paragraphOpen && continuesParagraph(line))) break;
-    const content = quoted ? quoteContent(line.text) : line.text.replace(/\r$/, '');
-    paragraphOpen = content.trim() !== '' && !looksLikeHighlightMarker(content);
-    after += 1;
-  }
-  return after;
-}
-
-/** Whether an unquoted line is plain text, which a paragraph above it takes in, not a block of its own. */
-function continuesParagraph(line: Line): boolean {
-  const text = line.text.replace(/\r$/, '');
-  return text.trim() !== '' && !PARAGRAPH_INTERRUPTERS.some((start) => start.test(text));
-}
-
-/*
- * The lines that start a block of their own even straight after a paragraph's
- * line (CommonMark's "can interrupt a paragraph"); any other line is lazy
- * continuation text. A setext underline (`===`, `--`) is not among them: it
- * cannot be lazy, so it stays text, and `---` is a thematic break.
+/**
+ * The highlight the quote block `quote` and the line after it make, or null;
+ * null too when a `%%` comment hides its first line, so Obsidian shows no
+ * quote there.
  */
-const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]|$)/;
-const THEMATIC_BREAK = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/;
-/** A fence's opening line: a backtick fence's info string holds no backtick. */
-const FENCE_OPEN = /^ {0,3}(?:`{3,}[^`]*|~{3,}.*)$/;
-const QUOTE_START = /^ {0,3}>/;
-/** A list item that may interrupt a paragraph: a bullet, or an ordered item numbered 1, with words. */
-const INTERRUPTING_LIST_ITEM = /^ {0,3}(?:[-*+]|1[.)])[ \t]+\S/;
-/** CommonMark HTML blocks 1 to 6; block 7 (any other tag, inline HTML, an autolink) cannot interrupt. */
-const INTERRUPTING_HTML = new RegExp(
-  '^ {0,3}<(?:(?:script|pre|style|textarea)(?:[ \\t>]|$)|!--|\\?|![A-Za-z]|!\\[CDATA\\[|' +
-    '/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|' +
-    'details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|' +
-    'h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|' +
-    'optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|' +
-    'track|ul)(?:[ \\t]|/?>|$))',
-  'i',
-);
-const PARAGRAPH_INTERRUPTERS = [
-  ATX_HEADING,
-  THEMATIC_BREAK,
-  FENCE_OPEN,
-  QUOTE_START,
-  INTERRUPTING_LIST_ITEM,
-  INTERRUPTING_HTML,
-];
-
-/** The highlight the quote lines `[first, after)` and the lines below them make, or null. */
-function highlightOf(lines: readonly Line[], first: number, after: number): HighlightBlock | null {
-  const idLine = lines[after + 1];
-  if (!isBlank(lines[after]) || idLine === undefined) return null;
-  const id = standaloneBlockAnchor(idLine.text.replace(/\r$/, ''));
-  if (id === null) return null;
-  const contents = lines
-    .slice(first, after)
-    .map((line) => (isQuoteLine(line) ? quoteContent(line.text) : line.text.replace(/\r$/, '')));
+function highlightOf(
+  text: string,
+  quote: QuoteBlockSpan,
+  shown: (offset: number) => boolean,
+): HighlightBlock | null {
+  const lines = linesOf(text, lineStartAt(text, quote.start), quote.end);
+  const first = lines[0] as Line;
+  const quoteEnd = (lines.at(-1) as Line).end;
+  const id = idAfter(text, quoteEnd, quote.paragraphAfter);
+  if (id === null || !shown(first.start)) return null;
+  const contents = lines.map((line) => quoteContent(line.text));
   const markers = contents.flatMap((content, at) => {
     const marker = readHighlightMarker(content);
     return marker === null ? [] : [{ at, marker }];
   });
   if (markers.length !== 1) return null;
   const [{ at, marker }] = markers as [(typeof markers)[number]];
-  const quote = trimBlankLines(contents.slice(0, at));
-  if (quote === '') return null;
+  const words = trimBlankLines(contents.slice(0, at));
+  if (words === '') return null;
   return {
-    id,
-    quote,
+    id: id.id,
+    quote: words,
     comment: trimBlankLines(contents.slice(at + 1)),
     ...marker,
-    start: (lines[first] as Line).start,
-    markerEnd: (lines[first + at] as Line).end,
-    quoteEnd: (lines[after - 1] as Line).end,
-    end: idLine.end,
+    start: first.start,
+    markerEnd: (lines[at] as Line).end,
+    quoteEnd,
+    end: id.end,
   };
+}
+
+/**
+ * The id the paragraph after a quote gives it (ADR-0022), and just after its
+ * line: a paragraph of one line, `^id` alone, after exactly one blank line.
+ */
+function idAfter(
+  text: string,
+  quoteEnd: number,
+  paragraph: TextSpan | null,
+): { id: string; end: number } | null {
+  if (paragraph === null) return null;
+  const [line] = linesOf(text, lineStartAt(text, paragraph.start), paragraph.end);
+  if (line === undefined || line.end < paragraph.end) return null;
+  if (!/^[ \t]*\r?\n$/.test(text.slice(quoteEnd, line.start))) return null;
+  const id = standaloneBlockAnchor(line.text);
+  return id === null ? null : { id, end: line.end };
 }
 
 /** What a new highlight block is written from: its id, words, marker and comment. */
@@ -198,26 +177,31 @@ export function lineEndingOf(text: string): LineEnding {
 
 const quoteLine = (line: string): string => (line === '' ? '>' : `> ${line}`);
 
-function linesOf(text: string, from: number): Line[] {
+/** The lines from `from`, a line's start, through the one `to` falls in, each without its `\r`. */
+function linesOf(text: string, from: number, to: number): Line[] {
   const lines: Line[] = [];
   let start = from;
-  while (start < text.length) {
+  while (start < text.length && (start < to || lines.length === 0)) {
     const newline = text.indexOf('\n', start);
     const end = newline === -1 ? text.length : newline + 1;
-    lines.push({ text: text.slice(start, newline === -1 ? end : newline), start, end });
+    const own = text.slice(start, newline === -1 ? end : newline);
+    lines.push({ text: own.replace(/\r$/, ''), start, end });
     start = end;
   }
   return lines;
 }
 
-const isQuoteLine = (line: Line): boolean => line.text.startsWith('>');
+const lineStartAt = (text: string, offset: number): number =>
+  text.lastIndexOf('\n', offset - 1) + 1;
 
-const isBlank = (line: Line | undefined): boolean => line !== undefined && line.text.trim() === '';
-
-/** A quote line's own text: the `>`, and the one space after it, taken off. */
+/**
+ * A quote line's own text: its `>` — up to three spaces in, as CommonMark
+ * allows — and the one space after it taken off. A lazy line, which has no
+ * `>`, is its own text.
+ */
 function quoteContent(line: string): string {
-  const rest = line.replace(/\r$/, '').slice(1);
-  return rest.startsWith(' ') ? rest.slice(1) : rest;
+  const quoted = /^ {0,3}> ?/.exec(line);
+  return quoted === null ? line : line.slice(quoted[0].length);
 }
 
 function trimBlankLines(lines: readonly string[]): string {
@@ -227,123 +211,3 @@ function trimBlankLines(lines: readonly string[]): string {
   while (last > first && lines[last - 1]?.trim() === '') last -= 1;
   return lines.slice(first, last).join('\n');
 }
-
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const COMMENT_START = /^ {0,3}<!--/;
-/** CommonMark HTML block 1: its lines are kept as raw HTML until one closes the tag. */
-const RAW_HTML_START = /^ {0,3}<(?:pre|script|style|textarea)(?:[ \t>]|$)/i;
-const RAW_HTML_END = /<\/(?:pre|script|style|textarea)>/i;
-const LIST_MARKER = /^( *)([-*+]|\d{1,9}[.)])([ \t]+|$)/;
-
-/** A fence or HTML block open on the lines so far, and what ends it. */
-interface OpenBlock {
-  /** Whether `text`, a line inside the block, is its last. */
-  readonly endsAt: (text: string) => boolean;
-  /** The content column of the list item it is in, or null outside one: the block ends with the item. */
-  readonly item: number | null;
-}
-
-/**
- * Whether a line is inside a fenced code block, an HTML comment, a raw HTML
- * block (`<pre>`, `<script>`, `<style>`, `<textarea>`) or an Obsidian `%%`
- * comment, where nothing is a highlight. One nobody closed runs to the end of
- * the note, as every markdown reader has it — except that a fence or HTML
- * block opened in a list item ends when the item does (CommonMark's container
- * rule): at the first non-blank line indented less than the item's content.
- */
-class HiddenBlockTracker {
-  private open: OpenBlock | null = null;
-  private obsidianComment = false;
-  /** The content column of the list item the lines are in, or null. */
-  private item: number | null = null;
-
-  /** True for the lines of a hidden block, its own and everything between. */
-  inside(line: Line): boolean {
-    const text = line.text.replace(/\r$/, '');
-    if (this.obsidianComment) {
-      if (togglesObsidianComment(text)) this.obsidianComment = false;
-      return true;
-    }
-    if (this.open !== null && !this.leavesItem(this.open.item, text)) {
-      if (this.open.endsAt(this.withinItem(this.open.item, text))) this.open = null;
-      return true;
-    }
-    this.open = null;
-    this.followItem(text);
-    return this.opens(text);
-  }
-
-  /** Takes in a line known to be paragraph text, outside any hidden block. */
-  passText(line: Line): void {
-    const text = line.text.replace(/\r$/, '');
-    if (this.leavesItem(this.item, text)) this.item = null;
-    if (togglesObsidianComment(text)) this.obsidianComment = !this.obsidianComment;
-  }
-
-  private opens(text: string): boolean {
-    const content = this.withinItem(this.item, text);
-    const item = this.item;
-    const run = FENCE_OPEN.test(content) ? FENCE.exec(content)?.[1] : undefined;
-    if (run !== undefined) {
-      this.open = { endsAt: (inner) => closesFence(inner, run), item };
-      return true;
-    }
-    if (togglesObsidianComment(text)) {
-      this.obsidianComment = true;
-      return true;
-    }
-    if (COMMENT_START.test(content)) {
-      this.openUnlessClosed(content.slice(content.indexOf('<!--') + 4), (inner) =>
-        inner.includes('-->'),
-      );
-      return true;
-    }
-    if (RAW_HTML_START.test(content)) {
-      this.openUnlessClosed(content, (inner) => RAW_HTML_END.test(inner));
-      return true;
-    }
-    return false;
-  }
-
-  private openUnlessClosed(rest: string, endsAt: (text: string) => boolean): void {
-    if (!endsAt(rest)) this.open = { endsAt, item: this.item };
-  }
-
-  /** Follows list items: one starts at its marker and ends at a line indented less than its content. */
-  private followItem(text: string): void {
-    const marker = THEMATIC_BREAK.test(text) ? null : LIST_MARKER.exec(text);
-    const indent = marker?.[1]?.length ?? 0;
-    if (marker !== null && indent < (this.item ?? 0) + 4) {
-      const spaces = marker[3] as string;
-      const gap = spaces.length === 0 || spaces.length > 4 ? 1 : spaces.length;
-      this.item = indent + (marker[2] as string).length + gap;
-    } else if (this.leavesItem(this.item, text)) {
-      this.item = null;
-    }
-  }
-
-  private leavesItem(item: number | null, text: string): boolean {
-    return item !== null && text.trim() !== '' && indentOf(text) < item;
-  }
-
-  /** The line as its list item's content sees it: the item's indent, or its marker, taken off. */
-  private withinItem(item: number | null, text: string): string {
-    const inItem = item !== null && (indentOf(text) >= item || LIST_MARKER.test(text));
-    return inItem ? text.slice(item) : text;
-  }
-}
-
-function closesFence(text: string, open: string): boolean {
-  const run = FENCE.exec(text)?.[1];
-  return (
-    run !== undefined && run[0] === open[0] && run.length >= open.length && text.trim() === run
-  );
-}
-
-/** Whether a line opens or closes an Obsidian `%%` comment: an odd number of `%%` outside HTML comments and code. */
-function togglesObsidianComment(text: string): boolean {
-  const visible = text.replace(/<!--.*?(?:-->|$)/g, '').replace(/`[^`]*`/g, '');
-  return ((visible.match(/%%/g) ?? []).length & 1) === 1;
-}
-
-const indentOf = (text: string): number => /^ */.exec(text)?.[0].length ?? 0;

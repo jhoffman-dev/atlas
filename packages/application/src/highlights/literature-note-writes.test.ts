@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { lineNoteBlocks as noteBlocks } from '@dfai/domain/testing';
 import {
   createVaultPath,
   HighlightNotFoundError,
@@ -90,7 +91,12 @@ const ports = (text: string, openNotes = panes('closed')) => {
   return {
     ...held,
     openNotes,
-    ports: { fs: held.fs, markdown: fakeMarkdown(), openNotes, rng: seededRng(503) },
+    ports: {
+      fs: held.fs,
+      markdown: { ...fakeMarkdown(), noteBlocks },
+      openNotes,
+      rng: seededRng(503),
+    },
   };
 };
 
@@ -106,7 +112,7 @@ describe('adding a highlight', () => {
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({ expectedModified: 10, expectedText: SOURCE });
     expect(file.text.startsWith(SOURCE)).toBe(true);
-    expect(readHighlights(file.text)).toMatchObject([
+    expect(readHighlights(file.text, noteBlocks)).toMatchObject([
       { id: answered.id, quote: 'All warfare is based on deception.', comment: 'Key.' },
     ]);
   });
@@ -131,7 +137,7 @@ describe('adding a highlight', () => {
       { id: added[0]?.id, added: false },
     ]);
     expect(writes).toHaveLength(1);
-    expect(readHighlights(file.text)).toHaveLength(2);
+    expect(readHighlights(file.text, noteBlocks)).toHaveLength(2);
   });
 
   it('reloads a pane that holds the note with nothing unsaved', async () => {
@@ -213,10 +219,10 @@ describe("editing a highlight's comment and removing a highlight", () => {
 
   it('changes only the comment, against the version read', async () => {
     const { ports: given, file, writes, first, second } = await noteWithTwo();
-    const before = readHighlights(file.text).find((block) => block.id === second);
+    const before = readHighlights(file.text, noteBlocks).find((block) => block.id === second);
     await editHighlightComment(given, { path: PATH, id: first, comment: 'Changed.' });
     expect(writes[0]).toMatchObject({ expectedModified: 11 });
-    const after = readHighlights(file.text);
+    const after = readHighlights(file.text, noteBlocks);
     expect(after.find((block) => block.id === first)?.comment).toBe('Changed.');
     expect(after.find((block) => block.id === second)).toMatchObject({
       quote: before?.quote,
@@ -233,7 +239,7 @@ describe("editing a highlight's comment and removing a highlight", () => {
   it('removes the highlight it is told to and no other', async () => {
     const { ports: given, file, first, second } = await noteWithTwo();
     await removeHighlight(given, { path: PATH, id: first });
-    expect(readHighlights(file.text).map((block) => block.id)).toEqual([second]);
+    expect(readHighlights(file.text, noteBlocks).map((block) => block.id)).toEqual([second]);
   });
 
   it('refuses a highlight the note no longer holds, writing nothing', async () => {
@@ -263,7 +269,16 @@ describe("editing a highlight's comment and removing a highlight", () => {
 describe('adding a highlight the note could not hold (review of #510)', () => {
   it('writes nothing when the note ends in an unclosed code fence', async () => {
     const held = ports(`${SOURCE}Notes.\n\n\`\`\`js\nlet draft;\n`);
-    await expect(addHighlight(held.ports, { path: PATH, highlight: deception })).rejects.toThrow(
+    // The parser runs an unclosed fence to the end of the note: no quote after it is a block.
+    const fenced = (text: string) => {
+      const blocks = noteBlocks(text);
+      return {
+        ...blocks,
+        quotes: blocks.quotes.filter((quote) => quote.start < text.indexOf('```')),
+      };
+    };
+    const given = { ...held.ports, markdown: { ...held.ports.markdown, noteBlocks: fenced } };
+    await expect(addHighlight(given, { path: PATH, highlight: deception })).rejects.toThrow(
       HighlightNotReadBackError,
     );
     expect(held.writes).toEqual([]);

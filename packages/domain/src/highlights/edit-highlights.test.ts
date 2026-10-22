@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { lineNoteBlocks as noteBlocks } from '../testing/line-note-blocks.ts';
 import { InvalidHighlightAnchorError, type HighlightAnchor } from './anchor.ts';
 import {
   appendHighlights,
@@ -60,6 +61,7 @@ describe('appending highlights', () => {
       text: SOURCE,
       highlights: [{ ...deception, comment: 'Key line.' }],
       random: scripted(...drawing('k3x9q2')),
+      noteBlocks,
     });
     expect(highlights).toEqual([{ id: 'k3x9q2', added: true }]);
     expect(text).toBe(
@@ -72,25 +74,33 @@ describe('appending highlights', () => {
 
   it('keeps every byte before it, adding a blank line of its own after what is there', () => {
     const before = `${SOURCE}# Notes\n\nMy words, no final line ending`;
-    const { text } = appendHighlights({ text: before, highlights: [deception], random: seeded(1) });
+    const { text } = appendHighlights({
+      text: before,
+      highlights: [deception],
+      random: seeded(1),
+      noteBlocks,
+    });
     expect(text.startsWith(`${before}\n\n> All warfare`)).toBe(true);
     const ended = `${SOURCE}My words.\n`;
     expect(
-      appendHighlights({ text: ended, highlights: [deception], random: seeded(1) }).text,
+      appendHighlights({ text: ended, highlights: [deception], random: seeded(1), noteBlocks })
+        .text,
     ).toMatch(/^[^]*My words\.\n\n> All warfare/);
     // A blank line the note already ends in is the person's, not reused (A11, verify #510).
     const spaced = `${SOURCE}My words.\n\n`;
     expect(
-      appendHighlights({ text: spaced, highlights: [deception], random: seeded(1) }).text,
+      appendHighlights({ text: spaced, highlights: [deception], random: seeded(1), noteBlocks })
+        .text,
     ).toMatch(/My words\.\n\n\n> All warfare/);
   });
 
   it('writes to a note with no frontmatter, and to an empty one', () => {
-    expect(appendHighlights({ text: '', highlights: [deception], random: seeded(1) }).text).toMatch(
-      /^> All warfare/,
-    );
     expect(
-      appendHighlights({ text: 'Words.', highlights: [deception], random: seeded(1) }).text,
+      appendHighlights({ text: '', highlights: [deception], random: seeded(1), noteBlocks }).text,
+    ).toMatch(/^> All warfare/);
+    expect(
+      appendHighlights({ text: 'Words.', highlights: [deception], random: seeded(1), noteBlocks })
+        .text,
     ).toMatch(/^Words\.\n\n> All warfare/);
   });
 
@@ -111,12 +121,18 @@ describe('appending highlights', () => {
         },
       ],
       random: seeded(20261021),
+      noteBlocks,
     });
     const ids = highlights.map((highlight) => highlight.id);
     expect(new Set(ids).size).toBe(3);
     for (const id of ids) expect(id).toMatch(/^[a-z0-9]{6}$/);
     expect(
-      readHighlights(text).map(({ id, quote, comment, style }) => ({ id, quote, comment, style })),
+      readHighlights(text, noteBlocks).map(({ id, quote, comment, style }) => ({
+        id,
+        quote,
+        comment,
+        style,
+      })),
     ).toEqual([
       {
         id: ids[0],
@@ -141,7 +157,8 @@ describe('appending highlights', () => {
 
   it('draws the same ids from the same seed', () => {
     const draw = () =>
-      appendHighlights({ text: SOURCE, highlights: [deception], random: seeded(7) }).highlights;
+      appendHighlights({ text: SOURCE, highlights: [deception], random: seeded(7), noteBlocks })
+        .highlights;
     expect(draw()).toEqual(draw());
   });
 
@@ -151,6 +168,7 @@ describe('appending highlights', () => {
       text: taken,
       highlights: [deception],
       random: scripted(...drawing('aaaaaa'), ...drawing('bbbbbb'), ...drawing('cccccc')),
+      noteBlocks,
     });
     expect(highlights).toEqual([{ id: 'cccccc', added: true }]);
   });
@@ -160,16 +178,23 @@ describe('appending highlights', () => {
       text: SOURCE,
       highlights: [deception, { quote: 'Other.', anchor: pdf(5, 'Other.') }],
       random: scripted(...drawing('dddddd'), ...drawing('dddddd'), ...drawing('eeeeee')),
+      noteBlocks,
     });
     expect(highlights.map((highlight) => highlight.id)).toEqual(['dddddd', 'eeeeee']);
   });
 
   it('adds a passage the note already holds only once, answering its id', () => {
-    const once = appendHighlights({ text: SOURCE, highlights: [deception], random: seeded(3) });
+    const once = appendHighlights({
+      text: SOURCE,
+      highlights: [deception],
+      random: seeded(3),
+      noteBlocks,
+    });
     const twice = appendHighlights({
       text: once.text,
       highlights: [{ ...deception, comment: 'again' }, deception],
       random: seeded(4),
+      noteBlocks,
     });
     expect(twice.text).toBe(once.text);
     expect(twice.highlights).toEqual([
@@ -187,11 +212,13 @@ describe('appending highlights', () => {
       text: SOURCE,
       highlights: [kindle('A *b*')],
       random: seeded(5),
+      noteBlocks,
     });
     const again = appendHighlights({
       text: once.text,
       highlights: [kindle('A *b*'), kindle('Other words')],
       random: seeded(6),
+      noteBlocks,
     });
     expect(again.highlights.map((highlight) => highlight.added)).toEqual([false, true]);
   });
@@ -204,7 +231,7 @@ describe('appending highlights', () => {
       quote = words,
     ): NewHighlight => ({ quote, anchor: { kind: 'kindle', location, annotationId } });
     const append = (text: string, highlight: NewHighlight) =>
-      appendHighlights({ text, highlights: [highlight], random: seeded(text.length) });
+      appendHighlights({ text, highlights: [highlight], random: seeded(text.length), noteBlocks });
     const ranged = append(SOURCE, kindle({ start: 77, end: 79 }, null)).text;
     expect(append(ranged, kindle({ start: 77, end: null }, 'A1')).highlights[0]?.added).toBe(false);
     const started = append(SOURCE, kindle({ start: 77, end: null }, 'A1')).text;
@@ -230,8 +257,11 @@ describe('appending highlights', () => {
         },
       ],
       random: seeded(1),
+      noteBlocks,
     });
-    expect(readHighlights(text)[0]?.anchor).toMatchObject({ exact: 'Call me Ishmael.' });
+    expect(readHighlights(text, noteBlocks)[0]?.anchor).toMatchObject({
+      exact: 'Call me Ishmael.',
+    });
   });
 
   it("writes in the note's own line ending", () => {
@@ -240,9 +270,10 @@ describe('appending highlights', () => {
       text: windows,
       highlights: [{ ...deception, comment: 'a\nb' }],
       random: seeded(1),
+      noteBlocks,
     });
     expect(text.replace(/\r\n/g, '')).not.toContain('\n');
-    expect(readHighlights(text)[0]?.comment).toBe('a\nb');
+    expect(readHighlights(text, noteBlocks)[0]?.comment).toBe('a\nb');
   });
 
   it('refuses a bad anchor or a quote with no words, and writes nothing', () => {
@@ -251,6 +282,7 @@ describe('appending highlights', () => {
         text: SOURCE,
         highlights: [deception, { quote: 'x', anchor: pdf(0, 'x') }],
         random: seeded(1),
+        noteBlocks,
       }),
     ).toThrow(InvalidHighlightAnchorError);
     expect(() =>
@@ -258,6 +290,7 @@ describe('appending highlights', () => {
         text: SOURCE,
         highlights: [{ ...deception, quote: ' \n ' }],
         random: seeded(1),
+        noteBlocks,
       }),
     ).toThrow(/quotes some words/);
   });
@@ -273,6 +306,7 @@ function threeHighlights() {
       { quote: 'Water shapes its course.', anchor: pdf(9, 'Water shapes its course.') },
     ],
     random: scripted(...drawing('aaaaa1'), ...drawing('bbbbb2'), ...drawing('ccccc3')),
+    noteBlocks,
   });
   expect(highlights.map((highlight) => highlight.id)).toEqual(['aaaaa1', 'bbbbb2', 'ccccc3']);
   // In Obsidian: the first quote is tidied, a comment is added by hand, a paragraph between.
@@ -285,9 +319,14 @@ function threeHighlights() {
 describe("editing a highlight's comment", () => {
   it('gives a highlight with no comment one, changing nothing else', () => {
     const text = threeHighlights();
-    const changed = withHighlightComment({ text, id: 'ccccc3', comment: 'Like *water*.' });
-    expect(highlightNamed(changed, 'ccccc3').comment).toBe('Like *water*.');
-    const block = highlightNamed(text, 'ccccc3');
+    const changed = withHighlightComment({
+      text,
+      id: 'ccccc3',
+      comment: 'Like *water*.',
+      noteBlocks,
+    });
+    expect(highlightNamed(changed, 'ccccc3', noteBlocks).comment).toBe('Like *water*.');
+    const block = highlightNamed(text, 'ccccc3', noteBlocks);
     expect(changed.slice(0, block.markerEnd)).toBe(text.slice(0, block.markerEnd));
     expect(changed.slice(changed.length - (text.length - block.quoteEnd))).toBe(
       text.slice(block.quoteEnd),
@@ -296,8 +335,13 @@ describe("editing a highlight's comment", () => {
 
   it("replaces a comment, keeping the quote the person tidied and every other block's bytes", () => {
     const text = threeHighlights();
-    const changed = withHighlightComment({ text, id: 'bbbbb2', comment: 'Second\n\nthought.' });
-    expect(highlightNamed(changed, 'bbbbb2').comment).toBe('Second\n\nthought.');
+    const changed = withHighlightComment({
+      text,
+      id: 'bbbbb2',
+      comment: 'Second\n\nthought.',
+      noteBlocks,
+    });
+    expect(highlightNamed(changed, 'bbbbb2', noteBlocks).comment).toBe('Second\n\nthought.');
     expect(changed).toContain('>  All warfare is based on *deception*.');
     expect(changed).toContain('Written in Obsidian.');
     expect(changed.replace('>\n> Second\n>\n> thought.\n', '>\n> First thought.\n')).toBe(text);
@@ -305,14 +349,16 @@ describe("editing a highlight's comment", () => {
 
   it('takes the comment off for a blank one', () => {
     const text = threeHighlights();
-    const changed = withHighlightComment({ text, id: 'bbbbb2', comment: '  \n' });
-    expect(highlightNamed(changed, 'bbbbb2').comment).toBe('');
+    const changed = withHighlightComment({ text, id: 'bbbbb2', comment: '  \n', noteBlocks });
+    expect(highlightNamed(changed, 'bbbbb2', noteBlocks).comment).toBe('');
     expect(changed).toBe(text.replace('>\n> First thought.\n', ''));
   });
 
   it('writes back the same bytes for the comment DFAI wrote', () => {
     const text = threeHighlights();
-    expect(withHighlightComment({ text, id: 'bbbbb2', comment: 'First thought.' })).toBe(text);
+    expect(
+      withHighlightComment({ text, id: 'bbbbb2', comment: 'First thought.', noteBlocks }),
+    ).toBe(text);
   });
 
   it.each([
@@ -332,9 +378,10 @@ describe("editing a highlight's comment", () => {
         text: note,
         highlights: [deception, { quote: 'Know the enemy.', anchor: pdf(4, 'Know the enemy.') }],
         random: seeded(3),
+        noteBlocks,
       });
       const removed = highlights.reduceRight(
-        (current, { id }) => withoutHighlight({ text: current, id }),
+        (current, { id }) => withoutHighlight({ text: current, id, noteBlocks }),
         text,
       );
       expect(removed).toBe(note);
@@ -343,7 +390,7 @@ describe("editing a highlight's comment", () => {
 
   it('refuses a highlight the note does not hold', () => {
     expect(() =>
-      withHighlightComment({ text: threeHighlights(), id: 'zzzzzz', comment: 'x' }),
+      withHighlightComment({ text: threeHighlights(), id: 'zzzzzz', comment: 'x', noteBlocks }),
     ).toThrow(HighlightNotFoundError);
   });
 });
@@ -351,40 +398,53 @@ describe("editing a highlight's comment", () => {
 describe('removing a highlight', () => {
   it('takes out a highlight between others with the blank line after it', () => {
     const text = threeHighlights();
-    const block = highlightNamed(text, 'bbbbb2');
-    const removed = withoutHighlight({ text, id: 'bbbbb2' });
+    const block = highlightNamed(text, 'bbbbb2', noteBlocks);
+    const removed = withoutHighlight({ text, id: 'bbbbb2', noteBlocks });
     expect(removed).toBe(text.slice(0, block.start) + text.slice(block.end + 1));
-    expect(readHighlights(removed).map((highlight) => highlight.id)).toEqual(['aaaaa1', 'ccccc3']);
+    expect(readHighlights(removed, noteBlocks).map((highlight) => highlight.id)).toEqual([
+      'aaaaa1',
+      'ccccc3',
+    ]);
   });
 
   it('takes out the last highlight with the blank line before it, the note still ending its line', () => {
     const text = threeHighlights();
-    const removed = withoutHighlight({ text, id: 'ccccc3' });
+    const removed = withoutHighlight({ text, id: 'ccccc3', noteBlocks });
     expect(removed.endsWith('^bbbbb2\n')).toBe(true);
-    expect(readHighlights(removed).map((highlight) => highlight.id)).toEqual(['aaaaa1', 'bbbbb2']);
+    expect(readHighlights(removed, noteBlocks).map((highlight) => highlight.id)).toEqual([
+      'aaaaa1',
+      'bbbbb2',
+    ]);
   });
 
   it('takes out a highlight followed by words', () => {
     const text = threeHighlights();
-    const removed = withoutHighlight({ text, id: 'aaaaa1' });
+    const removed = withoutHighlight({ text, id: 'aaaaa1', noteBlocks });
     expect(removed).toContain('Intro words.\n\nWritten in Obsidian.\n\n> Know the enemy.');
   });
 
   it('takes out the only highlight, leaving the note as it was before it', () => {
-    const { text } = appendHighlights({ text: SOURCE, highlights: [deception], random: seeded(2) });
-    const [only] = readHighlights(text);
-    expect(withoutHighlight({ text, id: only?.id as string })).toBe(SOURCE);
+    const { text } = appendHighlights({
+      text: SOURCE,
+      highlights: [deception],
+      random: seeded(2),
+      noteBlocks,
+    });
+    const [only] = readHighlights(text, noteBlocks);
+    expect(withoutHighlight({ text, id: only?.id as string, noteBlocks })).toBe(SOURCE);
     const windows = `Words.\r\n\r\n> Q.\r\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: deception.anchor })}\r\n\r\n^abc123\r\n`;
-    expect(withoutHighlight({ text: windows, id: 'abc123' })).toBe('Words.\r\n');
+    expect(withoutHighlight({ text: windows, id: 'abc123', noteBlocks })).toBe('Words.\r\n');
   });
 
   it('takes out a highlight ending the note with no final line ending', () => {
     const text = `Words.\n\n> Q.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: deception.anchor })}\n\n^abc123`;
     // A block with no final line ending is one DFAI wrote to a note without one (A11): gone, so is it.
-    expect(withoutHighlight({ text, id: 'abc123' })).toBe('Words.');
+    expect(withoutHighlight({ text, id: 'abc123', noteBlocks })).toBe('Words.');
   });
 
   it('refuses a highlight the note does not hold', () => {
-    expect(() => withoutHighlight({ text: threeHighlights(), id: 'zzzzzz' })).toThrow(/\^zzzzzz/);
+    expect(() => withoutHighlight({ text: threeHighlights(), id: 'zzzzzz', noteBlocks })).toThrow(
+      /\^zzzzzz/,
+    );
   });
 });

@@ -32,6 +32,7 @@ function fakeMarkdown(): MarkdownPort & { serialized: string[] } {
       return text;
     },
     rawParts: () => [],
+    noteBlocks: () => ({ quotes: [], hidden: [] }),
     addToFrontmatterMap: () => null,
   };
 }

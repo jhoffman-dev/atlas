@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { lineNoteBlocks as noteBlocks } from '../testing/line-note-blocks.ts';
 import { homeFolderOf } from '../home-folders/home-folder.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
@@ -126,8 +127,9 @@ describe("a literature note's index rows", () => {
         },
       ],
       random: () => 0.5,
+      noteBlocks,
     });
-    expect(highlightRows(text)).toEqual([
+    expect(highlightRows(text, noteBlocks)).toEqual([
       {
         id: highlights[0]?.id,
         kind: 'kindle',
@@ -143,7 +145,7 @@ describe("a literature note's index rows", () => {
 
   it('is nothing for a note that could hold no highlight', () => {
     expect(mayHoldHighlights('> Quote.\n\n^abc123\n')).toBe(false);
-    expect(highlightRows('> Quote.\n\n^abc123\n')).toEqual([]);
+    expect(highlightRows('> Quote.\n\n^abc123\n', noteBlocks)).toEqual([]);
   });
 });
 

@@ -180,20 +180,31 @@ export function highlightKey(anchor: HighlightAnchor, quote: string): string {
   }
 }
 
+/** A Kindle highlight and the words it was given, which `exact` stands in for when the export gave them. */
+export interface KindlePassage {
+  readonly anchor: KindleAnchor;
+  readonly quote: string;
+}
+
 /**
- * A Kindle highlight's place and words with no regard for its annotation id:
- * what an export that learns the id later shares with the copy synced
- * without it, so the two are one passage. The place is where the location
- * starts — one export gives a range (`77-79`) where another gives its start
- * alone — or the page when there is no location; the words tell two
- * passages at one place apart.
+ * Whether two Kindle highlights are at one place with the same words, with no
+ * regard for their annotation ids: what an export that learns the id later
+ * shares with the copy synced without it, so the two are one passage. Their
+ * places are compared by where the location starts when both have one — one
+ * export gives a range (`77-79`) where another gives its start alone — and
+ * else by page when both have one, since an export may give the page alone;
+ * two that share neither are not known to be one place. The words tell two
+ * passages at one place apart. A comparison, not a key: a copy with a
+ * location and a page is the same place as one with either.
  */
-export const kindlePlaceKey = (anchor: KindleAnchor, quote: string): string =>
-  JSON.stringify([
-    'kindle-place',
-    anchor.location === null ? ['page', anchor.page ?? null] : ['location', anchor.location.start],
-    foldWords(anchor.exact ?? quote),
-  ]);
+export function sameKindlePlace(a: KindlePassage, b: KindlePassage): boolean {
+  if (foldWords(a.anchor.exact ?? a.quote) !== foldWords(b.anchor.exact ?? b.quote)) return false;
+  const [one, other] = [a.anchor, b.anchor];
+  if (one.location !== null && other.location !== null) {
+    return one.location.start === other.location.start;
+  }
+  return one.page !== undefined && one.page === other.page;
+}
 
 const selectorKey = (quote: TextQuoteSelector): string[] =>
   [quote.exact, quote.prefix, quote.suffix].map(foldWords);

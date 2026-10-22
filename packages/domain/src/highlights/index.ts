@@ -11,7 +11,7 @@ export {
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_COLORS,
   highlightKey,
-  kindlePlaceKey,
+  sameKindlePlace,
   InvalidHighlightAnchorError,
   SOURCE_KINDS,
 } from './anchor.ts';
@@ -21,6 +21,7 @@ export type {
   HighlightColor,
   HighlightStyle,
   KindleAnchor,
+  KindlePassage,
   PageRect,
   PdfAnchor,
   SourceKind,
@@ -33,8 +34,14 @@ export {
 } from './highlight-marker.ts';
 export type { HighlightMarker } from './highlight-marker.ts';
 export { readHighlights } from './highlight-block.ts';
-export type { HighlightBlock } from './highlight-block.ts';
-export { plainQuote } from './highlight-text.ts';
+export type {
+  HighlightBlock,
+  NoteBlocks,
+  QuoteBlockSpan,
+  ReadNoteBlocks,
+  TextSpan,
+} from './highlight-block.ts';
+export { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
 export {
   appendHighlights,
   HighlightNotFoundError,

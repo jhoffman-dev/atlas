@@ -81,6 +81,8 @@ export function fakeMarkdown(): MarkdownPort {
     rawParts: () => {
       throw new Error('not used here');
     },
+    // A note's blocks are the parser's to find; a test of highlights passes its own.
+    noteBlocks: () => ({ quotes: [], hidden: [] }),
     frontmatterProperties: (frontmatter) => Object.fromEntries(frontmatterLines(frontmatter)),
     frontmatterProblem: () => null,
     frontmatterKeyTexts: (frontmatter) =>

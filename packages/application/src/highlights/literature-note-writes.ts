@@ -27,7 +27,7 @@ import { UnsavedTypingError } from '../vault/update-links.ts';
 /** What a write to a literature note needs. */
 export interface LiteratureNoteWritePorts {
   readonly fs: Pick<VaultFsPort, 'readTextFile' | 'writeTextFile'>;
-  readonly markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  readonly markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'noteBlocks'>;
   readonly openNotes: Pick<OpenEditorsPort, 'state'> & {
     /** Re-reads the note in every pane that holds it and has no unsaved edits. */
     reload(path: VaultPath): void;
@@ -57,7 +57,12 @@ export async function addHighlights(
 ): Promise<AppendedHighlight[]> {
   let answered: AppendedHighlight[] = [];
   await rewriteLiteratureNote(ports, path, (text) => {
-    const appended = appendHighlights({ text, highlights, random: () => ports.rng.next() });
+    const appended = appendHighlights({
+      text,
+      highlights,
+      random: () => ports.rng.next(),
+      noteBlocks: (note) => ports.markdown.noteBlocks(note),
+    });
     answered = appended.highlights;
     return appended.text;
   });
@@ -82,7 +87,14 @@ export async function editHighlightComment(
   ports: LiteratureNoteWritePorts,
   { path, id, comment }: { path: VaultPath; id: string; comment: string },
 ): Promise<void> {
-  await rewriteLiteratureNote(ports, path, (text) => withHighlightComment({ text, id, comment }));
+  await rewriteLiteratureNote(ports, path, (text) =>
+    withHighlightComment({
+      text,
+      id,
+      comment,
+      noteBlocks: (note) => ports.markdown.noteBlocks(note),
+    }),
+  );
 }
 
 /**
@@ -94,7 +106,9 @@ export async function removeHighlight(
   ports: LiteratureNoteWritePorts,
   { path, id }: { path: VaultPath; id: string },
 ): Promise<void> {
-  await rewriteLiteratureNote(ports, path, (text) => withoutHighlight({ text, id }));
+  await rewriteLiteratureNote(ports, path, (text) =>
+    withoutHighlight({ text, id, noteBlocks: (note) => ports.markdown.noteBlocks(note) }),
+  );
 }
 
 async function rewriteLiteratureNote(

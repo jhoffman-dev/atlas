@@ -1,5 +1,5 @@
 import type { SourceKind } from './anchor.ts';
-import { readHighlights } from './highlight-block.ts';
+import { readHighlights, type ReadNoteBlocks } from './highlight-block.ts';
 import { highlightMarker } from './highlight-marker.ts';
 import { plainQuote } from './highlight-text.ts';
 
@@ -22,10 +22,13 @@ export function mayHoldHighlights(text: string): boolean {
   return text.includes('atlas:highlight');
 }
 
-/** The rows of a literature note's highlights, in the order written. Only a literature note's count. */
-export function highlightRows(text: string): HighlightRow[] {
+/**
+ * The rows of a literature note's highlights, in the order written, its
+ * blocks as `noteBlocks` parses them. Only a literature note's count.
+ */
+export function highlightRows(text: string, noteBlocks: ReadNoteBlocks): HighlightRow[] {
   if (!mayHoldHighlights(text)) return [];
-  return readHighlights(text).map((block) => ({
+  return readHighlights(text, noteBlocks).map((block) => ({
     id: block.id,
     kind: block.anchor.kind,
     quote: plainQuote(block.quote),

@@ -1,21 +1,26 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { anchorProblem, type HighlightAnchor } from './anchor.ts';
 import {
+  anchorProblem,
+  type HighlightAnchor,
   appendHighlights,
   HighlightNotReadBackError,
   UnreadableHighlightMarkerError,
   withHighlightComment,
   withoutHighlight,
   type NewHighlight,
-} from './edit-highlights.ts';
-import { readHighlights } from './highlight-block.ts';
-import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
-import { quoteLines } from './highlight-text.ts';
-import { findQuote, findQuoteNear, quoteSelectorAt } from './reanchor.ts';
-import { literatureNoteText } from './literature-note.ts';
-import { createVaultPath } from '../vault/vault-path.ts';
+  readHighlights,
+  highlightMarker,
+  readHighlightMarker,
+  quoteLines,
+  findQuote,
+  findQuoteNear,
+  quoteSelectorAt,
+  literatureNoteText,
+  createVaultPath,
+} from '@dfai/domain';
+import { noteBlocks } from './note-blocks.ts';
 
 /**
  * Adversarial tests for #503, ADR-0043 (found in PR #510): the literature-note format under hostile
@@ -62,7 +67,7 @@ const pdf = (exact: string): HighlightAnchor => ({
 });
 
 const appended = (text: string, highlights: readonly NewHighlight[], seed = 1) =>
-  appendHighlights({ text, highlights, random: seeded(seed) });
+  appendHighlights({ text, highlights, random: seeded(seed), noteBlocks });
 
 describe('the marker under hostile JSON (attack on #510)', () => {
   it('reads back a marker DFAI wrote for words holding a line or paragraph separator', () => {
@@ -77,7 +82,7 @@ describe('the marker under hostile JSON (attack on #510)', () => {
     const { text, highlights } = appended(PDF_NOTE, [
       { quote: 'Know the enemy.', anchor: pdf('Know the enemy. Know yourself.') },
     ]);
-    expect(readHighlights(text).map((block) => block.id)).toEqual([highlights[0]?.id]);
+    expect(readHighlights(text, noteBlocks).map((block) => block.id)).toEqual([highlights[0]?.id]);
   });
 
   it('refuses a hand-written marker whose JSON holds a raw `-->`, which closes the comment in every reader', () => {
@@ -188,7 +193,7 @@ describe('appending always reads back (attack on #510)', () => {
     const { text, highlights } = appended(note, [
       { quote: 'Know the enemy.', anchor: pdf('Know the enemy.') },
     ]);
-    expect(withoutHighlight({ text, id: highlights[0]?.id as string })).toBe(note);
+    expect(withoutHighlight({ text, id: highlights[0]?.id as string, noteBlocks })).toBe(note);
   });
 });
 
@@ -206,12 +211,14 @@ describe('a highlight edited in Obsidian (attack on #510)', () => {
 
   it('is still a highlight when a comment line lost its `>` (a lazy continuation, still the quote in Obsidian)', () => {
     const text = PDF_NOTE + block('> The line every summary quotes,\nand every general forgets.');
-    expect(readHighlights(text).map((found) => found.id)).toEqual(['k3x9q2']);
+    expect(readHighlights(text, noteBlocks).map((found) => found.id)).toEqual(['k3x9q2']);
   });
 
   it('edits only the comment of a highlight whose comment line lost its `>`', () => {
     const text = PDF_NOTE + block('> First thought,\nsecond thought.');
-    expect(() => withHighlightComment({ text, id: 'k3x9q2', comment: 'Rewritten.' })).not.toThrow();
+    expect(() =>
+      withHighlightComment({ text, id: 'k3x9q2', comment: 'Rewritten.', noteBlocks }),
+    ).not.toThrow();
   });
 });
 
@@ -287,7 +294,9 @@ describe('re-anchoring (attack on #510)', () => {
 
   it('returns for a page that is not a number instead of looping forever', () => {
     // Run in a child process: the loop never yields, so an in-process timeout cannot stop it.
-    const module = fileURLToPath(new URL('./reanchor.ts', import.meta.url));
+    const module = fileURLToPath(
+      new URL('../../../domain/src/highlights/reanchor.ts', import.meta.url),
+    );
     const script = `import { findQuoteNear } from ${JSON.stringify(module)};
       findQuoteNear({ sections: ['a page'], selector: { exact: 'page', prefix: '', suffix: '' }, near: NaN });`;
     const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
@@ -322,7 +331,7 @@ describe('review findings on #510', () => {
     const { text, highlights } = appended(note, [
       { quote: 'Know the enemy.', anchor: pdf('Know the enemy.') },
     ]);
-    expect(readHighlights(text).map((block) => block.id)).toEqual([highlights[0]?.id]);
+    expect(readHighlights(text, noteBlocks).map((block) => block.id)).toEqual([highlights[0]?.id]);
   });
 
   it('refuses to append to a note holding a marker this build cannot read (a newer version)', () => {
@@ -346,9 +355,14 @@ describe('review findings on #510', () => {
     const newer =
       '\n> Words.\n> <!-- atlas:highlight {"v":2,"kind":"pdf","page":1} -->\n\n^abc123\n';
     const id = highlights[0]?.id as string;
-    const edited = withHighlightComment({ text: readable + newer, id, comment: 'Mine.' });
+    const edited = withHighlightComment({
+      text: readable + newer,
+      id,
+      comment: 'Mine.',
+      noteBlocks,
+    });
     expect(edited.endsWith(newer)).toBe(true);
-    expect(withoutHighlight({ text: edited, id }).endsWith(newer)).toBe(true);
+    expect(withoutHighlight({ text: edited, id, noteBlocks }).endsWith(newer)).toBe(true);
   });
 
   it('answers the existing id for a Kindle passage by the words the export gave, not the quote now', () => {
@@ -388,7 +402,7 @@ describe('review findings on #510', () => {
     };
     expect(anchorProblem(anchor)).toBeNull();
     const { text } = appended(KINDLE_NOTE, [{ quote: 'Paged words', anchor }]);
-    expect(readHighlights(text)[0]?.anchor).toMatchObject({
+    expect(readHighlights(text, noteBlocks)[0]?.anchor).toMatchObject({
       kind: 'kindle',
       location: null,
       page: 12,
@@ -434,19 +448,24 @@ describe('review findings on #510', () => {
 
   it('keeps a comment edited on a lazy-continued highlight with its `>` and the lines either side', () => {
     const text = `${PDF_NOTE}> All warfare is based on deception.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: pdf('All warfare is based on deception.') })}\n>\n> First thought,\nsecond thought.\n\n^k3x9q2\n`;
-    const edited = withHighlightComment({ text, id: 'k3x9q2', comment: 'Rewritten.\nTwo lines.' });
+    const edited = withHighlightComment({
+      text,
+      id: 'k3x9q2',
+      comment: 'Rewritten.\nTwo lines.',
+      noteBlocks,
+    });
     expect(edited).toContain('>\n> Rewritten.\n> Two lines.\n\n^k3x9q2\n');
     expect(edited).not.toContain('second thought');
   });
 
   it('takes a lazy-continued highlight out whole', () => {
     const block = `> Words.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: pdf('Words.') })}\n>\n> A thought\nthat wandered.\n\n^k3x9q2\n`;
-    expect(withoutHighlight({ text: PDF_NOTE + block, id: 'k3x9q2' })).toBe(PDF_NOTE);
+    expect(withoutHighlight({ text: PDF_NOTE + block, id: 'k3x9q2', noteBlocks })).toBe(PDF_NOTE);
   });
 
   it('ends a quote at a line that would start something else, rather than swallowing it', () => {
     const text = `${PDF_NOTE}> Words.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: pdf('Words.') })}\n>\n> A thought\n# A heading\n\n^k3x9q2\n`;
-    expect(readHighlights(text)).toEqual([]);
+    expect(readHighlights(text, noteBlocks)).toEqual([]);
   });
 
   it('answers no match for a non-finite or fractional page without hanging', () => {

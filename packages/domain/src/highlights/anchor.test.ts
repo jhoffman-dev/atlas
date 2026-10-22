@@ -4,7 +4,7 @@ import {
   assertAnchor,
   highlightKey,
   InvalidHighlightAnchorError,
-  kindlePlaceKey,
+  sameKindlePlace,
   type HighlightAnchor,
   type KindleAnchor,
 } from './anchor.ts';
@@ -171,13 +171,16 @@ describe('what makes two highlights the same passage', () => {
     expect(highlightKey({ ...kindle, page: 13 }, 'x')).not.toBe(highlightKey(kindle, 'x'));
   });
 
-  it('shares a place key across annotation ids, which is how a late id finds its earlier copy', () => {
+  const same = (one: KindleAnchor, other: KindleAnchor, words = 'Words', otherWords = 'Words') =>
+    sameKindlePlace({ anchor: one, quote: words }, { anchor: other, quote: otherWords });
+
+  it('is one place across annotation ids, which is how a late id finds its earlier copy', () => {
     const at = (annotationId: string | null): KindleAnchor => ({
       kind: 'kindle',
       location: { start: 3, end: null },
       annotationId,
     });
-    expect(kindlePlaceKey(at('A1'), 'Words')).toBe(kindlePlaceKey(at(null), 'Words'));
+    expect(same(at('A1'), at(null))).toBe(true);
   });
 
   it('places a Kindle highlight by where its location starts, its range end and page aside', () => {
@@ -187,12 +190,27 @@ describe('what makes two highlights the same passage', () => {
       annotationId: null,
       ...(page !== undefined && { page }),
     });
-    const ranged = kindlePlaceKey(at({ start: 77, end: 79 }), 'Words');
-    expect(kindlePlaceKey(at({ start: 77, end: null }), 'Words')).toBe(ranged);
-    expect(kindlePlaceKey(at({ start: 77, end: 79 }, 12), 'Words')).toBe(ranged);
-    expect(kindlePlaceKey(at({ start: 78, end: 79 }), 'Words')).not.toBe(ranged);
-    expect(kindlePlaceKey(at({ start: 77, end: 79 }), 'Other words')).not.toBe(ranged);
-    expect(kindlePlaceKey(at(null, 12), 'Words')).not.toBe(kindlePlaceKey(at(null, 13), 'Words'));
-    expect(kindlePlaceKey(at(null, 77), 'Words')).not.toBe(ranged);
+    const ranged = at({ start: 77, end: 79 });
+    expect(same(at({ start: 77, end: null }), ranged)).toBe(true);
+    expect(same(at({ start: 77, end: 79 }, 12), ranged)).toBe(true);
+    expect(same(at({ start: 78, end: 79 }), ranged)).toBe(false);
+    expect(same(at({ start: 77, end: 79 }), ranged, 'Other words')).toBe(false);
+    expect(same(at(null, 12), at(null, 13))).toBe(false);
+    expect(same(at(null, 77), ranged)).toBe(false);
+  });
+
+  it('compares by page when one copy has no location and both have a page, either way round', () => {
+    const at = (location: KindleAnchor['location'], page?: number): KindleAnchor => ({
+      kind: 'kindle',
+      location,
+      annotationId: null,
+      ...(page !== undefined && { page }),
+    });
+    expect(same(at({ start: 77, end: 79 }, 5), at(null, 5))).toBe(true);
+    expect(same(at(null, 5), at({ start: 77, end: 79 }, 5))).toBe(true);
+    expect(same(at({ start: 77, end: 79 }, 5), at(null, 6))).toBe(false);
+    expect(same(at({ start: 77, end: 79 }), at(null, 5))).toBe(false);
+    expect(same(at(null), at(null))).toBe(false);
+    expect(same(at(null, 5), at(null, 5), '  Words\n', 'Words')).toBe(true);
   });
 });

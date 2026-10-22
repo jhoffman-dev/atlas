@@ -5,6 +5,7 @@
  * that is not a source, or for a look-alike in code.
  */
 import { describe, expect, it } from 'vitest';
+import { noteBlocks } from './note-blocks.ts';
 import { appendHighlights, createVaultPath, literatureNoteText } from '@dfai/domain';
 import { toIndexedNote } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
@@ -39,6 +40,7 @@ const SOURCE = appendHighlights({
     },
   ],
   random: steps(),
+  noteBlocks,
 });
 
 const indexed = (path: string, text: string) =>

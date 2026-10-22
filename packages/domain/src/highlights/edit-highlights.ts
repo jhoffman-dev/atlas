@@ -5,7 +5,7 @@ import {
   DEFAULT_HIGHLIGHT_STYLE,
   highlightKey,
   InvalidHighlightAnchorError,
-  kindlePlaceKey,
+  sameKindlePlace,
   type HighlightAnchor,
   type HighlightStyle,
   type KindleAnchor,
@@ -16,6 +16,7 @@ import {
   lineEndingOf,
   readHighlights,
   type HighlightBlock,
+  type ReadNoteBlocks,
 } from './highlight-block.ts';
 import { looksLikeHighlightMarker, readHighlightMarker } from './highlight-marker.ts';
 import { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
@@ -87,23 +88,25 @@ export class HighlightNotReadBackError extends Error {
  * `UnreadableHighlightMarkerError` when the note holds a marker this build
  * cannot read, which may be a passage it would add twice;
  * `HighlightNotReadBackError` when a highlight added would not read back
- * from the note it was added to (an unclosed code fence, raw HTML block,
- * HTML comment or Obsidian `%%` comment).
+ * from the note it was added to, as `noteBlocks` parses it (an unclosed
+ * code fence, raw HTML block, HTML comment or Obsidian `%%` comment).
  */
 export function appendHighlights({
   text,
   highlights,
   random,
+  noteBlocks,
 }: {
   text: string;
   highlights: readonly NewHighlight[];
   random: () => number;
+  noteBlocks: ReadNoteBlocks;
 }): { text: string; highlights: AppendedHighlight[] } {
   highlights.forEach((highlight) => checkNewHighlight(highlight, exactWords(highlight)));
   assertMarkersReadable(text);
   const eol = lineEndingOf(text);
   const held = new HeldPassages();
-  for (const block of readHighlights(text)) {
+  for (const block of readHighlights(text, noteBlocks)) {
     held.add(block.id, block.anchor, plainQuote(block.quote));
   }
   const taken = blockIdsIn(text);
@@ -119,7 +122,7 @@ export function appendHighlights({
     return { id, added: true };
   });
   assertReadBack(
-    written,
+    readHighlights(written, noteBlocks),
     answered.flatMap((entry) => (entry.added ? [entry.id] : [])),
   );
   return { text: written, highlights: answered };
@@ -127,28 +130,26 @@ export function appendHighlights({
 
 /**
  * The passages a note holds, found by `highlightKey`; a Kindle one also by
- * its place and words, for an export that has an annotation id the copy
- * synced earlier lacked (or the reverse). Two different ids are two passages.
+ * its place and words (`sameKindlePlace`), for an export that has an
+ * annotation id the copy synced earlier lacked (or the reverse), or places
+ * the passage differently. Two different ids are two passages.
  */
 class HeldPassages {
   private readonly byKey = new Map<string, string>();
-  private readonly kindleByPlace = new Map<string, { id: string; annotationId: string | null }[]>();
+  private readonly kindle: { id: string; anchor: KindleAnchor; quote: string }[] = [];
 
   add(id: string, anchor: HighlightAnchor, quote: string): void {
     this.byKey.set(highlightKey(anchor, quote), id);
-    if (anchor.kind !== 'kindle') return;
-    const place = kindlePlaceKey(anchor, quote);
-    const here = this.kindleByPlace.get(place) ?? [];
-    here.push({ id, annotationId: anchor.annotationId });
-    this.kindleByPlace.set(place, here);
+    if (anchor.kind === 'kindle') this.kindle.push({ id, anchor, quote });
   }
 
   find(anchor: HighlightAnchor, quote: string): string | undefined {
     const exact = this.byKey.get(highlightKey(anchor, quote));
     if (exact !== undefined || anchor.kind !== 'kindle') return exact;
-    const here = this.kindleByPlace.get(kindlePlaceKey(anchor, quote)) ?? [];
-    return here.find(
-      (held) => held.annotationId === null || (anchor as KindleAnchor).annotationId === null,
+    return this.kindle.find(
+      (held) =>
+        (held.anchor.annotationId === null || anchor.annotationId === null) &&
+        sameKindlePlace({ anchor, quote }, held),
     )?.id;
   }
 }
@@ -176,10 +177,10 @@ function assertMarkersReadable(text: string): void {
   });
 }
 
-/** Throws unless every id in `ids` is a highlight of `text`: a block that does not read back is lost. */
-function assertReadBack(text: string, ids: readonly string[]): void {
+/** Throws unless every id in `ids` is among the highlights `read`: a block that does not read back is lost. */
+function assertReadBack(blocks: readonly HighlightBlock[], ids: readonly string[]): void {
   if (ids.length === 0) return;
-  const read = new Set(readHighlights(text).map((block) => block.id));
+  const read = new Set(blocks.map((block) => block.id));
   const lost = ids.filter((id) => !read.has(id));
   if (lost.length > 0) throw new HighlightNotReadBackError(lost);
 }
@@ -189,12 +190,14 @@ export function withHighlightComment({
   text,
   id,
   comment,
+  noteBlocks,
 }: {
   text: string;
   id: string;
   comment: string;
+  noteBlocks: ReadNoteBlocks;
 }): string {
-  const block = highlightNamed(text, id);
+  const block = highlightNamed(text, id, noteBlocks);
   const lines = commentBlockText(commentLines(comment), lineEndingOf(text));
   return text.slice(0, block.markerEnd) + lines + text.slice(block.quoteEnd);
 }
@@ -204,21 +207,37 @@ export function withHighlightComment({
  * it from the block after it (or, last in the note, from the one before).
  * Only ever on the person's word: nothing removes a highlight by itself.
  */
-export function withoutHighlight({ text, id }: { text: string; id: string }): string {
-  const block = highlightNamed(text, id);
+export function withoutHighlight({
+  text,
+  id,
+  noteBlocks,
+}: {
+  text: string;
+  id: string;
+  noteBlocks: ReadNoteBlocks;
+}): string {
+  const block = highlightNamed(text, id, noteBlocks);
   const before = text.slice(0, block.start);
   const after = text.slice(block.end);
   const blank = /^[ \t]*\r?\n/.exec(after);
   if (blank !== null) return before + after.slice(blank[0].length);
   if (after !== '') return before + after;
-  // A block written to a note with no final newline has none itself: the note gets back as it was.
-  if (!text.endsWith('\n')) return before.replace(/\r?\n[ \t]*\r?\n$/, '');
+  // A block written to a note with no final newline has none itself: the note gets back as it
+  // was. Appended first in the body it followed only the line ending put after the frontmatter.
+  if (!text.endsWith('\n')) {
+    const first = splitFrontmatter(text).bodyOffset === block.start;
+    return before.replace(first ? /\r?\n$/ : /\r?\n[ \t]*\r?\n$/, '');
+  }
   return before.replace(/\r?\n[ \t]*\r?\n$/, (ending) => ending.slice(0, ending.indexOf('\n') + 1));
 }
 
 /** The highlight with id `id`, the first if the note holds it twice; throws when there is none. */
-export function highlightNamed(text: string, id: string): HighlightBlock {
-  const block = readHighlights(text).find((candidate) => candidate.id === id);
+export function highlightNamed(
+  text: string,
+  id: string,
+  noteBlocks: ReadNoteBlocks,
+): HighlightBlock {
+  const block = readHighlights(text, noteBlocks).find((candidate) => candidate.id === id);
   if (block === undefined) throw new HighlightNotFoundError(id);
   return block;
 }
