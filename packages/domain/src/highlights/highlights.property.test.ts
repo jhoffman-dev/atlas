@@ -107,7 +107,8 @@ const newHighlight = (): NewHighlight => ({
 
 /** What a note holds around highlights: prose, a plain quote, a fence with a look-alike, a list. */
 const FILLER = [
-  () => `${words(10).replace(/\n/g, ' ')}\n`,
+  // Prose never opens with `<!--`: a line that does is an HTML comment block, which hides the rest if unclosed.
+  () => `Prose: ${words(10).replace(/\n/g, ' ')}\n`,
   () => '> A plain quote, no marker.\n',
   () =>
     '```\n> Not a highlight.\n> <!-- atlas:highlight {"v":1,"kind":"kindle","location":3} -->\n\n^fake01\n```\n',
@@ -179,7 +180,12 @@ describe('literature notes under any edits', () => {
         expect(plainQuote(block.quote)).toBe(
           quoteLines(highlight.quote).map(plainQuote).join('\n\n'),
         );
-        expect(block.anchor).toEqual(highlight.anchor);
+        // A Kindle anchor keeps the export's words (R3).
+        const written =
+          highlight.anchor.kind === 'kindle'
+            ? { ...highlight.anchor, exact: highlight.quote }
+            : highlight.anchor;
+        expect(block.anchor).toEqual(written);
         expect(block.comment).toBe(commentLines(highlight.comment ?? '').join('\n'));
         expect(block.style).toEqual(highlight.style);
       }

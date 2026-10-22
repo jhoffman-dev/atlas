@@ -13,7 +13,7 @@ import { looksLikeHighlightMarker } from './highlight-marker.ts';
  */
 
 const ESCAPED = /[\\`*_[\]<>#~|^=$%&]/g;
-const LIST_START = /^([-+])|^(\d+)([.)])(?=\s)/;
+const LIST_START = /^([-+])|^(\d+)([.)])(?=\s|$)/;
 const UNESCAPE = /\\([!-/:-@[-`{-~])/g;
 
 /** The lines of a quote written from the source's words, `>` not yet before them. */

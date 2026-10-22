@@ -38,7 +38,9 @@ describe("a quote's lines", () => {
 
   it('leaves a dash or number mid-line, and a number with no space after, alone', () => {
     expect(quoteLines('well - maybe 3. or 4.5')).toEqual(['well - maybe 3. or 4.5']);
-    expect(quoteLines('1984.')).toEqual(['1984.']);
+    expect(quoteLines('1984.5 was')).toEqual(['1984.5 was']);
+    // A paragraph that is only a number and its dot is an empty list item, so it is escaped.
+    expect(quoteLines('1984.')).toEqual(['1984\\.']);
   });
 
   it('shows the words again once its escapes are taken off', () => {

@@ -1,7 +1,11 @@
 import { standaloneBlockAnchor } from '../markdown/block-anchor.ts';
 import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import type { HighlightAnchor, HighlightStyle } from './anchor.ts';
-import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
+import {
+  highlightMarker,
+  looksLikeHighlightMarker,
+  readHighlightMarker,
+} from './highlight-marker.ts';
 
 /*
  * A highlight in its literature note (ADR-0043): a quote, the hidden marker, the
@@ -17,12 +21,18 @@ import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
  *     ^k3x9q2
  *
  * The marker is what makes it a highlight and what parts the quote from the
- * comment: the lines before it are the quote, the lines after it the comment.
+ * comment: the lines before it are the quote, the lines after it the comment,
+ * and the blank `>` line DFAI writes between marker and comment is only the
+ * separator. A line without its `>` that continues a paragraph of the block
+ * (CommonMark's lazy continuation, which Obsidian still shows as part of the
+ * quote) belongs to the block; the next comment write puts its `>` back.
  * The block is read from its lines, not from how markdown parses it, as a
  * bookmark is (ADR-0020): a quote starting at a line's first column, after a
  * blank line or the start of the body, outside a code fence, holding exactly
  * one marker this build reads with words before it, then a blank line and
- * `^id`. Anything else is not a highlight and is kept exactly as written.
+ * `^id`. Outside a code fence and an HTML comment, which hide what they hold
+ * from every reader. Anything else is not a highlight and is kept exactly
+ * as written.
  */
 
 /** A highlight block as the note holds it, with where its parts are in the note's text. */
@@ -56,17 +66,16 @@ interface Line {
 export function readHighlights(text: string): HighlightBlock[] {
   const lines = linesOf(text, splitFrontmatter(text).bodyOffset);
   const blocks: HighlightBlock[] = [];
-  const fence = new FenceTracker();
+  const hidden = new HiddenBlockTracker();
   let index = 0;
   while (index < lines.length) {
     const line = lines[index] as Line;
     const opensQuote = isQuoteLine(line) && (index === 0 || isBlank(lines[index - 1]));
-    if (fence.inside(line) || !opensQuote) {
+    if (hidden.inside(line) || !opensQuote) {
       index += 1;
       continue;
     }
-    let after = index;
-    while (after < lines.length && isQuoteLine(lines[after] as Line)) after += 1;
+    const after = quoteEnd(lines, index);
     const block = highlightOf(lines, index, after);
     if (block !== null) blocks.push(block);
     index = after;
@@ -74,13 +83,36 @@ export function readHighlights(text: string): HighlightBlock[] {
   return blocks;
 }
 
+/** Just past the last line of the quote block that starts at line `first`. */
+function quoteEnd(lines: readonly Line[], first: number): number {
+  let after = first;
+  let paragraphOpen = false;
+  while (after < lines.length) {
+    const line = lines[after] as Line;
+    const quoted = isQuoteLine(line);
+    if (!quoted && !(paragraphOpen && continuesParagraph(line))) break;
+    const content = quoted ? quoteContent(line.text) : line.text.replace(/\r$/, '');
+    paragraphOpen = content.trim() !== '' && !looksLikeHighlightMarker(content);
+    after += 1;
+  }
+  return after;
+}
+
+/** Whether an unquoted line is plain text, which a paragraph above it takes in, not a block of its own. */
+const continuesParagraph = (line: Line): boolean =>
+  line.text.trim() !== '' && !BLOCK_START.test(line.text);
+
+const BLOCK_START = /^ {0,3}(?:[#>`~<]|[-*+](?:\s|$)|1[.)](?:\s|$)|(?:[-_*][ \t]*){3,}$|=+[ \t]*$)/;
+
 /** The highlight the quote lines `[first, after)` and the lines below them make, or null. */
 function highlightOf(lines: readonly Line[], first: number, after: number): HighlightBlock | null {
   const idLine = lines[after + 1];
   if (!isBlank(lines[after]) || idLine === undefined) return null;
   const id = standaloneBlockAnchor(idLine.text.replace(/\r$/, ''));
   if (id === null) return null;
-  const contents = lines.slice(first, after).map((line) => quoteContent(line.text));
+  const contents = lines
+    .slice(first, after)
+    .map((line) => (isQuoteLine(line) ? quoteContent(line.text) : line.text.replace(/\r$/, '')));
   const markers = contents.flatMap((content, at) => {
     const marker = readHighlightMarker(content);
     return marker === null ? [] : [{ at, marker }];
@@ -163,25 +195,46 @@ function trimBlankLines(lines: readonly string[]): string {
 }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const COMMENT_START = /^ {0,3}<!--/;
 
-/** Whether a line is inside a fenced code block, where nothing is a highlight. */
-class FenceTracker {
-  private open: string | null = null;
+/**
+ * Whether a line is inside a fenced code block or an HTML comment, where
+ * nothing is a highlight. A fence or a comment nobody closed runs to the end
+ * of the note, as every markdown reader has it.
+ */
+class HiddenBlockTracker {
+  private fence: string | null = null;
+  private inComment = false;
 
-  /** True for a fence's own lines and everything between them. */
+  /** True for the lines of a fence or a comment, its own and everything between. */
   inside(line: Line): boolean {
-    const run = FENCE.exec(line.text)?.[1];
-    if (this.open === null) {
-      if (run === undefined) return false;
-      this.open = run;
+    if (this.inComment) {
+      if (line.text.includes('-->')) this.inComment = false;
       return true;
     }
+    return this.fence === null ? this.opens(line) : this.continuesFence(line);
+  }
+
+  private opens(line: Line): boolean {
+    const run = FENCE.exec(line.text)?.[1];
+    if (run !== undefined) {
+      this.fence = run;
+      return true;
+    }
+    if (!COMMENT_START.test(line.text)) return false;
+    this.inComment = !line.text.slice(line.text.indexOf('<!--') + 4).includes('-->');
+    return true;
+  }
+
+  private continuesFence(line: Line): true {
+    const open = this.fence as string;
+    const run = FENCE.exec(line.text)?.[1];
     const closes =
       run !== undefined &&
-      run[0] === this.open[0] &&
-      run.length >= this.open.length &&
+      run[0] === open[0] &&
+      run.length >= open.length &&
       line.text.trim() === run;
-    if (closes) this.open = null;
+    if (closes) this.fence = null;
     return true;
   }
 }
