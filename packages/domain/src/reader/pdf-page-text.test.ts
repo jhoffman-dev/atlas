@@ -125,6 +125,31 @@ describe('the boxes a range covers in a turned run', () => {
     expect(box?.y).toBeCloseTo(0.1);
     expect(box?.height).toBeCloseTo(0.4);
   });
+
+  it('keeps two whole lines on a page turned three quarters as two boxes, not one over the gap', () => {
+    // On a /Rotate 270 page each line reads up the page, its letters' tops to its left; the two
+    // columns share a top and a height, a gap of 0.01 between them.
+    const upward = (text: string, x: number) => ({
+      text,
+      box: { x, y: 0.1, width: 0.02, height: 0.6 },
+      endsLine: true,
+      direction: {
+        origin: { x: x + 0.02, y: 0.7 },
+        advance: { x: 0, y: -0.6 },
+        rise: { x: -0.02, y: 0 },
+      },
+    });
+    const page = pdfPageText([
+      upward('Gulls over the quay', 0.1),
+      upward('Nets on the slipway', 0.13),
+    ]);
+    const boxes = rectsForRange(page, 0, page.text.length);
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]?.x).toBeCloseTo(0.1);
+    expect(boxes[0]?.width).toBeCloseTo(0.02);
+    expect(boxes[1]?.x).toBeCloseTo(0.13);
+    expect(boxes[1]?.width).toBeCloseTo(0.02);
+  });
 });
 
 describe('a box cut to its page', () => {

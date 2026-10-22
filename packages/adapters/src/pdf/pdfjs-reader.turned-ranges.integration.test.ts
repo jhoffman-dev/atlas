@@ -107,5 +107,45 @@ describe('a column of text in a font written top to bottom is boxed down its len
     const [box] = rectsForRange(page, 0, page.text.length);
     // 5 glyphs x 20 points down a 792-point page: at least 90 points of it.
     expect((box?.height ?? 0) * 792).toBeGreaterThan(90);
+    // Vertical writing centres each 20-point glyph on its origin, x = 300: from 290 to 310.
+    expect((box?.x ?? 0) * 612).toBeCloseTo(300 - 10, 1);
+    expect((box?.width ?? 0) * 612).toBeCloseTo(20, 1);
+  });
+});
+
+async function firstRun(bytes: Buffer) {
+  const document = await reader.open(new Uint8Array(bytes));
+  const page = await document.pageText(1);
+  await document.close();
+  const run = page.runs[0];
+  if (run === undefined) throw new Error('the page has no run');
+  return run;
+}
+
+describe('a line that reads left to right across the page is read along its box', () => {
+  it('gives a plain line no direction', async () => {
+    expect((await firstRun(hostilePdf())).direction).toBeUndefined();
+  });
+
+  it('gives a line set slanted (synthetic oblique, Tm 1 0 0.2 1) no direction, its box round its slant', async () => {
+    const plain = await firstRun(hostilePdf());
+    const oblique = await firstRun(
+      hostilePdf({ content: `BT /F1 12 Tf 1 0 0.2 1 72 720 Tm (${LINE}) Tj ET` }),
+    );
+    expect(oblique.direction).toBeUndefined();
+    // The slant leans the letters' tops 0.2 x 12 = 2.4 points right; the box takes that in.
+    expect(oblique.box.x * 612).toBeCloseTo(72, 1);
+    expect(oblique.box.y * 792).toBeCloseTo(792 - 732, 1);
+    expect(oblique.box.height * 792).toBeCloseTo(12, 1);
+    expect(oblique.box.width * 612).toBeCloseTo(plain.box.width * 612 + 2.4, 1);
+  });
+
+  it('gives a line whose matrix is all but level (noise of 1e-9) no direction', async () => {
+    const noisy = await firstRun(
+      hostilePdf({
+        content: `BT /F1 12 Tf 1 0.000000001 -0.000000001 1 72 720 Tm (${LINE}) Tj ET`,
+      }),
+    );
+    expect(noisy.direction).toBeUndefined();
   });
 });
