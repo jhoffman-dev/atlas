@@ -31,7 +31,12 @@ export {
 } from './testing/fake-export.ts';
 export { fakeGranola, granolaNote, granolaTurn } from './testing/fake-granola.ts';
 export type { GranolaCall, GranolaCallKey } from './testing/fake-granola.ts';
-export { fakeKindleNotebook, fakeKindleSink, kindlePage } from './testing/fake-kindle.ts';
+export {
+  fakeKindleDelay,
+  fakeKindleNotebook,
+  fakeKindleSink,
+  kindlePage,
+} from './testing/fake-kindle.ts';
 export type {
   FakeKindleNotebookScript,
   KindleNotebookCall,

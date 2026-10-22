@@ -1,6 +1,7 @@
 import type { KindleBook, KindleHighlight, KindlePageCursor, KindleRawPage } from '@dfai/domain';
 import {
   KindleFetchError,
+  type KindleDelay,
   type KindleHighlightSink,
   type KindleNotebookSource,
 } from '../kindle/ports.ts';
@@ -100,6 +101,24 @@ export function fakeKindleSink(
       const keys = recorded.get(write.book.asin) ?? new Set<string>();
       for (const highlight of write.highlights) keys.add(highlight.key);
       recorded.set(write.book.asin, keys);
+      return Promise.resolve();
+    },
+  };
+}
+
+/**
+ * A delay that does not wait: it records what it was asked for, and lets a
+ * test move its clock on by that much, as a real wait would.
+ */
+export function fakeKindleDelay(
+  options: { readonly onWait?: (milliseconds: number) => void } = {},
+): KindleDelay & { readonly waits: number[] } {
+  const waits: number[] = [];
+  return {
+    waits,
+    wait(milliseconds) {
+      waits.push(milliseconds);
+      options.onWait?.(milliseconds);
       return Promise.resolve();
     },
   };

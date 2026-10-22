@@ -1,9 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { KINDLE_MAX_PAGES_PER_BOOK } from '@dfai/domain';
-import { fakeKindleNotebook, fakeKindleSink, kindlePage } from '../testing/fake-kindle.ts';
+import { describeKindleSync, KINDLE_MAX_PAGES_PER_BOOK } from '@dfai/domain';
+import {
+  fakeKindleDelay,
+  fakeKindleNotebook,
+  fakeKindleSink,
+  kindlePage,
+} from '../testing/fake-kindle.ts';
 import { KindleFetchError } from './ports.ts';
-import { syncKindle } from './sync-kindle.ts';
+import { KINDLE_MIN_FETCH_GAP_MS, syncKindle } from './sync-kindle.ts';
 
 /*
  * The sync over a fake notebook and a fake sink standing in for #503's
@@ -16,6 +21,7 @@ const fixture = (name: string) =>
 
 const NOW = Date.UTC(2026, 9, 21, 9, 0);
 const clock = { now: () => NOW };
+const delay = fakeKindleDelay();
 
 const libraryOf = (...asins: string[]) =>
   kindlePage(
@@ -53,13 +59,14 @@ describe('syncKindle', () => {
       },
     });
     const sink = fakeKindleSink();
-    const report = await syncKindle({ source, sink, clock });
+    const report = await syncKindle({ source, sink, clock, delay });
 
     expect(report).toEqual({
       kind: 'synced',
-      added: 6,
+      // Six of the first book: its five highlights and the note typed on the first.
+      added: 7,
       books: [
-        { kind: 'added', asin: 'B0EXAMPLE1', title: 'Pride and Prejudice', added: 5 },
+        { kind: 'added', asin: 'B0EXAMPLE1', title: 'Pride and Prejudice', added: 6 },
         { kind: 'added', asin: 'B0EXAMPLE2', title: 'Moby-Dick; or, The Whale', added: 1 },
         {
           kind: 'added',
@@ -72,7 +79,7 @@ describe('syncKindle', () => {
     expect(
       sink.writes.map((write) => [write.book.asin, write.highlights.length, write.syncedAt]),
     ).toEqual([
-      ['B0EXAMPLE1', 5, NOW],
+      ['B0EXAMPLE1', 6, NOW],
       ['B0EXAMPLE2', 1, NOW],
     ]);
     expect(sink.writes[0]?.highlights.at(-1)?.quote).toBe('Till this moment I never knew myself.');
@@ -89,13 +96,13 @@ describe('syncKindle', () => {
       library: libraryOf('B0EXAMPLE1'),
       books: { B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one', 'two'])] },
     });
-    await syncKindle({ source: first, sink, clock });
+    await syncKindle({ source: first, sink, clock, delay });
     const second = fakeKindleNotebook({
       library: libraryOf('B0EXAMPLE1'),
       books: { B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one', 'two', 'three'])] },
     });
 
-    const report = await syncKindle({ source: second, sink, clock });
+    const report = await syncKindle({ source: second, sink, clock, delay });
 
     expect(report).toMatchObject({ kind: 'synced', added: 1 });
     expect(sink.writes.map((write) => write.highlights.map((h) => h.quote))).toEqual([
@@ -110,13 +117,16 @@ describe('syncKindle', () => {
       library: libraryOf('B0EXAMPLE1'),
       books: { B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one'])] },
     });
-    expect(await syncKindle({ source, sink, clock })).toMatchObject({ kind: 'synced', added: 0 });
+    expect(await syncKindle({ source, sink, clock, delay })).toMatchObject({
+      kind: 'synced',
+      added: 0,
+    });
     expect(sink.writes).toEqual([]);
   });
 
   it('reports an empty library as synced with nothing new, asking for no book', async () => {
     const source = fakeKindleNotebook({ library: kindlePage(fixture('library-empty.html')) });
-    expect(await syncKindle({ source, sink: fakeKindleSink(), clock })).toEqual({
+    expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toEqual({
       kind: 'synced',
       books: [],
       added: 0,
@@ -127,7 +137,11 @@ describe('syncKindle', () => {
   it('stops before any book when the library asks to sign in', async () => {
     const source = fakeKindleNotebook({ library: kindlePage(fixture('sign-in.html')) });
     const sink = fakeKindleSink();
-    expect(await syncKindle({ source, sink, clock })).toEqual({ kind: 'sign_in_required' });
+    expect(await syncKindle({ source, sink, clock, delay })).toEqual({
+      kind: 'sign_in_required',
+      books: [],
+      added: 0,
+    });
     expect(source.calls).toEqual([{ call: 'library' }]);
   });
 
@@ -141,7 +155,11 @@ describe('syncKindle', () => {
       },
     });
     const sink = fakeKindleSink();
-    expect(await syncKindle({ source, sink, clock })).toEqual({ kind: 'sign_in_required' });
+    expect(await syncKindle({ source, sink, clock, delay })).toEqual({
+      kind: 'sign_in_required',
+      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+      added: 1,
+    });
     expect(sink.writes.map((write) => write.book.asin)).toEqual(['B0EXAMPLE1']);
     expect(source.calls).not.toContainEqual(expect.objectContaining({ asin: 'B0EXAMPLE3' }));
   });
@@ -149,7 +167,7 @@ describe('syncKindle', () => {
   it('says the page changed when the library is not the shape it knows, and writes nothing', async () => {
     const source = fakeKindleNotebook({ library: kindlePage(fixture('unrecognised.html')) });
     const sink = fakeKindleSink();
-    expect(await syncKindle({ source, sink, clock })).toEqual({
+    expect(await syncKindle({ source, sink, clock, delay })).toEqual({
       kind: 'unrecognised',
       reason: 'the page has no library',
     });
@@ -164,7 +182,7 @@ describe('syncKindle', () => {
         B0EXAMPLE2: [kindlePage(fixture('unrecognised.html'))],
       },
     });
-    expect(await syncKindle({ source, sink: fakeKindleSink(), clock })).toEqual({
+    expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toEqual({
       kind: 'unrecognised',
       reason: 'the page has no annotations',
     });
@@ -182,7 +200,7 @@ describe('syncKindle', () => {
       },
     });
     const sink = fakeKindleSink();
-    const report = await syncKindle({ source, sink, clock });
+    const report = await syncKindle({ source, sink, clock, delay });
     expect(report).toEqual({
       kind: 'synced',
       added: 1,
@@ -211,7 +229,7 @@ describe('syncKindle', () => {
       },
     });
     const sink = fakeKindleSink();
-    const report = await syncKindle({ source, sink, clock });
+    const report = await syncKindle({ source, sink, clock, delay });
     expect(report).toMatchObject({
       kind: 'synced',
       books: [
@@ -227,21 +245,20 @@ describe('syncKindle', () => {
       library: libraryOf('B0EXAMPLE1'),
       books: { B0EXAMPLE1: [{ status: 503, html: '', redirectedTo: null }] },
     });
-    expect(await syncKindle({ source, sink: fakeKindleSink(), clock })).toMatchObject({
+    expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toMatchObject({
       books: [{ kind: 'unavailable', message: 'Amazon answered 503' }],
     });
   });
 
-  it('reports the library the host could not fetch, or Amazon refused, as unavailable', async () => {
-    const unreachable = fakeKindleNotebook({
-      library: new KindleFetchError('not_connected', 'Kindle is not connected'),
-    });
-    expect(await syncKindle({ source: unreachable, sink: fakeKindleSink(), clock })).toEqual({
-      kind: 'unavailable',
-      message: 'Kindle is not connected',
-    });
+  it('reports the library the host could not reach, or Amazon refused, as unavailable', async () => {
+    for (const kind of ['unreachable', 'timeout'] as const) {
+      const unreachable = fakeKindleNotebook({ library: new KindleFetchError(kind, 'no answer') });
+      expect(
+        await syncKindle({ source: unreachable, sink: fakeKindleSink(), clock, delay }),
+      ).toEqual({ kind: 'unavailable', message: 'no answer' });
+    }
     const refused = fakeKindleNotebook({ library: { status: 500, html: '', redirectedTo: null } });
-    expect(await syncKindle({ source: refused, sink: fakeKindleSink(), clock })).toEqual({
+    expect(await syncKindle({ source: refused, sink: fakeKindleSink(), clock, delay })).toEqual({
       kind: 'unavailable',
       message: 'Amazon answered 500',
     });
@@ -259,7 +276,7 @@ describe('syncKindle', () => {
       },
     });
     const sink = fakeKindleSink();
-    expect(await syncKindle({ source, sink, clock })).toEqual({
+    expect(await syncKindle({ source, sink, clock, delay })).toEqual({
       kind: 'unrecognised',
       reason: 'the pages of the book go round in a circle',
     });
@@ -275,7 +292,7 @@ describe('syncKindle', () => {
         return Promise.resolve(annotationsOf('B0EXAMPLE1', [`q${page}`], `T${page}`));
       },
     };
-    expect(await syncKindle({ source, sink: fakeKindleSink(), clock })).toEqual({
+    expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toEqual({
       kind: 'unrecognised',
       reason: `the book has more than ${KINDLE_MAX_PAGES_PER_BOOK} pages`,
     });
@@ -295,7 +312,7 @@ describe('syncKindle', () => {
       failRead: new Set(['B0EXAMPLE1']),
       failWrite: new Set(['B0EXAMPLE2']),
     });
-    const report = await syncKindle({ source, sink, clock });
+    const report = await syncKindle({ source, sink, clock, delay });
     expect(report).toMatchObject({
       kind: 'synced',
       added: 1,
@@ -316,7 +333,7 @@ describe('syncKindle', () => {
       recordedKeys: () => Promise.resolve(new Set<string>()),
       addHighlights: () => Promise.reject('disk full'),
     };
-    expect(await syncKindle({ source, sink, clock })).toMatchObject({
+    expect(await syncKindle({ source, sink, clock, delay })).toMatchObject({
       books: [{ kind: 'not_written', message: 'disk full' }],
     });
   });
@@ -326,6 +343,321 @@ describe('syncKindle', () => {
       fetchLibrary: () => Promise.reject(new TypeError('a bug')),
       fetchAnnotations: () => Promise.reject(new TypeError('a bug')),
     };
-    await expect(syncKindle({ source, sink: fakeKindleSink(), clock })).rejects.toThrow('a bug');
+    await expect(syncKindle({ source, sink: fakeKindleSink(), clock, delay })).rejects.toThrow(
+      'a bug',
+    );
+  });
+});
+
+describe('syncKindle when the host cannot bring a page', () => {
+  const unsupported = new KindleFetchError('unsupported', 'Kindle sync needs macOS 14 or later');
+  const notConnected = new KindleFetchError('not_connected', 'Kindle is not connected on this Mac');
+
+  it('stops at once on a Mac that cannot keep the session apart, in the host’s words, and not as Amazon being down', async () => {
+    const source = fakeKindleNotebook({ library: unsupported });
+    const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
+    expect(report).toEqual({
+      kind: 'unsupported',
+      message: 'Kindle sync needs macOS 14 or later',
+      books: [],
+      added: 0,
+    });
+    expect(describeKindleSync(report).message).not.toMatch(/try again later/);
+  });
+
+  it('stops at once when the library finds Kindle not connected', async () => {
+    const source = fakeKindleNotebook({ library: notConnected });
+    expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toEqual({
+      kind: 'not_connected',
+      books: [],
+      added: 0,
+    });
+    expect(source.calls).toEqual([{ call: 'library' }]);
+  });
+
+  it('stops with its own report when a session is lost mid-sync, keeping the books already added and asking for no more', async () => {
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1', 'B0EXAMPLE2', 'B0EXAMPLE3'),
+      books: {
+        B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one'])],
+        B0EXAMPLE2: [notConnected],
+        B0EXAMPLE3: [annotationsOf('B0EXAMPLE3', ['three'])],
+      },
+    });
+    const sink = fakeKindleSink();
+    expect(await syncKindle({ source, sink, clock, delay })).toEqual({
+      kind: 'not_connected',
+      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+      added: 1,
+    });
+    expect(source.calls.filter((call) => call.call === 'annotations')).toHaveLength(2);
+    expect(sink.writes.map((write) => write.book.asin)).toEqual(['B0EXAMPLE1']);
+  });
+
+  it('stops mid-sync on an unsupported Mac the same way', async () => {
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1', 'B0EXAMPLE2'),
+      books: { B0EXAMPLE1: [unsupported], B0EXAMPLE2: [annotationsOf('B0EXAMPLE2', ['two'])] },
+    });
+    expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toMatchObject({
+      kind: 'unsupported',
+      books: [],
+    });
+    expect(source.calls.filter((call) => call.call === 'annotations')).toHaveLength(1);
+  });
+
+  it('calls only an unreachable or timed-out host, or a 5xx, Amazon being unavailable', async () => {
+    for (const kind of ['unreachable', 'timeout'] as const) {
+      const source = fakeKindleNotebook({
+        library: libraryOf('B0EXAMPLE1'),
+        books: { B0EXAMPLE1: [new KindleFetchError(kind, 'no answer')] },
+      });
+      expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toMatchObject({
+        kind: 'synced',
+        books: [{ kind: 'unavailable', message: 'no answer' }],
+      });
+    }
+  });
+
+  it('reads a host that refused, a page too large and an answer it cannot read as a page it cannot read', async () => {
+    for (const kind of ['refused', 'too_large', 'malformed'] as const) {
+      const library = fakeKindleNotebook({
+        library: new KindleFetchError(kind, `host said ${kind}`),
+      });
+      expect(await syncKindle({ source: library, sink: fakeKindleSink(), clock, delay })).toEqual({
+        kind: 'unrecognised',
+        reason: `host said ${kind}`,
+      });
+      const book = fakeKindleNotebook({
+        library: libraryOf('B0EXAMPLE1'),
+        books: { B0EXAMPLE1: [new KindleFetchError(kind, `host said ${kind}`)] },
+      });
+      expect(await syncKindle({ source: book, sink: fakeKindleSink(), clock, delay })).toEqual({
+        kind: 'unrecognised',
+        reason: `host said ${kind}`,
+      });
+    }
+  });
+});
+
+describe('syncKindle when Amazon asks for more than a sign-in', () => {
+  const robotCheck = {
+    status: 302,
+    html: '',
+    redirectedTo: 'https://www.amazon.com/errors/validateCaptcha',
+  };
+
+  it('stops at once on a robot check with its own kind, keeping the books already added', async () => {
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1', 'B0EXAMPLE2', 'B0EXAMPLE3'),
+      books: {
+        B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one'])],
+        B0EXAMPLE2: [robotCheck],
+        B0EXAMPLE3: [annotationsOf('B0EXAMPLE3', ['three'])],
+      },
+    });
+    const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
+    expect(report).toEqual({
+      kind: 'robot_check',
+      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+      added: 1,
+    });
+    expect(describeKindleSync(report).message).toMatch(/robot/i);
+    expect(source.calls).not.toContainEqual(expect.objectContaining({ asin: 'B0EXAMPLE3' }));
+  });
+
+  it('stops on a robot check at the library', async () => {
+    const source = fakeKindleNotebook({ library: robotCheck });
+    expect(await syncKindle({ source, sink: fakeKindleSink(), clock, delay })).toEqual({
+      kind: 'robot_check',
+      books: [],
+      added: 0,
+    });
+  });
+
+  it('names the store when the notebook is sent to another one, rather than say the page changed', async () => {
+    const source = fakeKindleNotebook({
+      library: { status: 302, html: '', redirectedTo: 'https://read.amazon.co.uk/notebook' },
+    });
+    const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
+    expect(report).toEqual({
+      kind: 'unsupported_store',
+      store: 'read.amazon.co.uk',
+      books: [],
+      added: 0,
+    });
+    expect(describeKindleSync(report).message).toContain('read.amazon.co.uk');
+  });
+});
+
+describe('syncKindle and notes typed later', () => {
+  const withNote = (asin: string, quote: string, note: string | null) =>
+    kindlePage(
+      `<input id="kp-notebook-annotations-asin" value="${asin}"><div id="kp-notebook-annotations"><div id="ID-${asin}-one" class="a-row a-spacing-base"><span id="highlight">${quote}</span>${
+        note === null ? '' : `<span id="note">${note}</span>`
+      }</div></div>`,
+    );
+  const syncPage = async (
+    sink: ReturnType<typeof fakeKindleSink>,
+    page: ReturnType<typeof kindlePage>,
+  ) =>
+    syncKindle({
+      source: fakeKindleNotebook({
+        library: libraryOf('B0EXAMPLE1'),
+        books: { B0EXAMPLE1: [page] },
+      }),
+      sink,
+      clock,
+      delay,
+    });
+
+  it('appends a note typed on a synced highlight after it, once, and never the highlight again', async () => {
+    const sink = fakeKindleSink();
+    await syncPage(sink, withNote('B0EXAMPLE1', 'Reader, I married him.', null));
+    await syncPage(sink, withNote('B0EXAMPLE1', 'Reader, I married him.', 'The famous line.'));
+    await syncPage(sink, withNote('B0EXAMPLE1', 'Reader, I married him.', 'The famous line.'));
+    const written = sink.writes.flatMap((write) => write.highlights);
+    expect(written.map((h) => [h.style, h.quote, h.note, h.commentOn])).toEqual([
+      ['highlight', 'Reader, I married him.', null, null],
+      ['note', '', 'The famous line.', 'amazon:ID-B0EXAMPLE1-one'],
+    ]);
+  });
+
+  it('appends an edited note as a further comment, and never duplicates the highlight', async () => {
+    const sink = fakeKindleSink();
+    await syncPage(sink, withNote('B0EXAMPLE1', 'Reader, I married him.', 'First thought'));
+    await syncPage(sink, withNote('B0EXAMPLE1', 'Reader, I married him.', 'Second thought'));
+    const written = sink.writes.flatMap((write) => write.highlights);
+    expect(written.map((h) => h.note ?? h.quote)).toEqual([
+      'Reader, I married him.',
+      'First thought',
+      'Second thought',
+    ]);
+  });
+});
+
+describe('syncKindle and ids that clash across pages', () => {
+  it('refuses a book whose later page gives another passage an id an earlier page used', async () => {
+    const pageOf = (quote: string, token: string) =>
+      kindlePage(
+        `<input class="kp-notebook-annotations-next-page-start" value="${token}"><div id="kp-notebook-annotations"><div id="IDCLASHING01" class="a-row a-spacing-base"><span id="highlight">${quote}</span></div></div>`,
+      );
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1'),
+      books: {
+        B0EXAMPLE1: [
+          pageOf('It was the best of times.', 'T2'),
+          pageOf('It was the worst of times.', ''),
+        ],
+      },
+    });
+    const sink = fakeKindleSink();
+    expect(await syncKindle({ source, sink, clock, delay })).toEqual({
+      kind: 'unrecognised',
+      reason: 'two different annotations share one id',
+    });
+    expect(sink.writes).toEqual([]);
+  });
+});
+
+describe('syncKindle at the pace of a person', () => {
+  const twoBooks = () =>
+    fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1', 'B0EXAMPLE2'),
+      books: {
+        B0EXAMPLE1: [
+          annotationsOf('B0EXAMPLE1', ['one'], 'T2'),
+          annotationsOf('B0EXAMPLE1', ['two']),
+        ],
+        B0EXAMPLE2: [annotationsOf('B0EXAMPLE2', ['three'])],
+      },
+    });
+
+  it('waits the minimum gap between fetches, and not before the first', async () => {
+    let now = NOW;
+    const pacing = fakeKindleDelay({ onWait: (milliseconds) => (now += milliseconds) });
+    const report = await syncKindle({
+      source: twoBooks(),
+      sink: fakeKindleSink(),
+      clock: { now: () => now },
+      delay: pacing,
+    });
+    expect(report).toMatchObject({ kind: 'synced', added: 3 });
+    // library, two pages of a book, one of the other: four fetches, three gaps.
+    expect(pacing.waits).toEqual([
+      KINDLE_MIN_FETCH_GAP_MS,
+      KINDLE_MIN_FETCH_GAP_MS,
+      KINDLE_MIN_FETCH_GAP_MS,
+    ]);
+  });
+
+  it('waits for nothing when the gap has already passed, as on a slow Mac', async () => {
+    let now = NOW;
+    const pacing = fakeKindleDelay();
+    await syncKindle({
+      source: twoBooks(),
+      sink: fakeKindleSink(),
+      // Each look at the clock is two gaps later than the last.
+      clock: { now: () => (now += 2 * KINDLE_MIN_FETCH_GAP_MS) },
+      delay: pacing,
+    });
+    expect(pacing.waits).toEqual([]);
+  });
+
+  it('waits only what is left of the gap', async () => {
+    let now = NOW;
+    const pacing = fakeKindleDelay();
+    await syncKindle({
+      source: twoBooks(),
+      sink: fakeKindleSink(),
+      // A second passes between one fetch finishing and the next being asked for.
+      clock: { now: () => (now += 1000) },
+      delay: pacing,
+    });
+    expect(pacing.waits.length).toBeGreaterThan(0);
+    expect(new Set(pacing.waits)).toEqual(new Set([KINDLE_MIN_FETCH_GAP_MS - 1000]));
+  });
+});
+
+describe('syncKindle run twice at once', () => {
+  it('joins the second call to the first: one sync runs, and both hear its report', async () => {
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1'),
+      books: { B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one'])] },
+    });
+    const other = fakeKindleNotebook({ library: libraryOf('B0EXAMPLE2') });
+    const sink = fakeKindleSink();
+    const [first, second] = await Promise.all([
+      syncKindle({ source, sink, clock, delay }),
+      syncKindle({ source: other, sink, clock, delay }),
+    ]);
+    expect(second).toBe(first);
+    expect(other.calls).toEqual([]);
+    expect(sink.writes).toHaveLength(1);
+  });
+
+  it('runs again once the first has finished, even if it failed', async () => {
+    const sink = fakeKindleSink();
+    const broken = {
+      fetchLibrary: () => Promise.reject(new TypeError('a bug')),
+      fetchAnnotations: () => Promise.reject(new TypeError('a bug')),
+    };
+    await expect(syncKindle({ source: broken, sink, clock, delay })).rejects.toThrow('a bug');
+    const source = fakeKindleNotebook({ library: libraryOf('B0EXAMPLE1'), books: {} });
+    expect(await syncKindle({ source, sink, clock, delay })).toMatchObject({ kind: 'synced' });
+  });
+
+  it('lets syncs into different sinks run side by side', async () => {
+    const source = () =>
+      fakeKindleNotebook({
+        library: libraryOf('B0EXAMPLE1'),
+        books: { B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one'])] },
+      });
+    const [first, second] = [fakeKindleSink(), fakeKindleSink()];
+    await Promise.all([
+      syncKindle({ source: source(), sink: first, clock, delay }),
+      syncKindle({ source: source(), sink: second, clock, delay }),
+    ]);
+    expect([first.writes.length, second.writes.length]).toEqual([1, 1]);
   });
 });

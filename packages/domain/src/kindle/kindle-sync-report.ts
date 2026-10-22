@@ -25,19 +25,20 @@ export interface KindleSyncProgress {
   readonly added: number;
 }
 
-/** The ways a sync stops where it is, each with what it had already done. */
-export type KindleSyncStop = KindleSyncProgress &
-  (
-    | { readonly kind: 'sign_in_required' }
-    /** Amazon wants proof the person is one; no automatic sync for a day (`kindle-backoff.ts`). */
-    | { readonly kind: 'robot_check' }
-    /** There is no Kindle session on this Mac. */
-    | { readonly kind: 'not_connected' }
-    /** This Mac cannot keep the session apart (macOS before 14); the host's words. */
-    | { readonly kind: 'unsupported'; readonly message: string }
-    /** Amazon sent the notebook to another store's, which DFAI does not read. */
-    | { readonly kind: 'unsupported_store'; readonly store: string }
-  );
+/** Why a sync stops where it is, rather than go on to the next book. */
+export type KindleStopReason =
+  | { readonly kind: 'sign_in_required' }
+  /** Amazon wants proof the person is one; no automatic sync for a day (`kindle-backoff.ts`). */
+  | { readonly kind: 'robot_check' }
+  /** There is no Kindle session on this Mac. */
+  | { readonly kind: 'not_connected' }
+  /** This Mac cannot keep the session apart (macOS before 14); the host's words. */
+  | { readonly kind: 'unsupported'; readonly message: string }
+  /** Amazon sent the notebook to another store's, which DFAI does not read. */
+  | { readonly kind: 'unsupported_store'; readonly store: string };
+
+/** A stopped sync, with what it had done before it stopped. */
+export type KindleSyncStop = KindleSyncProgress & KindleStopReason;
 
 export type KindleSyncReport =
   | KindleSyncStop

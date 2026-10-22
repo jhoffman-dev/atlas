@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { describeKindleSync } from '@dfai/domain';
-import { fakeKindleNotebook, fakeKindleSink, kindlePage } from '../testing/fake-kindle.ts';
+import {
+  fakeKindleDelay,
+  fakeKindleNotebook,
+  fakeKindleSink,
+  kindlePage,
+} from '../testing/fake-kindle.ts';
 import { KindleFetchError } from './ports.ts';
 import { syncKindle } from './sync-kindle.ts';
 
@@ -11,6 +16,7 @@ import { syncKindle } from './sync-kindle.ts';
 
 const NOW = Date.UTC(2026, 9, 21, 9, 0);
 const clock = { now: () => NOW };
+const delay = fakeKindleDelay();
 
 const libraryOf = (...asins: string[]) =>
   kindlePage(
@@ -40,8 +46,8 @@ describe('syncKindle under orders it was not written for', () => {
     const sink = fakeKindleSink();
     // The sync on launch and the one from ⌘K, say: both read the note before either writes.
     await Promise.all([
-      syncKindle({ source: source(), sink, clock }),
-      syncKindle({ source: source(), sink, clock }),
+      syncKindle({ source: source(), sink, clock, delay }),
+      syncKindle({ source: source(), sink, clock, delay }),
     ]);
     const written = sink.writes.flatMap((write) => write.highlights.map((h) => h.key));
     expect(written).toEqual(['amazon:IDCONCURRENT1']);
@@ -57,6 +63,7 @@ describe('syncKindle under orders it was not written for', () => {
       }),
       sink,
       clock,
+      delay,
     });
     const after = bookPage(
       'B0EXAMPLE1',
@@ -69,6 +76,7 @@ describe('syncKindle under orders it was not written for', () => {
       }),
       sink,
       clock,
+      delay,
     });
     const notes = sink.writes.flatMap((write) => write.highlights.map((h) => h.note));
     expect(notes).toContain('The famous last chapter.');
@@ -78,7 +86,7 @@ describe('syncKindle under orders it was not written for', () => {
     const source = fakeKindleNotebook({
       library: new KindleFetchError('not_connected', 'Kindle is not connected on this Mac'),
     });
-    const report = await syncKindle({ source, sink: fakeKindleSink(), clock });
+    const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
     expect(describeKindleSync(report).message).not.toMatch(/try again later/);
   });
 
@@ -89,7 +97,7 @@ describe('syncKindle under orders it was not written for', () => {
       library: libraryOf(...asins),
       books: Object.fromEntries(asins.map((asin) => [asin, [gone]])),
     });
-    await syncKindle({ source, sink: fakeKindleSink(), clock });
+    await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
     const asked = source.calls.filter((call) => call.call === 'annotations').length;
     expect(asked).toBe(1);
   });

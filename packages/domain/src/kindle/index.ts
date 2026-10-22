@@ -27,6 +27,7 @@ export {
 } from './kindle-sync-report.ts';
 export type {
   KindleBookOutcome,
+  KindleStopReason,
   KindleSyncProgress,
   KindleSyncReport,
   KindleSyncStop,

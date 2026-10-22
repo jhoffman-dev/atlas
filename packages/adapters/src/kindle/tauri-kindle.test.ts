@@ -85,6 +85,18 @@ describe('tauriKindleSession', () => {
     expect(invoke.mock.calls).toEqual([['kindle_connect'], ['kindle_disconnect']]);
   });
 
+  it('keeps the host’s word that this Mac cannot keep a session apart', async () => {
+    invoke.mockRejectedValue({ kind: 'unsupported', message: 'needs macOS 14' });
+    expect(await failureOf(tauriKindleSession.connect())).toEqual({
+      kind: 'unsupported',
+      message: 'needs macOS 14',
+    });
+    invoke.mockRejectedValue({ kind: 'unsupported', message: 'needs macOS 14' });
+    expect(await failureOf(tauriKindleNotebook.fetchLibrary())).toMatchObject({
+      kind: 'unsupported',
+    });
+  });
+
   it('turns a refusal to connect into the app’s error', async () => {
     invoke.mockRejectedValue({ kind: 'refused', message: 'needs macOS 14' });
     expect(await failureOf(tauriKindleSession.connect())).toEqual({

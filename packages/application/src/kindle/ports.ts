@@ -4,7 +4,9 @@ import type { KindleBook, KindleHighlight, KindlePageCursor, KindleRawPage } fro
 export const KINDLE_FETCH_FAILURE_KINDS = [
   /** No Kindle session on this Mac: Connect Kindle was never done, or was undone. */
   'not_connected',
-  /** The host would not fetch it: an address off the notebook, or a Mac too old for a session of its own. */
+  /** This Mac cannot keep a Kindle session apart from the rest of DFAI: macOS before 14, or not a Mac. */
+  'unsupported',
+  /** The host would not fetch it: an address off the notebook, or the host out of reach. */
   'refused',
   'unreachable',
   'timeout',
@@ -70,6 +72,14 @@ export interface KindleHighlightSink {
     /** When the sync ran, by the injected clock. */
     readonly syncedAt: number;
   }): Promise<void>;
+}
+
+/**
+ * Waiting, as a port so that a sync's pacing is tested without sleeping and
+ * the app can wait however it likes. Resolves after about `milliseconds`.
+ */
+export interface KindleDelay {
+  wait(milliseconds: number): Promise<void>;
 }
 
 /**
