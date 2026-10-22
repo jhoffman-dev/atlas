@@ -30,7 +30,7 @@ export interface PassageCandidate {
   readonly anchor: HighlightAnchor;
   readonly quote: string;
   /** Everything the highlight would write, so the one written of two with one key does not hang on their order. */
-  readonly written: string;
+  readonly tieBreak: string;
 }
 
 /** A highlight the note holds. */
@@ -76,10 +76,7 @@ export function matchPassages(
     if (passage === undefined) unmatched.push(group);
     else assign(group, passage);
   }
-  const located = (group: KeyGroup) =>
-    group.members.some((at) => isLocated((candidates[at] as PassageCandidate).anchor));
-  const ordered = [...unmatched.filter(located), ...unmatched.filter((group) => !located(group))];
-  for (const group of ordered) {
+  for (const group of orderForClaim(unmatched, candidates)) {
     const own = kindleOf(group.members.map((at) => candidates[at] as PassageCandidate));
     const joined = own.length === 0 ? undefined : placedAlike(passages, own);
     if (joined !== undefined) assign(group, joined);
@@ -90,6 +87,16 @@ export function matchPassages(
     }
   }
   return answer;
+}
+
+/** The groups with a location first, so a location match is taken before a page match. */
+function orderForClaim(
+  groups: readonly KeyGroup[],
+  candidates: readonly PassageCandidate[],
+): KeyGroup[] {
+  const located = (group: KeyGroup) =>
+    group.members.some((at) => isLocated((candidates[at] as PassageCandidate).anchor));
+  return [...groups.filter(located), ...groups.filter((group) => !located(group))];
 }
 
 /** Each held passage by its key; of two with one key, the first in the note. */
@@ -119,10 +126,10 @@ function keyGroups(candidates: readonly PassageCandidate[]): KeyGroup[] {
     const key = highlightKey(candidate.anchor, candidate.quote);
     byKey.set(key, [...(byKey.get(key) ?? []), at]);
   });
-  const written = (at: number) => (candidates[at] as PassageCandidate).written;
+  const tieBreakOf = (at: number) => (candidates[at] as PassageCandidate).tieBreak;
   return [...byKey.entries()]
     .map(([key, members]): KeyGroup => {
-      const [writer] = [...members].sort((a, b) => compare(written(a), written(b)));
+      const [writer] = [...members].sort((a, b) => compare(tieBreakOf(a), tieBreakOf(b)));
       return { key, members, writer: writer as number };
     })
     .sort((a, b) => compare(a.key, b.key));

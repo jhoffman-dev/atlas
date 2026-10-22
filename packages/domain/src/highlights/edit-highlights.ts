@@ -109,29 +109,59 @@ export function appendHighlights({
   const eol = lineEndingOf(text);
   const before = readHighlights(text, noteBlocks);
   const matches = passagesOf(before, highlights, anchors);
-  const taken = blockIdsIn(text);
-  const writtenIds = new Map<number, string>();
-  let written = text;
-  const answered = matches.map((match, at): AppendedHighlight => {
-    if ('held' in match) return { id: match.held, added: false };
-    let id = writtenIds.get(match.writer);
-    if (id === undefined) {
-      id = newBlockId(random, taken);
-      taken.add(id);
-      writtenIds.set(match.writer, id);
-      const writer = highlights[match.writer] as NewHighlight;
-      const block = blockOf(id, writer, anchors[match.writer] as HighlightAnchor, eol);
-      written = withBlockAppended(written, block, eol);
-    }
-    return { id, added: match.writer === at };
-  });
+  const writeOnce = onceWriter({ text, highlights, anchors, random, eol });
+  const answered = matches.map((match, at): AppendedHighlight =>
+    'held' in match
+      ? { id: match.held, added: false }
+      : { id: writeOnce(match.writer), added: match.writer === at },
+  );
   assertReadBack({
     before,
-    after: readHighlights(written, noteBlocks),
-    added: [...writtenIds.values()],
+    after: readHighlights(writeOnce.text(), noteBlocks),
+    added: writeOnce.ids(),
     removed: null,
   });
-  return { text: written, highlights: answered };
+  return { text: writeOnce.text(), highlights: answered };
+}
+
+/**
+ * Writes the block of the highlight at `writer` the first time it is asked
+ * for, with a new id, and answers that id every time after.
+ */
+function onceWriter({
+  text,
+  highlights,
+  anchors,
+  random,
+  eol,
+}: {
+  text: string;
+  highlights: readonly NewHighlight[];
+  anchors: readonly HighlightAnchor[];
+  random: () => number;
+  eol: '\n' | '\r\n';
+}) {
+  const taken = blockIdsIn(text);
+  const idsByWriter = new Map<number, string>();
+  let written = text;
+  const writeOnce = (writer: number): string => {
+    const known = idsByWriter.get(writer);
+    if (known !== undefined) return known;
+    const id = newBlockId(random, taken);
+    taken.add(id);
+    idsByWriter.set(writer, id);
+    const block = blockOf(
+      id,
+      highlights[writer] as NewHighlight,
+      anchors[writer] as HighlightAnchor,
+      eol,
+    );
+    written = withBlockAppended(written, block, eol);
+    return id;
+  };
+  writeOnce.text = (): string => written;
+  writeOnce.ids = (): string[] => [...idsByWriter.values()];
+  return writeOnce;
 }
 
 /** Which passage each highlight is, one the note holds `before` or one appended (ADR-0043 §7). */
@@ -145,7 +175,7 @@ function passagesOf(
     highlights.map((highlight, at) => ({
       anchor: anchors[at] as HighlightAnchor,
       quote: highlight.quote,
-      written: JSON.stringify([anchors[at], highlight.quote, highlight.style, highlight.comment]),
+      tieBreak: JSON.stringify([anchors[at], highlight.quote, highlight.style, highlight.comment]),
     })),
   );
 }
