@@ -38,11 +38,21 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `tools/notion-import/*.ts`  | The Notion imports: meetings and a whole workspace into a vault, re-runnable.                | 28, #79 |
 | `tools/release/versions.ts` | Writes the version into every manifest, and the check CI and a release trust.                | #481    |
 | `application/proposals`     | Accepting a proposal writes notes, archives it, and undo takes them back.                    | 29      |
+| `domain/highlights`         | Decides what a literature note's bytes become when a highlight is added, edited or removed.  | #503    |
+| `application/highlights`    | Writes highlights into a literature note and takes them out, against the version read.       | #503    |
 | `application/meeting-links` | Writes a meeting's people and companies, and proposals, by itself; undone.                   | 29      |
 | `application/profile`       | Reads who the vault's owner is, by name and address: whose a meeting's tasks are.            | #173    |
 | `*/google-calendar`         | Connects your Google account and reads its answers; tokens stay in Rust.                     | 31      |
 | `domain/granola`            | Granola's watermark, pacing and backoff: a wrong rule drops meetings.                        | 28      |
 | `*/granola`                 | Writes files into your vault from outside it; turns Granola's JSON into domain types.        | 28      |
+| `domain/kindle`             | Reads Amazon's notebook page into highlights; a wrong rule writes junk or drops highlights.  | #508    |
+| `*/kindle`                  | Syncs Kindle highlights into source notes by itself; the Amazon session stays in Rust.       | #508    |
+
+`src-tauri/src/kindle*` (#508) holds the Amazon session's cookies, and is held to
+named tests the same way: no page or failure handed to the webview carries a
+cookie value (against a fake notebook that echoes the `Cookie` header), nothing
+is sent with no session, a URL off the notebook is refused, and a redirect off it
+is handed back, not followed.
 
 `src-tauri/src/granola*` (phase 28) holds the Granola key and no Rust coverage tool
 exists here, so its bar is named tests, not a percentage: no answer or error carries

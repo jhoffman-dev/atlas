@@ -17,6 +17,8 @@ import {
   tauriGoogleDrive,
   tauriPdfRenderer,
   tauriGranola,
+  tauriKindleNotebook,
+  tauriKindleSession,
   tauriSqliteSource,
   tauriPageSnapshot,
   tauriIndex,
@@ -51,6 +53,7 @@ import type {
   NotePageRenderer,
   PdfRendererPort,
 } from '@dfai/application';
+import { createKindleSync } from '@dfai/application';
 import { createExportPageRenderer } from '@dfai/ui';
 import type { VaultPorts } from './vault/use-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
@@ -63,6 +66,9 @@ import type { ChatPorts } from './chat/use-chat.ts';
 import { browserMacId } from './sync/browser-mac-id.ts';
 import { browserSyncPause } from './sync/browser-sync-pause.ts';
 import { browserGranolaPullRecords } from './granola/browser-granola-store.ts';
+import { browserKindleRecords } from './kindle/browser-kindle-records.ts';
+import { browserKindleVaults } from './kindle/browser-kindle-vaults.ts';
+import type { KindleHost } from './kindle/use-kindle-sync.ts';
 import type { SyncHostPorts } from './sync/use-sync.ts';
 import {
   browserGlobalCaptureStore,
@@ -207,4 +213,26 @@ export function resolveSyncPorts(): SyncHostPorts {
  */
 export function resolveActivityPorts(): { store: ActivityStore; closing: WindowClosingPort } {
   return { store: tauriActivityStore, closing: tauriWindowClosing };
+}
+
+/** A wait on the window's own timer: Kindle sync's gap between fetches, and its join deadline. */
+const kindleTimer = {
+  wait: (milliseconds: number) =>
+    new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds)),
+};
+
+/**
+ * Kindle (ADR-0044): the host's own Amazon session and notebook fetches, and
+ * the app's **one** sync of it (`createKindleSync`), so launch, the schedule,
+ * Settings and ⌘K never run two at once. `main.tsx` asks for this once.
+ */
+export function resolveKindle(): KindleHost {
+  return {
+    notebook: tauriKindleNotebook,
+    session: tauriKindleSession,
+    sync: createKindleSync({ deadline: kindleTimer }),
+    delay: kindleTimer,
+    records: browserKindleRecords,
+    vaults: browserKindleVaults,
+  };
 }

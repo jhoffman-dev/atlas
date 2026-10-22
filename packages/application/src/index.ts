@@ -31,6 +31,18 @@ export {
 } from './testing/fake-export.ts';
 export { fakeGranola, granolaNote, granolaTurn } from './testing/fake-granola.ts';
 export type { GranolaCall, GranolaCallKey } from './testing/fake-granola.ts';
+export {
+  fakeKindleDelay,
+  fakeKindleNotebook,
+  fakeKindleSink,
+  kindlePage,
+} from './testing/fake-kindle.ts';
+export type {
+  FakeKindleNotebookScript,
+  KindleNotebookCall,
+  KindleScriptedAnswer,
+  KindleSinkWrite,
+} from './testing/fake-kindle.ts';
 export { fakeClaudeStepPorts } from './testing/fake-claude-step.ts';
 export * from './api/index.ts';
 export * from './archive/index.ts';
@@ -39,6 +51,7 @@ export * from './gtd/index.ts';
 export * from './para/index.ts';
 export * from './timeblocks/index.ts';
 export * from './checklists/index.ts';
+export * from './highlights/index.ts';
 export * from './review/index.ts';
 export * from './today/index.ts';
 export * from './pending/index.ts';
@@ -51,6 +64,7 @@ export * from './chat/index.ts';
 export * from './proposals/index.ts';
 export * from './meeting-links/index.ts';
 export * from './granola/index.ts';
+export * from './kindle/index.ts';
 export * from './transclusion/index.ts';
 export * from './activity/index.ts';
 export * from './sync/index.ts';

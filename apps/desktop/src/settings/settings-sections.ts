@@ -3,6 +3,7 @@ import {
   globalCaptureSettings,
   googleCalendarSettingsCard,
   granolaSettingsCard,
+  kindleSettingsCard,
   imageSettingsPanel,
   profileSettingsCard,
   quickAddSettingsCard,
@@ -17,6 +18,7 @@ import {
 export const GlobalCaptureSettings = globalCaptureSettings.Component;
 export const GoogleCalendarSettingsCard = googleCalendarSettingsCard.Component;
 export const GranolaSettingsCard = granolaSettingsCard.Component;
+export const KindleSettingsCard = kindleSettingsCard.Component;
 export const ImageSettingsPanel = imageSettingsPanel.Component;
 export const ProfileSettingsCard = profileSettingsCard.Component;
 export const QuickAddSettingsCard = quickAddSettingsCard.Component;
@@ -33,6 +35,7 @@ const ORDER: readonly { readonly section: SettingsSectionLink; readonly withVaul
   { section: SETTINGS_SECTIONS.secrets, withVault: true },
   { section: SETTINGS_SECTIONS.googleCalendar, withVault: true },
   { section: SETTINGS_SECTIONS.granola, withVault: true },
+  { section: SETTINGS_SECTIONS.kindle, withVault: true },
   { section: SETTINGS_SECTIONS.claude, withVault: false },
   { section: SETTINGS_SECTIONS.sync, withVault: true },
   { section: SETTINGS_SECTIONS.about, withVault: false },

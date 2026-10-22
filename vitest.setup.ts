@@ -1,3 +1,9 @@
+import { installLoopbackOnlyNetwork } from './tools/test-guard/loopback-only-network.ts';
+
+// No test may reach a host off this machine (Amazon's notebook, above all): not by fetch or
+// XHR, nor by any socket or node:http(s) request below them.
+installLoopbackOnlyNetwork(globalThis);
+
 /**
  * jsdom performs no layout: every element measures 0x0 and there is no
  * ResizeObserver. A virtualiser asks for both, and without them it concludes the

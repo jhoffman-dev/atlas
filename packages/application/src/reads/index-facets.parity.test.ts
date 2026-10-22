@@ -33,6 +33,7 @@ const base: IndexedNote = {
   relations: [],
   blocks: [],
   checks: [],
+  highlights: [],
   progress: null,
 };
 

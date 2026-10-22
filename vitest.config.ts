@@ -108,6 +108,8 @@ export default defineConfig({
         'packages/application/src/gtd/**': { lines: 90, functions: 90, branches: 85 },
         // Accepting a proposal writes notes and archives it; undo takes them back (P29-02).
         'packages/application/src/proposals/**': { lines: 90, functions: 90, branches: 85 },
+        // Writes highlights into, and takes them out of, a literature note in the vault (#503).
+        'packages/application/src/highlights/**': { lines: 90, functions: 90, branches: 85 },
         // A task's schedule is read from the index and answered to the API (P31-01);
         // a drop on the calendar writes a block or links a task into one, and undoes it (P31-02).
         'packages/application/src/timeblocks/**': { lines: 90, functions: 90, branches: 85 },
@@ -144,6 +146,13 @@ export default defineConfig({
         // Pulls Granola's notes and writes them into the vault by itself, and reads a third
         // party's answers into the app's types (P28-11). The key is the host's, tested in Rust.
         'packages/{application,adapters}/src/granola/**': {
+          lines: 90,
+          functions: 90,
+          branches: 85,
+        },
+        // Reads Amazon's Kindle notebook into highlights to write into source notes,
+        // by itself (#508). The session's cookies are the host's, tested in Rust.
+        'packages/{application,adapters}/src/kindle/**': {
           lines: 90,
           functions: 90,
           branches: 85,

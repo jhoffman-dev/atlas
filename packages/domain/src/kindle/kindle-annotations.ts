@@ -1,0 +1,225 @@
+import {
+  classesOf,
+  findFirst,
+  isElement,
+  textWithout,
+  withClass,
+  withId,
+  withTag,
+} from './html-tree.ts';
+import type { HtmlElement } from './html-tree.ts';
+import {
+  findKindleKeyClash,
+  kindleHighlightKey,
+  kindleNoteKey,
+  noteHasWords,
+} from './kindle-highlight-key.ts';
+import { checkKindlePage, inputValue } from './kindle-notebook-page.ts';
+import { KINDLE_HIGHLIGHT_COLOURS } from './kindle-types.ts';
+import type {
+  KindleAnnotationsReading,
+  KindleHighlight,
+  KindleHighlightColour,
+  KindleHighlightStyle,
+  KindlePageCursor,
+  KindleRawPage,
+} from './kindle-types.ts';
+
+/**
+ * One page of a book's annotations. Each annotation is a row whose id is
+ * Amazon's annotation id; inside it, a header ("Yellow highlight | Location:
+ * 128"), a hidden input with the location, the passage in `#highlight` and
+ * what was typed in `#note` (an entry of its own, after the passage). The page ends with hidden inputs saying where
+ * the next page starts. A row this cannot read means the page is not the
+ * shape it knows, and the page is refused rather than read in part.
+ */
+
+const ANNOTATIONS_ID = 'kp-notebook-annotations';
+const ASIN_INPUT_ID = 'kp-notebook-annotations-asin';
+const NEXT_PAGE_CLASS = 'kp-notebook-annotations-next-page-start';
+const CONTENT_LIMIT_CLASS = 'kp-notebook-content-limit-state';
+const HIGHLIGHT_CLASS = 'kp-notebook-highlight';
+const COLOUR_CLASS_PREFIX = `${HIGHLIGHT_CLASS}-`;
+
+/** What an annotation id may be; anything else is not trusted as one, and the quote hash is used. */
+const ANNOTATION_ID = /^[A-Za-z0-9_+=/-]{8,256}$/;
+
+const LOCATION_IN_HEADER = /location:?\s*([\d,]+)/i;
+// The page starts with a letter or digit: "Page: | Location: 12" has none.
+const PAGE_IN_HEADER = /\bpage:?\s*([a-z0-9][^\s|]*)/i;
+
+function isAnnotationRow(element: HtmlElement): boolean {
+  return withClass('a-row', 'a-spacing-base')(element) && element.attributes.has('id');
+}
+
+const HEADER_IDS = ['annotationHighlightHeader', 'annotationNoteHeader'] as const;
+
+/**
+ * The parts of one annotation row the reader uses, each the first in the
+ * row's own elements: a row nested inside it is a row of its own, and its
+ * parts are its own, never the outer row's.
+ */
+interface RowParts {
+  readonly row: HtmlElement;
+  quote: HtmlElement | null;
+  note: HtmlElement | null;
+  readonly headers: Map<string, HtmlElement>;
+  location: HtmlElement | null;
+  marked: HtmlElement | null;
+}
+
+function takePart(parts: RowParts, element: HtmlElement): void {
+  const id = element.attributes.get('id');
+  if (id === 'highlight') parts.quote ??= element;
+  else if (id === 'note') parts.note ??= element;
+  else if (id === 'kp-annotation-location' && withTag('input')(element)) {
+    parts.location ??= element;
+  } else if (id !== undefined && (HEADER_IDS as readonly string[]).includes(id)) {
+    if (!parts.headers.has(id)) parts.headers.set(id, element);
+  }
+  if (parts.marked === null && withClass(HIGHLIGHT_CLASS)(element)) parts.marked = element;
+}
+
+/**
+ * Every annotation row under `annotations`, in page order, with its parts:
+ * one walk over the page, so a page of rows nested in rows is read in time
+ * linear in its size.
+ */
+function annotationRows(annotations: HtmlElement): RowParts[] {
+  const rows: RowParts[] = [];
+  const visit = (parent: HtmlElement, owner: RowParts | null) => {
+    for (const child of parent.children) {
+      if (!isElement(child)) continue;
+      let inside = owner;
+      if (isAnnotationRow(child)) {
+        inside = {
+          row: child,
+          quote: null,
+          note: null,
+          headers: new Map(),
+          location: null,
+          marked: null,
+        };
+        rows.push(inside);
+      } else if (owner !== null) {
+        takePart(owner, child);
+      }
+      visit(child, inside);
+    }
+  };
+  visit(annotations, null);
+  return rows;
+}
+
+/** The words of a row's part, without those of any row nested in it. */
+const ownText = (element: HtmlElement) => textWithout(element, isAnnotationRow);
+
+function headerOf(parts: RowParts): string {
+  for (const id of HEADER_IDS) {
+    const header = parts.headers.get(id);
+    const text = header === undefined ? '' : ownText(header);
+    if (text !== '') return text;
+  }
+  return '';
+}
+
+function locationOf(parts: RowParts, header: string): number | null {
+  const written = (parts.location?.attributes.get('value') ?? '').trim();
+  const digits = (
+    /^[\d,]+$/.test(written) ? written : (LOCATION_IN_HEADER.exec(header)?.[1] ?? '')
+  ).replace(/,/g, '');
+  return digits === '' ? null : Number(digits);
+}
+
+function colourOf(parts: RowParts): KindleHighlightColour | null {
+  const named = (parts.marked === null ? [] : classesOf(parts.marked))
+    .filter((name) => name.startsWith(COLOUR_CLASS_PREFIX))
+    .map((name) => name.slice(COLOUR_CLASS_PREFIX.length));
+  return KINDLE_HIGHLIGHT_COLOURS.find((colour) => named.includes(colour)) ?? null;
+}
+
+function styleOf(quote: string, header: string): KindleHighlightStyle {
+  if (quote === '') return 'note';
+  return /underline/i.test(header) ? 'underline' : 'highlight';
+}
+
+type RowReading =
+  { readonly highlights: readonly KindleHighlight[] } | { readonly problem: string };
+
+/**
+ * A row's entries: the passage, and after it the note typed on it, if any,
+ * as an entry of its own with a key built on the passage's. A note at a
+ * place with no passage is the one entry, under the row's id and its words.
+ */
+function readRow(parts: RowParts, asin: string): RowReading {
+  if (parts.quote === null && parts.note === null) {
+    return { problem: 'an annotation has neither a passage nor a note' };
+  }
+  const quote = parts.quote === null ? '' : ownText(parts.quote);
+  const typed = parts.note === null ? '' : ownText(parts.note);
+  const note = noteHasWords(typed) ? typed : '';
+  // A bookmark: a place, with nothing marked or typed.
+  if (quote === '' && note === '') return { highlights: [] };
+  const header = headerOf(parts);
+  const style = styleOf(quote, header);
+  const rowId = parts.row.attributes.get('id') ?? '';
+  const annotationId = ANNOTATION_ID.test(rowId) ? rowId : null;
+  const location = locationOf(parts, header);
+  const page = PAGE_IN_HEADER.exec(header)?.[1] ?? null;
+  const placed = kindleHighlightKey({ asin, annotationId, location, words: quote || note });
+  // A note with no passage keys on its words too, as a note on a passage does, so an edit is
+  // a new entry; with no id the place's key already hashes them.
+  const key = quote === '' && annotationId !== null ? kindleNoteKey(placed, note) : placed;
+  const entry: KindleHighlight = {
+    key,
+    asin,
+    annotationId,
+    style,
+    colour: style === 'highlight' ? colourOf(parts) : null,
+    quote,
+    note: quote === '' ? note : null,
+    location,
+    page,
+    commentOn: null,
+  };
+  if (quote === '' || note === '') return { highlights: [entry] };
+  const comment: KindleHighlight = {
+    ...entry,
+    key: kindleNoteKey(key, note),
+    style: 'note',
+    colour: null,
+    quote: '',
+    note,
+    commentOn: key,
+  };
+  return { highlights: [entry, comment] };
+}
+
+function nextCursorOf(tree: HtmlElement): KindlePageCursor | null {
+  const token = inputValue(tree, withClass(NEXT_PAGE_CLASS)) ?? '';
+  if (token === '') return null;
+  return { token, contentLimitState: inputValue(tree, withClass(CONTENT_LIMIT_CLASS)) ?? '' };
+}
+
+/** Reads one page of the annotations of the book `asin`. */
+export function readKindleAnnotations(page: KindleRawPage, asin: string): KindleAnnotationsReading {
+  const checked = checkKindlePage(page);
+  if (checked.kind !== 'page') return checked;
+  const annotations = findFirst(checked.tree, withId(ANNOTATIONS_ID));
+  if (annotations === null) return { kind: 'unrecognised', reason: 'the page has no annotations' };
+  const named = inputValue(checked.tree, withId(ASIN_INPUT_ID));
+  if (named !== null && named !== '' && named !== asin) {
+    return { kind: 'unrecognised', reason: `the page is for ${named}, not ${asin}` };
+  }
+  const highlights: KindleHighlight[] = [];
+  for (const parts of annotationRows(annotations)) {
+    const reading = readRow(parts, asin);
+    if ('problem' in reading) return { kind: 'unrecognised', reason: reading.problem };
+    highlights.push(...reading.highlights);
+  }
+  // Two passages under one id: one would be lost behind the other, so the page is refused.
+  if (findKindleKeyClash(highlights) !== null) {
+    return { kind: 'unrecognised', reason: 'two different annotations share one id' };
+  }
+  return { kind: 'annotations', highlights, next: nextCursorOf(checked.tree) };
+}
