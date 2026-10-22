@@ -326,7 +326,7 @@ function researchTables(): (writes: number, notes: Iterable<StoredNote>) => Data
       CREATE INDEX props_path ON props(path, key, value_text);
       CREATE INDEX tags_path ON tags(path);
       CREATE INDEX relations_src ON relations(src, key);
-      CREATE INDEX highlights_path ON highlights(path);`);
+      CREATE INDEX highlights_path_idx ON highlights(path, idx);`);
     kept = { writes, database };
     return database;
   };
@@ -341,23 +341,55 @@ function snippetOf(text: string, terms: readonly string[]): string {
     : `${text.slice(Math.max(0, at - 20), at)}<<${text.slice(at, at + last.length)}>>${text.slice(at + last.length, at + last.length + 30)}`;
 }
 
-/** The highlights whose quote or comment hold every term, each naming its note and block, as index.rs answers them. */
+/** A term of a search as `toSearchQuery` writes it: quoted, and a prefix when it ends in `*`. */
+interface SearchTerm {
+  readonly word: string;
+  readonly prefix: boolean;
+}
+
+/** The words of `text` as the index folds them: accents off, case folded, split off anything that is not a letter or digit. */
+const searchWords = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word !== '');
+
+/**
+ * The highlights whose quote or comment hold every term, each naming its note
+ * and block, as index.rs answers them: whole words, and only the term marked
+ * as a prefix may be the start of one (FTS5 has no "contains"), at most `limit`.
+ */
 function highlightHits(
   notes: readonly StoredNote[],
-  { terms, skip }: { terms: readonly string[]; skip: string | null },
+  { terms, skip, limit }: { terms: readonly SearchTerm[]; skip: string | null; limit: number },
 ): { path: string; title: string; snippet: string; block: string }[] {
+  const words = terms.map((term) => ({ ...term, word: searchWords(term.word).join(' ') }));
   return notes
     .filter((note) => skip === null || !note.path.toLowerCase().startsWith(skip))
     .flatMap((note) =>
       (note.highlights ?? []).flatMap((each) => {
         const text = `${each.quote} ${each.comment}`;
-        if (!terms.every((term) => text.toLowerCase().includes(term))) return [];
+        const held = searchWords(text);
+        const found = words.every(({ word, prefix }) =>
+          held.some((have) => (prefix ? have.startsWith(word) : have === word)),
+        );
+        if (!found) return [];
         return [
-          { path: note.path, title: note.title, snippet: snippetOf(text, terms), block: each.id },
+          {
+            path: note.path,
+            title: note.title,
+            snippet: snippetOf(
+              text,
+              terms.map((term) => term.word.toLowerCase()),
+            ),
+            block: each.id,
+          },
         ];
       }),
     )
-    .slice(0, 20);
+    .slice(0, limit);
 }
 
 /** The index's `highlights` table, filled from what the app indexed (#503): what the research views read. */
@@ -1403,10 +1435,10 @@ export async function installHost(
           .sort();
       }
       case 'index_search': {
-        const terms = [...String((args as { query: string }).query).matchAll(/"([^"]+)"/g)].map(
-          (match) => (match[1] ?? '').toLowerCase(),
-        );
+        const searched = [...String((args as { query: string }).query).matchAll(/"([^"]+)"(\*)?/g)];
+        const terms = searched.map((match) => (match[1] ?? '').toLowerCase());
         if (terms.length === 0) return [];
+        const limit = Number((args as { limit?: number }).limit ?? 20);
         // As index.rs does: the prefix it is handed is left out, in lower case.
         const skip = (args as { skipPrefix?: string | null }).skipPrefix ?? null;
         return [...indexed.values()]
@@ -1416,7 +1448,7 @@ export async function installHost(
             const haystack = `${note.path} ${note.title} ${note.body}`.toLowerCase();
             return terms.every((term) => haystack.includes(term));
           })
-          .slice(0, 20)
+          .slice(0, limit)
           .map((note) => ({
             path: note.path,
             title: note.title,
@@ -1425,7 +1457,14 @@ export async function installHost(
           .concat(
             // As index.rs does when asked (#507): then the highlights whose quote or comment match.
             (args as { highlights?: boolean }).highlights === true
-              ? highlightHits([...indexed.values()], { terms, skip })
+              ? highlightHits([...indexed.values()], {
+                  terms: searched.map((match) => ({
+                    word: match[1] ?? '',
+                    prefix: match[2] === '*',
+                  })),
+                  skip,
+                  limit,
+                })
               : [],
           );
       }

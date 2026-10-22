@@ -7,6 +7,7 @@ export {
   compileHighlightsQuery,
   compileLibraryQuery,
   HIGHLIGHT_TEXT_LIMIT,
+  HIGHLIGHTS_START,
   HIGHLIGHTS_PAGE_SIZE,
   HIGHLIGHTS_QUERY_COLUMNS,
   HIGHLIGHTS_QUERY_MARK,
@@ -16,6 +17,7 @@ export {
   LIST_SEPARATOR,
   PAIR_SEPARATOR,
 } from './research-query.ts';
+export type { HighlightsCursor } from './research-query.ts';
 export {
   DEFAULT_LIBRARY_SORT,
   filterLibrary,
@@ -23,7 +25,9 @@ export {
   libraryCover,
   libraryShown,
   NO_LIBRARY_FILTER,
+  isLibraryFiltered,
   projectKey,
+  settleLibraryFilter,
   sortLibrary,
   SOURCE_KIND_HUES,
   SOURCE_KIND_LABELS,
@@ -40,12 +44,15 @@ export {
   CHANGED_WITHIN_MS,
   filterHighlights,
   hasComment,
+  isHighlightFiltered,
+  settleHighlightFilter,
   HIGHLIGHT_HUES,
   highlightChoices,
   highlightColor,
   highlightEmbed,
   highlightPlace,
-  joinHighlights,
+  flattenHighlights,
+  inDisplayOrder,
   NO_HIGHLIGHT_FILTER,
 } from './highlight-list.ts';
 export type {
@@ -54,7 +61,7 @@ export type {
   HighlightChoices,
   HighlightEntry,
   HighlightFilter,
-  ListedHighlight,
+  SourceHighlights,
 } from './highlight-list.ts';
 export { changedOn, withToggled } from './research-text.ts';
 export type { ResearchChoice } from './research-text.ts';

@@ -20,11 +20,14 @@ export const HIGHLIGHTS_QUERY_MARK = '/* research:highlights */';
 export const LIBRARY_PAGE_SIZE = 5000;
 
 /**
- * Highlights per page. Each row carries up to {@link HIGHLIGHT_TEXT_LIMIT}
- * characters of quote and of comment, which at three bytes a character keeps
- * a page under the host's 16 MB answer.
+ * Highlights per page. The host fails a whole answer past 16 MiB of text
+ * (`MAX_QUERY_BYTES`), counted in UTF-8 bytes. A row carries up to
+ * {@link HIGHLIGHT_TEXT_LIMIT} characters of quote and of comment at four
+ * bytes a character (an emoji, a historic script), a path of up to 1,024
+ * bytes, and about 100 bytes of the rest: 5.2 kB. Twenty-five hundred of
+ * them are 13 MB, under it with room to spare.
  */
-export const HIGHLIGHTS_PAGE_SIZE = 4000;
+export const HIGHLIGHTS_PAGE_SIZE = 2500;
 
 /** How much of a quote or a comment the list reads: three lines' worth and more. */
 export const HIGHLIGHT_TEXT_LIMIT = 500;
@@ -64,6 +67,9 @@ export const HIGHLIGHTS_QUERY_COLUMNS = [
 const IS_LITERATURE = `EXISTS (SELECT 1 FROM props AS typed WHERE typed.path = files.path
     AND typed.key = 'type' AND lower(trim(typed.value_text)) = '${LITERATURE_NOTE_TYPE}')`;
 
+/** `?, ?, …`: one marker for each of `values`, which are bound, never written into the text. */
+const placeholders = (values: readonly unknown[]) => values.map(() => '?').join(', ');
+
 /** A note's first value for `key`, as text. */
 const firstValue = (key: string) =>
   `(SELECT value.value_text FROM props AS value WHERE value.path = files.path AND value.key = '${key}'
@@ -83,7 +89,14 @@ const IN_USE = `${outsideAtlasSql('files.path')} AND ${outsideArchiveSql('files.
  * the note it resolves to and its title (or the link as written, when it
  * resolves to none). Columns: {@link LIBRARY_QUERY_COLUMNS}; in path order.
  */
-export function compileLibraryQuery(page: number): CompiledQuery {
+export function compileLibraryQuery({
+  page = 0,
+  paths,
+}: {
+  page?: number;
+  /** Only these notes, when a few are read again; every note in use otherwise. */
+  paths?: readonly string[];
+} = {}): CompiledQuery {
   return {
     sql: [
       `${LIBRARY_QUERY_MARK} SELECT files.path AS "path", files.title AS "title",`,
@@ -95,9 +108,10 @@ export function compileLibraryQuery(page: number): CompiledQuery {
       `    FROM relations AS filed LEFT JOIN files AS project ON project.path = filed.dst`,
       `    WHERE filed.src = files.path AND filed.key = '${FILED_UNDER_KEY}') AS "projects"`,
       `FROM files WHERE ${IS_LITERATURE} AND ${IN_USE}`,
+      ...(paths === undefined ? [] : [`  AND files.path IN (${placeholders(paths)})`]),
       `ORDER BY files.path LIMIT ? OFFSET ?`,
     ].join('\n'),
-    parameters: [LIBRARY_PAGE_SIZE, page * LIBRARY_PAGE_SIZE],
+    parameters: [...(paths ?? []), LIBRARY_PAGE_SIZE, page * LIBRARY_PAGE_SIZE],
   };
 }
 
@@ -105,18 +119,36 @@ export function compileLibraryQuery(page: number): CompiledQuery {
 const anchorNumber = (field: string) =>
   `CASE WHEN json_valid(highlights.anchor) THEN json_extract(highlights.anchor, '$.${field}') END`;
 
+/** Where a page of highlights picks up: the last one read, by its note and its place in it. */
+export interface HighlightsCursor {
+  readonly path: string;
+  readonly index: number;
+}
+
+/** Before the first highlight of the first note: no path is empty, and no place is below 0. */
+export const HIGHLIGHTS_START: HighlightsCursor = { path: '', index: -1 };
+
 /**
- * One page of every highlight the index holds: the note it is in and its
- * place among that note's highlights, its id, kind, the start of its quote
- * and comment, its style, and its page or location. Columns:
+ * One page of the highlights in a literature note in use: the note it is in
+ * and its place among that note's highlights, its id, kind, the start of its
+ * quote and comment, its style, and its page or location. Columns:
  * {@link HIGHLIGHTS_QUERY_COLUMNS}; by note, then in the order it holds them.
  *
- * Only the highlights' own table, read straight down its path index: which
- * of these are in a literature note in use, and their order, are
- * `joinHighlights`'s, over what {@link compileLibraryQuery} read. Asking
- * per row which note each is in, or its tags, cost 20,000 lookups a page.
+ * A page picks up after `after` by key — `highlights_path_idx` walks straight
+ * to it — not by an offset, which would read and throw away every row before
+ * it: the last page of 150,000 highlights would cost sixty times the first.
+ * Which notes are in use is the statement's own (the same test as the
+ * Library's); their titles, times and tags are the Library's, matched by the
+ * reader.
  */
-export function compileHighlightsQuery(page: number): CompiledQuery {
+export function compileHighlightsQuery({
+  after = HIGHLIGHTS_START,
+  paths,
+}: {
+  after?: HighlightsCursor;
+  /** Only the highlights in these notes, when a few are read again; every note in use otherwise. */
+  paths?: readonly string[];
+} = {}): CompiledQuery {
   return {
     sql: [
       `${HIGHLIGHTS_QUERY_MARK} SELECT highlights.path AS "path", highlights.idx AS "idx",`,
@@ -125,8 +157,11 @@ export function compileHighlightsQuery(page: number): CompiledQuery {
       `  substr(highlights.comment, 1, ${HIGHLIGHT_TEXT_LIMIT}) AS "comment",`,
       `  highlights.mark AS "mark", highlights.color AS "color",`,
       `  ${anchorNumber('page')} AS "page", ${anchorNumber('location')} AS "location"`,
-      `FROM highlights ORDER BY highlights.path, highlights.idx LIMIT ? OFFSET ?`,
+      `FROM highlights WHERE (highlights.path, highlights.idx) > (?, ?)`,
+      ...(paths === undefined ? [] : [`  AND highlights.path IN (${placeholders(paths)})`]),
+      `  AND highlights.path IN (SELECT files.path FROM files WHERE ${IS_LITERATURE} AND ${IN_USE})`,
+      `ORDER BY highlights.path, highlights.idx LIMIT ?`,
     ].join('\n'),
-    parameters: [HIGHLIGHTS_PAGE_SIZE, page * HIGHLIGHTS_PAGE_SIZE],
+    parameters: [after.path, after.index, ...(paths ?? []), HIGHLIGHTS_PAGE_SIZE],
   };
 }

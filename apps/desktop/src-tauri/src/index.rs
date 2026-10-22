@@ -62,7 +62,8 @@ use crate::vault::VaultState;
 /// just made could mean (#431) by a lookup rather than a scan. 19: every
 /// highlight in a literature note, which TypeScript reads, gained a row in
 /// `highlights` (#503, ADR-0043). 20: each highlight's quote and comment are
-/// searched too (`highlights_fts`, #507), so a search can open a highlight.
+/// searched too (`highlights_fts`, #507), so a search can open a highlight, and
+/// they are read in order by `highlights_path_idx` (path, idx).
 const SCHEMA_VERSION: i64 = 20;
 
 const CACHE_DIR: &str = ".atlas-cache";
@@ -525,7 +526,9 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 color   TEXT NOT NULL,
                 anchor  TEXT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS highlights_path ON highlights(path);
+            -- By note then place: a note's highlights in order, and All highlights read
+            -- page after page by key (`(path, idx) > (?, ?)`) rather than by offset.
+            CREATE INDEX IF NOT EXISTS highlights_path_idx ON highlights(path, idx);
             CREATE INDEX IF NOT EXISTS highlights_id ON highlights(id);
 
             -- A highlight's search row has the rowid of its row in `highlights`.
@@ -830,7 +833,7 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
 
 /// A note's highlights and their search rows: the search rows first, found
 /// by the rowids of the highlights they stand for (one lookup each through
-/// `highlights_path`, not a scan of the search table).
+/// `highlights_path_idx`, not a scan of the search table).
 fn delete_highlights(connection: &Connection, path: &str) -> Result<(), String> {
     connection
         .execute(
@@ -3982,9 +3985,9 @@ ORDER BY 1, 3"#;
         assert!(paths.is_empty(), "no note says md, yet: {paths:?}");
     }
 
-    // --- Attack tests for PR #525 (#507): highlights_fts under hostile input. ---
+    // --- Tests for the research area (#507): highlights_fts under hostile input. ---
 
-    fn attack_525_index() -> Connection {
+    fn highlight_search_index() -> Connection {
         let mut index = empty_index();
         let mut source = note("Library/Art.md", "The Art of War", "notes body");
         let mut commented = highlight("k1", "All warfare is based on deception");
@@ -4020,8 +4023,8 @@ ORDER BY 1, 3"#;
     }
 
     #[test]
-    fn attack_525_fts_syntax_typed_into_search_neither_errors_nor_matches_everything() {
-        let index = attack_525_index();
+    fn highlight_search_fts_syntax_typed_into_search_neither_errors_nor_matches_everything() {
+        let index = highlight_search_index();
         for words in [
             "-", "*", ":", "^", "NEAR", "NEAR(", "quote:", "-enemy", "enemy*", "\"enemy", "AND",
             "OR", "NOT", "(", ")", "{quote}", "+", "a:b", "'", "‐", "…",
@@ -4041,8 +4044,8 @@ ORDER BY 1, 3"#;
     }
 
     #[test]
-    fn attack_525_a_very_long_typed_query_is_answered_not_an_error() {
-        let index = attack_525_index();
+    fn highlight_search_a_very_long_typed_query_is_answered_not_an_error() {
+        let index = highlight_search_index();
         let words = vec!["enemy"; 400].join(" ");
         let found = search_highlights(&index, &typed(&words), 10, None);
         assert!(found.is_ok(), "400 words failed: {:?}", found.err());
@@ -4051,8 +4054,8 @@ ORDER BY 1, 3"#;
     }
 
     #[test]
-    fn attack_525_reordering_a_notes_highlights_keeps_each_hit_on_its_own_block() {
-        let mut index = attack_525_index();
+    fn highlight_search_reordering_a_notes_highlights_keeps_each_hit_on_its_own_block() {
+        let mut index = highlight_search_index();
         let mut reordered = note("Library/Art.md", "The Art of War", "notes body");
         reordered.highlights = vec![
             highlight("k2", "Know the enemy and know yourself"),
@@ -4083,8 +4086,8 @@ ORDER BY 1, 3"#;
     }
 
     #[test]
-    fn attack_525_a_prefix_finds_a_longer_word_and_a_folded_accent() {
-        let index = attack_525_index();
+    fn highlight_search_a_prefix_finds_a_longer_word_and_a_folded_accent() {
+        let index = highlight_search_index();
         let hits = search_highlights(&index, &typed("war"), 10, None).unwrap();
         assert_eq!(
             hits.iter().map(|hit| hit.block.clone()).collect::<Vec<_>>(),
@@ -4092,5 +4095,169 @@ ORDER BY 1, 3"#;
         );
         let hits = search_highlights(&index, &typed("décéption"), 10, None).unwrap();
         assert_eq!(hits.len(), 1);
+    }
+
+    // --- The Library's and All highlights' statements, as TypeScript compiles them (#507). ---
+
+    /// The text `research-statements.golden.test.ts` compiles and checks in.
+    const RESEARCH_STATEMENTS: &str =
+        include_str!("../../../../packages/domain/src/research/research-statements.golden.json");
+
+    fn research_statement(name: &str) -> (String, Vec<serde_json::Value>) {
+        let statements: serde_json::Value = serde_json::from_str(RESEARCH_STATEMENTS).unwrap();
+        let statement = &statements[name];
+        (
+            statement["sql"].as_str().unwrap().to_string(),
+            statement["parameters"].as_array().unwrap().clone(),
+        )
+    }
+
+    fn literature(path: &str) -> IndexedNote {
+        let mut source = note(path, path.trim_start_matches("Library/"), "");
+        source.note_type = Some("literature".to_string());
+        source.properties = vec![IndexedProperty {
+            key: "type".to_string(),
+            index: 0,
+            text: Some("literature".to_string()),
+            number: None,
+            date: None,
+            json: None,
+        }];
+        source
+    }
+
+    const SEEDED_SOURCES: usize = 1_500;
+    const HIGHLIGHTS_PER_SOURCE: usize = 100;
+
+    /// 150,000 highlights in 1,500 literature notes, and some that must not be listed:
+    /// those of a note that is not literature, and of one in the Archive.
+    fn seeded_research_index(root: &Path) {
+        let (mut writer, _) = open_database(root).unwrap();
+        let mut sources: Vec<IndexedNote> = (0..SEEDED_SOURCES)
+            .map(|at| literature(&format!("Library/Shelf {at:04}.md")))
+            .collect();
+        sources.push(literature("Library/Ledger.md"));
+        sources.push(literature("Library/Verses.md"));
+        sources.push(literature("Archive/Old Ledger.md"));
+        sources.push(note("Notes/Plain.md", "Plain", ""));
+        put_notes(&mut writer, &sources).unwrap();
+        let transaction = writer.transaction().unwrap();
+        {
+            let mut insert = transaction
+                .prepare(
+                    "INSERT INTO highlights (path, idx, id, kind, quote, comment, mark, color, anchor)
+                     VALUES (?1, ?2, ?3, 'pdf', ?4, '', 'highlight', 'yellow', '{\"page\":3}')",
+                )
+                .unwrap();
+            for source in &sources {
+                let count = if source.path.starts_with("Library/Shelf") {
+                    HIGHLIGHTS_PER_SOURCE
+                } else {
+                    5
+                };
+                for at in 0..count {
+                    let quote = format!("Quote {at} of {}", source.path);
+                    insert
+                        .execute(params![source.path, at as i64, format!("h{at:05}"), quote])
+                        .unwrap();
+                }
+            }
+        }
+        transaction.commit().unwrap();
+    }
+
+    #[test]
+    fn research_statements_read_the_library_and_every_highlight_page_under_the_step_budget() {
+        let vault = tempfile::tempdir().unwrap();
+        seeded_research_index(vault.path());
+        // The connection queries run on: read-only, with the step budget and the authorizer.
+        let reader = open_for_queries(vault.path()).unwrap();
+
+        let (sql, parameters) = research_statement("library");
+        let library = run_query(&reader, &sql, &parameters).unwrap();
+        assert_eq!(
+            library.rows.len(),
+            SEEDED_SOURCES + 2,
+            "the Archive's is not listed"
+        );
+        assert!(!library.truncated);
+
+        let (sql, first) = research_statement("highlights");
+        let mut parameters = first;
+        let mut read = 0;
+        let mut pages = 0;
+        loop {
+            let page = run_query(&reader, &sql, &parameters)
+                .unwrap_or_else(|error| panic!("page {pages} failed: {error}"));
+            read += page.rows.len();
+            pages += 1;
+            let size = parameters[2].as_u64().unwrap() as usize;
+            let Some(last) = page.rows.last().filter(|_| page.rows.len() == size) else {
+                break;
+            };
+            parameters[0] = last[0].clone();
+            parameters[1] = last[1].clone();
+        }
+        assert_eq!(
+            read,
+            SEEDED_SOURCES * HIGHLIGHTS_PER_SOURCE + 10,
+            "only literature notes in use"
+        );
+        assert!(pages > 50, "{pages} pages");
+    }
+
+    #[test]
+    fn research_statements_walk_the_highlights_by_their_key_not_an_offset() {
+        let vault = tempfile::tempdir().unwrap();
+        seeded_research_index(vault.path());
+        let reader = open_for_queries(vault.path()).unwrap();
+        let (sql, parameters) = research_statement("highlightsAfter");
+        let plan: Vec<String> = reader
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap()
+            .query_map(
+                rusqlite::params_from_iter(parameters.iter().map(|value| match value {
+                    serde_json::Value::Number(number) => {
+                        rusqlite::types::Value::Real(number.as_f64().unwrap())
+                    }
+                    other => rusqlite::types::Value::Text(other.as_str().unwrap().to_string()),
+                })),
+                |row| row.get::<_, String>(3),
+            )
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(
+            plan.iter().any(|step| step.contains("highlights_path_idx")),
+            "the highlights are read by their key index: {plan:?}"
+        );
+        assert!(
+            !plan.iter().any(|step| step.starts_with("SCAN highlights")),
+            "never a scan of all highlights: {plan:?}"
+        );
+    }
+
+    #[test]
+    fn research_statements_for_a_few_notes_read_only_those_notes() {
+        let vault = tempfile::tempdir().unwrap();
+        seeded_research_index(vault.path());
+        let reader = open_for_queries(vault.path()).unwrap();
+        let (sql, parameters) = research_statement("libraryOfNotes");
+        let library = run_query(&reader, &sql, &parameters).unwrap();
+        let paths: Vec<&str> = library
+            .rows
+            .iter()
+            .map(|row| row[0].as_str().unwrap())
+            .collect();
+        assert_eq!(paths, vec!["Library/Ledger.md", "Library/Verses.md"]);
+        let (sql, parameters) = research_statement("highlightsOfNotes");
+        let highlights = run_query(&reader, &sql, &parameters).unwrap();
+        assert_eq!(highlights.rows.len(), 10);
+        assert!(highlights.rows.iter().all(|row| {
+            matches!(
+                row[0].as_str(),
+                Some("Library/Ledger.md" | "Library/Verses.md")
+            )
+        }));
     }
 }

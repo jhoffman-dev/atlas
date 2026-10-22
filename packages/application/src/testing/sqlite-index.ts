@@ -23,7 +23,8 @@ export function sqliteIndexPort(): IndexPort {
                         leaf TEXT NOT NULL DEFAULT '');
     CREATE TABLE highlights (path TEXT NOT NULL, idx INTEGER NOT NULL, id TEXT NOT NULL,
                              kind TEXT NOT NULL, quote TEXT NOT NULL, comment TEXT NOT NULL,
-                             mark TEXT NOT NULL, color TEXT NOT NULL, anchor TEXT NOT NULL);`);
+                             mark TEXT NOT NULL, color TEXT NOT NULL, anchor TEXT NOT NULL);
+    CREATE INDEX highlights_path_idx ON highlights(path, idx);`);
   const removeNote = (path: string) => {
     for (const [table, column] of TABLES) {
       database.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(path);

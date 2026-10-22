@@ -53,6 +53,7 @@ function indexOf(notes: readonly Note[]): DatabaseSync {
     CREATE TABLE highlights (path TEXT NOT NULL, idx INTEGER NOT NULL, id TEXT NOT NULL,
       kind TEXT NOT NULL, quote TEXT NOT NULL, comment TEXT NOT NULL, mark TEXT NOT NULL,
       color TEXT NOT NULL, anchor TEXT NOT NULL);
+    CREATE INDEX highlights_path_idx ON highlights(path, idx);
   `);
   const file = database.prepare(
     'INSERT INTO files (path, title, modified, size) VALUES (?, ?, ?, 0)',
@@ -103,7 +104,7 @@ const LITERATURE = { type: 'literature', kind: 'pdf' };
 
 describe('compileLibraryQuery', () => {
   const library = (notes: readonly Note[], page = 0) =>
-    rowsOf(indexOf(notes), compileLibraryQuery(page), LIBRARY_QUERY_COLUMNS);
+    rowsOf(indexOf(notes), compileLibraryQuery({ page }), LIBRARY_QUERY_COLUMNS);
 
   it('lists every literature note, its type read as isLiteratureNote reads it, and no other note', () => {
     const rows = library([
@@ -165,12 +166,30 @@ describe('compileLibraryQuery', () => {
     expect(row?.['projects']).toBe('Projects/Reading.md\u001eReading list\u001f\u001eSomeday');
   });
 
+  it('reads only the notes it is asked for, which are still literature notes in use', () => {
+    const notes = [
+      { path: 'Library/A.md', props: LITERATURE },
+      { path: 'Library/B.md', props: LITERATURE },
+      { path: 'Notes/C.md', props: { type: 'note' } },
+    ];
+    const asked = ['Library/B.md', 'Notes/C.md', 'Library/Missing.md'];
+    const rows = rowsOf(
+      indexOf(notes),
+      compileLibraryQuery({ paths: asked }),
+      LIBRARY_QUERY_COLUMNS,
+    );
+    expect(rows.map((row) => row['path'])).toEqual(['Library/B.md']);
+  });
+
   it('reads a page at a time, by path', () => {
     const notes = Array.from({ length: 3 }, (_, at) => ({
       path: `Library/${at}.md`,
       props: LITERATURE,
     }));
-    expect(compileLibraryQuery(2).parameters).toEqual([LIBRARY_PAGE_SIZE, 2 * LIBRARY_PAGE_SIZE]);
+    expect(compileLibraryQuery({ page: 2 }).parameters).toEqual([
+      LIBRARY_PAGE_SIZE,
+      2 * LIBRARY_PAGE_SIZE,
+    ]);
     expect(library(notes).map((row) => row['path'])).toEqual([
       'Library/0.md',
       'Library/1.md',
@@ -181,13 +200,20 @@ describe('compileLibraryQuery', () => {
 });
 
 describe('compileHighlightsQuery', () => {
-  const highlights = (notes: readonly Note[], page = 0) =>
-    rowsOf(indexOf(notes), compileHighlightsQuery(page), HIGHLIGHTS_QUERY_COLUMNS);
+  const highlights = (
+    notes: readonly Note[],
+    options: Parameters<typeof compileHighlightsQuery>[0] = {},
+  ) => rowsOf(indexOf(notes), compileHighlightsQuery(options), HIGHLIGHTS_QUERY_COLUMNS);
+  const inLiterature = (path: string, ...ids: string[]): Note => ({
+    path,
+    props: LITERATURE,
+    highlights: ids.map((id) => ({ id })),
+  });
 
-  it('lists every highlight the index holds, by note and then by place', () => {
+  it('lists every highlight in a literature note, by note and then by place', () => {
     const rows = highlights([
-      { path: 'Library/B.md', highlights: [{ id: 'b1' }, { id: 'b2' }] },
-      { path: 'Library/A.md', highlights: [{ id: 'a1' }] },
+      inLiterature('Library/B.md', 'b1', 'b2'),
+      inLiterature('Library/A.md', 'a1'),
     ]);
     expect(rows.map((row) => [row['path'], row['idx'], row['id']])).toEqual([
       ['Library/A.md', 0, 'a1'],
@@ -196,10 +222,21 @@ describe('compileHighlightsQuery', () => {
     ]);
   });
 
+  it("leaves out the highlights of a note that is not literature, or is in the Archive or DFAI's own", () => {
+    const rows = highlights([
+      inLiterature('Library/Kept.md', 'kept'),
+      { path: 'Notes/Plain.md', highlights: [{ id: 'plain' }] },
+      { ...inLiterature('Archive/Old.md', 'old') },
+      { ...inLiterature('.atlas/Own.md', 'own') },
+    ]);
+    expect(rows.map((row) => row['id'])).toEqual(['kept']);
+  });
+
   it('reads the style, the comment, and a page or a location from the anchor; none from one not JSON', () => {
     const [pdf, kindle, broken] = highlights([
       {
         path: 'Library/Art.md',
+        props: LITERATURE,
         highlights: [
           {
             id: 'p1',
@@ -226,19 +263,39 @@ describe('compileHighlightsQuery', () => {
   it('reads only the start of a long quote and comment', () => {
     const long = 'w'.repeat(HIGHLIGHT_TEXT_LIMIT + 50);
     const [row] = highlights([
-      { path: 'Library/A.md', highlights: [{ id: 'l1', quote: long, comment: long }] },
+      {
+        path: 'Library/A.md',
+        props: LITERATURE,
+        highlights: [{ id: 'l1', quote: long, comment: long }],
+      },
     ]);
     expect(String(row?.['quote'])).toHaveLength(HIGHLIGHT_TEXT_LIMIT);
     expect(String(row?.['comment'])).toHaveLength(HIGHLIGHT_TEXT_LIMIT);
   });
 
-  it('reads a page at a time', () => {
-    expect(compileHighlightsQuery(3).parameters).toEqual([
-      HIGHLIGHTS_PAGE_SIZE,
-      3 * HIGHLIGHTS_PAGE_SIZE,
-    ]);
-    const notes = [{ path: 'Library/A.md', highlights: [{ id: 'a1' }] }];
-    expect(highlights(notes)).toHaveLength(1);
-    expect(highlights(notes, 1)).toEqual([]);
+  it('picks up after the last highlight read, by note and place, and stops at the end', () => {
+    const notes = [
+      inLiterature('Library/A.md', 'a1', 'a2'),
+      inLiterature('Library/B.md', 'b1', 'b2'),
+    ];
+    const after = (path: string, index: number) =>
+      highlights(notes, { after: { path, index } }).map((row) => row['id']);
+    expect(after('Library/A.md', 0)).toEqual(['a2', 'b1', 'b2']);
+    expect(after('Library/A.md', 1)).toEqual(['b1', 'b2']);
+    expect(after('Library/B.md', 1)).toEqual([]);
+    expect(
+      compileHighlightsQuery({ after: { path: 'Library/A.md', index: 1 } }).parameters,
+    ).toEqual(['Library/A.md', 1, HIGHLIGHTS_PAGE_SIZE]);
+  });
+
+  it('reads only the notes it is asked for, binding their paths', () => {
+    const notes = [
+      inLiterature('Library/A.md', 'a1'),
+      inLiterature("Library/B'; DROP.md", 'b1'),
+      inLiterature('Library/C.md', 'c1'),
+    ];
+    const asked = { paths: ["Library/B'; DROP.md", 'Library/C.md'] };
+    expect(highlights(notes, asked).map((row) => row['id'])).toEqual(['b1', 'c1']);
+    expect(compileHighlightsQuery(asked).sql).not.toContain('DROP');
   });
 });

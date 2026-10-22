@@ -1,0 +1,44 @@
+{
+  "library": {
+    "sql": "/* research:library */ SELECT files.path AS \"path\", files.title AS \"title\",\n  files.modified AS \"modified\", (SELECT value.value_text FROM props AS value WHERE value.path = files.path AND value.key = 'author'\n    ORDER BY value.idx LIMIT 1) AS \"author\",\n  (SELECT value.value_text FROM props AS value WHERE value.path = files.path AND value.key = 'kind'\n    ORDER BY value.idx LIMIT 1) AS \"kind\", (SELECT value.value_text FROM props AS value WHERE value.path = files.path AND value.key = 'cover'\n    ORDER BY value.idx LIMIT 1) AS \"cover\",\n  (SELECT count(*) FROM highlights WHERE highlights.path = files.path) AS \"highlights\",\n  (SELECT group_concat(used.tag, char(31)) FROM\n    (SELECT DISTINCT tags.tag AS tag FROM tags WHERE tags.path = files.path ORDER BY tags.tag) AS used) AS \"tags\",\n  (SELECT group_concat(coalesce(filed.dst, '') || char(30) || coalesce(project.title, filed.target), char(31))\n    FROM relations AS filed LEFT JOIN files AS project ON project.path = filed.dst\n    WHERE filed.src = files.path AND filed.key = 'project') AS \"projects\"\nFROM files WHERE EXISTS (SELECT 1 FROM props AS typed WHERE typed.path = files.path\n    AND typed.key = 'type' AND lower(trim(typed.value_text)) = 'literature') AND substr(files.path, 1, 7) <> '.atlas/' AND lower(substr(files.path, 1, 8)) <> 'archive/'\nORDER BY files.path LIMIT ? OFFSET ?",
+    "parameters": [
+      5000,
+      0
+    ]
+  },
+  "libraryOfNotes": {
+    "sql": "/* research:library */ SELECT files.path AS \"path\", files.title AS \"title\",\n  files.modified AS \"modified\", (SELECT value.value_text FROM props AS value WHERE value.path = files.path AND value.key = 'author'\n    ORDER BY value.idx LIMIT 1) AS \"author\",\n  (SELECT value.value_text FROM props AS value WHERE value.path = files.path AND value.key = 'kind'\n    ORDER BY value.idx LIMIT 1) AS \"kind\", (SELECT value.value_text FROM props AS value WHERE value.path = files.path AND value.key = 'cover'\n    ORDER BY value.idx LIMIT 1) AS \"cover\",\n  (SELECT count(*) FROM highlights WHERE highlights.path = files.path) AS \"highlights\",\n  (SELECT group_concat(used.tag, char(31)) FROM\n    (SELECT DISTINCT tags.tag AS tag FROM tags WHERE tags.path = files.path ORDER BY tags.tag) AS used) AS \"tags\",\n  (SELECT group_concat(coalesce(filed.dst, '') || char(30) || coalesce(project.title, filed.target), char(31))\n    FROM relations AS filed LEFT JOIN files AS project ON project.path = filed.dst\n    WHERE filed.src = files.path AND filed.key = 'project') AS \"projects\"\nFROM files WHERE EXISTS (SELECT 1 FROM props AS typed WHERE typed.path = files.path\n    AND typed.key = 'type' AND lower(trim(typed.value_text)) = 'literature') AND substr(files.path, 1, 7) <> '.atlas/' AND lower(substr(files.path, 1, 8)) <> 'archive/'\n  AND files.path IN (?, ?)\nORDER BY files.path LIMIT ? OFFSET ?",
+    "parameters": [
+      "Library/Ledger.md",
+      "Library/Verses.md",
+      5000,
+      0
+    ]
+  },
+  "highlights": {
+    "sql": "/* research:highlights */ SELECT highlights.path AS \"path\", highlights.idx AS \"idx\",\n  highlights.id AS \"id\", highlights.kind AS \"kind\",\n  substr(highlights.quote, 1, 500) AS \"quote\",\n  substr(highlights.comment, 1, 500) AS \"comment\",\n  highlights.mark AS \"mark\", highlights.color AS \"color\",\n  CASE WHEN json_valid(highlights.anchor) THEN json_extract(highlights.anchor, '$.page') END AS \"page\", CASE WHEN json_valid(highlights.anchor) THEN json_extract(highlights.anchor, '$.location') END AS \"location\"\nFROM highlights WHERE (highlights.path, highlights.idx) > (?, ?)\n  AND highlights.path IN (SELECT files.path FROM files WHERE EXISTS (SELECT 1 FROM props AS typed WHERE typed.path = files.path\n    AND typed.key = 'type' AND lower(trim(typed.value_text)) = 'literature') AND substr(files.path, 1, 7) <> '.atlas/' AND lower(substr(files.path, 1, 8)) <> 'archive/')\nORDER BY highlights.path, highlights.idx LIMIT ?",
+    "parameters": [
+      "",
+      -1,
+      2500
+    ]
+  },
+  "highlightsAfter": {
+    "sql": "/* research:highlights */ SELECT highlights.path AS \"path\", highlights.idx AS \"idx\",\n  highlights.id AS \"id\", highlights.kind AS \"kind\",\n  substr(highlights.quote, 1, 500) AS \"quote\",\n  substr(highlights.comment, 1, 500) AS \"comment\",\n  highlights.mark AS \"mark\", highlights.color AS \"color\",\n  CASE WHEN json_valid(highlights.anchor) THEN json_extract(highlights.anchor, '$.page') END AS \"page\", CASE WHEN json_valid(highlights.anchor) THEN json_extract(highlights.anchor, '$.location') END AS \"location\"\nFROM highlights WHERE (highlights.path, highlights.idx) > (?, ?)\n  AND highlights.path IN (SELECT files.path FROM files WHERE EXISTS (SELECT 1 FROM props AS typed WHERE typed.path = files.path\n    AND typed.key = 'type' AND lower(trim(typed.value_text)) = 'literature') AND substr(files.path, 1, 7) <> '.atlas/' AND lower(substr(files.path, 1, 8)) <> 'archive/')\nORDER BY highlights.path, highlights.idx LIMIT ?",
+    "parameters": [
+      "Library/Ledger.md",
+      41,
+      2500
+    ]
+  },
+  "highlightsOfNotes": {
+    "sql": "/* research:highlights */ SELECT highlights.path AS \"path\", highlights.idx AS \"idx\",\n  highlights.id AS \"id\", highlights.kind AS \"kind\",\n  substr(highlights.quote, 1, 500) AS \"quote\",\n  substr(highlights.comment, 1, 500) AS \"comment\",\n  highlights.mark AS \"mark\", highlights.color AS \"color\",\n  CASE WHEN json_valid(highlights.anchor) THEN json_extract(highlights.anchor, '$.page') END AS \"page\", CASE WHEN json_valid(highlights.anchor) THEN json_extract(highlights.anchor, '$.location') END AS \"location\"\nFROM highlights WHERE (highlights.path, highlights.idx) > (?, ?)\n  AND highlights.path IN (?, ?)\n  AND highlights.path IN (SELECT files.path FROM files WHERE EXISTS (SELECT 1 FROM props AS typed WHERE typed.path = files.path\n    AND typed.key = 'type' AND lower(trim(typed.value_text)) = 'literature') AND substr(files.path, 1, 7) <> '.atlas/' AND lower(substr(files.path, 1, 8)) <> 'archive/')\nORDER BY highlights.path, highlights.idx LIMIT ?",
+    "parameters": [
+      "",
+      -1,
+      "Library/Ledger.md",
+      "Library/Verses.md",
+      2500
+    ]
+  }
+}
