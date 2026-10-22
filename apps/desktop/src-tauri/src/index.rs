@@ -2146,6 +2146,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_note_typed_by_a_list_is_a_note_of_each_type_in_it() {
+        // The reader and the Kindle sink find literature notes by this (#507, A4).
+        let mut index = empty_index();
+        let mut listed = note("Library/Typed twice.md", "Typed twice", "");
+        let mut book = property("type", "book");
+        book.index = 1;
+        listed.properties = vec![property("type", "literature"), book];
+        let mut plain = note("Library/Plain.md", "Plain", "");
+        plain.properties = vec![property("type", "note")];
+        put_notes(&mut index, &[listed, plain]).unwrap();
+        let found: Vec<String> = notes_of_type(&index, "literature")
+            .unwrap()
+            .into_iter()
+            .map(|typed| typed.path)
+            .collect();
+        assert_eq!(found, vec!["Library/Typed twice.md".to_string()]);
+    }
+
     fn link(target: &str, path: Option<&str>) -> IndexedLink {
         IndexedLink {
             target: target.to_string(),
