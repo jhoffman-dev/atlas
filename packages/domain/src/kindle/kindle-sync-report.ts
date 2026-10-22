@@ -9,14 +9,27 @@ interface BookNamed {
 }
 
 export type KindleBookOutcome =
-  /** Read whole and written; `added` is how many highlights were new. */
-  | (BookNamed & { readonly kind: 'added'; readonly added: number })
+  /**
+   * Read whole and written; `added` is how many entries the note took, and
+   * `unplaced` where each highlight the note could not hold was (`page xiv`):
+   * skipped, and tried again by the next sync.
+   */
+  | (BookNamed & {
+      readonly kind: 'added';
+      readonly added: number;
+      readonly unplaced: readonly string[];
+    })
   /** A page of it was not the shape the parser knows: nothing of it was written. */
   | (BookNamed & { readonly kind: 'unrecognised'; readonly reason: string })
   /** Amazon could not be reached for it, or answered with an error: nothing of it was written. */
   | (BookNamed & { readonly kind: 'unavailable'; readonly message: string })
   /** Read whole, but writing it failed. */
-  | (BookNamed & { readonly kind: 'not_written'; readonly message: string });
+  | (BookNamed & { readonly kind: 'not_written'; readonly message: string })
+  /**
+   * Read whole, and left for the next sync: a pane holds unsaved typing in
+   * its note, which a write would go behind. Nothing of it was written.
+   */
+  | (BookNamed & { readonly kind: 'unsaved_typing' });
 
 /** What a sync that was stopped had done before it stopped: books are never lost to the stop. */
 export interface KindleSyncProgress {
@@ -60,6 +73,8 @@ export const KINDLE_RATE_LIMITED_MESSAGE =
   'Amazon says Kindle sync is asking too often. Kindle sync will not run on its own for 24 hours.';
 export const KINDLE_NOT_CONNECTED_MESSAGE =
   "Kindle isn't connected on this Mac. Connect it in Settings to sync.";
+export const KINDLE_NOT_INTO_VAULT_MESSAGE =
+  'Kindle sync writes only into the vaults you choose. Turn on “Sync Kindle into this vault” in Settings, under Kindle.';
 export const KINDLE_UNRECOGNISED_MESSAGE =
   "Couldn't read Amazon's page. Kindle sync is stopped until DFAI can read it again.";
 
@@ -67,14 +82,32 @@ function plural(count: number, one: string): string {
   return `${count} ${one}${count === 1 ? '' : 's'}`;
 }
 
+/** The books left for the next sync because their note has unsaved typing, by title. */
+function waitingMessage(books: readonly KindleBookOutcome[]): string {
+  const waiting = books.filter((book) => book.kind === 'unsaved_typing');
+  if (waiting.length === 0) return '';
+  const titles = waiting.map((book) => book.title).join(', ');
+  return ` Skipped ${titles}: ${waiting.length === 1 ? 'its note has' : 'their notes have'} unsaved typing. Kindle sync adds ${waiting.length === 1 ? 'it' : 'them'} next time.`;
+}
+
+/** The highlights the notes could not hold, by where each was; empty when there are none. */
+function unplacedMessage(books: readonly KindleBookOutcome[]): string {
+  const places = books.flatMap((book) => (book.kind === 'added' ? book.unplaced : []));
+  if (places.length === 0) return '';
+  return ` ${plural(places.length, 'highlight')} couldn't be placed (${places.join(', ')}).`;
+}
+
 function syncedMessage(books: readonly KindleBookOutcome[], added: number): string {
-  const missed = books.filter((book) => book.kind !== 'added').length;
+  const missed = books.filter(
+    (book) => book.kind !== 'added' && book.kind !== 'unsaved_typing',
+  ).length;
   const from = books.filter((book) => book.kind === 'added' && book.added > 0).length;
   const said =
     added === 0
       ? 'Nothing new from Kindle.'
       : `Added ${plural(added, 'highlight')} from ${plural(from, 'book')}.`;
-  return missed === 0 ? said : `${said} Couldn't sync ${plural(missed, 'book')}.`;
+  const couldNot = missed === 0 ? '' : ` Couldn't sync ${plural(missed, 'book')}.`;
+  return `${said}${couldNot}${unplacedMessage(books)}${waitingMessage(books)}`;
 }
 
 /** What a stopped sync had added before it stopped, in words; empty when it added nothing. */

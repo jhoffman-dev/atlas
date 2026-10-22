@@ -242,6 +242,26 @@ describe("editing a highlight's comment and removing a highlight", () => {
     expect(readHighlights(file.text, noteBlocks).map((block) => block.id)).toEqual([second]);
   });
 
+  it('leaves a hidden tombstone for a removed Kindle highlight, and none for any other', async () => {
+    const held = ports(SOURCE);
+    const kindle: NewHighlight = {
+      quote: 'Know the enemy.',
+      anchor: { kind: 'kindle', location: { start: 40, end: null }, annotationId: 'AMZ-1' },
+    };
+    const [pdf, fromKindle] = await addHighlights(held.ports, {
+      path: PATH,
+      highlights: [deception, kindle],
+    });
+    await removeHighlight(held.ports, { path: PATH, id: pdf?.id as string });
+    expect(held.file.text).not.toContain('atlas:highlight-removed');
+    await removeHighlight(held.ports, { path: PATH, id: fromKindle?.id as string });
+    expect(held.file.text).toMatch(
+      /^<!-- atlas:highlight-removed .*"annotationId":"AMZ-1".* -->$/m,
+    );
+    expect(held.file.text).not.toContain('Know the enemy.');
+    expect(readHighlights(held.file.text, noteBlocks)).toEqual([]);
+  });
+
   it('refuses a highlight the note no longer holds, writing nothing', async () => {
     const { ports: given, writes } = await noteWithTwo();
     await expect(

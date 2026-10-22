@@ -22,6 +22,7 @@ export {
 export {
   describeKindleSync,
   KINDLE_NOT_CONNECTED_MESSAGE,
+  KINDLE_NOT_INTO_VAULT_MESSAGE,
   KINDLE_RATE_LIMITED_MESSAGE,
   KINDLE_ROBOT_CHECK_MESSAGE,
   KINDLE_SIGN_IN_MESSAGE,
@@ -47,3 +48,26 @@ export type {
   KindlePageProblem,
   KindleRawPage,
 } from './kindle-types.ts';
+export {
+  kindleLiteratureNote,
+  kindleNoteIndex,
+  kindleNoteMatch,
+  kindleNoteName,
+  kindleNoteOf,
+} from './kindle-note-match.ts';
+export type { KindleNoteIndex, KindleNoteMatch } from './kindle-note-match.ts';
+export {
+  KindlePassageGoneError,
+  recordedKindleKeys,
+  withKindleHighlights,
+} from './kindle-note-writes.ts';
+export type { KindleNoteWrite } from './kindle-note-writes.ts';
+export {
+  KINDLE_AUTO_SYNC_INTERVAL_MS,
+  KINDLE_AUTO_SYNC_MIN_GAP_MS,
+  kindleAutoSyncSkip,
+  kindleRecordAfterFailure,
+  kindleRecordAfterSync,
+  NO_KINDLE_SYNC_RECORD,
+} from './kindle-auto-sync.ts';
+export type { KindleAutoSyncSkip, KindleLastSync, KindleSyncRecord } from './kindle-auto-sync.ts';

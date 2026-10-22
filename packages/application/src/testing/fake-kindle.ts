@@ -3,6 +3,7 @@ import {
   KindleFetchError,
   type KindleDelay,
   type KindleHighlightSink,
+  type KindleWritten,
   type KindleNotebookSource,
 } from '../kindle/ports.ts';
 
@@ -75,18 +76,27 @@ export function fakeKindleSink(
     readonly recorded?: Readonly<Record<string, readonly string[]>>;
     readonly failWrite?: ReadonlySet<string>;
     readonly failRead?: ReadonlySet<string>;
+    /** What a write says it wrote and could not place, by book; by default all of it, placed. */
+    readonly answers?: Readonly<Record<string, KindleWritten>>;
   } = {},
 ): KindleHighlightSink & {
   readonly writes: KindleSinkWrite[];
   readonly recorded: Map<string, Set<string>>;
+  /** How many syncs began. */
+  readonly began: { count: number };
 } {
   const recorded = new Map<string, Set<string>>(
     Object.entries(options.recorded ?? {}).map(([asin, keys]) => [asin, new Set(keys)]),
   );
   const writes: KindleSinkWrite[] = [];
+  const began = { count: 0 };
   return {
     writes,
     recorded,
+    began,
+    beginSync() {
+      began.count += 1;
+    },
     recordedKeys(book) {
       if (options.failRead?.has(book.asin)) {
         return Promise.reject(new Error(`cannot read the note of ${book.title}`));
@@ -101,7 +111,8 @@ export function fakeKindleSink(
       const keys = recorded.get(write.book.asin) ?? new Set<string>();
       for (const highlight of write.highlights) keys.add(highlight.key);
       recorded.set(write.book.asin, keys);
-      return Promise.resolve();
+      const answer = options.answers?.[write.book.asin];
+      return Promise.resolve(answer ?? { written: write.highlights.length, unplaced: [] });
     },
   };
 }

@@ -13,6 +13,7 @@ describe('settingsSectionLinks', () => {
       'Secrets',
       'Google Calendar',
       'Granola',
+      'Kindle',
       'Claude',
       'Sync',
       'About',

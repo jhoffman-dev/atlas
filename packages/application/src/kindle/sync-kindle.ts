@@ -14,6 +14,7 @@ import {
   type KindleSyncReport,
 } from '@dfai/domain';
 import type { Clock } from '../ports.ts';
+import { UnsavedTypingError } from '../vault/update-links.ts';
 import {
   KindleFetchError,
   type KindleDelay,
@@ -27,6 +28,12 @@ export interface KindleSyncPorts {
   readonly clock: Pick<Clock, 'now'>;
   /** How a sync waits between fetches; see {@link KINDLE_MIN_FETCH_GAP_MS}. */
   readonly delay: KindleDelay;
+  /**
+   * Which vault the sink writes into (its root), when the caller can say. A
+   * sync of the same vault as the one running joins it; one of another vault
+   * waits its turn and writes its own notes. Without it, the sink is the vault.
+   */
+  readonly vault?: string;
 }
 
 /**
@@ -223,17 +230,21 @@ async function writeBook(
   } catch (error) {
     return notWritten(error);
   }
-  if (fresh.length > 0) {
-    // The sync waiting on this one cannot start until this settles, so the note is not written
-    // meanwhile; a given-up run still does no more work, and its own call fails as the contract says.
-    stopIfGivenUp(ports.givenUp);
-    try {
-      await ports.sink.addHighlights({ book, highlights: fresh, syncedAt: ports.clock.now() });
-    } catch (error) {
-      return notWritten(error);
-    }
+  if (fresh.length === 0) return { ...named, kind: 'added', added: 0, unplaced: [] };
+  // The sync waiting on this one cannot start until this settles, so the note is not written
+  // meanwhile; a given-up run still does no more work, and its own call fails as the contract says.
+  stopIfGivenUp(ports.givenUp);
+  try {
+    const { written, unplaced } = await ports.sink.addHighlights({
+      book,
+      highlights: fresh,
+      syncedAt: ports.clock.now(),
+    });
+    return { ...named, kind: 'added', added: written, unplaced };
+  } catch (error) {
+    if (error instanceof UnsavedTypingError) return { ...named, kind: 'unsaved_typing' };
+    return notWritten(error);
   }
-  return { ...named, kind: 'added', added: fresh.length };
 }
 
 /** A book done, and whether Amazon answered it with a server error. */
@@ -310,6 +321,7 @@ const isUnrecognised = (outcome: KindleBookOutcome): outcome is Unrecognised =>
   outcome.kind === 'unrecognised';
 
 async function run(ports: SyncRun): Promise<KindleSyncReport> {
+  ports.sink.beginSync?.();
   const fetchPage = paced(pacer(ports), ports.givenUp);
   const library = await readLibrary(ports.source, fetchPage);
   if ('ended' in library) return library.ended;
@@ -359,15 +371,44 @@ export interface KindleSyncOptions {
 export type KindleSync = (ports: KindleSyncPorts) => Promise<KindleSyncReport>;
 
 interface InFlight {
-  readonly startedAt: number;
+  readonly ports: KindleSyncPorts;
+  /** When the deadline of a join began counting, by the sync's clock; null while it has not. */
+  readonly countsFrom: number | null;
+  /** When it begins counting: once the sync is running, or the sync ahead of it given up. */
+  readonly counting: Promise<number>;
   readonly report: Promise<KindleSyncReport>;
   /** Aborted when a join gives the sync up; the sync stops at its next fetch or write. */
   readonly giveUp: AbortController;
 }
 
+/** Whether two syncs write into one vault: by its root when both say, else by the sink they write through. */
+function sameVault(a: KindleSyncPorts, b: KindleSyncPorts): boolean {
+  return a.vault !== undefined && b.vault !== undefined ? a.vault === b.vault : a.sink === b.sink;
+}
+
+/**
+ * When the deadline of a sync begins counting: now, unless it waits its turn
+ * behind `before`, a healthy sync of another vault, which may rightly run
+ * long; then once that has settled, or been given up, whichever comes first.
+ */
+function countingOf(
+  before: InFlight | null,
+  now: () => number,
+): Pick<InFlight, 'countsFrom' | 'counting'> {
+  if (before === null || before.giveUp.signal.aborted) {
+    const at = now();
+    return { countsFrom: at, counting: Promise.resolve(at) };
+  }
+  const givenUp = new Promise<number>((given) => {
+    before.giveUp.signal.addEventListener('abort', () => given(now()), { once: true });
+  });
+  // The sync ahead's own call has its report or failure; here it only has to have ended.
+  return { countsFrom: null, counting: Promise.race([before.report.then(now, now), givenUp]) };
+}
+
 /** What is left of the deadline at `now`: never less than none, nor more than all of it. */
-function deadlineLeft(slot: InFlight, now: number): number {
-  const left = KINDLE_SYNC_JOIN_DEADLINE_MS - (now - slot.startedAt);
+function deadlineLeft(countsFrom: number, now: number): number {
+  const left = KINDLE_SYNC_JOIN_DEADLINE_MS - (now - countsFrom);
   return Math.max(0, Math.min(KINDLE_SYNC_JOIN_DEADLINE_MS, left));
 }
 
@@ -385,12 +426,16 @@ function deadlineLeft(slot: InFlight, now: number): number {
  * or every book, the parser does not know is the page having changed, said
  * as that rather than as nothing new.
  *
- * One sync is in flight per factory: a call made while one is running joins
- * it, and both get its report. Two at once would each read the note before
- * either wrote it, and add everything twice. So the composition root creates
+ * One sync is in flight per factory: a call made while one is running for
+ * the same vault joins it, and both get its report. Two at once would each
+ * read the note before either wrote it, and add everything twice. A call for
+ * another vault (the person opened one while a sync ran) is not that sync's to
+ * answer: it waits for the running one to settle, then reads and writes its
+ * own vault, so Amazon is still read by one sync at a time. The composition root creates
  * **one** `createKindleSync` per app and every caller (launch, schedule, ⌘K)
  * uses it. A join waits at most until {@link KINDLE_SYNC_JOIN_DEADLINE_MS}
- * after the running sync started; then it gives that sync up and fails with
+ * after the running sync started (a sync waiting its turn starts when it
+ * runs, or when the one ahead of it is given up); then it gives that sync up and fails with
  * {@link KindleSyncStuckError}, as does the sync's own call when it next
  * would fetch or write (one with nothing left to do reports what it did). The slot is held
  * until the given-up sync settles, never freed while it may still write: a
@@ -407,7 +452,8 @@ export function createKindleSync({ deadline }: KindleSyncOptions): KindleSync {
     // The given-up sync's own call has its failure; here it only has to have ended.
     const after = before?.report.then(go, go);
     const slot: InFlight = {
-      startedAt: ports.clock.now(),
+      ports,
+      ...countingOf(before, () => ports.clock.now()),
       giveUp,
       report: (after ?? go()).finally(() => {
         if (inFlight === slot) inFlight = null;
@@ -417,8 +463,9 @@ export function createKindleSync({ deadline }: KindleSyncOptions): KindleSync {
     return slot;
   }
 
-  async function join(slot: InFlight, now: number): Promise<KindleSyncReport> {
-    const left = deadlineLeft(slot, now);
+  async function join(slot: InFlight, clock: Pick<Clock, 'now'>): Promise<KindleSyncReport> {
+    const countsFrom = slot.countsFrom ?? (await slot.counting);
+    const left = deadlineLeft(countsFrom, clock.now());
     const passed = left === 0 ? Promise.resolve() : deadline.wait(left);
     const settled = await Promise.race([
       slot.report.then((report) => ({ report })),
@@ -432,7 +479,9 @@ export function createKindleSync({ deadline }: KindleSyncOptions): KindleSync {
   return (ports) => {
     const running = inFlight;
     if (running === null) return start(ports, null).report;
-    if (!running.giveUp.signal.aborted) return join(running, ports.clock.now());
-    return join(start(ports, running), ports.clock.now());
+    if (!running.giveUp.signal.aborted && sameVault(running.ports, ports)) {
+      return join(running, ports.clock);
+    }
+    return join(start(ports, running), ports.clock);
   };
 }

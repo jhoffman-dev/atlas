@@ -1,6 +1,7 @@
 export {
   addHighlight,
   addHighlights,
+  changeLiteratureNote,
   editHighlightComment,
   NotALiteratureNoteError,
   removeHighlight,
