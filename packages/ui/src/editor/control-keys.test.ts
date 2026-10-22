@@ -173,6 +173,50 @@ describe('a key pressed on a button drawn in the note', () => {
   });
 });
 
+describe('keys that are not editing keys, pressed on a control drawn in the note', () => {
+  // Moving focus, leaving, scrolling and composing are the browser's own: none is kept from it.
+  const MOVING: readonly [string, KeyboardEventInit][] = [
+    ['Tab', { key: 'Tab', keyCode: 9 }],
+    ['Shift+Tab', { key: 'Tab', keyCode: 9, shiftKey: true }],
+    ['Escape', { key: 'Escape', keyCode: 27 }],
+    ['ArrowDown', { key: 'ArrowDown', keyCode: 40 }],
+    ['ArrowUp', { key: 'ArrowUp', keyCode: 38 }],
+    ['an IME composition (Process, 229)', { key: 'Process', keyCode: 229 }],
+    ['a dead key', { key: 'Dead', keyCode: 229 }],
+  ];
+  for (const tag of ['button', 'link'] as const) {
+    for (const [name, init] of MOVING) {
+      it(`${name} on a focused ${tag} is not prevented`, () => {
+        const instance = literatureNote();
+        const control = tag === 'link' ? openInPdf(instance) : drawnControl(instance, 'button');
+        expect(keyDownOn(control, init).defaultPrevented).toBe(false);
+      });
+    }
+  }
+});
+
+describe('the listener on the editor element', () => {
+  it('is removed with the editor: Backspace on a former control is no longer prevented', () => {
+    const instance = literatureNote();
+    const control = drawnControl(instance, 'button');
+    expect(keyDownOn(control, { key: 'Backspace' }).defaultPrevented).toBe(true);
+    const element = instance.view.dom;
+    instance.destroy();
+    // Teardown strips the editor's contenteditable; the control is made not editable
+    // itself so only a surviving listener could still keep Backspace from the browser.
+    control.setAttribute('contenteditable', 'false');
+    element.append(control);
+    expect(element.contains(control)).toBe(true);
+    expect(keyDownOn(control, { key: 'Backspace' }).defaultPrevented).toBe(false);
+  });
+
+  it('is back with a new editor: Backspace on its control is prevented again', () => {
+    literatureNote().destroy();
+    const button = drawnControl(literatureNote(), 'button');
+    expect(keyDownOn(button, { key: 'Backspace' }).defaultPrevented).toBe(true);
+  });
+});
+
 describe('a key pressed in the text', () => {
   it('still edits it, as before', () => {
     const instance = literatureNote();
