@@ -4,7 +4,6 @@ import { readHighlights } from '../highlights/highlight-block.ts';
 import { literatureNoteText } from '../highlights/literature-note.ts';
 import { kindleHighlightKey, kindleNoteKey, newKindleHighlights } from './kindle-highlight-key.ts';
 import {
-  KindleHighlightUnplaceableError,
   KindlePassageGoneError,
   recordedKindleKeys,
   withKindleHighlights,
@@ -113,7 +112,7 @@ describe('withKindleHighlights', () => {
     const highlights = [VANITY, typedOn(VANITY, 'Mary, of all people.')];
     const once = write(EMPTY, highlights).text;
     const twice = write(once, highlights, 99);
-    expect(twice).toEqual({ text: once, written: 0 });
+    expect(twice).toEqual({ text: once, written: 0, unplaced: [] });
   });
 
   it('gives a note typed after the passage synced as the passage comment', () => {
@@ -205,11 +204,6 @@ describe('withKindleHighlights', () => {
     const paged = passage({ id: 'A7', quote: 'On a page.', location: null, page: '12' });
     const [block] = readHighlights(write(EMPTY, [paged]).text, noteBlocks);
     expect(block?.anchor).toMatchObject({ location: null, page: 12 });
-  });
-
-  it('refuses a book with a highlight it cannot place, writing nothing', () => {
-    const roman = passage({ id: 'A8', quote: 'In the preface.', location: null, page: 'xiv' });
-    expect(() => write(EMPTY, [VANITY, roman])).toThrow(KindleHighlightUnplaceableError);
   });
 
   it('refuses a note whose passage left the note since it was read', () => {

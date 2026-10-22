@@ -193,3 +193,118 @@ describe('growing exports synced again and again (regression, property)', () => 
     });
   }
 });
+
+describe('a typed note added later leaves the comment before it as it was (regression)', () => {
+  it('keeps the bytes of a comment written without the space after its quote mark', () => {
+    const quote = passage('A1', 'The lamp was lit at dusk.');
+    const synced = sync(EMPTY, [quote]);
+    const own = synced.replace(/(atlas:highlight [^\n]*-->\n)/, '$1>first thought\n>  second\n');
+    const after = sync(own, [quote, typedOn(quote, 'Typed on the Kindle.')]);
+    expect(after).toContain('>first thought\n>  second\n');
+    expect(readHighlights(after, noteBlocks)[0]?.comment).toBe(
+      'first thought\n second\n\nTyped on the Kindle.',
+    );
+    expect(after.startsWith(own.slice(0, own.indexOf('>first thought\n>  second\n')))).toBe(true);
+  });
+});
+
+describe('a highlight with no place is skipped, the rest written (regression)', () => {
+  const roman = (): KindleHighlight => ({
+    ...passage('A8', 'In the preface.', null),
+    page: 'xiv',
+  });
+
+  it('writes the other highlights and names the one it could not place', () => {
+    const quote = passage('A1', 'The lamp was lit at dusk.');
+    const result = withKindleHighlights({
+      text: EMPTY,
+      asin: ASIN,
+      highlights: [quote, roman()],
+      random: seeded(3),
+      noteBlocks,
+    });
+    expect(result.written).toBe(1);
+    expect(result.unplaced).toEqual(['page xiv']);
+    expect(readHighlights(result.text, noteBlocks).map((block) => block.quote)).toEqual([
+      'The lamp was lit at dusk.',
+    ]);
+  });
+
+  it('skips a note typed on a passage it could not place, rather than refusing the book', () => {
+    const quote = passage('A1', 'The lamp was lit at dusk.');
+    const lost = roman();
+    const result = withKindleHighlights({
+      text: EMPTY,
+      asin: ASIN,
+      highlights: [quote, lost, typedOn(lost, 'Typed in the preface.')],
+      random: seeded(3),
+      noteBlocks,
+    });
+    expect(result.written).toBe(1);
+    expect(result.unplaced).toHaveLength(2);
+  });
+
+  it('changes nothing, and counts nothing written, when that is all there is', () => {
+    const result = withKindleHighlights({
+      text: EMPTY,
+      asin: ASIN,
+      highlights: [roman()],
+      random: seeded(3),
+      noteBlocks,
+    });
+    expect(result).toEqual({ text: EMPTY, written: 0, unplaced: ['page xiv'] });
+  });
+});
+
+describe('a removed Kindle highlight leaves a hidden tombstone (regression)', () => {
+  const kept = passage('A1', 'The lamp was lit at dusk.', 100);
+  const unwanted = passage('A2', 'A sentence the reader did not want.', 140);
+
+  function removedFrom(text: string, quote: string): string {
+    const id = readHighlights(text, noteBlocks).find((block) => block.quote === quote)?.id;
+    return withoutHighlight({ text, id: id ?? '', noteBlocks });
+  }
+
+  it('is a comment line Obsidian hides, not a highlight, and keeps the others', () => {
+    const synced = sync(EMPTY, [kept, unwanted]);
+    const removed = removedFrom(synced, unwanted.quote);
+    expect(removed).toMatch(/^<!-- atlas:highlight-removed \{[^\n]*\} -->$/m);
+    expect(removed).not.toContain(unwanted.quote);
+    expect(readHighlights(removed, noteBlocks).map((block) => block.quote)).toEqual([kept.quote]);
+  });
+
+  it('keeps a note typed on the removed highlight from arriving, and the book from failing', () => {
+    const typed = typedOn(unwanted, 'A thought on it.');
+    const exported = [kept, unwanted, typed];
+    const removed = removedFrom(sync(EMPTY, exported), unwanted.quote);
+    expect(newKindleHighlights(exported, recordedKindleKeys(removed, ASIN, noteBlocks))).toEqual(
+      [],
+    );
+    expect(sync(removed, exported)).toBe(removed);
+  });
+
+  it('survives the writes made after it: a comment, another removal, new highlights', () => {
+    const removed = removedFrom(sync(EMPTY, [kept, unwanted]), unwanted.quote);
+    const marker = /^<!-- atlas:highlight-removed .*-->$/m.exec(removed)?.[0] ?? '';
+    expect(marker).not.toBe('');
+    const another = passage('A3', 'Another passage entirely.', 180);
+    const grown = sync(removed, [kept, unwanted, another]);
+    expect(grown).toContain(marker);
+    const id = readHighlights(grown, noteBlocks)[0]?.id ?? '';
+    const edited = withHighlightComment({ text: grown, id, comment: 'Mine.', noteBlocks });
+    expect(edited).toContain(marker);
+    expect(sync(edited, [kept, unwanted, another])).toBe(edited);
+  });
+
+  it('is left only for a Kindle highlight: a PDF highlight removed leaves nothing behind', () => {
+    const pdf =
+      `${EMPTY}> A PDF quote.\n> <!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow",` +
+      `"kind":"pdf","page":3,"exact":"A PDF quote.","rects":[]} -->\n\n^pdf001\n`;
+    expect(withoutHighlight({ text: pdf, id: 'pdf001', noteBlocks })).toBe(EMPTY);
+  });
+
+  it('does not make the note unreadable to a later append', () => {
+    const removed = removedFrom(sync(EMPTY, [kept, unwanted]), unwanted.quote);
+    expect(() => sync(removed, [kept, passage('A9', 'Fresh words.', 300)])).not.toThrow();
+  });
+});
