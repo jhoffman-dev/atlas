@@ -492,3 +492,35 @@ function occurrences(text: string, part: string): number {
   for (let at = text.indexOf(part); at !== -1; at = text.indexOf(part, at + 1)) count += 1;
   return count;
 }
+
+// Verification round 3 on PR #510: appending checks that what it wrote reads back
+// (ADR-0043 §5), but a comment edit does not, so a comment holding one `%%` opens an
+// Obsidian comment that hides every highlight after it, with no error.
+describe('a comment edit and the highlights after it (verify3, PR #510)', () => {
+  const marker = (page: number, exact: string) =>
+    highlightMarker({
+      style: { mark: 'highlight', color: 'yellow' },
+      anchor: {
+        kind: 'pdf',
+        page,
+        quote: { exact, prefix: '', suffix: '' },
+        rects: [{ x: 0.1, y: 0.1, width: 0.5, height: 0.02 }],
+      },
+    });
+  const TWO = `${PDF_NOTE}> One.\n> ${marker(1, 'One.')}\n\n^aaa111\n\n> Two.\n> ${marker(2, 'Two.')}\n\n^bbb222\n`;
+
+  /** The ids the note reads after the edit; a refused edit leaves the note as it was. */
+  function idsAfterEditing(comment: string): string[] {
+    let text = TWO;
+    try {
+      text = withHighlightComment({ text: TWO, id: 'aaa111', comment, noteBlocks });
+    } catch {
+      // Refusing the edit is a safe answer: the note is left as it was.
+    }
+    return readHighlights(text, noteBlocks).map((block) => block.id);
+  }
+
+  it('never makes another highlight unreadable', () => {
+    expect(idsAfterEditing('Up 50%% on the year.')).toEqual(['aaa111', 'bbb222']);
+  });
+});
