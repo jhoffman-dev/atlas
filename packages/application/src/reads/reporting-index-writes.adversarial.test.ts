@@ -20,6 +20,7 @@ const note = (path: string, extra: Partial<IndexedNote> = {}): IndexedNote => ({
   relations: [],
   blocks: [],
   checks: [],
+  highlights: [],
   progress: null,
   ...extra,
 });

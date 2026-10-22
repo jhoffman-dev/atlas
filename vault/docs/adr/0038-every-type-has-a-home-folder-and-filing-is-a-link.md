@@ -43,6 +43,7 @@ tool that lists it.
    | project (area and resource too, until #213)        | `Projects`             |
    | notes, and a plain note when it is tidied or filed | `Notes/{YYYY}`         |
    | proposal                                           | `Inbox/Proposals`      |
+   | literature (a PDF, EPUB or Kindle book, ADR-0043)  | `Library`              |
 
    A new note of a type with a home goes there whatever is open: the app's
    New, a view's "+ New", quick add, "New <type>", today's note, a promoted

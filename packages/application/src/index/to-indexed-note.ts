@@ -6,8 +6,10 @@ import {
   createWikiLinkResolver,
   declaresImport,
   digestOf,
+  highlightRows,
   importOutcomeOf,
   indexablePropertiesOf,
+  isLiteratureNote,
   linkLeaf,
   mayHoldBlockIds,
   mayHoldChecklist,
@@ -65,6 +67,9 @@ export function toIndexedNote({
       ranges: markdown.textRanges(document.body),
     }),
     ...readBlocks(document.body, markdown),
+    highlights: isLiteratureNote(frontmatter)
+      ? highlightRows(file.text, (text) => markdown.noteBlocks(text))
+      : [],
   };
 }
 

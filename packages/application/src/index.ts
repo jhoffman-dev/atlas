@@ -39,6 +39,7 @@ export * from './gtd/index.ts';
 export * from './para/index.ts';
 export * from './timeblocks/index.ts';
 export * from './checklists/index.ts';
+export * from './highlights/index.ts';
 export * from './review/index.ts';
 export * from './today/index.ts';
 export * from './pending/index.ts';

@@ -59,8 +59,10 @@ use crate::vault::VaultState;
 /// every note in it ahead of the notes that mention the project, and "md"
 /// matched every note. 18: a body link keeps the last part of its target as
 /// links fold it (`links.leaf`), indexed, so a refresh finds the links a note
-/// just made could mean (#431) by a lookup rather than a scan.
-const SCHEMA_VERSION: i64 = 18;
+/// just made could mean (#431) by a lookup rather than a scan. 19: every
+/// highlight in a literature note, which TypeScript reads, gained a row in
+/// `highlights` (#503, ADR-0043).
+const SCHEMA_VERSION: i64 = 19;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -129,6 +131,24 @@ pub struct IndexedBlock {
     pub text: String,
 }
 
+/// A highlight in a literature note, as TypeScript read it. What counts as one is decided there.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexedHighlight {
+    /// Its block id, `^id` in the note.
+    pub id: String,
+    /// `pdf`, `epub` or `kindle`.
+    pub kind: String,
+    /// The quoted words, without their markdown escapes.
+    pub quote: String,
+    /// The person's comment, as markdown.
+    pub comment: String,
+    pub mark: String,
+    pub color: String,
+    /// The marker's JSON: where the highlight is in its file, and its style.
+    pub anchor: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexedNote {
@@ -162,6 +182,8 @@ pub struct IndexedNote {
     /// How far through its checklist the note is, as TypeScript worked it out.
     #[serde(default)]
     pub progress: Option<i64>,
+    #[serde(default)]
+    pub highlights: Vec<IndexedHighlight>,
 }
 
 /// A checklist box (`- [ ]`), as TypeScript read it. What counts as one is decided there.
@@ -488,6 +510,20 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
             );
             CREATE INDEX IF NOT EXISTS checks_path ON checks(path);
 
+            CREATE TABLE IF NOT EXISTS highlights (
+                path    TEXT NOT NULL,
+                idx     INTEGER NOT NULL,
+                id      TEXT NOT NULL,
+                kind    TEXT NOT NULL,
+                quote   TEXT NOT NULL,
+                comment TEXT NOT NULL,
+                mark    TEXT NOT NULL,
+                color   TEXT NOT NULL,
+                anchor  TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS highlights_path ON highlights(path);
+            CREATE INDEX IF NOT EXISTS highlights_id ON highlights(id);
+
             CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
                 path,
                 title,
@@ -642,6 +678,9 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
         .execute("DELETE FROM checks WHERE path = ?1", params![note.path])
         .map_err(stringly)?;
     transaction
+        .execute("DELETE FROM highlights WHERE path = ?1", params![note.path])
+        .map_err(stringly)?;
+    transaction
         .execute(
             "INSERT INTO files (path, title, summary, modified, size, digest, note_type, progress)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -747,6 +786,26 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
             .map_err(stringly)?;
     }
 
+    for (position, highlight) in note.highlights.iter().enumerate() {
+        transaction
+            .execute(
+                "INSERT INTO highlights (path, idx, id, kind, quote, comment, mark, color, anchor)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    note.path,
+                    position as i64,
+                    highlight.id,
+                    highlight.kind,
+                    highlight.quote,
+                    highlight.comment,
+                    highlight.mark,
+                    highlight.color,
+                    highlight.anchor
+                ],
+            )
+            .map_err(stringly)?;
+    }
+
     Ok(())
 }
 
@@ -821,6 +880,7 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
                 "DELETE FROM relations WHERE src = ?1",
                 "DELETE FROM blocks WHERE path = ?1",
                 "DELETE FROM checks WHERE path = ?1",
+                "DELETE FROM highlights WHERE path = ?1",
             ] {
                 transaction
                     .execute(statement, params![path])
@@ -1276,6 +1336,7 @@ mod tests {
             blocks: Vec::new(),
             checks: Vec::new(),
             progress: None,
+            highlights: Vec::new(),
         }
     }
 
@@ -1547,6 +1608,109 @@ mod tests {
         first.blocks = vec![block("f3k9x2", "The plan")];
         put_notes(&mut index, &[first]).unwrap();
         let result = run_query(&index, "SELECT path, id FROM blocks", &[]).unwrap();
+        assert_eq!(result.rows.len(), 1);
+    }
+
+    fn highlight(id: &str, quote: &str) -> IndexedHighlight {
+        IndexedHighlight {
+            id: id.to_string(),
+            kind: "pdf".to_string(),
+            quote: quote.to_string(),
+            comment: String::new(),
+            mark: "highlight".to_string(),
+            color: "yellow".to_string(),
+            anchor: format!("{{\"v\":1,\"kind\":\"pdf\",\"page\":1,\"exact\":\"{quote}\"}}"),
+        }
+    }
+
+    fn highlight_rows(connection: &Connection) -> Vec<(String, i64, String, String)> {
+        connection
+            .prepare("SELECT path, idx, id, quote FROM highlights ORDER BY path, idx")
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn stores_each_highlight_typescript_read_in_order_with_every_column() {
+        let mut index = empty_index();
+        let mut first = note("Library/War.md", "War", "alpha");
+        let mut commented = highlight("k3x9q2", "All warfare");
+        commented.comment = "Key **line**.".to_string();
+        commented.kind = "epub".to_string();
+        commented.mark = "underline".to_string();
+        commented.color = "blue".to_string();
+        first.highlights = vec![commented, highlight("b2", "Know the enemy")];
+        put_notes(&mut index, &[first]).unwrap();
+        assert_eq!(
+            highlight_rows(&index),
+            vec![
+                row("Library/War.md", 0, "k3x9q2", "All warfare"),
+                row("Library/War.md", 1, "b2", "Know the enemy")
+            ]
+        );
+        let stored: (String, String, String, String, String) = index
+            .query_row(
+                "SELECT kind, comment, mark, color, anchor FROM highlights WHERE id = 'k3x9q2'",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            stored,
+            (
+                "epub".into(),
+                "Key **line**.".into(),
+                "underline".into(),
+                "blue".into(),
+                "{\"v\":1,\"kind\":\"pdf\",\"page\":1,\"exact\":\"All warfare\"}".into()
+            )
+        );
+    }
+
+    #[test]
+    fn replacing_or_removing_a_note_replaces_or_removes_its_highlights() {
+        let mut index = empty_index();
+        let mut first = note("a.md", "A", "alpha");
+        first.highlights = vec![highlight("old", "Old")];
+        let mut other = note("b.md", "B", "beta");
+        other.highlights = vec![highlight("kept", "Kept")];
+        put_notes(&mut index, &[first, other]).unwrap();
+        let mut second = note("a.md", "A", "alpha");
+        second.highlights = vec![highlight("new", "New")];
+        put_notes(&mut index, &[second]).unwrap();
+        assert_eq!(
+            highlight_rows(&index),
+            vec![row("a.md", 0, "new", "New"), row("b.md", 0, "kept", "Kept")]
+        );
+        remove_paths(&mut index, &["a.md".to_string()]).unwrap();
+        assert_eq!(highlight_rows(&index), vec![row("b.md", 0, "kept", "Kept")]);
+    }
+
+    #[test]
+    fn a_note_sent_without_highlights_has_none_and_they_read_through_the_read_only_path() {
+        let json = serde_json::json!({
+            "path": "a.md", "title": "A", "modified": 1, "size": 1, "body": "b"
+        });
+        let parsed: IndexedNote = serde_json::from_value(json).unwrap();
+        assert!(parsed.highlights.is_empty());
+        let mut index = empty_index();
+        let mut first = note("a.md", "A", "alpha");
+        first.highlights = vec![highlight("k3x9q2", "All warfare")];
+        put_notes(&mut index, &[first]).unwrap();
+        let result = run_query(&index, "SELECT path, id, quote FROM highlights", &[]).unwrap();
         assert_eq!(result.rows.len(), 1);
     }
 
@@ -2803,6 +2967,7 @@ ORDER BY m.type DESC, m.name, p.cid";
                 blocks: Vec::new(),
                 checks: Vec::new(),
                 progress: None,
+                highlights: Vec::new(),
             };
             note.links.clear();
             put_notes(&mut index, &[note]).unwrap();
