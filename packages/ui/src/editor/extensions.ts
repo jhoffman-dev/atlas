@@ -34,6 +34,7 @@ import { BlockEmbed, type TransclusionSource } from './block-embed.tsx';
 import type { BlockPicking } from './block-picking.ts';
 import { Bookmark, TopLevelDocument, type BookmarkSource } from './bookmark.tsx';
 import { LinkKeys } from './link-keys.ts';
+import { ControlKeys } from './control-keys.ts';
 import { EscapeUnused } from './escape-unused.ts';
 import { QueryBlock, type QueryBlockSource } from './query-block.tsx';
 import { Callout } from './callout.ts';
@@ -113,6 +114,7 @@ export function createEditorExtensions({
 }) {
   return [
     ...baseExtensions,
+    ControlKeys,
     RawBlock.configure({ readerLinks }),
     TagHighlight.configure({ onOpen: onOpenTag }),
     PersonChips.configure({ personFor: people.personFor }),

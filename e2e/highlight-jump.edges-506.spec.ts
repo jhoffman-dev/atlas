@@ -185,13 +185,29 @@ async function openLiteratureNote(page: Page) {
   return { vault, note: page.getByRole('article', { name: 'The Lantern Keepers' }), offer };
 }
 
+/** The literature note opened again from the sidebar, as it now is. */
+async function reopenLiteratureNote(page: Page) {
+  await sidebarSection(page, 'userSpace')
+    .getByRole('treeitem', { name: 'The Lantern Keepers', exact: true })
+    .click();
+  const note = page.getByRole('article', { name: 'The Lantern Keepers' });
+  await expect(note).toBeVisible();
+  return note;
+}
+
 // The note opens with its highlight block selected, as a note whose first block is one does.
+// The keys follow the link — ⇧↩ here, ⌘↩ in a new tab — so the note is opened again to look.
 for (const keys of ['Meta+Enter', 'Shift+Enter']) {
   test(`${keys} on "Open in PDF" leaves the highlight in its note`, async ({ page }) => {
-    const { note, offer } = await openLiteratureNote(page);
+    const { vault, offer } = await openLiteratureNote(page);
+    const before = await vault.read(LITERATURE);
     await offer.focus();
     await page.keyboard.press(keys);
+    await expect(reader(page)).toBeVisible();
+    const note = await reopenLiteratureNote(page);
     await expect(note.getByText('The last lamp was lit', { exact: false })).toHaveCount(1);
+    await expect(saveStatus(page)).toHaveText('Saved');
+    expect(await vault.read(LITERATURE)).toBe(before);
   });
 }
 
@@ -209,15 +225,9 @@ test('keys that edit text, pressed on "Open in PDF", leave the note as it is on 
   const { vault, note, offer } = await openLiteratureNote(page);
   const before = await vault.read(LITERATURE);
   await offer.focus();
-  for (const key of ['x', 'Backspace', 'Delete', 'Shift+Enter', 'Meta+Enter']) {
-    await page.keyboard.press(key);
-    // A key that follows the link leaves the note: back to it for the next.
-    if (key.endsWith('Enter')) {
-      await tabs(page).filter({ hasText: 'The Lantern Keepers' }).first().click();
-      await page.getByRole('link', { name: 'Open in PDF' }).focus();
-    }
-  }
+  for (const key of ['x', 'Backspace', 'Delete', 'Space']) await page.keyboard.press(key);
+  await expect(offer).toBeFocused();
   await expect(note.getByText('The last lamp was lit', { exact: false })).toHaveCount(1);
-  await expect(saveStatus(note)).toHaveText('Saved');
+  await expect(saveStatus(page)).toHaveText('Saved');
   expect(await vault.read(LITERATURE)).toBe(before);
 });

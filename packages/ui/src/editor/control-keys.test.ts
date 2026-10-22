@@ -56,7 +56,7 @@ const openInPdf = (instance: Editor): HTMLElement => {
 const KEY_CODES: Record<string, number> = { Enter: 13, Backspace: 8, Delete: 46, x: 88, ' ': 32 };
 
 function press(target: HTMLElement, key: string, modifiers: KeyboardEventInit = {}) {
-  const init = { key, keyCode: KEY_CODES[key], bubbles: true, cancelable: true, ...modifiers };
+  const init = { key, keyCode: KEY_CODES[key] ?? 0, bubbles: true, cancelable: true, ...modifiers };
   target.dispatchEvent(new KeyboardEvent('keydown', init));
   target.dispatchEvent(
     new KeyboardEvent('keypress', { ...init, charCode: key.length === 1 ? key.charCodeAt(0) : 0 }),
@@ -85,16 +85,31 @@ describe('a key pressed on "Open in PDF" in a selected highlight block', () => {
     });
   }
 
-  it('leaves Enter to the note to follow the link: it is not taken by the editor first', () => {
+  it('keeps Backspace from the browser, which would go Back, yet lets it reach what holds the editor', () => {
     const instance = literatureNote();
+    const reached: KeyboardEvent[] = [];
+    instance.view.dom.parentElement?.addEventListener('keydown', (event) => reached.push(event));
     const event = new KeyboardEvent('keydown', {
-      key: 'Enter',
-      keyCode: 13,
+      key: 'Backspace',
+      keyCode: 8,
       bubbles: true,
       cancelable: true,
     });
     openInPdf(instance).dispatchEvent(event);
-    // ProseMirror prevents every key it answers; one it never looked at is left as pressed.
+    expect(event.defaultPrevented).toBe(true);
+    expect(reached).toEqual([event]);
+  });
+
+  it('leaves a shortcut to the app: ⌘K is not prevented', () => {
+    const instance = literatureNote();
+    const event = new KeyboardEvent('keydown', {
+      key: 'k',
+      keyCode: 75,
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    openInPdf(instance).dispatchEvent(event);
     expect(event.defaultPrevented).toBe(false);
   });
 });
