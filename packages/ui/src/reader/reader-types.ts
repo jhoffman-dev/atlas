@@ -61,10 +61,15 @@ export interface MarkRequest {
   readonly comment?: string;
 }
 
+/**
+ * What the reader asks the note to do. A write answers whether the note took
+ * it: false is a write refused (and said by the reader's notice), so a form
+ * holding the person's words stays open for them to try again.
+ */
 export interface ReaderActions {
-  onHighlight(request: MarkRequest & { selection: TextSelection }): Promise<void>;
-  onHighlightArea(request: MarkRequest & { page: number; box: PageRect }): Promise<void>;
-  onEditComment(request: { id: string; comment: string }): Promise<void>;
-  onRemove(id: string): Promise<void>;
+  onHighlight(request: MarkRequest & { selection: TextSelection }): Promise<boolean>;
+  onHighlightArea(request: MarkRequest & { page: number; box: PageRect }): Promise<boolean>;
+  onEditComment(request: { id: string; comment: string }): Promise<boolean>;
+  onRemove(id: string): Promise<boolean>;
   onSearch(phrase: string): Promise<{ matches: readonly DocumentMatch[]; more: boolean }>;
 }

@@ -11,7 +11,7 @@ import type { ReaderDocument, ReaderOutlineEntry, ReaderPageSize } from './reade
 export type SidebarTab = 'outline' | 'pages';
 
 export interface ReaderSidebarProps {
-  readonly document: ReaderDocument;
+  readonly pdf: ReaderDocument;
   readonly outline: readonly ReaderOutlineEntry[] | null;
   readonly estimate: ReaderPageSize;
   readonly tab: SidebarTab;
@@ -88,11 +88,11 @@ function OutlineLevel({
 const THUMB_WIDTH = 112;
 const THUMB_GAP = 28;
 
-function Thumbnails({ document, estimate, currentPage, onGoTo }: ReaderSidebarProps) {
+function Thumbnails({ pdf, estimate, currentPage, onGoTo }: ReaderSidebarProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const height = (estimate.height / estimate.width) * THUMB_WIDTH;
   const rows = useVirtualizer({
-    count: document.pageCount,
+    count: pdf.pageCount,
     getScrollElement: () => scroller.current,
     estimateSize: () => height + THUMB_GAP,
     overscan: 3,
@@ -111,7 +111,7 @@ function Thumbnails({ document, estimate, currentPage, onGoTo }: ReaderSidebarPr
             onClick={() => onGoTo(row.index + 1)}
           >
             <Thumbnail
-              document={document}
+              pdf={pdf}
               page={row.index + 1}
               width={THUMB_WIDTH}
               height={height}
@@ -126,13 +126,13 @@ function Thumbnails({ document, estimate, currentPage, onGoTo }: ReaderSidebarPr
 }
 
 function Thumbnail({
-  document,
+  pdf,
   page,
   width,
   height,
   pageWidth,
 }: {
-  document: ReaderDocument;
+  pdf: ReaderDocument;
   page: number;
   width: number;
   height: number;
@@ -143,7 +143,7 @@ function Thumbnail({
   useEffect(() => {
     const target = canvas.current;
     if (target === null) return;
-    const drawing = document.drawPage({
+    const drawing = pdf.drawPage({
       page,
       canvas: target,
       scale: (width / pageWidth) * (globalThis.devicePixelRatio || 1),
@@ -153,6 +153,6 @@ function Thumbnail({
       () => undefined,
     );
     return () => drawing.cancel();
-  }, [document, page, width, pageWidth]);
+  }, [pdf, page, width, pageWidth]);
   return <canvas ref={canvas} className="pdf-thumb__canvas" style={{ width, height }} />;
 }

@@ -39,19 +39,25 @@ export function useAddPdf({
     async (files: readonly File[]) => {
       setAdding(true);
       setError(null);
-      const { appPdfReader } = await import('./app-pdf-reader.ts');
       const added: AddedPdf[] = [];
       const refused: string[] = [];
-      for (const file of files) {
-        try {
-          added.push(
-            await addPdfToLibrary({ fs, reader: appPdfReader }, { pdf: pickedPdf(file), folder }),
-          );
-        } catch (failure) {
-          refused.push(failure instanceof Error ? failure.message : String(failure));
+      try {
+        // Loading pdf.js can fail (the chunk missing, a flaky disk): that is said, and the dialog is usable again.
+        const { appPdfReader } = await import('./app-pdf-reader.ts');
+        for (const file of files) {
+          try {
+            added.push(
+              await addPdfToLibrary({ fs, reader: appPdfReader }, { pdf: pickedPdf(file), folder }),
+            );
+          } catch (failure) {
+            refused.push(messageOf(failure));
+          }
         }
+      } catch (failure) {
+        refused.push(`The PDF reader could not be loaded: ${messageOf(failure)}`);
+      } finally {
+        setAdding(false);
       }
-      setAdding(false);
       setError(refused.length === 0 ? null : refused.join(' '));
       if (added.length > 0) onAdded({ added, allAdded: refused.length === 0 });
     },
@@ -65,3 +71,5 @@ const pickedPdf = (file: File) => ({
   size: file.size,
   bytes: async () => new Uint8Array(await file.arrayBuffer()),
 });
+
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));

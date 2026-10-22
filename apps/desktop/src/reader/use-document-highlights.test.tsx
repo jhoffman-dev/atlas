@@ -36,7 +36,7 @@ const page = (text: string): PdfPageText =>
   ]);
 const PAGES = [page('A light kept is a promise kept.'), page('Fog came in from the north.')];
 
-const document = {
+const opened = {
   pageCount: PAGES.length,
   pageSize: async () => ({ width: 612, height: 792 }),
   pageText: async (at: number) => PAGES[at - 1] as PdfPageText,
@@ -92,8 +92,8 @@ function setUp({ dirty = false }: { dirty?: boolean } = {}) {
 
 function useTab(ports: DocumentPorts) {
   const note = useLiteratureNoteOf({ ports, vault: VAULT, pdf: PDF }) ?? null;
-  const highlights = usePlacedHighlights({ ports, vault: VAULT, note, document, generation: 1 });
-  const writes = useReaderWrites({ ports, vault: VAULT, note, pdf: PDF, document });
+  const { highlights } = usePlacedHighlights({ ports, vault: VAULT, note, opened, generation: 1 });
+  const writes = useReaderWrites({ ports, vault: VAULT, note, pdf: PDF, opened });
   return { note, highlights, ...writes };
 }
 
@@ -199,7 +199,7 @@ describe("a reader tab's literature note", () => {
 describe('the PDF a reader tab opens', () => {
   it('is opened from the vault’s bytes and closed when the tab goes', async () => {
     const close = vi.fn(async () => {});
-    const reader: PdfJsReader = { open: async () => ({ ...document, close }) };
+    const reader: PdfJsReader = { open: async () => ({ ...opened, close }) };
     const fs = fakeVaultFs({ readBinaryFile: async () => new ArrayBuffer(8) });
     const { result, unmount } = renderHook(() => useOpenPdf({ fs, reader, path: PDF }));
     expect(result.current.state).toBe('opening');

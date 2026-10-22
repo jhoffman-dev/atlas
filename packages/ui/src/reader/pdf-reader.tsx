@@ -39,7 +39,7 @@ export interface PdfReaderProps extends ReaderActions {
   readonly title: string;
   /** Where the file is: the breadcrumb's parent. */
   readonly folder: string;
-  readonly document: ReaderDocument;
+  readonly pdf: ReaderDocument;
   /** The first page's size, which every page has until its own is read. */
   readonly firstPageSize: ReaderPageSize;
   readonly outline: readonly ReaderOutlineEntry[] | null;
@@ -64,7 +64,7 @@ export function PdfReader(props: PdfReaderProps) {
   const [panelOpen, setPanelOpen] = useState(true);
   const pages = usePages({
     scroller,
-    count: props.document.pageCount,
+    count: props.pdf.pageCount,
     size: props.firstPageSize,
     zoom,
   });
@@ -91,7 +91,7 @@ export function PdfReader(props: PdfReaderProps) {
       <PageBar
         crumb={{ icon: 'doc', parent: props.folder }}
         name={props.title}
-        count={`${props.document.pageCount} ${props.document.pageCount === 1 ? 'page' : 'pages'}`}
+        count={`${props.pdf.pageCount} ${props.pdf.pageCount === 1 ? 'page' : 'pages'}`}
         actions={
           <ReaderActionsBar
             zoom={zoom}
@@ -118,7 +118,7 @@ export function PdfReader(props: PdfReaderProps) {
       <div className="pdf-reader" onKeyDown={find.onKeyDown}>
         {side !== null && (
           <ReaderSidebar
-            document={props.document}
+            pdf={props.pdf}
             outline={props.outline}
             estimate={props.firstPageSize}
             tab={side}
@@ -149,7 +149,7 @@ export function PdfReader(props: PdfReaderProps) {
                   style={{ transform: `translateY(${row.start + PAGE_GAP}px)` }}
                 >
                   <PdfPage
-                    document={props.document}
+                    pdf={props.pdf}
                     page={row.index + 1}
                     zoom={zoom}
                     estimate={props.firstPageSize}
@@ -369,15 +369,20 @@ function useMarking({
     });
   };
   const dismiss = () => setPopover(null);
-  const onMark = (request: MarkRequest) => {
+  const onMark = async (request: MarkRequest) => {
     const asked = popover;
-    setPopover(null);
-    globalThis.getSelection?.()?.removeAllRanges();
     if (asked === null) return;
-    // A refused write is said by the container's notice; the popover is gone either way.
-    void (asked.kind === 'words'
+    const finish = () => {
+      setPopover(null);
+      globalThis.getSelection?.()?.removeAllRanges();
+    };
+    // Colours and underlines hold nothing to lose: gone at once, a refusal said by the container's notice.
+    if (request.comment === undefined) finish();
+    const taken = await (asked.kind === 'words'
       ? props.onHighlight({ ...request, selection: asked.selection })
       : props.onHighlightArea({ ...request, page: asked.page, box: asked.box }));
+    // A comment is the person's own words: the popover keeps them until the note has taken them.
+    if (taken) finish();
   };
   return { popover, onSelectionEnd, onAreaDrawn, dismiss, onMark };
 }

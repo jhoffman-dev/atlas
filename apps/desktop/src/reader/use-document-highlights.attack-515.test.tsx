@@ -33,7 +33,7 @@ const PAGE: PdfPageText = pdfPageText([
   },
 ]);
 
-const document = {
+const opened = {
   pageCount: 1,
   pageSize: async () => ({ width: 612, height: 792 }),
   pageText: async () => PAGE,
@@ -90,8 +90,8 @@ function setUp() {
 
 function useTab(ports: DocumentPorts) {
   const note = useLiteratureNoteOf({ ports, vault: VAULT, pdf: PDF }) ?? null;
-  const highlights = usePlacedHighlights({ ports, vault: VAULT, note, document, generation: 1 });
-  const writes = useReaderWrites({ ports, vault: VAULT, note, pdf: PDF, document });
+  const { highlights } = usePlacedHighlights({ ports, vault: VAULT, note, opened, generation: 1 });
+  const writes = useReaderWrites({ ports, vault: VAULT, note, pdf: PDF, opened });
   return { note, highlights, ...writes };
 }
 
@@ -102,7 +102,7 @@ function Tab({ ports }: { ports: DocumentPorts }) {
       {...actions}
       title="The Lantern Keepers.pdf"
       folder="Library"
-      document={document}
+      pdf={opened}
       firstPageSize={{ width: 612, height: 792 }}
       outline={[]}
       highlights={highlights}

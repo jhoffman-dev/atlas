@@ -12,7 +12,7 @@ import type { PdfJsDocument, PdfJsReader } from '@dfai/adapters/pdf';
 
 export type OpenPdf =
   | { readonly state: 'opening' }
-  | { readonly state: 'open'; readonly document: PdfJsDocument; readonly generation: number }
+  | { readonly state: 'open'; readonly opened: PdfJsDocument; readonly generation: number }
   | { readonly state: 'failed'; readonly message: string };
 
 let generations = 0;
@@ -29,16 +29,16 @@ export function useOpenPdf({
   const [open, setOpen] = useState<OpenPdf>({ state: 'opening' });
   useEffect(() => {
     let live = true;
-    let opened: PdfJsDocument | null = null;
+    let holding: PdfJsDocument | null = null;
     setOpen({ state: 'opening' });
     fs.readBinaryFile(path)
       .then((bytes) => reader.open(new Uint8Array(bytes)))
       .then(
-        (document) => {
-          opened = document;
-          if (!live) return void document.close();
+        (opened) => {
+          holding = opened;
+          if (!live) return void opened.close();
           generations += 1;
-          setOpen({ state: 'open', document, generation: generations });
+          setOpen({ state: 'open', opened, generation: generations });
         },
         (error: unknown) =>
           live &&
@@ -47,7 +47,7 @@ export function useOpenPdf({
     return () => {
       live = false;
       // Closing is pdf.js letting the worker's copy go; a failure there leaves nothing to tidy.
-      void opened?.close().catch(() => undefined);
+      void holding?.close().catch(() => undefined);
     };
   }, [fs, reader, path]);
   return open;

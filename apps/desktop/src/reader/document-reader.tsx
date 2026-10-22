@@ -48,28 +48,26 @@ export function DocumentReader(props: DocumentReaderProps) {
       </PageFrameFallback>
     );
   }
-  return <OpenDocument {...props} document={open.document} generation={open.generation} />;
+  return <OpenDocument {...props} opened={open.opened} generation={open.generation} />;
 }
 
-function OpenDocument(
-  props: DocumentReaderProps & { document: PdfJsDocument; generation: number },
-) {
-  const { ports, vault, path, document, generation } = props;
+function OpenDocument(props: DocumentReaderProps & { opened: PdfJsDocument; generation: number }) {
+  const { ports, vault, path, opened, generation } = props;
   // Undefined while it is looked for: not yet "no note", so nothing is said and nothing marked.
   const found = useLiteratureNoteOf({ ports, vault, pdf: path });
   const note = found ?? null;
-  const highlights = usePlacedHighlights({ ports, vault, note, document, generation });
-  const { actions, notice } = useReaderWrites({ ports, vault, note, pdf: path, document });
-  const firstPageSize = useFirstPageSize(document);
-  const outline = useOutline(document);
-  const shownDocument = useMemo(
+  const placed = usePlacedHighlights({ ports, vault, note, opened, generation });
+  const { actions, notice } = useReaderWrites({ ports, vault, note, pdf: path, opened });
+  const firstPageSize = useFirstPageSize(opened);
+  const outline = useOutline(opened);
+  const shown = useMemo(
     () => ({
-      pageCount: document.pageCount,
-      pageSize: (page: number) => document.pageSize(page),
-      pageText: (page: number) => document.pageText(page),
-      drawPage: document.drawPage,
+      pageCount: opened.pageCount,
+      pageSize: (page: number) => opened.pageSize(page),
+      pageText: (page: number) => opened.pageText(page),
+      drawPage: opened.drawPage,
     }),
-    [document],
+    [opened],
   );
   if (firstPageSize === null) return null;
   return (
@@ -77,12 +75,12 @@ function OpenDocument(
       {...actions}
       title={vaultPathName(path)}
       folder={parentVaultPath(path) || 'Vault'}
-      document={shownDocument}
+      pdf={shown}
       firstPageSize={firstPageSize}
       outline={outline}
-      highlights={highlights}
+      highlights={placed.highlights}
       reveal={props.reveal}
-      notice={notice ?? (found === null ? NO_NOTE : null)}
+      notice={notice ?? placed.notice ?? (found === null ? NO_NOTE : null)}
       onOpenNote={note === null ? null : () => props.onOpenNote(note)}
       {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
       {...(props.history !== undefined && { history: props.history })}
@@ -97,11 +95,11 @@ const NO_NOTE =
 /** US Letter, for the moment before the first page's own size is read. */
 const LETTER: ReaderPageSize = { width: 612, height: 792 };
 
-function useFirstPageSize(document: PdfJsDocument): ReaderPageSize | null {
+function useFirstPageSize(opened: PdfJsDocument): ReaderPageSize | null {
   const [size, setSize] = useState<ReaderPageSize | null>(null);
   useEffect(() => {
     let live = true;
-    document.pageSize(1).then(
+    opened.pageSize(1).then(
       (read) => live && setSize(read),
       // A first page that cannot be measured is drawn as a Letter page: it still reads.
       () => live && setSize(LETTER),
@@ -109,15 +107,15 @@ function useFirstPageSize(document: PdfJsDocument): ReaderPageSize | null {
     return () => {
       live = false;
     };
-  }, [document]);
+  }, [opened]);
   return size;
 }
 
-function useOutline(document: PdfJsDocument): readonly PdfOutlineEntry[] | null {
+function useOutline(opened: PdfJsDocument): readonly PdfOutlineEntry[] | null {
   const [outline, setOutline] = useState<readonly PdfOutlineEntry[] | null>(null);
   useEffect(() => {
     let live = true;
-    document.outline().then(
+    opened.outline().then(
       (read) => live && setOutline(read),
       // An outline that cannot be read is shown as none: the pages are still there to go to.
       () => live && setOutline([]),
@@ -125,6 +123,6 @@ function useOutline(document: PdfJsDocument): readonly PdfOutlineEntry[] | null 
     return () => {
       live = false;
     };
-  }, [document]);
+  }, [opened]);
   return outline;
 }

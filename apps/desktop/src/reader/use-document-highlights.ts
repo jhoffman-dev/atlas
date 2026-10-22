@@ -85,28 +85,34 @@ export function usePlacedHighlights({
   ports,
   vault,
   note,
-  document,
+  opened,
   generation,
 }: {
   ports: DocumentPorts;
   vault: string;
   note: VaultPath | null;
-  document: PdfJsDocument;
+  opened: PdfJsDocument;
   generation: number;
-}): readonly ReaderHighlight[] {
-  const highlights = useNoteHighlights({ ports, vault, note }).data ?? NONE;
+}): { readonly highlights: readonly ReaderHighlight[]; readonly notice: string | null } {
+  const read = useNoteHighlights({ ports, vault, note });
+  const highlights = read.data ?? NONE;
   const signature = useMemo(() => highlights.map(signatureOf).join('\n'), [highlights]);
-  const { data } = useQuery({
+  const placements = useQuery({
     // The open document is this tab's own, told apart by when it was opened.
     queryKey: scopedReadKey(vault, 'pdf-placements', note, generation, signature),
-    queryFn: () => placeHighlights({ document, blocks: highlights }),
+    queryFn: () => placeHighlights({ opened, blocks: highlights }),
     meta: scopedReadMeta({ notes: note === null ? [] : [note] }),
     enabled: highlights.length > 0,
   });
-  return useMemo(
-    () => (highlights.length === 0 ? [] : (data ?? []).map(shownHighlight)),
-    [data, highlights],
+  const shown = useMemo(
+    () => (highlights.length === 0 ? [] : (placements.data ?? []).map(shownHighlight)),
+    [placements.data, highlights],
   );
+  const failure = read.error ?? placements.error;
+  return {
+    highlights: shown,
+    notice: failure === null ? null : `The highlights could not be shown: ${messageOf(failure)}`,
+  };
 }
 
 const NONE: readonly HighlightBlock[] = [];
@@ -128,24 +134,26 @@ export function useReaderWrites({
   vault,
   note,
   pdf,
-  document,
+  opened,
 }: {
   ports: DocumentPorts;
   vault: string;
   note: VaultPath | null;
   pdf: VaultPath;
-  document: PdfJsDocument;
+  opened: PdfJsDocument;
 }): { actions: ReaderActions; notice: string | null } {
   const client = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
   const writing = useCallback(
-    async (write: (note: VaultPath, ports: WritePorts) => Promise<unknown>) => {
-      if (note === null) return;
+    async (write: (note: VaultPath, ports: WritePorts) => Promise<unknown>): Promise<boolean> => {
+      if (note === null) return false;
       try {
         await write(note, { ...ports, rng: cryptoRng });
         setNotice(null);
+        return true;
       } catch (error) {
         setNotice(messageOf(error));
+        return false;
       } finally {
         await client.invalidateQueries({
           queryKey: scopedReadKey(vault, 'literature-highlights', note),
@@ -162,7 +170,7 @@ export function useReaderWrites({
           highlightSelection(write, {
             note: path,
             selection,
-            page: await document.pageText(selection.page),
+            page: await opened.pageText(selection.page),
             style,
             ...(comment !== undefined && { comment }),
           }),
@@ -174,7 +182,7 @@ export function useReaderWrites({
             pdf,
             page,
             box,
-            picture: () => document.pictureOf({ page, box, scale: 2 }),
+            picture: () => opened.pictureOf({ page, box, scale: 2 }),
             placement: browserImagePlacementStore.read(),
             style,
             ...(comment !== undefined && { comment }),
@@ -183,9 +191,9 @@ export function useReaderWrites({
       onEditComment: ({ id, comment }) =>
         writing((path, write) => editHighlightComment(write, { path, id, comment })),
       onRemove: (id) => writing((path, write) => removeHighlight(write, { path, id })),
-      onSearch: async (phrase) => findInDocument(await allPageTexts(document), phrase),
+      onSearch: async (phrase) => findInDocument(await allPageTexts(opened), phrase),
     }),
-    [document, pdf, writing],
+    [opened, pdf, writing],
   );
   return { actions, notice };
 }

@@ -48,24 +48,29 @@ const HIGHLIGHT: ReaderHighlight = {
   quote: 'A light kept',
   comment: 'Said twice.',
   style: { mark: 'highlight', color: 'green' },
-  placement: { kind: 'words', page: 1, rects: [{ x: 0.1, y: 0.13, width: 0.12, height: 0.02 }] },
+  placement: {
+    kind: 'words',
+    page: 1,
+    at: 0,
+    rects: [{ x: 0.1, y: 0.13, width: 0.12, height: 0.02 }],
+  },
 };
 
 function reader(overrides: Partial<PdfReaderProps> = {}) {
   const props: PdfReaderProps = {
     title: 'The Lantern Keepers.pdf',
     folder: 'Library',
-    document: fakeDocument(),
+    pdf: fakeDocument(),
     firstPageSize: { width: 612, height: 792 },
     outline: [{ title: 'Chapter Two', page: 2, children: [] }],
     highlights: [HIGHLIGHT],
     reveal: null,
     notice: null,
     onOpenNote: vi.fn(),
-    onHighlight: vi.fn(async () => {}),
-    onHighlightArea: vi.fn(async () => {}),
-    onEditComment: vi.fn(async () => {}),
-    onRemove: vi.fn(async () => {}),
+    onHighlight: vi.fn(async () => true),
+    onHighlightArea: vi.fn(async () => true),
+    onEditComment: vi.fn(async () => true),
+    onRemove: vi.fn(async () => true),
     onSearch: vi.fn(async () => ({ matches: [], more: false })),
     ...overrides,
   };
@@ -101,12 +106,12 @@ async function select(page: number, words: string) {
 
 describe('the PDF reader', () => {
   it('draws only the pages near the screen, with their words to select', async () => {
-    const document = fakeDocument(Array.from({ length: 500 }, (_, at) => lines(`Page ${at + 1}.`)));
-    reader({ document });
+    const pdf = fakeDocument(Array.from({ length: 500 }, (_, at) => lines(`Page ${at + 1}.`)));
+    reader({ pdf });
     expect(await screen.findByText('Page 1.')).toBeTruthy();
     expect(screen.getByText('500 pages')).toBeTruthy();
-    expect(document.drawn.length).toBeGreaterThan(0);
-    expect(document.drawn.length).toBeLessThan(8);
+    expect(pdf.drawn.length).toBeGreaterThan(0);
+    expect(pdf.drawn.length).toBeLessThan(8);
   });
 
   it('offers a highlight for selected words and hands over where they are on their page', async () => {
@@ -138,6 +143,29 @@ describe('the PDF reader', () => {
         style: { mark: 'highlight', color: 'yellow' },
       }),
     );
+  });
+
+  it('keeps the comment typed in the popover when the note refuses it, and closes once it is taken', async () => {
+    const onHighlight = vi.fn(async () => false);
+    reader({ onHighlight });
+    await select(2, 'Fog came');
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Comment' }), 'Spring fog.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save comment' }));
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty('value', 'Spring fog.');
+    onHighlight.mockResolvedValueOnce(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Save comment' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('toolbar', { name: 'Mark the selection' })).toBeNull(),
+    );
+  });
+
+  it('keeps the comment edited in the panel when the note refuses it', async () => {
+    reader({ onEditComment: vi.fn(async () => false) });
+    await userEvent.click(screen.getByRole('button', { name: /comment/i }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Comment' }), ' More.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toBeTruthy();
   });
 
   it('offers nothing to mark when the PDF has no literature note', async () => {
@@ -246,8 +274,8 @@ describe('the highlights panel', () => {
       highlights,
       flashing: null,
       onShow: vi.fn(),
-      onEditComment: vi.fn(async () => {}),
-      onRemove: vi.fn(async () => {}),
+      onEditComment: vi.fn(async () => true),
+      onRemove: vi.fn(async () => true),
     };
     render(<HighlightsPanel {...props} />);
     return props;

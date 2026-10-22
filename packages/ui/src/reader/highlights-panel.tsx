@@ -14,8 +14,8 @@ export interface HighlightsPanelProps {
   /** The one just asked for, lit for a moment. */
   readonly flashing: string | null;
   readonly onShow: (id: string) => void;
-  readonly onEditComment: (request: { id: string; comment: string }) => Promise<void>;
-  readonly onRemove: (id: string) => Promise<void>;
+  readonly onEditComment: (request: { id: string; comment: string }) => Promise<boolean>;
+  readonly onRemove: (id: string) => Promise<boolean>;
 }
 
 export function HighlightsPanel(props: HighlightsPanelProps) {
@@ -66,8 +66,8 @@ function HighlightEntry({
         <CommentForm
           comment={highlight.comment}
           onSave={async (comment) => {
-            await onEditComment({ id: highlight.id, comment });
-            setEditing(false);
+            // A refused save leaves the form open with what was typed.
+            if (await onEditComment({ id: highlight.id, comment })) setEditing(false);
           }}
           onCancel={() => setEditing(false)}
         />
@@ -134,7 +134,7 @@ function CommentForm({
         event.preventDefault();
         setSaving(true);
         // A refused save is said by the reader's notice; the form stays open to try again.
-        onSave(text).finally(() => setSaving(false));
+        void onSave(text).finally(() => setSaving(false));
       }}
     >
       <textarea

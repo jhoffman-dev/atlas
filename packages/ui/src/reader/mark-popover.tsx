@@ -14,7 +14,8 @@ export interface MarkPopoverProps {
   readonly at: { readonly left: number; readonly top: number };
   /** False for an area of a scanned page, which is only ever a highlight. */
   readonly canUnderline: boolean;
-  readonly onMark: (request: MarkRequest) => void;
+  /** A mark with a comment answers whether the note took it: the comment stays to be saved again when it did not. */
+  readonly onMark: (request: MarkRequest) => void | Promise<unknown>;
   readonly onDismiss: () => void;
 }
 

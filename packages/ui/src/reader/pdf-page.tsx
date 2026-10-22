@@ -16,7 +16,7 @@ import type { ReaderDocument, ReaderHighlight, ReaderPageSize } from './reader-t
  */
 
 export interface PdfPageProps {
-  readonly document: ReaderDocument;
+  readonly pdf: ReaderDocument;
   readonly page: number;
   readonly zoom: number;
   /** The page's size while its own is read: the document's first page's. */
@@ -35,9 +35,9 @@ export interface PdfPageProps {
 }
 
 export const PdfPage = memo(function PdfPage(props: PdfPageProps) {
-  const { document, page, zoom } = props;
-  const size = usePageSize(document, page) ?? props.estimate;
-  const text = usePageText(document, page);
+  const { pdf, page, zoom } = props;
+  const size = usePageSize(pdf, page) ?? props.estimate;
+  const text = usePageText(pdf, page);
   const width = size.width * zoom;
   const height = size.height * zoom;
   const scanned = text !== null && !hasWords(text);
@@ -50,7 +50,7 @@ export const PdfPage = memo(function PdfPage(props: PdfPageProps) {
       role="region"
       style={{ width, height }}
     >
-      <PageCanvas document={document} page={page} zoom={zoom} width={width} height={height} />
+      <PageCanvas pdf={pdf} page={page} zoom={zoom} width={width} height={height} />
       {text !== null && <TextLayer text={text} width={width} height={height} />}
       <Marks {...props} />
       {scanned && <AreaLayer page={page} onAreaDrawn={props.onAreaDrawn} />}
@@ -58,11 +58,11 @@ export const PdfPage = memo(function PdfPage(props: PdfPageProps) {
   );
 });
 
-function usePageSize(document: ReaderDocument, page: number): ReaderPageSize | null {
+function usePageSize(pdf: ReaderDocument, page: number): ReaderPageSize | null {
   const [size, setSize] = useState<ReaderPageSize | null>(null);
   useEffect(() => {
     let live = true;
-    document.pageSize(page).then(
+    pdf.pageSize(page).then(
       (read) => live && setSize(read),
       // The first page's size stands in: the page still draws, only perhaps at the wrong height.
       () => undefined,
@@ -70,15 +70,15 @@ function usePageSize(document: ReaderDocument, page: number): ReaderPageSize | n
     return () => {
       live = false;
     };
-  }, [document, page]);
+  }, [pdf, page]);
   return size;
 }
 
-function usePageText(document: ReaderDocument, page: number): PdfPageText | null {
+function usePageText(pdf: ReaderDocument, page: number): PdfPageText | null {
   const [text, setText] = useState<PdfPageText | null>(null);
   useEffect(() => {
     let live = true;
-    document.pageText(page).then(
+    pdf.pageText(page).then(
       (read) => live && setText(read),
       // A page whose words cannot be read is still drawn; it only has nothing to select.
       () => live && setText({ text: '', runs: [] }),
@@ -86,18 +86,18 @@ function usePageText(document: ReaderDocument, page: number): PdfPageText | null
     return () => {
       live = false;
     };
-  }, [document, page]);
+  }, [pdf, page]);
   return text;
 }
 
 function PageCanvas({
-  document,
+  pdf,
   page,
   zoom,
   width,
   height,
 }: {
-  document: ReaderDocument;
+  pdf: ReaderDocument;
   page: number;
   zoom: number;
   width: number;
@@ -108,7 +108,7 @@ function PageCanvas({
   useEffect(() => {
     const target = canvas.current;
     if (target === null) return;
-    const drawing = document.drawPage({
+    const drawing = pdf.drawPage({
       page,
       canvas: target,
       scale: zoom * (globalThis.devicePixelRatio || 1),
@@ -123,7 +123,7 @@ function PageCanvas({
       live = false;
       drawing.cancel();
     };
-  }, [document, page, zoom]);
+  }, [pdf, page, zoom]);
   return (
     <>
       <canvas ref={canvas} className="pdf-page__canvas" style={{ width, height }} />
