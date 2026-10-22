@@ -21,6 +21,7 @@ export {
 } from '@dfai/ui';
 export { GoogleCalendarSettingsCard } from './settings/google-calendar-settings-card.tsx';
 export { GranolaSettingsCard } from './settings/granola-settings-card.tsx';
+export { KindleSettingsCard } from './settings/kindle-settings-card.tsx';
 export { ImageSettingsPanel } from './settings/image-settings-panel.tsx';
 export { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 export { QuickAddSettingsCard } from './quick-add/quick-add-settings-card.tsx';

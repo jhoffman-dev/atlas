@@ -203,6 +203,7 @@ import {
   GoogleCalendarSettingsCard,
   GranolaSettingsCard,
   ImageSettingsPanel,
+  KindleSettingsCard,
   ProfileSettingsCard,
   QuickAddSettingsCard,
   SecretsSettingsCard,
@@ -257,6 +258,9 @@ import type { SourcePorts } from './sources/source-ports.ts';
 import { useGoogleCalendar } from './settings/use-google-calendar.ts';
 import { useGranola } from './settings/use-granola.ts';
 import { useGranolaPull } from './granola/use-granola-pull.ts';
+import { useKindleSync, type KindleHost } from './kindle/use-kindle-sync.ts';
+import { NO_KINDLE } from './kindle/no-kindle.ts';
+import { paletteKindleCommands, runPaletteKindleCommand } from './kindle/palette-kindle.ts';
 import { useSecrets } from './settings/use-secrets.ts';
 import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
 import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
@@ -406,6 +410,7 @@ function AppWindow({
   sync: syncPorts,
   googleCalendar,
   granola: granolaPorts,
+  kindle: kindlePorts,
   globalCapture: globalCapturePorts,
   exporting: exportPorts,
 }: {
@@ -430,6 +435,8 @@ function AppWindow({
   googleCalendar: GoogleCalendarPort;
   /** Granola, through the host, which keeps the key (ADR-0034), and this Mac's record of each vault's pulls. */
   granola: { port: GranolaPort; records: GranolaPullRecords };
+  /** Kindle through the host's own Amazon session (ADR-0044), and the app's one sync; left out, Kindle is not offered. */
+  kindle?: KindleHost;
   /** The shortcut that opens quick capture from any app, registered by the host (#81). */
   globalCapture: { port: GlobalCapturePort; store: GlobalCaptureStore };
   /** Where exports go, how a PDF is made and how a Doc reaches Drive (#501); left out, nothing is exported. */
@@ -672,6 +679,20 @@ function AppWindow({
     activity: activityLog,
     onWrote: onChanged,
   });
+  // Kindle's highlights into literature notes (#508): once the index is ready, every four hours, and on asking.
+  const kindleOpenNotes = useMemo(() => openNotesIn(editors), [editors]);
+  const kindleSync = useKindleSync({
+    kindle: kindlePorts ?? NO_KINDLE,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    index: index.index,
+    openNotes: kindleOpenNotes,
+    rng: cryptoRng,
+    clock: localClock,
+    vaultKey,
+    indexReady,
+    onWrote: onChanged,
+  });
 
   const thumbnails = useThumbnailQueue({ notes, snapshot, editors, types, onChanged });
   const thumbnailsNow = useThumbnailsNow(thumbnails);
@@ -763,6 +784,9 @@ function AppWindow({
     ...(exportPorts === undefined
       ? []
       : paletteExportCommands(focused?.kind === 'note' ? focused.path : null)),
+    ...(kindlePorts === undefined || location === null
+      ? []
+      : paletteKindleCommands(kindleSync.view.connected)),
   ]);
   const paletteOffersFor = useCallback(
     (query: string) => [...paletteOffers(query), ...paletteEditTypeOffers(types, query)],
@@ -1831,6 +1855,7 @@ function AppWindow({
     ) {
       return;
     }
+    if (runPaletteKindleCommand(id, kindleSync)) return;
     // A command that goes somewhere leaves the peek first, so where it went is on screen.
     leavingPeekFor(() => runPlaceCommand(id, pasted));
   });
@@ -1841,6 +1866,14 @@ function AppWindow({
       : replacePeek(overlays, createVaultPath(path)),
   );
 
+  const kindleShown = kindleSync.toastShown;
+  const kindleToast = kindleSync.toast !== null && (
+    <Toast
+      key={`kindle-${kindleShown}`}
+      message={kindleSync.toast}
+      onDismiss={() => kindleSync.dismissToast(kindleShown)}
+    />
+  );
   const granolaShown = granolaPull.toastShown;
   const granolaToast = granolaPull.toast !== null && (
     <Toast
@@ -1848,6 +1881,13 @@ function AppWindow({
       message={granolaPull.toast}
       onDismiss={() => granolaPull.dismissToast(granolaShown)}
     />
+  );
+  // One child, `false` with no toast up, so the toast host is not drawn again with the window.
+  const connectionToasts = (granolaToast !== false || kindleToast !== false) && (
+    <>
+      {granolaToast}
+      {kindleToast}
+    </>
   );
 
   // The panes' wiring that changes only with what it holds, so a window
@@ -2088,7 +2128,7 @@ function AppWindow({
             <>
               {notices}
               <ToastHost toasts={toasts} activity={activityLog} vault={vaultKey}>
-                {granolaToast}
+                {connectionToasts}
               </ToastHost>
             </>
           }
@@ -2226,6 +2266,9 @@ function AppWindow({
                   <GoogleCalendarSettingsCard setting={googleCalendarSetting} />
                 )}
                 {location !== null && <GranolaSettingsCard setting={granolaSetting} />}
+                {location !== null && kindlePorts !== undefined && (
+                  <KindleSettingsCard kindle={kindleSync} />
+                )}
                 <ClaudeSettingsCard chat={chat} />
                 {location !== null && (
                   <SyncSettingsSlot store={syncStore}>

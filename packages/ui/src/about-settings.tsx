@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { AppInfo } from '@dfai/domain';
 import { SettingsSection } from './settings-section.tsx';
 import { SETTINGS_SECTIONS } from './settings-section-links.ts';
@@ -7,8 +8,11 @@ export type AppInfoState =
   | { readonly kind: 'ready'; readonly info: AppInfo }
   | { readonly kind: 'failed'; readonly message: string };
 
-/** The About part of Settings: which version this is, and the commit it was built from (#481). */
-export function AboutSettings({ app }: { app: AppInfoState }) {
+/**
+ * The About part of Settings: which version this is, and the commit it was built from (#481).
+ * Drawn again only when what it shows changes, not each time the window is.
+ */
+export const AboutSettings = memo(function AboutSettings({ app }: { app: AppInfoState }) {
   return (
     <SettingsSection section={SETTINGS_SECTIONS.about}>
       {app.kind === 'ready' && (
@@ -26,4 +30,4 @@ export function AboutSettings({ app }: { app: AppInfoState }) {
       )}
     </SettingsSection>
   );
-}
+});

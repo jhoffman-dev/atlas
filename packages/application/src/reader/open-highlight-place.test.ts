@@ -2,12 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createVaultPath,
   highlightMarker,
+  kindleHighlightKey,
+  withKindleHighlights,
   literatureNoteText,
   type HighlightAnchor,
+  type KindleHighlight,
   type LiteratureNote,
   type VaultEntry,
   type VaultPath,
 } from '@dfai/domain';
+import { lineNoteBlocks } from '@dfai/domain/testing';
 import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
 import { memoryFiles, readerMarkdown } from '../testing/fake-reader.ts';
 import { createTransclusionReader } from '../transclusion/read-transclusions.ts';
@@ -106,6 +110,67 @@ describe('where following a block of a note leads', () => {
       note: missing,
       blockId: 'k3x9q2',
     });
+  });
+});
+
+/** A Kindle literature note as a Kindle sync writes it (#508), with one passage. */
+function syncedKindleNote(): { text: string; id: string } {
+  const asin = 'B0FICTION1';
+  const passage: KindleHighlight = {
+    key: kindleHighlightKey({
+      asin,
+      annotationId: 'ann-1',
+      location: 41,
+      words: 'The tide kept time.',
+    }),
+    asin,
+    annotationId: 'ann-1',
+    style: 'highlight',
+    colour: 'yellow',
+    quote: 'The tide kept time.',
+    note: null,
+    location: 41,
+    page: null,
+    commentOn: null,
+  };
+  const empty = literatureNoteText({
+    kind: 'kindle',
+    title: 'Saltmarsh',
+    author: 'Ida Wren',
+    asin,
+    file: null,
+  });
+  let state = 7;
+  const random = () => (state = (state * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+  const write = withKindleHighlights({
+    text: empty,
+    asin,
+    highlights: [passage],
+    random,
+    noteBlocks: lineNoteBlocks,
+  });
+  const id = /\^([a-z0-9]{6})\s*$/m.exec(write.text)?.[1];
+  if (id === undefined) throw new Error('the sync wrote no block id');
+  return { text: write.text, id };
+}
+
+describe('a highlight a Kindle sync wrote', () => {
+  it('opens its note at its block, never a reader', async () => {
+    const path = createVaultPath('Library/Saltmarsh.md');
+    const { text, id } = syncedKindleNote();
+    const synced = { fs: memoryFiles({ [path]: text }).fs, markdown: readerMarkdown() };
+    expect(await whereHighlightOpens(synced, { note: path, blockId: id })).toEqual({
+      kind: 'note',
+      note: path,
+      blockId: id,
+    });
+    const opens = {
+      openDocument: vi.fn<HighlightPlaceOpener['openDocument']>(),
+      openNote: vi.fn<HighlightPlaceOpener['openNote']>(),
+    };
+    await openHighlightPlace({ ...synced, opener: opens }, { note: path, highlightId: id });
+    expect(opens.openNote).toHaveBeenCalledWith({ path, blockId: id });
+    expect(opens.openDocument).not.toHaveBeenCalled();
   });
 });
 

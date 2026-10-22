@@ -13,6 +13,7 @@ mod google;
 mod granola;
 mod http;
 mod index;
+mod kindle;
 mod model_http;
 mod model_process;
 mod navigation;
@@ -95,6 +96,9 @@ pub fn run() {
             granola::granola_set_key,
             granola::granola_forget_key,
             granola::granola_request,
+            kindle::kindle_connect,
+            kindle::kindle_disconnect,
+            kindle::kindle_fetch_notebook,
             sqlite_source::sqlite_source_query,
             sqlite_source::pick_sqlite_file,
             vault::pick_vault,

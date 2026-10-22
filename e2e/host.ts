@@ -488,6 +488,23 @@ export interface FakeHost {
     requests(): readonly { path: string; query: Readonly<Record<string, string>> }[];
   };
   /**
+   * Kindle, as `kindle.rs` answers for it (#508): Connect makes the session
+   * at once (the sign-in window, its own WebKit store and the hidden window
+   * are AppKit's and checked by hand), Disconnect deletes it, and each
+   * notebook fetch is answered with the page served for its address: the
+   * library, or a book's annotations by ASIN and next-page token (`''` for
+   * the first). With no session a fetch is refused as `not_connected`; after
+   * `signOut` every page is Amazon's sign-in, as a lapsed session is sent.
+   */
+  readonly kindle: {
+    serveLibrary(html: string): void;
+    serveAnnotations(asin: string, token: string, html: string): void;
+    signOut(): void;
+    connected(): boolean;
+    /** Every address the app asked the host to fetch, in order. */
+    fetches(): readonly string[];
+  };
+  /**
    * The global capture shortcut, as `global_capture.rs` holds it: what the app
    * asked to register, and a press, delivered as the host's `global-capture`
    * event after it has brought the window forward. Raising the window and the
@@ -696,6 +713,27 @@ export async function installHost(
   const googleCalendars: { id: string; summary: string }[] = [];
   let googleRefusal: { kind: string; code?: string; message: string } | null = null;
   /** Granola keys and refusals by vault root, what each path answers, and every request. */
+  const kindlePages = new Map<string, string>();
+  const kindleFetches: string[] = [];
+  let kindleSession = false;
+  let kindleSignedOut = false;
+  const kindleFetch = (url: string) => {
+    kindleFetches.push(url);
+    if (!kindleSession) {
+      return { [REJECT]: { kind: 'not_connected', message: 'Kindle is not connected' } };
+    }
+    if (kindleSignedOut) {
+      // As the host answers when Amazon sends the notebook to its sign-in page (`kindle.rs`, `redirected`).
+      return { status: 302, html: '', redirectedTo: 'https://www.amazon.com/ap/signin' };
+    }
+    const asked = new URL(url);
+    const asin = asked.searchParams.get('asin');
+    const key = asin === null ? 'library' : `${asin}|${asked.searchParams.get('token') ?? ''}`;
+    const html = kindlePages.get(key);
+    return html === undefined
+      ? { status: 404, html: '', redirectedTo: null }
+      : { status: 200, html, redirectedTo: null };
+  };
   const granolaKeys = new Map<string, string>();
   const granolaRefusals = new Map<string, number>();
   const granolaAnswers = new Map<string, { status: number; body: string }>();
@@ -1455,6 +1493,14 @@ export async function installHost(
         const { path, query } = args as { path: string; query: Record<string, string> };
         return granolaGet(root, path, query);
       }
+      case 'kindle_connect':
+        kindleSession = true;
+        return null;
+      case 'kindle_disconnect':
+        kindleSession = false;
+        return null;
+      case 'kindle_fetch_notebook':
+        return kindleFetch((args as { url: string }).url);
       case 'sqlite_source_query': {
         const { file, sql } = args as { file: string; sql: string };
         sqliteQueries.push({ file, sql });
@@ -2018,6 +2064,15 @@ export async function installHost(
       },
       hasKey: () => granolaKeys.size > 0,
       requests: () => [...granolaRequests],
+    },
+    kindle: {
+      serveLibrary: (html) => void kindlePages.set('library', html),
+      serveAnnotations: (asin, token, html) => void kindlePages.set(`${asin}|${token}`, html),
+      signOut: () => {
+        kindleSignedOut = true;
+      },
+      connected: () => kindleSession,
+      fetches: () => [...kindleFetches],
     },
     sleepClock: {
       sleep: (milliseconds) => {

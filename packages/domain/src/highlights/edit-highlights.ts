@@ -5,6 +5,7 @@ import {
   InvalidHighlightAnchorError,
   type HighlightAnchor,
   type HighlightStyle,
+  type KindleAnchor,
 } from './anchor.ts';
 import {
   bodyStartOf,
@@ -15,7 +16,11 @@ import {
   type HighlightBlock,
   type ReadNoteBlocks,
 } from './highlight-block.ts';
-import { looksLikeHighlightMarker, readHighlightMarker } from './highlight-marker.ts';
+import {
+  kindleTombstoneLine,
+  looksLikeHighlightMarker,
+  readHighlightMarker,
+} from './highlight-marker.ts';
 import { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
 import { UnsafeSourceFileError } from './literature-note.ts';
 import { matchPassages, type PassageMatch } from './passage-match.ts';
@@ -24,7 +29,8 @@ import { matchPassages, type PassageMatch } from './passage-match.ts';
  * The writes a literature note takes (ADR-0043). Each changes only the bytes of
  * the highlight it is about — appending one adds text after the last byte,
  * a new comment replaces the comment's lines alone, a removal takes out its
- * block and the one blank line that parted it — so every other byte of the
+ * block and the one blank line that parted it (a Kindle highlight's leaves a
+ * hidden tombstone in its place, §5) — so every other byte of the
  * note, the other highlights' quotes and comments included, stays as it was
  * (ADR-0003), however the person edited them.
  */
@@ -280,8 +286,38 @@ export function withHighlightComment({
 }
 
 /**
+ * The note with `note` added to the comment of highlight `id` as a paragraph
+ * of its own, after the comment's last line: the lines already there are not
+ * touched, whoever wrote them and however they are spelled (ADR-0003). A
+ * blank `note` adds nothing. Throws `HighlightNotReadBackError`, writing
+ * nothing, when the note would then hide a highlight it shows now.
+ */
+export function withHighlightCommentAfter({
+  text,
+  id,
+  note,
+  noteBlocks,
+}: {
+  text: string;
+  id: string;
+  note: string;
+  noteBlocks: ReadNoteBlocks;
+}): string {
+  const lines = commentLines(note);
+  if (lines.length === 0) return text;
+  const before = readHighlights(text, noteBlocks);
+  const { quoteEnd } = namedIn(before, id);
+  const written =
+    text.slice(0, quoteEnd) + commentBlockText(lines, lineEndingOf(text)) + text.slice(quoteEnd);
+  assertReadBack({ before, after: readHighlights(written, noteBlocks), added: [], removed: null });
+  return written;
+}
+
+/**
  * The note without highlight `id`: its block, and the blank line that parted
  * it from the block after it (or, last in the note, from the one before).
+ * A Kindle highlight leaves its tombstone (`kindleTombstone`) in the block's
+ * place and keeps that blank line, so a sync does not bring it back.
  * Only ever on the person's word: nothing removes a highlight by itself.
  * Throws `HighlightNotReadBackError`, writing nothing, when the note would
  * then hide another highlight it shows now.
@@ -296,7 +332,10 @@ export function withoutHighlight({
   noteBlocks: ReadNoteBlocks;
 }): string {
   const blocks = readHighlights(text, noteBlocks);
-  const written = textWithout(text, namedIn(blocks, id));
+  const block = namedIn(blocks, id);
+  const { anchor } = block;
+  const written =
+    anchor.kind === 'kindle' ? textTombstoned(text, block, anchor) : textWithout(text, block);
   assertReadBack({
     before: blocks,
     after: readHighlights(written, noteBlocks),
@@ -304,6 +343,13 @@ export function withoutHighlight({
     removed: id,
   });
   return written;
+}
+
+/** The block's lines replaced by the tombstone of its Kindle anchor, its line ending the block's own. */
+function textTombstoned(text: string, block: HighlightBlock, anchor: KindleAnchor): string {
+  const tombstone = kindleTombstoneLine({ anchor, words: anchor.exact ?? plainQuote(block.quote) });
+  const ending = /\r?\n$/.exec(text.slice(block.start, block.end))?.[0] ?? '';
+  return text.slice(0, block.start) + tombstone + ending + text.slice(block.end);
 }
 
 function textWithout(text: string, block: HighlightBlock): string {
