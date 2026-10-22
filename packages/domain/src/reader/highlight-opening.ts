@@ -2,6 +2,7 @@ import type { HighlightAnchor, SourceKind } from '../highlights/anchor.ts';
 import type { HighlightBlock } from '../highlights/highlight-block.ts';
 import type { LiteratureNote } from '../highlights/literature-note.ts';
 import type { PillHue } from '../page/pill-colour.ts';
+import { composed } from '../markdown/resolve-wikilink.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { isPdfName } from './pdf-library.ts';
 
@@ -139,19 +140,24 @@ export const namesPdf = (target: string): boolean => isPdfName(target);
  * above it that tell two apart. Where several files match, one is chosen
  * the same way every time: the exact path, else the shortest path, else the
  * first alphabetically. A link never names a file that is not in `files`.
+ * Accents are compared composed, as note links compare them: a name written
+ * to disk decomposed is the same name typed composed.
  */
 export function pdfLinkTarget(target: string, files: readonly VaultPath[]): VaultPath | null {
-  const written = target.trim().replace(/^\/+/, '').toLowerCase();
+  const written = comparable(target.trim().replace(/^\/+/, ''));
   if (!isPdfName(written)) return null;
-  const matching = [...new Set(files)].filter((path) => endsWithPath(path.toLowerCase(), written));
+  const matching = [...new Set(files)].filter((path) => endsWithPath(comparable(path), written));
   matching.sort(
     (a, b) =>
-      Number(b.toLowerCase() === written) - Number(a.toLowerCase() === written) ||
+      Number(comparable(b) === written) - Number(comparable(a) === written) ||
       a.length - b.length ||
       (a < b ? -1 : a > b ? 1 : 0),
   );
   return matching[0] ?? null;
 }
+
+/** A path as a PDF link compares it: accents composed, case folded. */
+const comparable = (path: string): string => composed(path).toLowerCase();
 
 /** Whether `path` is `written`, or ends with it at a folder boundary. */
 const endsWithPath = (path: string, written: string): boolean =>
