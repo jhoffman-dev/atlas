@@ -15,6 +15,7 @@ export {
   QUERY_SCOPE,
   RULE_QUERY_SCOPE,
   changesTouching,
+  linkNameOf,
   scopeTouched,
   REVIEW_SCOPE,
   SEARCH_SCOPE,

@@ -188,7 +188,7 @@ const folded = (name: string) => name.trim().normalize('NFC').toLowerCase();
  * spelled by it, so a file named in one Unicode form and a link typed in the
  * other still meet (A21-02).
  */
-function nameOf(pathOrTarget: string): string {
+export function linkNameOf(pathOrTarget: string): string {
   return foldedLinkName(pathOrTarget.slice(pathOrTarget.lastIndexOf('/') + 1));
 }
 
@@ -210,15 +210,38 @@ function within(path: string, folder: string): boolean {
   return at === holder || at.startsWith(`${holder}/`);
 }
 
+/** A scope's notes, link names and types, folded once, so a change meets them in a lookup. */
+interface FoldedScope {
+  readonly notes: ReadonlySet<string>;
+  readonly linkedNames: ReadonlySet<string>;
+  readonly types: ReadonlySet<string>;
+}
+
+// A scope is built once per read and matched against every news after it; a
+// Library's holds a note per source, so folding it per change is
+// changes x scope work. Keyed by the scope object, which is never mutated.
+const foldedScopes = new WeakMap<ReadScope, FoldedScope>();
+
+function foldedScope(scope: ReadScope): FoldedScope {
+  const kept = foldedScopes.get(scope);
+  if (kept !== undefined) return kept;
+  const made: FoldedScope = {
+    notes: new Set(scope.notes?.map(folded)),
+    linkedNames: new Set(scope.linkedNames?.map(linkNameOf)),
+    types: new Set(scope.types?.map(folded)),
+  };
+  foldedScopes.set(scope, made);
+  return made;
+}
+
 /** Whether one note's change reaches a reader made from `scope`. */
 function changeTouches(scope: ReadScope, change: NoteChange): boolean {
   if (scope.anyNote === true) return true;
-  const path = folded(change.path);
-  if (scope.notes?.some((note) => folded(note) === path) === true) return true;
-  if (scope.linkedNames?.some((name) => nameOf(name) === nameOf(change.path)) === true) return true;
+  const { notes, linkedNames, types } = foldedScope(scope);
+  if (notes.has(folded(change.path))) return true;
+  if (linkedNames.has(linkNameOf(change.path))) return true;
   if (scope.folders?.some((folder) => within(change.path, folder)) === true) return true;
   if (scope.imports === true && imported(change)) return true;
-  const types = new Set(scope.types?.map(folded));
   return typesOf(change).some((type) => types.has(type));
 }
 
@@ -265,7 +288,7 @@ function holdsQueryBlock(nodes: readonly EditorNode[]): boolean {
 /** The names of the notes `text` links to, embeds included. */
 function linkedNamesIn(text: string): string[] {
   return splitWikiLinks(text).flatMap((piece) =>
-    piece.kind === 'wikiLink' ? [nameOf(piece.target)] : [],
+    piece.kind === 'wikiLink' ? [linkNameOf(piece.target)] : [],
   );
 }
 

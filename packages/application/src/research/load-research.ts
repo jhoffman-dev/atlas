@@ -4,7 +4,6 @@ import {
   createVaultPath,
   FILED_UNDER_TYPES,
   flattenHighlights,
-  foldedLinkName,
   highlightChoices,
   HIGHLIGHTS_PAGE_SIZE,
   inDisplayOrder,
@@ -24,6 +23,7 @@ import {
   type SourceHighlights,
 } from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
+import { linkNameOf } from '../reads/index.ts';
 
 /*
  * Rows are read by column index, in the order the statements select them
@@ -299,10 +299,6 @@ function inPathOrder(left: string, right: string): number {
 
 /** A path as the Mac's disk compares it: case aside, accents composed. */
 const foldedPath = (path: string) => path.normalize('NFC').toLowerCase();
-
-/** The name a link finds a note by (`foldedLinkName`): the last part of a path or of a target. */
-const linkNameOf = (pathOrTarget: string) =>
-  foldedLinkName(pathOrTarget.slice(pathOrTarget.lastIndexOf('/') + 1));
 
 /**
  * The sources of `entries` filed under the note at `path`: by the path their
