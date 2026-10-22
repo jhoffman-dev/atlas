@@ -41,11 +41,11 @@ export function useLibraryPage(
   const [chosen, setFilter] = useState<LibraryFilter>(NO_LIBRARY_FILTER);
   const [sort, setSort] = useState<LibrarySort>(DEFAULT_LIBRARY_SORT);
   const choices = read.kind === 'ready' ? read.choices : NO_CHOICES;
-  // What the controls say is what filters: a choice the vault no longer has is dropped.
-  const filter = useMemo(
-    () => (read.kind === 'ready' ? settleLibraryFilter(chosen, choices) : chosen),
-    [read.kind, chosen, choices],
-  );
+  // What the controls say is what filters: a choice the vault no longer has is
+  // dropped, and kept dropped — set while drawing, so it does not come back on
+  // when the vault offers the choice again.
+  const filter = read.kind === 'ready' ? settleLibraryFilter(chosen, choices) : chosen;
+  if (filter !== chosen) setFilter(filter);
   const state = useMemo(
     () => listState(read, (entries) => libraryShown(entries, { filter, sort })),
     [read, filter, sort],
@@ -66,10 +66,9 @@ export function useHighlightsPage(
     () => ({ filter: NO_HIGHLIGHT_FILTER, at: now() }),
   );
   const choices = read.kind === 'ready' ? read.choices : NO_HIGHLIGHT_CHOICES;
-  const filter = useMemo(
-    () => (read.kind === 'ready' ? settleHighlightFilter(chosen, choices) : chosen),
-    [read.kind, chosen, choices],
-  );
+  // Dropped and kept dropped, as the Library's.
+  const filter = read.kind === 'ready' ? settleHighlightFilter(chosen, choices) : chosen;
+  if (filter !== chosen) setFiltered({ filter, at });
   const state = useMemo(
     () => listState(read, (entries) => filterHighlights(entries, filter, at)),
     [read, filter, at],
