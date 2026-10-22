@@ -8,12 +8,19 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FailureKind {
-    /// The Kindle session's data store holds no cookie for the notebook, so
-    /// nothing was sent: Connect Kindle was never done, or was undone.
+    /// The Kindle session's data store has no session: Connect Kindle was
+    /// never done, or was undone.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "only a Mac has a session to be missing")
+    )]
     NotConnected,
-    /// The host will not do it: an address off the notebook, a Mac older
-    /// than macOS 14 (which has no data store of a session's own), or the
-    /// main thread out of reach.
+    /// This Mac cannot keep a Kindle session apart from the rest of DFAI: it
+    /// is older than macOS 14 (which has no data store of a session's own),
+    /// or it is not a Mac.
+    Unsupported,
+    /// The host will not do it: an address off the notebook, or the main
+    /// thread out of reach.
     Refused,
     /// Amazon could not be reached, or stopped sending.
     Unreachable,
@@ -23,8 +30,7 @@ pub enum FailureKind {
     TooLarge,
 }
 
-/// A failure, with no cookie in it: every message is written here, or is
-/// reqwest's account of a connection without its URL.
+/// A failure, with no cookie and no URL in it: every message is written here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct KindleFailure {
     pub kind: FailureKind,
@@ -52,6 +58,7 @@ mod tests {
             serde_json::json!({ "kind": "not_connected", "message": "no session" })
         );
         for (kind, written) in [
+            (FailureKind::Unsupported, "unsupported"),
             (FailureKind::Refused, "refused"),
             (FailureKind::Unreachable, "unreachable"),
             (FailureKind::Timeout, "timeout"),

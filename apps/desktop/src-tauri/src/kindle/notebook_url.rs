@@ -4,8 +4,8 @@
 //! session's cookies go only to the notebook is the host's, because the
 //! webview is the untrusted side (ADR-0017). So the webview names a URL and
 //! the host refuses any that is not on the notebook's origin — scheme, host
-//! and port — at one of its two paths. The same check decides which
-//! redirects the fetch may follow.
+//! and port — at one of its two paths. The same check polices every
+//! navigation and response of the window that reads the notebook.
 
 use reqwest::Url;
 
@@ -13,7 +13,7 @@ use super::failure::{FailureKind, KindleFailure};
 
 /// The notebook's paths: `/notebook`, and `/kp/notebook`, where Amazon has
 /// served the same page.
-const NOTEBOOK_PATHS: [&str; 2] = ["/notebook", "/kp/notebook"];
+pub const NOTEBOOK_PATHS: [&str; 2] = ["/notebook", "/kp/notebook"];
 
 fn refused(raw: &str) -> KindleFailure {
     // The address is the webview's own; naming it carries no cookie.
@@ -30,6 +30,14 @@ pub fn is_notebook_page(origin: &Url, url: &Url) -> bool {
         && url.password().is_none()
         && url.fragment().is_none()
         && NOTEBOOK_PATHS.contains(&url.path())
+}
+
+/// Where `raw` points, as an origin and a path: never its query, fragment or
+/// user info, which a sign-in URL fills with tokens. Empty when it is no URL.
+pub fn shown_target(raw: &str) -> String {
+    Url::parse(raw)
+        .map(|url| format!("{}{}", url.origin().ascii_serialization(), url.path()))
+        .unwrap_or_default()
 }
 
 /// `raw` as a URL, if it is a notebook page at `origin`.
@@ -71,13 +79,13 @@ mod tests {
             "http://read.amazon.com/notebook",
             "https://read.amazon.com:8443/notebook",
             "https://www.amazon.com/notebook",
-            "https://read.amazon.com.example.com/notebook",
+            "https://read.amazon.com.invalid/notebook",
             "https://read.amazon.com/notebook/../ap/signin",
             "https://read.amazon.com/notebookx",
             "https://read.amazon.com/notebook/",
             "https://read.amazon.com/kindle-library",
             "https://read.amazon.com/%6eotebook",
-            "https://mara@read.amazon.com/notebook",
+            "https://ida@read.amazon.com/notebook",
             "https://read.amazon.com/notebook#x",
             "/notebook",
             "not a url",
