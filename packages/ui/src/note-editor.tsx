@@ -363,8 +363,17 @@ export function NoteEditor({
 
   useReveal(editor, reveal);
 
+  // A link drawn as a role="link" with a tab stop — a shown highlight's chip,
+  // "Open in PDF", an embed's name — follows on Enter as a link does, with the
+  // same modifiers. Only those: Enter typed in the text is the editor's.
+  const followFromKeyboard = (event: Parameters<typeof followLink>[0] & { key: string }) => {
+    const onLink =
+      event.target instanceof HTMLElement && event.target.matches('[role="link"][data-wikilink]');
+    if (event.key === 'Enter' && onLink) followLink(event);
+  };
+
   return (
-    <div onClick={followLink} {...linkMenu.handlers}>
+    <div onClick={followLink} onKeyDown={followFromKeyboard} {...linkMenu.handlers}>
       <EditorContent editor={editor} />
       {linkMenu.overlay}
       {offerImage && (

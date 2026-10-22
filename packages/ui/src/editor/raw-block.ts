@@ -3,8 +3,10 @@ import { BLOCK_ANCHOR_ATTR } from '@dfai/domain';
 
 /**
  * Which raw blocks offer to open their place elsewhere: a highlight in its
- * literature note offers "Open in PDF" (#506). Asked as each block is drawn,
- * so the answer can change without the editor being built again.
+ * literature note offers "Open in PDF" (#506). Asked each time a block is
+ * rendered, so the extensions need not be built again when the answer
+ * changes; a block already drawn keeps what it was drawn with until it is
+ * rendered again.
  */
 export interface ReaderLinks {
   /** The link's words for the block with id `id`, or null when it offers none. */
