@@ -117,9 +117,10 @@ describe('syncKindle under orders it was not written for', () => {
  */
 describe('syncKindle against clocks, networks and notes the fix round did not try', () => {
   it('never waits longer than the fetch gap when the clock is set back mid-sync', async () => {
-    // The Mac's clock is corrected back an hour after the library is read.
+    // Readings: the slot's start, then the library fetch ending; after that the Mac's clock is
+    // corrected back an hour, so the next fetch reads as an hour before the last one ended.
     let readings = 0;
-    const steppedBack = { now: () => (readings++ === 0 ? NOW : NOW - HOUR) };
+    const steppedBack = { now: () => (readings++ < 2 ? NOW : NOW - HOUR) };
     const pacing = fakeKindleDelay();
     const source = fakeKindleNotebook({
       library: libraryOf('B0EXAMPLE1'),
@@ -224,5 +225,100 @@ describe('syncKindle against clocks, networks and notes the fix round did not tr
       delay: fakeKindleDelay(),
     });
     expect(later.kind).toBe('synced');
+  });
+});
+
+/*
+ * Second verification of PR #511 (after the fix round at b4e81c01): a book Amazon answers "too
+ * many requests" for, a run of server errors, and the fetch gap when the clock jumps forward.
+ */
+describe('syncKindle when Amazon says it is asked too often', () => {
+  const asins = ['B0EXAMPLE1', 'B0EXAMPLE2', 'B0EXAMPLE3', 'B0EXAMPLE4', 'B0EXAMPLE5'];
+  const answered = (status: number) => ({ status, html: '<p>Go away</p>', redirectedTo: null });
+
+  it('stops asking for books after a 429, rather than asking for every other one', async () => {
+    const tooMany = { status: 429, html: '<p>Too many requests</p>', redirectedTo: null };
+    const source = fakeKindleNotebook({
+      library: libraryOf(...asins),
+      books: Object.fromEntries(asins.map((asin) => [asin, [tooMany]])),
+    });
+    await syncKindle({ source, sink: fakeKindleSink(), clock, delay: fakeKindleDelay() });
+    const asked = source.calls.filter((call) => call.call === 'annotations').length;
+    expect(asked).toBe(1);
+  });
+
+  it('stops as rate limited on a 403 or a 429, for the library or a book, keeping what it added', async () => {
+    for (const status of [403, 429]) {
+      const onLibrary = fakeKindleNotebook({ library: answered(status) });
+      expect(await syncKindle({ source: onLibrary, sink: fakeKindleSink(), clock, delay })).toEqual(
+        { kind: 'rate_limited', status, books: [], added: 0 },
+      );
+      const onSecond = fakeKindleNotebook({
+        library: libraryOf('B0EXAMPLE1', 'B0EXAMPLE2', 'B0EXAMPLE3'),
+        books: {
+          B0EXAMPLE1: [bookPage('B0EXAMPLE1', highlightRow('IDRATE00001', 'Call me Ishmael.'))],
+          B0EXAMPLE2: [answered(status)],
+        },
+      });
+      const report = await syncKindle({ source: onSecond, sink: fakeKindleSink(), clock, delay });
+      expect(report).toMatchObject({ kind: 'rate_limited', status, added: 1 });
+      expect(onSecond.calls.filter((call) => call.call === 'annotations')).toHaveLength(2);
+    }
+  });
+
+  it('stops as unavailable after three books in a row answer a server error, keeping them', async () => {
+    const source = fakeKindleNotebook({
+      library: libraryOf(...asins),
+      books: {
+        B0EXAMPLE1: [bookPage('B0EXAMPLE1', highlightRow('IDSERVER0001', 'Call me Ishmael.'))],
+        ...Object.fromEntries(asins.slice(1).map((asin) => [asin, [answered(503)]])),
+      },
+    });
+    const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
+    expect(source.calls.filter((call) => call.call === 'annotations')).toHaveLength(4);
+    expect(report).toMatchObject({ kind: 'unavailable', message: 'Amazon answered 503', added: 1 });
+    expect('books' in report ? report.books.map((book) => book.kind) : []).toEqual([
+      'added',
+      'unavailable',
+      'unavailable',
+      'unavailable',
+    ]);
+  });
+
+  it('goes on past server errors that are not three in a row, and past a book that is not found', async () => {
+    const good = (asin: string, id: string) => [bookPage(asin, highlightRow(id, 'Reader.'))];
+    const source = fakeKindleNotebook({
+      library: libraryOf(...asins),
+      books: {
+        B0EXAMPLE1: [answered(500)],
+        B0EXAMPLE2: [answered(502)],
+        B0EXAMPLE3: good('B0EXAMPLE3', 'IDSERVER0003'),
+        B0EXAMPLE4: [answered(404)],
+        B0EXAMPLE5: [answered(404)],
+      },
+    });
+    const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
+    expect(report).toMatchObject({ kind: 'synced', added: 1 });
+    expect(source.calls.filter((call) => call.call === 'annotations')).toHaveLength(5);
+  });
+});
+
+describe('syncKindle pacing when the clock jumps forward', () => {
+  it('still waits the fetch gap between two fetches when the clock is set forward mid-sync', async () => {
+    // Readings: the slot's start, then the library fetch ending; after that the Mac's clock is
+    // corrected forward an hour, though no time has passed between the two fetches.
+    let readings = 0;
+    const steppedForward = { now: () => (readings++ < 2 ? NOW : NOW + HOUR) };
+    const pacing = fakeKindleDelay();
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1'),
+      books: {
+        B0EXAMPLE1: [
+          bookPage('B0EXAMPLE1', highlightRow('IDCLOCKFWD01', 'Reader, I married him.')),
+        ],
+      },
+    });
+    await syncKindle({ source, sink: fakeKindleSink(), clock: steppedForward, delay: pacing });
+    expect(pacing.waits).toEqual([KINDLE_MIN_FETCH_GAP_MS]);
   });
 });

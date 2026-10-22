@@ -79,9 +79,11 @@ describe('checkKindlePage', () => {
     }
   });
 
-  it('reads 401 as a sign-in, any other 4xx or 5xx as Amazon being unavailable', () => {
+  it('reads 401 as a sign-in, 403 and 429 as asked too often, any other 4xx or 5xx as unavailable', () => {
     expect(checkKindlePage(page(401))).toEqual({ kind: 'sign_in_required' });
-    expect(checkKindlePage(page(403))).toEqual({ kind: 'unavailable', status: 403 });
+    expect(checkKindlePage(page(403))).toEqual({ kind: 'rate_limited', status: 403 });
+    expect(checkKindlePage(page(429))).toEqual({ kind: 'rate_limited', status: 429 });
+    expect(checkKindlePage(page(404))).toEqual({ kind: 'unavailable', status: 404 });
     expect(checkKindlePage(page(500))).toEqual({ kind: 'unavailable', status: 500 });
   });
 

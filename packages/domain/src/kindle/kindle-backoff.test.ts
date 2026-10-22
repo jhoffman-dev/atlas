@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  holdsKindleAutoSync,
   KINDLE_ROBOT_CHECK_BACKOFF_MS,
   kindleAutoSyncHeldUntil,
   mayAutoSyncKindle,
@@ -46,5 +47,18 @@ describe('the back-off after a robot check', () => {
   it('holds nothing until a time that is not a number', () => {
     expect(kindleAutoSyncHeldUntil(Number.NaN)).toBeNull();
     expect(kindleAutoSyncHeldUntil(Number.NEGATIVE_INFINITY)).toBeNull();
+  });
+});
+
+describe('which syncs start the back-off', () => {
+  it('is one stopped by a robot check or by Amazon saying it is asked too often', () => {
+    expect(holdsKindleAutoSync({ kind: 'robot_check' })).toBe(true);
+    expect(holdsKindleAutoSync({ kind: 'rate_limited' })).toBe(true);
+  });
+
+  it('is no other: a sign-in, Amazon unreachable, or a sync that ran', () => {
+    for (const kind of ['sign_in_required', 'unavailable', 'unrecognised', 'synced'] as const) {
+      expect(holdsKindleAutoSync({ kind }), kind).toBe(false);
+    }
   });
 });

@@ -231,3 +231,56 @@ describe('the loopback-only guard, verified', () => {
     }
   });
 });
+
+/*
+ * Second verification of PR #511 (after the fix round at b4e81c01): ways past the socket guard.
+ * Nothing here reaches past this machine even with the guard broken: a host by name has a
+ * look-up the test refuses (no DNS query), and an address by number has a port net refuses
+ * before it dials (no connect).
+ */
+
+// TEST-NET-3 (RFC 5737), with a port above 65535: net throws ERR_SOCKET_BAD_PORT before dialling.
+const OFF_ADDRESS = '203.0.113.7';
+const BAD_PORT = ' 70000';
+
+describe('the loopback-only guard, against ways past it', () => {
+  it('refuses a socket whose port is a string net reads as a number (" 443"), not a socket path', () => {
+    // Typed as a number, as net's types have it; net itself takes the string and reads it so.
+    const port = BAD_PORT as unknown as number;
+    expect(refused(() => new net.Socket().connect(port, OFF_ADDRESS))).toBe(true);
+  });
+
+  it('refuses a socket whose options carry an empty or null path, which net dials as TCP', () => {
+    const lookup = refusedLookup();
+    for (const path of ['', null]) {
+      const options = { host: OFF_HOST, port: 443, path, lookup };
+      expect(
+        refused(() => new net.Socket().connect(options as unknown as net.SocketConnectOpts)),
+        String(path),
+      ).toBe(true);
+    }
+    expect(lookup.asked()).toBe(0);
+  });
+
+  it('refuses the connection node:http’s agent opens, which names the path as null', () => {
+    // A ClientRequest made directly is not http.request, so only the socket guard stands here.
+    const lookup = refusedLookup();
+    expect(refused(() => new http.ClientRequest({ host: OFF_HOST, port: 80, lookup }))).toBe(true);
+    expect(lookup.asked()).toBe(0);
+  });
+
+  it('refuses a node:http request with an empty socketPath, which node:http dials as TCP', () => {
+    const lookup = refusedLookup();
+    expect(refused(() => http.request({ host: OFF_HOST, port: 80, socketPath: '', lookup }))).toBe(
+      true,
+    );
+    expect(lookup.asked()).toBe(0);
+  });
+
+  it('still lets a socket to a local path through, by argument or by options', () => {
+    // A path on this machine that nothing listens on: the connect fails locally, after the guard.
+    const path = '/nonexistent/dfai-kindle-511.sock';
+    expect(refused(() => new net.Socket().connect(path))).toBe(false);
+    expect(refused(() => new net.Socket().connect({ path }))).toBe(false);
+  });
+});

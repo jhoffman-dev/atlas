@@ -35,6 +35,20 @@ describe('describeKindleSync of a sync that was stopped', () => {
     expect(described.message).not.toMatch(/sign in again/i);
   });
 
+  it('says Amazon is turning it away for asking too often, not that it is unreachable', () => {
+    const described = describeKindleSync({
+      kind: 'rate_limited',
+      status: 429,
+      books: [added(1)],
+      added: 1,
+    });
+    expect(described.ok).toBe(false);
+    expect(described.message).toMatch(/too often/i);
+    expect(described.message).toMatch(/24 hours/);
+    expect(described.message).not.toMatch(/couldn.t reach|robot/i);
+    expect(described.message).toMatch(/Before it stopped, 1 highlight was added from 1 book\./);
+  });
+
   it('says Kindle is not connected, without saying it will try again', () => {
     const described = describeKindleSync({ kind: 'not_connected', books: [], added: 0 });
     expect(described).toEqual({

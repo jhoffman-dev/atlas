@@ -55,6 +55,22 @@ describe('kindleHighlightKey of words written two ways', () => {
     }
   });
 
+  it('is the same with direction marks, embeddings and isolates in the words or without', () => {
+    const plain = kindleHighlightKey({ ...base, words: 'unbelievable' });
+    const marks = ['\u200e', '\u200f', '\u202a', '\u202b', '\u202c', '\u202d', '\u202e'];
+    for (const hidden of [...marks, '\u2066', '\u2067', '\u2068', '\u2069']) {
+      expect(kindleHighlightKey({ ...base, words: `un${hidden}believable` })).toBe(plain);
+    }
+  });
+
+  it('is the same when an invisible sits between a letter and its combining accent', () => {
+    // Stripped after composing, e + ZWSP + acute would stay "e" + a lone acute: another key.
+    const composed = kindleHighlightKey({ ...base, words: 'caf\u00e9' });
+    for (const hidden of ['\u200b', '\u00ad', '\u200e', '\u2066', '\ufeff']) {
+      expect(kindleHighlightKey({ ...base, words: `cafe${hidden}\u0301` })).toBe(composed);
+    }
+  });
+
   it('still tells different words apart', () => {
     expect(kindleHighlightKey({ ...base, words: 'caf\u00e9' })).not.toBe(
       kindleHighlightKey({ ...base, words: 'cafe' }),

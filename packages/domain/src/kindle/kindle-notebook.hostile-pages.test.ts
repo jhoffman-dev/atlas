@@ -157,3 +157,27 @@ describe('the notebook reader against hostile pages', () => {
     expect(growth(true)).toBeLessThan(3);
   });
 });
+
+/*
+ * Second verification of PR #511 (after the fix round at b4e81c01): note-only keys against the
+ * unicode variants the key claims to read as one.
+ */
+
+const noteOnly = (note: string) =>
+  page(annotations(row('IDNOTEONLY01', `<span id="note">${note}</span>`)));
+
+const keysOf = (raw: KindleRawPage) => {
+  const reading = readKindleAnnotations(raw, 'B0EXAMPLE1');
+  return reading.kind === 'annotations' ? reading.highlights.map((h) => h.key) : [reading.kind];
+};
+
+describe('a note-only key across syncs of an unchanged note', () => {
+  it('is the same when a zero-width space sits between a letter and its combining accent', () => {
+    // "café" composed one day; the next, written e + ZWSP + combining acute. Stripped of the
+    // zero-width space and composed, both are "café", so the note is unchanged.
+    const composed = keysOf(noteOnly('Tea at the café.'));
+    const decomposed = keysOf(noteOnly('Tea at the cafe​́.'));
+    expect(composed[0]).toMatch(/^amazon:IDNOTEONLY01:note:/);
+    expect(decomposed).toEqual(composed);
+  });
+});
