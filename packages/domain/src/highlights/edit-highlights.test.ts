@@ -544,5 +544,35 @@ describe('Kindle passages matched by place (verify3, PR #510)', () => {
       expect(twice.highlights.every((highlight) => !highlight.added)).toBe(true);
       expect(twice.text).toBe(once);
     });
+
+    // Shrunk from the grown-note property at HIGHLIGHT_PROPERTY_SEED=101, 3000 runs.
+    it('seed 101: part of an export synced again, its key placed by the held block', () => {
+      const words = 'Emma Woodhouse, handsome, clever, and rich';
+      const kindle = (
+        location: number | null,
+        page: number | undefined,
+        annotationId: string | null,
+      ): NewHighlight => ({
+        quote: words,
+        anchor: {
+          kind: 'kindle',
+          location: location === null ? null : { start: location, end: null },
+          ...(page !== undefined && { page }),
+          annotationId,
+        },
+      });
+      const exported = [
+        kindle(140, undefined, 'A1'),
+        kindle(null, 13, null),
+        kindle(140, 12, null),
+      ];
+      let grown = sync(KINDLE, [kindle(null, 12, 'A1'), kindle(140, 13, 'C1')]).text;
+      for (let size = 1; size <= exported.length; size += 1) {
+        grown = sync(grown, exported.slice(0, size)).text;
+      }
+      const again = sync(grown, exported.slice(1));
+      expect(again.highlights.every((highlight) => !highlight.added)).toBe(true);
+      expect(again.text).toBe(grown);
+    });
   });
 });
