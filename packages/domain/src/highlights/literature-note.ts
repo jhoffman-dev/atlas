@@ -83,7 +83,7 @@ export function readLiteratureNote(
     kind,
     title,
     author: textOf(frontmatter.author),
-    file: fileOf(frontmatter.file),
+    file: literatureFileOf(frontmatter.file),
     asin: textOf(frontmatter.asin),
   };
 }
@@ -124,8 +124,11 @@ function textOf(value: unknown): string | null {
   return text === '' ? null : text;
 }
 
-/** The file a `file:` property names: a wiki link `[[path]]` (alias and heading aside) or a bare path. */
-function fileOf(value: unknown): VaultPath | null {
+/**
+ * The file a `file:` property names: a wiki link `[[path]]` (alias and
+ * heading aside) or a bare path; null when it names none.
+ */
+export function literatureFileOf(value: unknown): VaultPath | null {
   const text = textOf(value);
   if (text === null) return null;
   const linked = (/^\[\[([^\]|#]*)(?:[#|][^\]]*)?\]\]$/.exec(text)?.[1] ?? text).trim();

@@ -74,6 +74,11 @@ export const activityScreen = laterPage(
   chunk('activity-screen', () => import('./activity/activity-screen.tsx')),
   (m) => m.ActivityScreen,
 );
+// The PDF reader, with pdf.js, in a chunk of its own (#504): half a megabyte nobody pays for until a PDF opens.
+export const documentReader = laterPage(
+  chunk('document-reader', () => import('./reader/document-reader.tsx')),
+  (m) => m.DocumentReader,
+);
 export const archivePage = laterPage(laterParts, (m) => m.ArchivePage);
 export const weeklyReviewPage = laterPage(laterParts, (m) => m.WeeklyReviewPage);
 export const templatesPage = laterPage(laterParts, (m) => m.TemplatesPage);

@@ -287,3 +287,4 @@ export { SyncIndicator } from './sync/sync-indicator.tsx';
 export { RepositoryPicker } from './sync/repository-picker.tsx';
 export type { RepositoryChoice, RepositoryListView } from './sync/repository-picker.tsx';
 export { OpenFromGitHubDialog } from './sync/open-from-github-dialog.tsx';
+export * from './reader/index.ts';
