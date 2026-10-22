@@ -26,7 +26,8 @@ import { installRenderCounter } from '../../packages/ui/src/testing/render-count
 import { BUDGETED_ACTIONS, type BudgetedAction } from './budgeted-actions.ts';
 import type { FixtureFile } from './fixture-vault.ts';
 import { installProbe, measure, waitForQuiet } from './probe.ts';
-import { EVERY_NOTE_INDEXED, writeFixtureVault } from './session.ts';
+import { RESEARCH_SOURCES, HIGHLIGHTS_PER_SOURCE, researchVault } from './research-vault.ts';
+import { EVERY_NOTE_INDEXED, writeFixtureVault, writeVault } from './session.ts';
 import {
   installWorkClock,
   oneInput,
@@ -165,6 +166,7 @@ test('the app does no more work than its budget', async ({ browser }) => {
     const pass = await countedPass(browser, counted);
     await everyAction(pass);
     await pass.page.close();
+    await everyResearchAction(await countedPass(browser, counted, RESEARCH));
   });
   for (let again = 2; again <= COUNTED_RUNS; again += 1) {
     await test.step(`counted again (${again} of ${COUNTED_RUNS}), to show the counts repeat`, async () => {
@@ -172,6 +174,7 @@ test('the app does no more work than its budget', async ({ browser }) => {
       const pass = await countedPass(browser, recount);
       await everyAction(pass);
       await pass.page.close();
+      await everyResearchAction(await countedPass(browser, recount, RESEARCH));
       for (const action of BUDGETED_ACTIONS) {
         const [first, now] = [counted.get(action), recount.get(action)];
         expect.soft(first, `"${action}" was not counted on run 1`).toBeDefined();
@@ -195,6 +198,7 @@ test('the app does no more work than its budget', async ({ browser }) => {
       const pass = await timedPass(browser);
       await everyAction(pass);
       await pass.page.close();
+      await everyResearchAction(await timedPass(browser, RESEARCH));
     });
   } finally {
     await report(budgets);
@@ -211,10 +215,26 @@ function holdToBudget(action: BudgetedAction, budget: ActionBudget | undefined):
   expect.soft(breaches, describeBreaches(action, work, breaches)).toEqual([]);
 }
 
-/** A fresh page on the fixture, its time and host held by the work clock from the first script. */
-async function countedPass(browser: Browser, into: Map<string, Work>): Promise<Pass> {
+/** Which vault a pass opens, and whether opening it is the budgeted 'Open a vault' or only set-up. */
+interface PassFixture {
+  readonly write: () => Promise<FakeVault>;
+  readonly openIsBudgeted: boolean;
+}
+
+/** The 2,008-note fixture, with the project board the drag measures on. */
+const MAIN: PassFixture = { write: () => writeFixtureVault([PROJECT_BOARD]), openIsBudgeted: true };
+
+/** The research views' fixture (#507): its open is set-up; the views' opens are what is counted. */
+const RESEARCH: PassFixture = { write: () => writeVault(researchVault()), openIsBudgeted: false };
+
+/** A fresh page on a fixture, its time and host held by the work clock from the first script. */
+async function countedPass(
+  browser: Browser,
+  into: Map<string, Work>,
+  fixture: PassFixture = MAIN,
+): Promise<Pass> {
   const page = await newPage(browser);
-  const vault = await writeFixtureVault([PROJECT_BOARD]);
+  const vault = await fixture.write();
   // And with the watcher's echo of every write, as the real host sends it.
   await installHost(page, vault, { echoWrites: true });
   await page.addInitScript(installRenderCounter);
@@ -254,7 +274,8 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
     },
   };
   // After the app has started and settled, so what its start does is not counted as the open.
-  await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)]);
+  if (fixture.openIsBudgeted) await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)]);
+  else await pass.setUp(OPEN_THE_VAULT(page));
   return pass;
 }
 
@@ -303,11 +324,11 @@ const OPEN_THE_VAULT = (page: Page): Phase =>
     EVERY_NOTE_INDEXED.source,
   );
 
-/** A fresh page on the fixture in real time, with only its date fixed, for the times. */
-async function timedPass(browser: Browser): Promise<Pass> {
+/** A fresh page on a fixture in real time, with only its date fixed, for the times. */
+async function timedPass(browser: Browser, fixture: PassFixture = MAIN): Promise<Pass> {
   const page = await newPage(browser);
   await page.addInitScript(installWorkClock, clockAt({ virtual: false }));
-  const vault = await writeFixtureVault([PROJECT_BOARD]);
+  const vault = await fixture.write();
   await installHost(page, vault, { echoWrites: true });
   await installProbe(page);
   await page.goto('/');
@@ -327,7 +348,12 @@ async function timedPass(browser: Browser): Promise<Pass> {
     }
     timed.set(action, { inputToReady, longestFrame });
   };
-  await time('Open a vault', [OPEN_THE_VAULT(page)]);
+  if (fixture.openIsBudgeted) await time('Open a vault', [OPEN_THE_VAULT(page)]);
+  else {
+    const { act, ready, arg } = OPEN_THE_VAULT(page);
+    await act();
+    await page.waitForFunction(ready, arg as never, { timeout: 180_000 });
+  }
   await waitForQuiet(page);
   return {
     page,
@@ -459,6 +485,52 @@ async function everyAction(pass: Pass): Promise<void> {
 }
 
 const sidebarButton = (page: Page, name: RegExp) => page.getByRole('button', { name }).first();
+
+/** How many sources the research fixture holds, and highlights between them, as the pages count them. */
+const LIBRARY_COUNT = `${RESEARCH_SOURCES.toLocaleString('en-US')} sources`;
+const HIGHLIGHTS_COUNT = `${(RESEARCH_SOURCES * HIGHLIGHTS_PER_SOURCE).toLocaleString('en-US')} highlights`;
+/** At most this many rows of a research list are drawn: a screenful and the overscan, never the list. */
+const RESEARCH_MOST_DRAWN = 80;
+
+/** Opens a research page from the sidebar; ready once it counts every row and draws its first. */
+const openResearchPage = (
+  { page }: Pass,
+  { row, list, count }: { row: string; list: string; count: string },
+) =>
+  phase(
+    () =>
+      page
+        .getByRole('list', { name: 'Go to' })
+        .getByRole('button', { name: row, exact: true })
+        .click(),
+    ({ list: name, count: text }) =>
+      document.querySelector(`ul[aria-label="${name}"] > li[data-index]`) !== null &&
+      [...document.querySelectorAll('.page-bar__count')].some(
+        (each) => each.textContent?.trim() === text,
+      ),
+    { list, count },
+  );
+
+/** The research views (#507), on their own fixture: the Library, then All highlights. */
+async function everyResearchAction(pass: Pass): Promise<void> {
+  const { page } = pass;
+  await pass.budgeted('Open the Library (2,000 sources)', [
+    openResearchPage(pass, { row: 'Library', list: 'Sources', count: LIBRARY_COUNT }),
+  ]);
+  await expectFewDrawn(page, 'Sources');
+  await pass.budgeted('Open All highlights (20,000)', [
+    openResearchPage(pass, { row: 'All highlights', list: 'Highlights', count: HIGHLIGHTS_COUNT }),
+  ]);
+  await expectFewDrawn(page, 'Highlights');
+  await page.close();
+}
+
+/** The list is virtualised: some rows are drawn, and never more than a screenful's worth. */
+async function expectFewDrawn(page: Page, list: string): Promise<void> {
+  const drawn = await page.locator(`ul[aria-label="${list}"] > li[data-index]`).count();
+  expect(drawn, `${drawn} rows of ${list} drawn`).toBeGreaterThan(0);
+  expect(drawn, `${drawn} rows of ${list} drawn`).toBeLessThanOrEqual(RESEARCH_MOST_DRAWN);
+}
 
 /** Opens a note from the sidebar's tree; ready once its editor is there to type in. */
 const openNote = ({ page }: Pass, title: string) =>

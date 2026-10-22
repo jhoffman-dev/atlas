@@ -61,8 +61,9 @@ use crate::vault::VaultState;
 /// links fold it (`links.leaf`), indexed, so a refresh finds the links a note
 /// just made could mean (#431) by a lookup rather than a scan. 19: every
 /// highlight in a literature note, which TypeScript reads, gained a row in
-/// `highlights` (#503, ADR-0043).
-const SCHEMA_VERSION: i64 = 19;
+/// `highlights` (#503, ADR-0043). 20: each highlight's quote and comment are
+/// searched too (`highlights_fts`, #507), so a search can open a highlight.
+const SCHEMA_VERSION: i64 = 20;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -212,6 +213,9 @@ pub struct SearchHit {
     pub path: String,
     pub title: String,
     pub snippet: String,
+    /// The highlight's block id, for a hit that is a highlight in the note (#507); none for the note.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -524,6 +528,13 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
             CREATE INDEX IF NOT EXISTS highlights_path ON highlights(path);
             CREATE INDEX IF NOT EXISTS highlights_id ON highlights(id);
 
+            -- A highlight's search row has the rowid of its row in `highlights`.
+            CREATE VIRTUAL TABLE IF NOT EXISTS highlights_fts USING fts5(
+                quote,
+                comment,
+                tokenize = 'unicode61 remove_diacritics 2'
+            );
+
             CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
                 path,
                 title,
@@ -677,9 +688,7 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
     transaction
         .execute("DELETE FROM checks WHERE path = ?1", params![note.path])
         .map_err(stringly)?;
-    transaction
-        .execute("DELETE FROM highlights WHERE path = ?1", params![note.path])
-        .map_err(stringly)?;
+    delete_highlights(transaction, &note.path)?;
     transaction
         .execute(
             "INSERT INTO files (path, title, summary, modified, size, digest, note_type, progress)
@@ -804,8 +813,34 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
                 ],
             )
             .map_err(stringly)?;
+        transaction
+            .execute(
+                "INSERT INTO highlights_fts (rowid, quote, comment) VALUES (?1, ?2, ?3)",
+                params![
+                    transaction.last_insert_rowid(),
+                    highlight.quote,
+                    highlight.comment
+                ],
+            )
+            .map_err(stringly)?;
     }
 
+    Ok(())
+}
+
+/// A note's highlights and their search rows: the search rows first, found
+/// by the rowids of the highlights they stand for (one lookup each through
+/// `highlights_path`, not a scan of the search table).
+fn delete_highlights(connection: &Connection, path: &str) -> Result<(), String> {
+    connection
+        .execute(
+            "DELETE FROM highlights_fts WHERE rowid IN (SELECT rowid FROM highlights WHERE path = ?1)",
+            params![path],
+        )
+        .map_err(|error| error.to_string())?;
+    connection
+        .execute("DELETE FROM highlights WHERE path = ?1", params![path])
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -872,6 +907,7 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
                     .execute("DELETE FROM fts WHERE rowid = ?1", params![row])
                     .map_err(|error| error.to_string())?;
             }
+            delete_highlights(&transaction, path)?;
             for statement in [
                 "DELETE FROM files WHERE path = ?1",
                 "DELETE FROM props WHERE path = ?1",
@@ -880,7 +916,6 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
                 "DELETE FROM relations WHERE src = ?1",
                 "DELETE FROM blocks WHERE path = ?1",
                 "DELETE FROM checks WHERE path = ?1",
-                "DELETE FROM highlights WHERE path = ?1",
             ] {
                 transaction
                     .execute(statement, params![path])
@@ -940,6 +975,7 @@ fn search(
                 path: row.get(0)?,
                 title: row.get(1)?,
                 snippet: row.get(2)?,
+                block: None,
             })
         })
         // A malformed FTS expression is a user typing, not a failure.
@@ -949,17 +985,64 @@ fn search(
         .map_err(|error| error.to_string())
 }
 
+/// The highlights whose quote or comment matches, each named by its note
+/// and its block id (#507): the same expression, prefix and limit as the
+/// notes' search, which TypeScript asks for when it wants them.
+fn search_highlights(
+    connection: &Connection,
+    query: &str,
+    limit: u32,
+    skip_prefix: Option<&str>,
+) -> Result<Vec<SearchHit>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT highlights.path, files.title, highlights.id,
+                    snippet(highlights_fts, -1, '<<', '>>', '…', 12)
+             FROM highlights_fts
+             JOIN highlights ON highlights.rowid = highlights_fts.rowid
+             JOIN files ON files.path = highlights.path
+             WHERE highlights_fts MATCH ?1
+               AND (?3 IS NULL OR lower(substr(files.path, 1, length(?3))) <> ?3)
+             ORDER BY bm25(highlights_fts), highlights.path, highlights.idx LIMIT ?2",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![query, limit, skip_prefix], |row| {
+            Ok(SearchHit {
+                path: row.get(0)?,
+                title: row.get(1)?,
+                block: Some(row.get(2)?),
+                snippet: row.get(3)?,
+            })
+        })
+        .map_err(|error| format!("bad search: {error}"))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
+}
+
+/// The notes that match, then — when `highlights` asks — the highlights.
 #[tauri::command]
 pub async fn index_search(
     index: State<'_, SharedIndex>,
     query: String,
     limit: u32,
     skip_prefix: Option<String>,
+    highlights: Option<bool>,
 ) -> Result<Vec<SearchHit>, String> {
     let index = Arc::clone(&index);
     off_main(move || {
-        index
-            .with_connection(|connection| search(connection, &query, limit, skip_prefix.as_deref()))
+        index.with_connection(|connection| {
+            let mut hits = search(connection, &query, limit, skip_prefix.as_deref())?;
+            if highlights == Some(true) {
+                hits.extend(search_highlights(
+                    connection,
+                    &query,
+                    limit,
+                    skip_prefix.as_deref(),
+                )?);
+            }
+            Ok(hits)
+        })
     })
     .await
 }
@@ -1697,6 +1780,118 @@ mod tests {
         );
         remove_paths(&mut index, &["a.md".to_string()]).unwrap();
         assert_eq!(highlight_rows(&index), vec![row("b.md", 0, "kept", "Kept")]);
+    }
+
+    #[test]
+    fn a_highlight_is_found_by_its_quote_or_its_comment_and_names_its_block() {
+        let mut index = empty_index();
+        let mut source = note("Library/Art.md", "The Art of War", "alpha");
+        let mut commented = highlight("k3x9q2", "All warfare is based on deception");
+        commented.comment = "Compare the Larkspur pitch".to_string();
+        source.highlights = vec![commented, highlight("b2", "Know the enemy")];
+        put_notes(&mut index, &[source]).unwrap();
+
+        let by_comment = search_highlights(&index, "\"larkspur\"*", 10, None).unwrap();
+        assert_eq!(by_comment.len(), 1);
+        assert_eq!(by_comment[0].path, "Library/Art.md");
+        assert_eq!(by_comment[0].title, "The Art of War");
+        assert_eq!(by_comment[0].block.as_deref(), Some("k3x9q2"));
+        assert!(by_comment[0].snippet.contains("<<Larkspur>>"));
+
+        let by_quote = search_highlights(&index, "\"enemy\"", 10, None).unwrap();
+        assert_eq!(
+            by_quote
+                .iter()
+                .map(|hit| hit.block.clone())
+                .collect::<Vec<_>>(),
+            vec![Some("b2".to_string())]
+        );
+        // The marker's JSON is not searched: only the quote and the comment are.
+        assert!(search_highlights(&index, "\"exact\"", 10, None)
+            .unwrap()
+            .is_empty());
+        // A note's own hit names no block, and serialises without one.
+        let note_hit = &search(&index, "alpha", 10, None).unwrap()[0];
+        assert!(note_hit.block.is_none());
+        assert!(serde_json::to_value(note_hit)
+            .unwrap()
+            .get("block")
+            .is_none());
+    }
+
+    #[test]
+    fn a_highlight_search_leaves_out_the_prefix_and_forgets_a_replaced_or_removed_highlight() {
+        let mut index = empty_index();
+        let mut kept = note("Library/Kept.md", "Kept", "x");
+        kept.highlights = vec![highlight("k1", "shared words")];
+        let mut archived = note("Archive/Old.md", "Old", "x");
+        archived.highlights = vec![highlight("o1", "shared words")];
+        put_notes(&mut index, &[kept, archived]).unwrap();
+        let hits = search_highlights(&index, "\"shared\"", 10, Some("archive/")).unwrap();
+        assert_eq!(
+            hits.iter().map(|hit| hit.path.as_str()).collect::<Vec<_>>(),
+            vec!["Library/Kept.md"]
+        );
+        assert_eq!(
+            search_highlights(&index, "\"shared\"", 1, None)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let mut rewritten = note("Library/Kept.md", "Kept", "x");
+        rewritten.highlights = vec![highlight("k2", "fresh words")];
+        put_notes(&mut index, &[rewritten]).unwrap();
+        let left = search_highlights(&index, "\"shared\"", 10, None).unwrap();
+        assert_eq!(
+            left.iter().map(|hit| hit.path.as_str()).collect::<Vec<_>>(),
+            vec!["Archive/Old.md"]
+        );
+        assert_eq!(
+            search_highlights(&index, "\"fresh\"", 10, None)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        remove_paths(&mut index, &["Archive/Old.md".to_string()]).unwrap();
+        assert!(search_highlights(&index, "\"shared\"", 10, None)
+            .unwrap()
+            .is_empty());
+        let rows: i64 = index
+            .query_row("SELECT count(*) FROM highlights_fts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 1);
+    }
+
+    #[test]
+    fn a_malformed_highlight_search_is_an_error_not_a_panic() {
+        let mut index = empty_index();
+        let mut source = note("Library/Art.md", "Art", "x");
+        source.highlights = vec![highlight("k1", "unclosed words")];
+        put_notes(&mut index, &[source]).unwrap();
+        assert!(search_highlights(&index, "\"unclosed", 10, None).is_err());
+    }
+
+    #[test]
+    fn the_bundled_sqlite_reads_an_anchor_as_json_for_the_research_views() {
+        // All highlights (#507) reads a highlight's page and location with
+        // json_valid and json_extract, through the read-only path.
+        let mut index = empty_index();
+        let mut first = note("Library/Art.md", "Art", "x");
+        let mut broken = highlight("b1", "Broken");
+        broken.anchor = "not json".to_string();
+        first.highlights = vec![highlight("p1", "Paged"), broken];
+        put_notes(&mut index, &[first]).unwrap();
+        let result = run_query(
+            &index,
+            "SELECT id, CASE WHEN json_valid(anchor) THEN json_extract(anchor, '$.page') END AS page
+             FROM highlights ORDER BY idx",
+            &[],
+        )
+        .unwrap();
+        assert_eq!(result.rows[0][1], serde_json::json!(1));
+        assert_eq!(result.rows[1][1], serde_json::Value::Null);
     }
 
     #[test]

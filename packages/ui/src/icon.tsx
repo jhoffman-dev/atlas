@@ -312,6 +312,23 @@ const GLYPHS = {
       <path d="M19.9 12.2v6.3" {...round} />
     </>
   ),
+  // The Library (#507): a book standing open at its spine.
+  book: (
+    <>
+      <path
+        d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"
+        {...joined}
+      />
+      <path d="M12 6.5v13" {...round} />
+    </>
+  ),
+  // A highlight (#507): a quotation mark's two commas.
+  quote: (
+    <>
+      <path d="M5 16.5c2.5 0 4-1.6 4-4.2V7.5H4.5v5H8" {...joined} />
+      <path d="M15 16.5c2.5 0 4-1.6 4-4.2V7.5h-4.5v5H18" {...joined} />
+    </>
+  ),
   // Arranging a dashboard: the handle a widget is picked up by.
   grip: (
     <>
@@ -403,6 +420,7 @@ const SIDEBAR_GLYPHS: Readonly<Record<SidebarIcon, IconName>> = {
   term: 'term',
   inbox: 'inbox',
   today: 'sun',
+  library: 'book',
 };
 
 export function sidebarGlyph(icon: SidebarIcon): IconName {

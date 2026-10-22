@@ -135,7 +135,7 @@ import type { PaneContext } from './panes/note-pane-container.tsx';
 import { createRevealStore } from './panes/reveals.ts';
 import { ActiveSidebar } from './workspace/active-sidebar.tsx';
 import { browserWorkspaceStore } from './workspace/browser-workspace-store.ts';
-import { followLink, openNote as openNotePlace } from './workspace/open-place.ts';
+import { followLink, openNote as openNotePlace, openNoteAtBlock } from './workspace/open-place.ts';
 import { PanesContainer } from './workspace/panes-container.tsx';
 import {
   closeActiveTab,
@@ -293,6 +293,8 @@ import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
 const OPEN_TERMS = 'open-terms';
+const OPEN_LIBRARY = 'open-library';
+const OPEN_HIGHLIGHTS = 'open-highlights';
 const FIND_DUPLICATE_PEOPLE = 'find-duplicate-people';
 const MERGE_SELECTED_PEOPLE = 'merge-selected-people';
 /** Why a merge was not worked out: links to the people might be missed. */
@@ -309,6 +311,17 @@ const PALETTE_COMMANDS = [
   { id: 'new-artifact', label: 'New artifact', keywords: ['claude', 'save', 'link', 'html'] },
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
   { id: OPEN_TERMS, label: 'Terms', keywords: ['glossary', 'spelling', 'vocabulary', 'aliases'] },
+  {
+    id: OPEN_LIBRARY,
+    label: 'Library',
+    // No keyword holds a "t": ⌘K's first letter typed lists no more commands for it than before (#507).
+    keywords: ['books', 'sources', 'pdf', 'epub', 'kindle', 'reading'],
+  },
+  {
+    id: OPEN_HIGHLIGHTS,
+    label: 'All highlights',
+    keywords: ['quotes', 'annotations', 'comments', 'kindle', 'pdf', 'epub', 'reading'],
+  },
   {
     id: FIND_DUPLICATE_PEOPLE,
     label: 'Possible duplicate people',
@@ -924,6 +937,12 @@ function AppWindow({
   const openNote = useCallback(
     (path: VaultPath, how: OpenHow = 'here') => openNotePlace(workspace, path, how),
     [workspace],
+  );
+  /** Opens a note at a block: a highlight's place, from All highlights or a search (#507). */
+  const openBlock = useCallback(
+    (path: VaultPath, block: string, how: OpenHow = 'here') =>
+      openNoteAtBlock({ store: workspace, reveals }, { path, block, how }),
+    [workspace, reveals],
   );
 
   const viewDrafts = useViewDrafts(vaultKey);
@@ -1768,6 +1787,8 @@ function AppWindow({
     }
     if (id === OPEN_TEMPLATES) openPage({ kind: 'templates' });
     else if (id === OPEN_TERMS) openPage({ kind: 'terms' });
+    else if (id === OPEN_LIBRARY) openPage({ kind: 'library' });
+    else if (id === OPEN_HIGHLIGHTS) openPage({ kind: 'highlights' });
     else if (id === FIND_DUPLICATE_PEOPLE) peopleMerge.commands.findDuplicates();
     else if (id === MERGE_SELECTED_PEOPLE)
       peopleMerge.commands.mergeChosen(activeTabOf(workspaceNow(workspace))?.id ?? '');
@@ -1805,11 +1826,12 @@ function AppWindow({
     leavingPeekFor(() => runPlaceCommand(id, pasted));
   });
   // Picked over the peek, a result shows in it, in place of its note (Q6).
-  const openPaletteHit = useSteadyCallback((path: string) =>
-    peekNow(overlays) === null
-      ? openNote(createVaultPath(path))
-      : replacePeek(overlays, createVaultPath(path)),
-  );
+  const openPaletteHit = useSteadyCallback((path: string, block?: string) => {
+    // A highlight opens its note's page at its block, as a link to a block does: out of the peek.
+    if (block !== undefined) leavingPeekFor(() => openBlock(createVaultPath(path), block));
+    else if (peekNow(overlays) === null) openNote(createVaultPath(path));
+    else replacePeek(overlays, createVaultPath(path));
+  });
 
   const granolaShown = granolaPull.toastShown;
   const granolaToast = granolaPull.toast !== null && (
@@ -2015,6 +2037,8 @@ function AppWindow({
                     onSearch={() => showOverlay('search')}
                     onOpenGraph={() => openGraph({ kind: 'vault' })}
                     onOpenTags={() => openTags(null)}
+                    onOpenLibrary={() => openPage({ kind: 'library' })}
+                    onOpenHighlights={() => openPage({ kind: 'highlights' })}
                     onOpenAutomations={() => openPage({ kind: 'automations' })}
                     activity={{
                       onOpen: () => openPage({ kind: 'activity' }),
@@ -2084,6 +2108,7 @@ function AppWindow({
                       indexReady,
                       onSettled: settleArchive,
                       openNote,
+                      openBlock,
                       openPage,
                       holds: holdsByVault.of(location.absolutePath),
                       today: todayWiring,

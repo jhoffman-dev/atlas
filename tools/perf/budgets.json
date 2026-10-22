@@ -236,6 +236,20 @@
         "index_notes_of_type": 7,
         "index_query": 3
       }
+    },
+    "Open the Library (2,000 sources)": {
+      "commits": 6,
+      "renders": 165,
+      "calls": {
+        "index_query": 3
+      }
+    },
+    "Open All highlights (20,000)": {
+      "commits": 6,
+      "renders": 111,
+      "calls": {
+        "index_query": 9
+      }
     }
   }
 }

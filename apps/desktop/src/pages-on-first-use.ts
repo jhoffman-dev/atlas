@@ -74,6 +74,10 @@ export const activityScreen = laterPage(
   chunk('activity-screen', () => import('./activity/activity-screen.tsx')),
   (m) => m.ActivityScreen,
 );
+/** The Library and All highlights (#507): one chunk, since one is often opened from the other. */
+const researchScreens = chunk('research-screens', () => import('./research/research-screens.tsx'));
+export const libraryScreen = laterPage(researchScreens, (m) => m.LibraryScreen);
+export const highlightsScreen = laterPage(researchScreens, (m) => m.HighlightsScreen);
 export const archivePage = laterPage(laterParts, (m) => m.ArchivePage);
 export const weeklyReviewPage = laterPage(laterParts, (m) => m.WeeklyReviewPage);
 export const templatesPage = laterPage(laterParts, (m) => m.TemplatesPage);

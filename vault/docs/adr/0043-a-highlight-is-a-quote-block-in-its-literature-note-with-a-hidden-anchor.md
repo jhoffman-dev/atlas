@@ -291,7 +291,7 @@ Options weighed for where a highlight lives:
    tie, and copies that tie are no match at all rather than the first. The page `near` is made a section index first: a fraction rounds
    down, a number out of range is the nearest end, and NaN is the first.
 
-10. **The index has a `highlights` table** (schema 19): `path, idx, id, kind,
+10. **The index has a `highlights` table** (schema 19; searched since schema 20, #507): `path, idx, id, kind,
 quote, comment, mark, color, anchor` — the quote's plain words, the
     comment's markdown, and the marker's JSON. TypeScript reads the rows
     (`highlightRows`); Rust stores them (ADR-0005). `/v1/sql` reads it.
@@ -315,6 +315,31 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
   `files.note_type`; the `highlights` table holds the rest.
 - A marker of another version is left alone, so an older DFAI on another Mac
   never rewrites a newer one's highlights.
+
+## Addendum: the research views (#507)
+
+- **The Library and All highlights are pages of their own, not built-in
+  query views.** A query view lists notes, one row per note, with the
+  note's properties as columns; All highlights lists blocks, many per note,
+  and the Library's rows need a count of a table the query language does not
+  reach, a cover read from the vault, and a kind chip. Both reuse what the
+  query views are built from — the index's read-only `query`, the scoped
+  reads that refresh only on news of literature notes (ADR-0040), and the
+  virtualised rows — and keep their filters and order in the domain
+  (`filterLibrary`, `sortLibrary`, `filterHighlights`, `joinHighlights`).
+- **All highlights reads the `highlights` table straight down its path
+  index** and matches each row to the Library's read of the literature notes
+  in use. Asking per highlight row whether its note is literature, and its
+  tags, cost 20,000 lookups on every page.
+- **A highlight keeps no day of its own** (§3), so "date" filters by when
+  its literature note last changed.
+- **Search reaches highlights** (schema 20): each highlight's quote and
+  comment have a row in `highlights_fts`, keyed by the highlight's rowid, and
+  `index_search` answers them after the notes when the frontend asks
+  (`highlights`), each naming its block. The marker's JSON is not searched.
+- **A highlight is dragged into a note as its embed**: the row carries
+  `![[Source#^id]]` as text, and the block embed's own HTML, which the
+  editor's drop parses into the embed node, as a paste would.
 
 ## Alternatives rejected
 

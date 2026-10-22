@@ -88,6 +88,7 @@ describe('tauriIndex', () => {
       query: '"week"*',
       limit: 20,
       skipPrefix: null,
+      highlights: false,
     });
   });
 
@@ -98,7 +99,24 @@ describe('tauriIndex', () => {
       query: '"week"*',
       limit: 20,
       skipPrefix: 'archive/',
+      highlights: false,
     });
+  });
+
+  it('asks the host for the highlights too when the search wants them (#507)', async () => {
+    invoke.mockResolvedValue([
+      { path: 'Library/Art.md', title: 'Art', snippet: '<<war>>', block: 'k3x9q2' },
+    ]);
+    const hits = await tauriIndex.search('"war"*', 20, { highlights: true });
+    expect(invoke).toHaveBeenCalledWith('index_search', {
+      query: '"war"*',
+      limit: 20,
+      skipPrefix: null,
+      highlights: true,
+    });
+    expect(hits).toEqual([
+      { path: 'Library/Art.md', title: 'Art', snippet: '<<war>>', block: 'k3x9q2' },
+    ]);
   });
 
   it('asks for the notes of a type', async () => {

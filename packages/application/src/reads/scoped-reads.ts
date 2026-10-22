@@ -7,6 +7,7 @@ import {
   FILED_UNDER_TYPES,
   foldedLinkName,
   INBOX_DIRECTORY,
+  LITERATURE_NOTE_TYPE,
   MEETING_TYPE,
   PERSON_TYPE,
   PROJECT_TYPE,
@@ -121,6 +122,23 @@ export const ARCHIVE_SCOPE: ReadScope = {
  * companies whose names and other spellings the vocabulary is made of.
  */
 export const TERMS_SCOPE: ReadScope = { types: [TERM_TYPE, PERSON_TYPE, COMPANY_TYPE] };
+
+/**
+ * What the Library lists (`loadLibrary`, #507): the literature notes, and the
+ * projects and areas they are filed under, whose titles it shows.
+ *
+ * Not covered: a `project:` link to a note of another type, or of none. Its
+ * retitle reaches no covered note; the row is right again on the Library's
+ * next news.
+ */
+export const LIBRARY_SCOPE: ReadScope = { types: [LITERATURE_NOTE_TYPE, ...FILED_UNDER_TYPES] };
+
+/**
+ * What All highlights lists (`loadAllHighlights`, #507): the highlights in
+ * the literature notes, which are the notes' own blocks — a note's type
+ * before a change counts too, so one that stops being literature leaves.
+ */
+export const HIGHLIGHTS_SCOPE: ReadScope = { types: [LITERATURE_NOTE_TYPE] };
 
 /**
  * What a type's table lists (`typeTableQuery`): its notes, whose own

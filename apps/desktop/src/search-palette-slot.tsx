@@ -41,8 +41,8 @@ export interface SearchPaletteSlotProps {
   readonly vault: string | null;
   /** A command chosen, once the palette has closed, with the query it was chosen from. */
   readonly onCommand: (id: string, query: string) => void;
-  /** A note chosen, once the palette has closed. */
-  readonly onPick: (path: string) => void;
+  /** A note chosen, once the palette has closed; with its block, a highlight in it (#507). */
+  readonly onPick: (path: string, block?: string) => void;
   readonly fallbackFocus: () => HTMLElement | null;
 }
 
@@ -82,9 +82,10 @@ function OpenSearchPalette({
       selected={search.selected}
       onQuery={search.setQuery}
       onMove={search.move}
-      onPick={(path) => {
+      onPick={(path, block) => {
         hideOverlay(store, 'search');
-        onPick(path);
+        if (block === undefined) onPick(path);
+        else onPick(path, block);
       }}
       onClose={() => hideOverlay(store, 'search')}
       fallbackFocus={fallbackFocus}

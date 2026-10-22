@@ -3,8 +3,10 @@ export { reportingIndexWrites } from './reporting-index-writes.ts';
 export {
   ARCHIVE_SCOPE,
   AUTOMATIONS_SCOPE,
+  HIGHLIGHTS_SCOPE,
   INBOX_CHOICES_SCOPE,
   INBOX_SCOPE,
+  LIBRARY_SCOPE,
   MENTIONS_SCOPE,
   notePaneScope,
   PEOPLE_SCOPE,

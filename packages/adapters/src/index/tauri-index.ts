@@ -38,7 +38,12 @@ export const tauriIndex: IndexPort = {
 
   search(query: string, limit: number, scope: SearchScope = {}) {
     return throughHost(
-      invoke<SearchHit[]>('index_search', { query, limit, skipPrefix: scope.skipPrefix ?? null }),
+      invoke<SearchHit[]>('index_search', {
+        query,
+        limit,
+        skipPrefix: scope.skipPrefix ?? null,
+        highlights: scope.highlights === true,
+      }),
     );
   },
 
