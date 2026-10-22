@@ -1,7 +1,7 @@
 import http from 'node:http';
 import net, { type LookupFunction } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { NonLoopbackFetchError } from './loopback-only-fetch.ts';
+import { NonLoopbackFetchError } from './loopback-only-network.ts';
 
 /*
  * Second verification of PR #511 (after the fix round at b4e81c01): ways past the run's socket

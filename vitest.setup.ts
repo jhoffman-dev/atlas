@@ -1,4 +1,4 @@
-import { installLoopbackOnlyNetwork } from './tools/test-guard/loopback-only-fetch.ts';
+import { installLoopbackOnlyNetwork } from './tools/test-guard/loopback-only-network.ts';
 
 // No test may reach a host off this machine (Amazon's notebook, above all): not by fetch or
 // XHR, nor by any socket or node:http(s) request below them.

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { NonLoopbackFetchError } from './loopback-only-fetch.ts';
+import { NonLoopbackFetchError } from './loopback-only-network.ts';
 
 /*
  * Verification of PR #511: XMLHttpRequest, in a test with a window, refuses an address off this

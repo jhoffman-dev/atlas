@@ -10,7 +10,7 @@ import {
   installLoopbackOnlyFetch,
   isLoopbackUrl,
   NonLoopbackFetchError,
-} from './loopback-only-fetch.ts';
+} from './loopback-only-network.ts';
 
 describe('isLoopbackUrl', () => {
   it('accepts this machine by name, by IPv4 and by IPv6, and a relative address', () => {
