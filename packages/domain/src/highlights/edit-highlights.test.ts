@@ -70,7 +70,7 @@ describe('appending highlights', () => {
     );
   });
 
-  it('keeps every byte before it, adding a blank line after what is there', () => {
+  it('keeps every byte before it, adding a blank line of its own after what is there', () => {
     const before = `${SOURCE}# Notes\n\nMy words, no final line ending`;
     const { text } = appendHighlights({ text: before, highlights: [deception], random: seeded(1) });
     expect(text.startsWith(`${before}\n\n> All warfare`)).toBe(true);
@@ -78,10 +78,11 @@ describe('appending highlights', () => {
     expect(
       appendHighlights({ text: ended, highlights: [deception], random: seeded(1) }).text,
     ).toMatch(/^[^]*My words\.\n\n> All warfare/);
+    // A blank line the note already ends in is the person's, not reused (A11, verify #510).
     const spaced = `${SOURCE}My words.\n\n`;
     expect(
       appendHighlights({ text: spaced, highlights: [deception], random: seeded(1) }).text,
-    ).toMatch(/My words\.\n\n> All warfare/);
+    ).toMatch(/My words\.\n\n\n> All warfare/);
   });
 
   it('writes to a note with no frontmatter, and to an empty one', () => {
@@ -195,6 +196,44 @@ describe('appending highlights', () => {
     expect(again.highlights.map((highlight) => highlight.added)).toEqual([false, true]);
   });
 
+  it('answers a Kindle passage synced without an id from an export with one, at its location start', () => {
+    const words = 'Emma Woodhouse, handsome, clever, and rich';
+    const kindle = (
+      location: { start: number; end: number | null },
+      annotationId: string | null,
+      quote = words,
+    ): NewHighlight => ({ quote, anchor: { kind: 'kindle', location, annotationId } });
+    const append = (text: string, highlight: NewHighlight) =>
+      appendHighlights({ text, highlights: [highlight], random: seeded(text.length) });
+    const ranged = append(SOURCE, kindle({ start: 77, end: 79 }, null)).text;
+    expect(append(ranged, kindle({ start: 77, end: null }, 'A1')).highlights[0]?.added).toBe(false);
+    const started = append(SOURCE, kindle({ start: 77, end: null }, 'A1')).text;
+    expect(append(started, kindle({ start: 77, end: 79 }, null)).highlights[0]?.added).toBe(false);
+    expect(append(ranged, kindle({ start: 78, end: 79 }, 'A1')).highlights[0]?.added).toBe(true);
+    expect(
+      append(ranged, kindle({ start: 77, end: null }, 'A1', 'Other words')).highlights[0]?.added,
+    ).toBe(true);
+  });
+
+  it('keeps the quote as the words of a Kindle export that gave blank ones', () => {
+    const { text } = appendHighlights({
+      text: SOURCE,
+      highlights: [
+        {
+          quote: 'Call me Ishmael.',
+          anchor: {
+            kind: 'kindle',
+            location: { start: 5, end: null },
+            annotationId: null,
+            exact: ' ',
+          },
+        },
+      ],
+      random: seeded(1),
+    });
+    expect(readHighlights(text)[0]?.anchor).toMatchObject({ exact: 'Call me Ishmael.' });
+  });
+
   it("writes in the note's own line ending", () => {
     const windows = SOURCE.replace(/\n/g, '\r\n') + 'Words.\r\n';
     const { text } = appendHighlights({
@@ -275,6 +314,32 @@ describe("editing a highlight's comment", () => {
     const text = threeHighlights();
     expect(withHighlightComment({ text, id: 'bbbbb2', comment: 'First thought.' })).toBe(text);
   });
+
+  it.each([
+    ['an empty note', ''],
+    ['no body', SOURCE],
+    ['a blank body', `${SOURCE}\n`],
+    ['a body of spaces and no line ending', `${SOURCE}   `],
+    ['words and no line ending', `${SOURCE}Words.`],
+    ['words', `${SOURCE}Words.\n`],
+    ['a blank line', `${SOURCE}Words.\n\n`],
+    ['spaces and no line ending after a line', `${SOURCE}Words.\n  `],
+    ['words, on Windows', `${SOURCE}Words.\n`.replace(/\n/g, '\r\n')],
+  ])(
+    'gives back a note that held %s, byte for byte, once all it was given is taken out',
+    (_label, note) => {
+      const { text, highlights } = appendHighlights({
+        text: note,
+        highlights: [deception, { quote: 'Know the enemy.', anchor: pdf(4, 'Know the enemy.') }],
+        random: seeded(3),
+      });
+      const removed = highlights.reduceRight(
+        (current, { id }) => withoutHighlight({ text: current, id }),
+        text,
+      );
+      expect(removed).toBe(note);
+    },
+  );
 
   it('refuses a highlight the note does not hold', () => {
     expect(() =>

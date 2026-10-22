@@ -120,6 +120,7 @@ function kindleProblem(anchor: KindleAnchor): string | null {
     if (location.end !== null && (!isCount(location.end) || location.end < location.start))
       return 'a location range ends after it starts';
   }
+  if (anchor.exact !== undefined && isBlank(anchor.exact)) return 'a Kindle quote has words';
   return anchor.annotationId === '' ? 'an annotation id has characters' : null;
 }
 
@@ -169,21 +170,28 @@ export function highlightKey(anchor: HighlightAnchor, quote: string): string {
     case 'kindle':
       return anchor.annotationId !== null
         ? JSON.stringify(['kindle-id', anchor.annotationId])
-        : kindlePlaceKey(anchor, quote);
+        : JSON.stringify([
+            'kindle',
+            anchor.location?.start ?? null,
+            anchor.location?.end ?? null,
+            anchor.page ?? null,
+            foldWords(anchor.exact ?? quote),
+          ]);
   }
 }
 
 /**
  * A Kindle highlight's place and words with no regard for its annotation id:
  * what an export that learns the id later shares with the copy synced
- * without it, so the two are one passage.
+ * without it, so the two are one passage. The place is where the location
+ * starts — one export gives a range (`77-79`) where another gives its start
+ * alone — or the page when there is no location; the words tell two
+ * passages at one place apart.
  */
 export const kindlePlaceKey = (anchor: KindleAnchor, quote: string): string =>
   JSON.stringify([
-    'kindle',
-    anchor.location?.start ?? null,
-    anchor.location?.end ?? null,
-    anchor.page ?? null,
+    'kindle-place',
+    anchor.location === null ? ['page', anchor.page ?? null] : ['location', anchor.location.start],
     foldWords(anchor.exact ?? quote),
   ]);
 

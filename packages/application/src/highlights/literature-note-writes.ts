@@ -49,7 +49,7 @@ export class NotALiteratureNoteError extends Error {
  * sync can hand over everything it has each time. Writes nothing when every
  * one was there, and nothing when the note holds a marker this build cannot
  * read (`UnreadableHighlightMarkerError`) or would hide the new highlight
- * (`HighlightNotReadBackError`: an unclosed code fence or HTML comment).
+ * (`HighlightNotReadBackError`: an unclosed code fence, HTML block or comment).
  */
 export async function addHighlights(
   ports: LiteratureNoteWritePorts & { readonly rng: Rng },

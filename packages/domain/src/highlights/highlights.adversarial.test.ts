@@ -257,7 +257,13 @@ describe('re-anchoring (attack on #510)', () => {
       if (selector.exact.trim() === '') continue;
       const found = findQuote(text, selector);
       const covers = found !== null && found.start >= start && found.end <= end;
-      if (!covers) misses.push(JSON.stringify({ text, start, end }));
+      // A9 (verify #510): copies whose surroundings differ only in whitespace tie, and a
+      // tie finds nothing. Only such a selection may go unfound; none is found elsewhere.
+      const ties =
+        found === null
+          ? occurrences(fold(text), fold(selector.prefix + selector.exact + selector.suffix))
+          : 0;
+      if (!covers && ties < 2) misses.push(JSON.stringify({ text, start, end }));
     }
     expect(misses.slice(0, 3)).toEqual([]);
   });
@@ -457,3 +463,13 @@ describe('review findings on #510', () => {
     expect(findQuoteNear({ sections, selector, near: 2.5 })?.section).toBe(1);
   });
 });
+
+/** `text` with every run of whitespace one space, as re-anchoring compares it. */
+const fold = (text: string): string => text.replace(/\s+/g, ' ');
+
+/** How many times `part` is in `text`, overlapping copies counted. */
+function occurrences(text: string, part: string): number {
+  let count = 0;
+  for (let at = text.indexOf(part); at !== -1; at = text.indexOf(part, at + 1)) count += 1;
+  return count;
+}

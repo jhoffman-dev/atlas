@@ -91,6 +91,16 @@ describe('which anchors the format holds', () => {
       { kind: 'kindle', location: { start: 10, end: null }, annotationId: '' },
       'annotation id',
     ],
+    [
+      'blank Kindle words',
+      { kind: 'kindle', location: { start: 10, end: null }, annotationId: null, exact: ' \n' },
+      'Kindle quote has words',
+    ],
+    [
+      'empty Kindle words',
+      { kind: 'kindle', location: { start: 10, end: null }, annotationId: null, exact: '' },
+      'Kindle quote has words',
+    ],
   ])('refuses %s', (_label, anchor, reason) => {
     expect(anchorProblem(anchor)).toContain(reason);
     expect(() => assertAnchor(anchor)).toThrow(InvalidHighlightAnchorError);
@@ -168,5 +178,21 @@ describe('what makes two highlights the same passage', () => {
       annotationId,
     });
     expect(kindlePlaceKey(at('A1'), 'Words')).toBe(kindlePlaceKey(at(null), 'Words'));
+  });
+
+  it('places a Kindle highlight by where its location starts, its range end and page aside', () => {
+    const at = (location: KindleAnchor['location'], page?: number): KindleAnchor => ({
+      kind: 'kindle',
+      location,
+      annotationId: null,
+      ...(page !== undefined && { page }),
+    });
+    const ranged = kindlePlaceKey(at({ start: 77, end: 79 }), 'Words');
+    expect(kindlePlaceKey(at({ start: 77, end: null }), 'Words')).toBe(ranged);
+    expect(kindlePlaceKey(at({ start: 77, end: 79 }, 12), 'Words')).toBe(ranged);
+    expect(kindlePlaceKey(at({ start: 78, end: 79 }), 'Words')).not.toBe(ranged);
+    expect(kindlePlaceKey(at({ start: 77, end: 79 }), 'Other words')).not.toBe(ranged);
+    expect(kindlePlaceKey(at(null, 12), 'Words')).not.toBe(kindlePlaceKey(at(null, 13), 'Words'));
+    expect(kindlePlaceKey(at(null, 77), 'Words')).not.toBe(ranged);
   });
 });

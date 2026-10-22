@@ -69,7 +69,7 @@ export class UnreadableHighlightMarkerError extends Error {
 export class HighlightNotReadBackError extends Error {
   constructor(readonly ids: readonly string[]) {
     super(
-      'The note ends inside an unclosed code fence or HTML comment, which would hide ' +
+      'The note ends inside an unclosed code fence, HTML block or comment, which would hide ' +
         `the new highlight${ids.length === 1 ? '' : 's'} (${ids.map((id) => `^${id}`).join(', ')}). Nothing was written.`,
     );
     this.name = 'HighlightNotReadBackError';
@@ -87,7 +87,8 @@ export class HighlightNotReadBackError extends Error {
  * `UnreadableHighlightMarkerError` when the note holds a marker this build
  * cannot read, which may be a passage it would add twice;
  * `HighlightNotReadBackError` when a highlight added would not read back
- * from the note it was added to (an unclosed code fence or HTML comment).
+ * from the note it was added to (an unclosed code fence, raw HTML block,
+ * HTML comment or Obsidian `%%` comment).
  */
 export function appendHighlights({
   text,
@@ -98,7 +99,7 @@ export function appendHighlights({
   highlights: readonly NewHighlight[];
   random: () => number;
 }): { text: string; highlights: AppendedHighlight[] } {
-  highlights.forEach(checkNewHighlight);
+  highlights.forEach((highlight) => checkNewHighlight(highlight, exactWords(highlight)));
   assertMarkersReadable(text);
   const eol = lineEndingOf(text);
   const held = new HeldPassages();
@@ -155,10 +156,11 @@ class HeldPassages {
 /**
  * A Kindle anchor with the export's own words: the quote given, kept in the
  * marker as `exact`, so a later sync still knows the passage after the
- * person has tidied the quote. Other anchors already hold their words.
+ * person has tidied the quote. An export that gave blank words gives none,
+ * so the quote stands in for them too. Other anchors already hold their words.
  */
 function exactWords({ anchor, quote }: NewHighlight): HighlightAnchor {
-  return anchor.kind === 'kindle' && anchor.exact === undefined
+  return anchor.kind === 'kindle' && (anchor.exact === undefined || anchor.exact.trim() === '')
     ? { ...anchor, exact: quote }
     : anchor;
 }
@@ -221,8 +223,8 @@ export function highlightNamed(text: string, id: string): HighlightBlock {
   return block;
 }
 
-function checkNewHighlight(highlight: NewHighlight): void {
-  assertAnchor(highlight.anchor);
+function checkNewHighlight(highlight: NewHighlight, anchor: HighlightAnchor): void {
+  assertAnchor(anchor);
   if (quoteLines(highlight.quote).length === 0) {
     throw new InvalidHighlightAnchorError('a highlight quotes some words');
   }
@@ -246,13 +248,16 @@ function blockOf(
   );
 }
 
-/** `block` after the note's last byte, a blank line between it and what comes before. */
+/**
+ * `block` after the note's last byte, after a blank line of its own — never one
+ * the note already ended in — so removing it takes out exactly what was added.
+ * At the very start of the body no blank line is needed, and none is added.
+ */
 function withBlockAppended(text: string, block: string, eol: '\n' | '\r\n'): string {
   const ended = withLineEnded(text, eol);
   // A note that had no final newline keeps having none, so removing the block gives it back.
   const closed = ended === text || text === '' ? block : block.slice(0, -eol.length);
-  if (splitFrontmatter(text).body.trim() === '') return ended + closed;
-  return /\n[ \t]*\r?\n$/.test(ended) ? ended + closed : ended + eol + closed;
+  return splitFrontmatter(ended).body === '' ? ended + closed : ended + eol + closed;
 }
 
 const withLineEnded = (text: string, eol: '\n' | '\r\n'): string =>

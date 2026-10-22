@@ -48,8 +48,11 @@ export function quoteSelectorAt({
  * Where `selector`'s words are in `text`, or null when they are not, or when
  * two or more copies match their surroundings (`prefix` and `suffix`) equally
  * well: changed words are not found rather than found in the wrong place.
- * Whitespace at either end of `exact` is taken as part of the surroundings,
- * so a selection `quoteSelectorAt` took from a space finds its own copy.
+ * Only the characters that are not whitespace count towards a copy's match:
+ * two copies the surroundings tell apart by spaces alone are noise, not a
+ * choice, and find nothing. Whitespace at either end of `exact` is taken as part
+ * of the surroundings, so a selection `quoteSelectorAt` took from a space
+ * finds its own copy.
  */
 export function findQuote(text: string, selector: TextQuoteSelector): QuoteMatch | null {
   const folded = foldSpaces(text);
@@ -59,45 +62,25 @@ export function findQuote(text: string, selector: TextQuoteSelector): QuoteMatch
   const trailing = /\s*$/.exec(selector.exact)?.[0] ?? '';
   const prefix = foldSpaces(selector.prefix + leading).text;
   const suffix = foldSpaces(trailing + selector.suffix).text;
-  const around = { prefix: selector.prefix + leading, suffix: trailing + selector.suffix };
-  let best: { at: number; score: number; exactScore: number; tied: boolean } | null = null;
+  let best: { at: number; score: number; tied: boolean } | null = null;
   for (let at = folded.text.indexOf(exact); at !== -1; at = folded.text.indexOf(exact, at + 1)) {
+    const before = commonSuffix(folded.text, at, prefix);
+    const after = commonPrefix(folded.text, at + exact.length, suffix);
     const score =
-      commonSuffix(folded.text, at, prefix) + commonPrefix(folded.text, at + exact.length, suffix);
-    const exactScore = surroundingsScore(text, rangeOf(folded, at, exact), around);
-    const candidate = { at, score, exactScore, tied: false };
-    if (best === null || beats(candidate, best)) best = candidate;
-    else if (score === best.score && exactScore === best.exactScore) best.tied = true;
+      nonSpaces(prefix.slice(prefix.length - before)) + nonSpaces(suffix.slice(0, after));
+    if (best === null || score > best.score) best = { at, score, tied: false };
+    else if (score === best.score) best.tied = true;
   }
   if (best === null || best.tied) return null;
-  const { start, end } = rangeOf(folded, best.at, exact);
-  return { start, end };
+  return rangeOf(folded, best.at, exact);
 }
 
-/** Whether `candidate` fits its surroundings better: loosely first, then to the letter, whitespace and all. */
-const beats = (
-  candidate: { score: number; exactScore: number },
-  best: { score: number; exactScore: number },
-): boolean =>
-  candidate.score > best.score ||
-  (candidate.score === best.score && candidate.exactScore > best.exactScore);
+const nonSpaces = (text: string): number => text.replace(/\s/g, '').length;
 
 /** The match at `at` in the folded text, as `[start, end)` of the text as given. */
 function rangeOf(folded: Folded, at: number, exact: string): QuoteMatch {
   const last = folded.origins[at + exact.length - 1] as number;
   return { start: folded.origins[at] as number, end: last + 1 };
-}
-
-/** How far the text either side of `range` matches the selector's, whitespace compared as written. */
-function surroundingsScore(
-  text: string,
-  range: QuoteMatch,
-  expected: { prefix: string; suffix: string },
-): number {
-  return (
-    commonSuffix(text, range.start, expected.prefix) +
-    commonPrefix(text, range.end, expected.suffix)
-  );
 }
 
 /**

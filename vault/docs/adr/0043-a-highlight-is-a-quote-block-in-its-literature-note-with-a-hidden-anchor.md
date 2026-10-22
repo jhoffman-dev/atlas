@@ -92,8 +92,15 @@ Options weighed for where a highlight lives:
    comment the lines after it). A comment line that lost its `>` in Obsidian
    is a CommonMark lazy continuation, still part of the quote there, so it is
    still part of the highlight; the next comment write puts the `>` back. A
-   line that would start a block of its own (a heading, a list, a fence, a
-   rule) ends the quote, and what follows is no highlight.
+   line ends the quote only when CommonMark lets it interrupt a paragraph,
+   and what follows is then no highlight: an ATX heading (`#` to `######`
+   then a space, a tab or the line's end — `#tag` is text), a thematic break,
+   a fence (three or more backticks or tildes; `~~struck~~` and `` `code` ``
+   are text), a `>`, a list item that may interrupt (a bullet, or an ordered
+   item numbered 1, with words after it — `-`, `1.` and `2. more` are text),
+   and HTML blocks 1 to 6 (`<pre>`, `<!--`, `<div>`, …; inline HTML such as
+   `<b>` and an autolink `<https://…>` are text). A setext underline cannot
+   be lazy, so `===` and `--` stay text, and `---` is a thematic break.
 
 3. **The marker holds the anchor and the style, as one line of JSON.**
    `<!-- atlas:highlight {…} -->`, `atlas:` as every marker is (ADR-0042),
@@ -119,7 +126,8 @@ Options weighed for where a highlight lives:
    U+2029 are written as JSON escapes (a PDF's text layer holds the last two,
    which some readers take for a line end). A marker whose JSON holds a raw
    `-->` is not read, since CommonMark ends the comment there and shows the
-   rest as text. An anchor is refused when its `exact` is only whitespace or a
+   rest as text. An anchor is refused when its `exact` (a Kindle one's too)
+   is empty or only whitespace, or a
    PDF box runs off its page (past the right or bottom edge, within a rounding
    of 1e-6).
 
@@ -135,20 +143,25 @@ Options weighed for where a highlight lives:
    item.
 
 5. **Writes change only their highlight's bytes** (ADR-0003). Adding appends
-   a block after the note's last byte, a blank line before it. A new comment
+   a block after the note's last byte, after a blank line of its own — never
+   one the note already ended in, which is the person's — and at the very
+   start of an empty body with none. A new comment
    replaces the comment's lines and nothing else; written back as it reads,
    a comment is the same bytes. Removing takes out the block and the one
    blank line that parted it. A highlight is removed only on the person's
    command: nothing removes one by itself, sync included. A note with no final
    newline stays so: the block is written without one, and removing it gives
-   the note back byte for byte. Each write goes
+   the note back byte for byte. So removing every highlight added gives the
+   note back byte for byte, whatever it ended in (`\n\n`, `\n  \n`,
+   `\r\n\r\n`, no line ending). Each write goes
    through the vault against the version just read, and is refused while a
    pane holds unsaved typing in the note (as linking a block is, ADR-0022).
 
    Appending checks itself before it writes. Every highlight added must read
    back from the note it was added to, or `HighlightNotReadBackError` is
    thrown and nothing is written: a note that ends inside an unclosed code
-   fence or HTML comment would hide the block, and every sync would add the
+   fence, raw HTML block (`<pre>`, `<script>`, `<style>`, `<textarea>`), HTML
+   comment or Obsidian `%%` comment would hide the block, and every sync would add the
    same passage again. And a note that holds a marker this build cannot read
    (a newer version's, or one broken by hand) is refused with
    `UnreadableHighlightMarkerError`, because that marker may be a passage the
@@ -165,7 +178,12 @@ Options weighed for where a highlight lives:
    `annotationId`, or without one a Kindle place (location or page) and the
    export's words, `exact`, never the quote as the person has since edited it.
    An export that learns an annotation id later still matches the copy synced
-   without one, on place and words; two different ids are two passages.
+   without one, on place and words (`kindlePlaceKey`): the place is where the
+   location starts — My Clippings gives `Location 77-79` where the notebook
+   export gives `Location 77` — or the page when there is no location, so two
+   different words at one place stay two passages; two different ids are two
+   passages. An export that gives blank words for `exact` gives none, and the
+   quote stands in for them.
    Adding one the note holds answers the id it has. So a Kindle sync can hand
    over every highlight each time.
 
@@ -173,8 +191,16 @@ Options weighed for where a highlight lives:
    line's first column, after a blank line or the start of the body, outside
    a code fence, holding exactly one marker this build reads with words
    before it, then a blank line and `^id`. A quote without the id, with two
-   markers, a broken or newer marker, inside a list, or inside a code fence or
-   HTML comment (closed or not): not a highlight, and kept exactly as written. Only a note that says `type: literature` has
+   markers, a broken or newer marker, inside a list, or inside a code fence,
+   an HTML comment, a raw HTML block (CommonMark block 1: `<pre>`,
+   `<script>`, `<style>`, `<textarea>`, to the line that closes the tag) or
+   an Obsidian `%%` comment (a line with an odd number of `%%` outside HTML
+   comments and inline code opens or closes one), closed or not: not a
+   highlight, and kept exactly as written. One nobody closed runs to the end
+   of the note — except that a fence or HTML block opened in a list item ends
+   with the item, at the first non-blank line indented less than the item's
+   content (CommonMark's container rule), so a list that ends in a fence
+   neither refuses appends nor hides the highlights after it. Only a note that says `type: literature` has
    highlights; the same text pasted elsewhere is a quote.
 
 9. **Re-anchoring uses the words first.** `findQuote` looks for `exact` in a
@@ -184,9 +210,10 @@ Options weighed for where a highlight lives:
    downloaded again, or another edition, still finds its highlights; changed
    words are not found rather than found in the wrong place. Space at either
    end of `exact` counts as surroundings, so a selection that began on a space
-   finds its own copy. Copies that fit their surroundings equally well, first
-   loosely and then whitespace as written, are no match at all rather than
-   the first. The page `near` is made a section index first: a fraction rounds
+   finds its own copy. A copy wins only on surroundings that are not
+   whitespace: only the non-whitespace characters of `prefix` and `suffix`
+   it matches count, so copies whose surroundings differ in whitespace alone
+   tie, and copies that tie are no match at all rather than the first. The page `near` is made a section index first: a fraction rounds
    down, a number out of range is the nearest end, and NaN is the first.
 
 10. **The index has a `highlights` table** (schema 19): `path, idx, id, kind,

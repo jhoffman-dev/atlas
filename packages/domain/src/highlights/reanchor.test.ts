@@ -48,7 +48,7 @@ describe('finding a quote by its words', () => {
     expect(findQuote('ab ab ab', { exact: 'ab', prefix: '', suffix: '' })).toBeNull();
   });
 
-  it('tells copies apart by their whitespace when the loose comparison cannot', () => {
+  it('tells copies apart by the words around them, however the whitespace runs', () => {
     const text = 'x  deception\ny deception';
     const selector = quoteSelectorAt({
       text,

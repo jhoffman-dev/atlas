@@ -30,8 +30,8 @@ import {
  * bookmark is (ADR-0020): a quote starting at a line's first column, after a
  * blank line or the start of the body, outside a code fence, holding exactly
  * one marker this build reads with words before it, then a blank line and
- * `^id`. Outside a code fence and an HTML comment, which hide what they hold
- * from every reader. Anything else is not a highlight and is kept exactly
+ * `^id`. Outside a code fence, an HTML comment, a raw HTML block and an
+ * Obsidian `%%` comment, which hide what they hold from every reader. Anything else is not a highlight and is kept exactly
  * as written.
  */
 
@@ -78,6 +78,8 @@ export function readHighlights(text: string): HighlightBlock[] {
     const after = quoteEnd(lines, index);
     const block = highlightOf(lines, index, after);
     if (block !== null) blocks.push(block);
+    // Its lines are text, which can still open a `%%` comment that hides what follows.
+    lines.slice(index + 1, after).forEach((quoted) => hidden.passText(quoted));
     index = after;
   }
   return blocks;
@@ -99,10 +101,42 @@ function quoteEnd(lines: readonly Line[], first: number): number {
 }
 
 /** Whether an unquoted line is plain text, which a paragraph above it takes in, not a block of its own. */
-const continuesParagraph = (line: Line): boolean =>
-  line.text.trim() !== '' && !BLOCK_START.test(line.text);
+function continuesParagraph(line: Line): boolean {
+  const text = line.text.replace(/\r$/, '');
+  return text.trim() !== '' && !PARAGRAPH_INTERRUPTERS.some((start) => start.test(text));
+}
 
-const BLOCK_START = /^ {0,3}(?:[#>`~<]|[-*+](?:\s|$)|1[.)](?:\s|$)|(?:[-_*][ \t]*){3,}$|=+[ \t]*$)/;
+/*
+ * The lines that start a block of their own even straight after a paragraph's
+ * line (CommonMark's "can interrupt a paragraph"); any other line is lazy
+ * continuation text. A setext underline (`===`, `--`) is not among them: it
+ * cannot be lazy, so it stays text, and `---` is a thematic break.
+ */
+const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]|$)/;
+const THEMATIC_BREAK = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/;
+/** A fence's opening line: a backtick fence's info string holds no backtick. */
+const FENCE_OPEN = /^ {0,3}(?:`{3,}[^`]*|~{3,}.*)$/;
+const QUOTE_START = /^ {0,3}>/;
+/** A list item that may interrupt a paragraph: a bullet, or an ordered item numbered 1, with words. */
+const INTERRUPTING_LIST_ITEM = /^ {0,3}(?:[-*+]|1[.)])[ \t]+\S/;
+/** CommonMark HTML blocks 1 to 6; block 7 (any other tag, inline HTML, an autolink) cannot interrupt. */
+const INTERRUPTING_HTML = new RegExp(
+  '^ {0,3}<(?:(?:script|pre|style|textarea)(?:[ \\t>]|$)|!--|\\?|![A-Za-z]|!\\[CDATA\\[|' +
+    '/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|' +
+    'details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|' +
+    'h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|' +
+    'optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|' +
+    'track|ul)(?:[ \\t]|/?>|$))',
+  'i',
+);
+const PARAGRAPH_INTERRUPTERS = [
+  ATX_HEADING,
+  THEMATIC_BREAK,
+  FENCE_OPEN,
+  QUOTE_START,
+  INTERRUPTING_LIST_ITEM,
+  INTERRUPTING_HTML,
+];
 
 /** The highlight the quote lines `[first, after)` and the lines below them make, or null. */
 function highlightOf(lines: readonly Line[], first: number, after: number): HighlightBlock | null {
@@ -196,45 +230,120 @@ function trimBlankLines(lines: readonly string[]): string {
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const COMMENT_START = /^ {0,3}<!--/;
+/** CommonMark HTML block 1: its lines are kept as raw HTML until one closes the tag. */
+const RAW_HTML_START = /^ {0,3}<(?:pre|script|style|textarea)(?:[ \t>]|$)/i;
+const RAW_HTML_END = /<\/(?:pre|script|style|textarea)>/i;
+const LIST_MARKER = /^( *)([-*+]|\d{1,9}[.)])([ \t]+|$)/;
+
+/** A fence or HTML block open on the lines so far, and what ends it. */
+interface OpenBlock {
+  /** Whether `text`, a line inside the block, is its last. */
+  readonly endsAt: (text: string) => boolean;
+  /** The content column of the list item it is in, or null outside one: the block ends with the item. */
+  readonly item: number | null;
+}
 
 /**
- * Whether a line is inside a fenced code block or an HTML comment, where
- * nothing is a highlight. A fence or a comment nobody closed runs to the end
- * of the note, as every markdown reader has it.
+ * Whether a line is inside a fenced code block, an HTML comment, a raw HTML
+ * block (`<pre>`, `<script>`, `<style>`, `<textarea>`) or an Obsidian `%%`
+ * comment, where nothing is a highlight. One nobody closed runs to the end of
+ * the note, as every markdown reader has it — except that a fence or HTML
+ * block opened in a list item ends when the item does (CommonMark's container
+ * rule): at the first non-blank line indented less than the item's content.
  */
 class HiddenBlockTracker {
-  private fence: string | null = null;
-  private inComment = false;
+  private open: OpenBlock | null = null;
+  private obsidianComment = false;
+  /** The content column of the list item the lines are in, or null. */
+  private item: number | null = null;
 
-  /** True for the lines of a fence or a comment, its own and everything between. */
+  /** True for the lines of a hidden block, its own and everything between. */
   inside(line: Line): boolean {
-    if (this.inComment) {
-      if (line.text.includes('-->')) this.inComment = false;
+    const text = line.text.replace(/\r$/, '');
+    if (this.obsidianComment) {
+      if (togglesObsidianComment(text)) this.obsidianComment = false;
       return true;
     }
-    return this.fence === null ? this.opens(line) : this.continuesFence(line);
+    if (this.open !== null && !this.leavesItem(this.open.item, text)) {
+      if (this.open.endsAt(this.withinItem(this.open.item, text))) this.open = null;
+      return true;
+    }
+    this.open = null;
+    this.followItem(text);
+    return this.opens(text);
   }
 
-  private opens(line: Line): boolean {
-    const run = FENCE.exec(line.text)?.[1];
+  /** Takes in a line known to be paragraph text, outside any hidden block. */
+  passText(line: Line): void {
+    const text = line.text.replace(/\r$/, '');
+    if (this.leavesItem(this.item, text)) this.item = null;
+    if (togglesObsidianComment(text)) this.obsidianComment = !this.obsidianComment;
+  }
+
+  private opens(text: string): boolean {
+    const content = this.withinItem(this.item, text);
+    const item = this.item;
+    const run = FENCE_OPEN.test(content) ? FENCE.exec(content)?.[1] : undefined;
     if (run !== undefined) {
-      this.fence = run;
+      this.open = { endsAt: (inner) => closesFence(inner, run), item };
       return true;
     }
-    if (!COMMENT_START.test(line.text)) return false;
-    this.inComment = !line.text.slice(line.text.indexOf('<!--') + 4).includes('-->');
-    return true;
+    if (togglesObsidianComment(text)) {
+      this.obsidianComment = true;
+      return true;
+    }
+    if (COMMENT_START.test(content)) {
+      this.openUnlessClosed(content.slice(content.indexOf('<!--') + 4), (inner) =>
+        inner.includes('-->'),
+      );
+      return true;
+    }
+    if (RAW_HTML_START.test(content)) {
+      this.openUnlessClosed(content, (inner) => RAW_HTML_END.test(inner));
+      return true;
+    }
+    return false;
   }
 
-  private continuesFence(line: Line): true {
-    const open = this.fence as string;
-    const run = FENCE.exec(line.text)?.[1];
-    const closes =
-      run !== undefined &&
-      run[0] === open[0] &&
-      run.length >= open.length &&
-      line.text.trim() === run;
-    if (closes) this.fence = null;
-    return true;
+  private openUnlessClosed(rest: string, endsAt: (text: string) => boolean): void {
+    if (!endsAt(rest)) this.open = { endsAt, item: this.item };
+  }
+
+  /** Follows list items: one starts at its marker and ends at a line indented less than its content. */
+  private followItem(text: string): void {
+    const marker = THEMATIC_BREAK.test(text) ? null : LIST_MARKER.exec(text);
+    const indent = marker?.[1]?.length ?? 0;
+    if (marker !== null && indent < (this.item ?? 0) + 4) {
+      const spaces = marker[3] as string;
+      const gap = spaces.length === 0 || spaces.length > 4 ? 1 : spaces.length;
+      this.item = indent + (marker[2] as string).length + gap;
+    } else if (this.leavesItem(this.item, text)) {
+      this.item = null;
+    }
+  }
+
+  private leavesItem(item: number | null, text: string): boolean {
+    return item !== null && text.trim() !== '' && indentOf(text) < item;
+  }
+
+  /** The line as its list item's content sees it: the item's indent, or its marker, taken off. */
+  private withinItem(item: number | null, text: string): string {
+    const inItem = item !== null && (indentOf(text) >= item || LIST_MARKER.test(text));
+    return inItem ? text.slice(item) : text;
   }
 }
+
+function closesFence(text: string, open: string): boolean {
+  const run = FENCE.exec(text)?.[1];
+  return (
+    run !== undefined && run[0] === open[0] && run.length >= open.length && text.trim() === run
+  );
+}
+
+/** Whether a line opens or closes an Obsidian `%%` comment: an odd number of `%%` outside HTML comments and code. */
+function togglesObsidianComment(text: string): boolean {
+  const visible = text.replace(/<!--.*?(?:-->|$)/g, '').replace(/`[^`]*`/g, '');
+  return ((visible.match(/%%/g) ?? []).length & 1) === 1;
+}
+
+const indentOf = (text: string): number => /^ */.exec(text)?.[0].length ?? 0;
