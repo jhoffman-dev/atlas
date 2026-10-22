@@ -1,10 +1,11 @@
 import {
   linkFragment,
-  pdfLinkTarget,
+  namesPdf,
   placeOfFile,
   resolveWikiLinkTarget,
   type HighlightOpening,
   type NavigationPlace,
+  type TabId,
   type VaultPath,
 } from '@dfai/domain';
 import type { HighlightPlaceOpener } from '@dfai/application';
@@ -122,15 +123,20 @@ export function followLink(
   }: { pane: number; target: string; heading?: string | null; how?: OpenHow },
 ): void {
   const fragment = heading === null ? null : linkFragment({ heading });
-  const open = (linked: Linked) => openLinked(following, { pane, linked, how });
-  if (followedLater(following, { target, open })) return;
-  const here = placeIn(following.store, pane);
-  const resolved = linkedNote(following, {
-    target,
-    fragment,
-    here: here?.kind === 'note' ? here.path : null,
-  });
-  if (resolved !== null) openNoteLinked(following, { path: resolved, fragment, open });
+  const current = beginClick(following, { pane, how, inPeek: false });
+  const open = (linked: Linked) => {
+    if (current()) openLinked(following, { pane, linked, how });
+  };
+  const asNote = () => {
+    const here = placeIn(following.store, pane);
+    const resolved = linkedNote(following, {
+      target,
+      fragment,
+      here: here?.kind === 'note' ? here.path : null,
+    });
+    if (resolved !== null) openNoteLinked(following, { path: resolved, fragment, open });
+  };
+  if (!followedLater(following, { target, fragment, open, current, otherwise: asNote })) asNote();
 }
 
 type Fragment = ReturnType<typeof linkFragment>;
@@ -200,20 +206,41 @@ function linkedOf(opening: HighlightOpening): Linked {
 
 /**
  * Follows `[[…pdf]]` to the reader (#506) once the PDF it names is known,
- * and says so: true when the link is one, and is being followed.
+ * and says so: true when the link is one that may name a PDF, and is being
+ * followed. A name no PDF of the vault has may still be a note's — a note
+ * called "Budget review.pdf" — so `otherwise` follows it as a note link.
+ * Dropped, as any late answer is, once `current` says the click is stale.
  */
 function followedLater(
   { places, onProblem }: Pick<LinkFollowing, 'places' | 'onProblem'>,
-  { target, open }: { target: string; open: (linked: Linked) => void },
+  {
+    target,
+    fragment,
+    open,
+    current,
+    otherwise,
+  }: {
+    target: string;
+    fragment: Fragment | null;
+    open: (linked: Linked) => void;
+    current: () => boolean;
+    otherwise: () => void;
+  },
 ): boolean {
-  if (places === undefined || pdfLinkTarget(target, []) === null) return false;
+  if (places === undefined || !namesPdf(target)) return false;
   places
     .linkedPdf(target)
     .then((pdf) => {
-      onProblem(pdf === null ? `No PDF called "${target}"` : null);
-      if (pdf !== null) open({ place: { kind: 'document', path: pdf }, fragment: null });
+      if (!current()) return;
+      if (pdf === null) otherwise();
+      else {
+        onProblem(null);
+        open({ place: { kind: 'document', path: pdf }, fragment });
+      }
     })
-    .catch((error: unknown) => onProblem(`The link could not be followed: ${messageOf(error)}`));
+    .catch((error: unknown) => {
+      if (current()) onProblem(`The link could not be followed: ${messageOf(error)}`);
+    });
   return true;
 }
 
@@ -225,12 +252,14 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  * note it is written in, `here`.
  */
 function linkedNote(
-  { notePaths, onProblem }: Pick<LinkFollowing, 'notePaths' | 'onProblem'>,
+  { notePaths, onProblem, places }: Pick<LinkFollowing, 'notePaths' | 'onProblem' | 'places'>,
   { target, fragment, here }: { target: string; fragment: Fragment | null; here: VaultPath | null },
 ): VaultPath | null {
   const resolved =
     target.trim() === '' && fragment !== null ? here : resolveWikiLinkTarget(target, notePaths);
-  onProblem(resolved === null ? `No note called "${target}"` : null);
+  // With the PDF rules wired, a `.pdf` link has already missed a file by now.
+  const called = places !== undefined && namesPdf(target) ? 'PDF or note' : 'note';
+  onProblem(resolved === null ? `No ${called} called "${target}"` : null);
   return resolved;
 }
 
@@ -264,7 +293,14 @@ export function clickLink(
   }: { pane: number; target: string; heading?: string | null; how?: OpenHow; inPeek: boolean },
 ): void {
   const fragment = heading === null ? null : linkFragment({ heading });
+  const current = beginClick(peeking, {
+    pane,
+    how: how ?? 'here',
+    inPeek,
+    overlays: peeking.overlays,
+  });
   const open = (linked: Linked) => {
+    if (!current()) return;
     const opening = () => openLinked(peeking, { pane, linked, how: how ?? 'here' });
     if (!inPeek) opening();
     else if (peeking.leavePeek !== undefined) peeking.leavePeek(opening);
@@ -273,16 +309,20 @@ export function clickLink(
       opening();
     }
   };
-  if (followedLater(peeking, { target, open })) return;
-  const here = inPeek ? (peekNow(peeking.overlays)?.path ?? null) : notePathIn(peeking.store, pane);
-  const path = linkedNote(peeking, { target, fragment, here });
-  if (path === null) return;
-  if (how === 'here' && heading === null) {
-    if (inPeek) replacePeek(peeking.overlays, path);
-    else openPeek(peeking.overlays, { path, from: null });
-    return;
-  }
-  openNoteLinked(peeking, { path, fragment, open });
+  const asNote = () => {
+    const here = inPeek
+      ? (peekNow(peeking.overlays)?.path ?? null)
+      : notePathIn(peeking.store, pane);
+    const path = linkedNote(peeking, { target, fragment, here });
+    if (path === null) return;
+    if (how === 'here' && heading === null) {
+      if (inPeek) replacePeek(peeking.overlays, path);
+      else openPeek(peeking.overlays, { path, from: null });
+      return;
+    }
+    openNoteLinked(peeking, { path, fragment, open });
+  };
+  if (!followedLater(peeking, { target, fragment, open, current, otherwise: asNote })) asNote();
 }
 
 function notePathIn(store: WorkspaceStore, pane: number): VaultPath | null {
@@ -291,6 +331,56 @@ function notePathIn(store: WorkspaceStore, pane: number): VaultPath | null {
 }
 
 function placeIn(store: WorkspaceStore, pane: number): NavigationPlace | null {
-  const held = workspaceNow(store).panes[pane];
-  return held?.tabs.find((tab) => tab.id === held.active)?.history.current ?? null;
+  return tabIn(store, pane)?.place ?? null;
 }
+
+function tabIn(store: WorkspaceStore, pane: number): { id: TabId; place: NavigationPlace } | null {
+  const held = workspaceNow(store).panes[pane];
+  const tab = held?.tabs.find((candidate) => candidate.id === held.active);
+  return tab === undefined ? null : { id: tab.id, place: tab.history.current };
+}
+
+/** The latest click made on each surface — a pane, or the peek — of each workspace. */
+const latestClicks = new WeakMap<WorkspaceStore, Map<string, number>>();
+let clicksMade = 0;
+
+/**
+ * Notes a click on a link, and returns whether its answer is still wanted:
+ * a link whose target takes a read to know (#506) opens later, and by then
+ * the person may have clicked again or moved on. A late answer is dropped
+ * unless it is still the latest click on its surface, and the tab (or the
+ * peek) it was made in still shows what it showed. A ⌘-click opens a tab of
+ * its own, so only needs its pane still there: two in a row both open.
+ */
+function beginClick(
+  { store }: Pick<LinkFollowing, 'store'>,
+  {
+    pane,
+    how,
+    inPeek,
+    overlays,
+  }: { pane: number; how: OpenHow; inPeek: boolean; overlays?: OverlayStore },
+): () => boolean {
+  const surface = inPeek ? 'peek' : `pane ${pane}`;
+  const clicks = latestClicks.get(store) ?? new Map<string, number>();
+  latestClicks.set(store, clicks);
+  clicksMade += 1;
+  const click = clicksMade;
+  clicks.set(surface, click);
+  const tab = tabIn(store, pane);
+  const peeked = inPeek && overlays !== undefined ? (peekNow(overlays)?.path ?? null) : null;
+  return () => {
+    const now = tabIn(store, pane);
+    if (now === null || tab === null) return false;
+    if (inPeek) {
+      const peek = overlays === undefined ? null : (peekNow(overlays)?.path ?? null);
+      return clicks.get(surface) === click && peek === peeked;
+    }
+    if (how !== 'here') return true;
+    return clicks.get(surface) === click && now.id === tab.id && samePlace(now.place, tab.place);
+  };
+}
+
+/** Places are plain data, so they are the same when they say the same. */
+const samePlace = (a: NavigationPlace, b: NavigationPlace): boolean =>
+  JSON.stringify(a) === JSON.stringify(b);
