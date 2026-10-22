@@ -16,7 +16,7 @@ import {
 } from './use-document-highlights.ts';
 
 /*
- * Attack tests for PR #515 (PDF reader, #504): a comment edited in the
+ * Regression tests for the PDF reader (#504, review of PR #515): a comment edited in the
  * Highlights panel while the note has unsaved typing in a pane.
  */
 
@@ -113,7 +113,7 @@ function Tab({ ports }: { ports: DocumentPorts }) {
   );
 }
 
-describe('a comment edited in the panel while the note has unsaved typing (attack 515)', () => {
+describe('a comment edited in the panel while the note has unsaved typing', () => {
   it('keeps the comment the person typed in the open form when the save is refused', async () => {
     const { ports, typing, files } = setUp();
     const { wrapper } = queryWrapper();

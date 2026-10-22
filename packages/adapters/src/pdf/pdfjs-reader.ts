@@ -2,17 +2,18 @@ import {
   getDocument,
   GlobalWorkerOptions,
   PasswordException,
-  Util,
   type PDFDocumentProxy,
   type PDFPageProxy,
 } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import {
+  onPage,
   pdfPageText,
   type PageRect,
   type PdfMetadata,
   type PdfPageText,
   type PdfTextRun,
 } from '@dfai/domain';
+import { drawInto, MAX_CANVAS_PIXELS, pictureOf, type PageDrawing } from './page-drawing.ts';
 import {
   PdfUnreadableError,
   type PdfDocument,
@@ -39,12 +40,6 @@ export interface PdfJsFiles {
   readonly decoders?: string;
 }
 
-/** A page being drawn into a canvas: wait for it, or stop it. */
-export interface PageDrawing {
-  readonly done: Promise<void>;
-  cancel(): void;
-}
-
 /** An open PDF that can also draw its pages. */
 export interface PdfJsDocument extends PdfDocument {
   /** Draws page `page` into `canvas`, `scale` canvas pixels to a point. */
@@ -58,6 +53,8 @@ export interface PdfJsReader extends PdfReaderPort {
   open(bytes: Uint8Array): Promise<PdfJsDocument>;
 }
 
+export type { PageDrawing };
+
 export function pdfJsReader(files: PdfJsFiles = {}): PdfJsReader {
   if (files.worker !== undefined) GlobalWorkerOptions.workerSrc = files.worker;
   return {
@@ -67,6 +64,9 @@ export function pdfJsReader(files: PdfJsFiles = {}): PdfJsReader {
         data: bytes.slice(),
         verbosity: 0,
         enableXfa: false,
+        // An image or a canvas past what a webview holds is skipped or shrunk, never a reason to crash the tab.
+        maxImageSize: MAX_CANVAS_PIXELS * 4,
+        canvasMaxAreaInBytes: MAX_CANVAS_PIXELS * 4,
         ...(files.standardFonts !== undefined && { standardFontDataUrl: files.standardFonts }),
         ...(files.characterMaps !== undefined && { cMapUrl: files.characterMaps }),
         ...(files.decoders !== undefined && { wasmUrl: files.decoders }),
@@ -124,24 +124,55 @@ async function textOf(page: PDFPageProxy): Promise<PdfPageText> {
   const runs: PdfTextRun[] = [];
   for (const item of content.items) {
     if (!('str' in item)) continue;
-    const [, , c, d, left, baseline] = Util.transform(
-      viewport.transform,
-      item.transform,
-    ) as number[];
-    const height = Math.hypot(c ?? 0, d ?? 0);
     runs.push({
       text: item.str,
       endsLine: item.hasEOL,
-      box: {
-        x: (left ?? 0) / viewport.width,
-        y: ((baseline ?? 0) - height) / viewport.height,
-        width: item.width / viewport.width,
-        height: height / viewport.height,
-      },
+      box: boxOnPage(item, viewport),
     });
   }
   return pdfPageText(runs);
 }
+
+/**
+ * Where a text item is on the page as it is shown, in fractions of its width
+ * and height: the box round all four corners of the item's rectangle, so a
+ * page turned a quarter, and text set sideways or at an angle, are boxed
+ * where they are, not as a line along the page's width.
+ */
+function boxOnPage(
+  item: { transform: number[]; width: number },
+  viewport: { transform: number[]; width: number; height: number },
+): PageRect {
+  const [a = 0, b = 0, c = 0, d = 0, left = 0, baseline = 0] = item.transform;
+  // The item's own axes in the PDF's user space: along the text (item.width long) and up the letters.
+  const along = Math.hypot(a, b) === 0 ? { x: 0, y: 0 } : unit(a, b, item.width);
+  const corners = [
+    [left, baseline],
+    [left + along.x, baseline + along.y],
+    [left + c, baseline + d],
+    [left + along.x + c, baseline + along.y + d],
+  ].map(([x = 0, y = 0]) => shown([x, y], viewport.transform));
+  const xs = corners.map(([x = 0]) => x);
+  const ys = corners.map(([, y = 0]) => y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return onPage({
+    x: x / viewport.width,
+    y: y / viewport.height,
+    width: (Math.max(...xs) - x) / viewport.width,
+    height: (Math.max(...ys) - y) / viewport.height,
+  });
+}
+
+/** A point of the PDF's user space where the viewport puts it. */
+function shown([x, y]: [number, number], [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0]: number[]) {
+  return [a * x + c * y + e, b * x + d * y + f];
+}
+
+const unit = (x: number, y: number, length: number) => {
+  const size = Math.hypot(x, y);
+  return { x: (x / size) * length, y: (y / size) * length };
+};
 
 function metadataOf({ info }: { info: object }): PdfMetadata {
   const fields = info as { Title?: unknown; Author?: unknown };
@@ -188,51 +219,4 @@ async function pageOfDestination(
     // A destination the PDF names wrongly costs that entry its page, not the outline.
     return null;
   }
-}
-
-function drawInto(
-  page: Promise<PDFPageProxy>,
-  { canvas, scale }: { canvas: HTMLCanvasElement; scale: number },
-): PageDrawing {
-  let cancelled = false;
-  let stop = () => {
-    cancelled = true;
-  };
-  const done = page.then(async (proxy) => {
-    if (cancelled) return;
-    const viewport = proxy.getViewport({ scale });
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    const task = proxy.render({ canvas, viewport });
-    stop = () => task.cancel();
-    await task.promise;
-  });
-  return { done, cancel: () => stop() };
-}
-
-async function pictureOf(
-  page: PDFPageProxy,
-  { box, scale }: { box: PageRect; scale: number },
-): Promise<Uint8Array> {
-  const whole = document.createElement('canvas');
-  await drawInto(Promise.resolve(page), { canvas: whole, scale }).done;
-  const cut = document.createElement('canvas');
-  cut.width = Math.max(1, Math.round(box.width * whole.width));
-  cut.height = Math.max(1, Math.round(box.height * whole.height));
-  const context = cut.getContext('2d');
-  if (context === null) throw new Error('the picture of the area could not be drawn');
-  context.drawImage(
-    whole,
-    box.x * whole.width,
-    box.y * whole.height,
-    cut.width,
-    cut.height,
-    0,
-    0,
-    cut.width,
-    cut.height,
-  );
-  const blob = await new Promise<Blob | null>((resolve) => cut.toBlob(resolve, 'image/png'));
-  if (blob === null) throw new Error('the picture of the area could not be saved as PNG');
-  return new Uint8Array(await blob.arrayBuffer());
 }

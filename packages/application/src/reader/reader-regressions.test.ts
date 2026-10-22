@@ -26,7 +26,7 @@ import { placeHighlights } from './place-highlights.ts';
 import { linksToUpdate } from '../vault/update-links.ts';
 
 /*
- * Attack tests for PR #515 (PDF reader, #504): re-anchoring, reading order,
+ * Regression tests for the PDF reader (#504, review of PR #515): re-anchoring, reading order,
  * the area picture's lifecycle, and Add PDF's names.
  */
 
@@ -51,7 +51,7 @@ const blockOf = (id: string, anchor: PdfAnchor): HighlightBlock => ({
   end: 0,
 });
 
-describe('re-anchoring when its own page has the words twice (attack 515)', () => {
+describe('re-anchoring when its own page has the words twice', () => {
   it('does not draw the highlight on another page as found exactly when its own page has the words', async () => {
     // Saved on page 2 from one edition; the copy downloaded again reworded the
     // passage round it, and page 2 now has "the tide bell" twice, page 1 once.
@@ -73,7 +73,7 @@ describe('re-anchoring when its own page has the words twice (attack 515)', () =
   });
 });
 
-describe('the highlights panel lists a two-column page in reading order (attack 515)', () => {
+describe('the highlights panel lists a two-column page in reading order', () => {
   it('puts the left column, read first, before the right column', async () => {
     // Two columns: the text runs down the left column, then down the right.
     const page: PdfPageText = pdfPageText([
@@ -152,7 +152,7 @@ function vault({ dirty = false, pdf = PDF } = {}) {
   return { ...memory, area, pictures };
 }
 
-describe("an area highlight's picture is saved only for a highlight that is added (attack 515)", () => {
+describe("an area highlight's picture is saved only for a highlight that is added", () => {
   it('saves no picture when the note has unsaved typing and the highlight is refused', async () => {
     const { area, pictures } = vault({ dirty: true });
     await expect(area()).rejects.toThrow();
@@ -178,7 +178,7 @@ describe("an area highlight's picture is saved only for a highlight that is adde
   });
 });
 
-describe('the literature note Add PDF makes is named so it can be made and linked (attack 515)', () => {
+describe('the literature note Add PDF makes is named so it can be made and linked', () => {
   it('names the note of a PDF titled with # [ ] | so a link can reach it', async () => {
     const { fs } = memoryFiles({ 'Library/.keep': '' });
     const document = fakePdf([linesPage('A light kept')], {
@@ -222,7 +222,7 @@ describe('the literature note Add PDF makes is named so it can be made and linke
   });
 });
 
-describe('a PDF moved in the vault keeps its literature note (attack 515)', () => {
+describe('a PDF moved in the vault keeps its literature note', () => {
   it("counts the note's file: link among the links a move of the PDF must re-point", async () => {
     const moved = createVaultPath('Archive/The Lantern Keepers.pdf');
     const { fs } = memoryFiles({ [NOTE]: SOURCE, [moved]: new Uint8Array([37]) });

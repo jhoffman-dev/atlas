@@ -4,14 +4,14 @@ import { createVaultPath } from '../vault/vault-path.ts';
 import { areaImageName, libraryFileName } from './pdf-library.ts';
 
 /*
- * Attack tests for PR #515 (PDF reader, #504): the names the library gives
+ * Regression tests for the PDF reader (#504, review of PR #515): the names the library gives
  * the files it writes.
  */
 
 /** Room for the ` 9999` a second copy of one name is numbered with. */
 const NUMBER_ROOM = utf8Bytes(' 9999');
 
-describe('the name a PDF is copied into the library under (attack 515)', () => {
+describe('the name a PDF is copied into the library under', () => {
   it('fits a file name on disk, with room to be numbered, for a long Latin name', () => {
     const name = libraryFileName(`${'The Lantern Keepers of Brightwater '.repeat(10)}.pdf`);
     expect(name.endsWith('.pdf')).toBe(true);
@@ -25,7 +25,7 @@ describe('the name a PDF is copied into the library under (attack 515)', () => {
   });
 });
 
-describe("an area's picture is named so the note can embed it (attack 515)", () => {
+describe("an area's picture is named so the note can embed it", () => {
   it('names the picture of a PDF whose own name holds # [ ] ^ | with none of them', () => {
     // A PDF the person put in the vault themselves: only "Add PDF…" names files safely.
     const name = areaImageName({ file: createVaultPath('Papers/Notes #3 [draft].pdf'), page: 2 });

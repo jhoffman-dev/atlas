@@ -6,7 +6,7 @@ import { lanternFixturePdf } from '../tools/pdf/fixture-pdf.ts';
 import { hugePagePdf, linkedPdf, passwordPdf } from '../tools/pdf/hostile-pdf.ts';
 
 /*
- * Attack tests for PR #515 (PDF reader, #504), end to end in WebKit:
+ * Regression tests for the PDF reader (#504, review of PR #515), end to end in WebKit:
  * hostile PDFs put in the vault by hand and opened from Pages, and the
  * reader's pdf.js workers across tabs opened and closed.
  */
@@ -29,17 +29,13 @@ async function openFromPages(page: Page, name: string): Promise<void> {
   await row.click();
 }
 
-test('a PDF locked with a password says so, rather than drawing nothing (attack 515)', async ({
-  page,
-}) => {
+test('a PDF locked with a password says so, rather than drawing nothing', async ({ page }) => {
   await openVault(page, { 'Papers/locked.pdf': passwordPdf() });
   await openFromPages(page, 'locked.pdf');
   await expect(page.getByRole('alert')).toContainText('locked with a password');
 });
 
-test('links and JavaScript in a PDF open nothing, on opening or on a click (attack 515)', async ({
-  page,
-}) => {
+test('links and JavaScript in a PDF open nothing, on opening or on a click', async ({ page }) => {
   const opened: string[] = [];
   page.on('popup', (popup) => opened.push(`popup ${popup.url()}`));
   page.on('dialog', (dialog) => {
@@ -68,7 +64,7 @@ test('links and JavaScript in a PDF open nothing, on opening or on a click (atta
   expect(opened).toEqual([]);
 });
 
-test('a page 200 inches square is drawn at a canvas WebKit can hold, zoomed in (attack 515)', async ({
+test('a page 200 inches square is drawn at a canvas WebKit can hold, zoomed in', async ({
   page,
 }) => {
   await openVault(page, { 'Papers/huge.pdf': hugePagePdf() });
@@ -87,7 +83,7 @@ test('a page 200 inches square is drawn at a canvas WebKit can hold, zoomed in (
   expect(area).toBeLessThanOrEqual(16384 * 16384);
 });
 
-test('closing PDF tabs lets their pdf.js workers go (attack 515)', async ({ page }) => {
+test('closing PDF tabs lets their pdf.js workers go', async ({ page }) => {
   await page.addInitScript(() => {
     const Original = window.Worker;
     const live = new Set<Worker>();

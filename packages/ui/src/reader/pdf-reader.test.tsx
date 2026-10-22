@@ -145,6 +145,11 @@ describe('the PDF reader', () => {
     );
   });
 
+  it('names each page for assistive technology, so a screen reader can move between them', () => {
+    reader();
+    expect(screen.getByRole('region', { name: 'Page 1' })).toBeTruthy();
+  });
+
   it('keeps the comment typed in the popover when the note refuses it, and closes once it is taken', async () => {
     const onHighlight = vi.fn(async () => false);
     reader({ onHighlight });

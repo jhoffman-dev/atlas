@@ -126,7 +126,12 @@ function PageCanvas({
   }, [pdf, page, zoom]);
   return (
     <>
-      <canvas ref={canvas} className="pdf-page__canvas" style={{ width, height }} />
+      <canvas
+        ref={canvas}
+        className="pdf-page__canvas"
+        aria-hidden="true"
+        style={{ width, height }}
+      />
       {failed && <p className="pdf-page__failed">This page could not be drawn.</p>}
     </>
   );

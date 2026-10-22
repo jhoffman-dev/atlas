@@ -124,7 +124,14 @@ of War p4 area.png]]` — so the highlight shows something wherever it is
    transcluded (#504). The embed is markdown DFAI writes, not the source's
    words, so it is not escaped; a picture whose path a link could not name
    (`#`, `^`, `|`, `[`, `]`, a line break) is refused with
-   `UnsafeSourceFileError`. The style is `mark` (`highlight` or `underline`) and
+   `UnsafeSourceFileError`; the picture is named from the PDF's name with those
+   characters made spaces and the name cut to fit a file name once numbered. The
+   picture is written only for a highlight that is added: a note with unsaved
+   typing, or one that already holds the area, writes none, and a picture
+   written for a highlight the note then refuses goes to the Trash again. Removing
+   an area highlight takes out the block and **keeps the picture**: it is a file
+   in the person's vault that DFAI will not delete on their behalf, another note
+   may embed it, and an orphan costs only disk space. The style is `mark` (`highlight` or `underline`) and
    `color` (yellow, green, blue, pink, purple, orange); one this build does
    not know is drawn as a yellow highlight, and its bytes are kept.
 

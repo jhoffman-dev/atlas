@@ -1,5 +1,5 @@
 /*
- * Hostile PDFs for the reader's attack tests (PR #515, #504): a page turned
+ * Hostile PDFs for the reader's tests (#504): a page turned
  * a quarter, a password, links to the web, to files and to JavaScript, an
  * action run on open, an embedded file, a page far larger than paper, and a
  * broken table of where each object starts. Written byte by byte like

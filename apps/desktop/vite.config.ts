@@ -90,6 +90,17 @@ function pdfjsFiles(): Plugin {
       });
     },
     generateBundle() {
+      // The notices travel with the files they cover: pdf.js's own licence, and the list that names the rest.
+      this.emitFile({
+        type: 'asset',
+        fileName: 'pdfjs/LICENSE',
+        source: readFileSync(join(pdfjsRoot, 'LICENSE')),
+      });
+      this.emitFile({
+        type: 'asset',
+        fileName: 'THIRD_PARTY_NOTICES.txt',
+        source: readFileSync(new URL('../../THIRD_PARTY_NOTICES.md', import.meta.url)),
+      });
       for (const folder of Object.keys(PDFJS_FOLDERS)) {
         for (const name of readdirSync(join(pdfjsRoot, folder))) {
           const path = fileOf(folder, name);
