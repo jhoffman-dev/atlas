@@ -502,4 +502,47 @@ describe('Kindle passages matched by place (verify3, PR #510)', () => {
     expect(readHighlights(note, noteBlocks)).toHaveLength(2);
     expect(sync(note, [kindleAt(100, null)]).highlights).toEqual([{ id: 'aaaaaa', added: false }]);
   });
+
+  // Shrunk from the property at HIGHLIGHT_PROPERTY_SEED=101 and 303, 3000 runs (PR #510).
+  describe('a sync run again adds nothing, when a page-only copy joined a located passage', () => {
+    const at = (
+      location: { start: number; end: number | null } | null,
+      page: number,
+      annotationId: string | null = null,
+    ): NewHighlight => ({
+      quote: 'Emma Woodhouse, handsome',
+      anchor: { kind: 'kindle', location, page, annotationId },
+    });
+    const KINDLE = literatureNoteText({
+      kind: 'kindle',
+      title: 'Emma',
+      author: 'Jane Austen',
+      asin: 'B000FC1ICM',
+      file: null,
+    });
+    const syncedTwice = (held: NewHighlight, exported: readonly NewHighlight[]) => {
+      const once = sync(sync(KINDLE, [held]).text, exported).text;
+      return { once, twice: sync(once, exported) };
+    };
+
+    it('seed 101: a page-only copy beside two located copies on two pages', () => {
+      const { once, twice } = syncedTwice(at(null, 13, 'C1'), [
+        at({ start: 100, end: 104 }, 13),
+        at({ start: 100, end: null }, 12),
+        at(null, 12),
+      ]);
+      expect(twice.highlights.every((highlight) => !highlight.added)).toBe(true);
+      expect(twice.text).toBe(once);
+    });
+
+    it('seed 303: a page-only copy beside two copies at one location on two pages', () => {
+      const { once, twice } = syncedTwice(at(null, 12, 'C1'), [
+        at({ start: 100, end: 104 }, 12),
+        at({ start: 100, end: 104 }, 13),
+        at(null, 13),
+      ]);
+      expect(twice.highlights.every((highlight) => !highlight.added)).toBe(true);
+      expect(twice.text).toBe(once);
+    });
+  });
 });
