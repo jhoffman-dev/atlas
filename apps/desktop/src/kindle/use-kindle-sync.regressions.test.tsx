@@ -6,7 +6,7 @@ import { fakeIndexPort, fakeVaultFs, type KindleSync } from '@dfai/application';
 import { useKindleSync, type KindleHost, type KindleWindowOptions } from './use-kindle-sync.ts';
 
 /*
- * Attack on PR #514 (#508): Disconnect pressed while a sync is under way,
+ * Regressions found reviewing PR #514 (#508): Disconnect pressed while a sync is under way,
  * through the window's hook as Settings and ⌘K press it.
  */
 
@@ -65,7 +65,7 @@ afterEach(() => vi.useRealTimers());
 
 const settle = () => act(async () => {});
 
-describe('useKindleSync, Disconnect during a sync (attack 514)', () => {
+describe('useKindleSync, Disconnect during a sync (regression)', () => {
   it('stays disconnected after Disconnect pressed during the launch sync', async () => {
     const host = slowHost(CONNECTED);
     const { result } = render(host.kindle);

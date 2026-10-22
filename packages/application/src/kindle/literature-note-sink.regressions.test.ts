@@ -14,7 +14,7 @@ import { guardedVault } from '../testing/guarded-vault.ts';
 import { literatureNoteKindleSink } from './literature-note-sink.ts';
 
 /*
- * Attack on PR #514 (#508): which note a Kindle book's highlights land in,
+ * Regressions found reviewing PR #514 (#508): which note a Kindle book's highlights land in,
  * and the name a new one gets. Books and people are fictional.
  */
 
@@ -82,7 +82,7 @@ function setUp(entries: Record<string, string> = {}, indexed: string[] = []) {
   return { vault, sink, created };
 }
 
-describe('a new Kindle note is named so it can be made and linked (attack 514)', () => {
+describe('a new Kindle note is named so it can be made and linked (regression)', () => {
   it('makes the note of a book whose title is longer than a file name may be', async () => {
     const book: KindleBook = {
       asin: 'B0LONGTITL',
@@ -121,7 +121,7 @@ describe('a new Kindle note is named so it can be made and linked (attack 514)',
   });
 });
 
-describe("which note is the book's (attack 514)", () => {
+describe("which note is the book's (regression)", () => {
   const book: KindleBook = {
     asin: 'B0QUOTEBK1',
     title: 'The Keeper’s Daughter',

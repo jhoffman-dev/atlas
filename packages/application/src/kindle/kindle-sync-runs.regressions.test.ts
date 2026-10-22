@@ -13,7 +13,7 @@ import type { KindleHighlightSink, KindleSession } from './ports.ts';
 import { createKindleSync, type KindleSync } from './sync-kindle.ts';
 
 /*
- * Attack on PR #514 (#508): the record and the one sync, when the person's
+ * Regressions found reviewing PR #514 (#508): the record and the one sync, when the person's
  * commands and the schedule overlap.
  */
 
@@ -59,7 +59,7 @@ function notebook() {
   });
 }
 
-describe('Disconnect while a sync is running (attack 514)', () => {
+describe('Disconnect while a sync is running (regression)', () => {
   it('stays disconnected when a sync that was already under way then goes through', async () => {
     const kept = records(CONNECTED);
     const ends = gate();
@@ -77,7 +77,7 @@ describe('Disconnect while a sync is running (attack 514)', () => {
   });
 });
 
-describe('a sync of another vault started while one runs (attack 514)', () => {
+describe('a sync of another vault started while one runs (regression)', () => {
   it("writes the second vault's notes, rather than answering with the first vault's sync", async () => {
     const sync = createKindleSync({ deadline: heldKindleDelay() });
     const kept = records({ ...NO_KINDLE_SYNC_RECORD, connected: true });

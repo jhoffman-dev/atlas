@@ -8,7 +8,7 @@ import { recordedKindleKeys, withKindleHighlights } from './kindle-note-writes.t
 import type { KindleHighlight } from './kindle-types.ts';
 
 /*
- * Attack on PR #514 (#508): a Kindle sync run again over a note it wrote
+ * Regressions found reviewing PR #514 (#508): a Kindle sync run again over a note it wrote
  * must add nothing, and must never lose what the person wrote or removed.
  * Books and words are fictional or public domain; ids are made up.
  */
@@ -83,7 +83,7 @@ function sync(text: string, exported: readonly KindleHighlight[], random = seede
 
 const count = (text: string, words: string) => text.split(words).length - 1;
 
-describe('a Kindle sync run again adds nothing (attack 514)', () => {
+describe('a Kindle sync run again adds nothing (regression)', () => {
   it('adds a typed note holding an unbalanced %% once, not again on every sync', () => {
     const quote = passage('A1', 'The lamp was lit at dusk.');
     const exported = [quote, typedOn(quote, 'Only 50%% of the lamps')];
@@ -111,7 +111,7 @@ describe('a Kindle sync run again adds nothing (attack 514)', () => {
   });
 });
 
-describe('what the person removed stays removed (attack 514)', () => {
+describe('what the person removed stays removed (regression)', () => {
   it('does not bring back a Kindle highlight the person removed from the note', () => {
     const kept = passage('A1', 'The lamp was lit at dusk.', 100);
     const unwanted = passage('A2', 'A sentence the reader did not want.', 140);
@@ -133,7 +133,7 @@ describe('what the person removed stays removed (attack 514)', () => {
  * there once, every note's words are there once, and every paragraph the
  * person wrote is still there.
  */
-describe('growing exports synced again and again (attack 514, property)', () => {
+describe('growing exports synced again and again (regression, property)', () => {
   const WORDS = ['lamp', 'harbour', 'keeper', 'tide', 'stone', 'gull', 'rope', 'salt', 'ember'];
 
   function sentence(random: () => number, at: number): string {
