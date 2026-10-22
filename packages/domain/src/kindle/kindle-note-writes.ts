@@ -6,7 +6,7 @@ import {
 import {
   appendHighlights,
   highlightNamed,
-  withHighlightComment,
+  withHighlightCommentAfter,
   type NewHighlight,
 } from '../highlights/edit-highlights.ts';
 import {
@@ -14,7 +14,15 @@ import {
   type HighlightBlock,
   type ReadNoteBlocks,
 } from '../highlights/highlight-block.ts';
-import { kindleHighlightKey, kindleNoteKey } from './kindle-highlight-key.ts';
+import { readKindleTombstone } from '../highlights/highlight-marker.ts';
+import { undoCommentEscapes } from '../highlights/highlight-text.ts';
+import {
+  kindleHighlightKey,
+  kindleKeyOfWordsHash,
+  kindleNoteKey,
+  kindleNoteKeysOfRuns,
+  removedKindleKey,
+} from './kindle-highlight-key.ts';
 import type { KindleHighlight, KindleHighlightKey } from './kindle-types.ts';
 
 /*
@@ -28,25 +36,13 @@ import type { KindleHighlight, KindleHighlightKey } from './kindle-types.ts';
  *
  * What a note has recorded is read back from the note itself, so nothing is
  * kept anywhere else: a passage by its marker, a typed note by its words in
- * the comment of the passage it was typed on.
+ * the comment of the passage it was typed on, a passage the person removed by
+ * the tombstone it left (ADR-0043 §5). A highlight with no place the format
+ * can hold is skipped, and said so; the rest of its book is written.
  */
 
 /** A paragraph break in a comment: a blank line between two runs of text. */
 const PARAGRAPH_BREAK = /\n[ \t]*\n/;
-
-/** The most paragraphs of one comment read for the notes it holds: past it, only the first. */
-const MAX_COMMENT_PARAGRAPHS = 64;
-
-/** A Kindle highlight with no place the format can hold: no location, and no page in figures. */
-export class KindleHighlightUnplaceableError extends Error {
-  constructor(readonly key: KindleHighlightKey) {
-    super(
-      'A Kindle highlight has neither a location nor a page in figures, so DFAI cannot say where it is. ' +
-        'Nothing of this book was written.',
-    );
-    this.name = 'KindleHighlightUnplaceableError';
-  }
-}
 
 /** The key the passage of a Kindle block was synced under; null for a block of another source. */
 function passageKeyOf(block: HighlightBlock, asin: string): KindleHighlightKey | null {
@@ -59,37 +55,35 @@ function passageKeyOf(block: HighlightBlock, asin: string): KindleHighlightKey |
   });
 }
 
-/** Every run of consecutive paragraphs in `comment`: a note typed in paragraphs is one run of them. */
-function paragraphRuns(comment: string): string[] {
-  const paragraphs = comment
-    .replace(/\r\n?/g, '\n')
-    .split(PARAGRAPH_BREAK)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== '')
-    .slice(0, MAX_COMMENT_PARAGRAPHS);
-  const runs: string[] = [];
-  for (let first = 0; first < paragraphs.length; first += 1) {
-    for (let last = first; last < paragraphs.length; last += 1) {
-      runs.push(paragraphs.slice(first, last + 1).join('\n\n'));
-    }
-  }
-  return runs;
-}
+/** The paragraphs of a comment, in order. */
+const paragraphsOf = (comment: string): string[] =>
+  comment.replace(/\r\n?/g, '\n').split(PARAGRAPH_BREAK);
 
 /**
  * The keys one block has recorded: its passage's, the key of a note at a
  * place with no passage (whose words are its `exact`), and the key of every
- * note its comment holds whole, as paragraphs of their own.
+ * note its comment holds whole, as paragraphs of their own. A comment holds a
+ * note as DFAI wrote it, `%%` escaped where it would hide the note; the notes
+ * are keyed as they were typed too (`undoCommentEscapes`).
  */
 function keysOfBlock(block: HighlightBlock, asin: string): KindleHighlightKey[] {
   const passage = passageKeyOf(block, asin);
   if (passage === null) return [];
   const words = block.anchor.kind === 'kindle' ? (block.anchor.exact ?? block.quote) : block.quote;
+  const comments = new Set([block.comment, undoCommentEscapes(block.comment)]);
   return [
     passage,
     kindleNoteKey(passage, words),
-    ...paragraphRuns(block.comment).map((run) => kindleNoteKey(passage, run)),
+    ...[...comments].flatMap((comment) => kindleNoteKeysOfRuns(passage, paragraphsOf(comment))),
   ];
+}
+
+/** The keys of the Kindle highlights the person removed from `text`, one tombstone each. */
+function removedKeysOf(text: string, asin: string): KindleHighlightKey[] {
+  return text.split('\n').flatMap((line) => {
+    const tombstone = readKindleTombstone(line);
+    return tombstone === null ? [] : [kindleKeyOfWordsHash({ asin, ...tombstone })];
+  });
 }
 
 /**
@@ -97,7 +91,9 @@ function keysOfBlock(block: HighlightBlock, asin: string): KindleHighlightKey[] 
  * `text` holds for the book `asin`: what a sync need not add again. A
  * passage tidied in the note keeps its key (the marker keeps Kindle's
  * words); a typed note edited in the note no longer reads as recorded, and
- * Kindle's words arrive once more, after it — never in place of it.
+ * Kindle's words arrive once more, after it — never in place of it. A passage
+ * the person removed counts as recorded, and so does every note typed on it
+ * (`removedKindleKey`): a removed highlight stays removed.
  */
 export function recordedKindleKeys(
   text: string,
@@ -108,19 +104,22 @@ export function recordedKindleKeys(
   for (const block of readHighlights(text, noteBlocks)) {
     for (const key of keysOfBlock(block, asin)) keys.add(key);
   }
+  for (const passage of removedKeysOf(text, asin)) {
+    keys.add(passage);
+    keys.add(removedKindleKey(passage));
+  }
   return keys;
 }
 
 const PAGE_IN_FIGURES = /^[1-9]\d*$/;
 
-function anchorOf(highlight: KindleHighlight, exact?: string): KindleAnchor {
+/** Where a highlight is in the book, or null when it has neither a location nor a page in figures. */
+function anchorOf(highlight: KindleHighlight, exact?: string): KindleAnchor | null {
   const page =
     highlight.page !== null && PAGE_IN_FIGURES.test(highlight.page)
       ? Number(highlight.page)
       : undefined;
-  if (highlight.location === null && page === undefined) {
-    throw new KindleHighlightUnplaceableError(highlight.key);
-  }
+  if (highlight.location === null && page === undefined) return null;
   return {
     kind: 'kindle',
     location: highlight.location === null ? null : { start: highlight.location, end: null },
@@ -128,6 +127,11 @@ function anchorOf(highlight: KindleHighlight, exact?: string): KindleAnchor {
     annotationId: highlight.annotationId,
     ...(exact !== undefined && { exact }),
   };
+}
+
+/** What names a highlight that cannot be placed in the message that says so. */
+function unplacedPlace(highlight: KindleHighlight): string {
+  return highlight.page === null ? 'an unknown place' : `page ${highlight.page}`;
 }
 
 function styleOf(highlight: KindleHighlight): HighlightStyle {
@@ -143,19 +147,28 @@ function placeOfNote(highlight: KindleHighlight): string {
 }
 
 /** A passage as a new block; what was typed on it follows as its comment. */
-function passageBlock(highlight: KindleHighlight): NewHighlight {
-  return { quote: highlight.quote, anchor: anchorOf(highlight), style: styleOf(highlight) };
+function passageBlock(highlight: KindleHighlight, anchor: KindleAnchor): NewHighlight {
+  return { quote: highlight.quote, anchor, style: styleOf(highlight) };
 }
 
 /** A note at a place with no passage as a block of its own: its words are its `exact`, so its key reads back. */
-function noteBlock(highlight: KindleHighlight): NewHighlight {
+function noteBlock(highlight: KindleHighlight): NewHighlight | null {
   const note = highlight.note ?? '';
+  const anchor = anchorOf(highlight, note);
+  if (anchor === null) return null;
   return {
     quote: placeOfNote(highlight),
-    anchor: anchorOf(highlight, note),
+    anchor,
     style: DEFAULT_HIGHLIGHT_STYLE,
     comment: note,
   };
+}
+
+/** A highlight as the block it is written as; null when it has no place to be written at. */
+function newBlockOf(highlight: KindleHighlight): NewHighlight | null {
+  if (highlight.style === 'note') return noteBlock(highlight);
+  const anchor = anchorOf(highlight);
+  return anchor === null ? null : passageBlock(highlight, anchor);
 }
 
 /** The note's Kindle blocks by the key their passage was synced under; the first of two. */
@@ -218,8 +231,17 @@ function withFollowUp(args: {
   ) {
     return { text: args.text, added: false };
   }
-  const comment = block.comment.trim() === '' ? args.note : `${block.comment}\n\n${args.note}`;
-  return { text: withHighlightComment({ ...args, comment }), added: true };
+  const text = withHighlightCommentAfter(args);
+  return { text, added: text !== args.text };
+}
+
+/** What a write of a book's Kindle highlights did to its note. */
+export interface KindleNoteWrite {
+  readonly text: string;
+  /** How many entries changed the note. */
+  readonly written: number;
+  /** Where each highlight skipped for having no place the format holds was (`page xiv`). */
+  readonly unplaced: readonly string[];
 }
 
 /**
@@ -229,9 +251,11 @@ function withFollowUp(args: {
  * added again (`appendHighlights`). Then each typed note goes after its
  * passage's comment, as a paragraph of its own — the whole comment when it
  * has none — unless the comment holds it already; the comment's bytes are
- * kept. `written` is how many entries changed the note. Throws, writing
- * nothing, what `appendHighlights` and `withHighlightComment` throw,
- * `KindleHighlightUnplaceableError` for a highlight with no place, and
+ * kept. `written` is how many entries changed the note. A highlight with
+ * neither a location nor a page in figures (a page `xiv`), and a note typed
+ * on one, has no place the format holds: it is skipped and named in
+ * `unplaced`, and the rest is written. Throws, writing nothing, what
+ * `appendHighlights` and `withHighlightCommentAfter` throw, and
  * `KindlePassageGoneError` for a note whose passage is not in the note.
  */
 export function withKindleHighlights(args: {
@@ -240,29 +264,41 @@ export function withKindleHighlights(args: {
   readonly highlights: readonly KindleHighlight[];
   readonly random: () => number;
   readonly noteBlocks: ReadNoteBlocks;
-}): { readonly text: string; readonly written: number } {
+}): KindleNoteWrite {
   const { asin, noteBlocks } = args;
   const held = blocksByPassage(args.text, asin, noteBlocks);
-  const blocks = args.highlights.filter((highlight) => !isFollowUp(highlight, held));
+  const unplaced = new Map<string, string>();
+  const blocks = args.highlights.flatMap((highlight) => {
+    if (isFollowUp(highlight, held)) return [];
+    const block = newBlockOf(highlight);
+    if (block === null) unplaced.set(highlight.key, unplacedPlace(highlight));
+    return block === null ? [] : [{ highlight, block }];
+  });
   const appended = appendHighlights({
     text: args.text,
-    highlights: blocks.map((h) => (h.style === 'note' ? noteBlock(h) : passageBlock(h))),
+    highlights: blocks.map(({ block }) => block),
     random: args.random,
     noteBlocks,
   });
   const ids = new Map(held);
-  blocks.forEach((highlight, at) => {
+  blocks.forEach(({ highlight }, at) => {
     const answer = appended.highlights[at];
     if (answer !== undefined && highlight.style !== 'note') ids.set(highlight.key, answer.id);
   });
   let text = appended.text;
   let written = appended.highlights.filter((answer) => answer.added).length;
+  const skipped: string[] = [];
   for (const highlight of args.highlights.filter((h) => isFollowUp(h, held))) {
-    const id = ids.get(passageOf(highlight));
+    const passage = passageOf(highlight);
+    const id = ids.get(passage);
+    if (id === undefined && unplaced.has(passage)) {
+      skipped.push(unplacedPlace(highlight));
+      continue;
+    }
     if (id === undefined) throw new KindlePassageGoneError();
     const followed = withFollowUp({ text, id, asin, note: highlight.note ?? '', noteBlocks });
     text = followed.text;
     if (followed.added) written += 1;
   }
-  return { text, written };
+  return { text, written, unplaced: [...unplaced.values(), ...skipped] };
 }

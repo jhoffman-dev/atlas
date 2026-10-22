@@ -4,9 +4,11 @@ import {
   HIGHLIGHT_COLORS,
   type HighlightAnchor,
   type HighlightStyle,
+  type KindleAnchor,
   type PageRect,
   type TextQuoteSelector,
 } from './anchor.ts';
+import { hashOf, passageWords } from './passage-words.ts';
 
 /*
  * The hidden half of a highlight (ADR-0043): one HTML comment, in the style
@@ -37,12 +39,67 @@ export interface HighlightMarker {
 /** The marker comment for a highlight, as DFAI writes it. */
 export function highlightMarker({ style, anchor }: HighlightMarker): string {
   const fields = { v: HIGHLIGHT_MARKER_VERSION, ...style, ...anchorFields(anchor) };
-  const json = JSON.stringify(fields)
+  return `<!-- atlas:highlight ${markerJson(fields)} -->`;
+}
+
+/** A marker's fields as one line of JSON that no reader can end the comment or the line inside. */
+function markerJson(fields: Fields): string {
+  return JSON.stringify(fields)
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
-  return `<!-- atlas:highlight ${json} -->`;
+}
+
+// A tombstone is a line of its own, never a quoted one: a comment line that looks like one is the person's words.
+const TOMBSTONE = /^ {0,3}<!--[ \t]*atlas:highlight-removed[ \t]+(\{[^\r\n]*\})[ \t]*-->[ \t]*$/;
+
+/** What a tombstone keeps of a removed Kindle highlight: where it was, and a hash of its words. */
+export interface KindleTombstone {
+  readonly location: number | null;
+  readonly annotationId: string | null;
+  /** `hashOf(passageWords(words))`: the words themselves are not kept. */
+  readonly wordsHash: string;
+}
+
+/**
+ * What a removed Kindle highlight leaves in its place (ADR-0043 §5): where it
+ * was, its annotation id and a hash of its words, in a comment of its own that
+ * every reader hides, so a later sync knows the person removed it and does
+ * not bring it back. The words are not kept: the person removed them.
+ *
+ *     <!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A1","words":"3f2a…"} -->
+ */
+export function kindleTombstoneLine({
+  anchor,
+  words,
+}: {
+  anchor: KindleAnchor;
+  words: string;
+}): string {
+  const fields = {
+    v: HIGHLIGHT_MARKER_VERSION,
+    kind: 'kindle',
+    ...(anchor.location !== null && { location: anchor.location.start }),
+    ...(anchor.annotationId !== null && { annotationId: anchor.annotationId }),
+    words: hashOf(passageWords(words)),
+  };
+  return `<!-- atlas:highlight-removed ${markerJson(fields)} -->`;
+}
+
+/** The Kindle highlight a line of the note is the tombstone of; null for any other line. */
+export function readKindleTombstone(line: string): KindleTombstone | null {
+  const json = TOMBSTONE.exec(line.replace(/\r$/, ''))?.[1];
+  if (json === undefined || json.includes('-->')) return null;
+  const fields = parsedObject(json);
+  if (fields === null || fields.v !== HIGHLIGHT_MARKER_VERSION || fields.kind !== 'kindle') {
+    return null;
+  }
+  const { location, annotationId, words } = fields;
+  if (typeof words !== 'string') return null;
+  if (location !== undefined && typeof location !== 'number') return null;
+  if (annotationId !== undefined && typeof annotationId !== 'string') return null;
+  return { location: location ?? null, annotationId: annotationId ?? null, wordsHash: words };
 }
 
 /**
@@ -64,7 +121,8 @@ export function readHighlightMarker(line: string): HighlightMarker | null {
 
 /** Whether a line could be meant as a marker, read or not: a quoted comment line must not become one. */
 export function looksLikeHighlightMarker(line: string): boolean {
-  return /^<!--[ \t]*atlas:highlight\b/.test(line.trim());
+  // Not `atlas:highlight-removed`, the tombstone, which is a line of its own.
+  return /^<!--[ \t]*atlas:highlight(?![\w-])/.test(line.trim());
 }
 
 type Fields = Readonly<Record<string, unknown>>;

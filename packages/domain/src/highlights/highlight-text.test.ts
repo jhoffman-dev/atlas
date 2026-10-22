@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
+import { commentLines, plainQuote, quoteLines, undoCommentEscapes } from './highlight-text.ts';
 
 describe("a quote's lines", () => {
   it('is one line per paragraph, its line breaks and runs of spaces made one space', () => {
@@ -138,5 +138,16 @@ describe("a comment's Obsidian `%%` marks", () => {
           .match(/%%/g) ?? [];
       expect(marks.length % 2).toBe(0);
     }
+  });
+});
+
+describe('the escapes of a comment undone', () => {
+  it.each([
+    ['an unbalanced %%', 'Only 50%% of the lamps'],
+    ['an unbalanced %%%', 'three %%% here'],
+    ['a line that reads as a marker', '<!-- atlas:highlight {"v":1} -->'],
+    ['words with nothing to escape', 'a balanced %%private%% and a \\< of its own'],
+  ])('gives back the words a comment was written from: %s', (_label, words) => {
+    expect(undoCommentEscapes(commentLines(words).join('\n'))).toBe(words);
   });
 });

@@ -51,6 +51,23 @@ export function commentLines(comment: string): string[] {
   );
 }
 
+/**
+ * A comment as it was before {@link commentLines} escaped it: the `%\%` it
+ * wrote for an unbalanced `%%` made `%%` again, and the `\<` it put before a
+ * line that would read as a marker, `<`. For telling a comment DFAI wrote
+ * from the words it was written from; a person's own `%\%` reads the same.
+ */
+export function undoCommentEscapes(comment: string): string {
+  return comment
+    .replace(/%(?:\\%)+/g, (run) => '%'.repeat((run.length - 1) / 2 + 1))
+    .split('\n')
+    .map((line) => {
+      const unescaped = line.replace('\\<', '<');
+      return looksLikeHighlightMarker(unescaped) ? unescaped : line;
+    })
+    .join('\n');
+}
+
 function paragraphsOf(words: string): string[] {
   return words
     .replace(/\r\n?/g, '\n')

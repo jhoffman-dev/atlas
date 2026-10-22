@@ -50,11 +50,11 @@ export type {
 export { kindleLiteratureNote, kindleNoteMatch, kindleNoteOf } from './kindle-note-match.ts';
 export type { KindleNoteMatch } from './kindle-note-match.ts';
 export {
-  KindleHighlightUnplaceableError,
   KindlePassageGoneError,
   recordedKindleKeys,
   withKindleHighlights,
 } from './kindle-note-writes.ts';
+export type { KindleNoteWrite } from './kindle-note-writes.ts';
 export {
   KINDLE_AUTO_SYNC_INTERVAL_MS,
   KINDLE_AUTO_SYNC_MIN_GAP_MS,
