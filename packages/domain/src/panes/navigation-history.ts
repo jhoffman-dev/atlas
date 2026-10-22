@@ -24,7 +24,9 @@ export type NavigationPlace =
   | { readonly kind: 'templates' }
   | { readonly kind: 'terms' }
   | { readonly kind: 'library' }
-  | { readonly kind: 'highlights' };
+  | { readonly kind: 'highlights' }
+  /** A PDF open in the reader (#504), by the file's own path. */
+  | { readonly kind: 'document'; readonly path: VaultPath };
 
 /** A place that is a page rather than a note: what a tab draws without an editor. */
 export type PagePlace = Exclude<NavigationPlace, { kind: 'note' }>;
@@ -82,6 +84,8 @@ export function samePlace(left: NavigationPlace, right: NavigationPlace): boolea
       return right.kind === 'library';
     case 'highlights':
       return right.kind === 'highlights';
+    case 'document':
+      return right.kind === 'document' && right.path === left.path;
   }
 }
 
@@ -167,11 +171,11 @@ export function followMoveInHistory(
 ): NavigationHistory {
   let followed = false;
   const follow = (place: NavigationPlace): NavigationPlace => {
-    if (place.kind === 'note') {
+    if (place.kind === 'note' || place.kind === 'document') {
       const to = movedPath(place.path, move);
       if (to === null) return place;
       followed = true;
-      return { kind: 'note', path: to };
+      return { kind: place.kind, path: to };
     }
     if (place.kind === 'graph' && place.scope.kind === 'note') {
       const to = movedPath(place.scope.path, move);
@@ -189,9 +193,9 @@ export function followMoveInHistory(
   return followed ? next : history;
 }
 
-/** The note a place shows, if it shows one. */
+/** The note (or document) a place shows, if it shows one. */
 function placePath(place: NavigationPlace): VaultPath | null {
-  if (place.kind === 'note') return place.path;
+  if (place.kind === 'note' || place.kind === 'document') return place.path;
   if (place.kind === 'graph' && place.scope.kind === 'note') return place.scope.path;
   return null;
 }

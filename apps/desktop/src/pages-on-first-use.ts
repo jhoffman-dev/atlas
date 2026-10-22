@@ -78,6 +78,11 @@ export const activityScreen = laterPage(
 const researchScreens = chunk('research-screens', () => import('./research/research-screens.tsx'));
 export const libraryScreen = laterPage(researchScreens, (m) => m.LibraryScreen);
 export const highlightsScreen = laterPage(researchScreens, (m) => m.HighlightsScreen);
+// The PDF reader, with pdf.js, in a chunk of its own (#504): half a megabyte nobody pays for until a PDF opens.
+export const documentReader = laterPage(
+  chunk('document-reader', () => import('./reader/document-reader.tsx')),
+  (m) => m.DocumentReader,
+);
 export const archivePage = laterPage(laterParts, (m) => m.ArchivePage);
 export const weeklyReviewPage = laterPage(laterParts, (m) => m.WeeklyReviewPage);
 export const templatesPage = laterPage(laterParts, (m) => m.TemplatesPage);
@@ -100,6 +105,7 @@ export const settingsDialog = later(laterParts, (m) => m.SettingsDialog, Setting
 export const globalCaptureSettings = later(laterParts, (m) => m.GlobalCaptureSettings);
 export const googleCalendarSettingsCard = later(laterParts, (m) => m.GoogleCalendarSettingsCard);
 export const granolaSettingsCard = later(laterParts, (m) => m.GranolaSettingsCard);
+export const kindleSettingsCard = later(laterParts, (m) => m.KindleSettingsCard);
 export const imageSettingsPanel = later(laterParts, (m) => m.ImageSettingsPanel);
 export const profileSettingsCard = later(laterParts, (m) => m.ProfileSettingsCard);
 export const quickAddSettingsCard = later(laterParts, (m) => m.QuickAddSettingsCard);

@@ -192,7 +192,13 @@ function resolverOf(notes: readonly VaultPath[]): (target: string) => VaultPath 
  * move broke. Only the target's bytes change: the `!`, heading and alias,
  * `\|` and all, stay as written.
  */
-function retargetWikiLinks({ text, before, after, moved }: NotesAcrossMove & { text: string }): {
+function retargetWikiLinks({
+  text,
+  moves,
+  before,
+  after,
+  moved,
+}: NotesAcrossMove & { text: string }): {
   text: string;
   count: number;
 } {
@@ -201,6 +207,13 @@ function retargetWikiLinks({ text, before, after, moved }: NotesAcrossMove & { t
   const pieces: string[] = [];
   for (const { targetStart, targetEnd, link } of wikiLinkSpans(text)) {
     const opened = resolverOf(before)(link.target);
+    const file = opened === null ? movedFileTarget(link.target, moves) : null;
+    if (file !== null) {
+      count += 1;
+      pieces.push(text.slice(cursor, targetStart), file);
+      cursor = targetEnd;
+      continue;
+    }
     // Where the note it opened is now: moved, or where it was when a namesake moved.
     const to = opened === null ? undefined : (moved.get(opened) ?? opened);
     if (to === undefined || resolverOf(after)(link.target) === to) continue;
@@ -211,6 +224,20 @@ function retargetWikiLinks({ text, before, after, moved }: NotesAcrossMove & { t
   if (count === 0) return { text, count };
   pieces.push(text.slice(cursor));
   return { text: pieces.join(''), count };
+}
+
+/**
+ * Where a link to a file that is not a note — a PDF, an image — points after
+ * the moves, or null when it names no such file or the moves left it be. Such
+ * a file is found by its path alone (what `file:` in a literature note and an
+ * embed write), so a link follows it by path; a bare name is the file at the
+ * vault's root.
+ */
+function movedFileTarget(target: string, moves: readonly EntryMove[]): string | null {
+  const written = target.trim();
+  if (moves.length === 0 || !/\.(?!md$)[a-z0-9]{1,8}$/i.test(written)) return null;
+  const to = pathAfterMoves(written as VaultPath, moves);
+  return to === null || to === written ? null : to;
 }
 
 /**

@@ -97,6 +97,7 @@ import {
   NewTypeDialog,
   NewViewDialog,
   NewArtifactDialog,
+  AddPdfDialog,
   NoteNamesProvider,
   Toast,
   type AppInfoState,
@@ -201,6 +202,7 @@ import {
   GoogleCalendarSettingsCard,
   GranolaSettingsCard,
   ImageSettingsPanel,
+  KindleSettingsCard,
   ProfileSettingsCard,
   QuickAddSettingsCard,
   SecretsSettingsCard,
@@ -219,6 +221,7 @@ import { paletteEditTypeOffers, runPaletteEditTypeCommand } from './types/palett
 import { useTemplatesPage } from './templates/use-templates-page.ts';
 import { answersWrittenOrGivenUp, useAnswersWrittenBeforeClose } from './proposals/answer-queue.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
+import { useAddPdf } from './reader/use-add-pdf.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
 import { createQueryTextStore, queryTextOf } from './query/query-text-store.ts';
 import { AppNotices } from './app-notices.tsx';
@@ -254,6 +257,9 @@ import type { SourcePorts } from './sources/source-ports.ts';
 import { useGoogleCalendar } from './settings/use-google-calendar.ts';
 import { useGranola } from './settings/use-granola.ts';
 import { useGranolaPull } from './granola/use-granola-pull.ts';
+import { useKindleSync, type KindleHost } from './kindle/use-kindle-sync.ts';
+import { NO_KINDLE } from './kindle/no-kindle.ts';
+import { paletteKindleCommands, runPaletteKindleCommand } from './kindle/palette-kindle.ts';
 import { useSecrets } from './settings/use-secrets.ts';
 import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
 import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
@@ -295,6 +301,7 @@ const OPEN_TEMPLATES = 'open-templates';
 const OPEN_TERMS = 'open-terms';
 const OPEN_LIBRARY = 'open-library';
 const OPEN_HIGHLIGHTS = 'open-highlights';
+const ADD_PDF = 'add-pdf';
 const FIND_DUPLICATE_PEOPLE = 'find-duplicate-people';
 const MERGE_SELECTED_PEOPLE = 'merge-selected-people';
 /** Why a merge was not worked out: links to the people might be missed. */
@@ -311,6 +318,8 @@ const PALETTE_COMMANDS = [
   { id: 'new-artifact', label: 'New artifact', keywords: ['claude', 'save', 'link', 'html'] },
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
   { id: OPEN_TERMS, label: 'Terms', keywords: ['glossary', 'spelling', 'vocabulary', 'aliases'] },
+  // No word with a "t" in it: the palette's work budget types "tobia" (tools/perf/budgets.spec.ts).
+  { id: ADD_PDF, label: 'Add PDF…', keywords: ['pdf', 'book', 'paper', 'library', 'reader'] },
   {
     id: OPEN_LIBRARY,
     label: 'Library',
@@ -413,6 +422,7 @@ function AppWindow({
   sync: syncPorts,
   googleCalendar,
   granola: granolaPorts,
+  kindle: kindlePorts,
   globalCapture: globalCapturePorts,
   exporting: exportPorts,
 }: {
@@ -437,6 +447,8 @@ function AppWindow({
   googleCalendar: GoogleCalendarPort;
   /** Granola, through the host, which keeps the key (ADR-0034), and this Mac's record of each vault's pulls. */
   granola: { port: GranolaPort; records: GranolaPullRecords };
+  /** Kindle through the host's own Amazon session (ADR-0044), and the app's one sync; left out, Kindle is not offered. */
+  kindle?: KindleHost;
   /** The shortcut that opens quick capture from any app, registered by the host (#81). */
   globalCapture: { port: GlobalCapturePort; store: GlobalCaptureStore };
   /** Where exports go, how a PDF is made and how a Doc reaches Drive (#501); left out, nothing is exported. */
@@ -679,6 +691,20 @@ function AppWindow({
     activity: activityLog,
     onWrote: onChanged,
   });
+  // Kindle's highlights into literature notes (#508): once the index is ready, every four hours, and on asking.
+  const kindleOpenNotes = useMemo(() => openNotesIn(editors), [editors]);
+  const kindleSync = useKindleSync({
+    kindle: kindlePorts ?? NO_KINDLE,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    index: index.index,
+    openNotes: kindleOpenNotes,
+    rng: cryptoRng,
+    clock: localClock,
+    vaultKey,
+    indexReady,
+    onWrote: onChanged,
+  });
 
   const thumbnails = useThumbnailQueue({ notes, snapshot, editors, types, onChanged });
   const thumbnailsNow = useThumbnailsNow(thumbnails);
@@ -770,6 +796,9 @@ function AppWindow({
     ...(exportPorts === undefined
       ? []
       : paletteExportCommands(focused?.kind === 'note' ? focused.path : null)),
+    ...(kindlePorts === undefined || location === null
+      ? []
+      : paletteKindleCommands(kindleSync.view.connected)),
   ]);
   const paletteOffersFor = useCallback(
     (query: string) => [...paletteOffers(query), ...paletteEditTypeOffers(types, query)],
@@ -995,6 +1024,18 @@ function AppWindow({
     },
   });
   const { start: startArtifact } = newArtifact;
+  const addPdf = useAddPdf({
+    fs: vault.fs,
+    types,
+    today: localToday,
+    onAdded: ({ added, allAdded }) => {
+      onChanged();
+      if (!allAdded) return;
+      hideOverlay('add-pdf');
+      const [first] = added;
+      if (first !== undefined) openNote(first.file);
+    },
+  });
   const startNewArtifact = useCallback(
     (url = '') => {
       startArtifact(url);
@@ -1789,7 +1830,10 @@ function AppWindow({
     else if (id === OPEN_TERMS) openPage({ kind: 'terms' });
     else if (id === OPEN_LIBRARY) openPage({ kind: 'library' });
     else if (id === OPEN_HIGHLIGHTS) openPage({ kind: 'highlights' });
-    else if (id === FIND_DUPLICATE_PEOPLE) peopleMerge.commands.findDuplicates();
+    else if (id === ADD_PDF) {
+      addPdf.reset();
+      showOverlay('add-pdf');
+    } else if (id === FIND_DUPLICATE_PEOPLE) peopleMerge.commands.findDuplicates();
     else if (id === MERGE_SELECTED_PEOPLE)
       peopleMerge.commands.mergeChosen(activeTabOf(workspaceNow(workspace))?.id ?? '');
     else if (id === OPEN_INBOX) openInbox();
@@ -1822,6 +1866,7 @@ function AppWindow({
     ) {
       return;
     }
+    if (runPaletteKindleCommand(id, kindleSync)) return;
     // A command that goes somewhere leaves the peek first, so where it went is on screen.
     leavingPeekFor(() => runPlaceCommand(id, pasted));
   });
@@ -1833,6 +1878,14 @@ function AppWindow({
     else replacePeek(overlays, createVaultPath(path));
   });
 
+  const kindleShown = kindleSync.toastShown;
+  const kindleToast = kindleSync.toast !== null && (
+    <Toast
+      key={`kindle-${kindleShown}`}
+      message={kindleSync.toast}
+      onDismiss={() => kindleSync.dismissToast(kindleShown)}
+    />
+  );
   const granolaShown = granolaPull.toastShown;
   const granolaToast = granolaPull.toast !== null && (
     <Toast
@@ -1840,6 +1893,13 @@ function AppWindow({
       message={granolaPull.toast}
       onDismiss={() => granolaPull.dismissToast(granolaShown)}
     />
+  );
+  // One child, `false` with no toast up, so the toast host is not drawn again with the window.
+  const connectionToasts = (granolaToast !== false || kindleToast !== false) && (
+    <>
+      {granolaToast}
+      {kindleToast}
+    </>
   );
 
   // The panes' wiring that changes only with what it holds, so a window
@@ -2082,7 +2142,7 @@ function AppWindow({
             <>
               {notices}
               <ToastHost toasts={toasts} activity={activityLog} vault={vaultKey}>
-                {granolaToast}
+                {connectionToasts}
               </ToastHost>
             </>
           }
@@ -2221,6 +2281,9 @@ function AppWindow({
                   <GoogleCalendarSettingsCard setting={googleCalendarSetting} />
                 )}
                 {location !== null && <GranolaSettingsCard setting={granolaSetting} />}
+                {location !== null && kindlePorts !== undefined && (
+                  <KindleSettingsCard kindle={kindleSync} />
+                )}
                 <ClaudeSettingsCard chat={chat} />
                 {location !== null && (
                   <SyncSettingsSlot store={syncStore}>
@@ -2314,6 +2377,15 @@ function AppWindow({
                 onChange={newView.change}
                 onCreate={newView.create}
                 onClose={() => hideOverlay('new-view')}
+                fallbackFocus={focusFallback}
+              />
+            ) : overlay === 'add-pdf' ? (
+              <AddPdfDialog
+                folder={addPdf.folder}
+                adding={addPdf.adding}
+                error={addPdf.error}
+                onFiles={(files) => void addPdf.add(files)}
+                onClose={() => hideOverlay('add-pdf')}
                 fallbackFocus={focusFallback}
               />
             ) : overlay === 'new-artifact' ? (

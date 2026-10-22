@@ -51,6 +51,13 @@ export default defineConfig({
       },
       { find: '@dfai/domain', replacement: pkg('domain') },
       { find: '@dfai/application', replacement: pkg('application') },
+      // The PDF reader's adapter, an entry of its own so pdf.js stays out of the start-up bundle.
+      {
+        find: '@dfai/adapters/pdf',
+        replacement: fileURLToPath(
+          new URL('./packages/adapters/src/pdf/index.ts', import.meta.url),
+        ),
+      },
       { find: '@dfai/adapters', replacement: pkg('adapters') },
       { find: '@dfai/ui', replacement: pkg('ui') },
     ],
@@ -112,6 +119,8 @@ export default defineConfig({
         'packages/application/src/highlights/**': { lines: 90, functions: 90, branches: 85 },
         // Reads every source and highlight for the research views; a wrong read hides them (#507).
         'packages/application/src/research/**': { lines: 90, functions: 90, branches: 85 },
+        // Copies a PDF into the vault and makes its literature note; writes the reader's highlights (#504).
+        'packages/application/src/reader/**': { lines: 90, functions: 90, branches: 85 },
         // A task's schedule is read from the index and answered to the API (P31-01);
         // a drop on the calendar writes a block or links a task into one, and undoes it (P31-02).
         'packages/application/src/timeblocks/**': { lines: 90, functions: 90, branches: 85 },

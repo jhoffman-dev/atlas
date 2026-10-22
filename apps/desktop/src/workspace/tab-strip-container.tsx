@@ -69,5 +69,7 @@ function placeIcon(place: NavigationPlace): IconName {
       return 'book';
     case 'highlights':
       return 'quote';
+    case 'document':
+      return 'book';
   }
 }

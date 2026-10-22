@@ -53,6 +53,7 @@ export * from './timeblocks/index.ts';
 export * from './checklists/index.ts';
 export * from './highlights/index.ts';
 export * from './research/index.ts';
+export * from './reader/index.ts';
 export * from './review/index.ts';
 export * from './today/index.ts';
 export * from './pending/index.ts';

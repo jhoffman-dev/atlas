@@ -56,7 +56,7 @@ export async function addHighlights(
   { path, highlights }: { path: VaultPath; highlights: readonly NewHighlight[] },
 ): Promise<AppendedHighlight[]> {
   let answered: AppendedHighlight[] = [];
-  await rewriteLiteratureNote(ports, path, (text) => {
+  const change = (text: string) => {
     const appended = appendHighlights({
       text,
       highlights,
@@ -65,7 +65,8 @@ export async function addHighlights(
     });
     answered = appended.highlights;
     return appended.text;
-  });
+  };
+  await changeLiteratureNote(ports, { path, change });
   return answered;
 }
 
@@ -88,14 +89,14 @@ export async function editHighlightComment(
   ports: LiteratureNoteWritePorts,
   { path, id, comment }: { path: VaultPath; id: string; comment: string },
 ): Promise<void> {
-  await rewriteLiteratureNote(ports, path, (text) =>
+  const change = (text: string) =>
     withHighlightComment({
       text,
       id,
       comment,
       noteBlocks: (note) => ports.markdown.noteBlocks(note),
-    }),
-  );
+    });
+  await changeLiteratureNote(ports, { path, change });
 }
 
 /**
@@ -108,16 +109,24 @@ export async function removeHighlight(
   ports: LiteratureNoteWritePorts,
   { path, id }: { path: VaultPath; id: string },
 ): Promise<void> {
-  await rewriteLiteratureNote(ports, path, (text) =>
-    withoutHighlight({ text, id, noteBlocks: (note) => ports.markdown.noteBlocks(note) }),
-  );
+  const change = (text: string) =>
+    withoutHighlight({ text, id, noteBlocks: (note) => ports.markdown.noteBlocks(note) });
+  await changeLiteratureNote(ports, { path, change });
 }
 
-async function rewriteLiteratureNote(
-  { fs, markdown, openNotes }: LiteratureNoteWritePorts,
-  path: VaultPath,
-  change: (text: string) => string,
+/**
+ * Changes the literature note at `path` by `change`, a pure rewrite of its
+ * whole text (a composition of the domain's highlight writes, as Kindle sync's
+ * is), written in one write against the version just read: all of it or
+ * none. Throws `UnsavedTypingError` while a pane holds unsaved typing in the
+ * note, `NotALiteratureNoteError` for a note that is not one, and what
+ * `change` throws, writing nothing. Writes nothing when the text is the same.
+ */
+export async function changeLiteratureNote(
+  ports: LiteratureNoteWritePorts,
+  { path, change }: { path: VaultPath; change: (text: string) => string },
 ): Promise<void> {
+  const { fs, markdown, openNotes } = ports;
   if (openNotes.state(path) === 'dirty') throw new UnsavedTypingError(path);
   const file = await fs.readTextFile(path);
   const frontmatter = markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter);

@@ -18,7 +18,7 @@
  * failing, and only ever lowers a budget (`lowered`). Raising one is James's
  * call, made by hand.
  */
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '../../e2e/fixtures.ts';
 import { installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
@@ -28,6 +28,7 @@ import type { FixtureFile } from './fixture-vault.ts';
 import { installProbe, measure, waitForQuiet } from './probe.ts';
 import { RESEARCH_SOURCES, HIGHLIGHTS_PER_SOURCE, researchVault } from './research-vault.ts';
 import { EVERY_NOTE_INDEXED, writeFixtureVault, writeVault } from './session.ts';
+import { longFixturePdf } from '../pdf/fixture-pdf.ts';
 import {
   installWorkClock,
   oneInput,
@@ -221,8 +222,15 @@ interface PassFixture {
   readonly openIsBudgeted: boolean;
 }
 
-/** The 2,008-note fixture, with the project board the drag measures on. */
-const MAIN: PassFixture = { write: () => writeFixtureVault([PROJECT_BOARD]), openIsBudgeted: true };
+/** The 2,008-note fixture, with the project board the drag measures on and the long PDF the reader opens. */
+const MAIN: PassFixture = {
+  write: async () => {
+    const vault = await writeFixtureVault([PROJECT_BOARD]);
+    await writeLongPdf(vault);
+    return vault;
+  },
+  openIsBudgeted: true,
+};
 
 /** The research views' fixture (#507): its open is set-up; the views' opens are what is counted. */
 const RESEARCH: PassFixture = { write: () => writeVault(researchVault()), openIsBudgeted: false };
@@ -482,6 +490,7 @@ async function everyAction(pass: Pass): Promise<void> {
   await dragACard(pass);
   await runALongSqlQuery(pass);
   await runALongAtlasQuery(pass);
+  await readALongPdf(pass);
 }
 
 const sidebarButton = (page: Page, name: RegExp) => page.getByRole('button', { name }).first();
@@ -899,6 +908,69 @@ async function runALongAtlasQuery(pass: Pass): Promise<void> {
   const drawn = await page.locator('.qresult__sheet .qresult__title').count();
   expect(drawn, `${drawn} of ${ATLAS_ROWS} rows drawn`).toBeGreaterThan(0);
   expect(drawn, `${drawn} of ${ATLAS_ROWS} rows drawn`).toBeLessThanOrEqual(ATLAS_MOST_DRAWN);
+}
+
+/** The 500-page PDF the reader is held to (#504): a file in the vault, no note of its own, so nothing else counts it. */
+const LONG_PDF = 'Areas/A Long Crossing.pdf';
+const LONG_PDF_PAGES = 500;
+/** The most pages the reader may have drawn at once: the ones on screen and a couple either side. */
+const PDF_MOST_DRAWN = 8;
+
+/** Written beside the fixture's notes; a PDF is not a note, so opening the vault does not read it. */
+async function writeLongPdf(vault: FakeVault): Promise<void> {
+  await writeFile(join(vault.root, LONG_PDF), longFixturePdf(LONG_PDF_PAGES));
+}
+
+/**
+ * pdf.js's worker module, loaded onto the page's own thread before the PDF
+ * opens. pdf.js then parses there rather than in a worker of its own, so
+ * its work is the page's and the work clock holds it like the rest: a
+ * worker's answers come in on the wall clock, which the counts must not
+ * depend on. The work counted is the app's, which is the same either way.
+ */
+async function pdfWorkerOnThePage(page: Page): Promise<void> {
+  const assets = join('apps', 'desktop', 'dist', 'assets');
+  const worker = (await readdir(assets)).find((name) => /^pdf\.worker\.min-.*\.mjs$/.test(name));
+  if (worker === undefined) throw new Error(`no pdf.js worker in ${assets}: build first`);
+  await page.evaluate(async (address) => {
+    (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker = await import(
+      /* @vite-ignore */ address
+    );
+  }, `/assets/${worker}`);
+}
+
+/** Opens the long PDF from Pages, ready once its first page's words are there; then scrolls to its middle. */
+async function readALongPdf(pass: Pass): Promise<void> {
+  const { page } = pass;
+  const tree = sidebarSection(page, 'userSpace');
+  await pdfWorkerOnThePage(page);
+  await pass.setUp(
+    phase(
+      () => tree.getByRole('treeitem', { name: 'Areas', exact: true }).click(),
+      exists,
+      '[role="treeitem"][aria-label="A Long Crossing.pdf"]',
+    ),
+  );
+  await pass.budgeted('Open a 500-page PDF', [
+    phase(
+      () => tree.getByRole('treeitem', { name: 'A Long Crossing.pdf', exact: true }).click(),
+      exists,
+      '[data-pdf-page="1"] .pdf-text__run',
+    ),
+  ]);
+  await pass.budgeted('Scroll a 500-page PDF to its middle', [
+    phase(
+      () =>
+        page.locator('.pdf-reader__pages').evaluate((pages) => {
+          pages.scrollTop = pages.scrollHeight / 2;
+        }),
+      exists,
+      `[data-pdf-page="${LONG_PDF_PAGES / 2 + 1}"] .pdf-text__run`,
+    ),
+  ]);
+  const drawn = await page.locator('.pdf-page').count();
+  expect(drawn, `${drawn} of ${LONG_PDF_PAGES} pages drawn`).toBeGreaterThan(0);
+  expect(drawn, `${drawn} of ${LONG_PDF_PAGES} pages drawn`).toBeLessThanOrEqual(PDF_MOST_DRAWN);
 }
 
 async function centreOf(target: Locator): Promise<{ x: number; y: number }> {

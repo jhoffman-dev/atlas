@@ -12,4 +12,15 @@ export type {
   KindleHighlightSink,
   KindleNotebookSource,
   KindleSession,
+  KindleWritten,
 } from './ports.ts';
+export { connectKindle, disconnectKindle, runKindleSync } from './kindle-sync-runs.ts';
+export type {
+  KindleSyncRecords,
+  KindleVaultChoices,
+  KindleSyncRun,
+  KindleSyncRunPorts,
+  KindleSyncWhy,
+} from './kindle-sync-runs.ts';
+export { literatureNoteKindleSink } from './literature-note-sink.ts';
+export type { LiteratureNoteKindleSinkPorts } from './literature-note-sink.ts';

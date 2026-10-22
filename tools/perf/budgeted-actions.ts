@@ -29,6 +29,8 @@ export const BUDGETED_ACTIONS = [
   // On the research fixture (#507): 2,000 literature notes holding 20,000 highlights.
   'Open the Library (2,000 sources)',
   'Open All highlights (20,000)',
+  'Open a 500-page PDF',
+  'Scroll a 500-page PDF to its middle',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];

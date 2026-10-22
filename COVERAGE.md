@@ -41,6 +41,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `domain/highlights`         | Decides what a literature note's bytes become when a highlight is added, edited or removed.   | #503    |
 | `application/highlights`    | Writes highlights into a literature note and takes them out, against the version read.        | #503    |
 | `application/research`      | Reads every source and highlight for the Library and All highlights; a wrong read hides them. | #507    |
+| `application/reader`        | Copies a PDF into the vault with its literature note; writes the reader's highlights.         | #504    |
 | `application/meeting-links` | Writes a meeting's people and companies, and proposals, by itself; undone.                    | 29      |
 | `application/profile`       | Reads who the vault's owner is, by name and address: whose a meeting's tasks are.             | #173    |
 | `*/google-calendar`         | Connects your Google account and reads its answers; tokens stay in Rust.                      | 31      |

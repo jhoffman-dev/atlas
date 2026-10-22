@@ -201,9 +201,10 @@ function readHistory(value: Record<string, unknown>): NavigationHistory {
 function readPlace(value: unknown): NavigationPlace | null {
   if (!isRecord(value)) return null;
   switch (value.kind) {
-    case 'note': {
+    case 'note':
+    case 'document': {
       const path = readPath(value.path);
-      return path === null ? null : { kind: 'note', path };
+      return path === null ? null : { kind: value.kind, path };
     }
     case 'type':
       return typeof value.name === 'string' && value.name !== ''

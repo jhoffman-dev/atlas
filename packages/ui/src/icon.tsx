@@ -139,6 +139,13 @@ const GLYPHS = {
       {...joined}
     />
   ),
+  // An open book: a PDF in the reader (#504), and the Library of every source (#507).
+  book: (
+    <path
+      d="M12 6.5c-1.8-1.3-4.3-2-7-2v13c2.7 0 5.2.7 7 2 1.8-1.3 4.3-2 7-2v-13c-2.7 0-5.2.7-7 2zM12 6.5v13"
+      {...joined}
+    />
+  ),
   // A page drawn in dashes — a note's outline, not yet a note.
   template: (
     <>
@@ -310,16 +317,6 @@ const GLYPHS = {
       <path d="M3.5 18.5 8 5.5l4.5 13M5.2 13.8h5.6" {...joined} />
       <circle cx="17" cy="15.6" r="2.9" {...line} />
       <path d="M19.9 12.2v6.3" {...round} />
-    </>
-  ),
-  // The Library (#507): a book standing open at its spine.
-  book: (
-    <>
-      <path
-        d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"
-        {...joined}
-      />
-      <path d="M12 6.5v13" {...round} />
     </>
   ),
   // A highlight (#507): a quotation mark's two commas.

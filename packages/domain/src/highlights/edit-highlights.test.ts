@@ -6,6 +6,7 @@ import {
   HighlightNotFoundError,
   highlightNamed,
   withHighlightComment,
+  withHighlightCommentAfter,
   withoutHighlight,
   type NewHighlight,
 } from './edit-highlights.ts';
@@ -396,6 +397,52 @@ describe("editing a highlight's comment", () => {
   });
 });
 
+describe("adding to a highlight's comment", () => {
+  it('writes a paragraph after the comment, the comment before it byte for byte as it was', () => {
+    const text = threeHighlights().replace(
+      '> First thought.\n',
+      '>First  thought,\n>   odd *indent*\n',
+    );
+    const changed = withHighlightCommentAfter({
+      text,
+      id: 'bbbbb2',
+      note: 'Then this.',
+      noteBlocks,
+    });
+    expect(changed).toBe(text.replace('>   odd *indent*\n', '>   odd *indent*\n>\n> Then this.\n'));
+    expect(highlightNamed(changed, 'bbbbb2', noteBlocks).comment).toBe(
+      'First  thought,\n  odd *indent*\n\nThen this.',
+    );
+  });
+
+  it('gives a highlight with no comment one, as a new comment would', () => {
+    const text = threeHighlights();
+    expect(withHighlightCommentAfter({ text, id: 'ccccc3', note: 'Like water.', noteBlocks })).toBe(
+      withHighlightComment({ text, id: 'ccccc3', comment: 'Like water.', noteBlocks }),
+    );
+  });
+
+  it('writes the note in the note’s own line ending, escaping what would hide the rest', () => {
+    const text = threeHighlights().replace(/\n/g, '\r\n');
+    const changed = withHighlightCommentAfter({
+      text,
+      id: 'bbbbb2',
+      note: 'Half of 50%%',
+      noteBlocks,
+    });
+    expect(changed).toContain('>\r\n> Half of 50%\\%\r\n');
+    expect(readHighlights(changed, noteBlocks)).toHaveLength(3);
+  });
+
+  it('adds nothing for a blank note, and refuses a highlight the note lacks', () => {
+    const text = threeHighlights();
+    expect(withHighlightCommentAfter({ text, id: 'bbbbb2', note: ' \n', noteBlocks })).toBe(text);
+    expect(() => withHighlightCommentAfter({ text, id: 'zzzzzz', note: 'x', noteBlocks })).toThrow(
+      HighlightNotFoundError,
+    );
+  });
+});
+
 describe('removing a highlight', () => {
   it('takes out a highlight between others with the blank line after it', () => {
     const text = threeHighlights();
@@ -441,6 +488,34 @@ describe('removing a highlight', () => {
     const text = `Words.\n\n> Q.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: deception.anchor })}\n\n^abc123`;
     // A block with no final line ending is one DFAI wrote to a note without one (A11): gone, so is it.
     expect(withoutHighlight({ text, id: 'abc123', noteBlocks })).toBe('Words.');
+  });
+
+  it('leaves a Kindle highlight’s tombstone where its block was, the blank lines as they were', () => {
+    const kindle = {
+      quote: 'Words from a book.',
+      anchor: { kind: 'kindle', location: { start: 40, end: null }, annotationId: 'A1' },
+    } as const;
+    const { text } = appendHighlights({
+      text: `${SOURCE}`,
+      highlights: [kindle, deception],
+      random: seeded(4),
+      noteBlocks,
+    });
+    const [first] = readHighlights(text, noteBlocks);
+    const removed = withoutHighlight({ text, id: first?.id as string, noteBlocks });
+    expect(removed).toBe(
+      text
+        .slice(0, first?.start)
+        .concat(
+          removed.slice(first?.start, removed.indexOf('\n', first?.start) + 1),
+          text.slice(first?.end),
+        ),
+    );
+    expect(removed).toMatch(
+      /<!-- atlas:highlight-removed \{[^\n]*"annotationId":"A1"[^\n]*\} -->\n\n/,
+    );
+    expect(removed).not.toContain('Words from a book.');
+    expect(readHighlights(removed, noteBlocks)).toHaveLength(1);
   });
 
   it('refuses a highlight the note does not hold', () => {

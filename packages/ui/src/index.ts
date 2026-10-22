@@ -129,6 +129,8 @@ export { SecretsSettings } from './secrets-settings.tsx';
 export type { SecretRow, SecretSave } from './secrets-settings.tsx';
 export { GoogleCalendarSettings } from './google-calendar-settings.tsx';
 export { GranolaSettings } from './granola-settings.tsx';
+export { KindleSettings } from './kindle-settings.tsx';
+export type { KindleBusy, KindleView } from './kindle-settings.tsx';
 export type { GranolaKeyState, GranolaNoteLine, GranolaView } from './granola-settings.tsx';
 export type {
   GoogleCalendarChoice,
@@ -292,3 +294,4 @@ export type { HighlightsPageProps } from './research/highlights-page.tsx';
 export type { ResearchListState } from './research/research-filters.tsx';
 export { blockEmbedTransfer } from './editor/embed-transfer.ts';
 export type { EmbedTransfer } from './editor/embed-transfer.ts';
+export * from './reader/index.ts';

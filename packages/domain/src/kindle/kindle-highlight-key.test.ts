@@ -3,8 +3,11 @@ import {
   findKindleKeyClash,
   hashOf,
   kindleHighlightKey,
+  kindleKeyOfWordsHash,
   kindleNoteKey,
+  kindleNoteKeysOfRuns,
   newKindleHighlights,
+  removedKindleKey,
 } from './kindle-highlight-key.ts';
 import type { KindleHighlight } from './kindle-types.ts';
 
@@ -166,9 +169,56 @@ describe('newKindleHighlights', () => {
     expect(fresh.map((h) => h.quote)).toEqual(['first']);
   });
 
+  it('leaves out a passage the person removed, and every note typed on it', () => {
+    const recorded = new Set([removedKindleKey('amazon:A1' as KindleHighlight['key'])]);
+    const fresh = newKindleHighlights(
+      [
+        highlight('amazon:A1'),
+        highlight('amazon:A1:note:abc'),
+        highlight('amazon:A10'),
+        highlight('quote:B0:-:abc'),
+      ],
+      recorded,
+    );
+    expect(fresh.map((h) => h.key)).toEqual(['amazon:A10', 'quote:B0:-:abc']);
+  });
+
   it('leaves the recorded set it was given as it was', () => {
     const recorded = new Set(['x']);
     newKindleHighlights([highlight('a')], recorded);
     expect([...recorded]).toEqual(['x']);
+  });
+});
+
+describe('kindleNoteKeysOfRuns', () => {
+  const passage = kindleHighlightKey(base);
+
+  it('holds the key of every run of consecutive paragraphs, as the run typed whole', () => {
+    const keys = kindleNoteKeysOfRuns(passage, ['One.', 'Two.', 'Three.']);
+    expect(keys).toHaveLength(6);
+    for (const run of ['One.', 'One. Two.', 'One.\n\nTwo.\n\nThree.', 'Two. Three.', 'Three.']) {
+      expect(keys).toContain(kindleNoteKey(passage, run));
+    }
+    expect(keys).not.toContain(kindleNoteKey(passage, 'One. Three.'));
+  });
+
+  it('leaves none out of a long comment', () => {
+    const paragraphs = Array.from({ length: 200 }, (_, at) => `Thought ${at}.`);
+    const keys = new Set(kindleNoteKeysOfRuns(passage, paragraphs));
+    expect(keys.has(kindleNoteKey(passage, paragraphs.slice(150, 200).join('\n\n')))).toBe(true);
+    expect(keys.has(kindleNoteKey(passage, paragraphs.join('\n\n')))).toBe(true);
+  });
+
+  it('skips a paragraph of only invisible characters, as a key does', () => {
+    const keys = kindleNoteKeysOfRuns(passage, ['One.', '\u200b', 'Two.']);
+    expect(keys).toContain(kindleNoteKey(passage, 'One.\n\nTwo.'));
+  });
+});
+
+describe('kindleKeyOfWordsHash', () => {
+  it('is the key of the words, from their hash', () => {
+    const wordsHash = hashOf('A passage');
+    expect(kindleKeyOfWordsHash({ ...base, wordsHash })).toBe(kindleHighlightKey(base));
+    expect(kindleKeyOfWordsHash({ ...base, annotationId: 'Q1', wordsHash })).toBe('amazon:Q1');
   });
 });

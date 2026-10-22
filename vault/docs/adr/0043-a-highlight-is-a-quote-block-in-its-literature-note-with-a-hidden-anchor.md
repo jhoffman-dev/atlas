@@ -116,9 +116,29 @@ Options weighed for where a highlight lives:
    `exact`/`prefix`/`suffix` is the W3C TextQuoteSelector. A Kindle highlight
    has `location` or, for a book whose export has pages and no locations,
    `page`; its `exact` is the export's own words, written when it is added. A PDF box is in
-   fractions of its page from the top-left, so it holds at any zoom. A PDF
+   fractions of its page from the top-left, so it holds at any zoom. A part
+   of a run of text is cut along the way the run reads, from its first
+   letter — down a page turned a quarter, leftward on one upside down, down
+   a column of a font written top to bottom — and stored as the box round
+   that part, so `rects` keep one shape whatever the page's turn. A PDF
    highlight with no words — an area on a scanned page — has no `exact` and
-   at least one box. The style is `mark` (`highlight` or `underline`) and
+   at least one box. Its quote is a picture of the area, saved among the
+   vault's images and embedded as the quote's line — `> ![[attachments/The Art
+of War p4 area.png]]` — so the highlight shows something wherever it is
+   transcluded (#504). The embed is markdown DFAI writes, not the source's
+   words, so it is not escaped; a picture whose path a link could not name
+   (`#`, `^`, `|`, `[`, `]`, a line break) is refused with
+   `UnsafeSourceFileError`; the picture is named from the PDF's name with those
+   characters made spaces and the name cut to fit a file name once numbered. The
+   picture is written only for a highlight that is added: a note with unsaved
+   typing, or one that already holds the area (`heldHighlight`, asked before
+   the picture is drawn), writes none, and a picture written for a highlight
+   the note then refuses goes to the Trash again — but only once the note,
+   read again, does not embed it, since a write can land and still report a
+   failure (a lost answer, a pane's reload failing). Removing
+   an area highlight takes out the block and **keeps the picture**: it is a file
+   in the person's vault that DFAI will not delete on their behalf, another note
+   may embed it, and an orphan costs only disk space. The style is `mark` (`highlight` or `underline`) and
    `color` (yellow, green, blue, pink, purple, orange); one this build does
    not know is drawn as a yellow highlight, and its bytes are kept.
 
@@ -166,10 +186,31 @@ Options weighed for where a highlight lives:
    replaces the comment's lines and nothing else; written back as it reads,
    a comment is the same bytes. Removing takes out the block and the one
    blank line that parted it. A highlight is removed only on the person's
-   command: nothing removes one by itself, sync included. A note with no final
+   command: nothing removes one by itself, sync included. **A removed Kindle
+   highlight leaves a tombstone** in the block's place, so a sync does not
+   bring it back (#508, review of PR #514):
+
+       <!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A1","words":"3f2a…"} -->
+
+   It is a line of its own, an HTML comment like the marker (ADR-0020's
+   style, `atlas:` kept, `<`, `>`, U+2028 and U+2029 written as `\u` escapes),
+   so Obsidian's reading view, GitHub and every CommonMark reader hide it and
+   DFAI reads no highlight in it. It keeps where the highlight was, its
+   annotation id and a hash of its words (`hashOf` of the words as a key reads
+   them) — not the words, which the person removed — which is exactly what the
+   highlight's Kindle key is made of. The blank lines round it stay as they
+   were; every other write changes only its own bytes, so a tombstone survives
+   comment edits, other removals and appends, and the person deleting the line
+   is how a removed highlight is allowed back. Removing a highlight of another
+   source (PDF, EPUB) leaves nothing, and removing all that were added gives
+   the note back byte for byte for those. `looksLikeHighlightMarker` does not
+   take a tombstone for a marker it cannot read (`atlas:highlight` must not be
+   followed by `-` or a word character), so a note holding tombstones is not
+   refused. A note with no final
    newline stays so: the block is written without one, and removing it gives
    the note back byte for byte. So removing every highlight added gives the
-   note back byte for byte, whatever it ended in (`\n\n`, `\n  \n`,
+   note back byte for byte (for PDF and EPUB highlights; a Kindle one leaves
+   its tombstone), whatever it ended in (`\n\n`, `\n  \n`,
    `\r\n\r\n`, no line ending). A byte order mark that starts a note with no
    frontmatter is the file's, not the body's: a block is written straight
    after it, and no write moves or removes it. Each write goes
@@ -290,11 +331,81 @@ Options weighed for where a highlight lives:
    it matches count, so copies whose surroundings differ in whitespace alone
    tie, and copies that tie are no match at all rather than the first. The page `near` is made a section index first: a fraction rounds
    down, a number out of range is the nearest end, and NaN is the first.
+   A PDF highlight whose own page cannot be read is drawn at its saved boxes
+   on that page: its words there are unknown, not missing, so a copy of them
+   on another page is not taken for it. A page that failed to read is read
+   again the next time it is asked for.
 
 10. **The index has a `highlights` table** (schema 19; searched since schema 20, #507): `path, idx, id, kind,
 quote, comment, mark, color, anchor` — the quote's plain words, the
     comment's markdown, and the marker's JSON. TypeScript reads the rows
     (`highlightRows`); Rust stores them (ADR-0005). `/v1/sql` reads it.
+
+11. **How a Kindle sync writes into this format** (#508, ADR-0044). The rules
+    are the domain's (`domain/kindle/kindle-note-match.ts`,
+    `kindle-note-writes.ts`); the sink (`literatureNoteKindleSink`) only
+    finds, makes and writes the note.
+    - **Which note.** The one whose `asin` is the book's; else one with no
+      `asin` whose title and author are the book's (case, spacing, Unicode
+      composition, apostrophes and quotation marks — `’ ‘ ʼ '` — and
+      characters that show nothing, such as a zero-width space, aside). Never the title alone: a book or note with no author
+      is found by ASIN only, and a note naming another ASIN is another
+      edition's. The literature notes the index knows of and the files in the
+      literature home folder are looked through, so a note made a moment ago
+      and not yet indexed is still found. They are read **once per sync**
+      into a lookup by ASIN and by title and author (`kindleNoteIndex`),
+      books with no note included; each note found is read again before it is
+      written to, so one renamed or retitled meanwhile is looked for afresh.
+    - **A new note** is `literatureNoteText({ kind: 'kindle', title, author,
+asin, file: null })` in the literature type's home folder (`Library` by
+      default), named by `kindleNoteName`: the title with the characters a
+      wiki link reads as its own syntax (`#`, `^`, `[`, `]`, `|`) and what
+      shows nothing taken out (`linkableEntryName`), so `![[Book#^id]]`
+      reaches its highlights, and cut by whole characters (`fitFileNameStem`)
+      so that a number and `.md` after it fit the 255 bytes a disk takes, a CJK
+      title included. It is numbered past any name taken (`Persuasion 2.md`,
+      `nextAvailableNotePath`, in any case) so no note is written over, and
+      made with its highlights in the same create; a name taken between the
+      listing and the create is the disk's refusal, and the name is chosen
+      again (three tries). The title property keeps Amazon's title as given. A
+      book none of whose highlights can be placed gets no note yet.
+    - **One write per book.** The whole change — new blocks, then comments —
+      is one pure rewrite (`withKindleHighlights`, built on `appendHighlights`
+      and `withHighlightComment`) written once through
+      `changeLiteratureNote`, against the version just read: all of the book
+      or none of it, as the sink's port promises. A pane with unsaved typing
+      in the note is never written behind: the book is skipped that sync
+      (`unsaved_typing`, said by title) and comes next time.
+    - **Typed notes.** A note typed on a passage is the passage's comment. One
+      that arrives after its passage synced — typed later, or Kindle's edit of
+      one — goes **after** what the comment already says, as a paragraph of its
+      own (the whole comment when it has none). It never replaces the comment,
+      not even when the comment is word for word what DFAI wrote: once in the
+      vault those bytes are the person's (ADR-0003), and keeping both costs one
+      paragraph. The paragraph is **inserted after the comment's last line**
+      (`withHighlightCommentAfter`) — a blank `>` line and the note's lines — and
+      the comment before it is not touched, whoever wrote it and however it
+      is spelled (`>first` stays `>first`). A note at a place with no passage is a block of its own whose
+      quote names its place (`Note at location 2400`), its words the comment
+      and the marker's `exact`.
+    - **What is recorded is read from the note**, nowhere else: a passage by
+      its marker (annotation id, else place and `exact`), a typed note by its
+      words standing whole as paragraphs of its passage's comment — every run
+      of consecutive paragraphs, anywhere in a comment of any length, with no
+      cap — keyed as written and as typed (a `%%` DFAI wrote as `%\%`, and a
+      line that would read as a marker, are read back as typed:
+      `undoCommentEscapes`), so a note with a `%%` in it is added once, not on
+      every sync; and a passage the person removed by its tombstone (§5), with
+      every note typed on it. So a typed note the person edits in the vault no
+      longer reads as recorded, and Kindle's words arrive once more, after the
+      edit — never over it.
+    - A Kindle highlight with no location and no page in figures (a page
+      `xiv`) has no place this format holds. It is **skipped, and said so**
+      ("1 highlight couldn't be placed (page xiv)"): the rest of its book is
+      written, a note typed on it is skipped with it, and the next sync tries
+      it again, which writes nothing while it still has no place. What a write
+      says it wrote (`written`) counts only entries that changed the note, so
+      the sync's "Added N" is what the notes took.
 
 ## Consequences
 
