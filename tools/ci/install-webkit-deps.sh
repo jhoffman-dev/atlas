@@ -43,9 +43,12 @@ missing_packages() {
 
 # Prints "<file> <algorithm> <hash>" for each archive apt would still download
 # for these packages, from lines like `'<uri>' <file> <size> SHA512:<hash>`.
+# --print-uris prints MD5 unless told otherwise (apt-private/private-install.cc
+# sets Acquire::ForceHash to md5sum only when it is unset), hence the option.
 archives_to_fetch() {
   # shellcheck disable=SC2086 # one package name per word
-  sudo apt-get install --print-uris -qq -y --no-install-recommends $1 |
+  sudo apt-get install --print-uris -qq -y --no-install-recommends \
+    -o Acquire::ForceHash=SHA512 $1 |
     sed -En "s/^'[^']*' ([^ ]+) [0-9]+ (SHA256|SHA512):([0-9a-f]+)$/\1 \2 \3/p"
 }
 

@@ -48,7 +48,10 @@ case "$*" in
     for f in "$STATE"/mirror/*.deb; do
       name="$(basename "$f")"
       [ -f "$APT_ARCHIVES_DIR/$name" ] && continue
-      echo "'http://mirror.example.com/$name' $name $(wc -c < "$f" | tr -d ' ') SHA512:$(sha512sum "$f" | cut -d' ' -f1)"
+      # Like apt: MD5 unless a stronger hash is asked for.
+      hash="MD5Sum:0123456789abcdef0123456789abcdef"
+      case "$*" in *Acquire::ForceHash=SHA512*) hash="SHA512:$(sha512sum "$f" | cut -d' ' -f1)";; esac
+      echo "'http://mirror.example.com/$name' $name $(wc -c < "$f" | tr -d ' ') $hash"
     done;;
   *--download-only*)
     [ -f "$STATE/update-fails" ] && exit 100
