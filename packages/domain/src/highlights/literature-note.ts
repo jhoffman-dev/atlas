@@ -15,7 +15,9 @@ import { SOURCE_KINDS, type SourceKind } from './anchor.ts';
  *     file: "[[Library/The Art of War.pdf]]"
  *     ---
  *
- * A Kindle book has no file in the vault, so it has no `file`.
+ * A Kindle book has no file in the vault, so it has no `file`; it may have
+ * the `asin` Amazon knows it by, which is how a Kindle sync finds its note
+ * (by title and author when the note has none).
  */
 
 /** The `type:` a literature note declares. */
@@ -31,7 +33,34 @@ export interface LiteratureNote {
   readonly author: string | null;
   /** The source's file in the vault; null for a Kindle book, which has none. */
   readonly file: VaultPath | null;
+  /** Amazon's id for a Kindle book; absent or null when the note has none. */
+  readonly asin?: string | null;
 }
+
+/**
+ * The file's name holds a character a wiki link means something by (`#`
+ * heading, `^` block, `|` alias, `[` `]` the link itself), so the `file:`
+ * link would read back as another file.
+ */
+export class UnsafeSourceFileError extends Error {
+  constructor(readonly file: string) {
+    super(
+      `The file ${file} cannot be linked from a note: its name holds one of # ^ | [ ]. ` +
+        'Name it with safeSourceFileName first.',
+    );
+    this.name = 'UnsafeSourceFileError';
+  }
+}
+
+const LINK_CHARACTERS = /[#^|[\]]/;
+
+/**
+ * `fileName` with each character a wiki link means something by (`#`, `^`,
+ * `|`, `[`, `]`) made a hyphen: the name a source file is saved under so its
+ * note can link it. The importer (#504) names files with this.
+ */
+export const safeSourceFileName = (fileName: string): string =>
+  fileName.replace(new RegExp(LINK_CHARACTERS.source, 'g'), '-');
 
 /** Whether a note's frontmatter, as the markdown port read it, makes it a literature note. */
 export function isLiteratureNote(frontmatter: Readonly<Record<string, unknown>>): boolean {
@@ -50,17 +79,30 @@ export function readLiteratureNote(
   const kind = SOURCE_KINDS.find((known) => known === frontmatter.kind);
   const title = textOf(frontmatter.title);
   if (kind === undefined || title === null) return null;
-  return { kind, title, author: textOf(frontmatter.author), file: fileOf(frontmatter.file) };
+  return {
+    kind,
+    title,
+    author: textOf(frontmatter.author),
+    file: fileOf(frontmatter.file),
+    asin: textOf(frontmatter.asin),
+  };
 }
 
-/** A new literature note's text: its frontmatter, and an empty body for highlights to follow. */
+/**
+ * A new literature note's text: its frontmatter, and an empty body for highlights
+ * to follow. Throws `UnsafeSourceFileError` for a `file` a link could not name.
+ */
 export function literatureNoteText(source: LiteratureNote): string {
+  if (source.file !== null && LINK_CHARACTERS.test(source.file)) {
+    throw new UnsafeSourceFileError(source.file);
+  }
   const lines = [
     '---',
     `type: ${LITERATURE_NOTE_TYPE}`,
     `kind: ${source.kind}`,
     `title: ${JSON.stringify(source.title)}`,
     ...(source.author === null ? [] : [`author: ${JSON.stringify(source.author)}`]),
+    ...(textOf(source.asin) === null ? [] : [`asin: ${JSON.stringify(textOf(source.asin))}`]),
     ...(source.file === null ? [] : [`file: ${JSON.stringify(`[[${source.file}]]`)}`]),
     '---',
     '',
