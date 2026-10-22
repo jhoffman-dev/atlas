@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from './node-sqlite.ts';
 import type { VaultPath } from '@dfai/domain';
 import type { IndexedNote, IndexEntry, IndexPort, QueryResult } from '../index/ports.ts';
 
