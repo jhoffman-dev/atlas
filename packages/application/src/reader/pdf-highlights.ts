@@ -139,7 +139,13 @@ async function heldInNote(
   return heldHighlight({ text, highlight, noteBlocks: (body) => ports.markdown.noteBlocks(body) });
 }
 
-/** Puts the picture in the Trash unless the note, read again, embeds it. */
+/**
+ * Puts the picture in the Trash unless the note, read again, embeds it. The
+ * re-read only sees writes that landed before it: a write embedding the
+ * picture that lands between the re-read and the trash cannot be caught
+ * without a guarantee from the host (a lock, or a compare-and-trash), which
+ * the vault port does not give.
+ */
 async function discardUnlessEmbedded(
   ports: { readonly fs: Pick<VaultFsPort, 'readTextFile' | 'trashEntry'> },
   { note, image }: { note: VaultPath; image: VaultPath },

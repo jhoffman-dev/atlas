@@ -84,14 +84,21 @@ const SAME_LINE = 0.002;
  * text, covers nothing.
  */
 export function rectsForRange(page: PdfPageText, start: number, end: number): PageRect[] {
-  const parts: PageRect[] = [];
+  const parts: RunPart[] = [];
   for (const run of page.runs) {
     const from = Math.max(start, run.start);
     const to = Math.min(end, run.end);
     if (to <= from || run.text.length === 0) continue;
-    parts.push(onPage(partOfRun(run, from - run.start, to - run.start)));
+    const box = onPage(partOfRun(run, from - run.start, to - run.start));
+    if (box.width > 0 && box.height > 0) parts.push({ box, turned: run.direction !== undefined });
   }
-  return joinLines(parts.filter((rect) => rect.width > 0 && rect.height > 0));
+  return joinLines(parts);
+}
+
+/** A run's part of a range, and whether the run is turned. */
+interface RunPart {
+  readonly box: PageRect;
+  readonly turned: boolean;
 }
 
 /** The box round characters `[from, to)` of a run, measured from its first letter. */
@@ -135,16 +142,23 @@ export function textOffsetNear(page: PdfPageText, box: PageRect): number {
   return nearest.start;
 }
 
-function joinLines(parts: readonly PageRect[]): PageRect[] {
+/**
+ * The parts that sit side by side on one line, made one box. Only parts of
+ * runs read left to right are joined: turned lines sit side by side across
+ * the way they read, so joining them would cover the gap between lines.
+ */
+function joinLines(parts: readonly RunPart[]): PageRect[] {
   const joined: PageRect[] = [];
-  for (const part of parts) {
+  let lastTurned = true;
+  for (const { box: part, turned } of parts) {
     const last = joined.at(-1);
-    if (last !== undefined && sameLine(last, part) && part.x >= last.x) {
+    if (last !== undefined && !turned && !lastTurned && sameLine(last, part) && part.x >= last.x) {
       const right = Math.max(last.x + last.width, part.x + part.width);
       joined[joined.length - 1] = { ...last, width: right - last.x };
     } else {
       joined.push(part);
     }
+    lastTurned = turned;
   }
   return joined;
 }

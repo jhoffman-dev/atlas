@@ -103,7 +103,9 @@ function openedDocument(proxy: PDFDocumentProxy): PdfJsDocument {
       const text = pageAt(page).then(textOf);
       texts.set(page, text);
       // A failed read is not remembered: the next ask reads the page again. The caller gets the failure.
-      text.catch(() => texts.get(page) === text && texts.delete(page));
+      text.catch(() => {
+        if (texts.get(page) === text) texts.delete(page);
+      });
       return text;
     },
     metadata: async () => metadataOf(await proxy.getMetadata()),
@@ -220,9 +222,16 @@ function directionOnPage({ start, along, rise }: ItemShape, viewport: Viewport):
   };
 }
 
-/** Whether a run reads left to right across the page with its letters upright, as its box alone says. */
-const upright = ({ advance, rise }: RunDirection): boolean =>
-  advance.y === 0 && advance.x >= 0 && rise.x === 0 && rise.y <= 0;
+/** How far off level a run's advance may lean, as a share of its length, and still read across the page. */
+const LEVEL = 1e-6;
+
+/**
+ * Whether a run reads left to right across the page, as its box alone says:
+ * decided by its advance only, so a slanted (oblique) line and a matrix with
+ * rounding noise in it are still read along their box.
+ */
+const upright = ({ advance }: RunDirection): boolean =>
+  advance.x >= 0 && Math.abs(advance.y) <= LEVEL * Math.hypot(advance.x, advance.y);
 
 /** A point of the PDF's user space where the viewport puts it. */
 function shown([x, y]: [number, number], [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0]: number[]) {
