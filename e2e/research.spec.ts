@@ -142,8 +142,18 @@ test('All highlights lists and filters every highlight, and a row opens its note
   await filters.getByRole('combobox', { name: 'Source' }).selectOption({ label: 'All sources' });
   await filters.getByRole('combobox', { name: 'Tag' }).selectOption('strategy');
   await expect(rows).toHaveCount(2);
+  // Clear filters is there while a filter is on, and shows every highlight again.
+  await filters.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(rows).toHaveCount(3);
+  await expect(filters.getByRole('button', { name: 'Clear filters' })).toHaveCount(0);
+  await filters.getByRole('combobox', { name: 'Tag' }).selectOption('strategy');
+  await expect(rows).toHaveCount(2);
 
-  await rows.filter({ hasText: 'deception' }).getByRole('button').click();
+  // A row's accessible name says its colour, and its place among all of them.
+  const deception = rows.filter({ hasText: 'deception' });
+  await expect(deception.getByRole('button', { name: /^green highlight:/ })).toBeVisible();
+  await expect(deception).toHaveAttribute('aria-setsize', '2');
+  await deception.getByRole('button', { name: /^green highlight:/ }).click();
   const note = page.getByRole('article', { name: 'The Art of War' });
   await expect(note).toBeVisible();
   const revealed = note.locator('.editor .is-revealed');
