@@ -75,19 +75,29 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
         readerFailed(query.meta) ||
         scopeTouched(scopeOfQuery(query.meta), news),
     });
+  /**
+   * Whether what a refresh begun at `count` of `query` made may be kept: the
+   * query is still the cache's — its vault did not close under it — and no
+   * read settled since it began. A whole read that settled meanwhile began
+   * after the news, so it holds these changes already, and is newer.
+   */
+  const stillCurrent = (query: Query, count: number) =>
+    client.getQueryCache().get(query.queryHash) === query && query.state.dataUpdateCount === count;
   /** Each refresh of a query waits for the one before it, so none starts from a value the one before it replaces. */
   const refreshing = new Map<string, Promise<void>>();
   const refreshInPlace = (query: Query, changes: readonly NoteChange[]) => {
     const refresh = refreshOfQuery(query.meta);
     const queued = (refreshing.get(query.queryHash) ?? Promise.resolve()).then(async () => {
+      const count = query.state.dataUpdateCount;
       try {
         const next =
           query.state.data === undefined ? null : await refresh?.(query.state.data, changes);
+        if (!stillCurrent(query, count)) return;
         if (next === null || next === undefined) return await readAgain(client, query.queryKey);
         client.setQueryData(query.queryKey, next);
       } catch {
         // A refresh that failed falls back to reading the whole again, which shows its own error.
-        await readAgain(client, query.queryKey);
+        if (stillCurrent(query, count)) await readAgain(client, query.queryKey);
       }
     });
     refreshing.set(query.queryHash, queued);
