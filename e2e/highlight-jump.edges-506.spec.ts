@@ -34,7 +34,11 @@ const literature = (title: string, file: string, id: string) =>
 const READING =
   '# Reading notes\n\n![[The Lantern Keepers#^lamp03]]\n\n![[Lantern Summary Source#^sum001]]\n\n' +
   '- In a list: [[The Lantern Keepers#^lamp03|the last lamp]]\n\n' +
-  'Shared name: [[reading.pdf]]\n';
+  'Shared name: [[reading.pdf]]\n\n' +
+  'No literature note: [[loose.pdf]]\n\n' +
+  'A note named like a PDF: [[Budget review.pdf]]\n\n' +
+  'At a page: [[the-lantern-keepers.pdf#page=4]]\n\n' +
+  'Missing: [[Nowhere.pdf]]\n';
 
 async function openVault(page: Page) {
   const vault = await createVault();
@@ -60,6 +64,8 @@ async function openVault(page: Page) {
       'Courses/Autumn/reading.pdf',
       'aut001',
     ),
+    'Loose/loose.pdf': lanternFixturePdf(),
+    'Budget review.pdf.md': '# Budget review.pdf\n\nA fictional meeting about a document.\n',
     'Reading notes.md': READING,
   };
   for (const [path, contents] of Object.entries(files)) {
@@ -113,4 +119,31 @@ test('an aliased link to a highlight in a list item opens the reader at it', asy
   const note = page.getByRole('article', { name: 'Reading notes' });
   await note.locator('.editor li [data-wikilink="The Lantern Keepers"]').click();
   await expect(pageOf(page, 3).locator('.pdf-mark')).toBeInViewport();
+});
+
+test('[[loose.pdf]], a PDF no literature note names, opens it', async ({ page }) => {
+  await openVault(page);
+  await page.locator('.editor [data-wikilink="loose.pdf"]').click();
+  await expect(reader(page)).toBeVisible();
+  await expect(page.getByText('4 pages')).toBeVisible();
+});
+
+test('[[Budget review.pdf]] opens the note so named when the vault holds no such PDF', async ({
+  page,
+}) => {
+  await openVault(page);
+  await page.locator('.editor [data-wikilink="Budget review.pdf"]').click();
+  await expect(page.getByRole('article', { name: 'Budget review.pdf' })).toBeVisible();
+});
+
+test('[[the-lantern-keepers.pdf#page=4]] opens the reader at page 4', async ({ page }) => {
+  await openVault(page);
+  await page.locator('.editor [data-wikilink="the-lantern-keepers.pdf"][data-heading="#page=4"]').click();
+  await expect(pageOf(page, 4)).toBeInViewport();
+});
+
+test('[[Nowhere.pdf]] says no PDF or note is called so', async ({ page }) => {
+  await openVault(page);
+  await page.locator('.editor [data-wikilink="Nowhere.pdf"]').click();
+  await expect(page.getByRole('alert')).toContainText('No PDF or note called "Nowhere.pdf"');
 });

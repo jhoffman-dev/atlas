@@ -189,8 +189,23 @@ describe('a link to a PDF', () => {
     const w = wiring();
     w.places.linkedPdf.mockResolvedValueOnce(null);
     followLink(w, { pane: 0, target: 'missing.pdf' });
-    await vi.waitFor(() => expect(w.onProblem).toHaveBeenCalledWith('No PDF called "missing.pdf"'));
+    await vi.waitFor(() => expect(w.onProblem).toHaveBeenCalledWith('No PDF or note called "missing.pdf"'));
     expect(placesOf(w.store)).toEqual([{ kind: 'note', path: PLAN }]);
+  });
+
+  it('opens at the highlight a `#^id` names, as a link to a block does', async () => {
+    const w = wiring();
+    followLink(w, { pane: 0, target: 'the-lantern-keepers.pdf', heading: '#^k3x9q2' });
+    await vi.waitFor(() => expect(placesOf(w.store)).toEqual([{ kind: 'document', path: PDF }]));
+    expect(revealOfFocused(w)?.path).toBe(PDF);
+    expect(revealOfFocused(w)?.reveal.fragment).toEqual({ kind: 'block', id: 'k3x9q2' });
+  });
+
+  it('opens at the page a `#page=3` names', async () => {
+    const w = wiring();
+    followLink(w, { pane: 0, target: 'the-lantern-keepers.pdf', heading: '#page=3' });
+    await vi.waitFor(() => expect(placesOf(w.store)).toEqual([{ kind: 'document', path: PDF }]));
+    expect(revealOfFocused(w)?.reveal.fragment).toEqual({ kind: 'heading', heading: 'page=3' });
   });
 
   it('is a note link as before when no places are wired', () => {

@@ -6,7 +6,7 @@ import {
   type HighlightAnchor,
   type LiteratureNote,
 } from '@dfai/domain';
-import { fakeIndexPort } from '../testing/fake-ports.ts';
+import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
 import { memoryFiles, readerMarkdown } from '../testing/fake-reader.ts';
 import { createTransclusionReader } from '../transclusion/read-transclusions.ts';
 import {
@@ -196,39 +196,47 @@ describe("an embed of a literature note's highlight", () => {
 });
 
 describe('the PDF a `[[…pdf]]` link names', () => {
-  const literatureNotes = (paths: string[]) =>
-    fakeIndexPort({ notesOfType: async () => paths.map((path) => ({ path, title: path })) });
+  const files = (extra: Record<string, string | Uint8Array> = {}) =>
+    memoryFiles({
+      [PDF]: new Uint8Array([1]),
+      'Library/Courses/reading.pdf': new Uint8Array([1]),
+      'Elsewhere/Deep/Fog.pdf': new Uint8Array([1]),
+      [PLAIN_NOTE]: 'Plans\n',
+      ...extra,
+    }).fs;
 
-  it('is the PDF a literature note names, by its name alone', async () => {
-    const { fs } = vault();
-    const found = await linkedPdf(
-      { fs, markdown: readerMarkdown(), index: literatureNotes([PDF_NOTE, KINDLE_NOTE]) },
-      'the-lantern-keepers.pdf',
-    );
-    expect(found).toBe(PDF);
+  it('is a PDF of the vault by its name alone, though no literature note names it', async () => {
+    expect(await linkedPdf({ fs: files() }, 'fog.pdf')).toBe('Elsewhere/Deep/Fog.pdf');
   });
 
-  it('is the path the link writes when the literature notes cannot be listed', async () => {
-    const { fs } = vault();
-    const index = fakeIndexPort({
-      notesOfType: async () => {
-        throw new Error('index closed');
+  it('is the PDF whose path ends as the link is written, as Obsidian reads it', async () => {
+    expect(await linkedPdf({ fs: files() }, 'Courses/reading.pdf')).toBe(
+      'Library/Courses/reading.pdf',
+    );
+  });
+
+  it('is one of the PDFs the name is shared by, the same one every time', async () => {
+    const shared = files({ 'reading.pdf': new Uint8Array([1]), 'Z/reading.pdf': new Uint8Array([1]) });
+    expect(await linkedPdf({ fs: shared }, 'reading.pdf')).toBe('reading.pdf');
+  });
+
+  it('is none for a PDF the vault does not hold: a link never names a file that is not there', async () => {
+    expect(await linkedPdf({ fs: files() }, 'Areas/Missing.pdf')).toBeNull();
+  });
+
+  it('is none for a link to a note, and the vault is not read for it', async () => {
+    const listDirectory = vi.fn(async () => []);
+    const fs = fakeVaultFs({ listDirectory });
+    expect(await linkedPdf({ fs }, 'The Lantern Keepers')).toBeNull();
+    expect(listDirectory).not.toHaveBeenCalled();
+  });
+
+  it('is an error, not a guess, when the vault cannot be read', async () => {
+    const fs = fakeVaultFs({
+      listDirectory: async () => {
+        throw new Error('the disk went away');
       },
     });
-    expect(await linkedPdf({ fs, markdown: readerMarkdown(), index }, 'Areas/Fog.pdf')).toBe(
-      'Areas/Fog.pdf',
-    );
-  });
-
-  it('is none for a link to a note', async () => {
-    const { fs } = vault();
-    const notesOfType = vi.fn(async () => []);
-    expect(
-      await linkedPdf(
-        { fs, markdown: readerMarkdown(), index: fakeIndexPort({ notesOfType }) },
-        'The Lantern Keepers',
-      ),
-    ).toBeNull();
-    expect(notesOfType).not.toHaveBeenCalled();
+    await expect(linkedPdf({ fs }, 'fog.pdf')).rejects.toThrow('the disk went away');
   });
 });

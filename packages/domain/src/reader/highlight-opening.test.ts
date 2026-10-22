@@ -6,6 +6,7 @@ import { createVaultPath } from '../vault/vault-path.ts';
 import {
   highlightChip,
   highlightOpening,
+  namesPdf,
   pdfLinkTarget,
   placeLabel,
   readerLinkLabel,
@@ -196,13 +197,44 @@ describe('the PDF a wiki link names', () => {
     expect(pdfLinkTarget('fog.pdf', known)).toBe('Areas/Fog.pdf');
   });
 
-  it('is the path the link writes when the name is two PDFs, or none', () => {
-    expect(pdfLinkTarget('the-lantern-keepers.pdf', known)).toBe('the-lantern-keepers.pdf');
-    expect(pdfLinkTarget('Elsewhere/new.pdf', known)).toBe('Elsewhere/new.pdf');
+  it('is none when no file of the vault is called so: a link never names a file that is not there', () => {
+    expect(pdfLinkTarget('Elsewhere/new.pdf', known)).toBeNull();
+    expect(pdfLinkTarget('new.pdf', [])).toBeNull();
+  });
+
+  it('is the shortest path of the name two files share, then the first alphabetically', () => {
+    // Like Obsidian, a link picks one of the files that match; this one picks the same one every time.
+    expect(pdfLinkTarget('the-lantern-keepers.pdf', known)).toBe('Archive/the-lantern-keepers.pdf');
+    expect(pdfLinkTarget('the-lantern-keepers.pdf', [...known].reverse())).toBe(
+      'Archive/the-lantern-keepers.pdf',
+    );
+    const tied = [createVaultPath('B/a.pdf'), createVaultPath('A/a.pdf')];
+    expect(pdfLinkTarget('a.pdf', tied)).toBe('A/a.pdf');
+    expect(pdfLinkTarget('a.pdf', [...tied].reverse())).toBe('A/a.pdf');
+  });
+
+  it('is the file whose path ends with what the link writes, not one that merely ends the same letters', () => {
+    const deep = createVaultPath('Library/Courses/reading.pdf');
+    expect(pdfLinkTarget('Courses/reading.pdf', [deep])).toBe(deep);
+    expect(pdfLinkTarget('ses/reading.pdf', [deep])).toBeNull();
+  });
+
+  it('is the exact path before any file that only ends with it', () => {
+    const exact = createVaultPath('reading.pdf');
+    const deeper = createVaultPath('A/reading.pdf');
+    expect(pdfLinkTarget('reading.pdf', [deeper, exact, exact])).toBe(exact);
   });
 
   it('is none for a link that is no vault path', () => {
     expect(pdfLinkTarget('../outside.pdf', known)).toBeNull();
     expect(pdfLinkTarget('a\\b.pdf', known)).toBeNull();
+  });
+});
+
+describe('whether a wiki link names a PDF', () => {
+  it('is so for a target ending .pdf, in any case, and no other', () => {
+    expect(namesPdf(' Reading.PDF ')).toBe(true);
+    expect(namesPdf('Budget review')).toBe(false);
+    expect(namesPdf('Budget review.pdf.md')).toBe(false);
   });
 });

@@ -97,3 +97,35 @@ describe('"Open in PDF", from the keyboard', () => {
     expect(onFollowLink.mock.calls).toEqual([['', '#^k3x9q2', 'here']]);
   });
 });
+
+describe('the name of an embedded block that is no highlight, from the keyboard', () => {
+  it('follows the link on Enter, and in a new tab on Meta+Enter', async () => {
+    const { onFollowLink } = renderEditor(EMBED, { transclusion: shown(null) });
+    const name = await screen.findByRole('link', { name: 'The Lantern Keepers' });
+    name.focus();
+    act(() => {
+      fireEvent.keyDown(name, { key: 'Enter', code: 'Enter' });
+      fireEvent.keyDown(name, { key: 'Enter', code: 'Enter', metaKey: true });
+    });
+    expect(onFollowLink.mock.calls).toEqual([
+      ['The Lantern Keepers', '#^k3x9q2', 'here'],
+      ['The Lantern Keepers', '#^k3x9q2', 'new-tab'],
+    ]);
+  });
+});
+
+describe('keys that are not a link being followed', () => {
+  it('leaves other keys on a link alone, and Enter typed in the text itself', async () => {
+    const { onFollowLink } = renderEditor(EMBED);
+    const chip = await screen.findByRole('link', { name: /in the reader$/ });
+    act(() => {
+      fireEvent.keyDown(chip, { key: 'a', code: 'KeyA' });
+      fireEvent.keyDown(chip, { key: ' ', code: 'Space' });
+      fireEvent.keyDown(document.querySelector('.ProseMirror') as HTMLElement, {
+        key: 'Enter',
+        code: 'Enter',
+      });
+    });
+    expect(onFollowLink).not.toHaveBeenCalled();
+  });
+});
