@@ -123,6 +123,31 @@ describe("a reader tab's literature note", () => {
     expect(result.current.notice).toBeNull();
   });
 
+  it('says so when the note’s highlights cannot be read, rather than showing none', async () => {
+    const { ports } = setUp();
+    const unreadable: DocumentPorts = {
+      ...ports,
+      fs: { ...ports.fs, readTextFile: async () => Promise.reject(new Error('disk gone')) },
+    };
+    const found = renderHook(
+      () => {
+        const placed = usePlacedHighlights({
+          ports: unreadable,
+          vault: VAULT,
+          note: NOTE,
+          opened,
+          generation: 1,
+        });
+        return placed;
+      },
+      { wrapper: queryWrapper().wrapper },
+    );
+    await waitFor(() =>
+      expect(found.result.current.notice).toBe('The highlights could not be shown: disk gone'),
+    );
+    expect(found.result.current.highlights).toEqual([]);
+  });
+
   it('edits and removes a highlight through the note', async () => {
     const { ports, files } = setUp();
     const { result } = renderHook(() => useTab(ports), { wrapper: queryWrapper().wrapper });
