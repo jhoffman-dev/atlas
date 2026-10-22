@@ -103,12 +103,18 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = [
   "NSDictionary",
   "NSError",
   "NSGeometry",
+  # The Kindle session's data store identifier, and the hidden window's
+  # navigation responses (#508). No cookie binding: no cookie is ever read.
+  "NSNotification",
   "NSObject",
+  "NSProcessInfo",
   "NSRunLoop",
   "NSString",
   "NSTimer",
   "NSURL",
   "NSURLRequest",
+  "NSURLResponse",
+  "NSUUID",
   "NSValue",
 ] }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = [
@@ -132,10 +138,12 @@ objc2-web-kit = { version = "0.3.2", default-features = false, features = [
   "block2",
   "objc2-app-kit",
   "objc2-core-foundation",
+  "WKContentWorld",
   "WKFrameInfo",
   "WKNavigation",
   "WKNavigationAction",
   "WKNavigationDelegate",
+  "WKNavigationResponse",
   "WKPDFConfiguration",
   "WKPreferences",
   "WKSnapshotConfiguration",
