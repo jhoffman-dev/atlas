@@ -44,8 +44,11 @@ export type KindleSyncReport =
   | KindleSyncStop
   /** The library, or every book in it, is not the shape the parser knows. */
   | { readonly kind: 'unrecognised'; readonly reason: string }
-  /** Amazon could not be reached for the library, or answered it with an error. */
-  | { readonly kind: 'unavailable'; readonly message: string }
+  /**
+   * Amazon could not be reached, or answered the library with an error. A host
+   * that stops answering mid-sync stops it there, with the books done before.
+   */
+  | ({ readonly kind: 'unavailable'; readonly message: string } & KindleSyncProgress)
   | ({ readonly kind: 'synced' } & KindleSyncProgress);
 
 export const KINDLE_SIGN_IN_MESSAGE = 'Kindle sync needs you to sign in again.';
@@ -108,7 +111,7 @@ export function describeKindleSync(report: KindleSyncReport): {
       return { message: KINDLE_UNRECOGNISED_MESSAGE, ok: false };
     case 'unavailable':
       return {
-        message: `Couldn't reach Amazon's Kindle notebook (${report.message}). Kindle sync will try again later.`,
+        message: `Couldn't reach Amazon's Kindle notebook (${report.message}). Kindle sync will try again later.${beforeStopping(report)}`,
         ok: false,
       };
     case 'synced':

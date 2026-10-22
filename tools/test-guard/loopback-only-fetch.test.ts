@@ -99,6 +99,14 @@ function refusedLookup(): LookupFunction & { readonly asked: () => number } {
   return lookup;
 }
 
+/** The part of undici the test uses. */
+interface UndiciSurface {
+  readonly Agent: new (options: { readonly connect: { readonly lookup: LookupFunction } }) => {
+    close(): Promise<void>;
+  };
+  request(url: string, options: { readonly dispatcher: unknown }): Promise<unknown>;
+}
+
 /** Whether `open` threw the guard's refusal, rather than reaching for a connection. */
 function refused(open: () => unknown): boolean {
   try {
@@ -190,7 +198,8 @@ describe('the loopback-only guard, verified', () => {
   it('refuses a request undici makes itself, below fetch', async () => {
     // undici as jsdom has it: the library Node's own fetch is built on, used directly.
     const fromJsdom = createRequire(createRequire(import.meta.url).resolve('jsdom'));
-    const undici = fromJsdom('undici') as typeof import('undici');
+    // Typed here, as jsdom's own dependency is not one of the repo's.
+    const undici = fromJsdom('undici') as UndiciSurface;
     const lookup = refusedLookup();
     const dispatcher = new undici.Agent({ connect: { lookup } });
     await expect(undici.request(OFF_MACHINE, { dispatcher })).rejects.toThrow(/not this machine/);

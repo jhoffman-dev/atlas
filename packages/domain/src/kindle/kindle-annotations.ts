@@ -1,7 +1,15 @@
-import { classesOf, findFirst, textOf, withClass, withId } from './html-tree.ts';
+import {
+  classesOf,
+  findFirst,
+  isElement,
+  textWithout,
+  withClass,
+  withId,
+  withTag,
+} from './html-tree.ts';
 import type { HtmlElement } from './html-tree.ts';
 import { findKindleKeyClash, kindleHighlightKey, kindleNoteKey } from './kindle-highlight-key.ts';
-import { allWithClass, checkKindlePage, inputValue } from './kindle-notebook-page.ts';
+import { checkKindlePage, inputValue } from './kindle-notebook-page.ts';
 import { KINDLE_HIGHLIGHT_COLOURS } from './kindle-types.ts';
 import type {
   KindleAnnotationsReading,
@@ -39,26 +47,87 @@ function isAnnotationRow(element: HtmlElement): boolean {
   return withClass('a-row', 'a-spacing-base')(element) && element.attributes.has('id');
 }
 
-function headerOf(row: HtmlElement): string {
-  for (const id of ['annotationHighlightHeader', 'annotationNoteHeader']) {
-    const header = findFirst(row, withId(id));
-    const text = header === null ? '' : textOf(header);
+const HEADER_IDS = ['annotationHighlightHeader', 'annotationNoteHeader'] as const;
+
+/**
+ * The parts of one annotation row the reader uses, each the first in the
+ * row's own elements: a row nested inside it is a row of its own, and its
+ * parts are its own, never the outer row's.
+ */
+interface RowParts {
+  readonly row: HtmlElement;
+  quote: HtmlElement | null;
+  note: HtmlElement | null;
+  readonly headers: Map<string, HtmlElement>;
+  location: HtmlElement | null;
+  marked: HtmlElement | null;
+}
+
+function takePart(parts: RowParts, element: HtmlElement): void {
+  const id = element.attributes.get('id');
+  if (id === 'highlight') parts.quote ??= element;
+  else if (id === 'note') parts.note ??= element;
+  else if (id === 'kp-annotation-location' && withTag('input')(element)) {
+    parts.location ??= element;
+  } else if (id !== undefined && (HEADER_IDS as readonly string[]).includes(id)) {
+    if (!parts.headers.has(id)) parts.headers.set(id, element);
+  }
+  if (parts.marked === null && withClass(HIGHLIGHT_CLASS)(element)) parts.marked = element;
+}
+
+/**
+ * Every annotation row under `annotations`, in page order, with its parts:
+ * one walk over the page, so a page of rows nested in rows is read in time
+ * linear in its size.
+ */
+function annotationRows(annotations: HtmlElement): RowParts[] {
+  const rows: RowParts[] = [];
+  const visit = (parent: HtmlElement, owner: RowParts | null) => {
+    for (const child of parent.children) {
+      if (!isElement(child)) continue;
+      let inside = owner;
+      if (isAnnotationRow(child)) {
+        inside = {
+          row: child,
+          quote: null,
+          note: null,
+          headers: new Map(),
+          location: null,
+          marked: null,
+        };
+        rows.push(inside);
+      } else if (owner !== null) {
+        takePart(owner, child);
+      }
+      visit(child, inside);
+    }
+  };
+  visit(annotations, null);
+  return rows;
+}
+
+/** The words of a row's part, without those of any row nested in it. */
+const ownText = (element: HtmlElement) => textWithout(element, isAnnotationRow);
+
+function headerOf(parts: RowParts): string {
+  for (const id of HEADER_IDS) {
+    const header = parts.headers.get(id);
+    const text = header === undefined ? '' : ownText(header);
     if (text !== '') return text;
   }
   return '';
 }
 
-function locationOf(row: HtmlElement, header: string): number | null {
-  const written = inputValue(row, withId('kp-annotation-location')) ?? '';
+function locationOf(parts: RowParts, header: string): number | null {
+  const written = (parts.location?.attributes.get('value') ?? '').trim();
   const digits = (
     /^[\d,]+$/.test(written) ? written : (LOCATION_IN_HEADER.exec(header)?.[1] ?? '')
   ).replace(/,/g, '');
   return digits === '' ? null : Number(digits);
 }
 
-function colourOf(row: HtmlElement): KindleHighlightColour | null {
-  const marked = findFirst(row, withClass(HIGHLIGHT_CLASS));
-  const named = (marked === null ? [] : classesOf(marked))
+function colourOf(parts: RowParts): KindleHighlightColour | null {
+  const named = (parts.marked === null ? [] : classesOf(parts.marked))
     .filter((name) => name.startsWith(COLOUR_CLASS_PREFIX))
     .map((name) => name.slice(COLOUR_CLASS_PREFIX.length));
   return KINDLE_HIGHLIGHT_COLOURS.find((colour) => named.includes(colour)) ?? null;
@@ -75,31 +144,32 @@ type RowReading =
 /**
  * A row's entries: the passage, and after it the note typed on it, if any,
  * as an entry of its own with a key built on the passage's. A note at a
- * place with no passage is the one entry, under the row's id.
+ * place with no passage is the one entry, under the row's id and its words.
  */
-function readRow(row: HtmlElement, asin: string): RowReading {
-  const quoteElement = findFirst(row, withId('highlight'));
-  const noteElement = findFirst(row, withId('note'));
-  if (quoteElement === null && noteElement === null) {
+function readRow(parts: RowParts, asin: string): RowReading {
+  if (parts.quote === null && parts.note === null) {
     return { problem: 'an annotation has neither a passage nor a note' };
   }
-  const quote = quoteElement === null ? '' : textOf(quoteElement);
-  const note = noteElement === null ? '' : textOf(noteElement);
+  const quote = parts.quote === null ? '' : ownText(parts.quote);
+  const note = parts.note === null ? '' : ownText(parts.note);
   // A bookmark: a place, with nothing marked or typed.
   if (quote === '' && note === '') return { highlights: [] };
-  const header = headerOf(row);
+  const header = headerOf(parts);
   const style = styleOf(quote, header);
-  const rowId = row.attributes.get('id') ?? '';
+  const rowId = parts.row.attributes.get('id') ?? '';
   const annotationId = ANNOTATION_ID.test(rowId) ? rowId : null;
-  const location = locationOf(row, header);
+  const location = locationOf(parts, header);
   const page = PAGE_IN_HEADER.exec(header)?.[1] ?? null;
-  const key = kindleHighlightKey({ asin, annotationId, location, words: quote || note });
+  const placed = kindleHighlightKey({ asin, annotationId, location, words: quote || note });
+  // A note with no passage keys on its words too, as a note on a passage does, so an edit is
+  // a new entry; with no id the place's key already hashes them.
+  const key = quote === '' && annotationId !== null ? kindleNoteKey(placed, note) : placed;
   const entry: KindleHighlight = {
     key,
     asin,
     annotationId,
     style,
-    colour: style === 'highlight' ? colourOf(row) : null,
+    colour: style === 'highlight' ? colourOf(parts) : null,
     quote,
     note: quote === '' ? note : null,
     location,
@@ -136,8 +206,8 @@ export function readKindleAnnotations(page: KindleRawPage, asin: string): Kindle
     return { kind: 'unrecognised', reason: `the page is for ${named}, not ${asin}` };
   }
   const highlights: KindleHighlight[] = [];
-  for (const row of allWithClass(annotations, 'a-row').filter(isAnnotationRow)) {
-    const reading = readRow(row, asin);
+  for (const parts of annotationRows(annotations)) {
+    const reading = readRow(parts, asin);
     if ('problem' in reading) return { kind: 'unrecognised', reason: reading.problem };
     highlights.push(...reading.highlights);
   }

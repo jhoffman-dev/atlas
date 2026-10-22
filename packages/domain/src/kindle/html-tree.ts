@@ -364,13 +364,25 @@ const LINE_BREAK = '\n';
  * space, each line trimmed.
  */
 export function textOf(element: HtmlElement): string {
+  return textWithout(element, () => false);
+}
+
+/**
+ * The words in `element` as {@link textOf} reads them, leaving out whole the
+ * elements `skip` names: those whose words are not the element's own (an
+ * annotation nested in another, say).
+ */
+export function textWithout(
+  element: HtmlElement,
+  skip: (candidate: HtmlElement) => boolean,
+): string {
   const pieces: string[] = [];
   const visit = (parent: HtmlElement) => {
     for (const child of parent.children) {
       // A line break in the source is white space; only `<br>` breaks a line.
       if (!isElement(child)) pieces.push(child.text.replace(/[\s\u00a0]+/g, ' '));
       else if (child.tag === 'br') pieces.push(LINE_BREAK);
-      else visit(child);
+      else if (!skip(child)) visit(child);
     }
   };
   visit(element);

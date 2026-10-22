@@ -60,7 +60,10 @@ ADR-0017's rule for secrets, applied to cookies.
   `…Response`): the notebook's origin — scheme, host and port — at
   `/notebook` or `/kp/notebook`, no user info, no fragment. Anything else, a
   redirect to Amazon's sign-in above all, is cancelled where it begins and
-  reported as where it pointed (origin and path only). A window with no
+  reported as where it pointed (origin and path only, and only for an
+  `http:` or `https:` address: any other — `mailto:`, `data:`, `blob:`,
+  `javascript:`, `about:` — is reported as nothing, since its "path" is its
+  contents). A window with no
   session therefore never loads a sign-in page unseen.
 - A sync asks the host for one notebook page at a time
   (`kindle_fetch_notebook`, a URL). The host refuses any URL not on the
@@ -84,7 +87,10 @@ ADR-0017's rule for secrets, applied to cookies.
   library, a sign-in (a redirect to `/ap/` or the sign-in form), a **robot
   check** (a redirect to or form for `validateCaptcha`), **another store's
   notebook** (`read.amazon.co.uk`, …, named), an error status and a page of
-  another shape apart. The application's `syncKindle` reads each book
+  another shape apart. Each annotation row reads only its own passage,
+  note, header and location: a row nested inside it is a row of its own, and
+  the page is read in one walk, in time linear in its size. The
+  application's sync (`createKindleSync`) reads each book
   whole — every page, following the notebook's token — before anything of it
   is handed to the `KindleHighlightSink`, the seam #503's source notes
   implement.
@@ -101,25 +107,51 @@ ADR-0017's rule for secrets, applied to cookies.
   key, added after the passage as a follow-up comment. A note typed on a
   highlight after it was synced therefore still arrives; an edited note is a
   further comment, never a second copy of the highlight. A note-only
-  annotation stays one entry under its id.
+  annotation is one entry keyed the same way, `amazon:<id>:note:<hash of the
+note>`, so an edited one arrives as a new entry and an unedited one is
+  never added twice.
+- **No migration for the old note-only key.** Before PR #511's verification
+  round a note-only annotation was keyed `amazon:<id>` alone, and an edit to
+  it was never seen. Nothing was ever written under that key: the sink is
+  #503's source notes, which had not shipped. So no reading of the old key is
+  kept. Were a note holding one found, its unedited note-only entries would
+  arrive once more under the new key; the key cannot tell an unedited note
+  from an edited one, and missing every later edit would be worse.
 - A book any of whose pages cannot be read is not written at all: never part
   of a book. Two different passages claiming one annotation id (on a page or
   across a book's pages), or a page nested deeper than any notebook page, are
   such pages.
 - A sync **stops where it is**, keeping the books already added in its
   report, for a sign-in, a robot check, a Kindle that is not connected, a Mac
-  that cannot keep the session apart, and another store's notebook — each with
-  its own message. "Unavailable … will try again later" is said only for an
+  that cannot keep the session apart, another store's notebook, and a host
+  that can no longer reach Amazon (`unreachable` or `timeout` on any fetch,
+  reported as unavailable with the books done before) — each with its own
+  message. A 5xx for one book is that book's alone; the sync goes on. "Unavailable … will try again later" is said only for an
   unreachable host, a timeout or a 5xx. A library, or every book, in a shape
   the parser does not know is the page having changed, said as that, never as
   "nothing new".
 - After a **robot check** automatic syncs hold back for 24 hours
   (`mayAutoSyncKindle`, a pure function of the clock's reading; the scheduler
   that arrives with the sync-on-launch ticket keeps when it came). A sync the
-  person asks for is not held.
+  person asks for is not held. A stored time that is not a finite number is
+  read as no robot check: a bad value never holds syncs for ever.
 - Fetches are at least 1.5 s apart (`KINDLE_MIN_FETCH_GAP_MS`, through an
-  injected delay port), and one sync runs into a note at a time: a second
-  asked for meanwhile joins the first.
+  injected delay port), and a wait is never longer than that gap, whatever
+  the clock does (one set back mid-sync).
+- **One sync is in flight per app.** The slot is owned by the use-case
+  factory, `createKindleSync`, not keyed by the sink: the composition root
+  creates **one** per app and every caller (launch, schedule, ⌘K) uses it. A
+  call made while a sync runs joins it and gets its report, failed or not. A
+  join waits at most 10 minutes from when the running sync started
+  (`KINDLE_SYNC_JOIN_DEADLINE_MS`, through an injected delay); past that the
+  running sync is taken as stuck, the join is told so
+  (`KindleSyncStuckError`), and the slot is freed so the next call runs
+  afresh. A stuck sync that ends later does not free a newer one's slot.
+- A call that joins gets the running sync's report even if it was asked for
+  a different reason — a sync right after Connect, say, joins one started
+  just before the person signed in, and may report a sign-in that the new
+  session no longer needs. That is accepted: the next sync reads the new
+  session, and two at once would add everything twice.
 
 ### Off by default
 
@@ -157,8 +189,11 @@ it does and the limits below before the person connects.
   URL and navigation policy, the page script, how its answer is read, the
   guards that no cookie is read and neither window has a way into the app —
   are unit-tested in Rust, and the parser and use-case in Vitest against
-  fakes. No test or CI run contacts Amazon: the Vitest run makes `fetch`
-  throw for any address off this machine, and no Rust test opens a socket.
+  fakes. No test or CI run contacts Amazon: the Vitest run refuses any
+  address off this machine at `fetch` and `XMLHttpRequest`, at node:http and
+  node:https requests, and below them at every socket
+  (`net.Socket.prototype.connect`, which `net.connect`, `tls.connect`, the
+  HTTP agents and undici all open through); and no Rust test opens a socket.
   The PR lists the manual checks.
 
 ## Alternatives considered

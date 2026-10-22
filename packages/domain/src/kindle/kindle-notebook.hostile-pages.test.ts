@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_HTML_DEPTH, parseHtml, textOf } from './html-tree.ts';
+import { countedWork } from '../testing/counted-work.ts';
 import { readKindleAnnotations } from './kindle-annotations.ts';
 import { kindleHighlightKey } from './kindle-highlight-key.ts';
+import { checkKindlePage } from './kindle-notebook-page.ts';
 import type { KindleRawPage } from './kindle-types.ts';
 
 /*
@@ -116,30 +118,42 @@ describe('the notebook reader against hostile pages', () => {
     ]);
   });
 
+  /*
+   * The two nested-row pages below were first held to LINEAR_BUDGET_MS by the clock. Under the
+   * full gate's load a linear read of them took 400 ms, so they count work instead, as #385 has
+   * every growth rule do: double the page, and reading its rows does about twice the work, where
+   * searching each row's whole subtree does four times. Parsing the page is counted apart and
+   * left out: closing a tag looks along the open elements, so its work grows with the depth too,
+   * but the depth is capped (MAX_HTML_DEPTH) and that is a bounded factor, not this rule.
+   */
+  const nestedPage = (rows: number, withPassages: boolean) =>
+    annotations(
+      Array.from(
+        { length: rows },
+        (_, at) =>
+          `${openRow(`IDNESTED${String(at).padStart(4, '0')}`)}${withPassages ? `<span id="highlight">q${at}</span>` : ''}`,
+      ).join('') +
+        '<i></i>'.repeat(rows * 160) +
+        (withPassages ? '' : '<span id="highlight">q</span>'),
+    );
+  const growth = (withPassages: boolean) => {
+    const work = (rows: number) => {
+      const raw = page(nestedPage(rows, withPassages));
+      const parsing = countedWork(() => checkKindlePage(raw));
+      return countedWork(() => readKindleAnnotations(raw, 'B0EXAMPLE1')) - parsing;
+    };
+    return work(250) / work(125);
+  };
+
   it('reads a page of nested annotation rows in time linear in its size', () => {
     // 250 nested rows (under the depth cap) over 40 000 plain elements: about 300 KB. Each row
-    // searches the whole subtree under it; an 8 MB page of this shape takes tens of seconds.
-    const rows = Array.from({ length: 250 }, (_, at) =>
-      openRow(`IDNESTED${String(at).padStart(4, '0')}`),
-    ).join('');
-    const html = annotations(`${rows}${'<i></i>'.repeat(40_000)}<span id="highlight">q</span>`);
-    expect(timed(() => readKindleAnnotations(page(html), 'B0EXAMPLE1'))).toBeLessThan(
-      LINEAR_BUDGET_MS,
-    );
+    // searching the whole subtree under it makes an 8 MB page of this shape take tens of seconds.
+    expect(growth(false)).toBeLessThan(3);
   });
 
   it('reads many rows each nesting the next, every one with a passage, in linear time', () => {
-    const rows = Array.from(
-      { length: 250 },
-      (_, at) =>
-        `${openRow(`IDCHAIN${String(at).padStart(5, '0')}`)}<span id="highlight">q${at}</span>`,
-    ).join('');
-    const html = annotations(`${rows}${'<i></i>'.repeat(40_000)}`);
-    let count = 0;
-    const took = timed(() => {
-      const reading = readKindleAnnotations(page(html), 'B0EXAMPLE1');
-      count = reading.kind === 'annotations' ? reading.highlights.length : -1;
-    });
-    expect({ count, fast: took < LINEAR_BUDGET_MS }).toEqual({ count: 250, fast: true });
+    const reading = readKindleAnnotations(page(nestedPage(250, true)), 'B0EXAMPLE1');
+    expect(reading.kind === 'annotations' ? reading.highlights.length : -1).toBe(250);
+    expect(growth(true)).toBeLessThan(3);
   });
 });

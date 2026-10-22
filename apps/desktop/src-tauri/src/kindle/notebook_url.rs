@@ -33,9 +33,14 @@ pub fn is_notebook_page(origin: &Url, url: &Url) -> bool {
 }
 
 /// Where `raw` points, as an origin and a path: never its query, fragment or
-/// user info, which a sign-in URL fills with tokens. Empty when it is no URL.
+/// user info, which a sign-in URL fills with tokens. Empty when it is no URL,
+/// or not an `http:` or `https:` one: an address with an opaque origin
+/// (`mailto:`, `data:`, `javascript:`, `about:`, `file:`) has a "path" that is
+/// the whole of what it carries, and a `blob:` one's is a whole URL.
 pub fn shown_target(raw: &str) -> String {
     Url::parse(raw)
+        .ok()
+        .filter(|url| matches!(url.scheme(), "http" | "https") && url.origin().is_tuple())
         .map(|url| format!("{}{}", url.origin().ascii_serialization(), url.path()))
         .unwrap_or_default()
 }

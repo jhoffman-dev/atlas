@@ -4,15 +4,19 @@ import {
   fakeKindleDelay,
   fakeKindleNotebook,
   fakeKindleSink,
+  heldKindleDelay,
   kindlePage,
 } from '../testing/fake-kindle.ts';
 import { KindleFetchError } from './ports.ts';
-import { KINDLE_MIN_FETCH_GAP_MS, syncKindle } from './sync-kindle.ts';
+import { KINDLE_MIN_FETCH_GAP_MS, createKindleSync } from './sync-kindle.ts';
 
 /*
  * Regressions found in review of PR #511: the sync under orders and answers it was not written
  * for. The books are invented; the quotes are public domain.
  */
+
+// One per file, as the app has one (ADR-0044); its deadline never passes here.
+const syncKindle = createKindleSync({ deadline: heldKindleDelay() });
 
 const NOW = Date.UTC(2026, 9, 21, 9, 0);
 const HOUR = 60 * 60 * 1000;

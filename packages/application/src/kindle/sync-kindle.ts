@@ -37,14 +37,17 @@ export const KINDLE_MIN_FETCH_GAP_MS = 1500;
 
 /**
  * Keeps a sync's fetches a gap apart: `before` waits out what is left of the
- * gap since the last fetch finished (the first waits for nothing).
+ * gap since the last fetch finished (the first waits for nothing), and never
+ * more than the gap, whatever the clock does: one set back mid-sync would
+ * otherwise read as the last fetch being in the future.
  */
 function pacer({ clock, delay }: Pick<KindleSyncPorts, 'clock' | 'delay'>) {
   let lastFinishedAt: number | null = null;
   return {
     async before(): Promise<void> {
       if (lastFinishedAt === null) return;
-      const remaining = KINDLE_MIN_FETCH_GAP_MS - (clock.now() - lastFinishedAt);
+      const elapsed = clock.now() - lastFinishedAt;
+      const remaining = Math.min(KINDLE_MIN_FETCH_GAP_MS, KINDLE_MIN_FETCH_GAP_MS - elapsed);
       if (remaining > 0) await delay.wait(remaining);
     },
     after(): void {
@@ -103,11 +106,16 @@ type BookProblem =
   | { readonly kind: 'unrecognised'; readonly reason: string }
   | { readonly kind: 'unavailable'; readonly message: string };
 
-/** A book read whole, why the sync stops, or why the book alone was not read. */
+/**
+ * A book read whole, why the sync stops, why the book alone was not read, or
+ * the host no longer reaching Amazon: every further book would time out too,
+ * so the sync stops there.
+ */
 type BookRead =
   | { readonly highlights: readonly KindleHighlight[] }
   | { readonly stop: KindleStopReason }
-  | { readonly problem: BookProblem };
+  | { readonly problem: BookProblem }
+  | { readonly lost: string };
 
 const unrecognised = (reason: string): BookRead => ({ problem: { kind: 'unrecognised', reason } });
 const unavailable = (message: string): BookRead => ({ problem: { kind: 'unavailable', message } });
@@ -132,7 +140,7 @@ async function readBook(
   for (let pages = 0; pages < KINDLE_MAX_PAGES_PER_BOOK; pages += 1) {
     const answer = await fetchPage(() => source.fetchAnnotations({ asin: book.asin, cursor }));
     if ('stop' in answer) return answer;
-    if ('unavailable' in answer) return unavailable(answer.unavailable);
+    if ('unavailable' in answer) return { lost: answer.unavailable };
     if ('unreadable' in answer) return unrecognised(answer.unreadable);
     const reading = readKindleAnnotations(answer.page, book.asin);
     switch (reading.kind) {
@@ -185,10 +193,10 @@ async function syncBook(
   ports: KindleSyncPorts,
   fetchPage: FetchPage,
   book: KindleBook,
-): Promise<KindleBookOutcome | { readonly stop: KindleStopReason }> {
+): Promise<KindleBookOutcome | { readonly stop: KindleStopReason } | { readonly lost: string }> {
   const read = await readBook(ports.source, fetchPage, book);
   if ('highlights' in read) return writeBook(ports, book, read.highlights);
-  if ('stop' in read) return read;
+  if ('stop' in read || 'lost' in read) return read;
   return { asin: book.asin, title: book.title, ...read.problem };
 }
 
@@ -199,9 +207,7 @@ async function readLibrary(
 ): Promise<{ readonly books: readonly KindleBook[] } | { readonly ended: KindleSyncReport }> {
   const answer = await fetchPage(() => source.fetchLibrary());
   if ('stop' in answer) return { ended: stopped(answer.stop, []) };
-  if ('unavailable' in answer) {
-    return { ended: { kind: 'unavailable', message: answer.unavailable } };
-  }
+  if ('unavailable' in answer) return { ended: lostAmazon(answer.unavailable, []) };
   if ('unreadable' in answer) return { ended: { kind: 'unrecognised', reason: answer.unreadable } };
   const library = readKindleLibrary(answer.page);
   switch (library.kind) {
@@ -212,7 +218,7 @@ async function readLibrary(
     case 'unsupported_store':
       return { ended: stopped(library, []) };
     case 'unavailable':
-      return { ended: { kind: 'unavailable', message: amazonAnswered(library.status) } };
+      return { ended: lostAmazon(amazonAnswered(library.status), []) };
     case 'unrecognised':
       return { ended: library };
   }
@@ -231,6 +237,11 @@ function stopped(
   return { ...reason, ...progress };
 }
 
+/** A sync Amazon could not be reached for, with the books it had done until then. */
+function lostAmazon(message: string, outcomes: readonly KindleBookOutcome[]): KindleSyncReport {
+  return { kind: 'unavailable', message, books: outcomes, added: addedBy(outcomes) };
+}
+
 type Unrecognised = Extract<KindleBookOutcome, { kind: 'unrecognised' }>;
 
 const isUnrecognised = (outcome: KindleBookOutcome): outcome is Unrecognised =>
@@ -244,6 +255,7 @@ async function run(ports: KindleSyncPorts): Promise<KindleSyncReport> {
   for (const book of library.books) {
     const outcome = await syncBook(ports, fetchPage, book);
     if ('stop' in outcome) return stopped(outcome.stop, outcomes);
+    if ('lost' in outcome) return lostAmazon(outcome.lost, outcomes);
     outcomes.push(outcome);
   }
   const [first] = outcomes.filter(isUnrecognised);
@@ -253,8 +265,42 @@ async function run(ports: KindleSyncPorts): Promise<KindleSyncReport> {
   return { kind: 'synced', books: outcomes, added: addedBy(outcomes) };
 }
 
-/** The sync running into each sink, so a second asked for meanwhile joins it. */
-const running = new WeakMap<KindleHighlightSink, Promise<KindleSyncReport>>();
+/**
+ * How long a call that joins a running sync waits for it, from when it
+ * started: past this the running sync is taken as stuck (a host that never
+ * answers), reported as failed to the call that joined, and its slot freed so
+ * the next call runs afresh.
+ */
+export const KINDLE_SYNC_JOIN_DEADLINE_MS = 10 * 60 * 1000;
+
+/** What a call that joined a stuck sync is told, once the deadline has passed. */
+export class KindleSyncStuckError extends Error {
+  constructor() {
+    super(
+      `The Kindle sync already running did not finish within ${KINDLE_SYNC_JOIN_DEADLINE_MS / 60_000} minutes, and was given up on.`,
+    );
+    this.name = 'KindleSyncStuckError';
+  }
+}
+
+export interface KindleSyncOptions {
+  /** How a call that joined waits out what is left of {@link KINDLE_SYNC_JOIN_DEADLINE_MS}. */
+  readonly deadline: KindleDelay;
+}
+
+/** One sync of the Kindle notebook into its notes; see {@link createKindleSync}. */
+export type KindleSync = (ports: KindleSyncPorts) => Promise<KindleSyncReport>;
+
+interface InFlight {
+  readonly startedAt: number;
+  readonly report: Promise<KindleSyncReport>;
+}
+
+/** What is left of the deadline at `now`: never less than none, nor more than all of it. */
+function deadlineLeft(slot: InFlight, now: number): number {
+  const left = KINDLE_SYNC_JOIN_DEADLINE_MS - (now - slot.startedAt);
+  return Math.max(0, Math.min(KINDLE_SYNC_JOIN_DEADLINE_MS, left));
+}
 
 /**
  * Brings the Kindle notebook's highlights and typed notes into their books'
@@ -264,19 +310,44 @@ const running = new WeakMap<KindleHighlightSink, Promise<KindleSyncReport>>();
  * one later arrives as its own entry after it. Fetches are a gap apart
  * ({@link KINDLE_MIN_FETCH_GAP_MS}).
  *
- * A sign-in, a robot check, a lost session, a Mac that cannot keep one, and
- * another store's notebook each stop the sync where it is, with what it had
- * added until then; a library, or every book, the parser does not know is the
- * page having changed, said as that rather than as nothing new.
+ * A sign-in, a robot check, a lost session, a Mac that cannot keep one,
+ * another store's notebook, and a host that can no longer reach Amazon each
+ * stop the sync where it is, with what it had added until then; a library,
+ * or every book, the parser does not know is the page having changed, said
+ * as that rather than as nothing new.
  *
- * One sync runs into a sink at a time: a call made while another is running
- * joins it, and both get its report. Two at once would each read the note
- * before either wrote it, and add everything twice.
+ * One sync is in flight per factory: a call made while one is running joins
+ * it, and both get its report. Two at once would each read the note before
+ * either wrote it, and add everything twice. So the composition root creates
+ * **one** `createKindleSync` per app and every caller (launch, schedule, ⌘K)
+ * uses it. A join waits at most until {@link KINDLE_SYNC_JOIN_DEADLINE_MS}
+ * after the running sync started.
  */
-export function syncKindle(ports: KindleSyncPorts): Promise<KindleSyncReport> {
-  const joined = running.get(ports.sink);
-  if (joined !== undefined) return joined;
-  const started = run(ports).finally(() => running.delete(ports.sink));
-  running.set(ports.sink, started);
-  return started;
+export function createKindleSync({ deadline }: KindleSyncOptions): KindleSync {
+  let inFlight: InFlight | null = null;
+  const free = (slot: InFlight) => {
+    if (inFlight === slot) inFlight = null;
+  };
+
+  async function join(slot: InFlight, now: number): Promise<KindleSyncReport> {
+    const left = deadlineLeft(slot, now);
+    const passed = left === 0 ? Promise.resolve() : deadline.wait(left);
+    const settled = await Promise.race([
+      slot.report.then((report) => ({ report })),
+      passed.then(() => null),
+    ]);
+    if (settled !== null) return settled.report;
+    free(slot);
+    throw new KindleSyncStuckError();
+  }
+
+  return (ports) => {
+    if (inFlight !== null) return join(inFlight, ports.clock.now());
+    const slot: InFlight = {
+      startedAt: ports.clock.now(),
+      report: run(ports).finally(() => free(slot)),
+    };
+    inFlight = slot;
+    return slot.report;
+  };
 }

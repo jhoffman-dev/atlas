@@ -1,7 +1,8 @@
-import { installLoopbackOnlyFetch } from './tools/test-guard/loopback-only-fetch.ts';
+import { installLoopbackOnlyNetwork } from './tools/test-guard/loopback-only-fetch.ts';
 
-// No test may reach a host off this machine (Amazon's notebook, above all).
-installLoopbackOnlyFetch(globalThis);
+// No test may reach a host off this machine (Amazon's notebook, above all): not by fetch or
+// XHR, nor by any socket or node:http(s) request below them.
+installLoopbackOnlyNetwork(globalThis);
 
 /**
  * jsdom performs no layout: every element measures 0x0 and there is no

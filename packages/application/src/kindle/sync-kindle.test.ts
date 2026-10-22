@@ -5,16 +5,20 @@ import {
   fakeKindleDelay,
   fakeKindleNotebook,
   fakeKindleSink,
+  heldKindleDelay,
   kindlePage,
 } from '../testing/fake-kindle.ts';
 import { KindleFetchError } from './ports.ts';
-import { KINDLE_MIN_FETCH_GAP_MS, syncKindle } from './sync-kindle.ts';
+import { KINDLE_MIN_FETCH_GAP_MS, createKindleSync } from './sync-kindle.ts';
 
 /*
  * The sync over a fake notebook and a fake sink standing in for #503's
  * source notes. The pages are the domain's hand-made fixtures, or built
  * here in the same shape; the books are public domain.
  */
+
+// One per file, as the app has one (ADR-0044); its deadline never passes here.
+const syncKindle = createKindleSync({ deadline: heldKindleDelay() });
 
 const fixture = (name: string) =>
   readFileSync(new URL(`../../../domain/src/kindle/fixtures/${name}`, import.meta.url), 'utf8');
@@ -649,21 +653,7 @@ describe('syncKindle run twice at once', () => {
       fetchAnnotations: () => Promise.reject(new TypeError('a bug')),
     };
     await expect(syncKindle({ source: broken, sink, clock, delay })).rejects.toThrow('a bug');
-    const source = fakeKindleNotebook({ library: libraryOf('B0EXAMPLE1'), books: {} });
+    const source = fakeKindleNotebook({ library: libraryOf() });
     expect(await syncKindle({ source, sink, clock, delay })).toMatchObject({ kind: 'synced' });
-  });
-
-  it('lets syncs into different sinks run side by side', async () => {
-    const source = () =>
-      fakeKindleNotebook({
-        library: libraryOf('B0EXAMPLE1'),
-        books: { B0EXAMPLE1: [annotationsOf('B0EXAMPLE1', ['one'])] },
-      });
-    const [first, second] = [fakeKindleSink(), fakeKindleSink()];
-    await Promise.all([
-      syncKindle({ source: source(), sink: first, clock, delay }),
-      syncKindle({ source: source(), sink: second, clock, delay }),
-    ]);
-    expect([first.writes.length, second.writes.length]).toEqual([1, 1]);
   });
 });
