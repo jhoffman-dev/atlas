@@ -524,3 +524,95 @@ describe('a comment edit and the highlights after it (verify3, PR #510)', () => 
     expect(idsAfterEditing('Up 50%% on the year.')).toEqual(['aaa111', 'bbb222']);
   });
 });
+
+// Verification round 3 decisions on PR #510 (ADR-0043 §5): a comment DFAI writes never opens an
+// Obsidian comment, and no write leaves a highlight the note read before unreadable after.
+describe('every write keeps the other highlights readable (verify3, PR #510)', () => {
+  const marker = (page: number, exact: string) =>
+    highlightMarker({
+      style: { mark: 'highlight', color: 'yellow' },
+      anchor: {
+        kind: 'pdf',
+        page,
+        quote: { exact, prefix: '', suffix: '' },
+        rects: [{ x: 0.1, y: 0.1, width: 0.5, height: 0.02 }],
+      },
+    });
+  const one = (quote: string) => `> ${quote}\n> ${marker(1, 'One.')}\n`;
+  const two = `> Two.\n> ${marker(2, 'Two.')}\n\n^bbb222\n`;
+  const ids = (text: string) => readHighlights(text, noteBlocks).map((block) => block.id);
+
+  it('writes a `%%` in a comment so Obsidian shows it, and reads it back as written', () => {
+    const before = `${PDF_NOTE}${one('One.')}\n^aaa111\n\n${two}`;
+    const text = withHighlightComment({
+      text: before,
+      id: 'aaa111',
+      comment: 'Up 50%% on the year, %%% more.',
+      noteBlocks,
+    });
+    expect(text).toContain('> Up 50%\\% on the year, %\\%\\% more.\n');
+    expect(text).not.toMatch(/%%/);
+    expect(ids(text)).toEqual(['aaa111', 'bbb222']);
+    const [read] = readHighlights(text, noteBlocks);
+    expect(
+      withHighlightComment({ text, id: 'aaa111', comment: read?.comment ?? '', noteBlocks }),
+    ).toBe(text);
+  });
+
+  it('writes a `%%` in the comment of a highlight it appends so Obsidian shows it', () => {
+    const { text } = appendHighlights({
+      text: PDF_NOTE,
+      highlights: [
+        { quote: 'One.', anchor: pdf('One.'), comment: 'Up 50%% on the year.' },
+        { quote: 'Two.', anchor: pdf('Two.') },
+      ],
+      random: seeded(3),
+      noteBlocks,
+    });
+    expect(text).toContain('> Up 50%\\% on the year.\n');
+    expect(readHighlights(text, noteBlocks)).toHaveLength(2);
+  });
+
+  it('refuses a comment edit that would let a `%%` edited into a quote hide the highlights after it', () => {
+    // The person put a `%%` in the quote and closed it in the comment, in Obsidian.
+    const before = `${PDF_NOTE}${one('One %% opened.')}>\n> Closed %% here.\n\n^aaa111\n\n${two}`;
+    expect(ids(before)).toEqual(['aaa111', 'bbb222']);
+    let refused: unknown = null;
+    try {
+      withHighlightComment({ text: before, id: 'aaa111', comment: 'Fine.', noteBlocks });
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toBeInstanceOf(HighlightNotReadBackError);
+    expect((refused as HighlightNotReadBackError).ids).toEqual(['bbb222']);
+  });
+
+  it('refuses a removal that would let a `%%` written between blocks hide the highlights after it', () => {
+    const before = `${PDF_NOTE}${one('One %% opened.')}\n^aaa111\n\nClosed %% here.\n\n${two}`;
+    expect(ids(before)).toEqual(['aaa111', 'bbb222']);
+    let refused: unknown = null;
+    try {
+      withoutHighlight({ text: before, id: 'aaa111', noteBlocks });
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toBeInstanceOf(HighlightNotReadBackError);
+    expect((refused as HighlightNotReadBackError).ids).toEqual(['bbb222']);
+  });
+
+  it('keeps a byte order mark that starts a note with no frontmatter', () => {
+    const bom = '﻿';
+    const { text, highlights } = appendHighlights({
+      text: bom,
+      highlights: [{ quote: 'One.', anchor: pdf('One.') }],
+      random: seeded(3),
+      noteBlocks,
+    });
+    expect(text.startsWith(bom)).toBe(true);
+    expect(readHighlights(text, noteBlocks)).toHaveLength(1);
+    expect(withoutHighlight({ text, id: highlights[0]?.id ?? '', noteBlocks })).toBe(bom);
+    const written = `${bom}${one('One.')}\n^aaa111\n`;
+    expect(ids(written)).toEqual(['aaa111']);
+    expect(withoutHighlight({ text: written, id: 'aaa111', noteBlocks })).toBe(bom);
+  });
+});
