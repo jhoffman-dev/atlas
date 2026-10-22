@@ -129,3 +129,65 @@ describe('keys that are not a link being followed', () => {
     expect(onFollowLink).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * Regression (PR #522): the embed is a React node view whose stopEvent keeps
+ * ProseMirror's handlers from keys pressed on its name and chip, so the
+ * browser's own answer to them ran — Backspace went Back in WebKit, ⌘Z was
+ * WebKit's undo and moved the page's selection into the text. Each is
+ * prevented on the embed's links, while the app's shortcuts are left alone.
+ */
+
+/** A key pressed on `target`, said by whether the browser's own answer to it was prevented. */
+function prevented(target: HTMLElement, init: KeyboardEventInit): boolean {
+  const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+  return event.defaultPrevented;
+}
+
+const BROWSER_KEYS: readonly [string, KeyboardEventInit][] = [
+  ['Backspace', { key: 'Backspace' }],
+  ['Delete', { key: 'Delete' }],
+  ['a typed letter', { key: 'x' }],
+  ['Space', { key: ' ' }],
+  ['Meta+z', { key: 'z', metaKey: true }],
+  ['Meta+Shift+z', { key: 'z', metaKey: true, shiftKey: true }],
+  ['Meta+b', { key: 'b', metaKey: true }],
+  ['Ctrl+z', { key: 'z', ctrlKey: true }],
+];
+
+const embedLinks = {
+  "an embed's name": async () => {
+    const { onFollowLink } = renderEditor(EMBED, { transclusion: shown(null) });
+    return { link: await screen.findByRole('link', { name: 'The Lantern Keepers' }), onFollowLink };
+  },
+  "a shown highlight's chip": async () => {
+    const { onFollowLink } = renderEditor(EMBED);
+    return { link: await screen.findByRole('link', { name: /in the reader$/ }), onFollowLink };
+  },
+};
+
+for (const [where, linkIn] of Object.entries(embedLinks)) {
+  describe(`keys the browser would answer itself, pressed on ${where}`, () => {
+    for (const [named, init] of BROWSER_KEYS) {
+      it(`${named} is kept from the browser, and follows nothing`, async () => {
+        const { link, onFollowLink } = await linkIn();
+        expect(prevented(link, init)).toBe(true);
+        expect(onFollowLink).not.toHaveBeenCalled();
+      });
+    }
+
+    it('leaves an app shortcut, Meta+k, to the app', async () => {
+      const { link } = await linkIn();
+      expect(prevented(link, { key: 'k', metaKey: true })).toBe(false);
+    });
+
+    it('still follows the link on Enter, once', async () => {
+      const { link, onFollowLink } = await linkIn();
+      expect(prevented(link, { key: 'Enter' })).toBe(true);
+      expect(onFollowLink.mock.calls).toEqual([['The Lantern Keepers', '#^k3x9q2', 'here']]);
+    });
+  });
+}

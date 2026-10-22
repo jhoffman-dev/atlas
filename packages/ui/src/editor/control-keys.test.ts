@@ -112,6 +112,65 @@ describe('a key pressed on "Open in PDF" in a selected highlight block', () => {
     openInPdf(instance).dispatchEvent(event);
     expect(event.defaultPrevented).toBe(false);
   });
+
+  // WebKit answers these in editable text itself: ⌘Z's own undo moved the page's selection (PR #522).
+  for (const [key, modifiers] of [
+    ['z', { metaKey: true }],
+    ['Z', { metaKey: true, shiftKey: true }],
+    ['y', { ctrlKey: true }],
+    ['i', { metaKey: true }],
+  ] as const) {
+    it(`keeps the browser's own ${key} with ${Object.keys(modifiers).join('+')} from the note`, () => {
+      const instance = literatureNote();
+      const before = instance.state.doc;
+      const event = new KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...modifiers,
+      });
+      openInPdf(instance).dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(instance.state.doc.eq(before)).toBe(true);
+    });
+  }
+});
+
+/** A control of `tag` drawn in the highlight's block, beside "Open in PDF". */
+function drawnControl(instance: Editor, tag: 'input' | 'button'): HTMLElement {
+  const holder = openInPdf(instance).closest('[contenteditable="false"]');
+  if (holder === null) throw new Error('the block draws nothing that is not editable');
+  const control = document.createElement(tag);
+  holder.append(control);
+  return control;
+}
+
+function keyDownOn(target: HTMLElement, init: KeyboardEventInit): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+  target.dispatchEvent(event);
+  return event;
+}
+
+describe('a key pressed on a field drawn in the note', () => {
+  it("is left to the field: ⌘Z there is the field's own undo, Backspace its own delete", () => {
+    const field = drawnControl(literatureNote(), 'input');
+    expect(keyDownOn(field, { key: 'z', metaKey: true }).defaultPrevented).toBe(false);
+    expect(keyDownOn(field, { key: 'Backspace' }).defaultPrevented).toBe(false);
+  });
+});
+
+describe('a key pressed on a button drawn in the note', () => {
+  it('presses it on Enter and Space, as a button does', () => {
+    const button = drawnControl(literatureNote(), 'button');
+    expect(keyDownOn(button, { key: 'Enter' }).defaultPrevented).toBe(false);
+    expect(keyDownOn(button, { key: ' ' }).defaultPrevented).toBe(false);
+  });
+
+  it("keeps Backspace and ⌘Z from the browser, which would go Back or undo the page's selection", () => {
+    const button = drawnControl(literatureNote(), 'button');
+    expect(keyDownOn(button, { key: 'Backspace' }).defaultPrevented).toBe(true);
+    expect(keyDownOn(button, { key: 'z', metaKey: true }).defaultPrevented).toBe(true);
+  });
 });
 
 describe('a key pressed in the text', () => {

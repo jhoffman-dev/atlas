@@ -24,19 +24,31 @@ function controlKeyedOn(editorElement: Element, target: EventTarget | null): Ele
   return editable === 'false' ? control : null;
 }
 
-/** Controls that answer keys of their own: a button presses on Enter, a field takes typing. */
-const FORM_CONTROL = 'button, input, select, textarea';
+/** Fields take typing, undo and the rest as their own: no key on one is kept from the browser. */
+const FIELD = 'input, select, textarea';
+
+/** Whether the key is the control's own answer: a button presses on Enter and Space. */
+const pressesControl = (control: Element, event: KeyboardEvent): boolean =>
+  control.matches('button') && (event.key === 'Enter' || event.key === ' ');
+
+/** ⌘ or Ctrl shortcuts WebKit answers in editable text itself: undo, redo, bold, italic, underline. */
+const NATIVE_EDITING_SHORTCUTS = new Set(['z', 'y', 'b', 'i', 'u']);
 
 /**
  * Whether the browser would act on the key itself: Backspace goes Back in
- * WebKit, Enter, Delete and typing edit what the page's selection is in —
- * here, the note around the control. Shortcuts (⌘ or Ctrl) are the app's.
+ * WebKit; Enter, Delete, typing and the native editing shortcuts (⌘Z's own
+ * undo) edit, or move, what the page's selection is in — here, the note
+ * around the control. Other shortcuts (⌘K) are the app's.
  */
-const actsNatively = (event: KeyboardEvent): boolean =>
-  event.key === 'Backspace' ||
-  event.key === 'Delete' ||
-  event.key === 'Enter' ||
-  (event.key.length === 1 && !event.metaKey && !event.ctrlKey);
+function actsNatively(event: KeyboardEvent): boolean {
+  if (event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Enter') return true;
+  if (event.metaKey || event.ctrlKey) return NATIVE_EDITING_SHORTCUTS.has(event.key.toLowerCase());
+  return event.key.length === 1;
+}
+
+/** Whether the browser's answer to the key, pressed on `control`, would land in the note around it. */
+const leaksToNote = (control: Element, event: KeyboardEvent): boolean =>
+  !control.matches(FIELD) && !pressesControl(control, event) && actsNatively(event);
 
 /**
  * Leaves keys pressed on a control in the document to the control. The
@@ -45,6 +57,12 @@ const actsNatively = (event: KeyboardEvent): boolean =>
  * still bubble to what holds the editor, which follows a link on Enter with
  * its modifiers. First of the editor's plugins, so no keymap or suggestion
  * list sees them.
+ *
+ * The browser's answer is prevented from a listener on the editor's element,
+ * in the capture phase, not from `handleDOMEvents`: a node view's
+ * `stopEvent` (a React node view's passes every key in it, PR #522) keeps
+ * ProseMirror's handlers from ever seeing keys pressed on its controls, an
+ * embed's name or a highlight's chip, and WebKit would go Back on them.
  */
 export const ControlKeys = Extension.create({
   name: 'controlKeys',
@@ -52,14 +70,25 @@ export const ControlKeys = Extension.create({
   priority: 10_000,
 
   addProseMirrorPlugins() {
-    const onControl = (element: Element, event: KeyboardEvent): boolean => {
-      const control = controlKeyedOn(element, event.target);
-      if (control === null) return false;
-      if (!control.matches(FORM_CONTROL) && actsNatively(event)) event.preventDefault();
-      return true;
-    };
+    const onControl = (element: Element, event: KeyboardEvent): boolean =>
+      controlKeyedOn(element, event.target) !== null;
     return [
       new Plugin({
+        view: (view) => {
+          const keepFromBrowser = (event: Event) => {
+            if (!(event instanceof KeyboardEvent)) return;
+            const control = controlKeyedOn(view.dom, event.target);
+            if (control !== null && leaksToNote(control, event)) event.preventDefault();
+          };
+          view.dom.addEventListener('keydown', keepFromBrowser, true);
+          view.dom.addEventListener('keypress', keepFromBrowser, true);
+          return {
+            destroy: () => {
+              view.dom.removeEventListener('keydown', keepFromBrowser, true);
+              view.dom.removeEventListener('keypress', keepFromBrowser, true);
+            },
+          };
+        },
         props: {
           handleDOMEvents: {
             keydown: (view, event) => onControl(view.dom, event),
