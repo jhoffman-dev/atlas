@@ -1,11 +1,20 @@
+import type { KindleSyncReport } from './kindle-sync-report.ts';
+
 /**
- * How long Kindle sync stays off after Amazon's robot check (#508). Asking
- * again while Amazon doubts the account is a robot makes it surer, so an
- * automatic sync (on launch, every few hours) holds back for a day; one the
- * person asks for is theirs to make and is not held. The scheduler that runs
- * the automatic syncs asks this; it keeps when the robot check last came.
+ * How long Kindle sync stays off after Amazon's robot check, or its saying
+ * it is asked too often (403 or 429) (#508). Asking again while Amazon doubts
+ * the account is a robot makes it surer, so an automatic sync (on launch,
+ * every few hours) holds back for a day; one the person asks for is theirs
+ * to make and is not held. The scheduler that runs the automatic syncs asks
+ * this; it keeps when the last sync {@link holdsKindleAutoSync} came, as
+ * `lastRobotCheckAt` below.
  */
 export const KINDLE_ROBOT_CHECK_BACKOFF_MS = 24 * 60 * 60 * 1000;
+
+/** Whether a sync that ended as `report` starts the hold on automatic syncs. */
+export function holdsKindleAutoSync(report: Pick<KindleSyncReport, 'kind'>): boolean {
+  return report.kind === 'robot_check' || report.kind === 'rate_limited';
+}
 
 /**
  * Until when automatic syncs are held, given when a robot check came; null

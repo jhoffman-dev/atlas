@@ -16,6 +16,8 @@ const SIGN_IN_PATH = /^\/ap\//;
 const CAPTCHA_PATH = /\/errors\/validatecaptcha/i;
 
 const UNAUTHORIZED = 401;
+/** Forbidden and Too Many Requests: Amazon telling a client it asks too often. */
+const TURNED_AWAY: ReadonlySet<number> = new Set([403, 429]);
 
 /** The page read into a tree, or why it cannot be read at all. */
 export type CheckedPage = { readonly kind: 'page'; readonly tree: HtmlElement } | KindlePageProblem;
@@ -78,6 +80,7 @@ const TOO_DEEP: KindlePageProblem = {
 export function checkKindlePage(page: KindleRawPage): CheckedPage {
   if (page.redirectedTo !== null) return redirectProblem(page.redirectedTo);
   if (page.status === UNAUTHORIZED) return { kind: 'sign_in_required' };
+  if (TURNED_AWAY.has(page.status)) return { kind: 'rate_limited', status: page.status };
   if (page.status < 200 || page.status > 299) {
     return page.status >= 400
       ? { kind: 'unavailable', status: page.status }

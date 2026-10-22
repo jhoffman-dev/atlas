@@ -98,8 +98,10 @@ ADR-0017's rule for secrets, applied to cookies.
 ### What a sync writes, and when it says no
 
 - A highlight's identity is Amazon's annotation id, else the book, the
-  location and a hash of the words (NFC-normalised, zero-width characters
-  stripped). The sink is told only highlights it has not recorded; it adds
+  location and a hash of the words (invisible characters stripped first —
+  soft hyphen, zero-width spaces and joiners, word joiner, BOM, direction
+  marks, embeddings and isolates — then NFC-normalised, so an invisible
+  between a letter and its accent cannot keep them from composing). The sink is told only highlights it has not recorded; it adds
   them and never rewrites, reorders or removes what the note holds
   (ADR-0003). A highlight deleted on the Kindle stays in the note.
 - **A note typed on a passage is an entry of its own**, keyed
@@ -122,22 +124,34 @@ note>`, so an edited one arrives as a new entry and an unedited one is
   across a book's pages), or a page nested deeper than any notebook page, are
   such pages.
 - A sync **stops where it is**, keeping the books already added in its
-  report, for a sign-in, a robot check, a Kindle that is not connected, a Mac
+  report, for a sign-in (401), a robot check, Amazon saying it is asked too
+  often (403 or 429 on any fetch: `rate_limited`, its own message), a Kindle that is not connected, a Mac
   that cannot keep the session apart, another store's notebook, and a host
   that can no longer reach Amazon (`unreachable` or `timeout` on any fetch,
   reported as unavailable with the books done before) — each with its own
-  message. A 5xx for one book is that book's alone; the sync goes on. "Unavailable … will try again later" is said only for an
-  unreachable host, a timeout or a 5xx. A library, or every book, in a shape
+  message. A 5xx (or other 4xx) for one book is that book's alone; the sync
+  goes on — until three books in a row answer a 5xx
+  (`KINDLE_MAX_SERVER_ERRORS_IN_A_ROW`), when Amazon is taken as down and the
+  sync stops as `unavailable`, keeping the books done. "Unavailable … will
+  try again later" is said only for an unreachable host, a timeout or a 5xx. A library, or every book, in a shape
   the parser does not know is the page having changed, said as that, never as
   "nothing new".
-- After a **robot check** automatic syncs hold back for 24 hours
+- After a **robot check or a rate limit** (`holdsKindleAutoSync`) automatic
+  syncs hold back for 24 hours, the robot check's own back-off reused: both
+  are Amazon doubting the client, and asking again soon makes it surer
   (`mayAutoSyncKindle`, a pure function of the clock's reading; the scheduler
-  that arrives with the sync-on-launch ticket keeps when it came). A sync the
+  that arrives with the sync-on-launch ticket keeps when the last one came). A sync the
   person asks for is not held. A stored time that is not a finite number is
   read as no robot check: a bad value never holds syncs for ever.
 - Fetches are at least 1.5 s apart (`KINDLE_MIN_FETCH_GAP_MS`, through an
   injected delay port), and a wait is never longer than that gap, whatever
-  the clock does (one set back mid-sync).
+  the clock does. The wait is the gap less the time the clock says has passed
+  since the last fetch ended, but only while that reading is believable
+  (0 to 60 s); a clock set back (below none) or forward (past a minute, more
+  than parsing a page and writing a note can take) says nothing of how long it
+  has been, so the whole gap is waited. A forward jump under a minute reads
+  as time passed and may shorten one gap; a monotonic clock port would close
+  that, and is not worth a port of its own here.
 - **One sync is in flight per app.** The slot is owned by the use-case
   factory, `createKindleSync`, not keyed by the sink: the composition root
   creates **one** per app and every caller (launch, schedule, ⌘K) uses it. A
@@ -145,8 +159,13 @@ note>`, so an edited one arrives as a new entry and an unedited one is
   join waits at most 10 minutes from when the running sync started
   (`KINDLE_SYNC_JOIN_DEADLINE_MS`, through an injected delay); past that the
   running sync is taken as stuck, the join is told so
-  (`KindleSyncStuckError`), and the slot is freed so the next call runs
-  afresh. A stuck sync that ends later does not free a newer one's slot.
+  (`KindleSyncStuckError`), and the running sync is **given up** (an abort
+  signal it checks before every fetch and every note write): it fetches and
+  writes nothing more, and its own call fails the same way. The slot is
+  **never freed while a sync is alive** — freeing it let a third call run
+  beside a healthy long sync and add a highlight twice. A call made while a
+  given-up sync winds down runs once it has settled (further calls join that
+  one), within a deadline of its own; so two syncs never run at once.
 - A call that joins gets the running sync's report even if it was asked for
   a different reason — a sync right after Connect, say, joins one started
   just before the person signed in, and may report a sign-in that the new

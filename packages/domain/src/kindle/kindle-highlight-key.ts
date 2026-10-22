@@ -1,15 +1,22 @@
 import type { KindleHighlight, KindleHighlightKey } from './kindle-types.ts';
 
-/** Characters with no width, which a page may carry in a passage and a later page not. */
-const INVISIBLE = /[\u00ad\u200b-\u200d\u2060\ufeff]/g;
+/**
+ * Characters that show nothing, which a page may carry in a passage and a
+ * later page not: the soft hyphen, zero-width spaces and joiners, the word
+ * joiner, the byte-order mark, and the direction marks, embeddings and
+ * isolates (U+200E-F, U+202A-E, U+2066-9).
+ */
+const INVISIBLE = /[\u00ad\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/g;
 
 /**
- * Words as a key reads them: composed (NFC), without zero-width characters or
- * soft hyphens, white space collapsed. So a passage the notebook writes with
- * a combining accent one day and a composed one the next is the same one.
+ * Words as a key reads them: without invisible characters, then composed
+ * (NFC), white space collapsed. So a passage the notebook writes with a
+ * combining accent one day and a composed one the next is the same one. The
+ * invisibles go first: one between a letter and its accent keeps them from
+ * composing.
  */
 function keyWords(words: string): string {
-  return words.normalize('NFC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
+  return words.replace(INVISIBLE, '').normalize('NFC').replace(/\s+/g, ' ').trim();
 }
 
 /**

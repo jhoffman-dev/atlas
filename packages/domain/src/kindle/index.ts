@@ -8,6 +8,7 @@ export {
   newKindleHighlights,
 } from './kindle-highlight-key.ts';
 export {
+  holdsKindleAutoSync,
   KINDLE_ROBOT_CHECK_BACKOFF_MS,
   kindleAutoSyncHeldUntil,
   mayAutoSyncKindle,
@@ -21,6 +22,7 @@ export {
 export {
   describeKindleSync,
   KINDLE_NOT_CONNECTED_MESSAGE,
+  KINDLE_RATE_LIMITED_MESSAGE,
   KINDLE_ROBOT_CHECK_MESSAGE,
   KINDLE_SIGN_IN_MESSAGE,
   KINDLE_UNRECOGNISED_MESSAGE,

@@ -124,7 +124,7 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
   it('runs a call made while a given-up sync winds down after it has settled, never beside it', async () => {
     const deadline = heldKindleDelay();
     const syncKindle = createKindleSync({ deadline });
-    const stuck = heldLibrary();
+    const stuck = heldLibrary(['B0EXAMPLE1']);
     const given = syncKindle({ source: stuck.source, sink: fakeKindleSink(), clock, delay });
     const past = { now: () => NOW + KINDLE_SYNC_JOIN_DEADLINE_MS + 1 };
     await expect(

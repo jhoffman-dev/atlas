@@ -30,6 +30,8 @@ export type KindleStopReason =
   | { readonly kind: 'sign_in_required' }
   /** Amazon wants proof the person is one; no automatic sync for a day (`kindle-backoff.ts`). */
   | { readonly kind: 'robot_check' }
+  /** Amazon answered 403 or 429, asked too often; no automatic sync for a day (`kindle-backoff.ts`). */
+  | { readonly kind: 'rate_limited'; readonly status: number }
   /** There is no Kindle session on this Mac. */
   | { readonly kind: 'not_connected' }
   /** This Mac cannot keep the session apart (macOS before 14); the host's words. */
@@ -54,6 +56,8 @@ export type KindleSyncReport =
 export const KINDLE_SIGN_IN_MESSAGE = 'Kindle sync needs you to sign in again.';
 export const KINDLE_ROBOT_CHECK_MESSAGE =
   'Amazon is asking you to prove you are not a robot. Open Connect Kindle and answer it; Kindle sync will not run on its own for 24 hours.';
+export const KINDLE_RATE_LIMITED_MESSAGE =
+  'Amazon says Kindle sync is asking too often. Kindle sync will not run on its own for 24 hours.';
 export const KINDLE_NOT_CONNECTED_MESSAGE =
   "Kindle isn't connected on this Mac. Connect it in Settings to sync.";
 export const KINDLE_UNRECOGNISED_MESSAGE =
@@ -86,6 +90,8 @@ function stoppedMessage(report: KindleSyncStop): string {
       return KINDLE_SIGN_IN_MESSAGE;
     case 'robot_check':
       return KINDLE_ROBOT_CHECK_MESSAGE;
+    case 'rate_limited':
+      return KINDLE_RATE_LIMITED_MESSAGE;
     case 'not_connected':
       return KINDLE_NOT_CONNECTED_MESSAGE;
     case 'unsupported':
@@ -103,6 +109,7 @@ export function describeKindleSync(report: KindleSyncReport): {
   switch (report.kind) {
     case 'sign_in_required':
     case 'robot_check':
+    case 'rate_limited':
     case 'not_connected':
     case 'unsupported':
     case 'unsupported_store':

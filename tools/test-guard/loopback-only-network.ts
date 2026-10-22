@@ -86,8 +86,15 @@ export function installLoopbackOnlyXhr(target: { XMLHttpRequest?: typeof XMLHttp
 
 interface ConnectOptions {
   readonly host?: string;
-  readonly path?: string;
+  readonly path?: unknown;
 }
+
+/**
+ * Whether `connect`'s single argument names a socket path, as net reads it
+ * (`isPipeName`): a string that is not a port, a port being any string
+ * `Number` reads as zero or more (" 443", "", "0x1bb").
+ */
+const isPipeName = (value: unknown): boolean => typeof value === 'string' && !(Number(value) >= 0);
 
 /**
  * The host a `Socket#connect` call dials, or null for a local (IPC) socket.
@@ -98,18 +105,18 @@ function dialledHost(args: readonly unknown[]): string | null {
   const first: unknown = Array.isArray(args[0]) ? (args[0] as unknown[])[0] : args[0];
   if (typeof first === 'object' && first !== null) {
     const { host, path } = first as ConnectOptions;
-    if (path !== undefined) return null;
+    // net dials a path only when it is truthy (`!!path`): null or '' is TCP, and checked.
+    if (typeof path === 'string' && path !== '') return null;
     return host === undefined || host === '' ? 'localhost' : host;
   }
-  // A string that is not a port is a socket path, as net reads it.
-  if (typeof first === 'string' && !/^\d+$/.test(first)) return null;
+  if (isPipeName(first)) return null;
   return typeof args[1] === 'string' && args[1] !== '' ? args[1] : 'localhost';
 }
 
 interface RequestOptions {
   readonly hostname?: string | null;
   readonly host?: string | null;
-  readonly socketPath?: string;
+  readonly socketPath?: unknown;
 }
 
 /** Whether `value` is a URL, from this realm or another, as node:http takes one. */
@@ -136,7 +143,8 @@ function requestedHost(args: readonly unknown[]): string | null {
       if (named !== null) host = named;
     } else if (typeof arg === 'object' && arg !== null) {
       const options = arg as RequestOptions;
-      if (options.socketPath !== undefined) return null;
+      // node:http goes over a local socket only for a truthy socketPath; '' is TCP, and checked.
+      if (typeof options.socketPath === 'string' && options.socketPath !== '') return null;
       host = options.hostname ?? options.host ?? host;
     }
   }

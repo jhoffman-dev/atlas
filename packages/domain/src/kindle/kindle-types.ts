@@ -86,6 +86,12 @@ export type KindlePageProblem =
   | { readonly kind: 'unsupported_store'; readonly store: string }
   /** The page is not the shape this parser knows: Amazon changed it, or sent something else. */
   | { readonly kind: 'unrecognised'; readonly reason: string }
+  /**
+   * Amazon turned the request away as one of too many (429), or refused it
+   * outright (403), which it does to a client it takes for a crawler: asking
+   * again soon makes it surer.
+   */
+  | { readonly kind: 'rate_limited'; readonly status: number }
   /** Amazon answered with an error status. */
   | { readonly kind: 'unavailable'; readonly status: number };
 
