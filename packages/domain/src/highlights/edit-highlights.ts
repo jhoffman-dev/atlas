@@ -22,6 +22,7 @@ import {
   readHighlightMarker,
 } from './highlight-marker.ts';
 import { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
+import { UnsafeSourceFileError } from './literature-note.ts';
 import { matchPassages, type PassageMatch } from './passage-match.ts';
 
 /*
@@ -42,6 +43,12 @@ export interface NewHighlight {
   readonly style?: HighlightStyle;
   /** The person's markdown; none when absent or blank. */
   readonly comment?: string;
+  /**
+   * A picture of the passage in the vault — an area of a scanned page, which
+   * has no words — embedded as the quote's first line, so the highlight
+   * shows it wherever it is transcluded.
+   */
+  readonly image?: string;
 }
 
 /** What appending gave each highlight: the id it was written with, or the id it already had. */
@@ -128,6 +135,29 @@ export function appendHighlights({
     removed: null,
   });
   return { text: writeOnce.text(), highlights: answered };
+}
+
+/**
+ * The id of the highlight in the note that already holds `highlight`'s
+ * passage, by the rule `appendHighlights` adds by, or null when appending it
+ * would write it. Asked before anything is made for a highlight — an area's
+ * picture — so a repeat makes nothing.
+ */
+export function heldHighlight({
+  text,
+  highlight,
+  noteBlocks,
+}: {
+  text: string;
+  highlight: NewHighlight;
+  noteBlocks: ReadNoteBlocks;
+}): string | null {
+  const [match] = passagesOf(
+    readHighlights(text, noteBlocks),
+    [highlight],
+    [exactWords(highlight)],
+  );
+  return match !== undefined && 'held' in match ? match.held : null;
 }
 
 /**
@@ -354,10 +384,22 @@ function namedIn(blocks: readonly HighlightBlock[], id: string): HighlightBlock 
 
 function checkNewHighlight(highlight: NewHighlight, anchor: HighlightAnchor): void {
   assertAnchor(anchor);
-  if (quoteLines(highlight.quote).length === 0) {
+  if (highlight.image !== undefined && !isLinkableImage(highlight.image)) {
+    throw new UnsafeSourceFileError(highlight.image);
+  }
+  if (quoteLinesOf(highlight).length === 0) {
     throw new InvalidHighlightAnchorError('a highlight quotes some words');
   }
 }
+
+/** The quote's lines: the picture's embed first when it has one, then its words. */
+function quoteLinesOf(highlight: NewHighlight): string[] {
+  const words = quoteLines(highlight.quote);
+  return highlight.image === undefined ? words : [`![[${highlight.image}]]`, ...words];
+}
+
+/** A picture's path an embed can name: not blank, on one line, and with nothing a wiki link means something by. */
+const isLinkableImage = (path: string): boolean => path.trim() !== '' && !/[#^|[\]\r\n]/.test(path);
 
 function blockOf(
   id: string,
@@ -368,7 +410,7 @@ function blockOf(
   return highlightBlockText(
     {
       id,
-      quoteLines: quoteLines(highlight.quote),
+      quoteLines: quoteLinesOf(highlight),
       commentLines: commentLines(highlight.comment ?? ''),
       style: highlight.style ?? DEFAULT_HIGHLIGHT_STYLE,
       anchor,

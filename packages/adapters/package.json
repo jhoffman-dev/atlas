@@ -6,7 +6,8 @@
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pdf": "./src/pdf/index.ts"
   },
   "dependencies": {
     "@dfai/application": "workspace:*",
@@ -15,6 +16,7 @@
     "mdast-util-to-markdown": "^2.1.2",
     "micromark-util-classify-character": "^2.0.1",
     "micromark-util-decode-string": "^2.0.1",
+    "pdfjs-dist": "6.4.299",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",

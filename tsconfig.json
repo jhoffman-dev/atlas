@@ -25,6 +25,7 @@
       "@dfai/application": ["./packages/application/src/index.ts"],
       "@dfai/application/testing/sqlite": ["./packages/application/src/testing/sqlite.ts"],
       "@dfai/adapters": ["./packages/adapters/src/index.ts"],
+      "@dfai/adapters/pdf": ["./packages/adapters/src/pdf/index.ts"],
       "@dfai/ui": ["./packages/ui/src/index.ts"],
       "@dfai/ui/graph": ["./packages/ui/src/graph/index.ts"],
       "@dfai/ui/testing/settles": ["./packages/ui/src/testing/settles.ts"]

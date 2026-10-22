@@ -13,6 +13,7 @@ import { TemplatesContainer } from '../templates/templates-container.tsx';
 import { TermsContainer } from '../terms/terms-container.tsx';
 import { TodayContainer } from '../today/today-container.tsx';
 import { TypeContainer } from '../types/type-container.tsx';
+import { DocumentContainer } from '../reader/document-container.tsx';
 import { samePageWiring, type PageWiringContext } from './page-wiring.ts';
 import { useTabPageHistory } from './tab-history.ts';
 import { sameWiringParts, type WorkspaceWiring } from './workspace-wiring.tsx';
@@ -48,18 +49,25 @@ interface PageTabProps {
  * The parts of the wiring every page's tab reads; its own kind's part is
  * compared apart. Any new part a page tab reads must be added here (#325).
  */
-const PAGE_TAB_WIRING = ['pane', 'store', 'nameOf', 'onShowSidebar', 'overlays'] as const;
+const PAGE_TAB_WIRING = [
+  'pane',
+  'store',
+  'nameOf',
+  'onShowSidebar',
+  'overlays',
+  'reveals',
+] as const;
 
 /** The tab drawn: a hook, since its hooks are the tab component's own. */
 function usePageTab({ wiring, pane, tab, place }: PageTabProps) {
-  const { store, nameOf, onShowSidebar, overlays } = wiring;
+  const { store, nameOf, onShowSidebar, overlays, reveals } = wiring;
   const history = useTabPageHistory({ store, pane, id: tab.id, nameOf });
   // The way back to a hidden sidebar sits where it went: the first pane's top-left corner.
   const chrome: PageChrome = {
     history,
     ...(pane === 0 && onShowSidebar !== null && { onShowSidebar }),
   };
-  const pages: PageWiringContext = { pages: wiring.pages, pane: wiring.pane, overlays };
+  const pages: PageWiringContext = { pages: wiring.pages, pane: wiring.pane, overlays, reveals };
   return (
     <div className="pane__tab">{containerFor({ place, wiring: pages, tabId: tab.id, chrome })}</div>
   );
@@ -100,5 +108,7 @@ function containerFor({
       return <TemplatesContainer {...props} />;
     case 'terms':
       return <TermsContainer {...props} />;
+    case 'document':
+      return <DocumentContainer {...props} path={place.path} />;
   }
 }

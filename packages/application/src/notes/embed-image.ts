@@ -4,17 +4,14 @@ import {
   imageFileName,
   imageFolderFor,
   imageMimeType,
-  joinVaultPath,
-  numberedFileName,
-  parentVaultPath,
   relativeImageSource,
   undrawableImageMessage,
-  vaultPathName,
   type ImagePlacement,
   type IncomingImage,
   type VaultPath,
 } from '@dfai/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
+import { FileNotPlacedError, placeUnderFreeName } from '../vault/place-under-free-name.ts';
 
 /**
  * Whether the webview can draw an image. Asked before an image is saved, so a
@@ -52,9 +49,6 @@ export interface EmbeddedImage {
   readonly src: string;
   readonly alt: string;
 }
-
-/** How many names are tried when each one is taken between listing and writing. */
-const WRITE_ATTEMPTS = 3;
 
 /**
  * Saves an image for a note and says how the note should point at it.
@@ -118,7 +112,7 @@ export async function writeImageUnderFreeName({
   name,
   bytes,
 }: {
-  fs: VaultFsPort;
+  fs: Pick<VaultFsPort, 'listDirectory' | 'createFolder' | 'writeBinaryFile'>;
   folder: VaultPath;
   name: string;
   bytes: Uint8Array;
@@ -138,92 +132,20 @@ export async function writeImageUnderFreeName({
  * from where it was staged. A name taken in between is numbered past and
  * tried again.
  */
-export async function placeImageUnderFreeName({
-  fs,
-  folder,
-  name,
-  place,
-}: {
-  fs: VaultFsPort;
+export async function placeImageUnderFreeName(args: {
+  fs: Pick<VaultFsPort, 'listDirectory' | 'createFolder'>;
   folder: VaultPath;
   name: string;
   place: (path: VaultPath) => Promise<unknown>;
 }): Promise<VaultPath> {
-  let taken = await namesIn({ fs, folder });
-  for (let attempt = 1; ; attempt += 1) {
-    // Picked and reserved in one synchronous step, so another embed awaiting
-    // its own listing cannot pick the same name.
-    const path = joinVaultPath(
-      folder,
-      numberedFileName({ name, taken: [...taken, ...namesBeingWritten(folder)] }),
-    );
-    beingWritten.add(path);
-    try {
-      await place(path);
-      return path;
-    } catch (error) {
-      const listedAgain = await namesIn({ fs, folder });
-      const nameWasTaken =
-        joinVaultPath(folder, numberedFileName({ name, taken: listedAgain })) !== path;
-      // Refused for some reason other than the name: trying again is pointless.
-      if (attempt === WRITE_ATTEMPTS || !nameWasTaken) {
-        throw new ImageEmbedError(`The image could not be saved: ${messageOf(error)}`);
-      }
-      taken = listedAgain;
-    } finally {
-      beingWritten.delete(path);
-    }
-  }
-}
-
-/**
- * The paths embeds in this window are writing right now. Several images
- * dropped or pasted at once all list the folder before any is written, so
- * without this each picks the same free name and all but one are refused.
- */
-const beingWritten = new Set<VaultPath>();
-
-function namesBeingWritten(folder: VaultPath): string[] {
-  return [...beingWritten]
-    .filter((path) => parentVaultPath(path) === folder)
-    .map((path) => vaultPathName(path));
-}
-
-/**
- * The names already in `folder`, making the folder when it is not there.
- *
- * Several images dropped at once each find the folder missing and each try
- * to make it; the ones that lose that race find it made and list it instead.
- * Only a folder that still cannot be listed once making it has failed — a
- * file of that name in the way — is a failure.
- */
-async function namesIn({ fs, folder }: { fs: VaultFsPort; folder: VaultPath }): Promise<string[]> {
-  const listed = await listNames({ fs, folder });
-  if (listed !== null) return listed;
   try {
-    await fs.createFolder({ path: folder });
-    return [];
+    return await placeUnderFreeName(args);
   } catch (error) {
-    const madeMeanwhile = await listNames({ fs, folder });
-    if (madeMeanwhile !== null) return madeMeanwhile;
-    throw new ImageEmbedError(`The folder “${folder}” could not be made: ${messageOf(error)}`);
+    if (!(error instanceof FileNotPlacedError)) throw error;
+    throw new ImageEmbedError(
+      error.folderMade
+        ? `The image could not be saved: ${error.reason}`
+        : `The folder “${args.folder}” could not be made: ${error.reason}`,
+    );
   }
 }
-
-/** The names in `folder`, or null when it cannot be listed — most often, because it is not there. */
-async function listNames({
-  fs,
-  folder,
-}: {
-  fs: VaultFsPort;
-  folder: VaultPath;
-}): Promise<string[] | null> {
-  try {
-    return (await fs.listDirectory(folder)).map((entry) => entry.name);
-  } catch {
-    // Not there (yet): the caller makes it, and a real problem surfaces there.
-    return null;
-  }
-}
-
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));

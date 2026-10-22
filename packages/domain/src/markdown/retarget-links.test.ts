@@ -125,3 +125,34 @@ describe('a moved note that would take a namesake’s links (#214)', () => {
     );
   });
 });
+
+describe('retargetLinks to files that are not notes', () => {
+  const FILE_PROPERTY = 'file: "[[Library/Lantern Keepers.pdf]]"';
+
+  it("follows a literature note's file: link when the PDF is moved (#504)", () => {
+    expect(
+      retarget(FILE_PROPERTY, 'Library/Lantern Keepers.pdf', 'Archive/Lantern Keepers.pdf'),
+    ).toEqual({ text: 'file: "[[Archive/Lantern Keepers.pdf]]"', count: 1 });
+  });
+
+  it('follows a rename, and keeps an embed and an alias around the target', () => {
+    const text =
+      '![[Library/Lantern Keepers.pdf#page=3]] and [[Library/Lantern Keepers.pdf|the book]]';
+    expect(retarget(text, 'Library/Lantern Keepers.pdf', 'Library/Keepers.pdf').text).toBe(
+      '![[Library/Keepers.pdf#page=3]] and [[Library/Keepers.pdf|the book]]',
+    );
+  });
+
+  it('follows a PDF carried by the move of its folder', () => {
+    expect(retarget(FILE_PROPERTY, 'Library', 'Archive/Library').text).toBe(
+      'file: "[[Archive/Library/Lantern Keepers.pdf]]"',
+    );
+  });
+
+  it('leaves a link to a file the move did not touch', () => {
+    expect(retarget(FILE_PROPERTY, 'Plan.md', 'Roadmap.md')).toEqual({
+      text: FILE_PROPERTY,
+      count: 0,
+    });
+  });
+});
