@@ -1,0 +1,106 @@
+import type { KindleBook, KindleHighlight, KindlePageCursor, KindleRawPage } from '@dfai/domain';
+import {
+  KindleFetchError,
+  type KindleHighlightSink,
+  type KindleNotebookSource,
+} from '../kindle/ports.ts';
+
+/** What the fake notebook answers one request with: a page, or the host failing to bring one. */
+export type KindleScriptedAnswer = KindleRawPage | KindleFetchError;
+
+/** The pages of a book, in order: the first request gets the first, and so on; the last repeats. */
+export interface FakeKindleNotebookScript {
+  readonly library: KindleScriptedAnswer;
+  readonly books?: Readonly<Record<string, readonly KindleScriptedAnswer[]>>;
+}
+
+/** A request the fake notebook was asked, as a test reads them back. */
+export type KindleNotebookCall =
+  | { readonly call: 'library' }
+  | {
+      readonly call: 'annotations';
+      readonly asin: string;
+      readonly cursor: KindlePageCursor | null;
+    };
+
+/** A 200 page of `html`, as the host hands one back. */
+export const kindlePage = (html: string): KindleRawPage => ({
+  status: 200,
+  html,
+  redirectedTo: null,
+});
+
+function answered(answer: KindleScriptedAnswer | undefined): KindleRawPage {
+  if (answer === undefined) throw new KindleFetchError('unreachable', 'nothing scripted');
+  if (answer instanceof KindleFetchError) throw answer;
+  return answer;
+}
+
+/** A Kindle notebook that answers from a script and records what it was asked. */
+export function fakeKindleNotebook(script: FakeKindleNotebookScript): KindleNotebookSource & {
+  readonly calls: KindleNotebookCall[];
+} {
+  const calls: KindleNotebookCall[] = [];
+  const served = new Map<string, number>();
+  return {
+    calls,
+    fetchLibrary() {
+      calls.push({ call: 'library' });
+      return Promise.resolve().then(() => answered(script.library));
+    },
+    fetchAnnotations({ asin, cursor }) {
+      calls.push({ call: 'annotations', asin, cursor });
+      const pages = script.books?.[asin] ?? [];
+      const at = served.get(asin) ?? 0;
+      served.set(asin, at + 1);
+      return Promise.resolve().then(() => answered(pages[Math.min(at, pages.length - 1)]));
+    },
+  };
+}
+
+/** One write the fake sink took. */
+export interface KindleSinkWrite {
+  readonly book: KindleBook;
+  readonly highlights: readonly KindleHighlight[];
+  readonly syncedAt: number;
+}
+
+/**
+ * Stands in for the source notes #503 will write: keeps each book's
+ * recorded keys in memory, and can be told to fail a book's write.
+ */
+export function fakeKindleSink(
+  options: {
+    readonly recorded?: Readonly<Record<string, readonly string[]>>;
+    readonly failWrite?: ReadonlySet<string>;
+    readonly failRead?: ReadonlySet<string>;
+  } = {},
+): KindleHighlightSink & {
+  readonly writes: KindleSinkWrite[];
+  readonly recorded: Map<string, Set<string>>;
+} {
+  const recorded = new Map<string, Set<string>>(
+    Object.entries(options.recorded ?? {}).map(([asin, keys]) => [asin, new Set(keys)]),
+  );
+  const writes: KindleSinkWrite[] = [];
+  return {
+    writes,
+    recorded,
+    recordedKeys(book) {
+      if (options.failRead?.has(book.asin)) {
+        return Promise.reject(new Error(`cannot read the note of ${book.title}`));
+      }
+      return Promise.resolve(new Set(recorded.get(book.asin) ?? []));
+    },
+    addHighlights(write) {
+      if (options.failWrite?.has(write.book.asin)) {
+        return Promise.reject(new Error(`cannot write the note of ${write.book.title}`));
+      }
+      writes.push(write);
+      const keys = recorded.get(write.book.asin) ?? new Set<string>();
+      for (const highlight of write.highlights) keys.add(highlight.key);
+      recorded.set(write.book.asin, keys);
+      return Promise.resolve();
+    },
+  };
+}

@@ -103,12 +103,17 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = [
   "NSDictionary",
   "NSError",
   "NSGeometry",
+  # The Kindle session's cookies, and its data store's identifier (#508).
+  "NSHTTPCookie",
+  "NSNotification",
   "NSObject",
+  "NSProcessInfo",
   "NSRunLoop",
   "NSString",
   "NSTimer",
   "NSURL",
   "NSURLRequest",
+  "NSUUID",
   "NSValue",
 ] }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = [
@@ -133,6 +138,7 @@ objc2-web-kit = { version = "0.3.2", default-features = false, features = [
   "objc2-app-kit",
   "objc2-core-foundation",
   "WKFrameInfo",
+  "WKHTTPCookieStore",
   "WKNavigation",
   "WKNavigationAction",
   "WKNavigationDelegate",

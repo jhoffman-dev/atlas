@@ -148,6 +148,13 @@ export default defineConfig({
           functions: 90,
           branches: 85,
         },
+        // Reads Amazon's Kindle notebook into highlights to write into source notes,
+        // by itself (#508). The session's cookies are the host's, tested in Rust.
+        'packages/{application,adapters}/src/kindle/**': {
+          lines: 90,
+          functions: 90,
+          branches: 85,
+        },
       },
     },
   },

@@ -14,3 +14,6 @@ docs/guide/
 
 # A Notion export as Notion writes it: formatting it would change what it tests.
 tools/notion-import/fixtures
+
+# Pages in the shape Amazon writes its Kindle notebook (#508): formatting them would change what they test.
+packages/domain/src/kindle/fixtures/*.html
