@@ -70,13 +70,20 @@ describe('syncKindle', () => {
       // Six of the first book: its five highlights and the note typed on the first.
       added: 7,
       books: [
-        { kind: 'added', asin: 'B0EXAMPLE1', title: 'Pride and Prejudice', added: 6 },
-        { kind: 'added', asin: 'B0EXAMPLE2', title: 'Moby-Dick; or, The Whale', added: 1 },
+        { kind: 'added', asin: 'B0EXAMPLE1', title: 'Pride and Prejudice', added: 6, unplaced: [] },
+        {
+          kind: 'added',
+          asin: 'B0EXAMPLE2',
+          title: 'Moby-Dick; or, The Whale',
+          added: 1,
+          unplaced: [],
+        },
         {
           kind: 'added',
           asin: 'B0EXAMPLE3',
           title: 'Frankenstein; or, The Modern Prometheus',
           added: 0,
+          unplaced: [],
         },
       ],
     });
@@ -161,7 +168,9 @@ describe('syncKindle', () => {
     const sink = fakeKindleSink();
     expect(await syncKindle({ source, sink, clock, delay })).toEqual({
       kind: 'sign_in_required',
-      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+      books: [
+        { kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1, unplaced: [] },
+      ],
       added: 1,
     });
     expect(sink.writes.map((write) => write.book.asin)).toEqual(['B0EXAMPLE1']);
@@ -215,7 +224,7 @@ describe('syncKindle', () => {
           title: 'Book B0EXAMPLE1',
           reason: 'the page has no annotations',
         },
-        { kind: 'added', asin: 'B0EXAMPLE2', title: 'Book B0EXAMPLE2', added: 1 },
+        { kind: 'added', asin: 'B0EXAMPLE2', title: 'Book B0EXAMPLE2', added: 1, unplaced: [] },
       ],
     });
     expect(sink.writes.map((write) => write.book.asin)).toEqual(['B0EXAMPLE2']);
@@ -395,7 +404,9 @@ describe('syncKindle when the host cannot bring a page', () => {
     const sink = fakeKindleSink();
     expect(await syncKindle({ source, sink, clock, delay })).toEqual({
       kind: 'not_connected',
-      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+      books: [
+        { kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1, unplaced: [] },
+      ],
       added: 1,
     });
     expect(source.calls.filter((call) => call.call === 'annotations')).toHaveLength(2);
@@ -469,7 +480,9 @@ describe('syncKindle when Amazon asks for more than a sign-in', () => {
     const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
     expect(report).toEqual({
       kind: 'robot_check',
-      books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+      books: [
+        { kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1, unplaced: [] },
+      ],
       added: 1,
     });
     expect(describeKindleSync(report).message).toMatch(/robot/i);

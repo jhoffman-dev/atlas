@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { HighlightAnchor, HighlightStyle } from './anchor.ts';
 import {
   highlightMarker,
+  kindleTombstoneLine,
   looksLikeHighlightMarker,
   readHighlightMarker,
+  readKindleTombstone,
 } from './highlight-marker.ts';
+import { hashOf, passageWords } from './passage-words.ts';
 
 const style: HighlightStyle = { mark: 'underline', color: 'blue' };
 const quote = { exact: 'All warfare is based on deception.', prefix: 'said: ', suffix: ' Hence' };
@@ -139,5 +142,56 @@ describe('the highlight marker', () => {
     expect(looksLikeHighlightMarker('<!-- atlas:highlights -->')).toBe(false);
     expect(looksLikeHighlightMarker('<!-- atlas:bookmark -->')).toBe(false);
     expect(looksLikeHighlightMarker('A note on atlas:highlight')).toBe(false);
+  });
+
+  it('does not take a tombstone for a marker it cannot read', () => {
+    expect(looksLikeHighlightMarker('<!-- atlas:highlight-removed {"v":1} -->')).toBe(false);
+  });
+});
+
+describe('the tombstone of a removed Kindle highlight', () => {
+  const anchor = { kind: 'kindle', location: { start: 9, end: null }, annotationId: 'A1' } as const;
+
+  it('keeps where it was and a hash of its words, never the words', () => {
+    const line = kindleTombstoneLine({ anchor, words: 'Words the reader removed.' });
+    expect(line).toMatch(/^<!-- atlas:highlight-removed \{.*\} -->$/);
+    expect(line).not.toContain('Words the reader');
+    expect(readKindleTombstone(line)).toEqual({
+      location: 9,
+      annotationId: 'A1',
+      wordsHash: hashOf(passageWords('Words the reader removed.')),
+    });
+  });
+
+  it('reads back a highlight with no location and no id, and one whose id holds markup', () => {
+    const page = { kind: 'kindle', location: null, page: 4, annotationId: null } as const;
+    expect(readKindleTombstone(kindleTombstoneLine({ anchor: page, words: 'x' }))).toMatchObject({
+      location: null,
+      annotationId: null,
+    });
+    const odd = { ...anchor, annotationId: 'a-->b<c>\u2028' };
+    const line = kindleTombstoneLine({ anchor: odd, words: 'x' });
+    expect(line).not.toContain('-->b');
+    expect(line.split('\n')).toHaveLength(1);
+    expect(readKindleTombstone(line)?.annotationId).toBe('a-->b<c>\u2028');
+  });
+
+  it.each([
+    ['a highlight marker', '<!-- atlas:highlight {"v":1,"kind":"kindle","location":2} -->'],
+    ['a quoted line', '> <!-- atlas:highlight-removed {"v":1,"kind":"kindle","words":"ab"} -->'],
+    ['another version', '<!-- atlas:highlight-removed {"v":2,"kind":"kindle","words":"ab"} -->'],
+    ['another source', '<!-- atlas:highlight-removed {"v":1,"kind":"pdf","words":"ab"} -->'],
+    ['no words', '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":2} -->'],
+    [
+      'a location as text',
+      '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":"2","words":"ab"} -->',
+    ],
+    ['broken JSON', '<!-- atlas:highlight-removed {"v":1, -->'],
+    [
+      'words after it',
+      '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","words":"ab"} --> and more',
+    ],
+  ])('is not read from %s', (_label, line) => {
+    expect(readKindleTombstone(line)).toBeNull();
   });
 });

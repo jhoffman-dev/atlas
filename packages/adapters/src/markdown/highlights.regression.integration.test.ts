@@ -309,3 +309,38 @@ describe('A11: removing what was appended gives the note back byte for byte (ver
     expect(withoutHighlight({ text: added.text, id, noteBlocks })).toBe(note);
   });
 });
+
+describe('a removed Kindle highlight’s tombstone, read by the real markdown parser (#508)', () => {
+  const words = 'The lamp was lit at dusk.';
+  const kindle = (exact: string, location: number): NewHighlight => ({
+    quote: exact,
+    anchor: { kind: 'kindle', location: { start: location, end: null }, annotationId: null },
+  });
+
+  it('is no highlight, hides nothing after it, and the highlights around it still read', () => {
+    const added = appended(KINDLE_NOTE, [
+      kindle('First.', 1),
+      kindle(words, 2),
+      kindle('Third.', 3),
+    ]);
+    const [first, middle, third] = readHighlights(added.text, noteBlocks);
+    const removed = withoutHighlight({ text: added.text, id: middle?.id as string, noteBlocks });
+    expect(removed).toMatch(/^<!-- atlas:highlight-removed .*-->$/m);
+    expect(readHighlights(removed, noteBlocks).map((block) => block.id)).toEqual([
+      first?.id,
+      third?.id,
+    ]);
+    expect(removed).not.toContain(words);
+  });
+
+  it('does not stop the note taking another highlight, nor removing the next one', () => {
+    const added = appended(KINDLE_NOTE, [kindle('First.', 1), kindle(words, 2)]);
+    const [first, middle] = readHighlights(added.text, noteBlocks);
+    const removed = withoutHighlight({ text: added.text, id: middle?.id as string, noteBlocks });
+    const more = appended(removed, [kindle('Fourth.', 4)], 5).text;
+    expect(readHighlights(more, noteBlocks)).toHaveLength(2);
+    expect(withoutHighlight({ text: more, id: first?.id as string, noteBlocks })).toMatch(
+      /atlas:highlight-removed[^]*atlas:highlight-removed/,
+    );
+  });
+});

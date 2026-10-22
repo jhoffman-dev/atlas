@@ -203,6 +203,19 @@ describe('readKindleAnnotations', () => {
     ).not.toContain('QTBFWEFNUExFMTpBNTpCT09LTUFSSw');
   });
 
+  it('reads a typed note of invisible characters only as no note: a passage alone, or a bookmark', () => {
+    const invisible = '​­ ‏';
+    const reading = readKindleAnnotations(
+      annotations(
+        row(ROW_ID, `<span id="highlight">A passage</span><span id="note">${invisible}</span>`) +
+          row('QTBFWEFNUExFMTpaWjpOT1RFT05MWQ', `<span id="note">${invisible}</span>`),
+      ),
+      ASIN,
+    );
+    expect(reading).toMatchObject({ highlights: [{ quote: 'A passage', commentOn: null }] });
+    expect(reading.kind === 'annotations' && reading.highlights).toHaveLength(1);
+  });
+
   it('reads the last page as having no next page', () => {
     expect(readKindleAnnotations(ok(fixture('annotations-page-2.html')), ASIN)).toMatchObject({
       kind: 'annotations',

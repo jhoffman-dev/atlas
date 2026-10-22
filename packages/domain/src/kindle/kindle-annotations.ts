@@ -8,7 +8,12 @@ import {
   withTag,
 } from './html-tree.ts';
 import type { HtmlElement } from './html-tree.ts';
-import { findKindleKeyClash, kindleHighlightKey, kindleNoteKey } from './kindle-highlight-key.ts';
+import {
+  findKindleKeyClash,
+  kindleHighlightKey,
+  kindleNoteKey,
+  noteHasWords,
+} from './kindle-highlight-key.ts';
 import { checkKindlePage, inputValue } from './kindle-notebook-page.ts';
 import { KINDLE_HIGHLIGHT_COLOURS } from './kindle-types.ts';
 import type {
@@ -151,7 +156,8 @@ function readRow(parts: RowParts, asin: string): RowReading {
     return { problem: 'an annotation has neither a passage nor a note' };
   }
   const quote = parts.quote === null ? '' : ownText(parts.quote);
-  const note = parts.note === null ? '' : ownText(parts.note);
+  const typed = parts.note === null ? '' : ownText(parts.note);
+  const note = noteHasWords(typed) ? typed : '';
   // A bookmark: a place, with nothing marked or typed.
   if (quote === '' && note === '') return { highlights: [] };
   const header = headerOf(parts);

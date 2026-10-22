@@ -162,7 +162,9 @@ describe('syncKindle against clocks, networks and notes the fix round did not tr
       expect(report, kind).toEqual({
         kind: 'unavailable',
         message: 'no answer',
-        books: [{ kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1 }],
+        books: [
+          { kind: 'added', asin: 'B0EXAMPLE1', title: 'Book B0EXAMPLE1', added: 1, unplaced: [] },
+        ],
         added: 1,
       });
       expect(describeKindleSync(report).message, kind).toMatch(
@@ -327,5 +329,44 @@ describe('syncKindle pacing when the clock jumps forward', () => {
     });
     await syncKindle({ source, sink: fakeKindleSink(), clock: steppedForward, delay: pacing });
     expect(pacing.waits).toEqual([KINDLE_MIN_FETCH_GAP_MS]);
+  });
+});
+
+describe('syncKindle says what the sink wrote, not what it was handed (PR #514)', () => {
+  const twoHighlights = bookPage(
+    'B0EXAMPLE1',
+    highlightRow('IDWRITTEN001', 'Call me Ishmael.') +
+      highlightRow('IDWRITTEN002', 'Reader, I married him.'),
+  );
+  const source = () =>
+    fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1'),
+      books: { B0EXAMPLE1: [twoHighlights] },
+    });
+
+  it('counts the entries the note took, when it held one of the two already', async () => {
+    const sink = fakeKindleSink({ answers: { B0EXAMPLE1: { written: 1, unplaced: [] } } });
+    const report = await syncKindle({ source: source(), sink, clock, delay });
+    expect(report).toMatchObject({ kind: 'synced', added: 1 });
+    expect(describeKindleSync(report).message).toBe('Added 1 highlight from 1 book.');
+  });
+
+  it('names a highlight the note could not place, and still counts the rest', async () => {
+    const sink = fakeKindleSink({
+      answers: { B0EXAMPLE1: { written: 1, unplaced: ['page xiv'] } },
+    });
+    const report = await syncKindle({ source: source(), sink, clock, delay });
+    expect(report).toMatchObject({
+      books: [{ kind: 'added', added: 1, unplaced: ['page xiv'] }],
+    });
+    expect(describeKindleSync(report).message).toBe(
+      "Added 1 highlight from 1 book. 1 highlight couldn't be placed (page xiv).",
+    );
+  });
+
+  it('tells the sink a sync begins, once, before any note is read', async () => {
+    const sink = fakeKindleSink();
+    await syncKindle({ source: source(), sink, clock, delay });
+    expect(sink.began.count).toBe(1);
   });
 });
