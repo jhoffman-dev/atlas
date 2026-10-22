@@ -57,7 +57,10 @@ export interface KindleNotebookSource {
  * source notes have a field for it). The sink is told only highlights
  * it has not recorded, and only once a book has been read whole, so it never
  * holds part of a page; it adds them after what is there and never rewrites
- * or removes what it already holds (ADR-0003, #508).
+ * or removes what it already holds (ADR-0003, #508). A note typed on a passage
+ * arrives as its own entry (`style: 'note'`, `commentOn` the passage's key):
+ * a follow-up comment on the passage's entry, which may have been synced long
+ * before.
  */
 export interface KindleHighlightSink {
   /** The keys of the book's highlights already recorded; empty when the book has no note yet. */

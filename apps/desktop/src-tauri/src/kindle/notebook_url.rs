@@ -85,7 +85,7 @@ mod tests {
             "https://read.amazon.com/notebook/",
             "https://read.amazon.com/kindle-library",
             "https://read.amazon.com/%6eotebook",
-            "https://ida@read.amazon.com/notebook",
+            "https://ida%40example.invalid@read.amazon.com/notebook",
             "https://read.amazon.com/notebook#x",
             "/notebook",
             "not a url",
