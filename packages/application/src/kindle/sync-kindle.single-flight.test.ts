@@ -474,3 +474,42 @@ describe('createKindleSync past its join deadline', () => {
     expect(written).toEqual(['amazon:IDLONGSYNC01']);
   });
 });
+
+/*
+ * Found verifying PR #514 after 85480be7: a sync for another vault waits its
+ * turn (ADR-0044), but its deadline is counted from when it was asked, not
+ * from when it starts. Behind a healthy sync of the first vault that runs
+ * past ten minutes (a large library, 1.5 s between fetches), it is given up
+ * without ever running and told the sync "did not finish", and the second
+ * vault's notes are not written.
+ */
+describe('createKindleSync: a sync for another vault waiting its turn (verify)', () => {
+  it('runs once the healthy sync ahead of it settles, however long that took', async () => {
+    const deadline = heldKindleDelay();
+    const syncKindle = createKindleSync({ deadline });
+    const ahead = heldLibrary();
+    const first = syncKindle({
+      source: ahead.source,
+      sink: fakeKindleSink(),
+      vault: '/Vault A',
+      clock,
+      delay,
+    });
+    const behind = fakeKindleNotebook({ library: libraryOf() });
+    const second = syncKindle({
+      source: behind,
+      sink: fakeKindleSink(),
+      vault: '/Vault B',
+      clock,
+      delay,
+    });
+    second.catch(() => {});
+    // Ten minutes pass while vault A's sync is still fetching, and nothing joins it.
+    deadline.elapse();
+    await new Promise((settle) => setImmediate(settle));
+    ahead.answer();
+    expect(await first).toMatchObject({ kind: 'synced' });
+    await expect(second).resolves.toMatchObject({ kind: 'synced' });
+    expect(behind.calls).toEqual([{ call: 'library' }]);
+  });
+});
