@@ -48,6 +48,16 @@ function serveNotebook(host: FakeHost, lastPage = fixture('annotations-page-2.ht
 
 const settings = (page: Page) => page.getByRole('dialog', { name: 'Settings' });
 const card = (page: Page) => settings(page).getByRole('region', { name: 'Kindle' });
+const intoVault = (page: Page) =>
+  card(page).getByRole('switch', { name: 'Sync Kindle into this vault' });
+
+/** Turns Kindle sync on for the open vault, in Settings, and closes Settings. */
+async function turnOnForThisVault(page: Page) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await intoVault(page).click();
+  await expect(intoVault(page)).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+}
 
 async function openVault(page: Page) {
   const vault = await createVault();
@@ -76,6 +86,10 @@ test('Connect syncs the books into literature notes, and a second sync adds only
 
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(card(page).getByTestId('kindle-sync')).toHaveText('Not connected on this Mac');
+  // Off in every vault until it is turned on for this one.
+  await expect(intoVault(page)).toHaveAttribute('aria-checked', 'false');
+  await intoVault(page).click();
+  await expect(intoVault(page)).toHaveAttribute('aria-checked', 'true');
   // Off until connected: nothing was fetched on open.
   expect(host.kindle.fetches()).toEqual([]);
   await card(page).getByRole('button', { name: 'Connect Kindle' }).click();
@@ -111,6 +125,7 @@ test('Connect syncs the books into literature notes, and a second sync adds only
 test('a lapsed Amazon session says plainly that Kindle sync needs a sign-in', async ({ page }) => {
   const { vault, host } = await openVault(page);
   serveNotebook(host);
+  await turnOnForThisVault(page);
   await runCommand(page, 'Connect Kindle');
   await expect(page.getByText('Added 6 highlights from 1 book.').first()).toBeVisible({
     timeout: 30_000,
@@ -132,4 +147,19 @@ test('a lapsed Amazon session says plainly that Kindle sync needs a sign-in', as
   await card(page).getByRole('button', { name: 'Disconnect' }).click();
   await expect(card(page).getByRole('button', { name: 'Connect Kindle' })).toBeVisible();
   expect(host.kindle.connected()).toBe(false);
+});
+
+test('in a vault Kindle sync is not on for, Connect and Sync now write nothing and say how to turn it on', async ({
+  page,
+}) => {
+  const { vault, host } = await openVault(page);
+  serveNotebook(host);
+  await runCommand(page, 'Connect Kindle');
+  await expect(page.getByText(/Turn on .Sync Kindle into this vault./).first()).toBeVisible();
+  expect(host.kindle.connected()).toBe(true);
+
+  await runCommand(page, 'Sync Kindle now');
+  await expect(page.getByText(/Turn on .Sync Kindle into this vault./).first()).toBeVisible();
+  expect(host.kindle.fetches()).toEqual([]);
+  expect(await vault.exists(BOOK)).toBe(false);
 });

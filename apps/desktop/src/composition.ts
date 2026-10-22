@@ -67,6 +67,7 @@ import { browserMacId } from './sync/browser-mac-id.ts';
 import { browserSyncPause } from './sync/browser-sync-pause.ts';
 import { browserGranolaPullRecords } from './granola/browser-granola-store.ts';
 import { browserKindleRecords } from './kindle/browser-kindle-records.ts';
+import { browserKindleVaults } from './kindle/browser-kindle-vaults.ts';
 import type { KindleHost } from './kindle/use-kindle-sync.ts';
 import type { SyncHostPorts } from './sync/use-sync.ts';
 import {
@@ -232,5 +233,6 @@ export function resolveKindle(): KindleHost {
     sync: createKindleSync({ deadline: kindleTimer }),
     delay: kindleTimer,
     records: browserKindleRecords,
+    vaults: browserKindleVaults,
   };
 }

@@ -73,6 +73,8 @@ export const KINDLE_RATE_LIMITED_MESSAGE =
   'Amazon says Kindle sync is asking too often. Kindle sync will not run on its own for 24 hours.';
 export const KINDLE_NOT_CONNECTED_MESSAGE =
   "Kindle isn't connected on this Mac. Connect it in Settings to sync.";
+export const KINDLE_NOT_INTO_VAULT_MESSAGE =
+  'Kindle sync writes only into the vaults you choose. Turn on “Sync Kindle into this vault” in Settings, under Kindle.';
 export const KINDLE_UNRECOGNISED_MESSAGE =
   "Couldn't read Amazon's page. Kindle sync is stopped until DFAI can read it again.";
 

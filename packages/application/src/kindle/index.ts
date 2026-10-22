@@ -17,6 +17,7 @@ export type {
 export { connectKindle, disconnectKindle, runKindleSync } from './kindle-sync-runs.ts';
 export type {
   KindleSyncRecords,
+  KindleVaultChoices,
   KindleSyncRun,
   KindleSyncRunPorts,
   KindleSyncWhy,

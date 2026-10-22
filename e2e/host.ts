@@ -723,11 +723,8 @@ export async function installHost(
       return { [REJECT]: { kind: 'not_connected', message: 'Kindle is not connected' } };
     }
     if (kindleSignedOut) {
-      return {
-        status: 200,
-        html: '<form name="signIn" action="/ap/signin"></form>',
-        redirectedTo: 'https://www.amazon.com/ap/signin',
-      };
+      // As the host answers when Amazon sends the notebook to its sign-in page (`kindle.rs`, `redirected`).
+      return { status: 302, html: '', redirectedTo: 'https://www.amazon.com/ap/signin' };
     }
     const asked = new URL(url);
     const asin = asked.searchParams.get('asin');

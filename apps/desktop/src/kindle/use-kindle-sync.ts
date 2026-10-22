@@ -1,14 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  KINDLE_AUTO_SYNC_INTERVAL_MS,
-  kindleAutoSyncHeldUntil,
-  type KindleSyncRecord,
-} from '@dfai/domain';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   connectKindle,
   disconnectKindle,
-  literatureNoteKindleSink,
-  runKindleSync,
   type Clock,
   type IndexPort,
   type KindleDelay,
@@ -16,8 +9,7 @@ import {
   type KindleSession,
   type KindleSync,
   type KindleSyncRecords,
-  type KindleSyncRun,
-  type KindleSyncWhy,
+  type KindleVaultChoices,
   type LiteratureNoteWritePorts,
   type MarkdownPort,
   type Rng,
@@ -25,6 +17,10 @@ import {
 } from '@dfai/application';
 import { useSteadyCallback, type KindleBusy, type KindleView } from '@dfai/ui';
 import { errorMessage } from '../query/error-message.ts';
+import { kindleViewOf } from './kindle-view.ts';
+import { useKindleRuns } from './use-kindle-runs.ts';
+import { useKindleToast } from './use-kindle-toast.ts';
+import { useKindleVaultChoice } from './use-kindle-vault-choice.ts';
 
 /** Kindle, through the host (ADR-0044), and this app's one sync of it. */
 export interface KindleHost {
@@ -36,6 +32,8 @@ export interface KindleHost {
   readonly delay: KindleDelay;
   /** This Mac's record of Kindle sync, outside the vault. */
   readonly records: KindleSyncRecords;
+  /** Which vaults Kindle sync writes into, outside the vault. */
+  readonly vaults: KindleVaultChoices;
 }
 
 export interface KindleWindowOptions {
@@ -61,6 +59,8 @@ export interface KindleController {
   readonly connect: () => void;
   readonly syncNow: () => void;
   readonly disconnect: () => void;
+  /** Turns Kindle sync into the open vault on or off. */
+  readonly setIntoVault: (on: boolean) => void;
   /** What a sync the person asked for said; null when nothing is to be said. */
   readonly toast: string | null;
   /** How many toasts have been shown: the Toast's `key`. */
@@ -68,129 +68,95 @@ export interface KindleController {
   readonly dismissToast: (shown: number) => void;
 }
 
-/** A time as this Mac's clock shows it: the day, and the time to the minute. */
-const kindleTime = (at: number): string =>
-  new Date(at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
-
-/** Settings → Kindle's view of the record, and what is under way. */
-function viewOf(
-  record: KindleSyncRecord,
-  state: { busy: KindleBusy | null; problem: string | null; now: number },
-): KindleView {
-  const heldUntil = kindleAutoSyncHeldUntil(record.lastHoldAt);
-  return {
-    connected: record.connected,
-    busy: state.busy,
-    last: record.last === null ? null : { ...record.last, at: kindleTime(record.last.at) },
-    heldUntil: heldUntil !== null && heldUntil > state.now ? kindleTime(heldUntil) : null,
-    problem: state.problem,
-  };
-}
-
 /**
- * Kindle sync for the window (#508): once the open vault's index is ready,
- * then every four hours while the vault is open, each automatic try left to
- * `runKindleSync` (connected, not held, not just synced); Connect, Sync now
- * and Disconnect for Settings and ⌘K. An automatic try that does not run
- * changes nothing on screen.
+ * Kindle sync for the window (#508): into a vault the person turned it on
+ * for, once the vault's index is ready, then every four hours while it is
+ * open, each automatic try left to `runKindleSync` (connected, not held, not
+ * just synced); Connect, Sync now and Disconnect for Settings and ⌘K. An
+ * automatic try that does not run changes nothing on screen.
  */
 export function useKindleSync(options: KindleWindowOptions): KindleController {
-  const { kindle, fs, markdown, index, openNotes, rng, clock, vaultKey, indexReady } = options;
+  const { kindle, clock, vaultKey } = options;
   const [record, setRecord] = useState(() => kindle.records.read());
-  const [busy, setBusy] = useState<KindleBusy | null>(null);
+  const busy = useKindleBusy();
   const [problem, setProblem] = useState<string | null>(null);
-  // `shown` counts every toast, so the same words again start the Toast's time afresh.
-  const [toast, setToast] = useState<{ message: string | null; shown: number }>({
-    message: null,
-    shown: 0,
-  });
-  const sink = useMemo(
-    () => literatureNoteKindleSink({ fs, markdown, index, openNotes, rng, clock }),
-    [fs, markdown, index, openNotes, rng, clock],
-  );
-  const runPorts = useMemo(
-    () => ({
-      sync: kindle.sync,
-      records: kindle.records,
-      ports: { source: kindle.notebook, sink, clock, delay: kindle.delay },
-    }),
-    [kindle, sink, clock],
-  );
-
-  const settled = useSteadyCallback((run: KindleSyncRun, told: boolean) => {
-    if (run.kind === 'skipped') return;
-    setRecord(run.record);
-    if (run.kind === 'ran' && run.report.kind !== 'unrecognised' && run.report.added > 0) {
-      options.onWrote();
-    }
-    const said = run.record.last?.message;
-    if (told && said !== undefined) setToast(({ shown }) => ({ message: said, shown: shown + 1 }));
-  });
-
-  const run = useSteadyCallback(async (why: KindleSyncWhy) => {
-    if (why === 'asked') setBusy('syncing');
-    try {
-      settled(await runKindleSync(runPorts, why), why === 'asked');
-    } finally {
-      if (why === 'asked') setBusy(null);
-    }
-  });
-
-  useEffect(() => {
-    if (vaultKey === null || !indexReady) return undefined;
-    void run('automatic');
-    const timer = window.setInterval(() => void run('automatic'), KINDLE_AUTO_SYNC_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [vaultKey, indexReady, run]);
+  const toast = useKindleToast();
+  const { intoVault, setIntoVault } = useKindleVaultChoice(kindle.vaults, vaultKey);
+  const runs = useKindleRuns({ options, intoVault, setRecord, say: toast.say });
 
   const connect = useSteadyCallback(async () => {
-    setBusy('connecting');
+    if (busy.now() !== null) return;
+    busy.set('connecting');
     setProblem(null);
     try {
       setRecord(await connectKindle({ session: kindle.session, records: kindle.records }));
-      setBusy('syncing');
-      settled(await runKindleSync(runPorts, 'asked'), true);
+      busy.set('syncing');
+      await runs.asked();
     } catch (error) {
       setProblem(errorMessage(error));
     } finally {
-      setBusy(null);
+      busy.set(null, 'connecting', 'syncing');
+    }
+  });
+
+  const syncNow = useSteadyCallback(async () => {
+    if (busy.now() !== null) return;
+    busy.set('syncing');
+    try {
+      await runs.asked();
+    } finally {
+      busy.set(null, 'syncing');
     }
   });
 
   const disconnect = useSteadyCallback(async () => {
-    setBusy('disconnecting');
+    // A sign-in window is open, or a Disconnect is already under way; a sync is not in the way.
+    if (busy.now() === 'connecting' || busy.now() === 'disconnecting') return;
+    busy.set('disconnecting');
     setProblem(null);
     try {
       setRecord(await disconnectKindle({ session: kindle.session, records: kindle.records }));
     } catch (error) {
       setProblem(errorMessage(error));
     } finally {
-      setBusy(null);
+      busy.set(null, 'disconnecting');
     }
   });
 
-  const dismissToast = useCallback(
-    (shown: number) =>
-      setToast((now) => (now.shown === shown ? { message: null, shown: now.shown } : now)),
-    [],
-  );
-
   const now = clock.now;
   const view = useMemo(
-    () => viewOf(record, { busy, problem, now: now() }),
-    [record, busy, problem, now],
+    () => kindleViewOf(record, { busy: busy.shown, problem, intoVault, now: now() }),
+    [record, busy.shown, problem, intoVault, now],
   );
   // One object while nothing in it changes: the window's toasts and Settings are drawn from it.
   return useMemo(
     () => ({
       view,
       connect: () => void connect(),
-      syncNow: () => void run('asked'),
+      syncNow: () => void syncNow(),
       disconnect: () => void disconnect(),
+      setIntoVault,
       toast: toast.message,
       toastShown: toast.shown,
-      dismissToast,
+      dismissToast: toast.dismiss,
     }),
-    [view, connect, run, disconnect, toast, dismissToast],
+    [view, connect, syncNow, disconnect, setIntoVault, toast.message, toast.shown, toast.dismiss],
   );
+}
+
+/**
+ * What Kindle sync is doing now: `shown` for the card, and `now` for a
+ * press that comes before the card has been drawn again (⌘K pressed twice).
+ * `set(null, ...phases)` ends a phase only if it is still the one under way,
+ * so a Disconnect pressed during a sync is not ended by the sync's end.
+ */
+function useKindleBusy() {
+  const [shown, setShown] = useState<KindleBusy | null>(null);
+  const current = useRef<KindleBusy | null>(null);
+  const set = useCallback((next: KindleBusy | null, ...endsPhases: KindleBusy[]) => {
+    if (next === null && !endsPhases.some((phase) => phase === current.current)) return;
+    current.current = next;
+    setShown(next);
+  }, []);
+  return { shown, now: () => current.current, set };
 }

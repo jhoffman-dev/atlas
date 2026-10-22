@@ -16,4 +16,5 @@ export const NO_KINDLE: KindleHost = {
   sync: NOT_OFFERED,
   delay: { wait: NOT_OFFERED },
   records: { read: () => NO_KINDLE_SYNC_RECORD, write: () => {} },
+  vaults: { isOn: () => false, set: () => {} },
 };

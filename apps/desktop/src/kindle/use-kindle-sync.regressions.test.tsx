@@ -31,6 +31,7 @@ function slowHost(start: KindleSyncRecord) {
     sync,
     delay: { wait: async () => {} },
     records: { read: () => kept, write: (record) => void (kept = record) },
+    vaults: { isOn: () => true, set: () => {} },
   };
   return { kindle, finish: () => finish(), kept: () => kept };
 }
@@ -83,7 +84,7 @@ describe('useKindleSync, Disconnect during a sync (regression)', () => {
 
   it('stays disconnected after ⌘K Disconnect during the sync Connect started', async () => {
     const host = slowHost(NO_KINDLE_SYNC_RECORD);
-    const { result } = render(host.kindle, { vaultKey: null });
+    const { result } = render(host.kindle);
     act(() => result.current.connect());
     await settle();
     // Connected now, so ⌘K offers Disconnect while Connect's sync runs.

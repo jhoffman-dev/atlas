@@ -7,13 +7,19 @@ import { KindleSettings, type KindleView } from './kindle-settings.tsx';
 function renderWith(overrides: Partial<KindleView> = {}) {
   const view: KindleView = {
     connected: false,
+    intoVault: false,
     busy: null,
     last: null,
     heldUntil: null,
     problem: null,
     ...overrides,
   };
-  const handlers = { onConnect: vi.fn(), onSyncNow: vi.fn(), onDisconnect: vi.fn() };
+  const handlers = {
+    onConnect: vi.fn(),
+    onSyncNow: vi.fn(),
+    onDisconnect: vi.fn(),
+    onIntoVault: vi.fn(),
+  };
   render(<KindleSettings view={view} {...handlers} />);
   return handlers;
 }
@@ -75,5 +81,31 @@ describe('KindleSettings', () => {
     expect(within(card()).getByRole('alert').textContent).toBe(
       'This Mac cannot keep a Kindle session.',
     );
+  });
+
+  it('offers the vault switch before Kindle is connected, off, and says what off means', async () => {
+    const { onIntoVault } = renderWith();
+    const choice = within(card()).getByRole('switch', { name: 'Sync Kindle into this vault' });
+    expect(choice.getAttribute('aria-checked')).toBe('false');
+    expect(within(card()).getByTestId('kindle-vault').textContent).toBe(
+      'Off: Kindle sync writes nothing into this vault.',
+    );
+    await userEvent.click(choice);
+    expect(onIntoVault).toHaveBeenCalledWith(true);
+  });
+
+  it('shows the switch on, and turns it off', async () => {
+    const { onIntoVault } = renderWith({ connected: true, intoVault: true });
+    const choice = within(card()).getByRole('switch', { name: 'Sync Kindle into this vault' });
+    expect(choice.getAttribute('aria-checked')).toBe('true');
+    expect(within(card()).getByTestId('kindle-vault').textContent).toContain('On:');
+    await userEvent.click(choice);
+    expect(onIntoVault).toHaveBeenCalledWith(false);
+  });
+
+  it('does not name a folder the Literature type may have renamed', () => {
+    renderWith();
+    expect(card().textContent).not.toContain('Library');
+    expect(card().textContent).toContain('the folder your Literature type names');
   });
 });

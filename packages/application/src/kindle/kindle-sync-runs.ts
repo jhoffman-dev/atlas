@@ -15,6 +15,16 @@ export interface KindleSyncRecords {
   write(record: KindleSyncRecord): void;
 }
 
+/**
+ * Which vaults Kindle sync may write into (ADR-0044): this Mac's choice per
+ * vault, kept in the app's own storage, never in the vault. Off for a vault
+ * until the person turns it on.
+ */
+export interface KindleVaultChoices {
+  isOn(vault: string): boolean;
+  set(vault: string, on: boolean): void;
+}
+
 /** What starting a Kindle sync needs: the app's one sync, what it runs over, and the record. */
 export interface KindleSyncRunPorts {
   /** The app's one `createKindleSync`, so launch, schedule and ⌘K never run two at once. */
