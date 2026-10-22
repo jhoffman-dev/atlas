@@ -328,7 +328,7 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
   virtualised rows — and keep their filters and order in the domain
   (`filterLibrary`, `sortLibrary`, `filterHighlights`, `inDisplayOrder`).
 - **All highlights reads the `highlights` table by key**, `(path, idx) >
-  (?, ?)` down `highlights_path_idx`, and not by offset (the last page of
+(?, ?)` down `highlights_path_idx`, and not by offset (the last page of
   150,000 highlights would cost sixty times the first). The statement keeps
   to literature notes in use (`path IN (SELECT path FROM files WHERE …)`,
   the Library's own test); the reader matches each row to the Library's read

@@ -1,4 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { format, resolveConfig } from 'prettier';
 import { describe, expect, it } from 'vitest';
 import { compileHighlightsQuery, compileLibraryQuery } from './research-query.ts';
 
@@ -25,9 +27,14 @@ function statements() {
 }
 
 describe('the research statements, as the host runs them', () => {
-  it('are the ones the host test runs', () => {
-    const written = `${JSON.stringify(statements(), null, 2)}\n`;
-    if (process.env['UPDATE_RESEARCH_STATEMENTS'] === '1') writeFileSync(GOLDEN, written);
+  it('are the ones the host test runs', async () => {
+    // As the repo's formatter writes JSON, so its format check passes on the file.
+    const path = fileURLToPath(GOLDEN);
+    const written = await format(JSON.stringify(statements()), {
+      ...(await resolveConfig(path)),
+      parser: 'json',
+    });
+    if (process.env['UPDATE_RESEARCH_STATEMENTS'] === '1') writeFileSync(path, written);
     expect(readFileSync(GOLDEN, 'utf8')).toBe(written);
   });
 });
