@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installs the system packages WebKit needs on the `perf` job's Ubuntu runner
 # (.github/workflows/gate.yml), and keeps the .deb files in the folder it is
-# given so the next run can install them with no download (#519).
+# given so the next run can install them with no download (#519): on a cache
+# hit they are already in apt's archive, and the first attempt fetches nothing.
 #
 # The azure apt mirror sometimes trickles: `apt-get update` once sat for eight
 # minutes on a package list. So downloads run under a time limit and are
@@ -20,9 +21,13 @@ attempt_seconds="${WEBKIT_DEPS_ATTEMPT_SECONDS:-90}"
 apt_archives=/var/cache/apt/archives
 mirror_list=/etc/apt/apt-mirrors.txt
 
-install_from_cache() {
-  compgen -G "$debs_dir/*.deb" > /dev/null || return 1
-  sudo apt-get install -y --no-install-recommends --no-download "$debs_dir"/*.deb
+# Puts the cached files where apt looks for packages it has already downloaded,
+# so the install below fetches nothing that matches them. (Handing apt the
+# files by path does not work with --no-download: it still "fetches" them.)
+restore_cached_debs() {
+  if compgen -G "$debs_dir/*.deb" > /dev/null; then
+    sudo cp "$debs_dir"/*.deb "$apt_archives"/
+  fi
 }
 
 # Prints the packages WebKit still lacks, one per line, as Playwright's own
@@ -74,10 +79,7 @@ keep_downloaded_debs() {
 }
 
 if [ "${WEBKIT_DEBS_CACHE_HIT:-}" = 'true' ]; then
-  if install_from_cache; then
-    exit 0
-  fi
-  echo '::warning::The cached WebKit packages did not install; downloading them instead.'
+  restore_cached_debs
 fi
 
 if attempt 'lists-on-image' || attempt 'update' || { skip_azure_mirror && attempt 'update'; }; then
