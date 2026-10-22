@@ -104,6 +104,10 @@ const style = (): HighlightStyle => ({
   color: pick(HIGHLIGHT_COLORS),
 });
 
+/** The note without its tombstones, and the blank lines they stood between. */
+const withoutTombstones = (text: string): string =>
+  text.replace(/^<!-- atlas:highlight-removed [^\n]*-->\n/gm, '').replace(/\n{2,}/g, '\n');
+
 const newHighlight = (): NewHighlight => ({
   quote: words(12),
   anchor: pick(ANCHORS)(),
@@ -284,7 +288,8 @@ describe('literature notes under any edits', () => {
           if (readHighlights(emptied, noteBlocks).some((block) => block.id === id))
             emptied = withoutHighlight({ text: emptied, id, noteBlocks });
         }
-        expect(emptied).toBe(before);
+        // A Kindle highlight leaves its tombstone where it was (ADR-0043 §5): all else comes back.
+        expect(withoutTombstones(emptied)).toBe(withoutTombstones(before));
       }
     },
     TIMEOUT,
