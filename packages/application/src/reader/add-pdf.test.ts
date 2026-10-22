@@ -157,7 +157,7 @@ describe('adding a PDF to the library', () => {
     );
   });
 
-  it('keeps the copy and says where when its note cannot be made', async () => {
+  it('leaves no copy behind when its note cannot be made, so a retry finds a clean folder', async () => {
     const { fs, files } = memoryFiles();
     const refusing = { ...fs, createNote: async () => Promise.reject(new Error('read-only')) };
     await expect(
@@ -165,9 +165,23 @@ describe('adding a PDF to the library', () => {
         { fs: refusing, reader: fakeReader(LANTERN) },
         { pdf: picked('a.pdf'), folder: LIBRARY },
       ),
-    ).rejects.toThrow(
-      'The PDF was saved as Library/a.pdf, but its note could not be made: read-only',
-    );
+    ).rejects.toThrow('The note for the PDF could not be made: read-only Nothing was added.');
+    expect(files.has('Library/a.pdf')).toBe(false);
+  });
+
+  it('says where the copy stayed when it cannot be put away either', async () => {
+    const { fs, files } = memoryFiles();
+    const refusing = {
+      ...fs,
+      createNote: async () => Promise.reject(new Error('read-only')),
+      trashEntry: async () => Promise.reject(new Error('no Trash')),
+    };
+    await expect(
+      addPdfToLibrary(
+        { fs: refusing, reader: fakeReader(LANTERN) },
+        { pdf: picked('a.pdf'), folder: LIBRARY },
+      ),
+    ).rejects.toThrow('The PDF was saved as Library/a.pdf and could not be removed: no Trash');
     expect(files.has('Library/a.pdf')).toBe(true);
   });
 

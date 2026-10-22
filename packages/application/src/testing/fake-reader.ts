@@ -57,6 +57,9 @@ export function memoryFiles(initial: Record<string, string | Uint8Array> = {}) {
       files.set(path, bytes.slice());
       return bytes.length;
     },
+    trashEntry: async ({ path }) => {
+      if (!files.delete(path)) throw new Error(`nothing at ${path}`);
+    },
     readTextFile: async (path) => {
       const text = files.get(path);
       if (typeof text !== 'string') throw new Error(`no note ${path}`);

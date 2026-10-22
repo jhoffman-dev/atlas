@@ -77,6 +77,21 @@ export function rectsForRange(page: PdfPageText, start: number, end: number): Pa
   return joinLines(parts.filter((rect) => rect.width > 0 && rect.height > 0));
 }
 
+/**
+ * Where in the page's text the words nearest `box` begin: the start of the
+ * run whose box is closest to the box's top-left corner. Zero for a page
+ * with no words. It places an area, which has no words of its own, among
+ * the highlights that do, in the order the page is read.
+ */
+export function textOffsetNear(page: PdfPageText, box: PageRect): number {
+  let nearest = { start: 0, distance: Number.POSITIVE_INFINITY };
+  for (const run of page.runs) {
+    const distance = Math.hypot(run.box.x - box.x, run.box.y - box.y);
+    if (distance < nearest.distance) nearest = { start: run.start, distance };
+  }
+  return nearest.start;
+}
+
 function joinLines(parts: readonly PageRect[]): PageRect[] {
   const joined: PageRect[] = [];
   for (const part of parts) {

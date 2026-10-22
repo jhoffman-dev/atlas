@@ -3,9 +3,9 @@ import {
   joinVaultPath,
   libraryFileName,
   literatureDetails,
+  literatureNoteFileName,
   literatureNoteText,
   looksLikePdf,
-  noteFileName,
   numberedFileName,
   type IncomingPdf,
   type PdfMetadata,
@@ -47,7 +47,7 @@ export interface AddedPdf {
 export interface AddPdfPorts {
   readonly fs: Pick<
     VaultFsPort,
-    'listDirectory' | 'createFolder' | 'createNote' | 'writeBinaryFile'
+    'listDirectory' | 'createFolder' | 'createNote' | 'writeBinaryFile' | 'trashEntry'
   >;
   readonly reader: PdfReaderPort;
 }
@@ -55,8 +55,10 @@ export interface AddPdfPorts {
 /**
  * Copies `pdf` into `folder` and makes its literature note there. Refused,
  * with nothing written, for a file that is not a PDF, is empty or too large,
- * or cannot be read (`PdfNotAddedError`). The copy is written first: when
- * the note then cannot be made the copy stays, and the error says where.
+ * or cannot be read (`PdfNotAddedError`). The copy is written first, and when
+ * the note then cannot be made the copy is put in the Trash again — a retry
+ * would otherwise find it and number a second copy beside it — and the error
+ * says so; when even that fails, it says where the copy stayed.
  */
 export async function addPdfToLibrary(
   ports: AddPdfPorts,
@@ -86,17 +88,20 @@ async function readMetadata(
   reader: PdfReaderPort,
   { bytes, name }: { bytes: Uint8Array; name: string },
 ): Promise<PdfMetadata> {
-  let document;
+  let opened;
   try {
-    document = await reader.open(bytes);
+    opened = await reader.open(bytes);
   } catch (error) {
     const reason = error instanceof PdfUnreadableError ? error.reason : messageOf(error);
     throw new PdfNotAddedError(`“${name}” could not be read as a PDF: ${reason}`);
   }
   try {
-    return await document.metadata();
+    return await opened.metadata();
+  } catch {
+    // A PDF can be readable and its document information not: the note is then titled by the file's name.
+    return { title: null, author: null };
   } finally {
-    await document.close();
+    await opened.close();
   }
 }
 
@@ -113,13 +118,29 @@ async function createLiteratureNote(
   const contents = literatureNoteText({ kind: 'pdf', title, author, file });
   try {
     const taken = (await fs.listDirectory(folder)).map((entry) => entry.name);
-    const note = joinVaultPath(folder, numberedFileName({ name: noteFileName(title), taken }));
+    const note = joinVaultPath(
+      folder,
+      numberedFileName({ name: literatureNoteFileName(title), taken }),
+    );
     await fs.createNote({ path: note, contents });
     return note;
   } catch (error) {
-    throw new PdfNotAddedError(
-      `The PDF was saved as ${file}, but its note could not be made: ${messageOf(error)}`,
-    );
+    throw new PdfNotAddedError(await withoutCopy(fs, file, error));
+  }
+}
+
+/** Puts the copy the note failed to follow in the Trash, and says what is left of it. */
+async function withoutCopy(
+  fs: AddPdfPorts['fs'],
+  file: VaultPath,
+  cause: unknown,
+): Promise<string> {
+  const failure = `The note for the PDF could not be made: ${messageOf(cause)}`;
+  try {
+    await fs.trashEntry({ path: file });
+    return `${failure} Nothing was added.`;
+  } catch (trashing) {
+    return `${failure} The PDF was saved as ${file} and could not be removed: ${messageOf(trashing)}`;
   }
 }
 

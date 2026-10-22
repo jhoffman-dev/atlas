@@ -23,6 +23,7 @@ import {
 import { writeImageUnderFreeName } from '../notes/embed-image.ts';
 import type { Rng } from '../ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
+import { UnsavedTypingError } from '../vault/update-links.ts';
 
 /*
  * What the reader writes into a PDF's literature note (#504): a highlight of
@@ -70,11 +71,17 @@ export async function highlightSelection(
 /**
  * Saves the picture of `box` on page `page` of `pdf`, then adds an area
  * highlight showing it to the note. `picture` draws the box as a PNG, and is
- * asked only when there is a note to add it to.
+ * asked only when the note is free to be written (no unsaved typing in it).
+ * The picture is made for the highlight alone: when the note then refuses
+ * it, or already holds that area, the picture is put in the Trash again — it
+ * is DFAI's own file, made a moment ago, and nothing links it.
  */
 export async function highlightArea(
   ports: WritePorts & {
-    readonly fs: Pick<VaultFsPort, 'listDirectory' | 'createFolder' | 'writeBinaryFile'>;
+    readonly fs: Pick<
+      VaultFsPort,
+      'listDirectory' | 'createFolder' | 'writeBinaryFile' | 'trashEntry'
+    >;
   },
   {
     note,
@@ -96,6 +103,7 @@ export async function highlightArea(
     comment?: string;
   },
 ): Promise<AppendedHighlight> {
+  if (ports.openNotes.state(note) === 'dirty') throw new UnsavedTypingError(note);
   const image = await writeImageUnderFreeName({
     fs: ports.fs,
     folder: imageFolderFor({ notePath: note, placement }),
@@ -109,7 +117,25 @@ export async function highlightArea(
     style,
     ...(comment !== undefined && { comment }),
   });
-  return addHighlight(ports, { path: note, highlight });
+  try {
+    const added = await addHighlight(ports, { path: note, highlight });
+    if (!added.added) await discardPicture(ports.fs, image);
+    return added;
+  } catch (error) {
+    await discardPicture(ports.fs, image);
+    throw error;
+  }
+}
+
+async function discardPicture(
+  fs: Pick<VaultFsPort, 'trashEntry'>,
+  image: VaultPath,
+): Promise<void> {
+  try {
+    await fs.trashEntry({ path: image });
+  } catch {
+    // The refusal that sent us here is the news; a picture left unlinked in the vault costs nothing.
+  }
 }
 
 /** A literature note as the reader reads it: what it is of, and its highlights. */

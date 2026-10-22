@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { hasWords, onPage, pdfPageText, rectsForRange, type PdfTextRun } from './pdf-page-text.ts';
+import {
+  EMPTY_PAGE_TEXT,
+  hasWords,
+  onPage,
+  pdfPageText,
+  rectsForRange,
+  textOffsetNear,
+  type PdfTextRun,
+} from './pdf-page-text.ts';
 
 /** A run of `text` at `x`, `y`, `width` wide, one line of 0.02 high. */
 const run = (text: string, x: number, y: number, width: number, endsLine = false): PdfTextRun => ({
@@ -79,5 +87,19 @@ describe('a box cut to its page', () => {
     expect(cut.width).toBeCloseTo(0.2);
     expect(cut.height).toBeCloseTo(0.5);
     expect(onPage({ x: Number.NaN, y: 0, width: 0.1, height: 0.1 }).x).toBe(0);
+  });
+});
+
+describe('where in the text an area sits', () => {
+  const column = pdfPageText([
+    { text: 'Left.', box: { x: 0.05, y: 0.1, width: 0.2, height: 0.02 }, endsLine: true },
+    { text: 'Right.', box: { x: 0.55, y: 0.1, width: 0.2, height: 0.02 }, endsLine: false },
+  ]);
+
+  it('is the start of the run nearest the box, and zero for a page with no words', () => {
+    const near = (x: number) => textOffsetNear(column, { x, y: 0.12, width: 0.1, height: 0.1 });
+    expect(near(0.5)).toBe(column.runs[1]?.start);
+    expect(near(0.1)).toBe(0);
+    expect(textOffsetNear(EMPTY_PAGE_TEXT, { x: 0.5, y: 0.5, width: 0.1, height: 0.1 })).toBe(0);
   });
 });

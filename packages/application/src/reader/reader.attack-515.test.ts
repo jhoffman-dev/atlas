@@ -67,7 +67,7 @@ describe('re-anchoring when its own page has the words twice (attack 515)', () =
       linesPage('Far away, someone rang the tide bell too.'),
       linesPage('First, the tide bell rang.', 'Then the tide bell stopped.'),
     ]);
-    const [placed] = await placeHighlights({ document, blocks: [blockOf('h1', anchor)] });
+    const [placed] = await placeHighlights({ opened: document, blocks: [blockOf('h1', anchor)] });
     // Page 2 is where it was made and its words are there: page 1's lone copy is not it.
     expect(placed?.placement).not.toMatchObject({ kind: 'words', page: 1 });
   });
@@ -108,7 +108,7 @@ describe('the highlights panel lists a two-column page in reading order (attack 
       };
     };
     const placed = await placeHighlights({
-      document: fakePdf([page]),
+      opened: fakePdf([page]),
       blocks: [
         blockOf('right-top', anchorFor('Right top line.')),
         blockOf('left-bottom', anchorFor('Left bottom line.')),

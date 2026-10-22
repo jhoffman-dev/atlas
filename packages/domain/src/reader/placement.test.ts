@@ -42,8 +42,10 @@ describe('placing a highlight on its own page', () => {
       count: 3,
       text: PAGES[1] as PdfPageText,
     });
-    expect(placed).toMatchObject({ kind: 'words', page: 2 });
-    expect(placed?.rects[0]?.x).toBeCloseTo(0.1 + 0.01 * PAGES[1]!.text.indexOf('north'));
+    expect(placed).toMatchObject({ kind: 'words', page: 2, at: PAGES[1]!.text.indexOf('north') });
+    expect(placed?.kind === 'lost' ? 0 : placed?.rects[0]?.x).toBeCloseTo(
+      0.1 + 0.01 * PAGES[1]!.text.indexOf('north'),
+    );
   });
 
   it('finds nothing when its words are not on that page, for an area, or past the document', () => {
@@ -54,6 +56,22 @@ describe('placing a highlight on its own page', () => {
     expect(
       placeOnItsPage(anchorFor('north channel', 2, 9), { count: 3, text: PAGES[1] as PdfPageText }),
     ).toBeNull();
+  });
+});
+
+describe('placing a highlight whose words tie on its own page', () => {
+  it('keeps it on its page at its saved boxes, never on another page', () => {
+    const saved = 'Old words. Ring the tide bell at noon, she said.';
+    const start = saved.indexOf('the tide bell');
+    const anchor: PdfAnchor = {
+      kind: 'pdf',
+      page: 2,
+      quote: quoteSelectorAt({ text: saved, start, end: start + 'the tide bell'.length }),
+      rects: [SAVED_BOX],
+    };
+    const twice = page('First, the tide bell rang. Then the tide bell stopped.');
+    const placed = placeOnItsPage(anchor, { count: 3, text: twice });
+    expect(placed).toMatchObject({ kind: 'boxes', page: 2, rects: [SAVED_BOX] });
   });
 });
 
@@ -115,7 +133,7 @@ describe('placing a highlight by its boxes', () => {
   });
 
   it('is exact only when found by its words, or an area', () => {
-    expect(isExact({ kind: 'words', page: 1, rects: [] })).toBe(true);
+    expect(isExact({ kind: 'words', page: 1, at: 0, rects: [] })).toBe(true);
     expect(isExact({ kind: 'area', page: 1, rects: [] })).toBe(true);
     expect(isExact({ kind: 'boxes', page: 1, rects: [] })).toBe(false);
     expect(isExact({ kind: 'lost' })).toBe(false);
@@ -123,16 +141,20 @@ describe('placing a highlight by its boxes', () => {
 });
 
 describe('highlights in reading order', () => {
-  const at = (id: string, placement: HighlightPlacement) => ({ id, placement });
+  const at = (id: string, placement: HighlightPlacement, offset = 0) => ({
+    id,
+    placement,
+    offset,
+  });
   const box = (y: number, x = 0.1) => [{ x, y, width: 0.1, height: 0.02 }];
 
   it('goes by page, then from the top, then from the left, with the lost last', () => {
     const ordered = inReadingOrder([
       at('lost', { kind: 'lost' }),
-      at('p2', { kind: 'words', page: 2, rects: box(0.1) }),
+      at('p2', { kind: 'words', page: 2, at: 0, rects: box(0.1) }),
       at('p1-low', { kind: 'area', page: 1, rects: box(0.8) }),
       at('p1-right', { kind: 'boxes', page: 1, rects: box(0.2, 0.6) }),
-      at('p1-left', { kind: 'words', page: 1, rects: box(0.2, 0.1) }),
+      at('p1-left', { kind: 'words', page: 1, at: 0, rects: box(0.2, 0.1) }),
       at('lost-2', { kind: 'lost' }),
     ]);
     expect(ordered.map((entry) => entry.id)).toEqual([
@@ -145,11 +167,19 @@ describe('highlights in reading order', () => {
     ]);
   });
 
+  it('follows the text across columns where top-then-left would read across them', () => {
+    const ordered = inReadingOrder([
+      at('right-top', { kind: 'words', page: 1, at: 40, rects: box(0.1, 0.6) }, 40),
+      at('left-bottom', { kind: 'words', page: 1, at: 20, rects: box(0.8, 0.1) }, 20),
+    ]);
+    expect(ordered.map((entry) => entry.id)).toEqual(['left-bottom', 'right-top']);
+  });
+
   it("keeps the note's order for two at one spot", () => {
     const ordered = inReadingOrder([
-      at('first', { kind: 'words', page: 1, rects: box(0.2) }),
-      at('second', { kind: 'words', page: 1, rects: box(0.2) }),
-      at('none', { kind: 'words', page: 1, rects: [] }),
+      at('first', { kind: 'words', page: 1, at: 0, rects: box(0.2) }),
+      at('second', { kind: 'words', page: 1, at: 0, rects: box(0.2) }),
+      at('none', { kind: 'words', page: 1, at: 0, rects: [] }),
     ]);
     expect(ordered.map((entry) => entry.id)).toEqual(['none', 'first', 'second']);
   });

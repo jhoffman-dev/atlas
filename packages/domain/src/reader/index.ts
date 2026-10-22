@@ -4,7 +4,14 @@
  * find in a document, zoom, and what adding a PDF to the library names.
  * All pure; pdf.js is the adapters' and the screen is the UI's.
  */
-export { EMPTY_PAGE_TEXT, hasWords, onPage, pdfPageText, rectsForRange } from './pdf-page-text.ts';
+export {
+  EMPTY_PAGE_TEXT,
+  hasWords,
+  onPage,
+  pdfPageText,
+  rectsForRange,
+  textOffsetNear,
+} from './pdf-page-text.ts';
 export type { PdfPageText, PdfTextRun, PlacedTextRun } from './pdf-page-text.ts';
 export {
   areaHighlight,
@@ -41,6 +48,7 @@ export {
   libraryFileName,
   libraryFolder,
   literatureDetails,
+  literatureNoteFileName,
   looksLikePdf,
   MAX_PDF_BYTES,
 } from './pdf-library.ts';

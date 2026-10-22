@@ -10,7 +10,7 @@ import { lineNoteBlocks } from '@dfai/domain/testing';
 import { fakeIndexPort, fakeOpenNotes } from '../testing/fake-ports.ts';
 import { fakePdf, linesPage, memoryFiles, readerMarkdown } from '../testing/fake-reader.ts';
 import { findLiteratureNote } from './find-literature-note.ts';
-import { placeHighlights } from './place-highlights.ts';
+import { allPageTexts, placeHighlights } from './place-highlights.ts';
 import {
   highlightArea,
   highlightSelection,
@@ -209,7 +209,7 @@ describe('placing the note’s highlights on the open PDF', () => {
   it('finds each by its words on its own page, reading only those pages', async () => {
     const document = fakePdf([PAGE_ONE, PAGE_TWO, linesPage('Three')]);
     const placed = await placeHighlights({
-      document,
+      opened: document,
       blocks: [block('b', words(2, 'north channel')), block('a', words(1, 'lamps'))],
     });
     expect(placed.map((entry) => [entry.block.id, entry.placement.kind])).toEqual([
@@ -228,7 +228,7 @@ describe('placing the note’s highlights on the open PDF', () => {
       rects: [{ x: 0.1, y: 0.9, width: 0.2, height: 0.05 }],
     };
     const placed = await placeHighlights({
-      document,
+      opened: document,
       blocks: [block('moved', words(1, 'north channel')), block('area', area)],
     });
     expect(placed.map((entry) => [entry.block.id, entry.placement])).toEqual([
@@ -240,7 +240,7 @@ describe('placing the note’s highlights on the open PDF', () => {
   it('draws words that are nowhere at their saved boxes, and lists one past the document as lost', async () => {
     const document = fakePdf([PAGE_ONE]);
     const placed = await placeHighlights({
-      document,
+      opened: document,
       blocks: [block('gone', words(9, 'harbour wall')), block('changed', words(1, 'lanterns'))],
     });
     expect(placed.map((entry) => [entry.block.id, entry.placement.kind])).toEqual([
@@ -249,11 +249,51 @@ describe('placing the note’s highlights on the open PDF', () => {
     ]);
   });
 
+  it('still places the other pages’ highlights when one page cannot be read', async () => {
+    const document = fakePdf([PAGE_ONE, PAGE_TWO]);
+    const damaged = {
+      ...document,
+      pageText: async (page: number) => {
+        if (page === 2) throw new Error('Invalid page tree');
+        return document.pageText(page);
+      },
+    };
+    const placed = await placeHighlights({
+      opened: damaged,
+      blocks: [block('fine', words(1, 'lamps')), block('lost-words', words(2, 'north channel'))],
+    });
+    expect(placed.map((entry) => [entry.block.id, entry.placement.kind])).toEqual([
+      ['fine', 'words'],
+      ['lost-words', 'boxes'],
+    ]);
+  });
+
+  it('reads the text of a long book a few pages at a time, an unreadable page being one without words', async () => {
+    let reading = 0;
+    let mostAtOnce = 0;
+    const long = {
+      pageCount: 30,
+      pageText: async (page: number) => {
+        reading += 1;
+        mostAtOnce = Math.max(mostAtOnce, reading);
+        await Promise.resolve();
+        reading -= 1;
+        if (page === 3) throw new Error('damaged');
+        return linesPage(`Page ${page}`);
+      },
+    };
+    const texts = await allPageTexts(long);
+    expect(texts).toHaveLength(30);
+    expect(texts[2]?.text).toBe('');
+    expect(texts[3]?.text).toBe('Page 4');
+    expect(mostAtOnce).toBeLessThanOrEqual(8);
+  });
+
   it('leaves out highlights that are not a PDF’s', async () => {
     const kindle = {
       ...block('k', words(1, 'x')),
       anchor: { kind: 'kindle' as const, location: { start: 1, end: null }, annotationId: null },
     };
-    expect(await placeHighlights({ document: fakePdf([PAGE_ONE]), blocks: [kindle] })).toEqual([]);
+    expect(await placeHighlights({ opened: fakePdf([PAGE_ONE]), blocks: [kindle] })).toEqual([]);
   });
 });
