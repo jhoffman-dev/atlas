@@ -238,17 +238,17 @@
       }
     },
     "Open the Library (2,000 sources)": {
-      "commits": 4,
-      "renders": 161,
+      "commits": 6,
+      "renders": 165,
       "calls": {
-        "index_query": 1
+        "index_query": 3
       }
     },
     "Open All highlights (20,000)": {
-      "commits": 4,
-      "renders": 108,
+      "commits": 6,
+      "renders": 111,
       "calls": {
-        "index_query": 9
+        "index_query": 11
       }
     },
     "Open a 500-page PDF": {
