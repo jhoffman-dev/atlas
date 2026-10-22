@@ -315,8 +315,75 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # WebKit and the apt packages it needs come from caches, so a slow apt
+      # mirror costs a run only when a key changes (#519). Both are restored and
+      # saved as separate steps, not with `actions/cache`'s post step, so a run
+      # whose budgets fail still saves what it downloaded.
+      - name: Read the Playwright version and the runner image
+        id: playwright
+        run: |
+          echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      # Fail a dead mirror fast and retry, rather than crawl until the step's
+      # limit. A conf file, because `playwright install-deps` runs apt itself.
+      - name: Make apt time out and retry
+        run: |
+          printf '%s\n' 'Acquire::Retries "3";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' \
+            'Binary::apt::APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99-ci-519 > /dev/null
+
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: webkit
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-webkit-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+
       - name: Install WebKit
-        run: pnpm exec playwright install --with-deps webkit
+        if: steps.webkit.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        run: pnpm exec playwright install webkit
+
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: steps.webkit.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.webkit.outputs.cache-primary-key }}
+
+      # The .deb files apt downloaded for WebKit, keyed on the runner image so
+      # they match what is already installed on it. A new image misses once.
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: webkit-debs
+        with:
+          path: ~/.cache/webkit-debs
+          key: webkit-debs-${{ steps.playwright.outputs.image }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+
+      # A hit installs from the cached files with no download at all, and falls
+      # back to the mirror if they no longer fit. A miss is today's install,
+      # then keeps the files it fetched for the next run.
+      - name: Install WebKit's system packages
+        timeout-minutes: 8
+        env:
+          CACHE_HIT: ${{ steps.webkit-debs.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          debs="$HOME/.cache/webkit-debs"
+          if [ "$CACHE_HIT" = 'true' ] && compgen -G "$debs/*.deb" > /dev/null; then
+            if sudo apt-get install -y --no-install-recommends --no-download "$debs"/*.deb; then
+              exit 0
+            fi
+            echo "::warning::The cached WebKit packages did not install; installing from the mirror."
+          fi
+          pnpm exec playwright install-deps webkit
+          mkdir -p "$debs"
+          if compgen -G '/var/cache/apt/archives/*.deb' > /dev/null; then
+            cp /var/cache/apt/archives/*.deb "$debs"/
+          fi
+
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: steps.webkit-debs.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/webkit-debs
+          key: ${{ steps.webkit-debs.outputs.cache-primary-key }}
 
       # One build for both runs, unminified so the work budgets can name the
       # components that rendered. So the response-time budgets here time the
