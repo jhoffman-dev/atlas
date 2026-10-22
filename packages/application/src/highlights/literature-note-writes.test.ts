@@ -4,7 +4,7 @@ import {
   HighlightNotFoundError,
   InvalidHighlightAnchorError,
   readHighlights,
-  sourceNoteText,
+  literatureNoteText,
   type NewHighlight,
   type VaultPath,
 } from '@dfai/domain';
@@ -14,16 +14,16 @@ import {
   addHighlight,
   addHighlights,
   editHighlightComment,
-  NotASourceNoteError,
+  NotALiteratureNoteError,
   removeHighlight,
-} from './source-note-writes.ts';
+} from './literature-note-writes.ts';
 
-const PATH = createVaultPath('Sources/The Art of War.md');
-const SOURCE = sourceNoteText({
+const PATH = createVaultPath('Library/The Art of War.md');
+const SOURCE = literatureNoteText({
   kind: 'pdf',
   title: 'The Art of War',
   author: 'Sun Tzu',
-  file: createVaultPath('Sources/The Art of War.pdf'),
+  file: createVaultPath('Library/The Art of War.pdf'),
 });
 
 /** mulberry32, so the ids drawn are the same every run. */
@@ -93,7 +93,7 @@ const ports = (text: string, openNotes = panes('closed')) => {
 };
 
 describe('adding a highlight', () => {
-  it('appends it to the source note against the version read, and answers its new id', async () => {
+  it('appends it to the literature note against the version read, and answers its new id', async () => {
     const { ports: given, writes, file } = ports(SOURCE);
     const answered = await addHighlight(given, {
       path: PATH,
@@ -155,14 +155,14 @@ describe('adding a highlight', () => {
     }
   });
 
-  it('refuses a note that is not a source note', async () => {
+  it('refuses a note that is not a literature note', async () => {
     const { ports: given, writes } = ports('---\ntype: notes\n---\nWords.\n');
     await expect(addHighlight(given, { path: PATH, highlight: deception })).rejects.toThrow(
-      NotASourceNoteError,
+      NotALiteratureNoteError,
     );
     await expect(
       addHighlight(ports('Words.\n').ports, { path: PATH, highlight: deception }),
-    ).rejects.toThrow(/The Art of War is not a source note/);
+    ).rejects.toThrow(/The Art of War is not a literature note/);
     expect(writes).toEqual([]);
   });
 

@@ -12,7 +12,7 @@ import { readHighlights, type HighlightBlock } from './highlight-block.ts';
 import { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
 
 /**
- * Property (#503): whatever a source note holds around its highlights, and
+ * Property (#503): whatever a literature note holds around its highlights, and
  * however the person edited their quotes and comments in Obsidian, every
  * write changes only the highlight it is about. The others read back the
  * same and keep their bytes; the words between them keep theirs; a comment
@@ -115,9 +115,9 @@ const FILLER = [
   () => '## A heading\n',
 ];
 
-function sourceNote(): string {
+function literatureNote(): string {
   const body = Array.from({ length: count(4) }, () => pick(FILLER)()).join('\n');
-  return `---\ntype: source\nkind: pdf\ntitle: "Generated"\n---\n${body}`;
+  return `---\ntype: literature\nkind: pdf\ntitle: "Generated"\n---\n${body}`;
 }
 
 /** Edits a person makes in Obsidian: tidy a quote line, add a line to a comment, words between blocks. */
@@ -159,10 +159,10 @@ function expectOthersKept(before: string, after: string, except: string | null) 
 
 const RUNS = 300;
 
-describe('source notes under any edits', () => {
+describe('literature notes under any edits', () => {
   it('reads back every highlight appended, with fresh ids, and writes only after the last byte', () => {
     for (let run = 0; run < RUNS; run += 1) {
-      const before = sourceNote();
+      const before = literatureNote();
       const added = Array.from({ length: 1 + count(4) }, newHighlight);
       const { text, highlights } = appendHighlights({ text: before, highlights: added, random });
       expect(text.startsWith(before)).toBe(true);
@@ -190,7 +190,7 @@ describe('source notes under any edits', () => {
   it('changes only the comment it is given, keeping hand edits everywhere', () => {
     for (let run = 0; run < RUNS; run += 1) {
       const { text: written } = appendHighlights({
-        text: sourceNote(),
+        text: literatureNote(),
         highlights: Array.from({ length: 1 + count(4) }, newHighlight),
         random,
       });
@@ -209,7 +209,7 @@ describe('source notes under any edits', () => {
   it('writes back the same bytes for every comment as it reads', () => {
     for (let run = 0; run < RUNS; run += 1) {
       const { text: written } = appendHighlights({
-        text: sourceNote(),
+        text: literatureNote(),
         highlights: Array.from({ length: 1 + count(4) }, newHighlight),
         random,
       });
@@ -222,7 +222,7 @@ describe('source notes under any edits', () => {
 
   it('removes only the highlight it is given, and removing all it added gives the note back', () => {
     for (let run = 0; run < RUNS; run += 1) {
-      const before = `${sourceNote().trimEnd()}\n`;
+      const before = `${literatureNote().trimEnd()}\n`;
       const { text: written, highlights } = appendHighlights({
         text: before,
         highlights: Array.from({ length: 1 + count(4) }, newHighlight),

@@ -18,7 +18,7 @@ import {
 import { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
 
 /*
- * The writes a source note takes (ADR-0043). Each changes only the bytes of
+ * The writes a literature note takes (ADR-0043). Each changes only the bytes of
  * the highlight it is about — appending one adds text after the last byte,
  * a new comment replaces the comment's lines alone, a removal takes out its
  * block and the one blank line that parted it — so every other byte of the

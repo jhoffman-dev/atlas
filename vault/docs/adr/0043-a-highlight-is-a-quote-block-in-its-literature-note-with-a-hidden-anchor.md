@@ -1,12 +1,12 @@
 ---
 type: adr
 id: ADR-0043
-title: A highlight is a quote block in its source note, with an id and a hidden anchor
+title: A highlight is a quote block in its literature note, with an id and a hidden anchor
 status: proposed
 date: 2026-10-21
 ---
 
-# ADR-0043 — A highlight is a quote block in its source note, with an id and a hidden anchor
+# ADR-0043 — A highlight is a quote block in its literature note, with an id and a hidden anchor
 
 ## Context
 
@@ -36,18 +36,18 @@ Options weighed for where a highlight lives:
 
 ## Decision
 
-1. **One source note per source.** A PDF or EPUB lives in the vault, in its
-   type's home folder, `Sources` by default (ADR-0038's table gains
-   `source → Sources`), and syncs with it. DFAI never writes into the file,
+1. **One literature note per source.** A PDF or EPUB lives in the vault, in its
+   type's home folder, `Library` by default (ADR-0038's table gains
+   `literature → Library`), and syncs with it. DFAI never writes into the file,
    so it stays byte-identical. Its note declares what it is:
 
    ```markdown
    ---
-   type: source
+   type: literature
    kind: pdf
    title: 'The Art of War'
    author: 'Sun Tzu'
-   file: '[[Sources/The Art of War.pdf]]'
+   file: '[[Library/The Art of War.pdf]]'
    ---
    ```
 
@@ -125,7 +125,7 @@ Options weighed for where a highlight lives:
    a code fence, holding exactly one marker this build reads with words
    before it, then a blank line and `^id`. A quote without the id, with two
    markers, a broken or newer marker, or inside a list: not a highlight, and
-   kept exactly as written. Only a note that says `type: source` has
+   kept exactly as written. Only a note that says `type: literature` has
    highlights; the same text pasted elsewhere is a quote.
 
 9. **Re-anchoring uses the words first.** `findQuote` looks for `exact` in a
@@ -142,14 +142,14 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
 
 ## Consequences
 
-- A source note reads as a list of quotes with comments in Obsidian; its
+- A literature note reads as a list of quotes with comments in Obsidian; its
   highlights link and transclude with Obsidian's own grammar; search finds
   quotes and comments and never the marker.
 - DFAI's editor shows a highlight as one raw block, written back untouched,
   until a highlight node is built (the reader's views edit comments through
   `editHighlightComment` meanwhile).
 - The domain's public API — `appendHighlights`, `withHighlightComment`,
-  `withoutHighlight`, `readHighlights`, `findQuote`, `sourceNoteText` — is
+  `withoutHighlight`, `readHighlights`, `findQuote`, `literatureNoteText` — is
   pure; the application's `addHighlight(s)`, `editHighlightComment` and
   `removeHighlight` are the vault writes the readers and sync call.
 - `source` is already a reserved type name (a data source's `atlas: source`),

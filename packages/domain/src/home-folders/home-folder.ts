@@ -1,6 +1,6 @@
 import { isArchivedPath } from '../archive/archive.ts';
 import { DAILY_TYPE } from '../daily/daily-note.ts';
-import { SOURCE_NOTE_TYPE, SOURCES_HOME } from '../highlights/source-note.ts';
+import { LITERATURE_NOTE_TYPE, LIBRARY_HOME } from '../highlights/literature-note.ts';
 import { TASK_TYPE } from '../gtd/gtd-status.ts';
 import { MEETINGS_HOME } from '../meetings/meeting-arrival.ts';
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
@@ -33,7 +33,7 @@ const DEFAULT_HOME_FOLDERS: ReadonlyMap<string, string> = new Map([
   [RESOURCE_TYPE, 'Projects'],
   ['notes', PLAIN_NOTE_HOME],
   [PROPOSAL_TYPE, 'Inbox/Proposals'],
-  [SOURCE_NOTE_TYPE, SOURCES_HOME],
+  [LITERATURE_NOTE_TYPE, LIBRARY_HOME],
 ]);
 
 const DATE_TOKENS = /\{(YYYY|MM)\}/g;

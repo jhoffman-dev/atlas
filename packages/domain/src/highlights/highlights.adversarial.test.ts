@@ -12,11 +12,11 @@ import { readHighlights } from './highlight-block.ts';
 import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
 import { quoteLines } from './highlight-text.ts';
 import { findQuote, findQuoteNear, quoteSelectorAt } from './reanchor.ts';
-import { sourceNoteText } from './source-note.ts';
+import { literatureNoteText } from './literature-note.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
 /**
- * Adversarial tests for #503, ADR-0043 (found in PR #510): the source-note format under hostile
+ * Adversarial tests for #503, ADR-0043 (found in PR #510): the literature-note format under hostile
  * markers, Obsidian edits, Kindle re-syncs and re-anchoring. Each test is
  * one invariant the ADR states, and fails while the bug it names stands.
  */
@@ -33,17 +33,17 @@ function seeded(seed: number): () => number {
   };
 }
 
-const KINDLE_NOTE = sourceNoteText({
+const KINDLE_NOTE = literatureNoteText({
   kind: 'kindle',
   title: 'Emma',
   author: 'Jane Austen',
   file: null,
 });
-const PDF_NOTE = sourceNoteText({
+const PDF_NOTE = literatureNoteText({
   kind: 'pdf',
   title: 'The Art of War',
   author: 'Sun Tzu',
-  file: createVaultPath('Sources/The Art of War.pdf'),
+  file: createVaultPath('Library/The Art of War.pdf'),
 });
 
 const kindle = (start: number, annotationId: string | null = null): HighlightAnchor => ({
@@ -220,13 +220,13 @@ describe('a source file the note could not name back (attack on #510)', () => {
   // The `file:` is a wiki link, and `#`, `[`, `]`, `^` and `|` mean something inside one,
   // so such a name would read back as a different file. Decision A5: the writer refuses it.
   const noteFor = (file: string) =>
-    sourceNoteText({ kind: 'pdf', title: 'T', author: null, file: createVaultPath(file) });
+    literatureNoteText({ kind: 'pdf', title: 'T', author: null, file: createVaultPath(file) });
 
   it.each([
-    'Sources/C# in Depth.pdf',
-    'Sources/Notes [draft].pdf',
-    'Sources/A^b.pdf',
-    'Sources/A|b.pdf',
+    'Library/C# in Depth.pdf',
+    'Library/Notes [draft].pdf',
+    'Library/A^b.pdf',
+    'Library/A|b.pdf',
   ])('refuses the file %j', (file) => {
     expect(() => noteFor(file)).toThrow();
   });

@@ -4,7 +4,7 @@ import type { HighlightAnchor, HighlightStyle } from './anchor.ts';
 import { highlightMarker, readHighlightMarker } from './highlight-marker.ts';
 
 /*
- * A highlight in its source note (ADR-0043): a quote, the hidden marker, the
+ * A highlight in its literature note (ADR-0043): a quote, the hidden marker, the
  * person's comment, all one quote block, and the block's Obsidian id on a
  * line of its own after it, a blank line between (ADR-0022):
  *

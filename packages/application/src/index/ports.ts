@@ -69,11 +69,11 @@ export interface IndexedNote extends NoteVersion {
   readonly checks: readonly IndexedCheckRow[];
   /** How far through its checklist the note is, worked out here (`checklistProgress`); null with no box. */
   readonly progress: number | null;
-  /** A source note's highlights (#503), in the order written, read here so the host only stores them. */
+  /** A literature note's highlights (#503), in the order written, read here so the host only stores them. */
   readonly highlights: readonly IndexedHighlightRow[];
 }
 
-/** A highlight in a source note (ADR-0043), as the research views and search ask for it. */
+/** A highlight in a literature note (ADR-0043), as the research views and search ask for it. */
 export type IndexedHighlightRow = HighlightRow;
 
 /** A box in a note's checklist: ticked or not, and the words on its line. */

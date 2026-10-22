@@ -1,5 +1,5 @@
 /*
- * Source notes and their anchored highlights (#503, ADR-0043): the format
+ * Literature notes and their anchored highlights (#503, ADR-0043): the format
  * the PDF and EPUB readers, Kindle sync, jump-to-location and the library
  * all read and write. Every function here is pure; the vault writes are
  * `addHighlight`, `editHighlightComment` and `removeHighlight` in the
@@ -45,13 +45,13 @@ export type { AppendedHighlight, NewHighlight } from './edit-highlights.ts';
 export { findQuote, findQuoteNear, QUOTE_CONTEXT, quoteSelectorAt } from './reanchor.ts';
 export type { QuoteMatch, SectionMatch } from './reanchor.ts';
 export {
-  isSourceNote,
-  readSourceNote,
-  SOURCE_NOTE_TYPE,
-  SOURCES_HOME,
-  sourceNotePath,
-  sourceNoteText,
-} from './source-note.ts';
-export type { SourceNote } from './source-note.ts';
+  isLiteratureNote,
+  readLiteratureNote,
+  LITERATURE_NOTE_TYPE,
+  LIBRARY_HOME,
+  literatureNotePath,
+  literatureNoteText,
+} from './literature-note.ts';
+export type { LiteratureNote } from './literature-note.ts';
 export { highlightRows, mayHoldHighlights } from './highlight-rows.ts';
 export type { HighlightRow } from './highlight-rows.ts';

@@ -7,10 +7,10 @@ const MARKER = highlightMarker({
   anchor: { kind: 'kindle', location: { start: 41, end: 44 }, annotationId: null },
 });
 
-/** A source note as Obsidian or DFAI would hold it: two highlights, words around them. */
+/** A literature note as Obsidian or DFAI would hold it: two highlights, words around them. */
 const NOTE = [
   '---',
-  'type: source',
+  'type: literature',
   'kind: kindle',
   'title: "Moby Dick"',
   '---',

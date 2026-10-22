@@ -3,7 +3,7 @@ import {
   anchoredBlocks,
   appendHighlights,
   locateFragment,
-  sourceNoteText,
+  literatureNoteText,
   splitFrontmatter,
   withHighlightComment,
   type EditorDocument,
@@ -11,7 +11,7 @@ import {
 import { remarkMarkdown } from './markdown-port.ts';
 
 /**
- * A source note's highlights (#503, ADR-0043) as the editor, the index and a
+ * A literature note's highlights (#503, ADR-0043) as the editor, the index and a
  * save read them: kept byte for byte when untouched or when another block is
  * edited, the hidden marker out of the words searched, and the `^id` naming
  * the whole quote, so `[[Source#^id]]` and `![[Source#^id]]` find it.
@@ -24,7 +24,7 @@ function drawn(): () => number {
 }
 
 const NOTE = appendHighlights({
-  text: `${sourceNoteText({ kind: 'epub', title: 'Moby Dick', author: 'Herman Melville', file: null })}# Moby Dick\n\nMy own paragraph.\n`,
+  text: `${literatureNoteText({ kind: 'epub', title: 'Moby Dick', author: 'Herman Melville', file: null })}# Moby Dick\n\nMy own paragraph.\n`,
   highlights: [
     {
       quote: 'Call me Ishmael. Some years ago — never mind how long precisely —',
@@ -53,7 +53,7 @@ const save = (markdown: string, doc: EditorDocument) =>
     doc,
   });
 
-describe('a source note in the editor and the index', () => {
+describe('a literature note in the editor and the index', () => {
   it('saves an untouched note byte for byte', () => {
     const parsed = remarkMarkdown.parseBody(body);
     expect(save(body, parsed.doc)).toBe(body);
@@ -97,11 +97,11 @@ describe('a source note in the editor and the index', () => {
     expect(words).not.toContain('epubcfi');
   });
 
-  it('reads the frontmatter it wrote as a source note', () => {
+  it('reads the frontmatter it wrote as a literature note', () => {
     expect(
       remarkMarkdown.frontmatterProperties(splitFrontmatter(NOTE.text).frontmatter),
     ).toMatchObject({
-      type: 'source',
+      type: 'literature',
       kind: 'epub',
       title: 'Moby Dick',
       author: 'Herman Melville',

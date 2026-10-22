@@ -1,11 +1,11 @@
 /**
- * #503 (integration): a source note's highlights as the index is told them,
+ * #503 (integration): a literature note's highlights as the index is told them,
  * read by the real markdown reader — a row per highlight, in order, with its
  * plain words, comment and marker — and none for the same text in a note
  * that is not a source, or for a look-alike in code.
  */
 import { describe, expect, it } from 'vitest';
-import { appendHighlights, createVaultPath, sourceNoteText } from '@dfai/domain';
+import { appendHighlights, createVaultPath, literatureNoteText } from '@dfai/domain';
 import { toIndexedNote } from '@dfai/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
@@ -15,11 +15,11 @@ function steps(): () => number {
 }
 
 const SOURCE = appendHighlights({
-  text: `${sourceNoteText({
+  text: `${literatureNoteText({
     kind: 'pdf',
     title: 'The Art of War',
     author: 'Sun Tzu',
-    file: createVaultPath('Sources/The Art of War.pdf'),
+    file: createVaultPath('Library/The Art of War.pdf'),
   })}\`\`\`\n> Not one.\n> <!-- atlas:highlight {"v":1,"kind":"kindle","location":3} -->\n\n^fake01\n\`\`\`\n`,
   highlights: [
     {
@@ -48,10 +48,10 @@ const indexed = (path: string, text: string) =>
     markdown: remarkMarkdown,
   });
 
-describe("a source note's highlights in the index", () => {
+describe("a literature note's highlights in the index", () => {
   it('is a row per highlight, in order, the code look-alike left out', () => {
-    const note = indexed('Sources/The Art of War.md', SOURCE.text);
-    expect(note.type).toBe('source');
+    const note = indexed('Library/The Art of War.md', SOURCE.text);
+    expect(note.type).toBe('literature');
     expect(
       note.highlights.map(({ id, kind, quote, comment, mark, color }) => ({
         id,
@@ -92,7 +92,7 @@ describe("a source note's highlights in the index", () => {
   });
 
   it('is nothing for the same text in a note that is not a source', () => {
-    const plain = SOURCE.text.replace('type: source', 'type: notes');
+    const plain = SOURCE.text.replace('type: literature', 'type: notes');
     expect(indexed('Notes/Copy.md', plain).highlights).toEqual([]);
   });
 });

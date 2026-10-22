@@ -60,7 +60,7 @@ use crate::vault::VaultState;
 /// matched every note. 18: a body link keeps the last part of its target as
 /// links fold it (`links.leaf`), indexed, so a refresh finds the links a note
 /// just made could mean (#431) by a lookup rather than a scan. 19: every
-/// highlight in a source note, which TypeScript reads, gained a row in
+/// highlight in a literature note, which TypeScript reads, gained a row in
 /// `highlights` (#503, ADR-0043).
 const SCHEMA_VERSION: i64 = 19;
 
@@ -131,7 +131,7 @@ pub struct IndexedBlock {
     pub text: String,
 }
 
-/// A highlight in a source note, as TypeScript read it. What counts as one is decided there.
+/// A highlight in a literature note, as TypeScript read it. What counts as one is decided there.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexedHighlight {
@@ -1638,7 +1638,7 @@ mod tests {
     #[test]
     fn stores_each_highlight_typescript_read_in_order_with_every_column() {
         let mut index = empty_index();
-        let mut first = note("Sources/War.md", "War", "alpha");
+        let mut first = note("Library/War.md", "War", "alpha");
         let mut commented = highlight("k3x9q2", "All warfare");
         commented.comment = "Key **line**.".to_string();
         commented.kind = "epub".to_string();
@@ -1649,8 +1649,8 @@ mod tests {
         assert_eq!(
             highlight_rows(&index),
             vec![
-                row("Sources/War.md", 0, "k3x9q2", "All warfare"),
-                row("Sources/War.md", 1, "b2", "Know the enemy")
+                row("Library/War.md", 0, "k3x9q2", "All warfare"),
+                row("Library/War.md", 1, "b2", "Know the enemy")
             ]
         );
         let stored: (String, String, String, String, String) = index

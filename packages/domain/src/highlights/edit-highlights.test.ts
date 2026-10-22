@@ -10,7 +10,7 @@ import {
 } from './edit-highlights.ts';
 import { readHighlights } from './highlight-block.ts';
 import { highlightMarker } from './highlight-marker.ts';
-import { sourceNoteText } from './source-note.ts';
+import { literatureNoteText } from './literature-note.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
 /** mulberry32: a seeded random source, so every run draws the same ids. */
@@ -42,11 +42,11 @@ const pdf = (page: number, exact: string): HighlightAnchor => ({
   rects: [{ x: 0.1, y: 0.1, width: 0.5, height: 0.02 }],
 });
 
-const SOURCE = sourceNoteText({
+const SOURCE = literatureNoteText({
   kind: 'pdf',
   title: 'The Art of War',
   author: 'Sun Tzu',
-  file: createVaultPath('Sources/The Art of War.pdf'),
+  file: createVaultPath('Library/The Art of War.pdf'),
 });
 
 const deception: NewHighlight = {
@@ -55,7 +55,7 @@ const deception: NewHighlight = {
 };
 
 describe('appending highlights', () => {
-  it('writes the first highlight straight after the frontmatter of an empty source note', () => {
+  it('writes the first highlight straight after the frontmatter of an empty literature note', () => {
     const { text, highlights } = appendHighlights({
       text: SOURCE,
       highlights: [{ ...deception, comment: 'Key line.' }],

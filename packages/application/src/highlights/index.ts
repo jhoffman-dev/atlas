@@ -2,7 +2,7 @@ export {
   addHighlight,
   addHighlights,
   editHighlightComment,
-  NotASourceNoteError,
+  NotALiteratureNoteError,
   removeHighlight,
-  type SourceNoteWritePorts,
-} from './source-note-writes.ts';
+  type LiteratureNoteWritePorts,
+} from './literature-note-writes.ts';

@@ -9,7 +9,7 @@ import {
   highlightRows,
   importOutcomeOf,
   indexablePropertiesOf,
-  isSourceNote,
+  isLiteratureNote,
   linkLeaf,
   mayHoldBlockIds,
   mayHoldChecklist,
@@ -67,7 +67,7 @@ export function toIndexedNote({
       ranges: markdown.textRanges(document.body),
     }),
     ...readBlocks(document.body, markdown),
-    highlights: isSourceNote(frontmatter) ? highlightRows(file.text) : [],
+    highlights: isLiteratureNote(frontmatter) ? highlightRows(file.text) : [],
   };
 }
 

@@ -22,7 +22,7 @@ export function mayHoldHighlights(text: string): boolean {
   return text.includes('atlas:highlight');
 }
 
-/** The rows of a source note's highlights, in the order written. Only a source note's count. */
+/** The rows of a literature note's highlights, in the order written. Only a literature note's count. */
 export function highlightRows(text: string): HighlightRow[] {
   if (!mayHoldHighlights(text)) return [];
   return readHighlights(text).map((block) => ({
