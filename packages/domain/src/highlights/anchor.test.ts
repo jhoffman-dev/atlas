@@ -4,7 +4,9 @@ import {
   assertAnchor,
   highlightKey,
   InvalidHighlightAnchorError,
+  kindlePlaceKey,
   type HighlightAnchor,
+  type KindleAnchor,
 } from './anchor.ts';
 
 const quote = { exact: 'All warfare is based on deception.', prefix: 'said: ', suffix: ' Hence' };
@@ -75,6 +77,16 @@ describe('which anchors the format holds', () => {
       'ends after',
     ],
     [
+      'a Kindle page of 0',
+      { kind: 'kindle', location: null, page: 0, annotationId: null },
+      'whole number from 1',
+    ],
+    [
+      'a Kindle highlight with neither location nor page',
+      { kind: 'kindle', location: null, annotationId: null },
+      'location or a page',
+    ],
+    [
       'an empty annotation id',
       { kind: 'kindle', location: { start: 10, end: null }, annotationId: '' },
       'annotation id',
@@ -135,5 +147,26 @@ describe('what makes two highlights the same passage', () => {
     expect(
       highlightKey({ ...kindle, location: { start: 10, end: null } }, 'Call me Ishmael.'),
     ).not.toBe(highlightKey(kindle, 'Call me Ishmael.'));
+  });
+
+  it('is a Kindle page, location and words, the export words not the quote shown', () => {
+    const kindle: HighlightAnchor = {
+      kind: 'kindle',
+      location: null,
+      page: 12,
+      annotationId: null,
+      exact: 'Call me Ishmael.',
+    };
+    expect(highlightKey(kindle, 'tidied')).toBe(highlightKey(kindle, 'other'));
+    expect(highlightKey({ ...kindle, page: 13 }, 'x')).not.toBe(highlightKey(kindle, 'x'));
+  });
+
+  it('shares a place key across annotation ids, which is how a late id finds its earlier copy', () => {
+    const at = (annotationId: string | null): KindleAnchor => ({
+      kind: 'kindle',
+      location: { start: 3, end: null },
+      annotationId,
+    });
+    expect(kindlePlaceKey(at('A1'), 'Words')).toBe(kindlePlaceKey(at(null), 'Words'));
   });
 });

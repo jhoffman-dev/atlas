@@ -36,6 +36,7 @@ describe('a literature note', () => {
       title: 'Moby Dick',
       author: 'Herman Melville',
       file: createVaultPath('Library/Moby Dick.epub'),
+      asin: null,
     });
   });
 
@@ -58,6 +59,7 @@ describe('a literature note', () => {
       title: '1984',
       author: null,
       file: null,
+      asin: null,
     });
   });
 
@@ -134,7 +136,7 @@ describe("a literature note's index rows", () => {
         mark: 'underline',
         color: 'orange',
         anchor:
-          '{"v":1,"mark":"underline","color":"orange","kind":"kindle","location":12,"locationEnd":14,"annotationId":"AMZ-9"}',
+          '{"v":1,"mark":"underline","color":"orange","kind":"kindle","location":12,"locationEnd":14,"annotationId":"AMZ-9","exact":"A *mind* lively."}',
       },
     ]);
   });

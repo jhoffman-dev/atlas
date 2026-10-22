@@ -264,7 +264,9 @@ describe('re-anchoring (attack on #510)', () => {
 
   it('answers no match rather than an arbitrary copy when two copies score the same', () => {
     // ADR-0043 §9: changed words are not found rather than found in the wrong place.
-    const text = 'One said: know the enemy. Two said: know the enemy.';
+    // (The attack's text ended at the second copy, which gave it one less character of
+    // suffix, so the copies did not tie; ending both on ' Done.' makes them tie.)
+    const text = 'One said: know the enemy. Two said: know the enemy. Done.';
     expect(
       findQuote(text, { exact: 'know the enemy.', prefix: 'Other edition: ', suffix: ' Next' }),
     ).toBeNull();

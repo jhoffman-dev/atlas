@@ -50,14 +50,20 @@ export interface EpubAnchor {
 }
 
 /**
- * A Kindle highlight: the location range Kindle gives it (from 1), and
- * Amazon's id for the annotation when the export carries one, which is what
- * a later sync knows it by.
+ * A Kindle highlight: the location range Kindle gives it (from 1) or, for a
+ * book whose export has pages and no locations, its `page`; at least one of
+ * the two. `annotationId` is Amazon's id for the annotation when the export
+ * carries one, which is what a later sync knows it by. `exact` is the
+ * export's own words, kept as the marker holds them so a later sync can tell
+ * the passage again after the person has tidied the quote; absent in a new
+ * anchor, where the quote given with it is the export's words.
  */
 export interface KindleAnchor {
   readonly kind: 'kindle';
-  readonly location: { readonly start: number; readonly end: number | null };
+  readonly location: { readonly start: number; readonly end: number | null } | null;
+  readonly page?: number;
   readonly annotationId: string | null;
+  readonly exact?: string;
 }
 
 export type HighlightAnchor = PdfAnchor | EpubAnchor | KindleAnchor;
@@ -92,22 +98,29 @@ export function anchorProblem(anchor: HighlightAnchor): string | null {
   switch (anchor.kind) {
     case 'pdf':
       if (!isCount(anchor.page)) return 'a PDF page is a whole number from 1';
-      if (anchor.quote !== null && anchor.quote.exact === '') return 'a quote has words';
+      if (anchor.quote !== null && isBlank(anchor.quote.exact)) return 'a quote has words';
       if (!anchor.rects.every(isPageRect)) return 'a box lies on its page';
       return anchor.quote === null && anchor.rects.length === 0
         ? 'a highlight with no words covers a box'
         : null;
     case 'epub':
       if (!anchor.cfi.startsWith('epubcfi(')) return 'an EPUB place is an epubcfi(…)';
-      return anchor.quote.exact === '' ? 'a quote has words' : null;
-    case 'kindle': {
-      const { start, end } = anchor.location;
-      if (!isCount(start)) return 'a Kindle location is a whole number from 1';
-      if (end !== null && (!isCount(end) || end < start))
-        return 'a location range ends after it starts';
-      return anchor.annotationId === '' ? 'an annotation id has characters' : null;
-    }
+      return isBlank(anchor.quote.exact) ? 'a quote has words' : null;
+    case 'kindle':
+      return kindleProblem(anchor);
   }
+}
+
+function kindleProblem(anchor: KindleAnchor): string | null {
+  const { location, page } = anchor;
+  if (location === null && page === undefined) return 'a Kindle highlight has a location or a page';
+  if (page !== undefined && !isCount(page)) return 'a Kindle page is a whole number from 1';
+  if (location !== null) {
+    if (!isCount(location.start)) return 'a Kindle location is a whole number from 1';
+    if (location.end !== null && (!isCount(location.end) || location.end < location.start))
+      return 'a location range ends after it starts';
+  }
+  return anchor.annotationId === '' ? 'an annotation id has characters' : null;
 }
 
 /** Throws `InvalidHighlightAnchorError` when `anchor` is not one the format holds. */
@@ -118,6 +131,11 @@ export function assertAnchor(anchor: HighlightAnchor): void {
 
 const isCount = (value: number): boolean => Number.isInteger(value) && value >= 1;
 
+const isBlank = (text: string): boolean => text.trim() === '';
+
+/** How far past the page's edge a box may run for rounding: a reader divides by the page's size. */
+const EDGE_TOLERANCE = 1e-6;
+
 const isFraction = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
 
 function isPageRect(rect: PageRect): boolean {
@@ -127,15 +145,18 @@ function isPageRect(rect: PageRect): boolean {
     isFraction(rect.width) &&
     isFraction(rect.height) &&
     rect.width > 0 &&
-    rect.height > 0
+    rect.height > 0 &&
+    rect.x + rect.width <= 1 + EDGE_TOLERANCE &&
+    rect.y + rect.height <= 1 + EDGE_TOLERANCE
   );
 }
 
 /**
  * What makes two highlights the same passage, so a sync run again adds
  * nothing it added before. Kindle's own id wins when there is one; without
- * it a Kindle highlight is its location and its words, since two can start
- * at one location.
+ * it a Kindle highlight is its place and the export's words (`exact`, else
+ * the quote given), since two can start at one location. A person tidying
+ * the quote in the note changes neither.
  */
 export function highlightKey(anchor: HighlightAnchor, quote: string): string {
   switch (anchor.kind) {
@@ -148,9 +169,23 @@ export function highlightKey(anchor: HighlightAnchor, quote: string): string {
     case 'kindle':
       return anchor.annotationId !== null
         ? JSON.stringify(['kindle-id', anchor.annotationId])
-        : JSON.stringify(['kindle', anchor.location.start, anchor.location.end, foldWords(quote)]);
+        : kindlePlaceKey(anchor, quote);
   }
 }
+
+/**
+ * A Kindle highlight's place and words with no regard for its annotation id:
+ * what an export that learns the id later shares with the copy synced
+ * without it, so the two are one passage.
+ */
+export const kindlePlaceKey = (anchor: KindleAnchor, quote: string): string =>
+  JSON.stringify([
+    'kindle',
+    anchor.location?.start ?? null,
+    anchor.location?.end ?? null,
+    anchor.page ?? null,
+    foldWords(anchor.exact ?? quote),
+  ]);
 
 const selectorKey = (quote: TextQuoteSelector): string[] =>
   [quote.exact, quote.prefix, quote.suffix].map(foldWords);

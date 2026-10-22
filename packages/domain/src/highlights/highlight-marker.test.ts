@@ -22,6 +22,14 @@ const anchors: [string, HighlightAnchor][] = [
   ['an EPUB passage', { kind: 'epub', cfi: 'epubcfi(/6/4!/4/2,/1:0,/1:12)', quote }],
   ['a Kindle location', { kind: 'kindle', location: { start: 41, end: null }, annotationId: null }],
   [
+    'a Kindle page with no location',
+    { kind: 'kindle', location: null, page: 12, annotationId: null },
+  ],
+  [
+    'a Kindle highlight with the export words',
+    { kind: 'kindle', location: { start: 5, end: null }, annotationId: 'A1', exact: 'The words' },
+  ],
+  [
     'a Kindle range with its id',
     { kind: 'kindle', location: { start: 41, end: 44 }, annotationId: 'AMZ-QX1' },
   ],
@@ -113,6 +121,13 @@ describe('the highlight marker', () => {
     ['a Kindle location as text', json({ v: 1, kind: 'kindle', location: '2' })],
     ['a Kindle end as text', json({ v: 1, kind: 'kindle', location: 2, locationEnd: '3' })],
     ['a Kindle id as a number', json({ v: 1, kind: 'kindle', location: 2, annotationId: 7 })],
+    ['a Kindle page as text', json({ v: 1, kind: 'kindle', page: '2' })],
+    ['a Kindle export words as a number', json({ v: 1, kind: 'kindle', location: 2, exact: 4 })],
+    ['a Kindle with neither location nor page', json({ v: 1, kind: 'kindle' })],
+    [
+      'a PDF whose words hold --> raw',
+      json({ v: 1, kind: 'pdf', page: 1, exact: 'a --> b', rects: [[0.1, 0.1, 0.2, 0.2]] }),
+    ],
     ['a Kindle range that ends first', json({ v: 1, kind: 'kindle', location: 5, locationEnd: 4 })],
   ])('is not read from %s', (_label, line) => {
     expect(readHighlightMarker(line)).toBeNull();

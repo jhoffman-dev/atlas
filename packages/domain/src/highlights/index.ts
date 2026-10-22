@@ -11,6 +11,7 @@ export {
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_COLORS,
   highlightKey,
+  kindlePlaceKey,
   InvalidHighlightAnchorError,
   SOURCE_KINDS,
 } from './anchor.ts';
@@ -37,7 +38,9 @@ export { plainQuote } from './highlight-text.ts';
 export {
   appendHighlights,
   HighlightNotFoundError,
+  HighlightNotReadBackError,
   highlightNamed,
+  UnreadableHighlightMarkerError,
   withHighlightComment,
   withoutHighlight,
 } from './edit-highlights.ts';
@@ -51,6 +54,8 @@ export {
   LIBRARY_HOME,
   literatureNotePath,
   literatureNoteText,
+  safeSourceFileName,
+  UnsafeSourceFileError,
 } from './literature-note.ts';
 export type { LiteratureNote } from './literature-note.ts';
 export { highlightRows, mayHoldHighlights } from './highlight-rows.ts';

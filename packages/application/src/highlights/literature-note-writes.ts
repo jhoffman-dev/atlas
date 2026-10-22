@@ -47,7 +47,9 @@ export class NotALiteratureNoteError extends Error {
  * id drawn from `rng`, and answers each one's id in the order given. A
  * passage the note already holds is not added again (`added: false`), so a
  * sync can hand over everything it has each time. Writes nothing when every
- * one was there.
+ * one was there, and nothing when the note holds a marker this build cannot
+ * read (`UnreadableHighlightMarkerError`) or would hide the new highlight
+ * (`HighlightNotReadBackError`: an unclosed code fence or HTML comment).
  */
 export async function addHighlights(
   ports: LiteratureNoteWritePorts & { readonly rng: Rng },

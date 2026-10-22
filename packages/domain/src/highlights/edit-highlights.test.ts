@@ -315,7 +315,8 @@ describe('removing a highlight', () => {
 
   it('takes out a highlight ending the note with no final line ending', () => {
     const text = `Words.\n\n> Q.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: deception.anchor })}\n\n^abc123`;
-    expect(withoutHighlight({ text, id: 'abc123' })).toBe('Words.\n');
+    // A block with no final line ending is one DFAI wrote to a note without one (A11): gone, so is it.
+    expect(withoutHighlight({ text, id: 'abc123' })).toBe('Words.');
   });
 
   it('refuses a highlight the note does not hold', () => {

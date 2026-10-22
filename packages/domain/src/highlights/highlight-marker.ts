@@ -18,13 +18,15 @@ import {
  *
  * The comment keeps `atlas:`, as every marker does (ADR-0042). `<` and `>`
  * in the JSON are written as `\u003c` and `\u003e`, so no quoted words can
- * close the comment early, and the JSON stays on one line.
+ * close the comment early, and U+2028 and U+2029 as `\u2028` and `\u2029`,
+ * which some readers take for a line end; the JSON stays on one line.
  */
 
 /** The version of the marker's JSON this build writes, and the only one it reads. */
 export const HIGHLIGHT_MARKER_VERSION = 1;
 
-const MARKER = /^<!--[ \t]*atlas:highlight[ \t]+(\{.*\})[ \t]*-->$/;
+// `[^\r\n]`, not `.`: a hand-written marker may hold a raw U+2028, which `.` stops at.
+const MARKER = /^<!--[ \t]*atlas:highlight[ \t]+(\{[^\r\n]*\})[ \t]*-->$/;
 
 /** What the marker says: how the highlight is drawn and where it is in its file. */
 export interface HighlightMarker {
@@ -35,7 +37,11 @@ export interface HighlightMarker {
 /** The marker comment for a highlight, as DFAI writes it. */
 export function highlightMarker({ style, anchor }: HighlightMarker): string {
   const fields = { v: HIGHLIGHT_MARKER_VERSION, ...style, ...anchorFields(anchor) };
-  const json = JSON.stringify(fields).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+  const json = JSON.stringify(fields)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
   return `<!-- atlas:highlight ${json} -->`;
 }
 
@@ -47,7 +53,8 @@ export function highlightMarker({ style, anchor }: HighlightMarker): string {
  */
 export function readHighlightMarker(line: string): HighlightMarker | null {
   const json = MARKER.exec(line.trim())?.[1];
-  if (json === undefined) return null;
+  // CommonMark ends a comment at the first `-->`, so one inside the JSON shows the rest as text.
+  if (json === undefined || json.includes('-->')) return null;
   const fields = parsedObject(json);
   if (fields === null || fields.v !== HIGHLIGHT_MARKER_VERSION) return null;
   const anchor = anchorOf(fields);
@@ -88,9 +95,12 @@ function anchorFields(anchor: HighlightAnchor): Record<string, unknown> {
     case 'kindle':
       return {
         kind: 'kindle',
-        location: anchor.location.start,
-        ...(anchor.location.end !== null && { locationEnd: anchor.location.end }),
+        ...(anchor.location !== null && { location: anchor.location.start }),
+        ...(anchor.location?.end !== undefined &&
+          anchor.location.end !== null && { locationEnd: anchor.location.end }),
+        ...(anchor.page !== undefined && { page: anchor.page }),
         ...(anchor.annotationId !== null && { annotationId: anchor.annotationId }),
+        ...(anchor.exact !== undefined && { exact: anchor.exact }),
       };
   }
 }
@@ -118,14 +128,19 @@ function anchorOf(fields: Fields): HighlightAnchor | null {
 }
 
 function kindleOf(fields: Fields): HighlightAnchor | null {
-  const { location, locationEnd, annotationId } = fields;
-  if (typeof location !== 'number') return null;
+  const { location, locationEnd, page, annotationId, exact } = fields;
+  if (location !== undefined && typeof location !== 'number') return null;
   if (locationEnd !== undefined && typeof locationEnd !== 'number') return null;
+  if (page !== undefined && typeof page !== 'number') return null;
   if (annotationId !== undefined && typeof annotationId !== 'string') return null;
+  if (exact !== undefined && typeof exact !== 'string') return null;
   return {
     kind: 'kindle',
-    location: { start: location, end: locationEnd ?? null },
+    // A range with no start is no place; the anchor check refuses it with the rest.
+    location: location === undefined ? null : { start: location, end: locationEnd ?? null },
+    ...(page !== undefined && { page }),
     annotationId: annotationId ?? null,
+    ...(exact !== undefined && { exact }),
   };
 }
 
