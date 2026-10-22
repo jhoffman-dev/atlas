@@ -61,7 +61,7 @@ export function useKindleRuns({
   });
 
   const automatic = useSteadyCallback(async () => {
-    if (intoVault) settled(await runKindleSync(runPorts, 'automatic'), 'automatic');
+    settled(await runKindleSync(runPorts, 'automatic'), 'automatic');
   });
 
   const asked = useSteadyCallback(async () => {
@@ -69,6 +69,7 @@ export function useKindleRuns({
     else settled(await runKindleSync(runPorts, 'asked'), 'asked');
   });
 
+  // Only a vault the person turned it on for has a timer; turning it off clears the timer.
   useEffect(() => {
     if (vaultKey === null || !indexReady || !intoVault) return undefined;
     void automatic();
