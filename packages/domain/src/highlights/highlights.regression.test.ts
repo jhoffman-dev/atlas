@@ -176,3 +176,135 @@ describe('A9: re-anchoring picks no copy on noise (verify #510)', () => {
     ).toBeNull();
   });
 });
+
+/*
+ * Second verification pass on PR #510 (#503, ADR-0043), after the hidden-block,
+ * lazy-line, Kindle-place and exact-removal fixes.
+ */
+
+const WARFARE = {
+  quote: 'All warfare is based on deception.',
+  anchor: pdf('All warfare is based on deception.'),
+};
+
+const idsOf = (text: string) => readHighlights(text).map((block) => block.id);
+
+describe('R1: a %% inside code hides nothing (verify2 #510)', () => {
+  /*
+   * The tracker already lets a fence and a single-backtick span keep `%%` as
+   * text; Obsidian shows code literally everywhere. A `%%` in any other code —
+   * a fence in a highlight's comment, an indented code block, a double-backtick
+   * span — is counted as opening a comment, so every later highlight drops out
+   * of the index and every later append is refused.
+   */
+  it('keeps the highlights after one whose comment holds a fenced `%%` (a MATLAB cell)', () => {
+    const first = appended(PDF_NOTE, [
+      { ...WARFARE, comment: '```matlab\n%% Section one\nx = 1;\n```' },
+    ]);
+    const both = appended(first.text, [KNOW], 2);
+    expect(idsOf(both.text)).toEqual([first.highlights[0]?.id, both.highlights[0]?.id]);
+  });
+
+  it('keeps the highlights after an indented code block holding `%%`', () => {
+    const note = `${PDF_NOTE}Example:\n\n    printf("100%%\\n");\n\n`;
+    expect(() => appended(note, [KNOW])).not.toThrow();
+  });
+
+  it('keeps the highlights after a double-backtick code span holding `%%`', () => {
+    const note = `${PDF_NOTE}Escape it as \`\`%%\`\` in a format string.\n\n`;
+    expect(() => appended(note, [KNOW])).not.toThrow();
+  });
+
+  it('keeps the highlights after a plain quote holding a fenced `%%`', () => {
+    const note = `${PDF_NOTE}> [!example]\n> \`\`\`matlab\n> %% Section one\n> \`\`\`\n\n`;
+    expect(() => appended(note, [KNOW])).not.toThrow();
+  });
+});
+
+describe('R2: a quote line indented under the block still belongs to it (verify2 #510)', () => {
+  it('reads a highlight whose comment line has spaces before its `>`, so a sync adds nothing twice', () => {
+    // CommonMark (micromark) keeps `  > more` in the block quote; Obsidian shows one quote.
+    const first = appended(PDF_NOTE, [{ ...KNOW, comment: 'Mine.' }]);
+    const id = first.highlights[0]?.id as string;
+    const edited = first.text.replace('> Mine.\n', '> Mine.\n  > And more.\n');
+    const again = appended(edited, [KNOW], 2);
+    expect(again.highlights).toEqual([{ id, added: false }]);
+  });
+});
+
+describe('R3: a Kindle passage is one passage across exports that place it differently (verify2 #510)', () => {
+  it('matches an id-less location-and-page copy from an export that gives the page alone', () => {
+    // My Clippings gives "page 5 | Location 77-79"; a notebook export of a book with
+    // real page numbers gives "Page 5" and the annotation id. Same words, same page.
+    const words = 'It is a truth universally acknowledged.';
+    const first = appended(KINDLE_NOTE, [
+      {
+        quote: words,
+        anchor: { kind: 'kindle', location: { start: 77, end: 79 }, page: 5, annotationId: null },
+      },
+    ]);
+    const again = appended(
+      first.text,
+      [
+        {
+          quote: words,
+          anchor: { kind: 'kindle', location: null, page: 5, annotationId: 'AMZ-1' },
+        },
+      ],
+      2,
+    );
+    expect(again.highlights).toEqual([{ id: first.highlights[0]?.id, added: false }]);
+  });
+
+  const LOCATED_AND_PAGED = {
+    kind: 'kindle',
+    location: { start: 77, end: 79 },
+    page: 5,
+    annotationId: null,
+  } as const;
+  const PAGED_WITH_ID = { kind: 'kindle', location: null, page: 5, annotationId: 'AMZ-1' } as const;
+  const WORDS = 'It is a truth universally acknowledged.';
+
+  it.each([
+    ['the located copy first, then the paged one', LOCATED_AND_PAGED, PAGED_WITH_ID],
+    ['the paged copy first, then the located one', PAGED_WITH_ID, LOCATED_AND_PAGED],
+  ])('keeps one passage, %s', (_, earlier, later) => {
+    const first = appended(KINDLE_NOTE, [{ quote: WORDS, anchor: earlier }]);
+    const again = appended(first.text, [{ quote: WORDS, anchor: later }], 2);
+    expect(again.highlights).toEqual([{ id: first.highlights[0]?.id, added: false }]);
+    expect(again.text).toBe(first.text);
+  });
+
+  it.each([
+    [
+      'locations differ though the pages match',
+      { kind: 'kindle', location: { start: 78, end: 79 }, page: 5, annotationId: null },
+      { kind: 'kindle', location: { start: 77, end: 79 }, page: 5, annotationId: 'AMZ-1' },
+    ],
+    [
+      'pages differ and neither has a location',
+      { kind: 'kindle', location: null, page: 5, annotationId: null },
+      { kind: 'kindle', location: null, page: 6, annotationId: 'AMZ-1' },
+    ],
+    [
+      'one has only a location and the other only a page',
+      { kind: 'kindle', location: { start: 77, end: 79 }, annotationId: null },
+      { kind: 'kindle', location: null, page: 5, annotationId: 'AMZ-1' },
+    ],
+  ] as const)('keeps two passages when %s', (_, earlier, later) => {
+    const first = appended(KINDLE_NOTE, [{ quote: WORDS, anchor: earlier }]);
+    const again = appended(first.text, [{ quote: WORDS, anchor: later }], 2);
+    expect(again.highlights[0]?.added).toBe(true);
+  });
+});
+
+describe('A11: removing what was appended gives the note back byte for byte (verify2 #510)', () => {
+  it.each([
+    ['LF', '---\ntype: literature\n---'],
+    ['CRLF', '---\r\ntype: literature\r\n---'],
+  ])('to a frontmatter-only note with no final newline (%s)', (_, note) => {
+    const added = appended(note, [KNOW]);
+    const id = added.highlights[0]?.id as string;
+    expect(withoutHighlight({ text: added.text, id })).toBe(note);
+  });
+});
