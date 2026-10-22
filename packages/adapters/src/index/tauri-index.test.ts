@@ -49,6 +49,17 @@ describe('tauriIndex', () => {
         blocks: [{ id: 'f3k9x2', text: 'The plan' }],
         checks: [{ done: true, text: 'Book the hall' }],
         progress: 100,
+        highlights: [
+          {
+            id: 'k3x9q2',
+            kind: 'pdf' as const,
+            quote: 'All warfare is based on deception.',
+            comment: '',
+            mark: 'highlight' as const,
+            color: 'yellow',
+            anchor: '{"v":1,"kind":"pdf","page":3}',
+          },
+        ],
       },
     ];
     await tauriIndex.put(notes);
