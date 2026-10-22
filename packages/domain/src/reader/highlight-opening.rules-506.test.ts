@@ -4,7 +4,7 @@ import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { highlightOpening, pdfLinkTarget, readerLinkLabel } from './highlight-opening.ts';
 
 /*
- * Attack on PR #522 (#506): where a followed highlight opens, and which PDF
+ * Regression (#506): where a followed highlight opens, and which PDF
  * `[[…pdf]]` names. Each test is one rule the PR's own tests leave open.
  */
 

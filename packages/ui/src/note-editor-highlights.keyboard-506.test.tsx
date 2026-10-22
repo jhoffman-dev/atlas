@@ -63,7 +63,7 @@ function renderEditor(
 }
 
 /*
- * Attack on PR #522 (#506): the chip and "Open in PDF" are drawn as links —
+ * Regression (#506): the chip and "Open in PDF" are drawn as links —
  * role="link", in the tab order — so a keyboard user reaches them; reached,
  * Enter must follow them as a click does, as a link does everywhere else.
  */

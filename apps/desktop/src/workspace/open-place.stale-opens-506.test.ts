@@ -15,7 +15,7 @@ import {
 } from './workspace-store.ts';
 
 /*
- * Attack on PR #522 (#506): a block link now reads its note before it opens
+ * Regression (#506): a block link now reads its note before it opens
  * anything, and `[[…pdf]]` is read before notes are. Where those reads
  * resolve late, or out of order, the click that lands must be the one the
  * person made last, in the place they are still looking at.

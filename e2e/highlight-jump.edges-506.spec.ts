@@ -5,7 +5,7 @@ import { createVault, installHost, sidebarSection } from './host.ts';
 import { lanternFixturePdf } from '../tools/pdf/fixture-pdf.ts';
 
 /*
- * Attack on PR #522 (#506), end to end in WebKit: the chip from the keyboard,
+ * Regression (#506), end to end in WebKit: the chip from the keyboard,
  * a literature note whose `file:` is no PDF, `[[name.pdf]]` when two
  * literature notes' PDFs share the name, and an aliased link to a highlight
  * in a list item. (A table is still a raw block, so its links are not live:
