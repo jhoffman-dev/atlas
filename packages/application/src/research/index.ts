@@ -8,3 +8,4 @@ export {
   refreshLibrary,
 } from './load-research.ts';
 export type { HighlightsRead, LibraryRead } from './load-research.ts';
+export { libraryScope } from './library-scope.ts';

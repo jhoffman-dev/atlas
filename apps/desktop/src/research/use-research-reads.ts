@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { HighlightChoices, HighlightEntry, LibraryChoices, LibraryEntry } from '@dfai/domain';
 import {
   HIGHLIGHTS_SCOPE,
-  LIBRARY_SCOPE,
+  libraryScope,
   readHighlights,
   readLibrary,
   refreshHighlights,
@@ -35,13 +35,16 @@ export interface HighlightList {
 
 /**
  * Every literature note, read once and kept (ADR-0040) until the index has
- * news of one, or of a project they are filed under (`LIBRARY_SCOPE`).
+ * news of one, or of a note they are filed under (`libraryScope`).
  */
 export function useLibraryRead({ index, vault, ready }: ResearchReadPorts): ReadState<LibraryList> {
+  const queryKey = scopedReadKey(vault ?? '', 'library');
+  // The scope is what the kept read is filed under, so it follows each read and refresh.
+  const kept = useQueryClient().getQueryData<LibraryRead>(queryKey);
   const { data, error } = useQuery({
-    queryKey: scopedReadKey(vault ?? '', 'library'),
+    queryKey,
     queryFn: () => readLibrary({ index }),
-    meta: scopedReadMeta(LIBRARY_SCOPE, false, (previous: LibraryRead, changes) =>
+    meta: scopedReadMeta(libraryScope(kept), false, (previous: LibraryRead, changes) =>
       refreshLibrary({ index, previous, changes }),
     ),
     enabled: ready && vault !== null,

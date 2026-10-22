@@ -3,6 +3,7 @@ import { createVaultPath, type NoteChange } from '@dfai/domain';
 import type { IndexedHighlightRow, IndexedNote, IndexPort } from '../index/ports.ts';
 import { sqliteIndexPort } from '../testing/sqlite-index.ts';
 import { changesTouching, HIGHLIGHTS_SCOPE, LIBRARY_SCOPE } from '../reads/scoped-reads.ts';
+import { libraryScope } from './library-scope.ts';
 import {
   readHighlights,
   readLibrary,
@@ -173,7 +174,7 @@ describe('a refresh in place, over random sequences of changes (seeded)', () => 
 });
 
 describe('a Library row filed under a note of no covered type (PR #525 regression)', () => {
-  it("is right again on the Library's next news, as LIBRARY_SCOPE documents", async () => {
+  it('is right again on the news of that note, as libraryScope covers it', async () => {
     const sqlite = sqliteIndexPort();
     const index: Pick<IndexPort, 'query'> = sqlite;
     const literatureNote = (path: string, relations: IndexedNote['relations']): IndexedNote => ({
@@ -210,23 +211,14 @@ describe('a Library row filed under a note of no covered type (PR #525 regressio
       literatureNote('Library/Soil.md', []),
     ]);
     const previous = await readLibrary({ index });
-    // The untyped note is retitled: no covered type, so the Library is not told (documented).
+    // The untyped note is retitled. The Library is filed under it, so its scope (`libraryScope`) hears it.
     await sqlite.put([garden('Kitchen garden')]);
-    // The Library's next news: another literature note is saved.
-    await sqlite.put([{ ...literatureNote('Library/Soil.md', []), digest: 'edited' }]);
-    const next = await refreshLibrary({
-      index,
-      previous,
-      changes: [
-        {
-          kind: 'changed',
-          path: 'Library/Soil.md',
-          type: 'literature',
-          digest: 'edited',
-          before: 'x',
-        },
-      ],
-    });
+    const touching = changesTouching(libraryScope(previous), [
+      { kind: 'changed', path: 'Notes/Garden.md', type: null, digest: 'retitled', before: 'x' },
+    ]);
+    expect(touching).toHaveLength(1);
+    const next = await refreshLibrary({ index, previous, changes: touching });
+    expect(next).not.toBeNull();
 
     expect(next?.entries ?? (await readLibrary({ index })).entries).toEqual(
       (await readLibrary({ index })).entries,

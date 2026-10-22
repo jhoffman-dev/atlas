@@ -127,9 +127,8 @@ export const TERMS_SCOPE: ReadScope = { types: [TERM_TYPE, PERSON_TYPE, COMPANY_
  * What the Library lists (`loadLibrary`, #507): the literature notes, and the
  * projects and areas they are filed under, whose titles it shows.
  *
- * Not covered: a `project:` link to a note of another type, or of none. Its
- * retitle reaches no covered note; the row is right again on the Library's
- * next news.
+ * Not covered here: a `project:` link to a note of another type, or of none.
+ * The Library covers it by `libraryScope`, from what it read.
  */
 export const LIBRARY_SCOPE: ReadScope = { types: [LITERATURE_NOTE_TYPE, ...FILED_UNDER_TYPES] };
 

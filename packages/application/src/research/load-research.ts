@@ -2,7 +2,9 @@ import {
   compileHighlightsQuery,
   compileLibraryQuery,
   createVaultPath,
+  FILED_UNDER_TYPES,
   flattenHighlights,
+  foldedLinkName,
   highlightChoices,
   HIGHLIGHTS_PAGE_SIZE,
   inDisplayOrder,
@@ -251,9 +253,11 @@ export async function loadAllHighlights({
 /** More changed notes than this are read again whole: the statements name each one. */
 export const MAX_REFRESHED_PATHS = 100;
 
-/** The type a change's note declares, as `typesOf` reads one: comma-joined names, case aside. */
-const isLiterature = (type: string | null | undefined): boolean =>
-  type?.split(',').some((name) => name.trim().toLowerCase() === 'literature') === true;
+/** Whether the type a change's note declares, as `typesOf` reads one (comma-joined names, case aside), is one of `types`. */
+const isOneOf = (types: readonly string[], type: string | null | undefined): boolean =>
+  type?.split(',').some((name) => types.includes(name.trim().toLowerCase())) === true;
+
+const isLiterature = (type: string | null | undefined): boolean => isOneOf(['literature'], type);
 
 /**
  * The notes `changes` say changed, when that is all that a read of literature
@@ -293,10 +297,60 @@ function inPathOrder(left: string, right: string): number {
   }
 }
 
+/** A path as the Mac's disk compares it: case aside, accents composed. */
+const foldedPath = (path: string) => path.normalize('NFC').toLowerCase();
+
+/** The name a link finds a note by (`foldedLinkName`): the last part of a path or of a target. */
+const linkNameOf = (pathOrTarget: string) =>
+  foldedLinkName(pathOrTarget.slice(pathOrTarget.lastIndexOf('/') + 1));
+
 /**
- * The Library again after `changes`: only the notes they name are read
+ * The sources of `entries` filed under the note at `path`: by the path their
+ * `project:` resolved to, or, unresolved, by the name it waits for.
+ */
+function filedUnder(entries: readonly LibraryEntry[], path: string): string[] {
+  const at = foldedPath(path);
+  const name = linkNameOf(path);
+  return entries
+    .filter((entry) =>
+      entry.projects.some((project) =>
+        project.path === null ? linkNameOf(project.name) === name : foldedPath(project.path) === at,
+      ),
+    )
+    .map((entry) => entry.path);
+}
+
+/**
+ * The Library's sources `changes` say to read again: each literature note
+ * that changed, and the sources filed under a note of no filed-under type
+ * that changed (`libraryScope`) — its title is their project's name. Null
+ * when the whole is to be read again: a project or area changed, whose
+ * change can re-resolve any source's `project:`, or too many to name.
+ */
+function changedLibraryPaths(
+  previous: LibraryRead,
+  changes: readonly NoteChange[],
+): string[] | null {
+  const paths = new Set<string>();
+  for (const change of changes) {
+    if (isLiterature(change.type) || isLiterature(change.beforeType)) {
+      paths.add(change.path);
+      continue;
+    }
+    const filed = filedUnder(previous.entries, change.path);
+    const project = [change.type, change.beforeType].some((type) =>
+      isOneOf(FILED_UNDER_TYPES, type),
+    );
+    if (project || filed.length === 0) return null;
+    for (const path of filed) paths.add(path);
+  }
+  return paths.size > MAX_REFRESHED_PATHS ? null : [...paths];
+}
+
+/**
+ * The Library again after `changes`: only the sources they touch are read
  * again, and put in place of what was kept. Null when the whole is to be
- * read again (`changedSourcePaths`).
+ * read again (`changedLibraryPaths`).
  */
 export async function refreshLibrary({
   index,
@@ -307,7 +361,7 @@ export async function refreshLibrary({
   previous: LibraryRead;
   changes: readonly NoteChange[];
 }): Promise<LibraryRead | null> {
-  const paths = changedSourcePaths(changes);
+  const paths = changedLibraryPaths(previous, changes);
   if (paths === null) return null;
   if (paths.length === 0) return previous;
   const read = await readSources(index, paths);
