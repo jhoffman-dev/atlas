@@ -3,6 +3,8 @@ import { homeFolderOf } from '../home-folders/home-folder.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
   isLiteratureNote,
+  safeSourceFileName,
+  UnsafeSourceFileError,
   readLiteratureNote,
   LITERATURE_NOTE_TYPE,
   literatureNotePath,
@@ -12,9 +14,9 @@ import { highlightRows, mayHoldHighlights } from './highlight-rows.ts';
 import { appendHighlights } from './edit-highlights.ts';
 
 describe('a literature note', () => {
-  it('is a note whose type is source, whatever its case and spacing', () => {
+  it('is a note whose type is literature, whatever its case and spacing', () => {
     expect(isLiteratureNote({ type: 'literature' })).toBe(true);
-    expect(isLiteratureNote({ type: ' Source ' })).toBe(true);
+    expect(isLiteratureNote({ type: ' Literature ' })).toBe(true);
     expect(isLiteratureNote({ type: 'literatures' })).toBe(false);
     expect(isLiteratureNote({ type: ['literature'] })).toBe(false);
     expect(isLiteratureNote({ atlas: 'literature' })).toBe(false);
@@ -140,5 +142,60 @@ describe("a literature note's index rows", () => {
   it('is nothing for a note that could hold no highlight', () => {
     expect(mayHoldHighlights('> Quote.\n\n^abc123\n')).toBe(false);
     expect(highlightRows('> Quote.\n\n^abc123\n')).toEqual([]);
+  });
+});
+
+describe('a literature note for a Kindle book', () => {
+  it('keeps the ASIN the sync finds the book by, and reads it back', () => {
+    const text = literatureNoteText({
+      kind: 'kindle',
+      title: 'Emma',
+      author: 'Jane Austen',
+      file: null,
+      asin: 'B004TEST01',
+    });
+    expect(text).toContain('asin: "B004TEST01"');
+    expect(
+      readLiteratureNote({ type: 'literature', kind: 'kindle', title: 'Emma', asin: 'B004TEST01' })
+        ?.asin,
+    ).toBe('B004TEST01');
+  });
+
+  it('has no ASIN when none is given or it is blank', () => {
+    expect(
+      literatureNoteText({ kind: 'kindle', title: 'Emma', author: null, file: null }),
+    ).not.toContain('asin');
+    expect(
+      readLiteratureNote({ type: 'literature', kind: 'kindle', title: 'Emma', asin: '  ' })?.asin,
+    ).toBeNull();
+  });
+});
+
+describe('a source file a wiki link can name', () => {
+  it.each([
+    'Library/C# in Depth.pdf',
+    'Library/Notes [draft].pdf',
+    'Library/A^b.pdf',
+    'Library/A|b.pdf',
+  ])('refuses %j, with an error that names the file', (file) => {
+    const make = () =>
+      literatureNoteText({ kind: 'pdf', title: 'T', author: null, file: createVaultPath(file) });
+    expect(make).toThrow(UnsafeSourceFileError);
+    expect(make).toThrow(file);
+  });
+
+  it('makes a file name safe by replacing what a link cannot hold, and keeps the rest', () => {
+    expect(safeSourceFileName('C# in Depth [2nd ed.].pdf')).toBe('C- in Depth -2nd ed.-.pdf');
+    expect(safeSourceFileName('A^b|c.epub')).toBe('A-b-c.epub');
+    expect(safeSourceFileName('The Art of War.pdf')).toBe('The Art of War.pdf');
+  });
+
+  it('gives a name the writer accepts, whatever it was', () => {
+    for (const name of ['#.pdf', '[[x]].pdf', '^|.pdf', 'plain.pdf']) {
+      const file = createVaultPath(`Library/${safeSourceFileName(name)}`);
+      expect(() =>
+        literatureNoteText({ kind: 'pdf', title: 'T', author: null, file }),
+      ).not.toThrow();
+    }
   });
 });

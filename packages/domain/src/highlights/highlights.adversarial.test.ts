@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { anchorProblem, type HighlightAnchor } from './anchor.ts';
 import {
   appendHighlights,
+  HighlightNotReadBackError,
+  UnreadableHighlightMarkerError,
   withHighlightComment,
   withoutHighlight,
   type NewHighlight,
@@ -172,16 +174,13 @@ describe('Kindle re-sync adds a passage once (attack on #510)', () => {
 });
 
 describe('appending always reads back (attack on #510)', () => {
-  it('reads back a highlight appended to a note whose body ends inside an unclosed code fence', () => {
-    // Every sync would otherwise append the same passage again: the block sits inside the fence.
+  it('refuses, before writing, a highlight it could not read back from a note whose body ends inside an unclosed code fence', () => {
+    // Decision R1: the block would sit inside the fence, so every sync would append the
+    // same passage again. The postcondition (every added id reads back) throws instead.
     const note = `${PDF_NOTE}My notes.\n\n\`\`\`js\nconst draft = 1;\n`;
-    const once = appended(note, [{ quote: 'Know the enemy.', anchor: pdf('Know the enemy.') }]);
-    const twice = appended(
-      once.text,
-      [{ quote: 'Know the enemy.', anchor: pdf('Know the enemy.') }],
-      2,
-    );
-    expect(twice.highlights[0]?.added).toBe(false);
+    expect(() =>
+      appended(note, [{ quote: 'Know the enemy.', anchor: pdf('Know the enemy.') }]),
+    ).toThrow(HighlightNotReadBackError);
   });
 
   it('gives the note back byte for byte when the one highlight added to a note with no final newline is removed', () => {
@@ -288,5 +287,171 @@ describe('re-anchoring (attack on #510)', () => {
     });
     expect(run.error, 'findQuoteNear hung on near = NaN').toBeUndefined();
     expect(run.status).toBe(0);
+  });
+});
+
+describe('review findings on #510', () => {
+  it('refuses to append inside an unclosed HTML comment, which hides everything after it', () => {
+    const note = `${PDF_NOTE}My notes.\n\n<!-- a draft I never closed\n`;
+    expect(() =>
+      appended(note, [{ quote: 'Know the enemy.', anchor: pdf('Know the enemy.') }]),
+    ).toThrow(HighlightNotReadBackError);
+  });
+
+  it('names the ids that would not read back, and writes nothing', () => {
+    const note = `${PDF_NOTE}\`\`\`\n`;
+    try {
+      appended(note, [{ quote: 'Know the enemy.', anchor: pdf('Know the enemy.') }]);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(HighlightNotReadBackError);
+      expect((error as HighlightNotReadBackError).ids).toHaveLength(1);
+    }
+  });
+
+  it('reads a closed HTML comment block and a closed fence as ordinary text around highlights', () => {
+    const note = `${PDF_NOTE}<!-- a note\nto self -->\n\n\`\`\`\ncode\n\`\`\`\n`;
+    const { text, highlights } = appended(note, [
+      { quote: 'Know the enemy.', anchor: pdf('Know the enemy.') },
+    ]);
+    expect(readHighlights(text).map((block) => block.id)).toEqual([highlights[0]?.id]);
+  });
+
+  it('refuses to append to a note holding a marker this build cannot read (a newer version)', () => {
+    const newer = '> Words.\n> <!-- atlas:highlight {"v":2,"kind":"pdf","page":1} -->\n\n^abc123\n';
+    expect(() =>
+      appended(`${PDF_NOTE}${newer}`, [{ quote: 'Know.', anchor: pdf('Know.') }]),
+    ).toThrow(UnreadableHighlightMarkerError);
+  });
+
+  it('refuses to append to a note holding a marker whose JSON is broken', () => {
+    const broken = '> Words.\n> <!-- atlas:highlight {"v":1,"kind": -->\n\n^abc123\n';
+    expect(() =>
+      appended(`${PDF_NOTE}${broken}`, [{ quote: 'Know.', anchor: pdf('Know.') }]),
+    ).toThrow(UnreadableHighlightMarkerError);
+  });
+
+  it('still edits and removes a readable highlight in a note that also holds an unreadable marker', () => {
+    const { text: readable, highlights } = appended(PDF_NOTE, [
+      { quote: 'Know the enemy.', anchor: pdf('Know the enemy.') },
+    ]);
+    const newer =
+      '\n> Words.\n> <!-- atlas:highlight {"v":2,"kind":"pdf","page":1} -->\n\n^abc123\n';
+    const id = highlights[0]?.id as string;
+    const edited = withHighlightComment({ text: readable + newer, id, comment: 'Mine.' });
+    expect(edited.endsWith(newer)).toBe(true);
+    expect(withoutHighlight({ text: edited, id }).endsWith(newer)).toBe(true);
+  });
+
+  it('answers the existing id for a Kindle passage by the words the export gave, not the quote now', () => {
+    const first = appended(KINDLE_NOTE, [{ quote: 'Original words here', anchor: kindle(9) }]);
+    expect(first.text).toContain('"exact":"Original words here"');
+    const rewritten = first.text.replace('Original words here\n', 'Rewritten by hand\n');
+    const again = appended(rewritten, [{ quote: 'Original words here', anchor: kindle(9) }], 2);
+    expect(again.highlights[0]?.added).toBe(false);
+  });
+
+  it('keeps two Kindle highlights that start at one location but say different things', () => {
+    const { highlights } = appended(KINDLE_NOTE, [
+      { quote: 'First passage', anchor: kindle(9) },
+      { quote: 'Second passage', anchor: kindle(9) },
+    ]);
+    expect(highlights.map((entry) => entry.added)).toEqual([true, true]);
+  });
+
+  it('does not match two Kindle highlights that both have, and differ in, annotation ids', () => {
+    const first = appended(KINDLE_NOTE, [{ quote: 'Same words', anchor: kindle(9, 'A1') }]);
+    const again = appended(first.text, [{ quote: 'Same words', anchor: kindle(9, 'B2') }], 2);
+    expect(again.highlights[0]?.added).toBe(true);
+  });
+
+  it('matches an id-less export against the copy that has an annotation id', () => {
+    const first = appended(KINDLE_NOTE, [{ quote: 'Same words', anchor: kindle(9, 'A1') }]);
+    const again = appended(first.text, [{ quote: 'Same words', anchor: kindle(9) }], 2);
+    expect(again.highlights[0]?.added).toBe(false);
+  });
+
+  it('keeps a Kindle highlight by its page when the export has no location', () => {
+    const anchor: HighlightAnchor = {
+      kind: 'kindle',
+      location: null,
+      page: 12,
+      annotationId: null,
+    };
+    expect(anchorProblem(anchor)).toBeNull();
+    const { text } = appended(KINDLE_NOTE, [{ quote: 'Paged words', anchor }]);
+    expect(readHighlights(text)[0]?.anchor).toMatchObject({
+      kind: 'kindle',
+      location: null,
+      page: 12,
+    });
+  });
+
+  it('refuses a Kindle anchor with neither a location nor a page', () => {
+    expect(
+      anchorProblem({ kind: 'kindle', location: null, annotationId: null } as HighlightAnchor),
+    ).not.toBeNull();
+  });
+
+  it('writes U+2028 and U+2029 as escapes, so the marker stays one visible line', () => {
+    const marker = highlightMarker({
+      style: { mark: 'highlight', color: 'yellow' },
+      anchor: pdf('a\u2028b\u2029c'),
+    });
+    expect(marker).not.toMatch(/[\u2028\u2029]/);
+    expect(marker).toContain('\\u2028');
+  });
+
+  it('reads a hand-written marker that holds a raw U+2028 inside its JSON', () => {
+    const line =
+      '<!-- atlas:highlight {"v":1,"kind":"pdf","page":1,"exact":"a\u2028b","rects":[[0.1,0.1,0.2,0.2]]} -->';
+    expect(readHighlightMarker(line)?.anchor).toMatchObject({ quote: { exact: 'a\u2028b' } });
+  });
+
+  it('accepts a box that ends on the page edge, within rounding', () => {
+    const edge: HighlightAnchor = {
+      kind: 'pdf',
+      page: 1,
+      quote: null,
+      rects: [{ x: 0.7, y: 0.9, width: 0.3 + 1e-9, height: 0.1 }],
+    };
+    expect(anchorProblem(edge)).toBeNull();
+  });
+
+  it('escapes a lone list number whatever follows it, and leaves a number in a sentence alone', () => {
+    expect(quoteLines('3.')).toEqual(['3\\.']);
+    expect(quoteLines('12) of them')).toEqual(['12\\) of them']);
+    expect(quoteLines('1.5 percent')).toEqual(['1.5 percent']);
+  });
+
+  it('keeps a comment edited on a lazy-continued highlight with its `>` and the lines either side', () => {
+    const text = `${PDF_NOTE}> All warfare is based on deception.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: pdf('All warfare is based on deception.') })}\n>\n> First thought,\nsecond thought.\n\n^k3x9q2\n`;
+    const edited = withHighlightComment({ text, id: 'k3x9q2', comment: 'Rewritten.\nTwo lines.' });
+    expect(edited).toContain('>\n> Rewritten.\n> Two lines.\n\n^k3x9q2\n');
+    expect(edited).not.toContain('second thought');
+  });
+
+  it('takes a lazy-continued highlight out whole', () => {
+    const block = `> Words.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: pdf('Words.') })}\n>\n> A thought\nthat wandered.\n\n^k3x9q2\n`;
+    expect(withoutHighlight({ text: PDF_NOTE + block, id: 'k3x9q2' })).toBe(PDF_NOTE);
+  });
+
+  it('ends a quote at a line that would start something else, rather than swallowing it', () => {
+    const text = `${PDF_NOTE}> Words.\n> ${highlightMarker({ style: { mark: 'highlight', color: 'yellow' }, anchor: pdf('Words.') })}\n>\n> A thought\n# A heading\n\n^k3x9q2\n`;
+    expect(readHighlights(text)).toEqual([]);
+  });
+
+  it('answers no match for a non-finite or fractional page without hanging', () => {
+    const sections = ['first', 'second', 'third'];
+    const selector = { exact: 'third', prefix: '', suffix: '' };
+    for (const near of [Infinity, -Infinity, 1.5, -3, 99]) {
+      expect(findQuoteNear({ sections, selector, near })?.section).toBe(2);
+    }
+  });
+
+  it('finds the nearer of two sections from a fractional page, the earlier first', () => {
+    const sections = ['x', 'word', 'y', 'word'];
+    const selector = { exact: 'word', prefix: '', suffix: '' };
+    expect(findQuoteNear({ sections, selector, near: 2.5 })?.section).toBe(1);
   });
 });

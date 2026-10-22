@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   createVaultPath,
   HighlightNotFoundError,
+  HighlightNotReadBackError,
+  UnreadableHighlightMarkerError,
   InvalidHighlightAnchorError,
   readHighlights,
   literatureNoteText,
@@ -253,6 +255,26 @@ describe("editing a highlight's comment and removing a highlight", () => {
     ).rejects.toThrow(UnsavedTypingError);
     await expect(removeHighlight(dirty, { path: PATH, id: held.first })).rejects.toThrow(
       UnsavedTypingError,
+    );
+    expect(held.writes).toEqual([]);
+  });
+});
+
+describe('adding a highlight the note could not hold (review of #510)', () => {
+  it('writes nothing when the note ends in an unclosed code fence', async () => {
+    const held = ports(`${SOURCE}Notes.\n\n\`\`\`js\nlet draft;\n`);
+    await expect(addHighlight(held.ports, { path: PATH, highlight: deception })).rejects.toThrow(
+      HighlightNotReadBackError,
+    );
+    expect(held.writes).toEqual([]);
+  });
+
+  it('writes nothing when the note holds a marker this build cannot read', async () => {
+    const held = ports(
+      `${SOURCE}> Words.\n> <!-- atlas:highlight {"v":2,"kind":"pdf","page":1} -->\n\n^abc123\n`,
+    );
+    await expect(addHighlight(held.ports, { path: PATH, highlight: deception })).rejects.toThrow(
+      UnreadableHighlightMarkerError,
     );
     expect(held.writes).toEqual([]);
   });
