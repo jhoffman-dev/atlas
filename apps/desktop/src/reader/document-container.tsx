@@ -31,7 +31,7 @@ export function DocumentContainer({
     }),
     [pages.ports.fs, pane.notes.markdown, pane.index, pane.openNotes, pane.onChanged],
   );
-  const reveal = useHeldReveal(useTabReveal(reveals, { tab: tabId, path }));
+  const reveal = useHeldReveal(useTabReveal(reveals, { tab: tabId, path }), path);
   if (pane.vault === null) return null;
   return (
     <LoadedLater chrome={chrome}>

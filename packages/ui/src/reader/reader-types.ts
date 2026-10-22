@@ -49,11 +49,13 @@ export interface ReaderHighlight {
   readonly placement: HighlightPlacement;
 }
 
-/** A highlight to bring into view and flash; `key` changes for each ask, so asking twice flashes twice. */
-export interface ReaderReveal {
-  readonly id: string;
-  readonly key: number;
-}
+/**
+ * A highlight to bring into view and flash, or a page to bring into view
+ * (`[[file.pdf#page=3]]`); `key` changes for each ask, so asking twice acts
+ * twice.
+ */
+export type ReaderReveal =
+  { readonly id: string; readonly key: number } | { readonly page: number; readonly key: number };
 
 /** What the person marked, and how. */
 export interface MarkRequest {
