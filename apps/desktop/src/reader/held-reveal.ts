@@ -7,14 +7,18 @@ import type { NoteReveal, ReaderReveal } from '@dfai/ui';
  * placed, and shows it when it can.
  */
 export function useHeldReveal(asked: NoteReveal | null): ReaderReveal | null {
-  const [held, setHeld] = useState<ReaderReveal | null>(null);
+  // An ask made as the tab opened — a link to a highlight — is held from the first draw.
+  const [held, setHeld] = useState<ReaderReveal | null>(() => heldOf(asked));
   const [seen, setSeen] = useState(asked);
   if (asked !== seen) {
     setSeen(asked);
-    if (asked?.fragment.kind === 'block')
-      setHeld({ id: asked.fragment.id, key: Number(asked.key) });
+    const next = heldOf(asked);
+    if (next !== null) setHeld(next);
   }
   // Spent once held, so the tab opened on this file again later is not brought there again.
   useEffect(() => asked?.done?.(), [asked]);
   return held;
 }
+
+const heldOf = (asked: NoteReveal | null): ReaderReveal | null =>
+  asked?.fragment.kind === 'block' ? { id: asked.fragment.id, key: Number(asked.key) } : null;
