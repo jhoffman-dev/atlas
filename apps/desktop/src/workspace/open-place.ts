@@ -11,7 +11,14 @@ import {
 import type { HighlightPlaceOpener } from '@dfai/application';
 import type { OpenHow } from '@dfai/ui';
 import { requestReveal, type RevealStore } from '../panes/reveals.ts';
-import { closePeek, openPeek, peekNow, replacePeek, type OverlayStore } from '../overlay-store.ts';
+import {
+  closePeek,
+  openPeek,
+  peekNow,
+  peekOpening,
+  replacePeek,
+  type OverlayStore,
+} from '../overlay-store.ts';
 import {
   focusPane,
   openInPane,
@@ -125,7 +132,8 @@ export function followLink(
   const fragment = heading === null ? null : linkFragment({ heading });
   const current = beginClick(following, { pane, how, inPeek: false });
   const open = (linked: Linked) => {
-    if (current()) openLinked(following, { pane, linked, how });
+    const paneNow = current();
+    if (paneNow !== null) openLinked(following, { pane: paneNow, linked, how });
   };
   const asNote = () => {
     const here = placeIn(following.store, pane);
@@ -223,7 +231,7 @@ function followedLater(
     target: string;
     fragment: Fragment | null;
     open: (linked: Linked) => void;
-    current: () => boolean;
+    current: () => number | null;
     otherwise: () => void;
   },
 ): boolean {
@@ -231,7 +239,7 @@ function followedLater(
   places
     .linkedPdf(target)
     .then((pdf) => {
-      if (!current()) return;
+      if (current() === null) return;
       if (pdf === null) otherwise();
       else {
         onProblem(null);
@@ -239,7 +247,7 @@ function followedLater(
       }
     })
     .catch((error: unknown) => {
-      if (current()) onProblem(`The link could not be followed: ${messageOf(error)}`);
+      if (current() !== null) onProblem(`The link could not be followed: ${messageOf(error)}`);
     });
   return true;
 }
@@ -300,8 +308,9 @@ export function clickLink(
     overlays: peeking.overlays,
   });
   const open = (linked: Linked) => {
-    if (!current()) return;
-    const opening = () => openLinked(peeking, { pane, linked, how: how ?? 'here' });
+    const paneNow = current();
+    if (paneNow === null) return;
+    const opening = () => openLinked(peeking, { pane: paneNow, linked, how: how ?? 'here' });
     if (!inPeek) opening();
     else if (peeking.leavePeek !== undefined) peeking.leavePeek(opening);
     else {
@@ -348,12 +357,15 @@ const latestClicks = new WeakMap<WorkspaceStore, Map<string, number>>();
 let clicksMade = 0;
 
 /**
- * Notes a click on a link, and returns whether its answer is still wanted:
- * a link whose target takes a read to know (#506) opens later, and by then
- * the person may have clicked again or moved on. A late answer is dropped
- * unless it is still the latest click on its surface, and the tab (or the
- * peek) it was made in still shows what it showed. A ⌘-click opens a tab of
- * its own, so only needs its pane still there: two in a row both open.
+ * Notes a click on a link, and returns where its answer may still open: the
+ * pane's place now, or null once the answer is no longer wanted. A link
+ * whose target takes a read to know (#506) opens later, and by then the
+ * person may have clicked again or moved on. A late answer is dropped once
+ * another vault is open, unless it is still the latest click on its surface
+ * and the tab (or the opening of the peek) it was made in still shows what it
+ * showed. A ⌘-click opens a tab of its own, so only needs its pane still
+ * there — found by its key, as a pane closed before it renumbers it — and two
+ * in a row both open.
  */
 function beginClick(
   { store }: Pick<LinkFollowing, 'store'>,
@@ -363,26 +375,45 @@ function beginClick(
     inPeek,
     overlays,
   }: { pane: number; how: OpenHow; inPeek: boolean; overlays?: OverlayStore },
-): () => boolean {
-  const surface = inPeek ? 'peek' : `pane ${pane}`;
+): () => number | null {
+  const { vault, paneKeys } = store.getState();
+  const key = paneKeys[pane];
+  const surface = inPeek ? 'peek' : `pane ${key}`;
   const clicks = latestClicks.get(store) ?? new Map<string, number>();
   latestClicks.set(store, clicks);
   clicksMade += 1;
   const click = clicksMade;
   clicks.set(surface, click);
   const tab = tabIn(store, pane);
-  const peeked = inPeek && overlays !== undefined ? (peekNow(overlays)?.path ?? null) : null;
-  return () => {
-    const now = tabIn(store, pane);
+  const peeked = inPeek && overlays !== undefined ? peekShown(overlays) : null;
+  const stillWanted = (paneNow: number): boolean => {
+    const now = tabIn(store, paneNow);
     if (now === null || tab === null) return false;
     if (inPeek) {
-      const peek = overlays === undefined ? null : (peekNow(overlays)?.path ?? null);
-      return clicks.get(surface) === click && peek === peeked;
+      const peek = overlays === undefined ? null : peekShown(overlays);
+      return clicks.get(surface) === click && samePeek(peek, peeked);
     }
     if (how !== 'here') return true;
     return clicks.get(surface) === click && now.id === tab.id && samePlace(now.place, tab.place);
   };
+  return () => {
+    const state = store.getState();
+    if (state.vault !== vault || key === undefined) return null;
+    const paneNow = state.paneKeys.indexOf(key);
+    return paneNow !== -1 && stillWanted(paneNow) ? paneNow : null;
+  };
 }
+
+/** The peek that is up, by which opening it is and the note it shows. */
+function peekShown(overlays: OverlayStore): { opening: number; path: VaultPath } | null {
+  const peek = peekNow(overlays);
+  return peek === null ? null : { opening: peekOpening(overlays), path: peek.path };
+}
+
+const samePeek = (
+  a: { opening: number; path: VaultPath } | null,
+  b: { opening: number; path: VaultPath } | null,
+): boolean => a?.opening === b?.opening && a?.path === b?.path;
 
 /** Places are plain data, so they are the same when they say the same. */
 const samePlace = (a: NavigationPlace | null, b: NavigationPlace | null): boolean =>
