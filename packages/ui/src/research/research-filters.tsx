@@ -1,3 +1,4 @@
+import { useId, useMemo, useState } from 'react';
 import type { ResearchChoice, PillHue } from '@dfai/domain';
 import { ChoiceSelect } from '../choice-select.tsx';
 import { Icon } from '../icon.tsx';
@@ -12,17 +13,19 @@ export type ResearchListState<Item> =
 const EVERY = '';
 
 /**
- * A filter's dropdown: every one, or one of `choices` with how many it
- * would show. A value no choice holds any more (a tag since removed) reads
- * as every one, and is offered as such.
+ * Most choices a filter lists in a native dropdown. A native `<select>` of
+ * 2,000 sources took WebKit a quarter of a second to build, in one frame,
+ * every time All highlights opened; past this a filter is a field that
+ * suggests as you type, which costs nothing until it is used.
  */
-export function FilterSelect<Value extends string>({
-  label,
-  every,
-  value,
-  choices,
-  onChange,
-}: {
+export const MOST_IN_A_DROPDOWN = 100;
+
+/**
+ * A filter: every one, or one of `choices` with how many it would show. A
+ * value no choice holds any more (a tag since removed) reads as every one,
+ * and is offered as such.
+ */
+export function FilterSelect<Value extends string>(props: {
   label: string;
   /** What the "every one" option says: "All sources", "Any tag". */
   every: string;
@@ -30,6 +33,20 @@ export function FilterSelect<Value extends string>({
   choices: readonly ResearchChoice<Value>[];
   onChange: (value: Value | null) => void;
 }) {
+  return props.choices.length > MOST_IN_A_DROPDOWN ? (
+    <FilterSearch {...props} />
+  ) : (
+    <FilterDropdown {...props} />
+  );
+}
+
+function FilterDropdown<Value extends string>({
+  label,
+  every,
+  value,
+  choices,
+  onChange,
+}: Parameters<typeof FilterSelect<Value>>[0]) {
   const known = value !== null && choices.some((choice) => choice.value === value);
   return (
     <ChoiceSelect<string>
@@ -47,6 +64,72 @@ export function FilterSelect<Value extends string>({
         onChange(choices.find((choice) => choice.value === picked)?.value ?? null)
       }
     />
+  );
+}
+
+/** What a choice is called in the field: its label and count, and its value too when another choice shares both. */
+function suggestionLabels<Value extends string>(
+  choices: readonly ResearchChoice<Value>[],
+): Map<string, Value> {
+  const named = new Map<string, Value>();
+  const shared = new Set<string>();
+  for (const choice of choices) {
+    const name = `${choice.label} (${choice.count})`;
+    if (named.has(name)) shared.add(name);
+    named.set(name, choice.value);
+  }
+  if (shared.size === 0) return named;
+  return new Map(
+    choices.map((choice) => {
+      const name = `${choice.label} (${choice.count})`;
+      return [shared.has(name) ? `${name} · ${choice.value}` : name, choice.value];
+    }),
+  );
+}
+
+/** A filter of many choices: a field that suggests them as you type, and picks the one typed in full. */
+function FilterSearch<Value extends string>({
+  label,
+  every,
+  value,
+  choices,
+  onChange,
+}: Parameters<typeof FilterSelect<Value>>[0]) {
+  const listId = useId();
+  const byName = useMemo(() => suggestionLabels(choices), [choices]);
+  const picked = [...byName].find(([, each]) => each === value)?.[0] ?? '';
+  // What is being typed; null while the field shows the choice picked.
+  const [typed, setTyped] = useState<string | null>(null);
+  const change = (text: string) => {
+    const choice = byName.get(text);
+    if (text.trim() === '') {
+      setTyped(null);
+      onChange(null);
+    } else if (choice !== undefined) {
+      setTyped(null);
+      onChange(choice);
+    } else {
+      setTyped(text);
+    }
+  };
+  return (
+    <>
+      <input
+        type="search"
+        className="research__select research__suggest"
+        aria-label={label}
+        list={listId}
+        placeholder={every}
+        value={typed ?? picked}
+        onChange={(event) => change(event.target.value)}
+        onBlur={() => setTyped(null)}
+      />
+      <datalist id={listId}>
+        {[...byName.keys()].map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+    </>
   );
 }
 

@@ -21,6 +21,10 @@
   padding: var(--space-3) 0;
 }
 
+.research__suggest {
+  min-width: 160px;
+}
+
 .research__select {
   max-width: 220px;
 }

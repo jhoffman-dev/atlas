@@ -9,6 +9,7 @@ import {
   type HighlightEntry,
 } from '@dfai/domain';
 import { HighlightsPage, type HighlightsPageProps } from './highlights-page.tsx';
+import { MOST_IN_A_DROPDOWN } from './research-filters.tsx';
 
 const ART = createVaultPath('Library/The Art of War.md');
 const STOIC = createVaultPath('Library/Meditations.md');
@@ -71,6 +72,60 @@ function renderPage(props: Partial<HighlightsPageProps> = {}) {
 
 const rows = () =>
   within(screen.getByRole('list', { name: 'Highlights' })).getAllByRole('listitem');
+
+describe('HighlightsPage with many sources (#507)', () => {
+  const sources = Array.from({ length: MOST_IN_A_DROPDOWN + 1 }, (_, at) =>
+    highlight(`h${at}`, {
+      path: createVaultPath(`Library/Book ${at}.md`),
+      source: at === 1 ? 'Book 0' : `Book ${at}`,
+    }),
+  );
+
+  it('suggests sources as they are typed, not as a native dropdown of every one', async () => {
+    const { onFilter } = renderPage({
+      state: { kind: 'ready', shown: sources, total: sources.length },
+      choices: highlightChoices(sources),
+    });
+    const field = screen.getByRole('combobox', { name: 'Source' });
+    expect(field.tagName).toBe('INPUT');
+    const options = document.querySelectorAll(`datalist#${field.getAttribute('list')} option`);
+    expect(options).toHaveLength(MOST_IN_A_DROPDOWN + 1);
+    await userEvent.click(field);
+    await userEvent.paste('Book 7 (1)');
+    expect(onFilter).toHaveBeenLastCalledWith({
+      ...NO_HIGHLIGHT_FILTER,
+      source: 'Library/Book 7.md',
+    });
+  });
+
+  it('tells two sources of one name apart by their path, and picks none for words that match none', async () => {
+    const { onFilter } = renderPage({
+      state: { kind: 'ready', shown: sources, total: sources.length },
+      choices: highlightChoices(sources),
+    });
+    const field = screen.getByRole('combobox', { name: 'Source' });
+    const names = [
+      ...document.querySelectorAll(`datalist#${field.getAttribute('list')} option`),
+    ].map((option) => option.getAttribute('value'));
+    expect(names).toContain('Book 0 (1) · Library/Book 0.md');
+    expect(names).toContain('Book 0 (1) · Library/Book 1.md');
+    await userEvent.click(field);
+    await userEvent.paste('Book 0 (1)');
+    expect(onFilter).not.toHaveBeenCalled();
+  });
+
+  it('shows the source picked by its name, and clearing the field picks every source', async () => {
+    const { onFilter } = renderPage({
+      state: { kind: 'ready', shown: sources, total: sources.length },
+      choices: highlightChoices(sources),
+      filter: { ...NO_HIGHLIGHT_FILTER, source: createVaultPath('Library/Book 7.md') },
+    });
+    const field = screen.getByRole<HTMLInputElement>('combobox', { name: 'Source' });
+    expect(field.value).toBe('Book 7 (1)');
+    await userEvent.clear(field);
+    expect(onFilter).toHaveBeenLastCalledWith({ ...NO_HIGHLIGHT_FILTER, source: null });
+  });
+});
 
 describe('HighlightsPage (#507)', () => {
   it("names a row's colour and mark in its accessible name, not only by its swatch", () => {
