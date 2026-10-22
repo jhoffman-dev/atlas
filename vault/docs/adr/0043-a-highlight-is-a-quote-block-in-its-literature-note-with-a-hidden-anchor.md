@@ -326,11 +326,21 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
   query views are built from — the index's read-only `query`, the scoped
   reads that refresh only on news of literature notes (ADR-0040), and the
   virtualised rows — and keep their filters and order in the domain
-  (`filterLibrary`, `sortLibrary`, `filterHighlights`, `joinHighlights`).
-- **All highlights reads the `highlights` table straight down its path
-  index** and matches each row to the Library's read of the literature notes
-  in use. Asking per highlight row whether its note is literature, and its
-  tags, cost 20,000 lookups on every page.
+  (`filterLibrary`, `sortLibrary`, `filterHighlights`, `inDisplayOrder`).
+- **All highlights reads the `highlights` table by key**, `(path, idx) >
+  (?, ?)` down `highlights_path_idx`, and not by offset (the last page of
+  150,000 highlights would cost sixty times the first). The statement keeps
+  to literature notes in use (`path IN (SELECT path FROM files WHERE …)`,
+  the Library's own test); the reader matches each row to the Library's read
+  of those notes by path, for the title, time and tags. A page is 2,500 rows,
+  so four-byte characters in every quote and comment stay under the host's
+  16 MiB answer. A change to a literature note re-reads only that note and
+  is spliced into what was kept; news that does not say which notes changed
+  reads it whole.
+- **A `type:` list that holds `literature` is a literature note**
+  (`[literature, book]`): `isLiteratureNote` reads a list as the index's
+  type check does, so the Library's rows, its highlight counts, All
+  highlights and ⌘K never disagree about a note.
 - **A highlight keeps no day of its own** (§3), so "date" filters by when
   its literature note last changed.
 - **Search reaches highlights** (schema 20): each highlight's quote and
