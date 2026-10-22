@@ -276,7 +276,22 @@ const withoutPaths = <Item>(
   gone: Set<string>,
 ) => items.filter((item) => !gone.has(pathOf(item)));
 
-const inPathOrder = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
+/**
+ * Paths in the order the index lists them: SQLite compares UTF-8 bytes,
+ * which is code point order — not JavaScript's UTF-16 code units, which put
+ * a character past U+FFFF (a surrogate pair) before U+E000–U+FFFF.
+ */
+function inPathOrder(left: string, right: string): number {
+  let at = 0;
+  for (;;) {
+    const one = left.codePointAt(at);
+    const other = right.codePointAt(at);
+    if (one === undefined || other === undefined)
+      return Number(one !== undefined) - Number(other !== undefined);
+    if (one !== other) return one < other ? -1 : 1;
+    at += one > 0xffff ? 2 : 1;
+  }
+}
 
 /**
  * The Library again after `changes`: only the notes they name are read
