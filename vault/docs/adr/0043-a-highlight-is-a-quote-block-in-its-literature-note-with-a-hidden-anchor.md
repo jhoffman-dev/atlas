@@ -339,8 +339,14 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
     "Open in PDF".
 
     `[[file.pdf]]` names a PDF of the vault, found among the vault's real
-    files (a walk of its visible folders, not the literature notes), so a
-    PDF with no literature note is found. As in Obsidian a link writes the
+    files, not the literature notes, so a PDF with no literature note is
+    found. The host lists them in one walk (`list_vault_files`, told what to
+    skip and how deep as the note walk is, ADR-0014): it does not follow a
+    link to a folder, leaves out a folder it cannot read, and fails only
+    when the vault itself cannot be read; the hidden entries are left out
+    in TypeScript (`isVisibleEntry`). Names are compared with accents
+    composed and case folded, as note links are, so a file written
+    decomposed is found by a link typed composed. As in Obsidian a link writes the
     end of a path: `[[reading.pdf]]` or `[[Courses/reading.pdf]]` matches
     `Library/Courses/reading.pdf`. Where several files match, one is picked
     the same way every time: the exact path, else the shortest path, else
@@ -348,16 +354,24 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
     no PDF matches, the link is read as a note's (`[[Budget review.pdf]]`
     opens a note of that name), and where neither exists it says "No PDF or
     note called …". `[[paper.pdf#^id]]` opens at that highlight and
-    `[[paper.pdf#page=3]]` at page 3.
+    `[[paper.pdf#page=3]]` at page 3; an id the PDF's note does not have
+    opens the reader, which says it couldn't find that highlight.
 
     A link whose target takes a read to know opens late, so it opens only
-    if it is still the latest click on its surface (a pane, or the peek)
-    and the tab it was made in still shows what it showed; a ⌘-click opens
-    a tab of its own and needs only its pane. A reveal a reader tab holds
+    while the vault it was clicked in is still the open one, it is still
+    the latest click on its surface (a pane, or the peek), and the tab it
+    was made in still shows what it showed — in the peek, the same opening
+    of the peek, not just the same note; a ⌘-click opens a tab of its own
+    and needs only its pane, found by the pane's key, so a pane renumbered
+    by another's closing still gets it. A reveal a reader tab holds
     belongs to its document and is spent: another PDF in the same tab, or
     coming back, is not brought to it. The chip, "Open in PDF" and an
     embed's name are links in the tab order and follow on Enter, with the
-    click's modifiers.
+    click's modifiers. A key pressed on any such control drawn inside the
+    note — not editable, its nearest `contenteditable` false — is the
+    control's, never the editor's (`ControlKeys`): no keymap sees it, and
+    on a link the browser's own answer to an editing key (Backspace's Back,
+    typing, Delete, Enter) is prevented, so no key on it changes the note.
 
 ## Consequences
 
