@@ -232,6 +232,11 @@ function imported(change: NoteChange): boolean {
   );
 }
 
+/** The notes of `changes` that reach a reader made from `scope`. */
+export function changesTouching(scope: ReadScope, changes: readonly NoteChange[]): NoteChange[] {
+  return changes.filter((change) => changeTouches(scope, change));
+}
+
 /**
  * Whether the index's news reaches a reader made from `scope`. When unsure,
  * it does: news whose notes are not known reads every reader again.

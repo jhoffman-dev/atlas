@@ -2,7 +2,7 @@ import { HIGHLIGHT_COLORS, type HighlightColor } from '../highlights/anchor.ts';
 import type { PillHue } from '../page/pill-colour.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import type { LibraryEntry } from './library.ts';
-import { byName, countBy, type ResearchChoice } from './research-text.ts';
+import { byName, usesTag, withParentTags, type ResearchChoice } from './research-text.ts';
 
 /** One highlight (ADR-0043) as All highlights lists it (#507). */
 export interface HighlightEntry {
@@ -12,6 +12,8 @@ export interface HighlightEntry {
   readonly source: string;
   /** When that note last changed: a highlight keeps no day of its own (ADR-0043). */
   readonly modified: number;
+  /** Its place among its note's highlights, from 0: what tells it from another with the same id. */
+  readonly index: number;
   /** Its block id, `^id`, which a link or an embed names it by. */
   readonly id: string;
   /** `pdf`, `epub` or `kindle` as the marker says it. */
@@ -28,52 +30,36 @@ export interface HighlightEntry {
   readonly tags: readonly string[];
 }
 
-/** A highlight as the index lists it, before it is matched to its source. */
-export type ListedHighlight = Omit<HighlightEntry, 'source' | 'modified' | 'tags'> & {
-  /** Its place among its note's highlights, from 0. */
-  readonly index: number;
-};
-
-/**
- * Every highlight in one of `sources` — the literature notes in use, as the
- * Library read them — with its source's title, time and tags: the most
- * recently changed sources first, then by path, each source's highlights in
- * the order it holds them. A highlight in no such source (one archived, or
- * one of a note that is no longer literature) is left out.
- */
-export function joinHighlights(
-  listed: readonly ListedHighlight[],
-  sources: readonly LibraryEntry[],
-): HighlightEntry[] {
-  const byPath = new Map(sources.map((source) => [source.path, source]));
-  const found = listed.flatMap((row) => {
-    const source = byPath.get(row.path);
-    return source === undefined ? [] : [{ row, source }];
-  });
-  found.sort(
-    (left, right) =>
-      right.source.modified - left.source.modified ||
-      inPathOrder(left.row.path, right.row.path) ||
-      left.row.index - right.row.index,
-  );
-  return found.map(({ row, source }) => ({
-    path: row.path,
-    source: source.title,
-    modified: source.modified,
-    id: row.id,
-    kind: row.kind,
-    quote: row.quote,
-    comment: row.comment,
-    mark: row.mark,
-    color: row.color,
-    page: row.page,
-    location: row.location,
-    tags: source.tags,
-  }));
+/** A literature note in use, with the highlights it holds in the order it holds them. */
+export interface SourceHighlights {
+  readonly source: LibraryEntry;
+  readonly highlights: readonly HighlightEntry[];
 }
 
 /** Paths in the index's order: by code unit, as SQLite's `ORDER BY path` sorts them. */
 const inPathOrder = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
+
+/** A time the note never had (NaN) is the epoch, so the order stays a total one. */
+const timeOf = (source: LibraryEntry) => (Number.isFinite(source.modified) ? source.modified : 0);
+
+/**
+ * `groups` as All highlights lists them: the most recently changed sources
+ * first, then by path. Each source's highlights stay in the order it holds
+ * them. Sorting the sources, not the highlights, is what keeps 150,000
+ * highlights from costing 150,000 comparisons.
+ */
+export function inDisplayOrder(groups: Iterable<SourceHighlights>): SourceHighlights[] {
+  return [...groups].sort(
+    (left, right) =>
+      timeOf(right.source) - timeOf(left.source) ||
+      inPathOrder(left.source.path, right.source.path),
+  );
+}
+
+/** Every highlight of `groups`, in their order. */
+export function flattenHighlights(groups: readonly SourceHighlights[]): HighlightEntry[] {
+  return groups.flatMap((group) => group.highlights);
+}
 
 /** Whether a highlight's comment is asked for: either way, only with one, or only without. */
 export type CommentFilter = 'any' | 'with' | 'without';
@@ -143,7 +129,7 @@ export function filterHighlights(
     (entry) =>
       (filter.source === null || entry.path === filter.source) &&
       (filter.colors.length === 0 || filter.colors.includes(highlightColor(entry.color))) &&
-      (filter.tag === null || entry.tags.includes(filter.tag)) &&
+      (filter.tag === null || usesTag(entry.tags, filter.tag)) &&
       (filter.comment === 'any' || hasComment(entry) === (filter.comment === 'with')) &&
       (since === null || entry.modified >= since),
   );
@@ -172,13 +158,31 @@ export interface HighlightChoices {
   readonly tags: readonly ResearchChoice<string>[];
 }
 
-/** The choices All highlights' filters offer; sources and tags by name, colours in their own order. */
+/**
+ * The choices All highlights' filters offer; sources and tags by name, colours
+ * in their own order. One pass over the highlights, and each source's tags
+ * (shared by its highlights) are widened to their parents once, not once per
+ * highlight.
+ */
 export function highlightChoices(entries: readonly HighlightEntry[]): HighlightChoices {
   const titles = new Map<VaultPath, string>();
-  for (const entry of entries) if (!titles.has(entry.path)) titles.set(entry.path, entry.source);
-  const sources = countBy(entries, (entry) => [entry.path]);
-  const colors = countBy(entries, (entry) => [highlightColor(entry.color)]);
-  const tags = countBy(entries, (entry) => entry.tags);
+  const sources = new Map<VaultPath, number>();
+  const colors = new Map<HighlightColor, number>();
+  const tags = new Map<string, number>();
+  const parents = new Map<readonly string[], readonly string[]>();
+  const bump = <Key>(counts: Map<Key, number>, key: Key) =>
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  for (const entry of entries) {
+    if (!titles.has(entry.path)) titles.set(entry.path, entry.source);
+    bump(sources, entry.path);
+    bump(colors, highlightColor(entry.color));
+    let widened = parents.get(entry.tags);
+    if (widened === undefined) {
+      widened = withParentTags(entry.tags);
+      parents.set(entry.tags, widened);
+    }
+    for (const tag of widened) bump(tags, tag);
+  }
   return {
     sources: [...sources]
       .map(([value, count]) => ({ value, label: titles.get(value) ?? value, count }))
@@ -194,3 +198,35 @@ export function highlightChoices(entries: readonly HighlightEntry[]): HighlightC
 }
 
 const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+
+/** `filter` without the values `choices` no longer offer (a source deleted, a colour recoloured away): see `settleLibraryFilter`. */
+export function settleHighlightFilter(
+  filter: HighlightFilter,
+  choices: HighlightChoices,
+): HighlightFilter {
+  const source =
+    filter.source !== null && choices.sources.some((choice) => choice.value === filter.source)
+      ? filter.source
+      : null;
+  const colors = filter.colors.filter((color) =>
+    choices.colors.some((choice) => choice.value === color),
+  );
+  const tag =
+    filter.tag !== null && choices.tags.some((choice) => choice.value === filter.tag)
+      ? filter.tag
+      : null;
+  const unchanged =
+    source === filter.source && colors.length === filter.colors.length && tag === filter.tag;
+  return unchanged ? filter : { ...filter, source, colors, tag };
+}
+
+/** Whether any of All highlights' filters is on. */
+export function isHighlightFiltered(filter: HighlightFilter): boolean {
+  return (
+    filter.source !== null ||
+    filter.colors.length > 0 ||
+    filter.tag !== null ||
+    filter.comment !== 'any' ||
+    filter.changed !== 'any'
+  );
+}

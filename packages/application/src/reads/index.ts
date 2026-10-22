@@ -14,6 +14,7 @@ export {
   PROJECTS_SCOPE,
   QUERY_SCOPE,
   RULE_QUERY_SCOPE,
+  changesTouching,
   scopeTouched,
   REVIEW_SCOPE,
   SEARCH_SCOPE,

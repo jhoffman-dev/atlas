@@ -8,10 +8,13 @@ import {
   highlightColor,
   highlightEmbed,
   highlightPlace,
-  joinHighlights,
+  isHighlightFiltered,
+  settleHighlightFilter,
+  flattenHighlights,
+  inDisplayOrder,
   NO_HIGHLIGHT_FILTER,
   type HighlightEntry,
-  type ListedHighlight,
+  type SourceHighlights,
 } from './highlight-list.ts';
 import type { LibraryEntry } from './library.ts';
 
@@ -26,6 +29,7 @@ function highlight(id: string, rest: Partial<HighlightEntry> = {}): HighlightEnt
     path: ART,
     source: 'The Art of War',
     modified: NOW,
+    index: 0,
     id,
     kind: 'pdf',
     quote: `Quote ${id}`,
@@ -164,89 +168,100 @@ describe('highlightChoices', () => {
   });
 });
 
-describe('joinHighlights', () => {
-  const source = (
-    path: string,
-    modified: number,
-    rest: Partial<LibraryEntry> = {},
-  ): LibraryEntry => ({
-    path: createVaultPath(path),
-    title: path.replace(/^.*\//, '').replace(/\.md$/, ''),
-    author: null,
-    kind: 'pdf',
-    highlights: 0,
-    modified,
-    tags: [],
-    projects: [],
-    cover: null,
-    ...rest,
-  });
-  const listed = (path: string, index: number, id: string): ListedHighlight => ({
-    path: createVaultPath(path),
-    index,
-    id,
-    kind: 'pdf',
-    quote: id,
-    comment: '',
-    mark: 'highlight',
-    color: 'yellow',
-    page: null,
-    location: null,
-  });
-
-  it("gives each highlight its source's title, time and tags, newest source first, then by path and place", () => {
-    const joined = joinHighlights(
-      [
-        listed('Library/B.md', 1, 'b2'),
-        listed('Library/Old.md', 0, 'o1'),
-        listed('Library/B.md', 0, 'b1'),
-        listed('Library/A.md', 0, 'a1'),
-      ],
-      [
-        source('Library/Old.md', 1),
-        source('Library/B.md', 9, { tags: ['war'] }),
-        source('Library/A.md', 9),
-      ],
-    );
-    expect(joined.map((each) => each.id)).toEqual(['a1', 'b1', 'b2', 'o1']);
-    expect(joined[1]).toEqual({
-      path: 'Library/B.md',
-      source: 'B',
-      modified: 9,
-      id: 'b1',
+describe('inDisplayOrder and flattenHighlights', () => {
+  const group = (path: string, modified: number, ...ids: string[]): SourceHighlights => {
+    const source: LibraryEntry = {
+      path: createVaultPath(path),
+      title: path.replace(/^.*\//, '').replace(/\.md$/, ''),
+      author: null,
       kind: 'pdf',
-      quote: 'b1',
-      comment: '',
-      mark: 'highlight',
-      color: 'yellow',
-      page: null,
-      location: null,
-      tags: ['war'],
-    });
-  });
+      highlights: ids.length,
+      modified,
+      tags: [],
+      projects: [],
+      cover: null,
+    };
+    return {
+      source,
+      highlights: ids.map((id, at) => highlight(id, { path: source.path, index: at, modified })),
+    };
+  };
+  const listed = (groups: readonly SourceHighlights[]) =>
+    ids(flattenHighlights(inDisplayOrder(groups)));
 
-  it('leaves out a highlight whose note is no source in use: archived, or literature no more', () => {
-    const joined = joinHighlights(
-      [listed('Archive/Gone.md', 0, 'g1'), listed('Library/Kept.md', 0, 'k1')],
-      [source('Library/Kept.md', 1)],
-    );
-    expect(joined.map((each) => each.id)).toEqual(['k1']);
-    expect(joinHighlights([], [source('Library/Kept.md', 1)])).toEqual([]);
-  });
-
-  it('puts the most recently changed source first, whatever its path', () => {
-    const joined = joinHighlights(
-      [listed('Library/A.md', 0, 'older'), listed('Library/Z.md', 0, 'newer')],
-      [source('Library/A.md', 1), source('Library/Z.md', 2)],
-    );
-    expect(joined.map((each) => each.id)).toEqual(['newer', 'older']);
+  it("lists the newest source first, then by path, each source's highlights as it holds them", () => {
+    expect(
+      listed([
+        group('Library/Old.md', 1, 'o1'),
+        group('Library/B.md', 9, 'b1', 'b2'),
+        group('Library/A.md', 9, 'a1'),
+      ]),
+    ).toEqual(['a1', 'b1', 'b2', 'o1']);
   });
 
   it('orders paths as the index does, by code unit, so "B" comes before "a"', () => {
-    const joined = joinHighlights(
-      [listed('Library/a.md', 0, 'lower'), listed('Library/B.md', 0, 'upper')],
-      [source('Library/a.md', 1), source('Library/B.md', 1)],
+    expect(listed([group('Library/a.md', 1, 'lower'), group('Library/B.md', 1, 'upper')])).toEqual([
+      'upper',
+      'lower',
+    ]);
+  });
+
+  it('keeps the order total for a source with no time of its own', () => {
+    const groups = [group('Library/A.md', Number.NaN, 'a'), group('Library/B.md', 0, 'b')];
+    expect(listed(groups)).toEqual(listed([...groups].reverse()));
+  });
+
+  it('is nothing for no sources, and does not reorder what it is given', () => {
+    const given = [group('Library/A.md', 1, 'a'), group('Library/B.md', 2, 'b')];
+    expect(flattenHighlights(inDisplayOrder([]))).toEqual([]);
+    inDisplayOrder(given);
+    expect(given.map((each) => each.source.title)).toEqual(['A', 'B']);
+  });
+});
+
+describe('settleHighlightFilter and isHighlightFiltered', () => {
+  const choices = highlightChoices([highlight('a1', { color: 'blue', tags: ['strategy'] })]);
+
+  it('drops the source, colour and tag no highlight has any more, and keeps the rest', () => {
+    const settled = settleHighlightFilter(
+      {
+        source: STOIC,
+        colors: ['blue', 'green'],
+        tag: 'gone',
+        comment: 'with',
+        changed: 'week',
+      },
+      choices,
     );
-    expect(joined.map((each) => each.id)).toEqual(['upper', 'lower']);
+    expect(settled).toEqual({
+      source: null,
+      colors: ['blue'],
+      tag: null,
+      comment: 'with',
+      changed: 'week',
+    });
+  });
+
+  it('keeps a filter every value of which is still offered, as the same object', () => {
+    const filter = {
+      ...NO_HIGHLIGHT_FILTER,
+      source: ART,
+      colors: ['blue' as const],
+      tag: 'strategy',
+    };
+    expect(settleHighlightFilter(filter, choices)).toBe(filter);
+  });
+
+  it('says a filter is on for any of the five', () => {
+    expect(isHighlightFiltered(NO_HIGHLIGHT_FILTER)).toBe(false);
+    for (const on of [
+      { source: ART },
+      { colors: ['blue' as const] },
+      { tag: 'a' },
+      { comment: 'with' as const },
+      { changed: 'year' as const },
+    ]) {
+      expect(isHighlightFiltered({ ...NO_HIGHLIGHT_FILTER, ...on })).toBe(true);
+    }
   });
 });

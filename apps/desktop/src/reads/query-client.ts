@@ -1,4 +1,5 @@
 import { notifyManager, QueryClient } from '@tanstack/react-query';
+import type { NoteChange } from '@dfai/domain';
 import type { ReadScope, VaultRead } from '@dfai/application';
 
 /**
@@ -70,7 +71,29 @@ export const scopedQueries = (vault: string) => [...vaultQueries(vault), 'scoped
  * the reader that reads on it said its last read failed (#424): a reader that
  * reads in its own effect keeps its error itself, where the cache cannot see it.
  */
-export const scopedReadMeta = (scope: ReadScope, failed = false) => ({ scope, failed });
+export const scopedReadMeta = (scope: ReadScope, failed = false, refresh?: ReadRefresh) => ({
+  scope,
+  failed,
+  ...(refresh !== undefined && { refresh }),
+});
+
+/**
+ * How a scoped read of a large list is brought up to date without reading it
+ * whole: from what it kept and the changes that touched it, its next value,
+ * or null when it has to be read again whole.
+ */
+export type ReadRefresh = (previous: never, changes: readonly NoteChange[]) => Promise<unknown>;
+
+/** A {@link ReadRefresh} asked of the value its own query holds, which is the type it was written for. */
+type KeptRefresh = (previous: unknown, changes: readonly NoteChange[]) => Promise<unknown>;
+
+/** The refresh a scoped read's query was given, if it was given one ({@link scopedReadMeta}). */
+export function refreshOfQuery(
+  meta: Readonly<Record<string, unknown>> | undefined,
+): KeptRefresh | null {
+  const refresh = meta?.['refresh'];
+  return typeof refresh === 'function' ? (refresh as KeptRefresh) : null;
+}
 
 /** Whether the reader of a scoped read said its last read failed ({@link scopedReadMeta}). */
 export function readerFailed(meta: Readonly<Record<string, unknown>> | undefined): boolean {
