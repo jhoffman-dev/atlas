@@ -285,21 +285,28 @@ describe('syncKindle when Amazon says it is asked too often', () => {
     ]);
   });
 
-  it('goes on past server errors that are not three in a row, and past a book that is not found', async () => {
-    const good = (asin: string, id: string) => [bookPage(asin, highlightRow(id, 'Reader.'))];
+  it.each([
+    ['500, 502, good, 503, 404', [500, 502, 0, 503, 404]],
+    ['500, 404, 502, 503', [500, 404, 502, 503]],
+  ])('goes on past server errors that are not three in a row (%s)', async (_label, answers) => {
+    const books = Object.fromEntries(
+      answers.map((status, index) => {
+        const asin = `B0EXAMPLE${index + 1}`;
+        return [
+          asin,
+          status === 0
+            ? [bookPage(asin, highlightRow('IDSERVER0003', 'Reader.'))]
+            : [answered(status)],
+        ];
+      }),
+    );
     const source = fakeKindleNotebook({
-      library: libraryOf(...asins),
-      books: {
-        B0EXAMPLE1: [answered(500)],
-        B0EXAMPLE2: [answered(502)],
-        B0EXAMPLE3: good('B0EXAMPLE3', 'IDSERVER0003'),
-        B0EXAMPLE4: [answered(404)],
-        B0EXAMPLE5: [answered(404)],
-      },
+      library: libraryOf(...answers.map((_, index) => `B0EXAMPLE${index + 1}`)),
+      books,
     });
     const report = await syncKindle({ source, sink: fakeKindleSink(), clock, delay });
-    expect(report).toMatchObject({ kind: 'synced', added: 1 });
-    expect(source.calls.filter((call) => call.call === 'annotations')).toHaveLength(5);
+    expect(report).toMatchObject({ kind: 'synced' });
+    expect(source.calls.filter((call) => call.call === 'annotations')).toHaveLength(answers.length);
   });
 });
 

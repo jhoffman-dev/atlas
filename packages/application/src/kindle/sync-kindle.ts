@@ -224,7 +224,8 @@ async function writeBook(
     return notWritten(error);
   }
   if (fresh.length > 0) {
-    // Read before a give-up, the note may be written since by the sync that waited on this one.
+    // The sync waiting on this one cannot start until this settles, so the note is not written
+    // meanwhile; a given-up run still does no more work, and its own call fails as the contract says.
     stopIfGivenUp(ports.givenUp);
     try {
       await ports.sink.addHighlights({ book, highlights: fresh, syncedAt: ports.clock.now() });

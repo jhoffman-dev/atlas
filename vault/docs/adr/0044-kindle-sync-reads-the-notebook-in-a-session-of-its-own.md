@@ -161,7 +161,8 @@ note>`, so an edited one arrives as a new entry and an unedited one is
   running sync is taken as stuck, the join is told so
   (`KindleSyncStuckError`), and the running sync is **given up** (an abort
   signal it checks before every fetch and every note write): it fetches and
-  writes nothing more, and its own call fails the same way. The slot is
+  writes nothing more, and its own call fails the same way; a given-up sync with
+  nothing left to fetch or write returns its report normally. The slot is
   **never freed while a sync is alive** — freeing it let a third call run
   beside a healthy long sync and add a highlight twice. A call made while a
   given-up sync winds down runs once it has settled (further calls join that

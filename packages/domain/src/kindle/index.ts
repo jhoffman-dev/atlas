@@ -9,7 +9,7 @@ export {
 } from './kindle-highlight-key.ts';
 export {
   holdsKindleAutoSync,
-  KINDLE_ROBOT_CHECK_BACKOFF_MS,
+  KINDLE_AUTO_SYNC_HOLD_MS,
   kindleAutoSyncHeldUntil,
   mayAutoSyncKindle,
 } from './kindle-backoff.ts';

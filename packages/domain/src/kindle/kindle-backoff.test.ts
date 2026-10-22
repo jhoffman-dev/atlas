@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   holdsKindleAutoSync,
-  KINDLE_ROBOT_CHECK_BACKOFF_MS,
+  KINDLE_AUTO_SYNC_HOLD_MS,
   kindleAutoSyncHeldUntil,
   mayAutoSyncKindle,
 } from './kindle-backoff.ts';
@@ -11,36 +11,36 @@ const NOW = Date.UTC(2026, 9, 21, 9, 0);
 
 describe('the back-off after a robot check', () => {
   it('is 24 hours', () => {
-    expect(KINDLE_ROBOT_CHECK_BACKOFF_MS).toBe(24 * HOUR);
+    expect(KINDLE_AUTO_SYNC_HOLD_MS).toBe(24 * HOUR);
   });
 
-  it('holds automatic syncs for 24 hours from the robot check', () => {
+  it('holds automatic syncs for 24 hours from when the hold began', () => {
     expect(kindleAutoSyncHeldUntil(NOW)).toBe(NOW + 24 * HOUR);
     expect(kindleAutoSyncHeldUntil(null)).toBeNull();
   });
 
-  it('lets an automatic sync run when there has been no robot check', () => {
-    expect(mayAutoSyncKindle({ now: NOW, lastRobotCheckAt: null })).toBe(true);
+  it('lets an automatic sync run when there has been no hold', () => {
+    expect(mayAutoSyncKindle({ now: NOW, lastHoldAt: null })).toBe(true);
   });
 
   it('refuses one until 24 hours have passed, and allows it from the moment they have', () => {
-    expect(mayAutoSyncKindle({ now: NOW + 1, lastRobotCheckAt: NOW })).toBe(false);
-    expect(mayAutoSyncKindle({ now: NOW + 24 * HOUR - 1, lastRobotCheckAt: NOW })).toBe(false);
-    expect(mayAutoSyncKindle({ now: NOW + 24 * HOUR, lastRobotCheckAt: NOW })).toBe(true);
+    expect(mayAutoSyncKindle({ now: NOW + 1, lastHoldAt: NOW })).toBe(false);
+    expect(mayAutoSyncKindle({ now: NOW + 24 * HOUR - 1, lastHoldAt: NOW })).toBe(false);
+    expect(mayAutoSyncKindle({ now: NOW + 24 * HOUR, lastHoldAt: NOW })).toBe(true);
   });
 
-  it('does not hold a sync for a robot check the clock says is in the future', () => {
+  it('does not hold a sync for a hold the clock says began in the future', () => {
     // A clock set back is not a reason to stop syncing for ever.
-    expect(mayAutoSyncKindle({ now: NOW, lastRobotCheckAt: NOW + 3 * 24 * HOUR })).toBe(true);
+    expect(mayAutoSyncKindle({ now: NOW, lastHoldAt: NOW + 3 * 24 * HOUR })).toBe(true);
   });
 
-  it('does not hold automatic syncs for ever when the stored robot-check time is not a number', () => {
+  it('does not hold automatic syncs for ever when the stored hold time is not a number', () => {
     // A time read back badly from storage (Number(undefined)) is no reason to stop for good.
-    expect(
-      mayAutoSyncKindle({ now: Date.UTC(2026, 9, 21, 9, 0), lastRobotCheckAt: Number.NaN }),
-    ).toBe(true);
+    expect(mayAutoSyncKindle({ now: Date.UTC(2026, 9, 21, 9, 0), lastHoldAt: Number.NaN })).toBe(
+      true,
+    );
     for (const stored of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
-      expect(mayAutoSyncKindle({ now: NOW, lastRobotCheckAt: stored }), String(stored)).toBe(true);
+      expect(mayAutoSyncKindle({ now: NOW, lastHoldAt: stored }), String(stored)).toBe(true);
     }
   });
 

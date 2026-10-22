@@ -144,6 +144,51 @@ describe('createKindleSync: a join gives up on a stuck sync at the deadline', ()
     expect([next.calls, other.calls]).toEqual([[{ call: 'library' }], []]);
   });
 
+  it('stops a given-up sync before it writes, failing its own call, before the next run starts', async () => {
+    const deadline = heldKindleDelay();
+    const syncKindle = createKindleSync({ deadline });
+    const sink = fakeKindleSink();
+    let readNote: () => void = () => {};
+    const slowSink: KindleHighlightSink = {
+      ...sink,
+      recordedKeys: async (book: KindleBook) => {
+        await new Promise<void>((resolve) => {
+          readNote = resolve;
+        });
+        return sink.recordedKeys(book);
+      },
+    };
+    const source = fakeKindleNotebook({
+      library: libraryOf('B0EXAMPLE1'),
+      books: {
+        B0EXAMPLE1: [bookPage('B0EXAMPLE1', highlightRow('IDGIVENUP001', 'Call me Ishmael.'))],
+      },
+    });
+    const given = syncKindle({ source, sink: slowSink, clock, delay });
+    given.catch(() => {});
+    // Let it reach reading the note, past its last fetch: only the check before writing is left.
+    await new Promise((settle) => setImmediate(settle));
+    const past = { now: () => NOW + KINDLE_SYNC_JOIN_DEADLINE_MS + 1 };
+    await expect(
+      syncKindle({ source: stuckNotebook(), sink, clock: past, delay }),
+    ).rejects.toBeInstanceOf(KindleSyncStuckError);
+    const idle = fakeKindleNotebook({ library: libraryOf() });
+    let writesWhenNextStarted = -1;
+    const next = {
+      ...idle,
+      fetchLibrary: () => {
+        writesWhenNextStarted = sink.writes.length;
+        return idle.fetchLibrary();
+      },
+    };
+    const after = syncKindle({ source: next, sink, clock: past, delay });
+    readNote();
+    await expect(given).rejects.toBeInstanceOf(KindleSyncStuckError);
+    expect(sink.writes).toEqual([]);
+    expect(await after).toMatchObject({ kind: 'synced' });
+    expect(writesWhenNextStarted).toBe(0);
+  });
+
   it('gives up on a call waiting for a given-up sync that never settles, at its own deadline', async () => {
     const deadline = heldKindleDelay();
     const syncKindle = createKindleSync({ deadline });

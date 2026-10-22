@@ -7,9 +7,9 @@ import type { KindleSyncReport } from './kindle-sync-report.ts';
  * every few hours) holds back for a day; one the person asks for is theirs
  * to make and is not held. The scheduler that runs the automatic syncs asks
  * this; it keeps when the last sync {@link holdsKindleAutoSync} came, as
- * `lastRobotCheckAt` below.
+ * `lastHoldAt` below.
  */
-export const KINDLE_ROBOT_CHECK_BACKOFF_MS = 24 * 60 * 60 * 1000;
+export const KINDLE_AUTO_SYNC_HOLD_MS = 24 * 60 * 60 * 1000;
 
 /** Whether a sync that ended as `report` starts the hold on automatic syncs. */
 export function holdsKindleAutoSync(report: Pick<KindleSyncReport, 'kind'>): boolean {
@@ -17,27 +17,27 @@ export function holdsKindleAutoSync(report: Pick<KindleSyncReport, 'kind'>): boo
 }
 
 /**
- * Until when automatic syncs are held, given when a robot check came; null
- * when none has. A time that is not a finite number (one read back badly
- * from storage) is taken as no robot check: it dates nothing.
+ * Until when automatic syncs are held, given when the hold began (a robot
+ * check or a rate limit); null when none has. A time that is not a finite
+ * number (one read back badly from storage) is taken as no hold: it dates nothing.
  */
-export function kindleAutoSyncHeldUntil(lastRobotCheckAt: number | null): number | null {
-  if (lastRobotCheckAt === null || !Number.isFinite(lastRobotCheckAt)) return null;
-  return lastRobotCheckAt + KINDLE_ROBOT_CHECK_BACKOFF_MS;
+export function kindleAutoSyncHeldUntil(lastHoldAt: number | null): number | null {
+  if (lastHoldAt === null || !Number.isFinite(lastHoldAt)) return null;
+  return lastHoldAt + KINDLE_AUTO_SYNC_HOLD_MS;
 }
 
 /**
- * Whether an automatic sync may run at `now` (a clock's reading). A robot
- * check dated after `now` — a clock set back — holds nothing, nor does one
+ * Whether an automatic sync may run at `now` (a clock's reading). A hold
+ * dated after `now` — a clock set back — holds nothing, nor does one
  * whose time is not a finite number: stopping for ever on a wrong clock or a
  * bad stored value is worse than one extra try.
  */
 export function mayAutoSyncKindle(args: {
   readonly now: number;
-  readonly lastRobotCheckAt: number | null;
+  readonly lastHoldAt: number | null;
 }): boolean {
-  if (args.lastRobotCheckAt === null || !Number.isFinite(args.lastRobotCheckAt)) return true;
-  if (args.lastRobotCheckAt > args.now) return true;
-  const heldUntil = kindleAutoSyncHeldUntil(args.lastRobotCheckAt);
+  if (args.lastHoldAt === null || !Number.isFinite(args.lastHoldAt)) return true;
+  if (args.lastHoldAt > args.now) return true;
+  const heldUntil = kindleAutoSyncHeldUntil(args.lastHoldAt);
   return heldUntil === null || args.now >= heldUntil;
 }
