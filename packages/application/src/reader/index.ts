@@ -13,3 +13,15 @@ export {
 export type { ReadLiteratureNote } from './pdf-highlights.ts';
 export { PdfUnreadableError } from './ports.ts';
 export type { PdfDocument, PdfOutlineEntry, PdfPageSize, PdfReaderPort } from './ports.ts';
+export {
+  linkedPdf,
+  openHighlightPlace,
+  readerHighlightLinks,
+  whereHighlightOpens,
+} from './open-highlight-place.ts';
+export type {
+  HighlightPlaceOpener,
+  HighlightPlacePorts,
+  LinkedPdfPorts,
+  ReaderHighlightLinks,
+} from './open-highlight-place.ts';

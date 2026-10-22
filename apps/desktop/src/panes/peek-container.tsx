@@ -64,6 +64,7 @@ function PeekContainer({ peek }: { peek: Peek }) {
           overlays,
           notePaths: context.notePaths,
           onProblem: context.onLinkProblem,
+          places: context.linkPlaces,
           leavePeek: leave,
         },
         {

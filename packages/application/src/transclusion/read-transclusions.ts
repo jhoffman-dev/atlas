@@ -1,9 +1,12 @@
 import {
   bookmarkTarget,
   missingTransclusion,
+  readHighlights,
+  readLiteratureNote,
   splitFrontmatter,
   transclusionOf,
   type EditorDocument,
+  type ShownLiterature,
   type Transclusion,
   type VaultPath,
   type WikiLink,
@@ -30,6 +33,8 @@ export interface TransclusionReader {
 interface ReadNote {
   readonly doc: EditorDocument;
   readonly properties: Readonly<Record<string, unknown>>;
+  /** Its source and highlights, when it is a literature note: what a highlight's chip names. */
+  readonly literature: ShownLiterature | null;
   readonly modified: number;
 }
 
@@ -72,7 +77,8 @@ export function createTransclusionReader({
         const path = paths[at] ?? null;
         const note = path === null ? undefined : kept.get(path);
         if (path === null || note === undefined) return missingTransclusion(link);
-        return transclusionOf({ link, path, properties: note.properties, doc: note.doc });
+        const { properties, doc, literature } = note;
+        return transclusionOf({ link, path, properties, doc, literature });
       });
     },
   };
@@ -87,11 +93,28 @@ async function readNotes(
   const read = new Map<string, ReadNote>();
   for (const file of await fs.readNotes(paths)) {
     const { frontmatter, body } = splitFrontmatter(file.text);
+    const properties = markdown.frontmatterProperties(frontmatter);
     read.set(file.path, {
       doc: markdown.parseBody(body).doc,
-      properties: markdown.frontmatterProperties(frontmatter),
+      properties,
+      literature: literatureOf({ markdown, text: file.text, properties }),
       modified: file.modified,
     });
   }
   return read;
+}
+
+/** A literature note's source and highlights; null for any other note, whose quotes are no highlights. */
+function literatureOf({
+  markdown,
+  text,
+  properties,
+}: {
+  markdown: MarkdownPort;
+  text: string;
+  properties: Readonly<Record<string, unknown>>;
+}): ShownLiterature | null {
+  const source = readLiteratureNote(properties);
+  if (source === null) return null;
+  return { source, highlights: readHighlights(text, (note) => markdown.noteBlocks(note)) };
 }

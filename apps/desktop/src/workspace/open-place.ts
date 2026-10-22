@@ -1,10 +1,13 @@
 import {
   linkFragment,
+  pdfLinkTarget,
   placeOfFile,
   resolveWikiLinkTarget,
+  type HighlightOpening,
   type NavigationPlace,
   type VaultPath,
 } from '@dfai/domain';
+import type { HighlightPlaceOpener } from '@dfai/application';
 import type { OpenHow } from '@dfai/ui';
 import { requestReveal, type RevealStore } from '../panes/reveals.ts';
 import { closePeek, openPeek, peekNow, replacePeek, type OverlayStore } from '../overlay-store.ts';
@@ -42,11 +45,53 @@ export function openDocumentAt(
   }: { path: VaultPath; highlightId: string | null; how?: OpenHow },
 ): void {
   openPlace(store, { kind: 'document', path }, how);
-  if (highlightId === null) return;
+  if (highlightId !== null) revealInFocused({ store, reveals }, { path, blockId: highlightId });
+}
+
+/** Opens note `path` where asked, brought to block `blockId`, as a link to it does. */
+function openNoteAt(
+  { store, reveals }: { store: WorkspaceStore; reveals: RevealStore },
+  { path, blockId, how }: { path: VaultPath; blockId: string; how: OpenHow },
+): void {
+  openPlace(store, { kind: 'note', path }, how);
+  revealInFocused({ store, reveals }, { path, blockId });
+}
+
+function revealInFocused(
+  { store, reveals }: { store: WorkspaceStore; reveals: RevealStore },
+  { path, blockId }: { path: VaultPath; blockId: string },
+): void {
   const ws = workspaceNow(store);
   const shown = ws.panes[ws.focused];
   if (shown === undefined) return;
-  requestReveal(reveals, { tab: shown.active, path, fragment: { kind: 'block', id: highlightId } });
+  requestReveal(reveals, { tab: shown.active, path, fragment: { kind: 'block', id: blockId } });
+}
+
+/**
+ * Opens a highlight's place from outside a note's links — a library or
+ * all-highlights row (#507) — where the click asked: the reader at it, or
+ * its note at the block. Handed to `openHighlightPlace`, which says which.
+ */
+export function highlightPlaceOpener(
+  opening: { store: WorkspaceStore; reveals: RevealStore },
+  how: OpenHow = 'here',
+): HighlightPlaceOpener {
+  return {
+    openDocument: ({ path, highlightId }) => openDocumentAt(opening, { path, highlightId, how }),
+    openNote: ({ path, blockId }) => openNoteAt(opening, { path, blockId, how }),
+  };
+}
+
+/**
+ * Where a link leads when that takes reading a file to know (#506): a block
+ * that is a highlight opens its document's reader, and `[[…pdf]]` names a
+ * PDF rather than a note. Left out, every link opens a note, as before.
+ */
+export interface LinkPlaces {
+  /** Where following block `blockId` of `note` leads (`whereHighlightOpens`). */
+  readonly blockOpening: (args: { note: VaultPath; blockId: string }) => Promise<HighlightOpening>;
+  /** The PDF a `[[…pdf]]` link names (`linkedPdf`), or null when it names none. */
+  readonly linkedPdf: (target: string) => Promise<VaultPath | null>;
 }
 
 /** What following a link needs beside the store. */
@@ -56,6 +101,7 @@ export interface LinkFollowing {
   readonly notePaths: readonly VaultPath[];
   /** Told the problem with a link that leads nowhere, or null once one leads somewhere. */
   readonly onProblem: (message: string | null) => void;
+  readonly places?: LinkPlaces;
 }
 
 /**
@@ -76,28 +122,31 @@ export function followLink(
   }: { pane: number; target: string; heading?: string | null; how?: OpenHow },
 ): void {
   const fragment = heading === null ? null : linkFragment({ heading });
+  const open = (linked: Linked) => openLinked(following, { pane, linked, how });
+  if (followedLater(following, { target, open })) return;
   const here = placeIn(following.store, pane);
   const resolved = linkedNote(following, {
     target,
     fragment,
     here: here?.kind === 'note' ? here.path : null,
   });
-  if (resolved !== null) openLinked(following, { pane, path: resolved, fragment, how });
+  if (resolved !== null) openNoteLinked(following, { path: resolved, fragment, open });
 }
 
 type Fragment = ReturnType<typeof linkFragment>;
 
-/** Opens a linked note's page in a pane, where the click asked, at its fragment when it names one. */
+/** Where a followed link leads: a page, and the place in it to bring into view. */
+interface Linked {
+  readonly place: Extract<NavigationPlace, { kind: 'note' | 'document' }>;
+  readonly fragment: Fragment | null;
+}
+
+/** Opens a linked page in a pane, where the click asked, at its fragment when it names one. */
 function openLinked(
   { store, reveals }: Pick<LinkFollowing, 'store' | 'reveals'>,
-  {
-    pane,
-    path,
-    fragment,
-    how,
-  }: { pane: number; path: VaultPath; fragment: Fragment | null; how: OpenHow },
+  { pane, linked, how }: { pane: number; linked: Linked; how: OpenHow },
 ): void {
-  const place: NavigationPlace = { kind: 'note', path };
+  const { place, fragment } = linked;
   if (how === 'here') openInPane(store, { pane, place });
   else {
     // The new tab goes beside the tab the link was clicked in, so that pane takes the focus first.
@@ -107,8 +156,68 @@ function openLinked(
   if (fragment === null) return;
   const ws = workspaceNow(store);
   const shown = ws.panes[ws.focused];
-  if (shown !== undefined) requestReveal(reveals, { tab: shown.active, path, fragment });
+  if (shown !== undefined) {
+    requestReveal(reveals, { tab: shown.active, path: place.path, fragment });
+  }
 }
+
+/**
+ * Opens the note a link resolved to, at its fragment — or, for a block that
+ * is a highlight of a source with a reader, that reader at the highlight
+ * (#506), once its note has been read to know which.
+ */
+function openNoteLinked(
+  { places, onProblem }: Pick<LinkFollowing, 'places' | 'onProblem'>,
+  {
+    path,
+    fragment,
+    open,
+  }: { path: VaultPath; fragment: Fragment | null; open: (linked: Linked) => void },
+): void {
+  const inNote: Linked = { place: { kind: 'note', path }, fragment };
+  if (places === undefined || fragment?.kind !== 'block') {
+    open(inNote);
+    return;
+  }
+  places
+    .blockOpening({ note: path, blockId: fragment.id })
+    .then((opening) => open(linkedOf(opening)))
+    .catch((error: unknown) => onProblem(`The link could not be followed: ${messageOf(error)}`));
+}
+
+/** The page and place a highlight's opening names. */
+function linkedOf(opening: HighlightOpening): Linked {
+  return opening.kind === 'reader'
+    ? {
+        place: { kind: 'document', path: opening.document },
+        fragment: { kind: 'block', id: opening.highlightId },
+      }
+    : {
+        place: { kind: 'note', path: opening.note },
+        fragment: { kind: 'block', id: opening.blockId },
+      };
+}
+
+/**
+ * Follows `[[…pdf]]` to the reader (#506) once the PDF it names is known,
+ * and says so: true when the link is one, and is being followed.
+ */
+function followedLater(
+  { places, onProblem }: Pick<LinkFollowing, 'places' | 'onProblem'>,
+  { target, open }: { target: string; open: (linked: Linked) => void },
+): boolean {
+  if (places === undefined || pdfLinkTarget(target, []) === null) return false;
+  places
+    .linkedPdf(target)
+    .then((pdf) => {
+      onProblem(pdf === null ? `No PDF called "${target}"` : null);
+      if (pdf !== null) open({ place: { kind: 'document', path: pdf }, fragment: null });
+    })
+    .catch((error: unknown) => onProblem(`The link could not be followed: ${messageOf(error)}`));
+  return true;
+}
+
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
  * The note a link leads to, told to `onProblem` either way; null when it
@@ -155,6 +264,16 @@ export function clickLink(
   }: { pane: number; target: string; heading?: string | null; how?: OpenHow; inPeek: boolean },
 ): void {
   const fragment = heading === null ? null : linkFragment({ heading });
+  const open = (linked: Linked) => {
+    const opening = () => openLinked(peeking, { pane, linked, how: how ?? 'here' });
+    if (!inPeek) opening();
+    else if (peeking.leavePeek !== undefined) peeking.leavePeek(opening);
+    else {
+      closePeek(peeking.overlays);
+      opening();
+    }
+  };
+  if (followedLater(peeking, { target, open })) return;
   const here = inPeek ? (peekNow(peeking.overlays)?.path ?? null) : notePathIn(peeking.store, pane);
   const path = linkedNote(peeking, { target, fragment, here });
   if (path === null) return;
@@ -163,13 +282,7 @@ export function clickLink(
     else openPeek(peeking.overlays, { path, from: null });
     return;
   }
-  const open = () => openLinked(peeking, { pane, path, fragment, how: how ?? 'here' });
-  if (!inPeek) open();
-  else if (peeking.leavePeek !== undefined) peeking.leavePeek(open);
-  else {
-    closePeek(peeking.overlays);
-    open();
-  }
+  openNoteLinked(peeking, { path, fragment, open });
 }
 
 function notePathIn(store: WorkspaceStore, pane: number): VaultPath | null {

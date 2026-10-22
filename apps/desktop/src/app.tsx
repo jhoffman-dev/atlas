@@ -184,6 +184,7 @@ import {
 import { PEEK_EDITOR, PeekLayer } from './panes/peek-container.tsx';
 import { leavePeek } from './panes/peek-moves.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
+import { linkPlacesOf } from './reader/link-places.ts';
 import { movingEditorsIn, openNotesIn } from './panes/open-notes.ts';
 import { useVaultEntries, type VaultEntryPorts } from './vault/use-vault-entries.ts';
 import { MergePeopleSlot, PossibleDuplicatesSlot } from './people/people-merge-slot.tsx';
@@ -1543,11 +1544,18 @@ function AppWindow({
     [notesInUse, notePaths],
   );
 
+  const linkPlaces = useMemo(
+    () => linkPlacesOf({ fs: notes.fs, markdown: notes.markdown, index: index.index }),
+    [notes, index.index],
+  );
   /** Follows a wiki link in the pane it was clicked in — a link opens where you are reading. */
   const followLinkInPane = useCallback(
     (link: { pane: number; target: string; heading?: string | null }) =>
-      followLink({ store: workspace, reveals, notePaths, onProblem: setLinkError }, link),
-    [workspace, reveals, notePaths],
+      followLink(
+        { store: workspace, reveals, notePaths, onProblem: setLinkError, places: linkPlaces },
+        link,
+      ),
+    [workspace, reveals, notePaths, linkPlaces],
   );
   /** Opens the line a proposal cites — `[[2026-10-01 Standup#^t0003]]` — in the focused pane. */
   const followSource = useCallback(
@@ -1606,6 +1614,7 @@ function AppWindow({
       peopleMerge: peopleMerge.commands,
       exporting: exportCommands,
       onLinkProblem: setLinkError,
+      linkPlaces,
       notesBeingMade,
       templateCommands,
     }),
@@ -1648,6 +1657,7 @@ function AppWindow({
       exportCommands,
       templateCommands,
       notesBeingMade,
+      linkPlaces,
     ],
   );
 

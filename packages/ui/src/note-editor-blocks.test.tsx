@@ -74,6 +74,7 @@ const PACK: Transclusion = {
   archived: false,
   fragment: { kind: 'block', id: 't1' },
   content: doc(paragraph('Pack the tent')),
+  highlight: null,
 };
 
 async function editorIn(container: HTMLElement): Promise<Editor> {

@@ -320,6 +320,23 @@ quote, comment, mark, color, anchor` — the quote's plain words, the
     comment's markdown, and the marker's JSON. TypeScript reads the rows
     (`highlightRows`); Rust stores them (ADR-0005). `/v1/sql` reads it.
 
+11. **A highlight followed opens where it lives** (#506). A link to a
+    highlight, `[[Source#^id]]`, its embed's source chip, and the "Open in
+    PDF" a highlight offers in its own note open the source's reader at the
+    highlight, scrolled to it and flashed, when the app has a reader for the
+    source's kind (`READER_KINDS`: `pdf`; #505 adds `epub`) and the note
+    names its file. Anything else — a Kindle book, a block of the note that
+    is no highlight, a note that is no literature note — opens the note at
+    the block, as ADR-0022 has every block link do. The rule is the
+    domain's (`highlightOpening`); `whereHighlightOpens` and
+    `openHighlightPlace` are the application's, for links and for the
+    library's rows. An embed of a highlight wears a chip of its source's
+    title and its page (`p. 3`) or Kindle location (`loc. 41`), in its
+    kind's pastel. A highlight whose words are not found opens at its saved
+    page, and the reader says it could not find the exact spot.
+    `[[file.pdf]]` names a PDF, not a note: by its path, or by its name
+    alone when one literature note's file has it.
+
 ## Consequences
 
 - A literature note reads as a list of quotes with comments in Obsidian; its
