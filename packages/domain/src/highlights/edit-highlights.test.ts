@@ -448,3 +448,32 @@ describe('removing a highlight', () => {
     );
   });
 });
+
+// Verification round 3 on PR #510: `sameKindlePlace` is a comparison, not a key, and is not
+// transitive — a copy with only a page is the same place as two copies at different
+// locations on that page, which are not the same place as each other.
+describe('Kindle passages matched by place (verify3, PR #510)', () => {
+  const words = 'Emma Woodhouse, handsome, clever, and rich';
+  const kindleAt = (location: number | null, annotationId: string | null): NewHighlight => ({
+    quote: words,
+    anchor: {
+      kind: 'kindle',
+      location: location === null ? null : { start: location, end: null },
+      page: 12,
+      annotationId,
+    },
+  });
+  const sync = (text: string, highlights: readonly NewHighlight[]) =>
+    appendHighlights({ text, highlights, random: seeded(7), noteBlocks });
+
+  it('answers one held passage for at most one export highlight with an id', () => {
+    const held = sync(SOURCE, [kindleAt(null, null)]).text;
+    const { highlights } = sync(held, [kindleAt(100, 'A1'), kindleAt(140, 'C1')]);
+    expect(new Set(highlights.map((highlight) => highlight.id)).size).toBe(2);
+  });
+
+  it('keeps two passages at different locations apart when a page-only copy came first', () => {
+    const { text } = sync(SOURCE, [kindleAt(null, null), kindleAt(100, null), kindleAt(140, null)]);
+    expect(readHighlights(text, noteBlocks)).toHaveLength(2);
+  });
+});
