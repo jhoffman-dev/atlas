@@ -308,3 +308,30 @@ describe('a removed Kindle highlight leaves a hidden tombstone (regression)', ()
     expect(() => sync(removed, [kept, passage('A9', 'Fresh words.', 300)])).not.toThrow();
   });
 });
+
+/*
+ * Found verifying PR #514 after 85480be7: a typed note whose words are only
+ * characters `passageWords` takes out (a zero-width space, a soft hyphen —
+ * `&#8203;` or `&shy;` on the notebook page) is written into the comment, but
+ * no paragraph of the comment keys as it (`kindleNoteKeysOfRuns` drops the
+ * empty run), so every sync writes it again and the comment grows unbounded.
+ */
+describe('a typed note of invisible characters only is added once (verify)', () => {
+  it.each([
+    ['a zero-width space', '​'],
+    ['a soft hyphen', '­'],
+  ])('does not add a note that is only %s again on every sync', (_name, note) => {
+    const quote = passage('A1', 'The lamp was lit at dusk.');
+    const exported = [quote, typedOn(quote, note)];
+    const once = sync(EMPTY, exported);
+    expect(sync(sync(once, exported), exported)).toBe(once);
+  });
+
+  it('does not add an invisible-only note typed later again on every sync', () => {
+    const quote = passage('A1', 'The lamp was lit at dusk.');
+    const first = sync(EMPTY, [quote]);
+    const exported = [quote, typedOn(quote, '​')];
+    const once = sync(first, exported);
+    expect(sync(once, exported)).toBe(once);
+  });
+});
