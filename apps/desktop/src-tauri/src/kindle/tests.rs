@@ -329,3 +329,197 @@ fn the_sign_in_window_may_go_to_amazon_over_https_and_nowhere_else() {
         assert!(!sign_in_may_load(refused), "{refused}");
     }
 }
+
+// ---- Attack on PR #511 -------------------------------------------------
+// Every server below binds 127.0.0.1; nothing here names a host off this Mac.
+
+/// The fake session's value as a page would echo it percent-encoded (`|` as `%7C`).
+const SESSION_PERCENT_ENCODED: &str = "Atza%7CFAKE-SESSION-TOKEN-0123456789";
+
+#[tokio::test(flavor = "multi_thread")]
+async fn attack_511_a_redirect_off_the_notebook_never_hands_the_webview_the_session_in_its_path() {
+    let amazon = FakeAmazon::start(Reply::Page(LIBRARY)).await;
+    amazon.reply(
+        "/notebook",
+        Reply::Redirect(format!("/ap/signin/{SESSION_VALUE}")),
+    );
+    let page = fetch(&amazon, "/notebook", &session()).await.unwrap();
+    let shown = page.redirected_to.clone().unwrap_or_default();
+    assert!(
+        !shown.contains("FAKE-SESSION-TOKEN"),
+        "the redirect target reaches the webview with the session in it: {shown}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn attack_511_a_page_that_echoes_the_session_percent_encoded_hands_the_webview_none_of_it() {
+    const ECHO: &str = concat!(
+        r#"<div id="kp-notebook-library"><a href="/x?s="#,
+        "Atza%7CFAKE-SESSION-TOKEN-0123456789",
+        r#"">x</a></div>"#
+    );
+    let amazon = FakeAmazon::start(Reply::Page(ECHO)).await;
+    let result = fetch(&amazon, "/notebook", &session()).await;
+    let handed = handed(&result);
+    assert!(
+        !handed.contains(SESSION_PERCENT_ENCODED),
+        "the session reaches the webview percent-encoded: {handed}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn attack_511_a_page_that_echoes_the_session_as_html_entities_hands_the_webview_none_of_it() {
+    // What the parser decodes `&#124;` to is the session itself.
+    const ECHO: &str = concat!(
+        r#"<div id="kp-notebook-library"><input value=""#,
+        "Atza&#124;FAKE-SESSION-TOKEN-0123456789",
+        r#""></div>"#
+    );
+    let amazon = FakeAmazon::start(Reply::Page(ECHO)).await;
+    let result = fetch(&amazon, "/notebook", &session()).await;
+    let handed = handed(&result);
+    assert!(
+        !handed.contains("FAKE-SESSION-TOKEN-0123456789"),
+        "the session reaches the webview entity-encoded: {handed}"
+    );
+}
+
+#[test]
+fn attack_511_hostile_addresses_are_all_refused() {
+    let origin = Url::parse("https://read.amazon.com").unwrap();
+    for raw in [
+        "https://read.amazon.com.evil.example/notebook",
+        "https://read.amazon.com@evil.example/notebook",
+        "https://read.amazon.com:@evil.example/notebook",
+        "https://user:pass@read.amazon.com/notebook",
+        "https://read.amazon.com:444/notebook",
+        "https://read.amazon.com./notebook",
+        "https://xn--rad-sdd.amazon.com/notebook",
+        "https://r\u{0435}ad.amazon.com/notebook",
+        "https://read.amazon.com/notebook/../ap/signin",
+        "https://read.amazon.com/notebook/%2e%2e/ap/signin",
+        "https://read.amazon.com/notebook%2F..%2Fap",
+        "https://read.amazon.com/notebook%3Fasin=x",
+        "https://read.amazon.com/notebook;jsessionid=x",
+        "https://read.amazon.com/NOTEBOOK",
+        "https://read.amazon.com/notebook#",
+        "https://read.amazon.com/notebook?asin=x#frag",
+        "wss://read.amazon.com/notebook",
+        "ftp://read.amazon.com/notebook",
+        "https://54.239.0.1/notebook",
+        "https://[::1]/notebook",
+        "//read.amazon.com/notebook",
+    ] {
+        assert!(
+            super::notebook_url::notebook_url(&origin, raw).is_err(),
+            "{raw}"
+        );
+    }
+}
+
+/// A server on 127.0.0.1 that answers with a body shorter than its
+/// Content-Length and hangs up: a page cut off mid-way.
+async fn truncating_amazon() -> Url {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let origin = Url::parse(&format!(
+        "http://127.0.0.1:{}",
+        listener.local_addr().unwrap().port()
+    ))
+    .unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut request = [0u8; 4096];
+            let _ = stream.read(&mut request).await;
+            let _ = stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 4000\r\n\r\n<div id=\"kp-notebook-library\">",
+                )
+                .await;
+            let _ = stream.shutdown().await;
+        }
+    });
+    origin
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn attack_511_a_page_cut_off_mid_way_is_a_failure_not_part_of_a_page() {
+    let origin = truncating_amazon().await;
+    let result = fetch_notebook(NotebookRequest {
+        origin: &origin,
+        url: origin.join("/notebook").unwrap().as_str(),
+        cookies: &session(),
+        timeout: REQUEST_TIMEOUT,
+    })
+    .await;
+    assert_eq!(
+        result.unwrap_err().kind,
+        FailureKind::Unreachable,
+        "a truncated page must not come back as a page"
+    );
+}
+
+/// Run only as the child of the test below, with a proxy in its environment.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "the child half of attack_511_the_fetcher_s_requests_never_go_through_a_proxy_in_the_environment"]
+async fn attack_511_child_fetches_the_fake_notebook() {
+    let amazon = FakeAmazon::start(Reply::Page(LIBRARY)).await;
+    let _ = fetch(&amazon, "/notebook", &session()).await;
+}
+
+#[test]
+fn attack_511_the_fetcher_s_requests_never_go_through_a_proxy_in_the_environment() {
+    // The guard that the fetcher's tests stay on 127.0.0.1 whatever shell runs
+    // them: a proxy variable must not reroute the session. The "proxy" here is
+    // a listener on 127.0.0.1 that only records that it was asked, so nothing
+    // leaves this Mac either way. The fetch runs in a child process so that the
+    // variable reaches no other test.
+    use std::io::{Read, Write};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let proxy = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let proxy_url = format!("http://127.0.0.1:{}", proxy.local_addr().unwrap().port());
+    let asked = Arc::new(AtomicBool::new(false));
+    let heard_cookie = Arc::new(AtomicBool::new(false));
+    {
+        let asked = asked.clone();
+        let heard_cookie = heard_cookie.clone();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = proxy.accept() {
+                asked.store(true, Ordering::SeqCst);
+                let mut request = [0u8; 4096];
+                let read = stream.read(&mut request).unwrap_or(0);
+                let request = String::from_utf8_lossy(&request[..read]).to_string();
+                heard_cookie.store(request.contains("FAKE-SESSION-TOKEN"), Ordering::SeqCst);
+                let _ = stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n");
+            }
+        });
+    }
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "kindle::tests::attack_511_child_fetches_the_fake_notebook",
+            "--exact",
+            "--ignored",
+            "--quiet",
+        ])
+        .env("HTTP_PROXY", &proxy_url)
+        .env("http_proxy", &proxy_url)
+        .env("HTTPS_PROXY", &proxy_url)
+        .env("ALL_PROXY", &proxy_url)
+        .env_remove("NO_PROXY")
+        .env_remove("no_proxy")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success(), "the child fetch did not run");
+    assert!(
+        !asked.load(Ordering::SeqCst),
+        "the fetch went to the proxy named in the environment (session sent: {}): a test's \
+         request, and the app's, can leave 127.0.0.1 / the notebook's host",
+        heard_cookie.load(Ordering::SeqCst)
+    );
+}
