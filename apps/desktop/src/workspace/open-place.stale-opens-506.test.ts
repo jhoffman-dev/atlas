@@ -165,7 +165,10 @@ describe('ordinary links, as before #506', () => {
   });
 
   it('[[Missing.pdf]] says neither a PDF nor a note is called so', async () => {
-    const w = wiring({ blockOpening: async () => ({ kind: 'note', note: PLAN, blockId: 'x' }), linkedPdf: async () => null });
+    const w = wiring({
+      blockOpening: async () => ({ kind: 'note', note: PLAN, blockId: 'x' }),
+      linkedPdf: async () => null,
+    });
     followLink(w, { pane: 0, target: 'Missing.pdf' });
     await vi.waitFor(() =>
       expect(w.onProblem).toHaveBeenLastCalledWith('No PDF or note called "Missing.pdf"'),
@@ -175,7 +178,10 @@ describe('ordinary links, as before #506', () => {
 
   it('a plain click on [[Budget review.pdf]] peeks the note when no PDF is called so', async () => {
     const w = wiring(
-      { blockOpening: async () => ({ kind: 'note', note: PLAN, blockId: 'x' }), linkedPdf: async () => null },
+      {
+        blockOpening: async () => ({ kind: 'note', note: PLAN, blockId: 'x' }),
+        linkedPdf: async () => null,
+      },
       [PLAN, NOTE_NAMED_PDF],
     );
     clickLink(w, { pane: 0, target: 'Budget review.pdf', how: 'here', inPeek: false });

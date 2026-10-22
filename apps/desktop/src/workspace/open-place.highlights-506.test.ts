@@ -189,7 +189,9 @@ describe('a link to a PDF', () => {
     const w = wiring();
     w.places.linkedPdf.mockResolvedValueOnce(null);
     followLink(w, { pane: 0, target: 'missing.pdf' });
-    await vi.waitFor(() => expect(w.onProblem).toHaveBeenCalledWith('No PDF or note called "missing.pdf"'));
+    await vi.waitFor(() =>
+      expect(w.onProblem).toHaveBeenCalledWith('No PDF or note called "missing.pdf"'),
+    );
     expect(placesOf(w.store)).toEqual([{ kind: 'note', path: PLAN }]);
   });
 

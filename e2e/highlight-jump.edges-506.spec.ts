@@ -138,7 +138,9 @@ test('[[Budget review.pdf]] opens the note so named when the vault holds no such
 
 test('[[the-lantern-keepers.pdf#page=4]] opens the reader at page 4', async ({ page }) => {
   await openVault(page);
-  await page.locator('.editor [data-wikilink="the-lantern-keepers.pdf"][data-heading="#page=4"]').click();
+  await page
+    .locator('.editor [data-wikilink="the-lantern-keepers.pdf"][data-heading="#page=4"]')
+    .click();
   await expect(pageOf(page, 4)).toBeInViewport();
 });
 

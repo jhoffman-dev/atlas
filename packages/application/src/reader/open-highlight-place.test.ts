@@ -216,7 +216,10 @@ describe('the PDF a `[[…pdf]]` link names', () => {
   });
 
   it('is one of the PDFs the name is shared by, the same one every time', async () => {
-    const shared = files({ 'reading.pdf': new Uint8Array([1]), 'Z/reading.pdf': new Uint8Array([1]) });
+    const shared = files({
+      'reading.pdf': new Uint8Array([1]),
+      'Z/reading.pdf': new Uint8Array([1]),
+    });
     expect(await linkedPdf({ fs: shared }, 'reading.pdf')).toBe('reading.pdf');
   });
 
