@@ -366,10 +366,10 @@ fn the_cache_lives_in_the_vault_s_cache_folder_beside_the_index() {
         .exists());
 }
 
-// Attack tests for PR #538: a damaged cache is discarded and built again, never trusted.
+// Regression tests: a damaged cache is discarded and built again, never trusted.
 
 #[test]
-fn attack_538_a_damaged_database_is_made_again_rather_than_failing_every_launch() {
+fn a_damaged_database_is_made_again_rather_than_failing_every_launch() {
     let vault = tempfile::tempdir().unwrap();
     {
         let state = opened(vault.path());
@@ -397,7 +397,7 @@ fn attack_538_a_damaged_database_is_made_again_rather_than_failing_every_launch(
 }
 
 #[test]
-fn attack_538_a_load_never_hands_back_vectors_of_different_lengths_as_if_one() {
+fn a_load_never_hands_back_vectors_of_different_lengths_as_if_one() {
     let vault = tempfile::tempdir().unwrap();
     let state = opened(vault.path());
     state

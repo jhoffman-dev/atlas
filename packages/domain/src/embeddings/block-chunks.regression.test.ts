@@ -11,7 +11,7 @@ import {
 import { topByCosine } from './cosine-ranking.ts';
 
 /*
- * Attack tests for PR #538 (embeddings cache and semantic search, #33).
+ * Regression tests for review and attack findings on the embeddings cache and semantic search (#33).
  * Each names the invariant it holds the chunker or the ranking to.
  */
 
@@ -29,7 +29,7 @@ const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[
 
 const wordsOf = (chunks: readonly BlockChunk[]) => chunks.map((chunk) => chunk.words);
 
-describe('PR #538 attack: cutting never splits a character', () => {
+describe('cutting never splits a character', () => {
   it('a long run of emoji with no spaces is cut between characters, not inside one', () => {
     // One letter first puts every emoji's two code units across an even cut at 1,200.
     const words = `a${'🐝'.repeat(MAX_CHUNK_CHARACTERS)}`;
@@ -58,7 +58,7 @@ describe('PR #538 attack: cutting never splits a character', () => {
   });
 });
 
-describe('PR #538 attack: every block shape says its words', () => {
+describe('every block shape says its words', () => {
   it('a callout with only a title is a chunk of its title', () => {
     const chunks = blockChunks({
       title: 'Garden',
@@ -86,7 +86,7 @@ describe('PR #538 attack: every block shape says its words', () => {
   });
 });
 
-describe('PR #538 attack: Obsidian %% comments are hidden, so not embedded or shown', () => {
+describe('Obsidian %% comments are hidden, so not embedded or shown', () => {
   it('the words inside an inline %% comment are not in the chunk', () => {
     const chunks = blockChunks({
       title: 'Review',
@@ -104,7 +104,7 @@ describe('PR #538 attack: Obsidian %% comments are hidden, so not embedded or sh
   });
 });
 
-describe('PR #538 attack: ranking is never garbage', () => {
+describe('ranking is never garbage', () => {
   const unit = (...values: number[]): Float32Array => {
     const length = Math.hypot(...values);
     return Float32Array.from(values.map((value) => value / length));

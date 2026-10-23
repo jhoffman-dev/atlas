@@ -12,7 +12,7 @@ import { createSemanticEngine, type SemanticOptIn } from './semantic-engine.ts';
 import type { CachedEmbeddings, EmbeddingCachePort, IdlePort } from './ports.ts';
 
 /*
- * Attack tests for PR #538 (embeddings cache and semantic search, #33): the
+ * Regression tests for review and attack findings on the embeddings cache and semantic search (#33): the
  * engine end to end over a pretend disk, the fake model and the memory cache.
  */
 
@@ -100,7 +100,7 @@ function gate() {
 const STANDUP = 'Mara Quill moves payday to Friday.\n\nThe printer is broken again.';
 const GARDEN = 'Tobias Fenn keeps bees behind the shed.';
 
-describe('PR #538 attack: a block whose digest is cached is not embedded again', () => {
+describe('a block whose digest is cached is not embedded again', () => {
   it('a note moved to another folder (same title, same blocks) is not sent to the model again', async () => {
     const { engine, vault, embedder } = setUp({ 'Projects/Standup.md': STANDUP });
     await engine.start();
@@ -118,7 +118,7 @@ describe('PR #538 attack: a block whose digest is cached is not embedded again',
   });
 });
 
-describe('PR #538 attack: the change feed never leaves the cache out of step with the vault', () => {
+describe('the change feed never leaves the cache out of step with the vault', () => {
   it('a note deleted and restored before its forget was written is still found', async () => {
     const { engine } = setUp({ 'Meetings/Standup.md': STANDUP, 'Home/Garden.md': GARDEN });
     await engine.start();
@@ -168,7 +168,7 @@ describe('PR #538 attack: the change feed never leaves the cache out of step wit
   });
 });
 
-describe('PR #538 attack: a hit says what the block it links to says', () => {
+describe('a hit says what the block it links to says', () => {
   it('a block inserted above while a search reads its excerpts does not give a hit another block’s words', async () => {
     const inner = memoryEmbeddingCache({ vault: VAULT });
     const held = gate();
@@ -203,7 +203,7 @@ describe('PR #538 attack: a hit says what the block it links to says', () => {
   });
 });
 
-describe('PR #538 attack: a damaged cache is discarded and built again, never a dead end', () => {
+describe('a damaged cache is discarded and built again, never a dead end', () => {
   it('a cache whose load fails is cleared and rebuilt, and search answers', async () => {
     const inner = memoryEmbeddingCache({ vault: VAULT });
     await setUp({ 'Meetings/Standup.md': STANDUP }, { cache: inner }).engine.start();
@@ -251,7 +251,7 @@ describe('PR #538 attack: a damaged cache is discarded and built again, never a 
   });
 });
 
-describe('PR #538 attack: one note’s words never stop the build', () => {
+describe('one note’s words never stop the build', () => {
   /** As the host's JSON reader is: a lone UTF-16 surrogate in any string is refused (serde_json). */
   const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
   function strictHostCache(): EmbeddingCachePort {
@@ -281,7 +281,7 @@ describe('PR #538 attack: one note’s words never stop the build', () => {
   });
 });
 
-describe('PR #538 attack: the search seam (#35) holds its own limits', () => {
+describe('the search seam (#35) holds its own limits', () => {
   it('a NaN limit (an assistant tool’s bad number) gives at most 100 hits', async () => {
     const many = Array.from({ length: 150 }, (_, at) => `Payday note ${at} about wages.`).join(
       '\n\n',
@@ -333,7 +333,7 @@ async function heldOf(cache: MemoryEmbeddingCache) {
   );
 }
 
-describe('PR #538 attack: property — after any edits, the cache is a fresh rebuild', () => {
+describe('property — after any edits, the cache is a fresh rebuild', () => {
   for (const seed of [1, 7, 538, 2026]) {
     it(`seed ${seed}: random edits, heard as syncs, leave the cache equal to one built afresh`, async () => {
       const random = seeded(seed);
