@@ -26,6 +26,7 @@ import {
   claudeActionFields,
   describeClaudeAction,
   readClaudeAction,
+  readsData,
   type ClaudeAction,
 } from './claude-step.ts';
 import { noteTriggerQueryProblem } from './note-trigger.ts';
@@ -165,12 +166,17 @@ function readDraft(
   if (when === null) {
     return {
       problem:
-        'Say when it runs: daily at 03:00, every 6 hours, on app open, manually, ' +
+        'Say when it runs: daily at 03:00, fridays at 15:00, every 6 hours, on app open, manually, ' +
         'or when a note appears, like a meeting is created or changed.',
     };
   }
   const which = String(frontmatter['which'] ?? '').trim();
-  if (which === '') return { problem: 'Say which notes it takes, as a query: FROM task WHERE …' };
+  const action = readAction(frontmatter);
+  // A step handed its data reads that alone when it names no notes (#40).
+  const needsQuery = typeof action === 'string' || !readsData(action);
+  if (which === '' && needsQuery) {
+    return { problem: 'Say which notes it takes, as a query: FROM task WHERE …' };
+  }
   const whereProblem = when.kind === 'note' ? noteTriggerQueryProblem(when, which) : null;
   if (whereProblem !== null) return { problem: whereProblem };
   const olderThanDays = readAge(frontmatter['olderThanDays']);
@@ -184,7 +190,6 @@ function readDraft(
         'A rule a note sets off acts on that note as it has just become: take olderThanDays out.',
     };
   }
-  const action = readAction(frontmatter);
   if (typeof action === 'string') return { problem: action };
   const enabled = frontmatter['enabled'] ?? false;
   // Anything but a checkbox's own value would be a guess at on or off, and a wrong "off" is silent.

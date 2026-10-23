@@ -17,6 +17,12 @@
  * declared one: the owner's own action items out of a meeting may become
  * tasks without a click, and it has its own ask budget and default model
  * (`claude-step-budget.ts`). `model:` names the model it asks.
+ *
+ * `data: weekly-review` (#40) hands the step what DFAI reads itself beside
+ * the notes: the weekly review, each item with its note's path. It goes with
+ * `output: note`, and every list item of that note must link one of those
+ * notes (`cited-items.ts`). A step with data needs no query: `which:` may be
+ * left out, and it reads its data alone.
  */
 
 import { isChatReadTool, CHAT_READ_TOOLS, type ChatReadTool } from '../chat/read-tool-names.ts';
@@ -56,7 +62,14 @@ export interface ClaudeAction {
   readonly apply?: ClaudeApply;
   /** The model it asks; left out, the default (`claudeStepModel`). */
   readonly model?: string;
+  /** What DFAI reads and hands it beside the notes (#40); left out, the notes alone. */
+  readonly data?: ClaudeData;
 }
+
+/** What a step may be handed beside its notes: the weekly review (#40). */
+export const CLAUDE_DATA = ['weekly-review'] as const;
+
+export type ClaudeData = (typeof CLAUDE_DATA)[number];
 
 /** What a step may apply without a click: the owner's own action items. */
 export type ClaudeApply = 'mine';
@@ -84,6 +97,8 @@ export function readClaudeAction(
   if (isRefusal(apply)) return apply.problem;
   const model = readModel(frontmatter['model']);
   if (isRefusal(model)) return model.problem;
+  const data = readData(frontmatter['data'], output);
+  if (isRefusal(data)) return data.problem;
   return {
     kind: 'claude',
     prompt: prompt.path,
@@ -91,7 +106,26 @@ export function readClaudeAction(
     output,
     ...(apply !== null && { apply }),
     ...(model !== null && { model }),
+    ...(data !== null && { data }),
   };
+}
+
+/** The data a rule hands its step, null for none, or why it cannot be. */
+function readData(value: unknown, output: ClaudeOutput): ClaudeData | null | Refusal {
+  const written = typeof value === 'string' ? value.trim().toLowerCase() : value;
+  if (written === undefined || written === null || written === '') return null;
+  const data = CLAUDE_DATA.find((each) => each === written);
+  if (data === undefined) {
+    return { problem: `Write data: ${CLAUDE_DATA.join(' or ')}, or leave it out.` };
+  }
+  return output.kind === 'note'
+    ? data
+    : { problem: `data: ${data} goes with output: note, the one note it is written into.` };
+}
+
+/** Whether a step reads what DFAI hands it, so it runs with no notes and needs no query. */
+export function readsData(action: { readonly kind: string; readonly data?: ClaudeData }): boolean {
+  return action.kind === 'claude' && action.data !== undefined;
 }
 
 /** Why a key cannot be read; set apart from text, which is a key's value. */
@@ -228,6 +262,7 @@ export function claudeActionFields(action: ClaudeAction | null): Record<string, 
     folder: action?.output.kind === 'note' ? action.output.folder : null,
     apply: action?.apply ?? null,
     model: action?.model ?? null,
+    data: action?.data ?? null,
   };
 }
 
@@ -247,6 +282,20 @@ export function withClaudeChoices(
     output: action.output,
     ...(apply !== null && { apply }),
     ...(model !== '' && { model }),
+    ...(action.data !== undefined && { data: action.data }),
+  };
+}
+
+/** The step handed `data` beside its notes, or none: the key left out, as a file that does not write it is read. */
+export function withClaudeData(action: ClaudeAction, data: ClaudeData | null): ClaudeAction {
+  return {
+    kind: 'claude',
+    prompt: action.prompt,
+    tools: action.tools,
+    output: action.output,
+    ...(action.apply !== undefined && { apply: action.apply }),
+    ...(action.model !== undefined && { model: action.model }),
+    ...(data !== null && { data }),
   };
 }
 

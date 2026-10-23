@@ -1,7 +1,14 @@
 import { Node, type Editor, type NodeViewRenderer } from '@tiptap/core';
-import { DOMSerializer, type Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { DOMSerializer, Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
-import { BLOCK_ANCHOR_ATTR, isTombstoneBlock, type HighlightView } from '@dfai/domain';
+import {
+  BLOCK_ANCHOR_ATTR,
+  isTombstoneBlock,
+  withoutBlockIds,
+  withoutMarkerLines,
+  type HighlightView,
+} from '@dfai/domain';
 import { READ_FROM_FILE } from './block-anchor.ts';
 import { HighlightBlockView } from './highlight-block-view.tsx';
 import type { HighlightDrafts, WriteComment } from './highlight-drafts.ts';
@@ -65,12 +72,49 @@ export const RawBlock = Node.create<RawBlockOptions>({
 
   addAttributes() {
     return {
-      markdown: { default: '' },
+      // Read only from `data-markdown`, by the parse rule: a bare `markdown`
+      // attribute, which Tiptap would read by default, is not DFAI's.
+      markdown: { default: '', parseHTML: () => null },
     };
   },
 
   parseHTML() {
-    return [{ tag: 'pre[data-raw-block]' }];
+    return [
+      {
+        tag: 'pre[data-raw-block]',
+        // Above the code block's `pre` rule (priority 50), which would otherwise
+        // take a pasted raw block and save its source as a fenced block (#541).
+        priority: 60,
+        // The source is read from its attribute, not the element's text, which
+        // also holds the reader link's words. Without one, the rule passes and
+        // the code block keeps the text.
+        getAttrs: (element) => {
+          const markdown = sourceFromAttribute(element.getAttribute('data-markdown'));
+          return markdown === null ? false : { markdown };
+        },
+      },
+    ];
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('rawBlockPaste'),
+        props: {
+          // A drag within the note keeps the source: whether it moves (the same
+          // block, source and all) is decided only at the drop, after this; a copy
+          // is cleaned there as a paste is (tombstone-guard.ts, dropAsCopy).
+          transformPasted: (slice, view) =>
+            view.dragging !== null ? slice : pastedRawBlocks(slice),
+        },
+      }),
+    ];
+  },
+
+  // A paste into another app gets the source: a raw block has no text of its own.
+  // DFAI's marker lines, which every reader hides, are left out of it.
+  renderText({ node }) {
+    return withoutMarkerLines(String(node.attrs['markdown'] ?? ''));
   },
 
   renderHTML({ node }) {
@@ -89,6 +133,9 @@ function rawBlockSpec(node: ProseMirrorNode, readerLinks: ReaderLinks | null) {
   const markdown = String(node.attrs['markdown'] ?? '');
   const attributes = {
     'data-raw-block': '',
+    // Percent-encoded: serialisers leave `<` bare in an attribute, which
+    // would put the source's tags into the HTML of a page made from the note.
+    'data-markdown': encodeURIComponent(markdown),
     class: classOf(markdown),
     title: 'Not editable yet — saved unchanged',
   };
@@ -147,6 +194,59 @@ export function isHighlight(highlights: HighlightBlocks, node: ProseMirrorNode):
   const markdown = String(node.attrs['markdown'] ?? '');
   return typeof id === 'string' && highlights.viewOf({ markdown, id }) !== null;
 }
+
+/**
+ * A pasted slice with each raw block's source as a paste may bring it: no
+ * DFAI marker — a highlight's anchor, a tombstone — which a copy would
+ * duplicate or a web page forge, and no block id, which the note may hold
+ * already (ADR-0022). A raw block left with nothing is dropped.
+ */
+export function pastedRawBlocks(slice: Slice): Slice {
+  const content = pastedFragment(slice.content);
+  if (content === slice.content) return slice;
+  if (content.childCount === 0) return Slice.empty;
+  // An open side stays open only where its node is still the one it opened into.
+  const openStart = content.firstChild === slice.content.firstChild ? slice.openStart : 0;
+  const openEnd = content.lastChild === slice.content.lastChild ? slice.openEnd : 0;
+  return new Slice(content, openStart, openEnd);
+}
+
+function pastedFragment(fragment: Fragment): Fragment {
+  let changed = false;
+  const children: ProseMirrorNode[] = [];
+  fragment.forEach((child) => {
+    const pasted = pastedNode(child);
+    if (pasted !== child) changed = true;
+    if (pasted !== null) children.push(pasted);
+  });
+  return changed ? Fragment.from(children) : fragment;
+}
+
+function pastedNode(node: ProseMirrorNode): ProseMirrorNode | null {
+  if (node.type.name !== 'rawBlock') {
+    if (node.isLeaf) return node;
+    const content = pastedFragment(node.content);
+    if (content === node.content) return node;
+    // A container left without the content it must hold goes with its raw blocks.
+    return node.type.validContent(content) ? node.copy(content) : null;
+  }
+  const markdown = String(node.attrs['markdown'] ?? '');
+  const pasted = withoutBlockIds(withoutMarkerLines(markdown));
+  if (pasted === markdown) return node;
+  if (pasted.trim() === '') return null;
+  return node.type.create({ ...node.attrs, markdown: pasted }, null, node.marks);
+}
+
+/** The source `data-markdown` holds, or null without one or with one DFAI did not write. */
+const sourceFromAttribute = (encoded: string | null): string | null => {
+  if (encoded === null) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    // Not percent-encoding, so not ours: the code block's rule reads it instead.
+    return null;
+  }
+};
 
 /**
  * The block's own link — `[[#^id]]`, a place in this note — which the note's

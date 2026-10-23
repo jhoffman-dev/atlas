@@ -6,7 +6,7 @@ export { changeProperties, UNSAVED_TYPING } from './apply-changes.ts';
 export type { PropertyChange, PropertyOutcome } from './apply-changes.ts';
 export { loadAutomations } from './load-automations.ts';
 export type { AutomationListing, LoadedAutomation } from './load-automations.ts';
-export { dryRunAutomation } from './dry-run-automation.ts';
+export { dryRunAutomation, withPeriodNote } from './dry-run-automation.ts';
 export { NoteRunsCappedError, planRuleNow } from './note-runs.ts';
 export type { RuleTarget } from './note-runs.ts';
 export { planRun } from './plan-run.ts';

@@ -397,6 +397,25 @@ describe('a highlight, when it is copied and pasted', () => {
     expect(rawBlocks(other)).toEqual([{ markdown: QUOTE, anchor: null }]);
     expect(liveHighlights(from)).toHaveLength(1);
   });
+
+  /*
+   * #542 (raw-block.ts) cleans every pasted raw block of DFAI's marker lines
+   * and block ids; this file makes a highlight a quote first. Both run.
+   */
+  it('pasted with another raw block, both are cleaned: a quote, and a source with no marker or id', () => {
+    const RAW = ['<div>Raw.</div>', '<!-- atlas:ledger {"v":1} -->', '', '^rw0001'].join('\n');
+    const from = note([
+      { type: 'rawBlock', attrs: { markdown: HIGHLIGHT, anchor: 'kd0041' } },
+      { type: 'rawBlock', attrs: { markdown: RAW } },
+    ]);
+    editor = from;
+    other = note([{ type: 'paragraph', content: [{ type: 'text', text: 'Elsewhere.' }] }]);
+    pasteAtEnd(other, from.state.doc.slice(0, from.state.doc.content.size));
+    expect(rawBlocks(other)).toEqual([
+      { markdown: QUOTE, anchor: null },
+      { markdown: '<div>Raw.</div>', anchor: null },
+    ]);
+  });
 });
 
 /*
@@ -554,6 +573,23 @@ describe('a highlight dragged within its note, the copy key changed mid-drag', (
     expect(selection).toBeInstanceOf(NodeSelection);
     expect(selection.from).toBe(lastRawBlock(instance).at);
     expect((selection as NodeSelection).node.attrs['anchor']).toBeNull();
+  });
+
+  it('dropped as a copy, is cleaned of other marker lines as a paste is (#542)', () => {
+    const instance = literatureNote();
+    editor = instance;
+    let at = -1;
+    instance.state.doc.forEach((node, offset) => {
+      if (node.type.name === 'rawBlock') at = offset;
+    });
+    const extra = `${HIGHLIGHT}\n>\n> <!-- atlas:ledger {"v":1} -->`;
+    instance.view.dispatch(instance.state.tr.setNodeAttribute(at, 'markdown', extra));
+    dragHighlightToEnd(instance, { moveAtStart: true, copyKeyAtDrop: true });
+    const { node } = lastRawBlock(instance);
+    expect(node.attrs['anchor']).toBeNull();
+    expect(String(node.attrs['markdown'])).not.toContain('atlas:');
+    expect(String(node.attrs['markdown'])).toContain('The tide keeps its hours.');
+    expect(liveHighlights(instance)).toEqual([{ markdown: extra, anchor: 'kd0041' }]);
   });
 
   it('dropped as a copy, is taken back by one undo', () => {

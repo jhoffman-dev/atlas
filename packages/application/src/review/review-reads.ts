@@ -86,7 +86,7 @@ export async function readReviewSources({
 }
 
 /** A statement's rows, each keyed by its columns. */
-async function rowsOf(
+export async function rowsOf(
   index: Pick<IndexPort, 'query'>,
   { sql, parameters }: CompiledQuery,
 ): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {

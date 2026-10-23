@@ -11,6 +11,7 @@ import { Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view';
 import { BLOCK_ANCHOR_ATTR, highlightAsPlainQuote, isTombstoneBlock } from '@dfai/domain';
 import { READ_FROM_FILE } from './block-anchor.ts';
+import { pastedRawBlocks } from './raw-block.ts';
 
 /*
  * A removed Kindle highlight's tombstone is hidden (ADR-0043 §5) but is still
@@ -186,7 +187,10 @@ function quotedSlice(slice: Slice): Slice {
 }
 
 /**
- * A pasted slice: no tombstone, and no highlight. A drag within the note keeps
+ * A pasted slice: no tombstone, and no highlight. Run before RawBlock's own
+ * paste transform (this extension's priority), so a highlight is made a quote
+ * — its id dropped with it — before its marker line is taken off as any
+ * marker's is. A drag within the note keeps
  * its highlights here: whether it moves or copies is decided only at the drop,
  * from the copy key held then, so {@link dropAsCopy} decides it.
  */
@@ -196,13 +200,14 @@ function pastedOff(slice: Slice, view: EditorView): Slice {
 }
 
 /**
- * A drag within the note dropped as a copy: its highlights are dropped as
- * plain quotes, as a paste is, so the passage keeps one live highlight. A move
- * — or a copy holding no highlight — is left to ProseMirror's own drop.
+ * A drag within the note dropped as a copy is cleaned as a paste is, in the
+ * paste's order: its highlights made plain quotes, so the passage keeps one
+ * live highlight, then its raw blocks' markers and ids taken off (raw-block.ts).
+ * A move — or a copy with nothing to clean — is left to ProseMirror's own drop.
  */
 function dropAsCopy(view: EditorView, event: DragEvent, slice: Slice, moved: boolean): boolean {
   if (moved) return false;
-  const quoted = quotedSlice(slice);
+  const quoted = pastedRawBlocks(quotedSlice(slice));
   if (quoted === slice) return false;
   const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
   if (at === null) return false;

@@ -25,6 +25,18 @@ describe('describeToolCall', () => {
     expect(said('atlas_tags')).toBe('Listed the tags');
     expect(said('atlas_tagged_notes', { tag: '#idea' })).toBe('Found notes tagged #idea');
     expect(said('atlas_archived')).toBe('Listed the archive');
+    expect(said('atlas_brief', { entity: 'People/Mara Quill.md' })).toBe(
+      'Read the brief on People/Mara Quill.md',
+    );
+    expect(said('atlas_open_loops', { entity: 'Projects/Q3.md' })).toBe(
+      'Read the open loops of Projects/Q3.md',
+    );
+    expect(said('atlas_meeting_quotes', { entity: 'People/Mara Quill.md' })).toBe(
+      'Read the meetings of People/Mara Quill.md',
+    );
+    expect(said('atlas_meeting_quotes', { entity: 'People/Mara Quill.md', about: 'bank' })).toBe(
+      'Read what was said about “bank” in the meetings of People/Mara Quill.md',
+    );
     expect(said('propose_edit', { path: 'Q3.md' })).toBe('Proposed an edit to Q3.md');
     expect(said('propose_note', { title: 'Idea' })).toBe('Proposed a new note, “Idea”');
   });
