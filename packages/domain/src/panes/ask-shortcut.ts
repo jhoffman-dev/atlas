@@ -22,7 +22,7 @@ export const ASK_PLACE: PagePlace = { kind: 'ask' };
 export function askShortcut(ws: Workspace): Workspace {
   if (activePlace(ws)?.kind !== 'ask') return toAsk(ws);
   const back = returnOf(ws);
-  if (back !== null) return activateTab(withoutReturn(ws), { pane: back.pane, id: back.from });
+  if (back !== null) return activateTab(withoutReturn(ws), { pane: ws.focused, id: back.from });
   const cleared = withoutReturn(ws);
   const backed = goBackInTab(cleared);
   // Nowhere to go: unchanged, so the caller knows to put the keys in the box.
@@ -38,16 +38,19 @@ function toAsk(ws: Workspace): Workspace {
   if (from === undefined || ask === undefined || ask === from || shown.focused !== pane) {
     return shown;
   }
-  return { ...shown, askReturn: { pane, ask, from } };
+  return { ...shown, askReturn: { ask, from } };
 }
 
-/** Where ⌘J came from, while the Ask tab it switched to is still the one shown and the tab is still there. */
+/**
+ * Where ⌘J came from, while the Ask tab it switched to is the one the focused
+ * pane shows and the tab it left is still beside it — wherever that pane now
+ * sits, since an earlier pane may have closed.
+ */
 function returnOf(ws: Workspace): AskReturn | null {
   const back = ws.askReturn;
-  if (back === undefined || ws.focused !== back.pane) return null;
-  const pane = ws.panes[back.pane];
-  if (pane?.active !== back.ask || !pane.tabs.some((tab) => tab.id === back.from)) return null;
-  return back;
+  const pane = ws.panes[ws.focused];
+  if (back === undefined || pane?.active !== back.ask) return null;
+  return pane.tabs.some((tab) => tab.id === back.from) ? back : null;
 }
 
 function withoutReturn(ws: Workspace): Workspace {

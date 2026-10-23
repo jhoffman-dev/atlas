@@ -106,5 +106,7 @@ describe('isChatNoteText (#37)', () => {
     expect(isChatNoteText('# Notes\n\ntype: chat\n')).toBe(false);
     expect(isChatNoteText('---\ntitle: chat\n---\n')).toBe(false);
     expect(isChatNoteText('---\ntype: chats\n---\n')).toBe(false);
+    // `#` with no space before it is part of the word, as YAML reads it.
+    expect(isChatNoteText('---\ntype: chat#1\n---\n')).toBe(false);
   });
 });

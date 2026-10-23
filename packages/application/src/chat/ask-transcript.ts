@@ -62,14 +62,18 @@ function lastQuestionAt(items: readonly ChatItem[]): number {
   return 0;
 }
 
+/** The most notes `recentQuestions` reads to find its chats, however many sit in `Chats/`. */
+export const RECENT_READ_LIMIT = 64;
+
 /**
  * The questions asked most recently, newest first: the chats kept in
  * `Chats/`, named for their first question. Only chat notes (`type: chat`) —
  * a note filed there by hand is not a question anyone asked. Read newest
- * first, and only until enough are found.
+ * first, in batches, until enough are found or `RECENT_READ_LIMIT` notes have
+ * been read: a folder of hand-filed notes costs a few reads, not all of them.
  */
 export async function recentQuestions({ fs }: { fs: VaultFsPort }): Promise<ChatSummary[]> {
-  const listed = await listChats({ fs });
+  const listed = (await listChats({ fs })).slice(0, RECENT_READ_LIMIT);
   const found: ChatSummary[] = [];
   for (let at = 0; at < listed.length && found.length < RECENT_QUESTIONS; at += RECENT_QUESTIONS) {
     const batch = listed.slice(at, at + RECENT_QUESTIONS);

@@ -86,10 +86,15 @@ function visible(text: string): string {
   return text.replace(INVISIBLE, '').trim();
 }
 
-/** A code span without its backticks, and the one space CommonMark strips from each side. */
+/**
+ * A code span without its backticks, and the one space CommonMark strips from
+ * each side. A fence left open has no closing run: every character after its
+ * opening is kept.
+ */
 function codeOf(written: string): AnswerInline {
   const ticks = /^`+/.exec(written)?.[0].length ?? 1;
-  const inner = written.slice(ticks, written.length - ticks);
+  const closing = /`+$/.exec(written.slice(ticks))?.[0].length ?? 0;
+  const inner = written.slice(ticks, written.length - (closing === ticks ? ticks : 0));
   const trimmed = /^ .* $/s.test(inner) && inner.trim() !== '' ? inner.slice(1, -1) : inner;
   return { kind: 'code', text: trimmed };
 }
@@ -170,7 +175,9 @@ function barePieces(
   while (from !== -1) {
     const url = bareAddressAt(text, from, closes, offset);
     if (!isWebAddress(url)) {
-      from = text.indexOf(WEB_SCHEME, from + WEB_SCHEME.length);
+      // Past what was read: an address inside a refused one is not looked for again,
+      // so a run of `https://` with no space between them is read once.
+      from = text.indexOf(WEB_SCHEME, from + Math.max(url.length, WEB_SCHEME.length));
       continue;
     }
     // `<https://…>`: an autolink, drawn without its brackets.
@@ -209,10 +216,16 @@ function bareAddressAt(
   return text.slice(from, end).replace(TRAILING, '');
 }
 
+/**
+ * A web link, with its host shown beside the label unless the label is that
+ * host or that address, exactly: `mybank.example` naming `k.example`, or
+ * `example.com.attacker.example` naming `example.com`, shows the host.
+ */
 function webPiece({ url, label }: { url: string; label: string }): AnswerInline {
   const host = new URL(url).host;
-  const shown = label === url || label.toLowerCase().includes(host) ? null : host;
-  return { kind: 'web', url, label, host: shown };
+  const shown = label.trim();
+  const named = shown.toLowerCase() === host || shown === url;
+  return { kind: 'web', url, label, host: named ? null : host };
 }
 
 /** Neighbouring text pieces as one, so a link that was not read leaves no seam. */
@@ -227,6 +240,19 @@ function joinText(pieces: readonly AnswerInline[]): AnswerInline[] {
   return joined;
 }
 
+/** The longest address Ask opens: anything longer is text, never handed to `new URL`. */
+const MAX_ADDRESS = 2048;
+
+/**
+ * The one mending allowed: the `/` the parser puts before a query or a
+ * fragment of an address with no path, `https://example.com?q=1`.
+ */
+function onlySlashAdded(parsed: URL, url: string): boolean {
+  const next = url[parsed.origin.length];
+  if (next !== '?' && next !== '#') return false;
+  return parsed.href === `${parsed.origin}/${url.slice(parsed.origin.length)}`;
+}
+
 /**
  * Whether an address is one Ask opens: `https://` with a host and no user
  * part, written exactly as it parses — so the host it shows is the host it
@@ -234,11 +260,11 @@ function joinText(pieces: readonly AnswerInline[]): AnswerInline[] {
  * a capital, a space) is left as text.
  */
 export function isWebAddress(url: string): boolean {
-  if (!url.startsWith(WEB_SCHEME)) return false;
+  if (!url.startsWith(WEB_SCHEME) || url.length > MAX_ADDRESS) return false;
   try {
     const parsed = new URL(url);
     if (parsed.hostname === '' || parsed.username !== '' || parsed.password !== '') return false;
-    return parsed.href === url || parsed.href === `${url}/`;
+    return parsed.href === url || parsed.href === `${url}/` || onlySlashAdded(parsed, url);
   } catch {
     // Not an address at all: shown as the text it is.
     return false;

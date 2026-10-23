@@ -281,7 +281,7 @@ describe('web links, read by hand (#547)', () => {
     ]);
   });
 
-  it('shows the host beside a label that does not name it, and not beside one that does', () => {
+  it('shows the host beside a label unless the label is the host or the address exactly', () => {
     expect(webOf('[the payroll portal](https://evil.example.com/p)')).toEqual([
       {
         kind: 'web',
@@ -290,7 +290,14 @@ describe('web links, read by hand (#547)', () => {
         host: 'evil.example.com',
       },
     ]);
-    expect(webOf('[docs at example.com](https://example.com/d)')[0]).toMatchObject({ host: null });
+    // Only a label that is the host, or the address, exactly needs no host beside it.
+    expect(webOf('[docs at example.com](https://example.com/d)')[0]).toMatchObject({
+      host: 'example.com',
+    });
+    expect(webOf('[ Example.com ](https://example.com/d)')[0]).toMatchObject({ host: null });
+    expect(webOf('[https://example.com/d](https://example.com/d)')[0]).toMatchObject({
+      host: null,
+    });
   });
 
   it('reads the address in a markdown link that is not one as a bare address, its own text shown', () => {
@@ -363,5 +370,35 @@ describe('citeAnswer: CommonMark’s edges (#547)', () => {
       'paragraph:uncited',
     );
     expect(judgedOf('The steps for v2.1 were:\n- One [[A]]')[0]).toBe('paragraph:exempt');
+  });
+});
+
+describe('citeAnswer: fences inside items and quotes (verify #547)', () => {
+  const judgedOf = (answer: string) =>
+    citeAnswer(answer).map((block) => `${block.kind}:${block.citation}`);
+
+  it('keeps a fence closed inside an item as the item’s code, and judges what the item says after it', () => {
+    const blocks = citeAnswer(
+      '- Run it [[A]]:\n  ```\n  npm test\n  ```\n  then it passes\n- Next [[B]]',
+    );
+    expect(blocks.map((block) => `${block.kind}:${block.citation}`)).toEqual([
+      'item:cited',
+      'code:exempt',
+      'item:uncited',
+      'item:cited',
+    ]);
+    expect(blocks[1]?.inline).toEqual([{ kind: 'code', text: 'npm test' }]);
+  });
+
+  it('draws nothing more for an item whose fence closed with nothing after it', () => {
+    expect(judgedOf('- Run it [[A]]:\n  ```\n  npm test\n  ```\n- Next [[B]]')).toEqual([
+      'item:cited',
+      'code:exempt',
+      'item:cited',
+    ]);
+  });
+
+  it('lets no lazy line carry on a quote that ended on a blank line', () => {
+    expect(judgedOf('> Said [[A]]\n>\nNot quoted')).toEqual(['quote:cited', 'paragraph:uncited']);
   });
 });

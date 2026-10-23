@@ -61,7 +61,12 @@ export function chatNoteName(firstMessage: string): string {
   return name === '' ? 'Chat' : name;
 }
 
-/** The text a chat note starts as: its properties, and nothing said yet. */
+/**
+ * `type: chat` as YAML reads it: bare or quoted, and an unquoted ` #` and
+ * what follows it a comment, as `type: chat # kept by Ask` is.
+ */
+const CHAT_TYPE_LINE = /^type:\s*(["']?)chat\1(?:\s+#.*)?\s*$/;
+
 /**
  * Whether a note's text is a chat's (#37): its frontmatter says
  * `type: chat`, as `newChatNoteText` writes it. A note filed in `Chats/` by
@@ -70,9 +75,10 @@ export function chatNoteName(firstMessage: string): string {
 export function isChatNoteText(text: string): boolean {
   const { frontmatter } = splitFrontmatter(text);
   if (frontmatter === null) return false;
-  return frontmatter.split(/\r?\n/).some((line) => /^type:\s*(["']?)chat\1\s*$/.test(line));
+  return frontmatter.split(/\r?\n/).some((line) => CHAT_TYPE_LINE.test(line));
 }
 
+/** The text a chat note starts as: its properties, and nothing said yet. */
 export function newChatNoteText({
   created,
   model,

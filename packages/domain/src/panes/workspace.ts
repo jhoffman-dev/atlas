@@ -68,9 +68,11 @@ export interface Workspace {
   readonly askReturn?: AskReturn;
 }
 
-/** The tab ⌘J left for the Ask tab `ask`, in `pane`. */
+/**
+ * The tab ⌘J left for the Ask tab `ask`, beside it in one pane. By tab ids
+ * alone: a pane's index moves when an earlier pane closes, a tab's id never.
+ */
 export interface AskReturn {
-  readonly pane: number;
   readonly ask: TabId;
   readonly from: TabId;
 }
