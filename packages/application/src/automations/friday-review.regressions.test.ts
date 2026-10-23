@@ -304,3 +304,150 @@ describe('a daily rule on a fixed query (review of #539, D3)', () => {
     expect(asked()).toBe(2);
   });
 });
+
+const CHASED = 'Tasks/Chase the quote.md';
+
+/** A daily Claude step a person pointed at the review's own folder. */
+const DAILY_NOTES: AutomationRule = {
+  id: 'Daily notes',
+  path: createVaultPath('.atlas/automations/Daily notes.md'),
+  name: 'Daily notes',
+  enabled: true,
+  when: { kind: 'daily', at: '07:00' },
+  which: 'FROM task WHERE status = waiting',
+  olderThanDays: null,
+  action: {
+    kind: 'claude',
+    prompt: createVaultPath(PROMPT),
+    tools: [],
+    output: { kind: 'note', folder: 'Reviews' },
+  },
+};
+
+const noteAnswer = (title: string, body: string): ModelEvent[] => says({ note: { title, body } });
+
+function setUpRules({
+  notes,
+  rounds,
+}: {
+  notes: Record<string, string>;
+  rounds: readonly ScriptedRound[];
+}) {
+  let at = `${FRIDAY}T15:00:00`;
+  const clock = {
+    today: () => at.slice(0, 10),
+    localNow: () => at,
+    now: () => Date.parse(`${at}Z`),
+  };
+  const claude = fakeClaudeStepPorts({ rounds, model: 'claude-test', today: FRIDAY });
+  const vault = automationVault({ notes, today: FRIDAY, claude });
+  const ports: AutomationPorts = {
+    ...vault.ports,
+    claude: { ...claude, clock: { today: clock.today, now: clock.now } },
+  };
+  const run = (rule: AutomationRule, when: string) => {
+    at = when;
+    return runAutomation({
+      ports,
+      rule,
+      clock,
+      guard: GUARD,
+      activity: recordingActivity(),
+      trigger: 'schedule',
+    });
+  };
+  const inReviews = () => [...vault.files.keys()].filter((path) => path.startsWith('Reviews/'));
+  return { run, inReviews, asked: () => claude.fake.requests.length };
+}
+
+describe('an empty week (verification of #539)', () => {
+  it('writes a short draft for a week with nothing to cite, not a refusal', async () => {
+    // Nothing done, nothing waiting, nothing overdue: every section is "None.".
+    const { run, inReviews } = setUpRules({
+      notes: { [PROMPT]: 'Draft the weekly review.\n' },
+      rounds: [
+        noteAnswer(
+          'Weekly review 2026-10-23',
+          '## Wins\n\n- Quiet week: nothing finished.\n\n0 notes wait in the Inbox.\n',
+        ),
+      ],
+    });
+    const entry = await run(RULE, `${FRIDAY}T15:00:00`);
+
+    expect(entry.kind).toBe('run');
+    expect(inReviews()).toEqual(['Reviews/Weekly review 2026-10-23.md']);
+  });
+});
+
+describe('two rules that write into one folder (verification of #539)', () => {
+  it('still writes the week’s review after a daily rule wrote its note into Reviews/', async () => {
+    const { run, inReviews, asked } = setUpRules({
+      notes: {
+        [PROMPT]: 'Draft the weekly review.\n',
+        [OVERDUE]: jsonNote({ type: 'task', status: 'next-action', due: '2026-10-01' }),
+        [CHASED]: jsonNote({ type: 'task', status: 'waiting', waiting_on: 'Mara Quill' }),
+      },
+      rounds: [
+        noteAnswer('Daily notes 2026-10-21', 'Chase Mara.\n'),
+        noteAnswer(
+          'Weekly review 2026-10-23',
+          `## Open loops\n\n- Renew the lease: [[${OVERDUE}]]\n`,
+        ),
+      ],
+    });
+    await run(DAILY_NOTES, '2026-10-21T07:00:00');
+    expect(inReviews()).toEqual(['Reviews/Daily notes 2026-10-21.md']);
+
+    await run(RULE, `${FRIDAY}T15:00:00`);
+
+    // The Wednesday note is the daily rule's, not this week's review.
+    expect(asked()).toBe(2);
+    expect(inReviews().sort()).toEqual([
+      'Reviews/Daily notes 2026-10-21.md',
+      'Reviews/Weekly review 2026-10-23.md',
+    ]);
+  });
+});
+
+/** A seeded generator (mulberry32), so a failing sequence is the same on every run. */
+function seeded(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+describe('one review a week over random runs (verification of #539, seeded)', () => {
+  const FRIDAYS = ['2026-10-23', '2026-10-30', '2026-11-06'];
+  const DRAFT = noteAnswer('Weekly review', `## Open loops\n\n- Renew the lease: [[${OVERDUE}]]\n`);
+  const notes = {
+    [PROMPT]: 'Draft the weekly review.\n',
+    [OVERDUE]: jsonNote({ type: 'task', status: 'next-action', due: '2026-10-01' }),
+  };
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])(
+    'never holds two notes for one week (seed %i)',
+    async (seed) => {
+      const random = seeded(seed);
+      const { run, inReviews } = setUpRules({
+        notes,
+        rounds: Array.from({ length: 40 }, () => DRAFT),
+      });
+      const minutes = (n: number) =>
+        `${String(15 + Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}:00`;
+      for (const friday of FRIDAYS) {
+        // Scheduled runs at or after the week's slot, on the Friday: on time, late, repeated.
+        for (let step = 0; step < 4; step += 1) {
+          await run(RULE, `${friday}T${minutes(Math.floor(random() * 300))}`);
+        }
+        const made = inReviews();
+        // Every week whose time has come has its note, and only one.
+        expect(made).toHaveLength(FRIDAYS.indexOf(friday) + 1);
+      }
+    },
+  );
+});

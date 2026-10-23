@@ -5,6 +5,8 @@
  * over a seeded generator.
  */
 import { describe, expect, it } from 'vitest';
+import { wikiLinkSpans } from '../markdown/wikilink-spans.ts';
+import { reviewDraftData, type ReviewDraftInput } from '../review/review-draft.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { dueTrigger } from './automation-due.ts';
 import type { AutomationRule } from './automation-rule.ts';
@@ -359,9 +361,9 @@ describe('which period a run is for (review of #539, D4 D6 D14)', () => {
     expect(currentPeriod({ schedule: DAILY, at: '2026-10-23T06:00:00' })).toEqual({
       slot: '2026-10-23T07:00:00',
     });
-    expect(currentPeriod({ schedule: DAILY, at: '2026-10-23T23:00:00', item: 'Meetings/A.md' })).toEqual(
-      { slot: '2026-10-23T07:00:00', item: 'Meetings/A.md' },
-    );
+    expect(
+      currentPeriod({ schedule: DAILY, at: '2026-10-23T23:00:00', item: 'Meetings/A.md' }),
+    ).toEqual({ slot: '2026-10-23T07:00:00', item: 'Meetings/A.md' });
   });
 
   it('does not let a week or a day ahead of the clock use up its period', () => {
@@ -409,7 +411,10 @@ describe('which period a run is for (review of #539, D4 D6 D14)', () => {
 
   it('tells a note made once for an item from the same period’s other items', () => {
     const notes = [
-      { path: createVaultPath('Briefs/A.md'), period: { slot: '2026-10-23T07:00:00', item: 'M/A.md' } },
+      {
+        path: createVaultPath('Briefs/A.md'),
+        period: { slot: '2026-10-23T07:00:00', item: 'M/A.md' },
+      },
     ];
     const args = { entries: [], notes, schedule: DAILY, now: '2026-10-23T08:00:00' };
     expect(
@@ -535,9 +540,11 @@ describe('the citation check, deeper (review of #539, D8)', () => {
       ].join('\n'),
     );
     expect(cited.body).toBe(
-      ['- Kept: [[Tasks/Send the file.md]]', '- Kept too: [[Projects/Larkspur launch.md]]', ''].join(
-        '\n',
-      ),
+      [
+        '- Kept: [[Tasks/Send the file.md]]',
+        '- Kept too: [[Projects/Larkspur launch.md]]',
+        '',
+      ].join('\n'),
     );
     expect(cited.dropped).toHaveLength(1);
   });
@@ -576,7 +583,10 @@ describe('the citation check, deeper (review of #539, D8)', () => {
     expect(cited.body).toBe('- Sent it: [[Tasks/Send the file.md]], and signed the Acme deal\n');
     expect(cited).toMatchObject({ kept: 1, dropped: [] });
     expect(cited.stripped).toEqual([
-      { title: expect.stringContaining('Sent it'), reason: expect.stringContaining('Clients/Acme') },
+      {
+        title: expect.stringContaining('Sent it'),
+        reason: expect.stringContaining('Clients/Acme'),
+      },
     ]);
   });
 
@@ -610,5 +620,79 @@ describe('what a dry run says of a step that writes a note from data (review of 
     expect(describePlan(made)).toBe(
       'Its note for 2026-10-23 is made already: nothing to do right now.',
     );
+  });
+});
+
+const draftInput = (fields: Partial<ReviewDraftInput> = {}): ReviewDraftInput => ({
+  review: { staleWaiting: [], projectsWithoutNextAction: [], overdue: [], untouchedSomeday: [] },
+  done: [],
+  meetings: [],
+  inbox: { toFile: 3, toAnswer: 0, more: false },
+  truncated: false,
+  today: '2026-10-23',
+  now: Date.parse('2026-10-23T15:00:00Z'),
+  ...fields,
+});
+
+describe('an empty week (verification of #539)', () => {
+  it('lets a quiet week’s draft through though its one list item has nothing to cite', () => {
+    // Handed nothing to cite, a model that writes "- Nothing this week." as a bullet must still get a draft.
+    const cited = keepCitedItems({
+      body: '## Wins\n\n- Nothing this week.\n\n3 notes wait in the Inbox.\n',
+      sources: new Set(),
+    });
+    expect(nothingCitedProblem(cited)).toBeNull();
+  });
+});
+
+describe('the written draft never holds a source id (verification of #539, D9)', () => {
+  const sources = new Set(['src:1']);
+  const plain = new Map([['src:1', 'Pay A|B invoice']]);
+
+  it('writes a source id in a sentence as its title, as it does in a list item', () => {
+    const body = '- Paid it: [[src:1]]\n\nThe hardest one was [[src:1]].\n';
+    const cited = keepCitedItems({ body, sources, plain });
+    expect(cited.body).not.toContain('[[src:');
+  });
+
+  it('writes a source id in a heading as its title', () => {
+    const body = '## [[src:1]]\n\n- Paid it: [[src:1]]\n';
+    const cited = keepCitedItems({ body, sources, plain });
+    expect(cited.body).not.toContain('[[src:');
+  });
+});
+
+describe('a flattened name links nothing (verification of #539, D10)', () => {
+  it('leaves a title of three brackets with no link of its own in the data', () => {
+    const given = reviewDraftData(
+      draftInput({
+        done: [{ path: createVaultPath('Tasks/Odd.md'), title: '[[[Tasks/Secret plan.md]]]' }],
+      }),
+    );
+    const line = given.data[0]!.text;
+    expect(wikiLinkSpans(line).map(({ link }) => link.target)).toEqual(['Tasks/Odd.md']);
+    // Its own link is the one double bracket on the line: the title's are broken.
+    expect(line.split('[[')).toHaveLength(2);
+  });
+});
+
+describe('periods of two rules that share a folder (verification of #539)', () => {
+  it('does not take a daily rule’s note in the same folder for the weekly rule’s week', () => {
+    // A note stamped by another rule that writes to Reviews/ on Wednesday is not this week's review.
+    const notes = [
+      {
+        path: createVaultPath('Reviews/Daily notes 2026-10-21.md'),
+        period: { slot: '2026-10-21T07:00:00' },
+      },
+    ];
+    expect(
+      periodRecorded({
+        entries: [],
+        notes,
+        period: { slot: '2026-10-23T15:00:00' },
+        schedule: FRIDAYS,
+        now: '2026-10-23T15:00:00',
+      }),
+    ).toBe(false);
   });
 });
