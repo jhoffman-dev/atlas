@@ -5,6 +5,7 @@ import {
   type EmbeddingPort,
   type IdlePort,
   type IndexPort,
+  type NoteChunker,
   type MarkdownPort,
   type NoteChanges,
   type SemanticEngine,
@@ -18,6 +19,8 @@ export interface SemanticPorts {
   readonly cache: EmbeddingCachePort;
   readonly idle: IdlePort;
   readonly optIn: SemanticOptIn;
+  /** Cuts a note into its chunks off the window's thread; left out, they are cut in the window. */
+  readonly chunker?: NoteChunker;
 }
 
 /**

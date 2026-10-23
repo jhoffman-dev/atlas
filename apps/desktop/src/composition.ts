@@ -25,6 +25,7 @@ import {
   tauriEmbeddings,
   tauriEmbeddingCache,
   browserIdle,
+  webWorkerNoteChunker,
   webWorkerNoteDeriver,
   staticAppInfo,
   tauriAppInfo,
@@ -130,6 +131,7 @@ export function resolveSemanticPorts(): SemanticPorts {
     cache: tauriEmbeddingCache,
     idle: browserIdle(),
     optIn: browserSemanticOptIn,
+    chunker: webWorkerNoteChunker,
   };
 }
 
