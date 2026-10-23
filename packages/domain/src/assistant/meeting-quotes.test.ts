@@ -145,3 +145,13 @@ describe('meetingQuotes', () => {
     expect(turns.every((turn) => turnWanted(turn, ANY_TURN))).toBe(true);
   });
 });
+
+describe('the vault owner’s own turns', () => {
+  it('counts "You" among a person’s turns only when the person is the vault owner', () => {
+    const mara = filter({ speakers: ['Mara Quill'] });
+    const asOthers = quotes(mara).quotes.map((quote) => quote.speaker);
+    expect(asOthers).toEqual(['Mara Quill', 'Mara Quill']);
+    const asOwner = quotes({ ...mara, includesSelf: true }).quotes.map((quote) => quote.speaker);
+    expect(asOwner).toEqual(['Mara Quill', 'You', 'Mara Quill']);
+  });
+});

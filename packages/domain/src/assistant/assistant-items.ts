@@ -3,7 +3,14 @@ import { daysWaited } from '../linked-pages/linked-rows.ts';
 import type { LinkedSectionId } from '../linked-pages/linked-sections.ts';
 import type { BoardRow } from '../query/group-rows.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
-import { noteCitation, sourceCitation, type Citation, type Linking } from './citation.ts';
+import { addDays } from '../timeline/timeline.ts';
+import {
+  noteCitation,
+  sourceCitation,
+  type Citation,
+  type Linking,
+  type BlockRef,
+} from './citation.ts';
 import type { FollowUpRow } from './assistant-queries.ts';
 
 /*
@@ -55,6 +62,8 @@ export interface AnsweredSection {
 /** What turns rows into items: how to link a note, and each note's `source`. */
 export interface ItemContext extends Linking {
   readonly sources: ReadonlyMap<string, string>;
+  /** Whether the index holds a block a `source` names: one it does not is cited as its note. */
+  readonly hasBlock: (block: BlockRef) => boolean;
   /** The day asked about, `YYYY-MM-DD`: what is overdue, and how long a waiting-for has waited. */
   readonly day: string;
 }
@@ -72,10 +81,13 @@ function textOf(value: unknown): string | null {
   return null;
 }
 
-/** A day as written, `YYYY-MM-DD`, when the value starts with one. */
+/** A day as written, `YYYY-MM-DD`, when the value starts with one the calendar has. */
 export function dayOf(value: unknown): string | null {
   const text = textOf(value);
-  return text !== null && /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+  if (text === null || !/^\d{4}-\d{2}-\d{2}/.test(text)) return null;
+  const day = text.slice(0, 10);
+  // `2999-02-30` is not a day: dated by it, a meeting would sort and filter by nothing.
+  return addDays(day, 0) === day ? day : null;
 }
 
 export function citedNote(row: Pick<BoardRow, 'path' | 'title'>, context: ItemContext): CitedNote {
@@ -91,7 +103,7 @@ export function datedNote(row: BoardRow, context: ItemContext): DatedNote {
 }
 
 function sourceOf(path: string, context: ItemContext): Citation | null {
-  return sourceCitation(context.sources.get(path), context.resolve);
+  return sourceCitation(context.sources.get(path), context.resolve, context.hasBlock);
 }
 
 export function citedDecision(row: BoardRow, context: ItemContext): CitedDecision {
@@ -135,17 +147,31 @@ export function loopTask({
   };
 }
 
-/** A follow-up the index found from a page's meetings, as an item. */
-export function followUpTask(row: FollowUpRow, context: ItemContext): LoopTask {
+/** How a follow-up was reached: it names the page itself, or only a meeting of it. */
+export interface FollowUpTask extends LoopTask {
+  readonly via: 'direct' | 'meeting';
+  /** The meeting it was reached through when `via` is `meeting`; null when it names the page. */
+  readonly meeting: CitedNote | null;
+}
+
+/** A follow-up the index found from a page or its meetings, as an item. */
+export function followUpTask(row: FollowUpRow, context: ItemContext): FollowUpTask {
   const due = dayOf(row.due);
+  const waits = row.status === WAITING_STATUS;
+  const meeting =
+    row.meeting === null || row.direct
+      ? null
+      : citedNote({ path: row.meeting, title: row.meetingTitle ?? row.meeting }, context);
   return {
     ...citedNote(row, context),
     status: row.status,
     due,
     overdue: due !== null && due < context.day,
-    waitingOn: null,
-    waitingDays: null,
-    source: sourceCitation(row.source, context.resolve),
+    waitingOn: waits ? textOf(row.waitingOn) : null,
+    waitingDays: waits ? daysWaited(row.modified, context.day) : null,
+    source: sourceCitation(row.source, context.resolve, context.hasBlock),
+    via: meeting === null ? 'direct' : 'meeting',
+    meeting,
   };
 }
 

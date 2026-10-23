@@ -15,6 +15,7 @@ import {
   type CitedDecision,
   type CitedNote,
   type DatedNote,
+  type FollowUpTask,
   type ItemContext,
   type LoopTask,
   type TaskStatusWords,
@@ -42,8 +43,12 @@ export interface OpenLoops {
   readonly openTasks: readonly LoopTask[];
   /** Tasks waiting on someone, the longest untouched first where the page orders them so. */
   readonly waitingFor: readonly LoopTask[];
-  /** Open tasks tagged `#follow-up` linked with the page or one of its meetings: the owner's to chase. */
-  readonly followUps: readonly LoopTask[];
+  /**
+   * Open tasks tagged `#follow-up` linked with the page or one of its meetings:
+   * the owner's to chase. One reached only through a meeting names no Person
+   * but the page's own, and says which meeting.
+   */
+  readonly followUps: readonly FollowUpTask[];
   /** Whether a list was cut at {@link LOOP_LIMIT}, or the index held rows back. */
   readonly truncated: boolean;
 }
@@ -84,16 +89,17 @@ export function openLoopsOf({
     waiting,
   );
   const rest = notListed(notListed(tasks, waiting), chased);
-  const lists = [capped(rest, LOOP_LIMIT), capped(waiting, LOOP_LIMIT), capped(chased, LOOP_LIMIT)];
+  const openTasks = capped(rest, LOOP_LIMIT);
+  const waitingFor = capped(waiting, LOOP_LIMIT);
+  const followUpList = capped(chased, LOOP_LIMIT);
   const held = sections.some(
     (section) => (section.id === 'tasks' || section.id === 'waiting') && section.truncated,
   );
-  const [openTasks, waitingFor, chase] = lists;
   return {
-    openTasks: openTasks?.items ?? [],
-    waitingFor: waitingFor?.items ?? [],
-    followUps: chase?.items ?? [],
-    truncated: held || lists.some((list) => list.cut),
+    openTasks: openTasks.items,
+    waitingFor: waitingFor.items,
+    followUps: followUpList.items,
+    truncated: held || [openTasks, waitingFor, followUpList].some((list) => list.cut),
   };
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assistantPageRefusal,
   assistantPageTypes,
+  isVaultOwner,
   namesOf,
   speaksInMeetings,
 } from './assistant-pages.ts';
@@ -36,11 +37,36 @@ describe('which notes the assistant answers about', () => {
 });
 
 describe('namesOf', () => {
-  it('is the title and each alias, trimmed, blanks and repeats left out', () => {
+  it('is the title, the file name and each alias, trimmed, blanks and repeats left out', () => {
     expect(
-      namesOf('Mara Quill', { aliases: [' MQ ', '', 'Mara Quill', 3, 'Quill, Mara'] }),
+      namesOf(
+        'Mara Quill',
+        { aliases: [' MQ ', '', 'Mara Quill', 3, 'Quill, Mara'] },
+        'Mara Quill',
+      ),
     ).toEqual(['Mara Quill', 'MQ', 'Quill, Mara']);
-    expect(namesOf('Tobias Fenn', { aliases: 'Toby' })).toEqual(['Tobias Fenn', 'Toby']);
-    expect(namesOf('Tobias Fenn', {})).toEqual(['Tobias Fenn']);
+    expect(namesOf('Tobias Fenn', { aliases: 'Toby' }, 'Tobias Fenn')).toEqual([
+      'Tobias Fenn',
+      'Toby',
+    ]);
+    expect(namesOf('Tobias Fenn', {}, 'Tobias Fenn')).toEqual(['Tobias Fenn']);
+  });
+
+  it('keeps the file name when `title:` says something else', () => {
+    expect(namesOf('Mara Quill (Larkspur)', {}, 'Mara Quill')).toEqual([
+      'Mara Quill (Larkspur)',
+      'Mara Quill',
+    ]);
+  });
+});
+
+describe('isVaultOwner', () => {
+  it('is whether the profile’s name is one of the names, in any common spelling', () => {
+    expect(isVaultOwner(['Mara Quill', 'MQ'], 'Quill, Mara')).toBe(true);
+    expect(isVaultOwner(['Tobias Fenn'], 'Mara Quill')).toBe(false);
+  });
+
+  it('is never true while the profile has no name', () => {
+    expect(isVaultOwner(['Mara Quill'], null)).toBe(false);
   });
 });

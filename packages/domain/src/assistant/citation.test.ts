@@ -66,10 +66,16 @@ describe('citations', () => {
     });
   });
 
-  it('keeps a source that names no note, with no path', () => {
+  it('cites a source that names no note as that note, with no path: a block of nothing is not vouched for', () => {
     expect(sourceCitation('[[Gone#^t0001]]', resolve)).toEqual({
-      link: '[[Gone#^t0001]]',
-      kind: 'block',
+      link: '[[Gone]]',
+      kind: 'note',
+      path: null,
+    });
+    // A heading is kept as written: the index holds no headings to check it by.
+    expect(sourceCitation('[[Gone#Plans]]', resolve)).toEqual({
+      link: '[[Gone#Plans]]',
+      kind: 'heading',
       path: null,
     });
   });

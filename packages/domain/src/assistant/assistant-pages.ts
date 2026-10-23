@@ -1,4 +1,5 @@
 import { linkedPageType } from '../linked-pages/linked-sections.ts';
+import { sameName } from '../meeting-links/vault-owner.ts';
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { COMPANY_TYPE } from '../people/company.ts';
 import { PERSON_TYPE } from '../people/person.ts';
@@ -49,14 +50,28 @@ export function speaksInMeetings(typeName: string): boolean {
 }
 
 /**
- * The names a person is written by in a transcript: the note's title and
- * each of its `aliases` (P28-05), blanks left out, each once.
+ * The names a person is written by in a transcript: the note's title, its
+ * file name (a transcript names who the file does, whatever `title:` adds)
+ * and each of its `aliases` (P28-05), blanks left out, each once.
  */
-export function namesOf(title: string, frontmatter: Readonly<Record<string, unknown>>): string[] {
+export function namesOf(
+  title: string,
+  frontmatter: Readonly<Record<string, unknown>>,
+  fileName: string,
+): string[] {
   const aliases = frontmatter[ALIASES_KEY];
   const written = Array.isArray(aliases) ? aliases : [aliases];
-  const names = [title, ...written.filter((alias): alias is string => typeof alias === 'string')]
+  const names = [
+    title,
+    fileName,
+    ...written.filter((alias): alias is string => typeof alias === 'string'),
+  ]
     .map((name) => name.trim())
     .filter((name) => name !== '');
   return [...new Set(names)];
+}
+
+/** Whether the vault owner (by the profile's name) is one of these names: their `You` turns are this person's. */
+export function isVaultOwner(names: readonly string[], selfName: string | null): boolean {
+  return selfName !== null && names.some((name) => sameName(name, selfName));
 }

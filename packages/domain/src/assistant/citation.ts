@@ -18,8 +18,12 @@ import type { VaultPath } from '../vault/vault-path.ts';
 export type CitationKind = 'block' | 'heading' | 'note';
 
 export interface Citation {
-  /** A wiki link, `[[Kickoff#^t0003]]`, that opens what is cited. */
-  readonly link: string;
+  /**
+   * A wiki link, `[[Kickoff#^t0003]]`, that opens what is cited. Null when the
+   * note's name holds what a link cannot (`[ ] | #`, as `C# sync`): no link
+   * could open it, so it is cited by its `path` alone.
+   */
+  readonly link: string | null;
   readonly kind: CitationKind;
   /** The note it opens, or null for a link that names no note in the vault. */
   readonly path: string | null;
@@ -44,39 +48,77 @@ export function linkingAmong(notePaths: readonly VaultPath[]): Linking {
   return { resolve, targetOf: (path) => wikiLinkTargetWith(path, resolve) };
 }
 
+/** What a link's target cannot hold: its own syntax, which a link to such a name would be cut at. */
+const UNLINKABLE_TARGET = /[#[\]|]/;
+
 /** A whole note. */
 export function noteCitation(path: VaultPath, targetOf: LinkTargetOf): Citation {
-  return { link: `[[${targetOf(path)}]]`, kind: 'note', path };
+  const target = targetOf(path);
+  const link = UNLINKABLE_TARGET.test(target) ? null : `[[${target}]]`;
+  return { link, kind: 'note', path };
 }
 
-/** One turn of a meeting: its block when it has an id, else the Transcript heading over it. */
+/**
+ * One turn of a meeting: its block when it has an id, else the Transcript
+ * heading over it. A meeting whose name no link can hold is cited as a note.
+ */
 export function turnCitation(
   path: VaultPath,
   blockId: string | null,
   targetOf: LinkTargetOf,
 ): Citation {
   const target = targetOf(path);
+  if (UNLINKABLE_TARGET.test(target)) return noteCitation(path, targetOf);
   return blockId === null
     ? { link: `[[${target}#${TRANSCRIPT_HEADING}]]`, kind: 'heading', path }
     : { link: `[[${target}#^${blockId}]]`, kind: 'block', path };
+}
+
+/** The block a `source` link names, and the note it is in. */
+export interface BlockRef {
+  readonly path: VaultPath;
+  readonly id: string;
+}
+
+/** The one wiki link a `source` is written as, or null when it is not exactly one. */
+function sourceLink(source: unknown) {
+  if (typeof source !== 'string') return null;
+  const link = readWikiLink(source.trim());
+  return link === null || link.embed ? null : link;
+}
+
+/**
+ * The block a `source` names, when it names one of a note the vault holds:
+ * what the index is asked whether it still has.
+ */
+export function sourceBlockOf(
+  source: unknown,
+  resolve: (target: string) => VaultPath | null,
+): BlockRef | null {
+  const link = sourceLink(source);
+  const fragment = link === null ? null : linkFragment(link);
+  const path = link === null ? null : resolve(link.target);
+  return fragment?.kind === 'block' && path !== null ? { path, id: fragment.id } : null;
 }
 
 /**
  * Where a task or a decision says it came from: its `source`, when that is
  * one wiki link — as an accepted proposal writes it, `[[Kickoff#^t0003]]` —
  * written back without any alias. Null for no source, or one that is not a
- * link. Whether the block is still there is not checked here; opening the
- * link says.
+ * link. A block the index no longer holds (`isBlock` says no) is cited as
+ * its note: a link to a block that is gone opens nothing, and `kind: "block"`
+ * would promise the quote is there.
  */
 export function sourceCitation(
   source: unknown,
   resolve: (target: string) => VaultPath | null,
+  isBlock: (block: BlockRef) => boolean = () => true,
 ): Citation | null {
-  if (typeof source !== 'string') return null;
-  const link = readWikiLink(source.trim());
-  if (link === null || link.embed) return null;
+  const link = sourceLink(source);
+  if (link === null) return null;
   const fragment = linkFragment(link);
-  const kind: CitationKind = fragment === null ? 'note' : fragment.kind;
-  const after = fragment === null ? '' : (link.heading ?? '');
-  return { link: `[[${link.target}${after}]]`, kind, path: resolve(link.target) };
+  const path = resolve(link.target);
+  const gone = fragment?.kind === 'block' && (path === null || !isBlock({ path, id: fragment.id }));
+  if (fragment === null || gone) return { link: `[[${link.target}]]`, kind: 'note', path };
+  return { link: `[[${link.target}${link.heading ?? ''}]]`, kind: fragment.kind, path };
 }

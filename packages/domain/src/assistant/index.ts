@@ -1,11 +1,12 @@
 export {
   linkingAmong,
   noteCitation,
+  sourceBlockOf,
   sourceCitation,
   TRANSCRIPT_HEADING,
   turnCitation,
 } from './citation.ts';
-export type { Citation, CitationKind, LinkTargetOf, Linking } from './citation.ts';
+export type { Citation, CitationKind, LinkTargetOf, Linking, BlockRef } from './citation.ts';
 export {
   ABOUT_CHARACTERS,
   aboutWords,
@@ -19,6 +20,8 @@ export type { MeetingQuotes, SpeakerQuote, TurnFilter } from './meeting-quotes.t
 export {
   ASSISTANT_PATHS_PER_QUERY,
   ASSISTANT_QUERY_MARK,
+  blocksHeld,
+  compileBlocksQuery,
   compileFollowUpsQuery,
   compileSourcesQuery,
   FOLLOW_UP_COLUMNS,
@@ -33,6 +36,7 @@ export type {
   CitedDecision,
   CitedNote,
   DatedNote,
+  FollowUpTask,
   ItemContext,
   LoopTask,
   TaskStatusWords,
@@ -50,6 +54,7 @@ export type { BriefParts, LastMeeting, OpenLoops, RelatedNote } from './brief.ts
 export {
   assistantPageRefusal,
   assistantPageTypes,
+  isVaultOwner,
   namesOf,
   speaksInMeetings,
 } from './assistant-pages.ts';

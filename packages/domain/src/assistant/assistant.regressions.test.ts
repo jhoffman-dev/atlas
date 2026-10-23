@@ -1,14 +1,20 @@
 /**
- * Attack tests for PR #535 (assistant tools, P32-04): the domain's quotes,
- * citations and dated items at their edges. Left failing where they find a
- * bug; each names the invariant it holds the code to.
+ * Regressions found attacking the assistant tools (#535, P32-04): the domain's
+ * quotes, citations and dated items at their edges. Each names the invariant
+ * it holds the code to.
  */
 
 import { describe, expect, it } from 'vitest';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import { meetingTurnsOf } from '../meetings/meeting-turns.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
-import { linkingAmong, noteCitation, sourceCitation, turnCitation } from './citation.ts';
+import {
+  linkingAmong,
+  noteCitation,
+  sourceBlockOf,
+  sourceCitation,
+  turnCitation,
+} from './citation.ts';
 import { datedNote } from './assistant-items.ts';
 import { ANY_TURN, meetingQuotes, QUOTE_CHARACTERS, type TurnFilter } from './meeting-quotes.ts';
 
@@ -41,7 +47,7 @@ function seeded(seed: number): () => number {
   };
 }
 
-describe('attack #535: a quote cut at 400 characters', () => {
+describe('a quote cut at 400 characters', () => {
   it('never cuts an emoji in half at the 400-character cut', () => {
     const words = `${'a'.repeat(QUOTE_CHARACTERS - 2)}😀 and then the bank file.`;
     const [quote] = quotesOf([`**Mara Quill** [00:00:05] ${words} ^t0001`]);
@@ -72,7 +78,7 @@ describe('attack #535: a quote cut at 400 characters', () => {
   });
 });
 
-describe('attack #535: a turn cited by its block', () => {
+describe('a turn cited by its block', () => {
   it('never cites two different turns by one block link (an ^id written twice in the note)', () => {
     const quotes = quotesOf([
       '**Mara Quill** [00:00:05] The cut-over waits for the bank. ^t0003',
@@ -85,18 +91,25 @@ describe('attack #535: a turn cited by its block', () => {
   });
 });
 
-describe('attack #535: links to notes whose names hold link syntax', () => {
-  for (const name of ['C# sync', 'Plan | draft', 'Notes [old]', 'Mara^s 1:1']) {
-    it(`cites "${name}" with a link that opens that note`, () => {
+describe('links to notes whose names hold link syntax', () => {
+  // A link's target holds no `# [ ] |` (ADR-0004): a note named so cannot be linked in DFAI or Obsidian.
+  for (const name of ['C# sync', 'Plan | draft', 'Notes [old]']) {
+    it(`cites "${name}" by its path, with no link that would open another note`, () => {
       const path = createVaultPath(`Meetings/${name}.md`);
       const linking = linkingAmong([path, PATH]);
-      const cite = turnCitation(path, 't0001', linking.targetOf);
-      const link = readWikiLink(cite.link);
-      expect(link).not.toBeNull();
-      expect(linking.resolve(link?.target ?? '')).toBe(path);
-      expect(noteCitation(path, linking.targetOf).link).not.toMatch(/^\[\[[^\]]*[#|][^\]]*\]\]$/);
+      const turn = turnCitation(path, 't0001', linking.targetOf);
+      expect(turn).toEqual({ link: null, kind: 'note', path });
+      expect(noteCitation(path, linking.targetOf)).toEqual({ link: null, kind: 'note', path });
     });
   }
+
+  it('still links a name that holds a caret, which a target may hold', () => {
+    const path = createVaultPath('Meetings/Mara^s 1:1.md');
+    const linking = linkingAmong([path, PATH]);
+    const link = readWikiLink(turnCitation(path, 't0001', linking.targetOf).link ?? '');
+    expect(link).not.toBeNull();
+    expect(linking.resolve(link?.target ?? '')).toBe(path);
+  });
 
   it('keeps a heading holding "#" whole when a source cites it', () => {
     const cite = sourceCitation('[[Kickoff#C# migration]]', resolve);
@@ -104,7 +117,42 @@ describe('attack #535: links to notes whose names hold link syntax', () => {
   });
 });
 
-describe('attack #535: a meeting dated a day the calendar does not have', () => {
+describe('a source naming a block', () => {
+  const held = ({ id }: { id: string }) => id === 't0003';
+
+  it('cites the block while the index holds it', () => {
+    expect(sourceCitation('[[Kickoff#^t0003]]', resolve, held)).toEqual({
+      link: '[[Kickoff#^t0003]]',
+      kind: 'block',
+      path: PATH,
+    });
+  });
+
+  it('cites the note once the block is gone, never promising a block that is not there', () => {
+    expect(sourceCitation('[[Kickoff#^t0099]]', resolve, held)).toEqual({
+      link: '[[Kickoff]]',
+      kind: 'note',
+      path: PATH,
+    });
+  });
+
+  it('cites the note for a block of a note the vault does not hold', () => {
+    expect(sourceCitation('[[Nowhere#^t0003]]', resolve, held)).toEqual({
+      link: '[[Nowhere]]',
+      kind: 'note',
+      path: null,
+    });
+  });
+
+  it('names the block a source asks the index about, only for a note the vault holds', () => {
+    expect(sourceBlockOf('[[Kickoff#^t0003]]', resolve)).toEqual({ path: PATH, id: 't0003' });
+    expect(sourceBlockOf('[[Kickoff#Plans]]', resolve)).toBeNull();
+    expect(sourceBlockOf('[[Nowhere#^t0003]]', resolve)).toBeNull();
+    expect(sourceBlockOf('not a link', resolve)).toBeNull();
+  });
+});
+
+describe('a meeting dated a day the calendar does not have', () => {
   const row = (date: string) => ({
     path: 'Meetings/Kickoff.md',
     title: 'Kickoff',
@@ -113,6 +161,7 @@ describe('attack #535: a meeting dated a day the calendar does not have', () => 
   const context = {
     ...linkingAmong([PATH]),
     sources: new Map<string, string>(),
+    hasBlock: () => true,
     day: '2999-03-13',
   };
 

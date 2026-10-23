@@ -38,6 +38,8 @@ export interface SpeakerQuote {
 export interface TurnFilter {
   /** Turns spoken by someone of one of these names (a person's name and aliases). */
   readonly speakers: readonly string[] | null;
+  /** Whether `You`, the vault's owner, is among those speakers: the person asked about is the owner. */
+  readonly includesSelf?: boolean;
   /** Turns holding every one of these words, as {@link aboutWords} reads them. */
   readonly words: readonly string[] | null;
   /** Turns with one of these block ids: the passages a semantic finder pointed at. */
@@ -73,14 +75,15 @@ function holdsWords(turn: TranscriptTurn, words: readonly string[]): boolean {
   return words.every((word) => spoken.some((said) => said.startsWith(word)));
 }
 
-function spokenBy(turn: TranscriptTurn, names: readonly string[]): boolean {
+function spokenBy(turn: TranscriptTurn, filter: TurnFilter, names: readonly string[]): boolean {
   const { speaker } = turn;
+  if (speaker.kind === 'self') return filter.includesSelf === true;
   return speaker.kind === 'named' && names.some((name) => sameName(speaker.name, name));
 }
 
 /** Whether a turn is one the filter wants. */
 export function turnWanted(turn: TranscriptTurn, filter: TurnFilter): boolean {
-  if (filter.speakers !== null && !spokenBy(turn, filter.speakers)) return false;
+  if (filter.speakers !== null && !spokenBy(turn, filter, filter.speakers)) return false;
   if (filter.words !== null && !holdsWords(turn, filter.words)) return false;
   if (filter.blocks !== null && (turn.blockId === null || !filter.blocks.has(turn.blockId))) {
     return false;
@@ -88,10 +91,34 @@ export function turnWanted(turn: TranscriptTurn, filter: TurnFilter): boolean {
   return true;
 }
 
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** The longest start of `text` that is whole characters as a reader sees them — an emoji, a letter and its accent — within `size` UTF-16 units. */
+function wholeStart(text: string, size: number): string {
+  let kept = 0;
+  for (const { segment } of GRAPHEMES.segment(text)) {
+    if (kept + segment.length > size) break;
+    kept += segment.length;
+  }
+  return text.slice(0, kept);
+}
+
 function quoteOf(words: string): { quote: string; cut: boolean } {
   const text = words.trim();
   if (text.length <= QUOTE_CHARACTERS) return { quote: text, cut: false };
-  return { quote: `${text.slice(0, QUOTE_CHARACTERS - 1).trimEnd()}…`, cut: true };
+  return { quote: `${wholeStart(text, QUOTE_CHARACTERS - 1).trimEnd()}…`, cut: true };
+}
+
+/** The ids written on more than one turn: a block link to one of them would open the first. */
+function repeatedIds(turns: readonly TranscriptTurn[]): ReadonlySet<string> {
+  const seen = new Set<string>();
+  const repeated = new Set<string>();
+  for (const { blockId } of turns) {
+    if (blockId === null) continue;
+    if (seen.has(blockId)) repeated.add(blockId);
+    seen.add(blockId);
+  }
+  return repeated;
 }
 
 /** A meeting's wanted turns, in the order spoken, and how many there were before the cap. */
@@ -103,7 +130,7 @@ export interface MeetingQuotes {
 /**
  * The turns of one meeting the filter wants, in the order they were spoken,
  * at most {@link QUOTES_PER_MEETING}, each cited by its block (or, with no
- * id, by the Transcript heading).
+ * id or one written twice, by the Transcript heading).
  */
 export function meetingQuotes({
   path,
@@ -117,11 +144,17 @@ export function meetingQuotes({
   targetOf: LinkTargetOf;
 }): MeetingQuotes {
   const wanted = turns.filter((turn) => turnWanted(turn, filter));
+  const repeated = repeatedIds(turns);
   const quotes = wanted.slice(0, QUOTES_PER_MEETING).map((turn) => ({
     speaker: turn.writtenSpeaker,
     time: turn.time.kind === 'none' ? null : turn.time.text,
     ...quoteOf(turn.words),
-    cite: turnCitation(path, turn.blockId, targetOf),
+    // A block link opens the first turn with that id: a repeated one is cited by the heading over it.
+    cite: turnCitation(
+      path,
+      turn.blockId !== null && repeated.has(turn.blockId) ? null : turn.blockId,
+      targetOf,
+    ),
   }));
   return { quotes, matched: wanted.length };
 }

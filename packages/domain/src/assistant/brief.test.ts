@@ -40,7 +40,12 @@ const PATHS = [
 ].map(createVaultPath);
 
 function context(sources: Record<string, string> = {}): ItemContext {
-  return { ...linkingAmong(PATHS), sources: new Map(Object.entries(sources)), day: DAY };
+  return {
+    ...linkingAmong(PATHS),
+    sources: new Map(Object.entries(sources)),
+    hasBlock: () => true,
+    day: DAY,
+  };
 }
 
 const followUp = (path: string, more: Partial<FollowUpRow> = {}): FollowUpRow => ({
@@ -49,6 +54,11 @@ const followUp = (path: string, more: Partial<FollowUpRow> = {}): FollowUpRow =>
   status: 'inbox',
   due: null,
   source: null,
+  waitingOn: null,
+  modified: null,
+  direct: true,
+  meeting: null,
+  meetingTitle: null,
   ...more,
 });
 
@@ -121,6 +131,42 @@ describe('openLoopsOf', () => {
     });
     expect(loops.openTasks.map((task) => task.path)).toEqual(['Tasks/Draft.md']);
     expect(loops.followUps.map((task) => task.source?.link)).toEqual(['[[Sync#^t0001]]']);
+  });
+
+  it('says how a follow-up was reached: by the page itself, or only through a meeting', () => {
+    const loops = openLoopsOf({
+      sections,
+      followUps: [
+        followUp('Tasks/Chase.md'),
+        followUp('Tasks/Draft2.md', {
+          direct: false,
+          meeting: 'Meetings/Kickoff.md',
+          meetingTitle: 'Kickoff',
+        }),
+      ],
+      status: STATUS,
+      context: context(),
+    });
+    expect(loops.followUps.map(({ via, meeting }) => [via, meeting?.cite.link ?? null])).toEqual([
+      ['direct', null],
+      ['meeting', '[[Kickoff]]'],
+    ]);
+  });
+
+  it('keeps who a waiting follow-up waits on and how long, to the day asked about', () => {
+    const loops = openLoopsOf({
+      sections,
+      followUps: [
+        followUp('Tasks/Chase.md', {
+          status: 'waiting',
+          waitingOn: 'the bank',
+          modified: '2026-10-17',
+        }),
+      ],
+      status: STATUS,
+      context: context(),
+    });
+    expect(loops.followUps[0]).toMatchObject({ waitingOn: 'the bank', waitingDays: 3 });
   });
 
   it('keeps a follow-up that is waiting under waiting-fors only', () => {
