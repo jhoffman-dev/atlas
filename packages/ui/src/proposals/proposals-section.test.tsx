@@ -546,3 +546,34 @@ describe('a dashboard or view proposal (P32-05)', () => {
     });
   });
 });
+
+describe('a dashboard proposal that runs a query (PR #549 attack)', () => {
+  const SQL =
+    "SELECT title, status FROM notes WHERE type = 'task' AND status <> 'done' ORDER BY due LIMIT 25";
+  const QUERY = 'FROM task WHERE status != "done" SORT due';
+  const QUERYING = proposal('Orchard queries', {
+    kind: 'dashboard',
+    made_by: 'Claude, in the chat',
+    payload: {
+      title: 'Orchard queries',
+      spec: {
+        widgets: [
+          { kind: 'sql', title: 'Open by due', sql: SQL, show: 'table' },
+          { kind: 'query', title: 'Still open', query: QUERY },
+        ],
+      },
+    },
+  });
+
+  it('shows each sql widget’s full statement before Accept', () => {
+    page({ contents: { open: [QUERYING], stranded: [], unreadable: [] } });
+
+    expect(card(/^Dashboard: Orchard queries$/).textContent).toContain(SQL);
+  });
+
+  it('shows each query widget’s full query before Accept', () => {
+    page({ contents: { open: [QUERYING], stranded: [], unreadable: [] } });
+
+    expect(card(/^Dashboard: Orchard queries$/).textContent).toContain(QUERY);
+  });
+});
