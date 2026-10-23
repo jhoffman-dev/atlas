@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bookCss } from './chapter-styles.ts';
 
 /*
- * Regressions from the attack on PR #536 (#505, ADR-0045 §5): the reader's cleaning of a book's CSS
+ * Regressions from the attack on and verification of PR #536 (#505, ADR-0045 §5): the reader's cleaning of a book's CSS
  * is meant to stand alone — "each layer assumes the others failed" — so no
  * reference to another site may survive it, whatever spelling CSS allows. The
  * frame's policy still refuses these loads in WebKit; these are gaps in the
@@ -66,5 +66,29 @@ describe("a book's CSS made the book's own", () => {
     // The space after `\41` ends the escape, so the selector is `.10A` and the brace follows it.
     const css = `.\\31 0\\41 { content: "\\"\\2f\\2a"; } \\41 b { color: r\\65 d; }`;
     expect(await made(css)).toBe(`.\\31 0A{ content: "\\"\\2f \\2a "; } Ab { color: red; }`);
+  });
+});
+
+/** The CSS as a browser reads its strings: a backslash before a line break joins the lines. */
+const asRead = (css: string) => css.replace(/\\\r?\n/g, '');
+
+// From the verification of PR #536: spellings WebKit loads (seen asking a fake
+// server for each, with the frame's policy taken away) that the cleaning kept.
+describe("a book's CSS made the book's own, in the spellings WebKit still loads", () => {
+  it('keeps no other site named in a url() string broken across two lines with a backslash', async () => {
+    // In a CSS string, a backslash before a line break is no character: the address is one line.
+    const css = `p { background: url("https://bea\\\ncon.example.com/joined.png"); }`;
+    expect(asRead(await made(css))).not.toContain(BEACON);
+  });
+
+  it('keeps no other site named in an image-set() after a comment holding a closing parenthesis', async () => {
+    const css = `p { background-image: image-set(/* ) */ "https://${BEACON}/paren.png" 1x); }`;
+    expect(await made(css)).not.toContain(BEACON);
+  });
+
+  it('keeps no other site named in an image-set() between comments holding quotes', async () => {
+    // Read as one string, `'#*/"https://…" 1x/*'` begins with `#` and is kept as a place in the chapter.
+    const css = `p { background-image: image-set(/*'#*/"https://${BEACON}/quote.png" 1x/*'*/); }`;
+    expect(await made(css)).not.toContain(BEACON);
   });
 });
