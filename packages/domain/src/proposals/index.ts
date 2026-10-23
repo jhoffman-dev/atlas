@@ -1,8 +1,12 @@
 export {
+  acceptRefusal,
   ANSWERED_VIA_KEY,
   DECISION_TYPE,
+  isNoteProposal,
   isProposalNote,
+  isSpecProposal,
   isProposalPath,
+  isSpecProposalKind,
   PROPOSAL_ANSWERERS,
   PROPOSAL_CONFIDENCES,
   PROPOSAL_KINDS,
@@ -16,11 +20,13 @@ export {
   proposedWriteRefusal,
   readProposal,
   readProposalPayload,
+  SPEC_PROPOSAL_KINDS,
 } from './proposal.ts';
 export type {
   LinkFrom,
   LinkPayload,
   NotePayload,
+  NoteProposal,
   NoteProposalKind,
   PayloadReading,
   ProposalAnswerer,
@@ -30,7 +36,12 @@ export type {
   ProposalPayload,
   ProposalReading,
   ProposalState,
+  SpecPayload,
+  SpecProposal,
+  SpecProposalKind,
 } from './proposal.ts';
+export { applySpecProposal, checkSpec, specProposalFor } from './spec-proposal.ts';
+export type { CheckedSpec, SpecReading } from './spec-proposal.ts';
 export { PROPOSAL_TYPE_FILES } from './proposal-types.ts';
 export { applyNoteProposal, applyProposal, newNotePath } from './apply-proposal.ts';
 export type {

@@ -1,5 +1,6 @@
 import type { ImagePlacement, VaultPath } from '@dfai/domain';
 import type { ThumbnailQueue } from '../artifacts/thumbnail-queue.ts';
+import type { ClaudeStepPorts } from '../automations/claude-step.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { refreshIndex } from '../index/refresh-index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -70,6 +71,8 @@ export interface VaultRequest {
   readonly timeZone: string;
   /** The vault owner's name from the profile; null when it has none. */
   readonly ownerName: string | null;
+  /** What drafting a meeting's tasks asks Claude through; null when the app has not got it. */
+  readonly claudeStep: ClaudeStepPorts | null;
   /** Refuses with `no_vault` once the vault this request arrived for is no longer open. */
   readonly assertStillOpen: () => void;
   /**
@@ -120,6 +123,7 @@ export function vaultRequest({
     automationClock: deps.automationClock.forVault(vault),
     timeZone: deps.timeZone(),
     ownerName: deps.ownerName?.() ?? null,
+    claudeStep: deps.claudeStep?.() ?? null,
     assertStillOpen: () => {
       if (deps.host.currentVault()?.absolutePath !== vault) {
         throw noVault('The vault this request was for is no longer open');

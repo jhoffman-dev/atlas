@@ -8,8 +8,11 @@ import { TITLE_KEY } from '../page/page-title.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { joinVaultPath, VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
 import { foldedVaultPath } from '../vault/vault-spelling.ts';
+import type { ObjectType } from '../types/property-def.ts';
+import { applySpecProposal } from './spec-proposal.ts';
 import {
   PROPOSAL_NOTE_TYPES,
+  isSpecProposal,
   proposedWriteRefusal,
   type LinkFrom,
   type LinkPayload,
@@ -64,6 +67,13 @@ export interface ProposalVault {
    * names no folder. Null, or left out, for the root.
    */
   readonly homeFolder?: VaultPath | null | undefined;
+  /** The vault's types: what a dashboard or view proposal is checked against again. None, left out. */
+  readonly types?: readonly ObjectType[] | undefined;
+  /**
+   * The entries in the folder a dashboard or view proposal writes into, as
+   * they are now: its entry is numbered past them. None, left out.
+   */
+  readonly specPaths?: readonly VaultPath[] | undefined;
 }
 
 export type ProposalApplication =
@@ -79,13 +89,20 @@ const CITING_KINDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up'
  * A task, a follow-up or a decision makes a note of its type citing the block
  * the proposal came from; a person, a term or a project makes a note of its
  * type, and with `linkFrom` is added to that note's relation too. A link adds
- * one link to a relation of an existing note. Nothing is written over: a note
+ * one link to a relation of an existing note. A dashboard or a view makes an
+ * entry in its folder of `.atlas`, its spec checked again first. Nothing is written over: a note
  * already at the path a new one would take is a refusal (it may be the very
  * note this proposes), and a note changed since a proposal with a digest was
  * made is too — the proposal was made against what it held then.
  */
 export function applyProposal(proposal: ProposalNote, vault: ProposalVault): ProposalApplication {
   if (proposal.state !== 'open') return refused(`It was already ${proposal.state}.`);
+  if (isSpecProposal(proposal)) {
+    return applySpecProposal(proposal, {
+      types: vault.types ?? [],
+      takenPaths: vault.specPaths ?? [],
+    });
+  }
   return proposal.kind === 'link'
     ? applyLink(proposal.payload, vault)
     : applyNoteProposal(proposal, vault);

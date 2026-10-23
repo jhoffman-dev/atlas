@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   editedPayload,
+  isNoteProposal,
   noteTitle,
   payloadFields,
   propertyText,
@@ -9,6 +10,7 @@ import {
   type ProposalConfidence,
   type ProposalKind,
   type ProposalNote,
+  type SpecProposal,
 } from '@dfai/domain';
 import { Icon } from '../icon.tsx';
 import { SelectBox } from '../row-selection.tsx';
@@ -21,6 +23,8 @@ export const KIND_LABEL: Readonly<Record<ProposalKind, string>> = {
   link: 'Link',
   term: 'Term',
   project: 'Project',
+  dashboard: 'Dashboard',
+  view: 'View',
 };
 
 export interface ProposalRowProps {
@@ -69,7 +73,9 @@ export function ProposalRow(props: ProposalRowProps) {
             />
           )}
         </span>
-        <span className="proposal-row__kind">{KIND_LABEL[proposal.kind]}</span>
+        <span className="proposal-row__kind" data-kind={proposal.kind}>
+          {KIND_LABEL[proposal.kind]}
+        </span>
         <div className="proposal-row__text">
           <span className="proposal-row__title">{headline}</span>
           {reason !== null && reason !== '' && <p className="proposal-row__why">{reason}</p>}
@@ -194,6 +200,7 @@ function Payload({ proposal }: { proposal: ProposalNote }) {
       </p>
     );
   }
+  if (!isNoteProposal(proposal)) return <SpecSummary proposal={proposal} />;
   const { properties, body, linkFrom } = proposal.payload;
   const entries = Object.entries(properties);
   return (
@@ -218,6 +225,51 @@ function Payload({ proposal }: { proposal: ProposalNote }) {
   );
 }
 
+/**
+ * What a dashboard or view would be, read from its spec as the proposal
+ * holds it: each widget's kind and title, or the view's type and layout.
+ * Accept checks the spec again; this only says what was asked for.
+ */
+function SpecSummary({ proposal }: { proposal: SpecProposal }) {
+  const { spec } = proposal.payload;
+  const where = proposal.kind === 'dashboard' ? '.atlas/dashboards' : '.atlas/views';
+  const widgets = Array.isArray(spec['widgets']) ? (spec['widgets'] as unknown[]) : [];
+  return (
+    <>
+      <dl className="proposal-row__props" aria-label="What it would write">
+        {proposal.kind === 'view' ? (
+          <>
+            <div>
+              <dt>type</dt>
+              <dd>{propertyText(spec['type'])}</dd>
+            </div>
+            <div>
+              <dt>layout</dt>
+              <dd>{propertyText(spec['layout'])}</dd>
+            </div>
+          </>
+        ) : (
+          widgets.map((widget, at) => (
+            <div key={at}>
+              <dt>{propertyText(fieldOf(widget, 'kind'))}</dt>
+              <dd>{propertyText(fieldOf(widget, 'title') ?? fieldOf(widget, 'type'))}</dd>
+            </div>
+          ))
+        )}
+      </dl>
+      <p className="proposal-row__change">
+        Accepting makes it in <b>{where}</b>.
+      </p>
+    </>
+  );
+}
+
+function fieldOf(entry: unknown, key: string): unknown {
+  return typeof entry === 'object' && entry !== null
+    ? (entry as Record<string, unknown>)[key]
+    : undefined;
+}
+
 /** The payload's fields, to change before accepting. */
 function PayloadForm({
   fields,
@@ -226,6 +278,19 @@ function PayloadForm({
   fields: PayloadFields;
   onChange: (fields: PayloadFields) => void;
 }) {
+  if (fields.kind === 'spec') {
+    return (
+      <div className="proposal-row__form">
+        <label>
+          Name
+          <input
+            value={fields.title}
+            onChange={(event) => onChange({ ...fields, title: event.target.value })}
+          />
+        </label>
+      </div>
+    );
+  }
   if (fields.kind === 'link') {
     return (
       <div className="proposal-row__form">

@@ -1,7 +1,10 @@
 import {
   ANSWERED_VIA_KEY,
+  acceptRefusal,
   applyProposal,
   foldedVaultPath,
+  isNoteProposal,
+  isSpecProposal,
   linkedTaskOwner,
   madeTaskFor,
   MEETING_TASKS_KEY,
@@ -26,6 +29,7 @@ import {
 import { readMadeItems } from '../meetings/made-items.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { pointedAtItsMeeting, relationChanged } from './proposal-meeting.ts';
+import { specVault } from './spec-vault.ts';
 import {
   archiveProposal,
   readOpenProposal,
@@ -42,6 +46,12 @@ import {
   takeBackAll,
   takenBack,
 } from './proposal-writes.ts';
+
+/**
+ * A proposal only the app may accept — a dashboard or a view, written into
+ * `.atlas` — answered from elsewhere. Nothing was written.
+ */
+export class AcceptedOnlyInAppError extends ProposalRefused {}
 
 /** What accepting a proposal did, kept so it can be undone in one step. */
 export interface AcceptedProposal extends ProposalArchived {
@@ -101,6 +111,8 @@ export async function acceptProposalNote({
   payload?: unknown;
 }): Promise<AcceptedProposal> {
   const file = await readOpenProposal(ports, path);
+  const notHere = acceptRefusal(file.proposal.kind, via);
+  if (notHere !== null) throw new AcceptedOnlyInAppError(notHere);
   refuseUnsaved(ports.editors, path);
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const asked = payload === undefined ? file.proposal : edited(file.proposal, payload);
@@ -167,15 +179,15 @@ async function writeAccepted(
   const joins = relationChanged(proposal);
   const link = joins === null ? null : await readLinkNote(ports, joins);
   const heldTypes = await typesHeldAtNewNote(ports, { proposal, notePaths });
-  const homeFolder =
-    proposal.kind === 'link'
-      ? null
-      : await proposalHomeFolder(ports, { kind: proposal.kind, payload: proposal.payload, today });
+  const homeFolder = isNoteProposal(proposal)
+    ? await proposalHomeFolder(ports, { kind: proposal.kind, payload: proposal.payload, today })
+    : null;
   const applied = applyProposal(proposal, {
     notePaths,
     target: link?.target ?? null,
     heldTypes,
     homeFolder,
+    ...(isSpecProposal(proposal) && (await specVault(ports, proposal.kind))),
   });
   if (!applied.ok) throw new ProposalRefused(applied.problem);
 
@@ -282,6 +294,7 @@ function spelledAsVault(proposal: ProposalNote, notePaths: readonly VaultPath[])
     const note = spelled(proposal.payload.note) ?? proposal.payload.note;
     return { ...proposal, payload: { ...proposal.payload, note } };
   }
+  if (!isNoteProposal(proposal)) return proposal;
   const { linkFrom } = proposal.payload;
   if (linkFrom === null) return proposal;
   const joined = { ...linkFrom, note: spelled(linkFrom.note) ?? linkFrom.note };

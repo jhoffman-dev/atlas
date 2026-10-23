@@ -1,4 +1,5 @@
 import type { ActivityLog } from '../activity/ports.ts';
+import type { ClaudeStepPorts } from '../automations/claude-step.ts';
 import type { ImagePlacement, LocalTime, VaultPath } from '@dfai/domain';
 import type { HttpPort, SqliteSourcePort } from '../sources/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
@@ -134,6 +135,12 @@ export interface ApiRouterDeps {
    * attribute to a person. Left out, no transcript's `You` is anyone's.
    */
   readonly ownerName?: () => string | null;
+  /**
+   * What drafting a meeting's tasks asks Claude through (P32-05): the
+   * provider and model Settings → Claude chose, as a rule's Claude step has
+   * them. Null until the app has them; left out, that route answers `conflict`.
+   */
+  readonly claudeStep?: () => ClaudeStepPorts | null;
 }
 
 /** What a source refresh reaches outside the vault through. Never the secret store. */
