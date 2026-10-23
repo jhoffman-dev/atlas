@@ -201,3 +201,82 @@ describe('planProposals', () => {
     expect(left).toEqual([{ path: 'Inbox/Proposals/Bad.md', reason: 'It does not serialize.' }]);
   });
 });
+
+/** Verification of PR #553 (#19): the exclusive-create race, under seeded interleavings. */
+describe('verify #553: runs writing one proposal at once', () => {
+  /** A small seeded generator (LCG): the same seed makes the same interleaving. */
+  function seeded(seed: number) {
+    let state = seed >>> 0;
+    return () => {
+      state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+      return state / 2 ** 32;
+    };
+  }
+  function shuffled<T>(items: readonly T[], next: () => number): T[] {
+    const out = [...items];
+    for (let at = out.length - 1; at > 0; at -= 1) {
+      const pick = Math.floor(next() * (at + 1));
+      [out[at], out[pick]] = [out[pick]!, out[at]!];
+    }
+    return out;
+  }
+  /** N runs plan before any writes (they read the folder at the same moment), then write in a seeded order. */
+  async function race(titles: readonly string[], seed: number) {
+    const { setup, ports } = vault({});
+    const plans = await Promise.all(
+      titles.map((title) => planProposals({ ...ports, proposals: [proposal('a', title)] })),
+    );
+    for (const plan of shuffled(plans, seeded(seed))) {
+      for (const note of plan.planned) {
+        try {
+          await ports.fs.createNote(note);
+        } catch {
+          // The loser of the race: what writeProposals does next is checked below, not here.
+        }
+      }
+    }
+    return setup.paths().filter((at) => setup.propertiesOf(at)?.['proposal_id'] === 'a');
+  }
+
+  it('leaves exactly one note per proposal id when every run spells its title alike', async () => {
+    for (let seed = 1; seed <= 20; seed += 1) {
+      expect(await race(['Jose', 'Jose', 'Jose', 'Jose'], seed)).toHaveLength(1);
+    }
+  });
+
+  it('leaves exactly one note per proposal id when runs spell one term’s title with and without its accent', async () => {
+    // A term's id is keyed by glossaryKey(title), so "José" and "Jose" are one proposal.
+    for (let seed = 1; seed <= 20; seed += 1) {
+      expect(await race(['José', 'Jose', 'José', 'Jose'], seed)).toHaveLength(1);
+    }
+  });
+
+  it('says a proposal it could not read back is left, and still writes the rest', async () => {
+    const { ports } = vault({});
+    // Planning reads the folder fine; the read-back after the failed create is what is denied.
+    let createFailed = false;
+    const fs = {
+      ...ports.fs,
+      createNote: async (note: { path: VaultPath; contents: string }) => {
+        if (note.path.endsWith('Brenwick.md')) {
+          createFailed = true;
+          throw new Error('disk full');
+        }
+        return ports.fs.createNote(note);
+      },
+      readNotes: async (paths: readonly string[]) => {
+        if (createFailed) throw new Error('permission denied');
+        return ports.fs.readNotes(paths);
+      },
+    };
+
+    const written = await writeProposals({
+      ...ports,
+      fs,
+      proposals: [proposal('a', 'Brenwick'), proposal('b', 'Larkspur')],
+    });
+
+    expect(written.written).toEqual(['Inbox/Proposals/Larkspur.md']);
+    expect(written.left.map((each) => each.path)).toEqual(['Inbox/Proposals/Brenwick.md']);
+  });
+});

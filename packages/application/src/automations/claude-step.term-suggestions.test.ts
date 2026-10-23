@@ -361,3 +361,67 @@ describe('a failed ask after a meeting arrives', () => {
     });
   });
 });
+
+/** Verification of PR #553 (#19): gaps the fix round left. Each test is one invariant. */
+describe('verify #553: accepting a term once the vault has moved on', () => {
+  it('is refused when what it was heard as is now what a person goes by (an alias)', async () => {
+    const { vault, arrive, propertiesOf } = await setUp([BRENWICK]);
+    await arrive('Contracts');
+    await vault.ports.fs.createNote({
+      path: createVaultPath('People/Brenda Wick.md'),
+      contents: jsonNote({ type: 'person', aliases: ['Bren Wick'] }, ''),
+    });
+
+    await expect(
+      acceptProposalNote({
+        ports: vault.ports,
+        path: createVaultPath('Inbox/Proposals/Brenwick.md'),
+        today: TODAY,
+      }),
+    ).rejects.toThrow('Bren Wick');
+    expect(vault.files.has('Terms/Brenwick.md')).toBe(false);
+    expect(propertiesOf(vault.files.get('Inbox/Proposals/Brenwick.md')!)).toMatchObject({
+      state: 'open',
+    });
+  });
+});
+
+describe('verify #553: one answer naming one term heard two ways', () => {
+  it('logs the second heard spelling rather than dropping it without a word', async () => {
+    const { arrive, termProposals, log } = await setUp([
+      says(term('Brenwick', 'Bren Wick'), term('Brenwick', 'Bren Wik')),
+    ]);
+    await arrive('Contracts', 'Send the Bren Wick contract, the Bren Wik one too.');
+
+    expect(termProposals()).toEqual(['Inbox/Proposals/Brenwick.md']);
+    expect(JSON.stringify(log())).toContain('Bren Wik');
+  });
+});
+
+describe('verify #553: a raced proposal write whose read-back fails', () => {
+  it('fails the run saying the write failed, not with the read-back’s own error', async () => {
+    const { vault, arrive, log } = await setUp([BRENWICK]);
+    const create = vault.ports.fs.createNote;
+    const read = vault.ports.fs.readNotes;
+    let createFailed = false;
+    vault.ports.fs.createNote = async (note) => {
+      if (note.path.startsWith('Inbox/Proposals/')) {
+        createFailed = true;
+        throw new VaultAccessError('something with that name is already there');
+      }
+      return create(note);
+    };
+    vault.ports.fs.readNotes = async (paths) => {
+      const readingBack = paths.some((at) => at.startsWith('Inbox/Proposals/'));
+      if (createFailed && readingBack) throw new VaultAccessError('permission denied');
+      return read(paths);
+    };
+
+    await arrive('Contracts').catch(() => undefined);
+
+    expect(log().at(-1)).toMatchObject({
+      kind: 'failed',
+      problem: expect.stringContaining('then the write failed'),
+    });
+  });
+});
