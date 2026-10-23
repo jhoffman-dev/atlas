@@ -1,0 +1,399 @@
+import { describe, expect, it } from 'vitest';
+import { digestOf } from '@dfai/domain';
+import { blockMarkdown } from '../testing/block-markdown.ts';
+import {
+  fakeEmbedder,
+  memoryEmbeddingCache,
+  type FakeEmbedder,
+  type MemoryEmbeddingCache,
+} from '../testing/fake-embeddings.ts';
+import type { NoteChange } from '@dfai/domain';
+import { createSemanticEngine, type SemanticOptIn } from './semantic-engine.ts';
+import type { CachedEmbeddings, EmbeddingCachePort, IdlePort } from './ports.ts';
+
+/*
+ * Attack tests for PR #538 (embeddings cache and semantic search, #33): the
+ * engine end to end over a pretend disk, the fake model and the memory cache.
+ */
+
+const VAULT = '/vault';
+
+function disk(notes: Record<string, string>) {
+  const files = new Map(Object.entries(notes));
+  return {
+    files,
+    fs: {
+      readNotes: async (paths: readonly string[]) =>
+        paths.flatMap((path) => {
+          const text = files.get(path);
+          return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+        }),
+    },
+    index: {
+      manifest: async () =>
+        [...files].map(([path, text]) => ({
+          path,
+          digest: digestOf(text),
+          type: null,
+          modified: 1,
+          size: text.length,
+        })),
+    },
+  };
+}
+
+const optIn = (): SemanticOptIn => {
+  const on = new Set<string>();
+  return { isOn: (vault) => on.has(vault), turnOn: (vault) => on.add(vault) };
+};
+const idle: IdlePort = { idle: async () => undefined };
+
+function setUp(
+  notes: Record<string, string>,
+  {
+    cache = memoryEmbeddingCache({ vault: VAULT }),
+    embedder = fakeEmbedder(),
+  }: { cache?: EmbeddingCachePort; embedder?: FakeEmbedder } = {},
+) {
+  const vault = disk(notes);
+  const engine = createSemanticEngine({
+    vault: VAULT,
+    fs: vault.fs,
+    markdown: blockMarkdown(),
+    index: vault.index,
+    embedder,
+    cache,
+    idle,
+    optIn: optIn(),
+  });
+  return { engine, vault, embedder };
+}
+
+const added = (path: string, text: string): NoteChange => ({
+  kind: 'added',
+  path,
+  type: null,
+  digest: digestOf(text),
+});
+const removed = (path: string, text: string): NoteChange => ({
+  kind: 'removed',
+  path,
+  type: null,
+  digest: digestOf(text),
+});
+const changedTo = (path: string, text: string): NoteChange => ({
+  kind: 'changed',
+  path,
+  type: null,
+  digest: digestOf(text),
+});
+
+/** A promise and the function that settles it, for holding a port mid-call. */
+function gate() {
+  let open: () => void = () => undefined;
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { opened, open };
+}
+
+const STANDUP = 'Mara Quill moves payday to Friday.\n\nThe printer is broken again.';
+const GARDEN = 'Tobias Fenn keeps bees behind the shed.';
+
+describe('PR #538 attack: a block whose digest is cached is not embedded again', () => {
+  it('a note moved to another folder (same title, same blocks) is not sent to the model again', async () => {
+    const { engine, vault, embedder } = setUp({ 'Projects/Standup.md': STANDUP });
+    await engine.start();
+    await engine.settled();
+    const before = embedder.passages().length;
+    vault.files.delete('Projects/Standup.md');
+    vault.files.set('Archive/Standup.md', STANDUP);
+    engine.hear({
+      vault: VAULT,
+      changes: [removed('Projects/Standup.md', STANDUP), added('Archive/Standup.md', STANDUP)],
+    });
+    await engine.settled();
+    // The PR: "A block whose digest is already cached is never embedded again, even if it moved".
+    expect(embedder.passages().slice(before)).toEqual([]);
+  });
+});
+
+describe('PR #538 attack: the change feed never leaves the cache out of step with the vault', () => {
+  it('a note deleted and restored before its forget was written is still found', async () => {
+    const { engine } = setUp({ 'Meetings/Standup.md': STANDUP, 'Home/Garden.md': GARDEN });
+    await engine.start();
+    await engine.settled();
+    // Two syncs in quick succession: the file went (a git checkout), then came back unchanged.
+    engine.hear({ vault: VAULT, changes: [removed('Home/Garden.md', GARDEN)] });
+    engine.hear({ vault: VAULT, changes: [added('Home/Garden.md', GARDEN)] });
+    await engine.settled();
+    const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toContain('Home/Garden.md');
+  });
+
+  it('a new note deleted while it is being embedded leaves no ghost in the cache', async () => {
+    const inner = fakeEmbedder();
+    const held = gate();
+    const entered = gate();
+    let holding = false;
+    const embedder: FakeEmbedder = {
+      ...inner,
+      async embed(args) {
+        if (holding && args.purpose === 'passage') {
+          holding = false;
+          entered.open();
+          await held.opened;
+        }
+        return inner.embed(args);
+      },
+    };
+    const cache = memoryEmbeddingCache({ vault: VAULT });
+    const { engine, vault } = setUp({ 'Meetings/Standup.md': STANDUP }, { cache, embedder });
+    await engine.start();
+    await engine.settled();
+
+    const hive = 'Hive inspection: the honey is ready to take.';
+    vault.files.set('Home/Hive.md', hive);
+    holding = true;
+    engine.hear({ vault: VAULT, changes: [added('Home/Hive.md', hive)] });
+    await entered.opened;
+    vault.files.delete('Home/Hive.md');
+    engine.hear({ vault: VAULT, changes: [removed('Home/Hive.md', hive)] });
+    held.open();
+    await engine.settled();
+
+    expect((await cache.load()).notes.map((note) => note.path)).not.toContain('Home/Hive.md');
+    const { hits } = await engine.search({ query: 'honey', limit: 100 });
+    expect(hits.map((hit) => hit.path)).not.toContain('Home/Hive.md');
+  });
+});
+
+describe('PR #538 attack: a hit says what the block it links to says', () => {
+  it('a block inserted above while a search reads its excerpts does not give a hit another block’s words', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const held = gate();
+    const entered = gate();
+    let holding = false;
+    const cache: MemoryEmbeddingCache = {
+      ...inner,
+      async excerpts(keys) {
+        if (holding) {
+          holding = false;
+          entered.open();
+          await held.opened;
+        }
+        return inner.excerpts(keys);
+      },
+    };
+    const notes = `${GARDEN}\n\n${STANDUP}`;
+    const { engine, vault } = setUp({ 'Meetings/Week.md': notes }, { cache });
+    await engine.start();
+    await engine.settled();
+
+    holding = true;
+    const searching = engine.search({ query: 'when are wages paid', limit: 1 });
+    await entered.opened;
+    const edited = `The old automobile was sold in May.\n\n${notes}`;
+    vault.files.set('Meetings/Week.md', edited);
+    engine.hear({ vault: VAULT, changes: [changedTo('Meetings/Week.md', edited)] });
+    await engine.settled();
+    held.open();
+    const { hits } = await searching;
+    expect(hits[0]?.text).toContain('payday');
+  });
+});
+
+describe('PR #538 attack: a damaged cache is discarded and built again, never a dead end', () => {
+  it('a cache whose load fails is cleared and rebuilt, and search answers', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    await setUp({ 'Meetings/Standup.md': STANDUP }, { cache: inner }).engine.start();
+    let cleared = false;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async clear() {
+        cleared = true;
+        await inner.clear();
+      },
+      async load() {
+        if (!cleared)
+          throw new Error('The embeddings cache: 3 numbers cannot be 2 vectors of one length');
+        return inner.load();
+      },
+    };
+    const { engine } = setUp({ 'Meetings/Standup.md': STANDUP }, { cache });
+    await expect(engine.search({ query: 'wages' })).resolves.toBeDefined();
+    await engine.settled();
+    const { hits } = await engine.search({ query: 'wages' });
+    expect(hits[0]?.path).toBe('Meetings/Standup.md');
+  });
+
+  it('cached vectors of another length than the model’s are discarded, not a search that throws', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const first = setUp({ 'Meetings/Standup.md': STANDUP }, { cache: inner }).engine;
+    await first.start();
+    await first.settled();
+    // A truncated blob read back whole-number: every vector a third of its length.
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async load(): Promise<CachedEmbeddings> {
+        const loaded = await inner.load();
+        return {
+          notes: loaded.notes,
+          blocks: loaded.blocks.map((block) => ({
+            ...block,
+            vector: block.vector === null ? null : block.vector.subarray(0, 3),
+          })),
+        };
+      },
+    };
+    const { engine } = setUp({ 'Meetings/Standup.md': STANDUP }, { cache });
+    await expect(engine.search({ query: 'wages' })).resolves.toBeDefined();
+  });
+});
+
+describe('PR #538 attack: one note’s words never stop the build', () => {
+  /** As the host's JSON reader is: a lone UTF-16 surrogate in any string is refused (serde_json). */
+  const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  function strictHostCache(): EmbeddingCachePort {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    return {
+      ...inner,
+      async put(notes, scope) {
+        for (const note of notes)
+          for (const block of note.blocks)
+            if (LONE.test(block.excerpt)) throw new Error('unexpected end of hex escape');
+        await inner.put(notes, scope);
+      },
+    };
+  }
+
+  it('a long paragraph with an emoji at the excerpt cut is cached, and so are the notes after it', async () => {
+    const long = `${'Field notes on the apiary '.repeat(10).slice(0, 238)}🐝 and more after the cut.`;
+    const { engine } = setUp(
+      { 'A field notes.md': long, 'Home/Garden.md': GARDEN },
+      { cache: strictHostCache() },
+    );
+    await engine.start();
+    await engine.settled();
+    expect(engine.progress().failure).toBeNull();
+    const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toContain('Home/Garden.md');
+  });
+});
+
+describe('PR #538 attack: the search seam (#35) holds its own limits', () => {
+  it('a NaN limit (an assistant tool’s bad number) gives at most 100 hits', async () => {
+    const many = Array.from({ length: 150 }, (_, at) => `Payday note ${at} about wages.`).join(
+      '\n\n',
+    );
+    const { engine } = setUp({ 'Payroll.md': many });
+    await engine.start();
+    await engine.settled();
+    const { hits } = await engine.search({ query: 'wages', limit: Number.NaN });
+    expect(hits.length).toBeLessThanOrEqual(100);
+  });
+
+  it('a query too long for the model is cut to what it reads, not an error', async () => {
+    const embedder = fakeEmbedder({ refuse: (text) => (text.length > 4_000 ? 'too-long' : null) });
+    const { engine } = setUp({ 'Meetings/Standup.md': STANDUP }, { embedder });
+    await engine.start();
+    await engine.settled();
+    await expect(
+      engine.search({ query: 'when are the wages paid? '.repeat(1_000) }),
+    ).resolves.toBeDefined();
+  });
+});
+
+/** mulberry32: a seeded RNG, so a failing sequence is the same on every run. */
+function seeded(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+const WORDS = ['bees', 'honey', 'payday', 'wages', 'car', 'printer', 'holiday', 'shed', 'Friday'];
+
+/** What the cache holds, by note, in a form two caches can be compared by. */
+async function heldOf(cache: MemoryEmbeddingCache) {
+  const loaded = await cache.load();
+  return Object.fromEntries(
+    loaded.notes.map((note) => [
+      note.path,
+      {
+        digest: note.digest,
+        blocks: loaded.blocks
+          .filter((block) => block.path === note.path)
+          .map((block) => [block.ordinal, block.digest, block.vector?.join(',') ?? null]),
+      },
+    ]),
+  );
+}
+
+describe('PR #538 attack: property — after any edits, the cache is a fresh rebuild', () => {
+  for (const seed of [1, 7, 538, 2026]) {
+    it(`seed ${seed}: random edits, heard as syncs, leave the cache equal to one built afresh`, async () => {
+      const random = seeded(seed);
+      const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)] as T;
+      const sentence = () =>
+        Array.from({ length: 2 + Math.floor(random() * 4) }, () => pick(WORDS)).join(' ');
+      const start: Record<string, string> = {};
+      for (let at = 0; at < 6; at += 1) start[`Folder ${at % 2}/Note ${at}.md`] = sentence();
+      const cache = memoryEmbeddingCache({ vault: VAULT });
+      const { engine, vault } = setUp(start, { cache });
+      await engine.start();
+      await engine.settled();
+
+      for (let step = 0; step < 40; step += 1) {
+        const paths = [...vault.files.keys()];
+        const path = pick(paths);
+        const text = vault.files.get(path) as string;
+        const kind = Math.floor(random() * 6);
+        const changes: NoteChange[] = [];
+        if (kind === 0) {
+          const next = `${sentence()}\n\n${text}`;
+          vault.files.set(path, next);
+          changes.push(changedTo(path, next));
+        } else if (kind === 1) {
+          const next = text.split('\n\n').slice(1).join('\n\n') || sentence();
+          vault.files.set(path, next);
+          changes.push(changedTo(path, next));
+        } else if (kind === 2) {
+          const next = text.replace(' ', '   ');
+          vault.files.set(path, next);
+          changes.push(changedTo(path, next));
+        } else if (kind === 3 && paths.length > 2) {
+          vault.files.delete(path);
+          changes.push(removed(path, text));
+        } else if (kind === 4) {
+          const moved = path.startsWith('Folder 0/')
+            ? path.replace('Folder 0/', 'Folder 1/')
+            : path.replace('Folder 1/', 'Folder 0/');
+          if (!vault.files.has(moved)) {
+            vault.files.delete(path);
+            vault.files.set(moved, text);
+            changes.push(removed(path, text), added(moved, text));
+          }
+        } else {
+          const fresh = `Folder ${step % 2}/New ${step}.md`;
+          const next = sentence();
+          vault.files.set(fresh, next);
+          changes.push(added(fresh, next));
+        }
+        engine.hear({ vault: VAULT, changes });
+        // Sometimes a sync lands while the last is still being written.
+        if (random() < 0.5) await engine.settled();
+      }
+      await engine.settled();
+
+      const freshCache = memoryEmbeddingCache({ vault: VAULT });
+      const rebuilt = setUp(Object.fromEntries(vault.files), { cache: freshCache }).engine;
+      await rebuilt.start();
+      await rebuilt.settled();
+      expect(await heldOf(cache)).toEqual(await heldOf(freshCache));
+    });
+  }
+});

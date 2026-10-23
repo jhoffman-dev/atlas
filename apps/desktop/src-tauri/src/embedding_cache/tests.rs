@@ -365,3 +365,60 @@ fn the_cache_lives_in_the_vault_s_cache_folder_beside_the_index() {
         .join("embeddings.sqlite")
         .exists());
 }
+
+// Attack tests for PR #538: a damaged cache is discarded and built again, never trusted.
+
+#[test]
+fn attack_538_a_damaged_database_is_made_again_rather_than_failing_every_launch() {
+    let vault = tempfile::tempdir().unwrap();
+    {
+        let state = opened(vault.path());
+        state
+            .with(None, |connection| {
+                put_notes(
+                    connection,
+                    &[put("a.md", "1", vec![block(0, "d", Some(vec![0.25]))])],
+                )
+            })
+            .unwrap();
+    }
+    // A sync tool or a crash tore the file: its 100-byte header is whole, every page after is not.
+    let path = database_path(vault.path()).unwrap();
+    let mut bytes = fs::read(&path).unwrap();
+    for byte in bytes.iter_mut().skip(100) {
+        *byte = 0xA5;
+    }
+    fs::write(&path, &bytes).unwrap();
+    let state = EmbeddingCacheState::default();
+    let opened = state.open(vault.path(), GENERATION);
+    assert!(opened.is_ok(), "open failed: {opened:?}");
+    assert!(opened.unwrap().fresh);
+    assert_eq!(loaded(&state).0["notes"], serde_json::json!([]));
+}
+
+#[test]
+fn attack_538_a_load_never_hands_back_vectors_of_different_lengths_as_if_one() {
+    let vault = tempfile::tempdir().unwrap();
+    let state = opened(vault.path());
+    state
+        .with(None, |connection| {
+            put_notes(
+                connection,
+                &[put(
+                    "a.md",
+                    "1",
+                    vec![
+                        block(0, "d0", Some(vec![1.0])),
+                        block(1, "d1", Some(vec![0.0, 0.0, 1.0])),
+                    ],
+                )],
+            )
+        })
+        .unwrap();
+    // Read as the window reads it, 4 floats over 2 vectors are two of 2: [1, 0] and [0, 1], neither stored.
+    let result = state.with(None, |connection| load(connection));
+    assert!(
+        result.is_err(),
+        "the load handed back vectors that cannot be split back into what was stored"
+    );
+}
