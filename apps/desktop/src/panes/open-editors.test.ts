@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { createVaultPath, type VaultPath } from '@dfai/domain';
-import { useOpenEditors, type OpenEditor } from './open-editors.ts';
+import {
+  EDITORS_CLOSE_WAIT_MS,
+  useOpenEditors,
+  writtenWithin,
+  type OpenEditor,
+} from './open-editors.ts';
 
 const today = createVaultPath('today.md');
 const board = createVaultPath('.atlas/views/Board.md');
@@ -218,5 +223,47 @@ describe('the panes a move or a delete reaches', () => {
 
     expect(left.abandon).toHaveBeenCalledOnce();
     expect(right.abandon).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * Verification pass 2 on ba80bef2 (#534): a vault switch and a sync wait for
+ * every pane's work, a comment's write among it. A write that hangs must not
+ * hold either forever: after the same 10 s the window's close waits, they go
+ * on, and the person is told; the panes keep their work.
+ */
+describe('every pane’s work, waited for by a vault switch or a sync', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is waited for no longer than the cap, and saying so', async () => {
+    vi.useFakeTimers();
+    const onGaveUp = vi.fn();
+    let done = false;
+    void writtenWithin({ flushAll: () => new Promise<void>(() => {}), onGaveUp })().then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(EDITORS_CLOSE_WAIT_MS - 1);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(done).toBe(true);
+    expect(onGaveUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing when the work is written in time', async () => {
+    vi.useFakeTimers();
+    const onGaveUp = vi.fn();
+    await writtenWithin({ flushAll: async () => {}, onGaveUp })();
+    await vi.advanceTimersByTimeAsync(EDITORS_CLOSE_WAIT_MS * 2);
+    expect(onGaveUp).not.toHaveBeenCalled();
+  });
+
+  it('lets a write that fails say so to whoever waited', async () => {
+    const failing = writtenWithin({
+      flushAll: () => Promise.reject(new Error('The disk is full.')),
+      onGaveUp: vi.fn(),
+    });
+    await expect(failing()).rejects.toThrow('The disk is full.');
   });
 });
