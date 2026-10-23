@@ -151,34 +151,86 @@ export function namesUnknownFunction(value: string): boolean {
 }
 
 /**
- * Whether `css` nests its brackets, `(`, `[` and `{`, more than `most` deep
- * anywhere, outside strings and comments, read in one pass. WebKit's parser
- * reads deeply nested blocks in time growing with the square of their depth.
+ * Whether the blocks of `css` nest more than `most` deep anywhere, read as
+ * CSS's tokenizer reads them, in one pass: `(`, a function, `[` and `{` each
+ * open a block that only its own closer ends; a closer of another kind is
+ * an ordinary token. Strings, comments, escapes, numbers and the body of an
+ * unquoted `url(` (a bad one ends at its `)`) hold no blocks. WebKit's
+ * parser reads deeply nested blocks in time growing with the square of
+ * their depth. Where this differs from the tokenizer it counts deeper, never
+ * shallower.
  */
 export function nestsDeeperThan(css: string, most: number): boolean {
-  let depth = 0;
+  const closers: string[] = [];
+  const open = (closer: string) => {
+    closers.push(closer);
+    return closers.length > most;
+  };
   let at = 0;
   while (at < css.length) {
     const character = css[at];
     if (css.startsWith('/*', at)) {
       const close = css.indexOf('*/', at + 2);
       at = close === -1 ? css.length : close + 2;
-      continue;
-    }
-    if (isQuote(character)) {
+    } else if (isQuote(character)) {
       at = stringAt(css, at).end;
-      continue;
+    } else if (startsNumber(css, at)) {
+      at = numberEnd(css, at);
+      // A unit is a name, never a function: `1url(` is a number, a unit and a `(`.
+      if (startsName(css, at)) at = nameAt(css, at).end;
+    } else if ((character === '#' || character === '@') && startsNameAfterSign(css, at + 1)) {
+      at = nameAt(css, at + 1).end;
+    } else if (startsName(css, at)) {
+      const name = nameAt(css, at);
+      at = name.end;
+      if (css[at] !== '(') continue;
+      const bare = name.text.toLowerCase() === 'url' ? bareUrlAt(css, at + 1) : null;
+      if (bare !== null) at = bare.end;
+      else if (open(')')) return true;
+      else at += 1;
+    } else {
+      const closer = CLOSERS[character ?? ''];
+      if (closer !== undefined && open(closer)) return true;
+      if (closer === undefined && character === closers.at(-1)) closers.pop();
+      at += 1;
     }
-    if (character === '(' || character === '[' || character === '{') {
-      depth += 1;
-      if (depth > most) return true;
-    } else if ((character === ')' || character === ']' || character === '}') && depth > 0) {
-      depth -= 1;
-    }
-    at += character === '\\' ? 2 : 1;
   }
   return false;
 }
+
+/** The closer each block's opener is ended by. */
+const CLOSERS: Readonly<Record<string, string>> = { '(': ')', '[': ']', '{': '}' };
+
+/** Whether a number starts at `at`: a digit, or a sign or a point before one. */
+function startsNumber(css: string, at: number): boolean {
+  const digit = (offset: number) => isDigit(css[at + offset]);
+  const character = css[at];
+  if (character === '+' || character === '-') return digit(1) || (css[at + 1] === '.' && digit(2));
+  if (character === '.') return digit(1);
+  return digit(0);
+}
+
+/** Where the number starting at `start` ends: its sign, digits, point, digits and exponent. */
+function numberEnd(css: string, start: number): number {
+  let at = start;
+  if (css[at] === '+' || css[at] === '-') at += 1;
+  while (isDigit(css[at])) at += 1;
+  if (css[at] === '.' && isDigit(css[at + 1])) {
+    at += 1;
+    while (isDigit(css[at])) at += 1;
+  }
+  const sign = css[at + 1] === '+' || css[at + 1] === '-' ? 1 : 0;
+  if ((css[at] === 'e' || css[at] === 'E') && isDigit(css[at + 1 + sign])) {
+    at += 1 + sign;
+    while (isDigit(css[at])) at += 1;
+  }
+  return at;
+}
+
+/** Whether a hash's or an at-keyword's name follows its sign at `at`. */
+const startsNameAfterSign = (css: string, at: number) =>
+  isNameCharacter(css[at]) ||
+  (css[at] === '\\' && css[at + 1] !== undefined && !isNewline(css[at + 1]));
 
 /** One declaration as a rule writes it out: its name, its value, and its text. */
 export interface Declaration {
@@ -367,6 +419,8 @@ const isNameCharacter = (character: string | undefined) =>
   character !== undefined && /[\w\u0080-\uFFFF-]/.test(character);
 const isNewline = (character: string | undefined) =>
   character === '\n' || character === '\r' || character === '\f';
+const isDigit = (character: string | undefined) =>
+  character !== undefined && character >= '0' && character <= '9';
 const isQuote = (character: string | undefined) => character === '"' || character === "'";
 const isSpace = (character: string | undefined) =>
   character === ' ' || character === '\t' || isNewline(character);

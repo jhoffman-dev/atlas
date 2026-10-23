@@ -13,7 +13,7 @@ import {
  * (`chapter-styles.ts`), and a sheet that imports others is written out
  * with each of them before its own rules, as a browser would load them. A
  * sheet is put in at most once in one sheet written out, however often it is
- * imported, and the imports one chapter's CSS puts in are bounded together:
+ * imported, and the sheets one chapter links and imports are bounded together:
  * `MOST_IMPORTS` sheets, `MOST_IMPORT_DEPTH` deep, and `MOST_IMPORTED_LENGTH`
  * characters of them. So a book that imports itself over and over costs no
  * more than one that does not.
@@ -21,7 +21,7 @@ import {
 
 /** How deep `@import`s are followed. */
 export const MOST_IMPORT_DEPTH = 4;
-/** The most stylesheets one chapter's (or one stylesheet's) `@import`s may put in: a book has a handful. */
+/** The most of the book's stylesheets one chapter may put in, linked or imported: a book has a handful. */
 export const MOST_IMPORTS = 64;
 /** The most all of those sheets may be together, in characters, as the book wrote them. */
 export const MOST_IMPORTED_LENGTH = 4 * 1024 * 1024;
@@ -42,8 +42,8 @@ export const styleBudget = (): StyleBudget => ({
 export interface BookStyles {
   /** `css`, written in the book's file at `from`, made, its imports in place, within `budget`. */
   css(css: string, from: string, budget?: StyleBudget): Promise<string>;
-  /** The book's stylesheet at `path`, made, its imports in place; empty when there is none. */
-  sheet(path: string): Promise<string>;
+  /** The book's stylesheet at `path`, made, its imports in place, within `budget`; empty when there is none. */
+  sheet(path: string, budget?: StyleBudget): Promise<string>;
 }
 
 /** The book's stylesheets, each read by `stylesheet` and made once. */
@@ -73,9 +73,14 @@ export function bookStyles({
   return {
     css: async (css, from, budget = styleBudget()) =>
       written(await sheetMade({ css, from, address, budget }), from, budget),
-    sheet: async (path) => {
+    sheet: async (path, budget = styleBudget()) => {
+      // A linked sheet counts against its chapter's budget as an imported one does.
+      if (budget.imports >= MOST_IMPORTS) return '';
+      budget.imports += 1;
       const top = await madeAt(path);
-      return top === null ? '' : written(top, path, styleBudget());
+      if (top === null || budget.length + top.length > MOST_IMPORTED_LENGTH) return '';
+      budget.length += top.length;
+      return written(top, path, budget);
     },
   };
 }

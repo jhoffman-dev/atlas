@@ -135,14 +135,21 @@ cleaning misses.
      that never goes back. Each of the book's sheets is read and made once per
      open book, whether a chapter links it or a sheet imports it
      (`book-styles.ts`). Imports are bounded: a sheet is put in at most once in
-     one sheet written out (the sheet being made counts as seen), and one
-     chapter's `<style>`s together (or one linked sheet) put in at most 64
-     sheets, 4 deep, and at most 4 MiB of imported CSS;
+     one sheet written out (the sheet being made counts as seen), and all of
+     one chapter's CSS together, its `<link>`s and its `<style>`s' imports, puts
+     in at most 64 of the book's sheets, 4 deep, and at most 4 MiB of them. The
+     chapter's CSS is made one piece at a time in document order, so what a
+     spent budget drops is the same however the book's files load;
    - the cleaning runs in the app's own window, so the work one sheet costs is
      bounded before it is read, and a book's CSS cannot freeze the app: a sheet
-     (or `style=`) of more than 2 MiB, or nesting `(`, `[` or `{` more than 32
-     deep (WebKit's parser reads nested blocks in quadratic time), is dropped
-     whole; a rule listing more than 1,024 longhands has its declarations
+     (or `style=`) of more than 2 MiB, or nesting blocks more than 32 deep
+     (WebKit's parser reads nested blocks in quadratic time), is dropped whole.
+     The depth is read as CSS's tokenizer reads it: `(`, a function, `[` and
+     `{` are closed only by their own closer, and strings, comments, escapes,
+     numbers and an unquoted `url(`'s body (a bad one ends at its `)`) hold no
+     blocks; where it differs from the tokenizer it counts deeper, never
+     shallower, which a seeded property test against a tokenizer written to
+     the spec holds it to; a rule listing more than 1,024 longhands has its declarations
      dropped (WebKit finds each by walking the rule's list); an `all` built
      from `var()` is dropped before its 445 longhands are read; and once 50,000
      longhands and rules have been read in a sheet, or 200,000 across one

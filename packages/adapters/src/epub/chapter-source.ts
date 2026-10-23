@@ -76,7 +76,9 @@ async function madeFiles(chapter: Document, path: string, files: BookFiles): Pro
   const css = new Map<Element, string>();
   const inline = new Map<Element, string>();
   const work: Promise<void>[] = [];
-  // All of the chapter's own CSS shares one budget, however many `<style>`s and `style=`s it has.
+  // The chapter's CSS, made one piece at a time in document order: all of it shares one budget,
+  // so what is dropped once it runs out is the same however the book's files load.
+  const styling: (() => Promise<void>)[] = [];
   const budget = styleBudget();
   for (const element of Array.from(chapter.getElementsByTagName('*'))) {
     for (const name of RESOURCES) {
@@ -86,21 +88,24 @@ async function madeFiles(chapter: Document, path: string, files: BookFiles): Pro
       work.push(files.address(kept).then((found) => void addresses.set(kept, found ?? '')));
     }
     const sheet = element.getAttribute(STYLESHEET_PATH);
-    if (sheet !== null)
-      work.push(files.stylesheet(sheet).then((made) => void css.set(element, made)));
-    else if (element.localName.toLowerCase() === 'style') {
-      work.push(
-        files
-          .css(element.textContent ?? '', path, budget)
-          .then((made) => void css.set(element, made)),
-      );
+    if (sheet !== null) {
+      styling.push(async () => void css.set(element, await files.stylesheet(sheet, budget)));
+    } else if (element.localName.toLowerCase() === 'style') {
+      const text = element.textContent ?? '';
+      styling.push(async () => void css.set(element, await files.css(text, path, budget)));
     }
     const style = element.getAttribute('style');
-    if (style !== null)
-      work.push(
-        files.declarations(style, path, budget).then((made) => void inline.set(element, made)),
+    if (style !== null) {
+      styling.push(
+        async () => void inline.set(element, await files.declarations(style, path, budget)),
       );
+    }
   }
+  work.push(
+    (async () => {
+      for (const made of styling) await made();
+    })(),
+  );
   await Promise.all(work);
   return { addresses, css, inline };
 }

@@ -15,8 +15,8 @@ import type { BookArchive } from './zip-loader.ts';
 export interface BookFiles {
   /** The book's file at `path` as a `data:` address, or null when the book has no such file. */
   address(path: string): Promise<string | null>;
-  /** The book's stylesheet at `path`, its references made the book's own or nothing; empty when there is none. */
-  stylesheet(path: string): Promise<string>;
+  /** The book's stylesheet at `path`, its references made the book's own or nothing, within its chapter's `budget`; empty when there is none. */
+  stylesheet(path: string, budget?: StyleBudget): Promise<string>;
   /** `css`, a `<style>` written in the book's file at `from`, made the same way, within its chapter's `budget`. */
   css(css: string, from: string, budget?: StyleBudget): Promise<string>;
   /** `style`, a `style=` written in the book's file at `from`, made the same way, within its chapter's `budget`. */
@@ -25,7 +25,6 @@ export interface BookFiles {
 
 export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): BookFiles {
   const addresses = new Map<string, Promise<string | null>>();
-  const sheets = new Map<string, Promise<string>>();
   const address = (path: string) =>
     held(addresses, path, async () => {
       const blob = await archive.loadBlob(path, mediaTypeOf(path));
@@ -37,7 +36,8 @@ export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): 
     address,
     css: (css, from, budget) => styles.css(css, from, budget),
     declarations: (style, from, budget) => bookDeclarations({ style, from, address, budget }),
-    stylesheet: (path) => held(sheets, path, () => styles.sheet(path)),
+    // Only the made sheets are kept: putting their imports in costs no more than joining them.
+    stylesheet: (path, budget) => styles.sheet(path, budget),
   };
 }
 
