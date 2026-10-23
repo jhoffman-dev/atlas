@@ -145,15 +145,24 @@ export class HighlightDrafts {
   }
 
   /**
-   * Writes the draft if it holds words not yet written, once: a write already
-   * in flight is waited for. Settles when it is over; what came of it is in
-   * the draft (`conflict`, `problem`), not thrown.
+   * Writes the draft if it holds words not yet written. A write already in
+   * flight is waited for first: the field stays open to typing meanwhile, and
+   * words typed during it are written after it, over the comment it put down.
+   * Settles when it is over; what came of it is in the draft (`conflict`,
+   * `problem`), not thrown.
    */
   async write(id: string, write: WriteComment): Promise<void> {
-    const draft = this.drafts.get(id);
+    let draft = this.drafts.get(id);
+    let waited = false;
+    while (draft?.saving !== undefined && draft.saving !== null) {
+      waited = true;
+      await draft.saving;
+      draft = this.drafts.get(id);
+    }
     if (draft === undefined) return;
-    if (draft.saving !== null) return draft.saving;
     if (draft.text === draft.base || draft.conflict !== null) return;
+    // The write just waited for failed: trying the same disk again at once would only fail again.
+    if (waited && draft.problem !== null) return;
     const comment = draft.text;
     draft.problem = null;
     draft.saving = write({ id, comment, base: draft.base })

@@ -180,7 +180,6 @@ export function HighlightCommentField({
         placeholder="Add a comment"
         rows={Math.max(1, draft.text.split('\n').length)}
         value={draft.text}
-        readOnly={draft.saving !== null}
         onChange={(event) => {
           drafts.type(id, event.currentTarget.value);
           redraw();
