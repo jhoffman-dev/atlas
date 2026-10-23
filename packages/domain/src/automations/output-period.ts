@@ -24,7 +24,7 @@
  */
 
 import type { VaultPath } from '../vault/vault-path.ts';
-import type { AutomationAction } from './automation-rule.ts';
+import { automationIdKey, type AutomationAction } from './automation-rule.ts';
 import type { LogEntry } from './run-log.ts';
 import {
   localTimeMs,
@@ -170,7 +170,10 @@ function says(query: PeriodQuery, candidate: OutputPeriod): boolean {
 
 /** Whether a note is this rule's: it names the rule, or names none and the rule's log says it made it. */
 function isTheRules(query: PeriodQuery, note: PeriodNote): boolean {
-  if (note.rule !== undefined) return note.rule === query.rule;
+  if (note.rule !== undefined) {
+    // Ids name files, which the disk may fold by case or Unicode form: so do the notes' stamps.
+    return query.rule !== undefined && automationIdKey(note.rule) === automationIdKey(query.rule);
+  }
   return query.entries.some(
     (entry) =>
       (entry.kind === 'run' || entry.kind === 'failed') &&

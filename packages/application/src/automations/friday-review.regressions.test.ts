@@ -17,6 +17,7 @@ import { recordingActivity } from '../testing/fake-activity.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';
 import type { ScriptedRound } from '../testing/fake-model.ts';
+import { dryRunAutomation } from './dry-run-automation.ts';
 import { runAutomation, type AutomationPorts } from './run-automation.ts';
 import type { VaultGuard } from './vault-guard.ts';
 
@@ -360,13 +361,13 @@ function setUpRules({
     });
   };
   const inReviews = () => [...vault.files.keys()].filter((path) => path.startsWith('Reviews/'));
-  return { run, inReviews, asked: () => claude.fake.requests.length };
+  return { run, inReviews, vault, asked: () => claude.fake.requests.length };
 }
 
 describe('an empty week (verification of #539)', () => {
-  it('writes a short draft for a week with nothing to cite, not a refusal', async () => {
+  it('writes the frame and DFAI’s own line for a week with nothing to cite, not a refusal', async () => {
     // Nothing done, nothing waiting, nothing overdue: every section is "None.".
-    const { run, inReviews } = setUpRules({
+    const { run, inReviews, vault } = setUpRules({
       notes: { [PROMPT]: 'Draft the weekly review.\n' },
       rounds: [
         noteAnswer(
@@ -379,6 +380,14 @@ describe('an empty week (verification of #539)', () => {
 
     expect(entry.kind).toBe('run');
     expect(inReviews()).toEqual(['Reviews/Weekly review 2026-10-23.md']);
+    const written = vault.files.get('Reviews/Weekly review 2026-10-23.md')!;
+    expect(written).toContain('## Wins');
+    expect(written).toContain('0 notes wait in the Inbox.');
+    expect(written).toContain('Nothing to cite this week.');
+    expect(written).not.toContain('Quiet week: nothing finished.');
+    expect(entry).toMatchObject({
+      claude: { dropped: [{ title: 'Quiet week: nothing finished.' }] },
+    });
   });
 });
 
@@ -483,5 +492,53 @@ describe('a week’s note that syncs in while Claude is asked (verification of #
     const [path] = notesIn('Reviews');
     expect(vault.files.get(path!)).toContain('atlas_period_rule');
     expect(vault.files.get(path!)).toContain('Friday review');
+  });
+});
+
+describe('a dry run of a rule with its note made (review of #539)', () => {
+  it('counts the period as made when a note is stamped with the rule’s id', async () => {
+    const vault = automationVault({
+      notes: {
+        ...NOTES,
+        'Reviews/Weekly review from the laptop.md': jsonNote({
+          atlas_period: '2026-10-23T15:00:00',
+          atlas_period_rule: 'Friday review',
+        }),
+      },
+      today: FRIDAY,
+    });
+    const plan = await dryRunAutomation({
+      ports: vault.ports,
+      rule: RULE,
+      log: [],
+      named: RULE,
+      today: FRIDAY,
+      at: `${FRIDAY}T15:00:00`,
+      activity: recordingActivity(),
+    });
+    expect(plan.periodNote).toEqual({ period: { slot: '2026-10-23T15:00:00' }, made: true });
+  });
+
+  it('does not count a note stamped with another rule’s id', async () => {
+    const vault = automationVault({
+      notes: {
+        ...NOTES,
+        'Reviews/Daily.md': jsonNote({
+          atlas_period: '2026-10-23T15:00:00',
+          atlas_period_rule: 'Daily notes',
+        }),
+      },
+      today: FRIDAY,
+    });
+    const plan = await dryRunAutomation({
+      ports: vault.ports,
+      rule: RULE,
+      log: [],
+      named: RULE,
+      today: FRIDAY,
+      at: `${FRIDAY}T15:00:00`,
+      activity: recordingActivity(),
+    });
+    expect(plan.periodNote).toMatchObject({ made: false });
   });
 });

@@ -600,7 +600,7 @@ describe('the citation check, deeper (review of #539, D8)', () => {
     expect(cited).toMatchObject({ kept: 1, dropped: [] });
     expect(cited.stripped).toEqual([
       {
-        title: expect.stringContaining('Sent it'),
+        title: 'Sent it: [[Tasks/Send the file.md]], and signed the Acme deal',
         reason: expect.stringContaining('Clients/Acme'),
       },
     ]);
@@ -651,7 +651,7 @@ const draftInput = (fields: Partial<ReviewDraftInput> = {}): ReviewDraftInput =>
 });
 
 describe('an empty week (verification of #539)', () => {
-  it('lets a quiet week’s draft through though its one list item has nothing to cite', () => {
+  it('does not refuse a quiet week whose one list item has nothing to cite', () => {
     // Handed nothing to cite, a model that writes "- Nothing this week." as a bullet must still get a draft.
     const cited = keepCitedItems({
       body: '## Wins\n\n- Nothing this week.\n\n3 notes wait in the Inbox.\n',
@@ -748,6 +748,24 @@ describe('the period is the rule’s own (verification of #539, atlas_period_rul
     expect(asked(older, [madeEarlier])).toBe(true);
   });
 
+  it('compares rule ids by case and Unicode form, as the ids name files', () => {
+    const composed = 'Caf\u00e9 review';
+    const decomposed = 'Cafe\u0301 review';
+    const named = (rule: string, as: string) =>
+      periodRecorded({
+        entries: [],
+        notes: [{ path: NOTE, period: slot, rule }],
+        rule: as,
+        period: slot,
+        schedule: FRIDAYS,
+        now: '2026-10-23T15:30:00',
+      });
+    expect(named('friday REVIEW', 'Friday review')).toBe(true);
+    expect(named(decomposed, composed)).toBe(true);
+    expect(named(composed, decomposed.toUpperCase())).toBe(true);
+    expect(named('Daily notes', 'Friday review')).toBe(false);
+  });
+
   it('writes and reads the rule beside the period', () => {
     const properties = periodProperties(slot, 'Friday review');
     expect(properties).toEqual({ atlas_period: slot.slot, atlas_period_rule: 'Friday review' });
@@ -762,13 +780,26 @@ describe('the period is the rule’s own (verification of #539, atlas_period_rul
 });
 
 describe('a quiet week and the draft’s frame (verification of #539, fixes)', () => {
-  it('keeps a quiet week’s uncited items as written, links made plain', () => {
+  it('drops a quiet week’s uncited items, keeps the frame, and adds the line itself', () => {
     const cited = keepCitedItems({
-      body: '- Nothing finished.\n- See [[Tasks/Elsewhere.md]]\n',
+      body: '## Wins\n\n- Nothing finished.\n- See [[Tasks/Elsewhere.md]]\n\n3 notes wait in the Inbox.\n',
       sources: new Set(),
     });
-    expect(cited.body).toBe('- Nothing finished.\n- See Elsewhere\n');
-    expect(cited.dropped).toEqual([]);
+    expect(cited.body).toBe(
+      '## Wins\n\n\n3 notes wait in the Inbox.\n\nNothing to cite this week.\n',
+    );
+    expect(cited.dropped.map(({ title }) => title)).toEqual([
+      'Nothing finished.',
+      'See [[Tasks/Elsewhere.md]]',
+    ]);
+    expect(nothingCitedProblem(cited)).toBeNull();
+  });
+
+  it('does not add the line to a quiet week with no list item, or when sources were given', () => {
+    const frame = keepCitedItems({ body: '## Wins\n\n3 notes wait.\n', sources: new Set() });
+    expect(frame.body).toBe('## Wins\n\n3 notes wait.\n');
+    const given = keepCitedItems({ body: '- one\n', sources: new Set(['Tasks/A.md']) });
+    expect(given.body).not.toContain('Nothing to cite this week.');
   });
 
   it('still refuses a draft whose items cite none of the notes it was given', () => {

@@ -8,8 +8,10 @@
  * meeting's uncited action item is; a link to a note the run was not given is
  * turned into plain text. The run's log names each one. An answer with no item
  * that cites, when it was given notes to cite, is refused: no draft is written
- * that cites nothing. Given nothing to cite — a quiet week — its items are
- * kept as written, links made plain: there is nothing they could have cited.
+ * that cites nothing. Given nothing to cite — a quiet week — every item is left
+ * out, since none could cite anything, and the run is not refused: the draft is
+ * its frame and a line, written by DFAI and not the model, that there was
+ * nothing to cite.
  *
  * Only list items are held to it — in a block quote too: a heading, or a
  * sentence such as the Inbox's count, is the draft's frame, not a claim about
@@ -26,7 +28,10 @@ import type { DroppedItem } from './proposal-schema.ts';
 export interface CitedBody {
   readonly body: string;
   readonly dropped: readonly DroppedItem[];
-  /** Items kept after a link to a note the run was not given was written as plain text. */
+  /**
+   * Items kept after a link to a note the run was not given was written as
+   * plain text. Each is titled by its line as written, with those links made plain.
+   */
   readonly stripped: readonly DroppedItem[];
   /** How many items it kept. */
   readonly kept: number;
@@ -41,6 +46,9 @@ export const CITED_ITEMS_INSTRUCTIONS = [
   'other note is written as plain text. Write a count, such as what waits in the Inbox, as a',
   'sentence, not as a list item.',
 ].join('\n');
+
+/** What a quiet week's draft says in place of its items, added by DFAI. */
+export const NOTHING_TO_CITE_LINE = 'Nothing to cite this week.';
 
 export const UNCITED_REASON = 'It links no task, project or meeting this run was given.';
 
@@ -105,11 +113,11 @@ export function keepCitedItems({
   let held: string[] = [];
   let swallowedText = false;
 
-  const rewritten = (line: Line, title: string): string => {
+  const rewritten = (line: Line): string => {
     const written = rewriteLinks({ text: line.rest, sources, plain });
     if (written.removed.length > 0) {
       stripped.push({
-        title,
+        title: ITEM.exec(written.text)?.[2] ?? written.text.trim(),
         reason: `It linked ${written.removed.join(', ')}, which this run was not given: written as plain text.`,
       });
     }
@@ -143,14 +151,14 @@ export function keepCitedItems({
     }
     const item = fence === null && !THEMATIC_BREAK.test(line.rest) ? ITEM.exec(line.rest) : null;
     if (item === null) {
-      out.push(fence === null ? rewritten(line, line.rest.trim()) : text);
+      out.push(fence === null ? rewritten(line) : text);
       continue;
     }
     const title = item[2]!;
     const cites = citesASource(line.rest, sources);
-    if (cites || sources.size === 0) {
-      if (cites) kept += 1;
-      out.push(rewritten(line, title));
+    if (cites) {
+      kept += 1;
+      out.push(rewritten(line));
     } else {
       dropped.push({ title, reason: UNCITED_REASON });
       skipping = { depth: line.depth, indent: item[1]!.length };
@@ -158,7 +166,15 @@ export function keepCitedItems({
     }
   }
   out.push(...held);
-  return { body: out.join('\n'), dropped, stripped, kept, offered: sources.size };
+  const quiet = sources.size === 0 && dropped.length > 0;
+  const text = out.join('\n');
+  return {
+    body: quiet ? `${text.trimEnd()}\n\n${NOTHING_TO_CITE_LINE}\n` : text,
+    dropped,
+    stripped,
+    kept,
+    offered: sources.size,
+  };
 }
 
 /** A line that a paragraph would carry on without a blank line: not a heading, a rule or a quote. */
