@@ -1,7 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { liftTarget, Mapping } from '@tiptap/pm/transform';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { isTombstoneBlock } from '@dfai/domain';
 import { READ_FROM_FILE } from './block-anchor.ts';
@@ -22,7 +22,12 @@ import { READ_FROM_FILE } from './block-anchor.ts';
  * — would be written as a line of that quote, the person's words and no
  * tombstone. So it is taken back out to the top level where the wrap left it,
  * splitting the container there, and counted wherever it is, so a wrap is
- * never read as a deletion and put back a second time.
+ * never read as a deletion and put back a second time. A numbered list split
+ * so numbers its second half on from the first, as it read before the wrap.
+ *
+ * Nor is one ever put on the clipboard, or taken off it: copied with the
+ * words around it, a paste would hold it twice, or carry a removed
+ * highlight's tombstone into a note that never had it.
  */
 
 const isTombstone = (node: ProseMirrorNode): boolean =>
@@ -84,7 +89,58 @@ function liftToTopLevel(tr: Transaction, start: number): void {
     const from = tr.steps.length;
     tr.lift(range, target);
     pos = tr.mapping.slice(from).map(pos, 1);
+    numberOn(tr, pos);
   }
+}
+
+/**
+ * The block at `pos` was just lifted out of a numbered list, splitting it:
+ * the half after it numbers on from the half before. Both halves are copies
+ * of the one list, so they start alike; lists that do not were the person's.
+ */
+function numberOn(tr: Transaction, pos: number): void {
+  const $pos = tr.doc.resolve(pos);
+  const lifted = tr.doc.nodeAt(pos);
+  const before = $pos.parent.maybeChild($pos.index() - 1);
+  const after = $pos.parent.maybeChild($pos.index() + 1);
+  if (lifted === null || before === null || after === null) return;
+  if (before.type.name !== 'orderedList' || after.type !== before.type) return;
+  const start = before.attrs['start'];
+  if (typeof start !== 'number' || after.attrs['start'] !== start) return;
+  tr.setNodeMarkup(pos + lifted.nodeSize, undefined, {
+    ...after.attrs,
+    start: start + before.childCount,
+  });
+}
+
+/** `content` without its tombstones, and without a container they were all it held. */
+function withoutTombstones(content: Fragment): Fragment {
+  const kept: ProseMirrorNode[] = [];
+  content.forEach((node) => {
+    if (isTombstone(node)) return;
+    if (node.isTextblock || node.isLeaf || node.childCount === 0) {
+      kept.push(node);
+      return;
+    }
+    const inner = withoutTombstones(node.content);
+    if (inner.childCount > 0) kept.push(node.copy(inner));
+  });
+  return Fragment.from(kept);
+}
+
+/**
+ * A clipboard slice with no tombstone in it, copied or pasted. A container
+ * dropped at an edge leaves the slice open no deeper than what is left.
+ */
+function offTheClipboard(slice: Slice): Slice {
+  const content = withoutTombstones(slice.content);
+  if (content.eq(slice.content)) return slice;
+  const deepest = Slice.maxOpen(content);
+  return new Slice(
+    content,
+    Math.min(slice.openStart, deepest.openStart),
+    Math.min(slice.openEnd, deepest.openEnd),
+  );
 }
 
 /** The tombstones the transactions took, put back at the block boundary nearest where they were. */
@@ -163,7 +219,12 @@ export const TombstoneGuard = Extension.create({
   priority: 1000,
 
   addProseMirrorPlugins() {
-    return [new Plugin({ appendTransaction: restoration })];
+    return [
+      new Plugin({
+        appendTransaction: restoration,
+        props: { transformCopied: offTheClipboard, transformPasted: offTheClipboard },
+      }),
+    ];
   },
 
   addKeyboardShortcuts() {
