@@ -104,3 +104,49 @@ describe('workerNoteChunker', () => {
     expect(isChunkRequest({ kind: 'chunk', id: 1, file: STANDUP })).toBe(true);
   });
 });
+
+describe('what an Obsidian %% comment hides, through the real markdown reader', () => {
+  const words = (text: string) =>
+    notePassages(file('Review/Tobias Fenn.md', text), remarkMarkdown).chunks.map(
+      (chunk) => chunk.words,
+    );
+
+  it('hides a callout inside an open comment, its title too', () => {
+    const text = [
+      'Shown before.',
+      '',
+      '%% private notes for the review',
+      '',
+      '> [!note] Salary 91,000 for Tobias Fenn',
+      '> Raise agreed with Mara Quill.',
+      '',
+      'end of it %%',
+      '',
+      'Shown after.',
+    ].join('\n');
+    const all = words(text);
+    expect(all).toEqual(['Shown before.', 'Shown after.']);
+  });
+
+  it('counts a %% that sits in a mark of its own: what follows it is hidden until the next', () => {
+    const text = [
+      'Payday **%%** moves to Friday for Ida Brenwick%% as planned.',
+      '',
+      'Shown after.',
+    ].join('\n');
+    expect(words(text)).toEqual(['Payday as planned.', 'Shown after.']);
+  });
+
+  it('does not count two % that markup keeps apart, as Obsidian reads the source', () => {
+    // `*%*%` has no `%%` in what is written, so Obsidian opens no comment, and neither does this.
+    const text = [
+      'Larkspur Payroll fees rose *%*% this year.',
+      '',
+      'Tobias Fenn owes 91,000.',
+    ].join('\n');
+    expect(words(text)).toEqual([
+      'Larkspur Payroll fees rose %% this year.',
+      'Tobias Fenn owes 91,000.',
+    ]);
+  });
+});

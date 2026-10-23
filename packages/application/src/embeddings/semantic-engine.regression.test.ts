@@ -9,6 +9,7 @@ import {
 } from '../testing/fake-embeddings.ts';
 import type { NoteChange } from '@dfai/domain';
 import { createSemanticEngine, type SemanticOptIn } from './semantic-engine.ts';
+import { CacheMismatchError } from './semantic-search.ts';
 import {
   CacheDamagedError,
   type CachedEmbeddings,
@@ -535,4 +536,200 @@ describe('property — after any edits, the cache is a fresh rebuild', () => {
       expect(await heldOf(cache)).toEqual(await heldOf(freshCache));
     });
   }
+});
+
+const TORN = 'the embeddings cache was damaged and was made again';
+
+/** Lets `count` macrotasks go by, settling the build after each: a start-over runs behind a failure. */
+async function settleThrough(engine: { settled(): Promise<void> }, count = 30) {
+  for (let at = 0; at < count; at += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await engine.settled();
+  }
+}
+
+function manyNotes(count: number): Record<string, string> {
+  const notes: Record<string, string> = {};
+  for (let at = 0; at < count; at += 1)
+    notes[`Notes/Note ${String(at).padStart(2, '0')}.md`] = `Tobias Fenn note ${at} about bees.`;
+  return notes;
+}
+
+describe('one torn cache is started over once, by one build', () => {
+  it('a tear met while a search waits on the build opens the cache once more, with one write at a time', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const held = gate();
+    const entered = gate();
+    let opens = 0;
+    let puts = 0;
+    let inFlight = 0;
+    let mostInFlight = 0;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async open(asked) {
+        opens += 1;
+        return inner.open(asked);
+      },
+      async put(notes, scope) {
+        puts += 1;
+        const first = puts === 1;
+        inFlight += 1;
+        mostInFlight = Math.max(mostInFlight, inFlight);
+        try {
+          if (first) {
+            entered.open();
+            await held.opened;
+            await inner.clear();
+            throw new CacheDamagedError(TORN);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          await inner.put(notes, scope);
+        } finally {
+          inFlight -= 1;
+        }
+      },
+    };
+    const { engine } = setUp(manyNotes(40), { cache });
+    await engine.start();
+    await entered.opened;
+    // A search while the write is under way asks the build to resume once it ends.
+    await engine.search({ query: 'bees', limit: 1 });
+    held.open();
+    await settleThrough(engine, 60);
+
+    expect(opens).toBe(2);
+    expect(mostInFlight).toBe(1);
+    expect(engine.progress().failure).toBeNull();
+    expect((await inner.load()).notes).toHaveLength(40);
+  });
+
+  it('two tears, each started over, do not stop the build', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    let tears = 2;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async put(notes, scope) {
+        if (tears > 0) {
+          tears -= 1;
+          await inner.clear();
+          throw new CacheDamagedError(TORN);
+        }
+        await inner.put(notes, scope);
+      },
+    };
+    const { engine } = setUp(
+      { 'Meetings/Standup.md': STANDUP, 'Home/Garden.md': GARDEN },
+      { cache },
+    );
+    await engine.start();
+    await settleThrough(engine);
+
+    expect(tears).toBe(0);
+    expect(engine.progress().failure).toBeNull();
+    const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toContain('Home/Garden.md');
+  });
+
+  it('a cache of another model found by searches does not use up the starts over a torn one has', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    let mismatches = 0;
+    let tear = false;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async excerpts(keys) {
+        if (mismatches > 0) {
+          mismatches -= 1;
+          throw new CacheMismatchError(384, 768);
+        }
+        return inner.excerpts(keys);
+      },
+      async put(notes, scope) {
+        if (tear) {
+          tear = false;
+          await inner.clear();
+          throw new CacheDamagedError(TORN);
+        }
+        await inner.put(notes, scope);
+      },
+    };
+    const { engine, vault } = setUp(
+      { 'Meetings/Standup.md': STANDUP, 'Home/Garden.md': GARDEN },
+      { cache },
+    );
+    await engine.start();
+    await settleThrough(engine);
+    for (let at = 0; at < 3; at += 1) {
+      mismatches = 1;
+      await engine.search({ query: `honey hive ${at}`, limit: 100 });
+      await settleThrough(engine, 5);
+    }
+    const edited = `${GARDEN} Ida Brenwick buys the honey.`;
+    vault.files.set('Home/Garden.md', edited);
+    tear = true;
+    engine.hear({ vault: VAULT, changes: [changedTo('Home/Garden.md', edited)] });
+    await settleThrough(engine);
+
+    expect(engine.progress().failure).toBeNull();
+    const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toContain('Meetings/Standup.md');
+  });
+
+  it('after it stops, the failure says to restart DFAI, and a new engine over the same cache builds again', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    let torn = true;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async put(notes, scope) {
+        if (torn) {
+          await inner.clear();
+          throw new CacheDamagedError(TORN);
+        }
+        await inner.put(notes, scope);
+      },
+    };
+    const notes = { 'Home/Garden.md': GARDEN };
+    const first = setUp(notes, { cache });
+    await first.engine.start();
+    await settleThrough(first.engine);
+    expect(first.engine.progress().failure).toMatch(/Restart DFAI to try again/);
+    first.engine.stop();
+
+    // A relaunch makes the engine again (`useSemanticSearch`), and the disk has healed.
+    torn = false;
+    const second = setUp(notes, { cache });
+    await second.engine.start();
+    await settleThrough(second.engine);
+    expect(second.engine.progress().failure).toBeNull();
+    const { hits } = await second.engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toEqual(['Home/Garden.md']);
+  });
+});
+
+describe('after one note cannot be written, the build writes notes together again', () => {
+  it('writes the failed batch one note at a time, then the rest in batches', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const BAD = 'Notes/Note 03.md';
+    const sizes: number[] = [];
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async put(notes, scope) {
+        sizes.push(notes.length);
+        if (notes.some((note) => note.path === BAD && note.blocks.length > 0))
+          throw new Error('The embeddings cache: a row could not be written');
+        await inner.put(notes, scope);
+      },
+    };
+    const { engine } = setUp(manyNotes(40), { cache });
+    await engine.start();
+    await engine.settled();
+    expect(sizes).toEqual([16]);
+
+    await engine.search({ query: 'bees', limit: 1 });
+    await engine.settled();
+
+    // Notes 00–15 alone (03 three times: written, written alone again, then bare), then 16–31 and 32–39 together.
+    expect(sizes.slice(1)).toEqual([...Array<number>(18).fill(1), 16, 8]);
+    expect(engine.progress().failure).toBeNull();
+    expect((await inner.load()).notes).toHaveLength(40);
+  });
 });
