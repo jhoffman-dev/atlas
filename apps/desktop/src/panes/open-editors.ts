@@ -191,6 +191,37 @@ export function useOpenEditors(): PaneEditors {
 /** The longest the window's close waits for the panes' writes: a hung disk must not keep it open. */
 export const EDITORS_CLOSE_WAIT_MS = 10_000;
 
+/** What the person is told when a vault switch or a sync stops waiting for the panes' writes. */
+export const PANES_WRITE_GAVE_UP =
+  'Some open notes took more than 10 seconds to save, so DFAI went on without waiting. Their changes are still in their panes; check them before closing.';
+
+/**
+ * Every pane's work written, waited for no longer than the window's close
+ * waits: a hung write must not hold a vault switch or a sync forever (#534).
+ * On giving up, `onGaveUp` is told; the panes keep their work, and their
+ * writes carry on. A write that fails says so to whoever waited.
+ */
+export function writtenWithin({
+  flushAll,
+  onGaveUp,
+}: {
+  flushAll: () => Promise<void>;
+  onGaveUp: () => void;
+}): () => Promise<void> {
+  return async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const gaveUp = new Promise<'gave up'>((resolve) => {
+      timer = setTimeout(() => resolve('gave up'), EDITORS_CLOSE_WAIT_MS);
+    });
+    try {
+      const outcome = await Promise.race([flushAll().then(() => 'written' as const), gaveUp]);
+      if (outcome === 'gave up') onGaveUp();
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 /**
  * Holds the window's close until every pane's work is written — its typing,
  * and the comments typed in a literature note's highlights (#534) — as

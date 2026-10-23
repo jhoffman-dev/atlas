@@ -128,7 +128,12 @@ import { browserSectionStore } from './sidebar/browser-section-store.ts';
 import { createBrowserGroupFoldStore } from './query/browser-group-fold-store.ts';
 import { createBrowserLinkedRangeStore } from './linked-pages/browser-linked-range-store.ts';
 import { useTemplates } from './types/use-templates.ts';
-import { useEditorsWrittenBeforeClose, useOpenEditors } from './panes/open-editors.ts';
+import {
+  PANES_WRITE_GAVE_UP,
+  useEditorsWrittenBeforeClose,
+  useOpenEditors,
+  writtenWithin,
+} from './panes/open-editors.ts';
 import { useStrandedEdits } from './notes/stranded-edits.ts';
 import { browserStrandedStore } from './notes/browser-stranded-store.ts';
 import { placeName } from './panes/place-name.ts';
@@ -479,11 +484,22 @@ function AppWindow({
   // waits for the clarifications and answers still being written behind those
   // pages, which the host would refuse once another vault is open (#217, #166).
   const [pendingWrites] = useState(createPendingWrites);
+  // The window's toasts: a change said with its Undo, held outside the pages (#320).
+  const [toasts] = useState(createToasts);
+  // A switch and a sync wait for every pane's work, but not forever: a hung write is said, not waited out (#534).
+  const flushAllWithin = useMemo(
+    () =>
+      writtenWithin({
+        flushAll: editors.flushAll,
+        onGaveUp: () => toasts.show({ message: PANES_WRITE_GAVE_UP, tone: 'error' }),
+      }),
+    [editors, toasts],
+  );
   const leaveVault = useCallback(async () => {
-    await editors.flushAll();
+    await flushAllWithin();
     await answersWrittenOrGivenUp(pendingWrites.drained());
     await settleSync(syncStore);
-  }, [editors, pendingWrites, syncStore]);
+  }, [flushAllWithin, pendingWrites, syncStore]);
   // So is the window's close, whatever tab those pages are in, or were.
   useAnswersWrittenBeforeClose(pendingWrites, closing.writes);
   // And every pane's work, a comment typed in a highlight among it (#534), as leaving the vault does.
@@ -526,8 +542,6 @@ function AppWindow({
     vaultKey,
     closing: closing.last,
   });
-  // The window's toasts: a change said with its Undo, held outside the pages (#320).
-  const [toasts] = useState(createToasts);
   // One feed for the window: every refresh of the index says here which notes changed (P28-03).
   const [noteChanges] = useState(() =>
     createNoteChanges({
@@ -2002,7 +2016,7 @@ function AppWindow({
           edits={syncEdits}
           clock={localClock}
           activity={activityLog}
-          flushAll={editors.flushAll}
+          flushAll={flushAllWithin}
           closing={closing.first}
           onPulled={onChanged}
         />
