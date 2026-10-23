@@ -4,7 +4,8 @@ import { isAtlasNote } from '../vault/vault-visibility.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { MAX_ACTIONS_PER_RUN } from './automation-query.ts';
 import type { AutomationAction } from './automation-rule.ts';
-import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
+import { CLAUDE_NOTES_PER_RUN, readsData } from './claude-step.ts';
+import type { OutputPeriod } from './output-period.ts';
 
 /** A note the rule matched and will not touch, and why. */
 export interface PassedOver {
@@ -24,6 +25,12 @@ export interface AutomationPlan {
    * query asks for one more than the cap, so how many more is not known.
    */
   readonly capped: boolean;
+  /**
+   * For a step that writes one note a period (#40): the period a run by hand
+   * would write for, and whether its note is made already. Left off by the
+   * domain; the dry run says it, since it takes the log and the vault's notes.
+   */
+  readonly periodNote?: { readonly period: OutputPeriod; readonly made: boolean };
 }
 
 /**
@@ -82,8 +89,13 @@ function refusalOf(action: AutomationAction, path: VaultPath): string | null {
 export function describePlan(plan: AutomationPlan): string {
   const count = plan.paths.length;
   const notes = `${count} ${count === 1 ? 'note' : 'notes'}`;
+  if (plan.periodNote?.made === true) {
+    return `Its note for ${plan.periodNote.period.slot.slice(0, 10)} is made already: nothing to do right now.`;
+  }
+  // A step that reads its data asks with no note at all, and still writes one.
+  const writes = count === 0 && readsData(plan.action) ? 'Would write its note.' : null;
   const head =
-    count === 0 ? 'Nothing to do right now.' : `Would ${planVerb(plan.action)} ${notes}.`;
+    writes ?? (count === 0 ? 'Nothing to do right now.' : `Would ${planVerb(plan.action)} ${notes}.`);
   return plan.capped ? `${head} ${cappedLine(plan.paths.length)}` : head;
 }
 

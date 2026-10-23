@@ -16,6 +16,7 @@ import {
   type LogEntry,
 } from '../automations/run-log.ts';
 import { planVerb, type AutomationPlan } from '../automations/automation-plan.ts';
+import { readsData } from '../automations/claude-step.ts';
 import type { ActivityLevel, ActivityReport, ActivitySubject } from './activity-event.ts';
 
 /** An automation's rule, as a line names it and links to it; a draft not yet saved has no path. */
@@ -120,7 +121,14 @@ export function dryRunReport(
   }
   const { plan } = outcome;
   const count = plan.paths.length;
-  const would = count === 0 ? 'Nothing to do' : `Would ${planVerb(plan.action)} ${notes(count)}`;
+  const would =
+    plan.periodNote?.made === true
+      ? 'Its note for this period is made already'
+      : count === 0 && readsData(plan.action)
+        ? 'Would write its note'
+        : count === 0
+          ? 'Nothing to do'
+          : `Would ${planVerb(plan.action)} ${notes(count)}`;
   const left = plan.passedOver.length === 0 ? '' : `, and leave ${plan.passedOver.length} alone`;
   return {
     level: 'info',
