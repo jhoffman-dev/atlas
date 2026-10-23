@@ -115,6 +115,7 @@ import { useBookmarks } from '../notes/use-bookmarks.ts';
 import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
 import { useLinePromotion } from '../notes/use-line-promotion.ts';
+import { useNoteHighlights, type KeptCommentsOfVault } from '../notes/use-note-highlights.ts';
 import { useMeetingCorrections } from '../notes/use-meeting-corrections.ts';
 import { cryptoRng } from '../random.ts';
 import { usePlanner } from '../timeblocks/use-planner.ts';
@@ -149,6 +150,7 @@ import { pageHeading } from './page-heading.ts';
 import { localClock, localNow, localToday } from '../today.ts';
 import type { OpenEditors, PaneEditors } from './open-editors.ts';
 import type { StrandedEdits } from '../notes/stranded-edits.ts';
+import type { KeptComments } from '../notes/stranded-comments.ts';
 import { pageArchiveItems } from '../archive/archive-menu.ts';
 import type { ExportCommands } from '../export/export-flow.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
@@ -209,6 +211,8 @@ export interface PaneContext {
   readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf' | 'flushHolding'>;
   /** Work a closed pane could not write, kept until its note is opened again. */
   readonly stranded: StrandedEdits;
+  /** Comments a closed literature note could not write (#534), kept until it is opened again. */
+  readonly strandedComments: KeptComments;
   /** Where a save the pane gave up on is said (U-28). */
   readonly activity: ActivityLog;
   /** The window's toasts, where a change made from a view is said with its Undo (#320). */
@@ -488,7 +492,13 @@ export function useNotePane({
 }): DrawnNotePane {
   const { notes, index, sources, types, notePaths, onChanged, editors, savedViews } = context;
 
-  const note = usePaneNote({ tabId, path, context, hidden });
+  // The editor's comments typed in highlights and not yet written (#534): part of this pane's work.
+  const pendingComments = useRef<(() => Promise<void>) | null>(null);
+  const holdPendingComments = useCallback((writePending: (() => Promise<void>) | null) => {
+    pendingComments.current = writePending;
+  }, []);
+  const note = usePaneNote({ tabId, path, context, hidden, pendingComments });
+  const keptComments = useKeptCommentsOf(context);
   // What the pane's readers re-read on: the index's news of what this note
   // shows, not of a note saved anywhere (#325). A hidden tab reads nothing,
   // and once shown again reads what moved while it was hidden. An empty tab's
@@ -747,6 +757,18 @@ export function useNotePane({
     activity: context.activity,
     toasts: context.toasts,
   });
+  const highlights = useNoteHighlights({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    openNotes: context.openNotes,
+    flush: note.flush,
+    path,
+    open: note.open,
+    onChanged,
+    toasts: context.toasts,
+    onWritePending: holdPendingComments,
+    ...(keptComments !== undefined && { kept: keptComments }),
+  });
   const corrections = useMeetingCorrections({
     fs: notes.fs,
     markdown: notes.markdown,
@@ -912,6 +934,7 @@ export function useNotePane({
       bookmarks={bookmarks}
       transclusions={transclusions}
       highlightLinks={highlightLinks}
+      highlights={highlights}
       {...(queries !== undefined && { queries })}
       picking={picking}
       // A template's lines are what new notes start with, not work to promote.
@@ -1152,11 +1175,14 @@ function usePaneNote({
   path,
   context,
   hidden,
+  pendingComments,
 }: {
   tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
   hidden: boolean;
+  /** The write of the comments typed in the note's highlights and not yet written, while it is open. */
+  pendingComments: { readonly current: (() => Promise<void>) | null };
 }) {
   const { editors, stranded, changes } = context;
   const note = useNote({
@@ -1203,14 +1229,18 @@ function usePaneNote({
       path,
       setProperties: (changes) => live.current.setProperties(changes),
       save: () => live.current.save(),
-      flush: () => live.current.flush(),
+      // The note's typing first: a comment's write is refused while the note holds unsaved typing.
+      flush: async () => {
+        await live.current.flush();
+        await pendingComments.current?.();
+      },
       reload: () => live.current.reload(),
       isDirty: () => live.current.dirty,
       repoint: (to) => live.current.repoint(to),
       abandon: () => live.current.abandon(),
     });
     return () => editors.register(tabId, null);
-  }, [editors, tabId, path]);
+  }, [editors, tabId, path, pendingComments]);
 
   return note;
 }
@@ -1365,4 +1395,22 @@ function templateNoticeFor(path: VaultPath | null, context: PaneContext): Templa
 function literaturePdfOf(properties: Readonly<Record<string, unknown>> | null): VaultPath | null {
   const source = properties === null ? null : readLiteratureNote(properties);
   return source?.kind === 'pdf' ? source.file : null;
+}
+
+/** The kept comments of the pane's vault: what its note keeps there, and is offered back. */
+function useKeptCommentsOf({
+  vault,
+  strandedComments: { offered, keep, settle },
+}: Pick<PaneContext, 'vault' | 'strandedComments'>): KeptCommentsOfVault | undefined {
+  return useMemo(
+    () =>
+      vault === null
+        ? undefined
+        : {
+            offered,
+            keep: (kept) => keep({ vault, ...kept }),
+            settle: (settled) => settle({ vault, ...settled }),
+          },
+    [vault, offered, keep, settle],
+  );
 }

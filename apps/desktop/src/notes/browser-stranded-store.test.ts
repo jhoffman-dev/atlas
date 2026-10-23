@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type StrandedEdit } from '@dfai/domain';
-import { browserStrandedStore } from './browser-stranded-store.ts';
+import { createVaultPath, type StrandedComments, type StrandedEdit } from '@dfai/domain';
+import { browserStrandedCommentStore, browserStrandedStore } from './browser-stranded-store.ts';
 
 const VAULT = '/Users/someone/Vault';
 const NOTE = createVaultPath('Notes/today.md');
@@ -162,5 +162,46 @@ describe('browserStrandedStore', () => {
   it('carries on when a removal is refused', () => {
     withDeniedStorage();
     expect(() => browserStrandedStore.remove({ vaultKey: VAULT, path: NOTE })).not.toThrow();
+  });
+});
+
+/*
+ * Comments a closing literature note could not write (#534), kept beside its
+ * typing under their own key, so neither is ever read back as the other.
+ */
+describe('kept comments in localStorage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  const comments: StrandedComments = {
+    path: NOTE,
+    comments: [{ id: 'k3x9q2', comment: 'Typed, then ⌘W.', base: 'Lit by Mara.' }],
+    reason: 'The disk is full.',
+    keptAt: 100,
+  };
+
+  it('reads back what was kept, after a quit', () => {
+    expect(browserStrandedCommentStore.put({ vaultKey: VAULT, edit: comments })).toBe(true);
+    expect(browserStrandedCommentStore.read(VAULT)).toEqual([comments]);
+  });
+
+  it('is not the note’s kept typing, nor that typing the comments', () => {
+    browserStrandedCommentStore.put({ vaultKey: VAULT, edit: comments });
+    browserStrandedStore.put({ vaultKey: VAULT, edit: edit() });
+    expect(browserStrandedStore.read(VAULT)).toEqual([edit()]);
+    expect(browserStrandedCommentStore.read(VAULT)).toEqual([comments]);
+    browserStrandedCommentStore.remove({ vaultKey: VAULT, path: NOTE });
+    expect(browserStrandedStore.read(VAULT)).toEqual([edit()]);
+  });
+
+  it('answers that it could not keep them when storage is full', () => {
+    withStorage({
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+    });
+    expect(browserStrandedCommentStore.put({ vaultKey: VAULT, edit: comments })).toBe(false);
   });
 });

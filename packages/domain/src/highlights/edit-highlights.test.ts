@@ -3,6 +3,7 @@ import { lineNoteBlocks as noteBlocks } from '../testing/line-note-blocks.ts';
 import { InvalidHighlightAnchorError, type HighlightAnchor } from './anchor.ts';
 import {
   appendHighlights,
+  HighlightCommentChangedError,
   HighlightNotFoundError,
   highlightNamed,
   withHighlightComment,
@@ -317,6 +318,90 @@ function threeHighlights() {
     .replace('^aaaaa1\n', '^aaaaa1\n\nWritten in Obsidian.\n');
   return edited;
 }
+
+describe("editing a highlight's comment from a base (#534)", () => {
+  const write = (text: string, base: string | undefined) =>
+    withHighlightComment({
+      text,
+      id: 'aaaaa1',
+      comment: 'Mine.',
+      ...(base !== undefined && { base }),
+      noteBlocks,
+    });
+
+  it('writes when the note still holds the comment the writer started from', () => {
+    const text = threeHighlights();
+    const current = highlightNamed(text, 'aaaaa1', noteBlocks).comment;
+    expect(highlightNamed(write(text, current), 'aaaaa1', noteBlocks).comment).toBe('Mine.');
+  });
+
+  it("refuses, naming the comment now there, when it changed since (a sync's follow-up, Obsidian)", () => {
+    const text = threeHighlights();
+    expect(() => write(text, 'An older comment.')).toThrow(HighlightCommentChangedError);
+    try {
+      write(text, 'An older comment.');
+    } catch (error) {
+      expect((error as HighlightCommentChangedError).current).toBe(
+        highlightNamed(text, 'aaaaa1', noteBlocks).comment,
+      );
+    }
+  });
+
+  it('holds a comment typed with `%%` to the one written from it', () => {
+    const typed = 'Half of it, 50%% sure.';
+    const written = withHighlightComment({
+      text: threeHighlights(),
+      id: 'aaaaa1',
+      comment: typed,
+      noteBlocks,
+    });
+    expect(
+      withHighlightComment({
+        text: written,
+        id: 'aaaaa1',
+        comment: 'Next.',
+        base: typed,
+        noteBlocks,
+      }),
+    ).toContain('Next.');
+  });
+
+  it('holds a comment shown as the file holds it, a literal `%\\%` in it, to that comment (#534)', () => {
+    const onDisk = withHighlightComment({
+      text: threeHighlights(),
+      id: 'aaaaa1',
+      comment: 'a %% b %\\% c',
+      noteBlocks,
+    });
+    const shown = highlightNamed(onDisk, 'aaaaa1', noteBlocks).comment;
+    expect(shown).toBe('a %\\% b %\\% c');
+    expect(
+      withHighlightComment({
+        text: onDisk,
+        id: 'aaaaa1',
+        comment: 'Next.',
+        base: shown,
+        noteBlocks,
+      }),
+    ).toContain('Next.');
+  });
+
+  it('names the comment now there as the file holds it, escapes and all (#534)', () => {
+    const onDisk = withHighlightComment({
+      text: threeHighlights(),
+      id: 'aaaaa1',
+      comment: 'Half of it, 50%% sure.',
+      noteBlocks,
+    });
+    expect(() => write(onDisk, 'An older comment.')).toThrow(
+      expect.objectContaining({ current: 'Half of it, 50%\\% sure.' }),
+    );
+  });
+
+  it('writes unconditionally without a base, as the readers do', () => {
+    expect(write(threeHighlights(), undefined)).toContain('Mine.');
+  });
+});
 
 describe("editing a highlight's comment", () => {
   it('gives a highlight with no comment one, changing nothing else', () => {

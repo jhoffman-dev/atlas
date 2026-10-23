@@ -30,6 +30,7 @@ export type {
 export {
   HIGHLIGHT_MARKER_VERSION,
   highlightMarker,
+  isTombstoneBlock,
   readHighlightMarker,
 } from './highlight-marker.ts';
 export type { HighlightMarker } from './highlight-marker.ts';
@@ -41,10 +42,20 @@ export type {
   ReadNoteBlocks,
   TextSpan,
 } from './highlight-block.ts';
-export { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
+export {
+  commentLines,
+  highlightAsPlainQuote,
+  plainQuote,
+  quoteLines,
+  sameComment,
+  undoCommentEscapes,
+} from './highlight-text.ts';
+export { highlightView } from './highlight-view.ts';
+export type { HighlightView } from './highlight-view.ts';
 export {
   appendHighlights,
   heldHighlight,
+  HighlightCommentChangedError,
   HighlightNotFoundError,
   HighlightNotReadBackError,
   highlightNamed,

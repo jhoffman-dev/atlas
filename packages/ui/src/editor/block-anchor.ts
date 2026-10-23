@@ -32,7 +32,7 @@ const DATA_ATTRIBUTE = 'data-block-anchor';
 const HISTORY = 'history$';
 
 /** The meta a document read from its file is shown with: its ids are as the file has them. */
-const READ_FROM_FILE = 'atlas:readFromFile';
+export const READ_FROM_FILE = 'atlas:readFromFile';
 
 /**
  * Shows `doc`, read from its file, in place of what the editor holds. Its ids
@@ -94,8 +94,10 @@ export const BlockAnchor = Extension.create({
       new Plugin({
         key: new PluginKey('blockAnchor'),
         props: {
+          // A drag within the note keeps its ids: whether it moves is decided only at the
+          // drop, after this; a copy's second holder is taken off by keepIds (idsMadeOnce).
           transformPasted: (slice, view) =>
-            view.dragging?.move === true ? slice : withoutIdsIn(slice, idsIn(view.state.doc)),
+            view.dragging !== null ? slice : withoutIdsIn(slice, idsIn(view.state.doc)),
         },
         appendTransaction: (transactions, before, state) => {
           if (!transactions.some((transaction) => transaction.docChanged)) return null;

@@ -129,9 +129,19 @@ import { browserSectionStore } from './sidebar/browser-section-store.ts';
 import { createBrowserGroupFoldStore } from './query/browser-group-fold-store.ts';
 import { createBrowserLinkedRangeStore } from './linked-pages/browser-linked-range-store.ts';
 import { useTemplates } from './types/use-templates.ts';
-import { useOpenEditors } from './panes/open-editors.ts';
+import {
+  PANES_WRITE_GAVE_UP,
+  SWITCH_WRITE_GAVE_UP,
+  useEditorsWrittenBeforeClose,
+  useOpenEditors,
+  writtenWithin,
+} from './panes/open-editors.ts';
 import { useStrandedEdits } from './notes/stranded-edits.ts';
-import { browserStrandedStore } from './notes/browser-stranded-store.ts';
+import {
+  browserStrandedCommentStore,
+  browserStrandedStore,
+} from './notes/browser-stranded-store.ts';
+import { useStrandedComments } from './notes/stranded-comments.ts';
 import { placeName } from './panes/place-name.ts';
 import type { PaneContext } from './panes/note-pane-container.tsx';
 import { createRevealStore } from './panes/reveals.ts';
@@ -484,13 +494,34 @@ function AppWindow({
   // waits for the clarifications and answers still being written behind those
   // pages, which the host would refuse once another vault is open (#217, #166).
   const [pendingWrites] = useState(createPendingWrites);
+  // The window's toasts: a change said with its Undo, held outside the pages (#320).
+  const [toasts] = useState(createToasts);
+  // A switch and a sync wait for every pane's work, but not forever: a hung write is said, not waited out (#534).
+  const flushAllWithin = useMemo(
+    () =>
+      writtenWithin({
+        flushAll: editors.flushAll,
+        onGaveUp: () => toasts.show({ message: PANES_WRITE_GAVE_UP, tone: 'error' }),
+      }),
+    [editors, toasts],
+  );
+  const flushAllBeforeSwitch = useMemo(
+    () =>
+      writtenWithin({
+        flushAll: editors.flushAll,
+        onGaveUp: () => toasts.show({ message: SWITCH_WRITE_GAVE_UP, tone: 'error' }),
+      }),
+    [editors, toasts],
+  );
   const leaveVault = useCallback(async () => {
-    await editors.flushAll();
+    await flushAllBeforeSwitch();
     await answersWrittenOrGivenUp(pendingWrites.drained());
     await settleSync(syncStore);
-  }, [editors, pendingWrites, syncStore]);
+  }, [flushAllBeforeSwitch, pendingWrites, syncStore]);
   // So is the window's close, whatever tab those pages are in, or were.
   useAnswersWrittenBeforeClose(pendingWrites, closing.writes);
+  // And every pane's work, a comment typed in a highlight among it (#534), as leaving the vault does.
+  useEditorsWrittenBeforeClose(editors, closing.writes);
   // Every pane's unsaved work is written before the host moves to another vault,
   // while its paths still mean the vault it was typed in.
   // Choosing and listing a vault come before there is one to bind writes to,
@@ -529,8 +560,6 @@ function AppWindow({
     vaultKey,
     closing: closing.last,
   });
-  // The window's toasts: a change said with its Undo, held outside the pages (#320).
-  const [toasts] = useState(createToasts);
   // One feed for the window: every refresh of the index says here which notes changed (P28-03).
   const [noteChanges] = useState(() =>
     createNoteChanges({
@@ -996,6 +1025,12 @@ function AppWindow({
 
   const stranded = useStrandedEdits({
     store: browserStrandedStore,
+    vaultKey: location?.absolutePath ?? null,
+    now: Date.now,
+  });
+  // Comments typed in a literature note's highlights that it could not write as it closed (#534).
+  const strandedComments = useStrandedComments({
+    store: browserStrandedCommentStore,
     vaultKey: location?.absolutePath ?? null,
     now: Date.now,
   });
@@ -1672,6 +1707,7 @@ function AppWindow({
       openTag,
       editors,
       stranded,
+      strandedComments,
       activity: activityLog,
       toasts,
       savedViews: catalog.savedViews,
@@ -1714,6 +1750,7 @@ function AppWindow({
       openTag,
       editors,
       stranded,
+      strandedComments,
       activityLog,
       toasts,
       catalog.savedViews,
@@ -1839,7 +1876,10 @@ function AppWindow({
   // it. Nor is the sidebar's order, whose setting records it. Nor is the offer
   // to update links, which is a question, not a failure; edits kept for later
   // are a warning.
-  useNoticeActivity({ errors: noticeMessages, warnings: [stranded.notice] }, activityLog);
+  useNoticeActivity(
+    { errors: noticeMessages, warnings: [stranded.notice, strandedComments.notice] },
+    activityLog,
+  );
   const notices = (
     <AppNotices
       messages={[
@@ -1851,6 +1891,7 @@ function AppWindow({
       ]}
       links={entries.links}
       stranded={stranded}
+      keptComments={strandedComments}
     />
   );
   /** Writes what was typed in the peek, closes it, then runs `act`; at once with no peek up. */
@@ -2050,7 +2091,7 @@ function AppWindow({
           edits={syncEdits}
           clock={localClock}
           activity={activityLog}
-          flushAll={editors.flushAll}
+          flushAll={flushAllWithin}
           closing={closing.first}
           onPulled={onChanged}
         />
