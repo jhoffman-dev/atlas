@@ -419,14 +419,17 @@ function ClaudeFields({ draft, onChange, claudeTools, claudeOutputs }: ActionPro
           className="field automation-editor__small"
           aria-label="What Claude writes"
           value={output}
-          onChange={(event) =>
-            change({
-              output:
-                event.target.value === NOTE_OUTPUT
-                  ? { kind: 'note', folder: '' }
-                  : { kind: 'proposals', schema: event.target.value },
-            })
-          }
+          onChange={(event) => {
+            const toNote = event.target.value === NOTE_OUTPUT;
+            const next = {
+              ...action,
+              output: toNote
+                ? ({ kind: 'note', folder: '' } as const)
+                : ({ kind: 'proposals', schema: event.target.value } as const),
+            };
+            // The data is for a note only; its control goes with the note output, so it must not stay hidden.
+            onChange({ ...draft, action: toNote ? next : withClaudeData(next, null) });
+          }}
         >
           {[...claudeOutputs, NOTE_OUTPUT].map((name) => (
             <option key={name} value={name}>
