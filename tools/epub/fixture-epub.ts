@@ -200,6 +200,25 @@ export function obfuscatedFontFixtureEpub(): Buffer {
 /** Where the hostile book's beacons and scripts would reach, were they let: nothing of it may be asked for. */
 export const HOSTILE_ORIGIN = 'https://beacon.example.com';
 
+/** What the hostile book's SVG asks for and runs, were it ever a document of the app's own origin. */
+export const HOSTILE_IPC_COMMAND = 'hostile_probe';
+
+/**
+ * A picture of the book that holds a script (#505): shown as a picture it
+ * runs nothing, but a frame led to it as a document of the app's origin
+ * would run it with the app's window as its parent — and so its IPC.
+ */
+const EVIL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+<script>
+try { window.__hostileRan = 'book svg'; } catch (e) {}
+try { window.parent.__hostileRan = 'book svg in the app'; } catch (e) {}
+try { window.top.__hostileRan = 'book svg in the app'; } catch (e) {}
+try { window.parent.__TAURI_INTERNALS__.invoke('${HOSTILE_IPC_COMMAND}', {}); } catch (e) {}
+</script>
+<rect id="mark" width="20" height="20" fill="#88aa88"/>
+</svg>
+`;
+
 /**
  * A book that tries everything a book should not (#505): scripts in every
  * form, pictures, fonts, stylesheets and frames on another site, a refresh,
@@ -236,12 +255,69 @@ body { background-image: url("${remote('background.png')}"); }
 <form action="${remote('post')}" method="post"><button type="submit" id="send">Send</button></form>
 <p><a id="out" href="${remote('out')}">Leave the book</a></p>
 <p><a id="js" href="javascript:window.parent.__hostileRan = 'javascript link'">Run a script</a></p>
-<p><a id="inside" href="calm.xhtml#calm">Go to the calm chapter</a></p>`,
+<p><a id="inside" href="calm.xhtml#calm">Go to the calm chapter</a></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML"><mtext id="mathlink" href="evil.svg">Follow the math</mtext></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML"><mtext id="forged" data-dfai-href="OEBPS/evil.svg">Follow the forged path</mtext></math></p>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="20"><a href="evil.svg"><text id="svglink" x="0" y="15">Follow the picture</text></a></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><use href="evil.svg#mark"/></svg>
+<p><img id="evilimg" src="evil.svg" alt="the book's own picture"/></p>`,
   };
   const second: FixtureChapter = {
     file: 'calm.xhtml',
     title: 'The Calm Chapter',
     body: `<h1 id="calm">The Calm Chapter</h1>\n<p>Slow but steady wins the race.</p>`,
   };
-  return fixtureEpub({ title: 'A Hostile Book', author: 'Tobias Fenn', chapters: [first, second] });
+  return fixtureEpub({
+    title: 'A Hostile Book',
+    author: 'Tobias Fenn',
+    chapters: [first, second],
+    extra: [{ name: 'OEBPS/evil.svg', data: EVIL_SVG }],
+  });
+}
+
+/** The sentences the long book is written in: Townsend's and Jacobs's fables, in the public domain. */
+const LONG_BOOK_SENTENCES = [
+  'A Hare one day ridiculed the short feet and slow pace of the Tortoise.',
+  'The Tortoise never for a moment stopped, but went on with a slow but steady pace.',
+  'The Hare, lying down by the wayside, fell fast asleep.',
+  'In a field one summer’s day a Grasshopper was hopping about, chirping and singing.',
+  'An Ant passed by, bearing along with great toil an ear of corn.',
+  'When the winter came the Grasshopper had no food and found itself dying of hunger.',
+  'It is best to prepare for the days of necessity.',
+];
+
+/** What the long book's find looks for: in every hundredth chapter, and nowhere else. */
+export const LONG_BOOK_PHRASE = 'the lantern of Brightwater';
+
+/** A chapter of the long book: about `size` characters of fables, the phrase find looks for in every hundredth. */
+function longBookChapter(at: number, size: number): FixtureChapter {
+  const paragraphs: string[] = [];
+  let written = 0;
+  for (let line = 0; written < size; line += 1) {
+    const sentences = Array.from(
+      { length: 6 },
+      (_, n) => LONG_BOOK_SENTENCES[(at + line + n) % LONG_BOOK_SENTENCES.length] as string,
+    );
+    if (line === 3 && (at + 1) % 100 === 0) sentences.push(`Far off shone ${LONG_BOOK_PHRASE}.`);
+    const paragraph = `<p>${sentences.join(' ')}</p>`;
+    paragraphs.push(paragraph);
+    written += paragraph.length;
+  }
+  return {
+    file: `chapter-${String(at + 1).padStart(4, '0')}.xhtml`,
+    title: `Chapter ${at + 1}`,
+    body: `<h1>Chapter ${at + 1}</h1>\n${paragraphs.join('\n')}`,
+  };
+}
+
+/** A long book for the reader's work budgets (#505): `chapters` chapters of about `chapterSize` characters each. */
+export function longFixtureEpub({
+  chapters = 1000,
+  chapterSize = 30_000,
+}: { chapters?: number; chapterSize?: number } = {}): Buffer {
+  return fixtureEpub({
+    title: 'A Long Voyage',
+    author: 'Tobias Fenn',
+    chapters: Array.from({ length: chapters }, (_, at) => longBookChapter(at, chapterSize)),
+  });
 }

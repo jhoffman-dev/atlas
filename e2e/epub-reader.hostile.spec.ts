@@ -2,8 +2,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Frame } from '@playwright/test';
 import { expect, test, type Page } from './fixtures.ts';
-import { createVault, installHost } from './host.ts';
-import { hostileFixtureEpub, HOSTILE_ORIGIN } from '../tools/epub/fixture-epub.ts';
+import { createVault, installHost, type FakeHost } from './host.ts';
+import {
+  hostileFixtureEpub,
+  HOSTILE_IPC_COMMAND,
+  HOSTILE_ORIGIN,
+} from '../tools/epub/fixture-epub.ts';
 
 /*
  * A hostile EPUB in the reader (#505), end to end in WebKit: a book that
@@ -16,7 +20,7 @@ import { hostileFixtureEpub, HOSTILE_ORIGIN } from '../tools/epub/fixture-epub.t
 const BOOK = 'Library/hostile.epub';
 
 /** Every request the page made that leaves the app's own server. */
-async function openHostileBook(page: Page): Promise<{ outside: string[] }> {
+async function openHostileBook(page: Page): Promise<{ outside: string[]; host: FakeHost }> {
   const outside: string[] = [];
   page.on('request', (request) => {
     if (!isOwn(request.url())) outside.push(request.url());
@@ -26,12 +30,12 @@ async function openHostileBook(page: Page): Promise<{ outside: string[] }> {
   const vault = await createVault();
   await mkdir(join(vault.root, 'Library'), { recursive: true });
   await writeFile(join(vault.root, BOOK), hostileFixtureEpub());
-  await installHost(page, vault);
+  const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await page.getByRole('treeitem', { name: 'Library' }).click();
   await page.getByRole('treeitem', { name: 'hostile.epub' }).click();
-  return { outside };
+  return { outside, host };
 }
 
 /** A request is the app's own when it goes to the page's own server, or never leaves the page (`blob:`, `data:`, `about:`). */
@@ -115,5 +119,26 @@ test("the chapter's frame refuses a script and a picture on another site even we
     .poll(() => frame.evaluate(() => [...document.images].every((image) => image.complete)))
     .toBe(true);
   expect(await traces(page)).toEqual([]);
+  expect(outside).toEqual([]);
+});
+
+test("a link the book hides in MathML or SVG leads nowhere, and the book's own SVG never runs as the app", async ({
+  page,
+}) => {
+  const { outside, host } = await openHostileBook(page);
+  await expect(text(page)).toContainText('Follow the math');
+  const frame = await frameOf(page);
+  // A MathML element with an `href` is a link to WebKit: once it pointed at the book's
+  // SVG, given the app's origin, and a click ran that SVG's script as the app (#505).
+  for (const target of ['#mathlink', '#forged', '#svglink']) {
+    await frame.locator(target).click();
+    await expect(text(page)).toContainText('Follow the math');
+    expect(frame.url(), `after clicking ${target}`).toBe('about:srcdoc');
+  }
+  expect(
+    await page.evaluate(() => (window as { __hostileRan?: unknown }).__hostileRan ?? null),
+  ).toBeNull();
+  expect(await traces(page)).toEqual([]);
+  expect(host.callsTo(HOSTILE_IPC_COMMAND)).toBe(0);
   expect(outside).toEqual([]);
 });
