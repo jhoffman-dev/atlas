@@ -154,3 +154,20 @@ describe('HTML from another app, read by the editor', () => {
     ]);
   });
 });
+
+describe('a note with a removed highlight tombstone, copied', () => {
+  const TOMBSTONE =
+    '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A9","words":"3f2a"} -->';
+
+  it('puts no marker in text/plain, for a paste into another app', () => {
+    const held = copyAll(noteWith([TOMBSTONE]), 'copy');
+    expect(held.get('text/plain')).not.toContain('highlight-removed');
+    expect(held.get('text/plain')).toContain('Above.');
+  });
+
+  it('still carries the tombstone in text/html, so a paste back in keeps it', () => {
+    const target = noteWith([]);
+    pasteAtEnd(target, copyAll(noteWith([TOMBSTONE]), 'copy'));
+    expect(rawSources(target)).toEqual([TOMBSTONE]);
+  });
+});
