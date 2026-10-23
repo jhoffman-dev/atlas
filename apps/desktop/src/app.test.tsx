@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type VaultEntry, type VaultPath } from '@dfai/domain';
 import {
@@ -2798,6 +2798,70 @@ describe("a highlight's comment typed, then the window closed (#534)", () => {
     });
     expect(files[BOOK]).toContain('> Typed, then the window closed.');
     expect(files[BOOK]).not.toContain('Lit by Mara.');
+  });
+
+  /*
+   * Verification pass 3 on f4c54b6b: comments kept from the last close are
+   * offered back through `offered`, read while the pane renders; the store is
+   * read into memory only in an effect after it. A pane drawn as the vault
+   * opens — the tab DFAI restores at start — asks before they are read, and
+   * its answer is memoised, so the field never gets them back.
+   */
+  const KEPT = 'Kept from the last close.';
+  function keepComment() {
+    window.localStorage.setItem(
+      `atlas.stranded-comments:${JSON.stringify(location.absolutePath)}:${BOOK}`,
+      JSON.stringify({
+        path: BOOK,
+        comments: [{ id: 'kd0041', comment: KEPT, base: 'Lit by Mara.' }],
+        reason: 'It was not written.',
+        keptAt: Date.now(),
+      }),
+    );
+  }
+  const commentField = async () =>
+    (await screen.findByRole('textbox', {
+      name: 'Comment on this highlight',
+    })) as HTMLTextAreaElement;
+
+  it('puts a kept comment back in its field when the note is opened again', async () => {
+    keepComment();
+    renderBook(closeButton().closing);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    await waitFor(async () => expect((await commentField()).value).toBe(KEPT));
+  });
+
+  it('puts a kept comment back in its field when its tab is restored at start', async () => {
+    renderBook(closeButton().closing);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    await commentField();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    // DFAI quits with the note's tab open, its comment kept; then starts again.
+    cleanup();
+    keepComment();
+    renderBook(closeButton().closing);
+    // The kept comment was read: the notice tells of it.
+    expect(await screen.findByText(new RegExp(KEPT))).toBeDefined();
+    await waitFor(async () => expect((await commentField()).value).toBe(KEPT));
+  });
+
+  it('does not let go of a kept comment its restored tab never put back', async () => {
+    renderBook(closeButton().closing);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    await commentField();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    cleanup();
+    keepComment();
+    renderBook(closeButton().closing);
+    expect(await screen.findByText(new RegExp(KEPT))).toBeDefined();
+    expect((await commentField()).value).not.toBe(KEPT);
+    // The note closes with nothing typed: its fields wrote nothing, and the kept comment was never in one.
+    cleanup();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    const stored = window.localStorage.getItem(
+      `atlas.stranded-comments:${JSON.stringify(location.absolutePath)}:${BOOK}`,
+    );
+    expect(stored).toContain(KEPT);
   });
 });
 
