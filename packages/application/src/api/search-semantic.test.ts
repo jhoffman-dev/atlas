@@ -4,14 +4,15 @@ import { EmbeddingError } from '../embeddings/ports.ts';
 import type {
   SemanticAnswer,
   SemanticQuery,
-  SemanticSearch,
+  SemanticAccess,
 } from '../embeddings/semantic-search.ts';
 
 const PROGRESS = { done: 3, total: 5, failure: null };
 
 function recordingSearch(answer: Partial<SemanticAnswer> = {}) {
   const asked: SemanticQuery[] = [];
-  const search: SemanticSearch = {
+  const search: SemanticAccess = {
+    isOn: () => true,
     search: async (query) => {
       asked.push(query);
       return {
@@ -126,9 +127,30 @@ describe('GET /v1/search?mode=semantic', () => {
     expect(codeOf(none)).toBe('query_failed');
   });
 
+  it('never turns search by meaning on: a vault where it is off answers semantic_off, asking nothing', async () => {
+    const { asked, search } = recordingSearch();
+    const api = apiFixture({ semantic: () => ({ ...search, isOn: () => false }) });
+    const response = await api.send(semanticGet({ q: 'pay' }));
+    expect(response.status).toBe(409);
+    expect(codeOf(response)).toBe('semantic_off');
+    expect(JSON.stringify(bodyOf(response))).toContain('turn it on from ⌘K');
+    expect(asked).toEqual([]);
+  });
+
+  it('refuses a q longer than 1000 characters, and takes one of exactly 1000', async () => {
+    const { asked, search } = recordingSearch();
+    const api = apiFixture({ semantic: () => search });
+    const refused = await api.send(semanticGet({ q: 'x'.repeat(1_001) }));
+    expect(codeOf(refused)).toBe('invalid');
+    expect(JSON.stringify(bodyOf(refused))).toContain('at most 1000 characters');
+    expect((await api.send(semanticGet({ q: 'x'.repeat(1_000) }))).status).toBe(200);
+    expect(asked).toHaveLength(1);
+  });
+
   it('says why when the model cannot answer', async () => {
     const api = apiFixture({
       semantic: () => ({
+        isOn: () => true,
         search: async () => {
           throw new EmbeddingError('the model could not be fetched: offline');
         },

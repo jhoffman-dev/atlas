@@ -1,4 +1,4 @@
-import type { SemanticSearch } from '../embeddings/semantic-search.ts';
+import type { SemanticAccess } from '../embeddings/semantic-search.ts';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { ImagePlacement, LocalTime, VaultPath } from '@dfai/domain';
 import type { HttpPort, SqliteSourcePort } from '../sources/ports.ts';
@@ -132,9 +132,10 @@ export interface ApiRouterDeps {
   /**
    * Semantic search in the vault named, the app's own (P32-02), so the API
    * and the palette share one cache and one build. Left out — or null for a
-   * vault it is not keeping — `mode=semantic` says it is not available.
+   * vault it is not keeping — `mode=semantic` says it is not available; where
+   * it has not been turned on from the app, `semantic_off`.
    */
-  readonly semantic?: (vault: string) => SemanticSearch | null;
+  readonly semantic?: (vault: string) => SemanticAccess | null;
 }
 
 /** What a source refresh reaches outside the vault through. Never the secret store. */

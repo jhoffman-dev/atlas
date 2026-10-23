@@ -46,12 +46,19 @@ export const semanticSearch = defineTool({
     'the budget"; use atlas_search to find exact words. Returns { hits: [{ path, title, text, ' +
     'heading, block, link, score }], progress: { done, total, failure } }, closest first. "link" ' +
     'cites the block — [[Note#^id]], else [[Note#Heading]], else [[Note]] — so quote it in an ' +
-    'answer; "text" is what the block says. The first call in a vault starts building the cache ' +
-    'of meanings in the background (the first ever also fetches a 91 MB model to this Mac); while ' +
-    '"progress.done" is below "progress.total" some notes cannot be found yet. Archived notes are ' +
-    'left out unless includeArchived is true.',
+    'answer; "text" is what the block says. It works only where the person has turned on search by ' +
+    'meaning in the app (⌘K, "By meaning"), which fetches a 91 MB model to their Mac: this tool ' +
+    'never turns it on, and answers semantic_off ("Search by meaning is off on this Mac — turn it ' +
+    'on from ⌘K") where it is off, so tell the person. Once on, the cache of meanings is built in ' +
+    'the background; while "progress.done" is below "progress.total" some notes cannot be found ' +
+    'yet. "q" is at most 1000 characters. Archived notes are left out unless includeArchived is ' +
+    'true.',
   inputSchema: z.object({
-    q: z.string().min(1).describe('The question or phrase, in any words.'),
+    q: z
+      .string()
+      .min(1)
+      .max(1_000)
+      .describe('The question or phrase, in any words; at most 1000 characters.'),
     limit: limit.optional(),
     includeArchived: includeArchived.optional(),
   }),

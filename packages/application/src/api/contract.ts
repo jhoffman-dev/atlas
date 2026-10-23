@@ -97,6 +97,11 @@ export type ApiErrorCode =
   | 'exists'
   /** No vault is open in DFAI. */
   | 'no_vault'
+  /**
+   * `mode=semantic` on a vault where search by meaning has not been turned on
+   * from the app: the API never turns it on, since that fetches a 91 MB model.
+   */
+  | 'semantic_off'
   /** The SQL was rejected by the read-only connection, or ran past its budget. */
   | 'query_failed'
   /** The artifact's page could not be pictured here — another platform, a page that never loaded. */
@@ -140,6 +145,7 @@ export const API_ERROR_STATUS: Readonly<Record<ApiErrorCode, number>> = {
   unsaved_in_app: 409,
   exists: 409,
   no_vault: 503,
+  semantic_off: 409,
   query_failed: 422,
   thumbnail_failed: 422,
   internal: 500,

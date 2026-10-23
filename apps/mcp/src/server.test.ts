@@ -833,6 +833,7 @@ describe('tools/call → REST', () => {
     ['atlas_search', { q: 'x', includeArchived: 'yes' }],
     ['atlas_semantic_search', {}],
     ['atlas_semantic_search', { q: '' }],
+    ['atlas_semantic_search', { q: 'x'.repeat(1_001) }],
     ['atlas_semantic_search', { q: 'x', limit: 0 }],
     ['atlas_semantic_search', { q: 'x', includeArchived: 'yes' }],
     ['atlas_run_query', {}],
