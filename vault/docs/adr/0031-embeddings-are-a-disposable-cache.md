@@ -186,3 +186,56 @@ grows from 18.1 MB to 22.1 MB. Metal was not tried: the CPU met the budget.
   off by default.
 - Changing the model means a new pinned revision and digests, and every cached
   vector is rebuilt: vectors from two models are not comparable.
+
+## Amendment — the cache, the chunks and the build (P32-02, 2026-10-23)
+
+**The cache is a file of its own**, `.atlas-cache/embeddings.sqlite`, beside
+the index rather than a table in `index.sqlite`. Both are derived and
+disposable; what differs is how often each is thrown away. The index has
+changed shape twenty times and is discarded whenever it does, which costs
+seconds; discarding the embeddings with it would cost minutes of model time
+for a change that never touched a vector. A file of its own also keeps 384
+floats a block out of the index that queries a note writes are run against
+(ADR-0019), and gives the build a lock of its own, so its writes never wait
+behind the index's on the typing path. It holds three tables: `meta` (the
+generation), `notes` (each note's path, the digest of its text, its title)
+and `block_embeddings`, keyed by path and ordinal, with each block's digest,
+`^id`, heading, excerpt and vector (null when the model would not read it,
+so it is known and not sent again). The **generation** is the chunking rules'
+version, named by TypeScript (`chunks-1`), joined in Rust with the model's
+pinned revision: a cache of another generation is discarded on open, so a new
+model or new rules rebuild it, as the Consequences above require. Rust stores
+and reads back; one command loads the whole cache as bytes (a JSON header,
+then the vectors as little-endian f32s) and the blocks' words are read only
+for the hits a search shows.
+
+**A chunk is one block as a link names it** (`blockChunks`, domain): a
+heading, a paragraph, a list item's own lines (nested items are chunks of
+their own), and a quote, callout, table or piece of code whole. Query blocks,
+raw markdown, rules and embeds are passed over, and so is a heading that only
+repeats the note's title. Each chunk is embedded as `title`, the heading it
+sits under, then its words, so a block is found by what its note and section
+are about; a renamed note or heading therefore re-embeds its blocks. A block
+over 1,200 characters is cut at spaces; one the model still refuses as too
+long is halved, and one it cannot read is kept without a vector. Its digest
+is 64 bits (`passageDigest`): the 32-bit `digestOf` would give two of 50,000
+blocks the same digest about one time in three. A block whose digest the cache
+already holds is never sent to the model again — moved, unchanged, or
+repeated in another note.
+
+**Which notes**: the user's own space, Archive included (a search leaves it
+out unless asked, as the word search does); never `.atlas/` or a hidden
+folder (`isEmbeddableNote`).
+
+**The build** runs in the window, a note per idle moment, its writes whole
+notes at a time, so a quit at any point leaves only notes it had not reached;
+the next build starts from the difference between the index's digests and the
+cache's (`embeddingWork`). After that the change feed (P28-03) keeps it in
+step. Nothing is built until semantic search is first used in a vault on this
+Mac — the first use fetches the 91 MB model, which is the user's to ask for —
+and from then on the build resumes at each launch once the index is ready.
+
+**Ranking** is brute-force cosine in TypeScript (`topByCosine`) over a copy
+of the cache held in the window; at 50,000 blocks it was measured in the PR
+for P32-02 (#33). The model's vectors are unit length, so cosine is a dot
+product.

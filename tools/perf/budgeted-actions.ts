@@ -31,6 +31,8 @@ export const BUDGETED_ACTIONS = [
   'Open All highlights (20,000)',
   'Open a 500-page PDF',
   'Scroll a 500-page PDF to its middle',
+  // Last on the main fixture: once on, the cache of meanings follows every later write (P32-02).
+  '⌘K by meaning + 5 keys',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];

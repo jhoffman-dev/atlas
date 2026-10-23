@@ -264,6 +264,14 @@
       "commits": 5,
       "renders": 41,
       "calls": {}
+    },
+    "⌘K by meaning + 5 keys": {
+      "commits": 12,
+      "renders": 392,
+      "calls": {
+        "embed": 7,
+        "embedding_cache_excerpts": 7
+      }
     }
   }
 }

@@ -1,3 +1,4 @@
+import type { SemanticSearch } from '../embeddings/semantic-search.ts';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { ImagePlacement, LocalTime, VaultPath } from '@dfai/domain';
 import type { HttpPort, SqliteSourcePort } from '../sources/ports.ts';
@@ -128,6 +129,12 @@ export interface ApiRouterDeps {
   readonly googleCalendar: Pick<GoogleCalendarPort, 'status'>;
   /** The IANA zone this Mac keeps time in (`America/Los_Angeles`): a sent meeting's default (#93). */
   readonly timeZone: () => string;
+  /**
+   * Semantic search in the vault named, the app's own (P32-02), so the API
+   * and the palette share one cache and one build. Left out — or null for a
+   * vault it is not keeping — `mode=semantic` says it is not available.
+   */
+  readonly semantic?: (vault: string) => SemanticSearch | null;
 }
 
 /** What a source refresh reaches outside the vault through. Never the secret store. */

@@ -53,3 +53,4 @@ export * from './home-folders/index.ts';
 export * from './highlights/index.ts';
 export * from './research/index.ts';
 export * from './reader/index.ts';
+export * from './embeddings/index.ts';

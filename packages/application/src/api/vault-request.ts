@@ -1,4 +1,5 @@
 import type { ImagePlacement, VaultPath } from '@dfai/domain';
+import type { SemanticSearch } from '../embeddings/semantic-search.ts';
 import type { ThumbnailQueue } from '../artifacts/thumbnail-queue.ts';
 import type { IndexPort } from '../index/ports.ts';
 import { refreshIndex } from '../index/refresh-index.ts';
@@ -68,6 +69,8 @@ export interface VaultRequest {
   readonly automationClock: AutomationClockState | null;
   /** The IANA zone this Mac kept time in as the request arrived. */
   readonly timeZone: string;
+  /** Semantic search in this request's vault; null when the app offers none (P32-02). */
+  readonly semantic: SemanticSearch | null;
   /** Refuses with `no_vault` once the vault this request arrived for is no longer open. */
   readonly assertStillOpen: () => void;
   /**
@@ -117,6 +120,7 @@ export function vaultRequest({
     rng: deps.rng,
     automationClock: deps.automationClock.forVault(vault),
     timeZone: deps.timeZone(),
+    semantic: deps.semantic?.(vault) ?? null,
     assertStillOpen: () => {
       if (deps.host.currentVault()?.absolutePath !== vault) {
         throw noVault('The vault this request was for is no longer open');

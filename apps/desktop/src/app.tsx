@@ -184,6 +184,7 @@ import {
 import { PEEK_EDITOR, PeekLayer } from './panes/peek-container.tsx';
 import { leavePeek } from './panes/peek-moves.ts';
 import { SearchPaletteSlot } from './search-palette-slot.tsx';
+import { useSemanticSearch, type SemanticPorts } from './semantic/use-semantic-search.ts';
 import { linkPlacesOf } from './reader/link-places.ts';
 import { movingEditorsIn, openNotesIn } from './panes/open-notes.ts';
 import { useVaultEntries, type VaultEntryPorts } from './vault/use-vault-entries.ts';
@@ -414,6 +415,7 @@ function AppWindow({
   vault: vaultPorts,
   notes: notePorts,
   index: indexPorts,
+  semantic: semanticPorts,
   sources,
   links,
   snapshot,
@@ -430,6 +432,8 @@ function AppWindow({
   appInfo: AppInfoPort;
   vault: OnHost<VaultPorts>;
   notes: OnHost<NotePorts>;
+  /** Semantic search's model, cache and idle moments (P32-02); left out, it is not offered. */
+  semantic?: SemanticPorts;
   index: OnHost<IndexPorts>;
   /** Feeds, SQLite files and the secrets feeds send. */
   sources: SourcePorts;
@@ -593,6 +597,15 @@ function AppWindow({
   useVaultReads({ reads, changes: noteChanges, index: indexStore, vaultKey });
   const indexReady = useIndexReady(indexStore, vaultKey);
   const indexFailedWith = useIndexFailure(indexStore, vaultKey);
+  const semantic = useSemanticSearch({
+    ports: semanticPorts,
+    vault: vaultKey,
+    fs: notes.fs,
+    markdown: notes.markdown,
+    index: index.index,
+    changes: noteChanges,
+    indexReady,
+  });
 
   // Anything that edits the vault from outside — Obsidian, a sync client — should
   // show up here without a restart. The echo of the app's own writes is left
@@ -728,6 +741,8 @@ function AppWindow({
   const apiIndexRefresh = useSteadyCallback((recheck: readonly VaultPath[]) =>
     refresh({ recheck }),
   );
+  // Steady too: the engine of the vault open now, for a request that names it.
+  const apiSemantic = useSteadyCallback((vault: string) => (vault === vaultKey ? semantic : null));
   const apiDeps = useMemo<ApiRouterDeps>(
     () => ({
       host: apiHost,
@@ -754,6 +769,8 @@ function AppWindow({
       activity: activityLog,
       googleCalendar,
       timeZone: localTimeZone,
+      // The palette's own engine, so the API and the app share one cache and one build.
+      semantic: apiSemantic,
     }),
     [
       apiHost,
@@ -773,6 +790,7 @@ function AppWindow({
       apiAutomations.clock,
       activityLog,
       googleCalendar,
+      apiSemantic,
     ],
   );
   // A write from another tool shows up the way one made here does.
@@ -2424,6 +2442,7 @@ function AppWindow({
                 store={overlays}
                 workspace={workspace}
                 index={index.index}
+                semantic={semantic}
                 commandsFor={paletteCommandsFor}
                 offerFor={paletteOffersFor}
                 indexStatus={indexStore}

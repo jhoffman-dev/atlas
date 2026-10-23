@@ -255,6 +255,31 @@ export interface ApiSearchHit {
   readonly archived?: true;
 }
 
+/** A block found by meaning (`/v1/search?mode=semantic`, P32-02), with the link that cites it. */
+export interface ApiSemanticHit {
+  readonly path: string;
+  readonly title: string;
+  /** What the block says, cut to an excerpt. */
+  readonly text: string;
+  /** The heading the block sits under, or null. */
+  readonly heading: string | null;
+  /** The block's `^id` when it has one, or null. */
+  readonly block: string | null;
+  /** `[[Note#^id]]`, else `[[Note#Heading]]`, else `[[Note]]`: what to cite. */
+  readonly link: string;
+  /** Cosine similarity to the question, from -1 to 1; higher is closer. */
+  readonly score: number;
+  readonly archived?: true;
+}
+
+/** How far the embeddings cache is built: while `done < total`, notes not yet embedded cannot be found. */
+export interface ApiSemanticProgress {
+  readonly done: number;
+  readonly total: number;
+  /** Why the build stopped, when it did; the next search starts it again. */
+  readonly failure: string | null;
+}
+
 export interface ApiTypeProperty {
   readonly key: string;
   readonly kind: string;
@@ -1449,6 +1474,7 @@ export type ApiSuccessBody =
       readonly total: number;
     }
   | { readonly hits: readonly ApiSearchHit[] }
+  | { readonly hits: readonly ApiSemanticHit[]; readonly progress: ApiSemanticProgress }
   | { readonly types: readonly ApiType[] }
   | { readonly views: readonly ApiView[] }
   | {

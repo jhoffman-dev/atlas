@@ -30,6 +30,19 @@ function highlight(snippet: string) {
 }
 
 /**
+ * "By meaning": blocks found by what they mean rather than by their words
+ * (P32-02), and how that search stands.
+ */
+export interface MeaningToggle {
+  readonly on: boolean;
+  readonly onChange: (on: boolean) => void;
+  /** How far the cache of meanings is built, as the hits on screen were found; null before any. */
+  readonly progress: { readonly done: number; readonly total: number } | null;
+  /** Why the search by meaning could not run, or null. */
+  readonly problem: string | null;
+}
+
+/**
  * Full-text search over the vault, driven from the keyboard.
  *
  * Mounted only while it is open, so the dialog is held open and closing is the
@@ -52,6 +65,7 @@ export function SearchPalette({
   commands = [],
   onCommand = () => undefined,
   archived,
+  meaning,
 }: {
   query: string;
   hits: readonly SearchHit[];
@@ -68,7 +82,10 @@ export function SearchPalette({
   onCommand?: (id: string) => void;
   /** "Include archived": whether the search reaches the Archive too; left out, it is not offered. */
   archived?: ArchivedToggle;
+  /** "By meaning": left out, it is not offered. */
+  meaning?: MeaningToggle;
 }) {
+  const byMeaning = meaning?.on === true;
   const finalFocus = useReturnFocus(fallbackFocus);
   // Steady, so a command still listed after a key is typed is not drawn again for it.
   const runCommand = useSteadyCallback(onCommand);
@@ -124,16 +141,27 @@ export function SearchPalette({
                 <Key>esc</Key>
               </span>
             </div>
-            {archived !== undefined && (
-              <label className="palette__scope">
-                <Toggle
-                  label="Include archived"
-                  checked={archived.included}
-                  onChange={archived.onChange}
-                />
-                <span aria-hidden="true">Include archived</span>
-              </label>
+            {(archived !== undefined || meaning !== undefined) && (
+              <div className="palette__scope">
+                {archived !== undefined && (
+                  <label className="palette__switch">
+                    <Toggle
+                      label="Include archived"
+                      checked={archived.included}
+                      onChange={archived.onChange}
+                    />
+                    <span aria-hidden="true">Include archived</span>
+                  </label>
+                )}
+                {meaning !== undefined && (
+                  <label className="palette__switch">
+                    <Toggle label="By meaning" checked={meaning.on} onChange={meaning.onChange} />
+                    <span aria-hidden="true">By meaning</span>
+                  </label>
+                )}
+              </div>
             )}
+            {byMeaning && <MeaningNote meaning={meaning as MeaningToggle} />}
 
             {query.trim() !== '' && hits.length === 0 && commands.length === 0 ? (
               <p className="palette__empty">Nothing matches.</p>
@@ -154,6 +182,7 @@ export function SearchPalette({
                       hit={hit}
                       selected={index + commands.length === selected}
                       onPick={onPick}
+                      byMeaning={byMeaning}
                     />
                   </li>
                 ))}
@@ -218,21 +247,40 @@ function pickHit(hit: SearchHit, onPick: (path: string, block?: string) => void)
 }
 
 /**
+ * What the palette says of a search by meaning: why it could not run, or that
+ * the cache of meanings is still being built, so a missing note is expected.
+ */
+function MeaningNote({ meaning }: { meaning: MeaningToggle }) {
+  const { problem, progress } = meaning;
+  if (problem !== null)
+    return <p className="palette__note">Search by meaning is not available: {problem}</p>;
+  if (progress === null || progress.done >= progress.total) return null;
+  return (
+    <p className="palette__note" role="status">
+      Still reading notes for meaning: {progress.done} of {progress.total}.
+    </p>
+  );
+}
+
+/**
  * One result: what kind of note it is and where it lives (never `.atlas/…`),
  * its title, and the words around the match. A highlight says so, and which
- * source it is in, in place of the folder.
+ * source it is in, in place of the folder; a block found by meaning shows
+ * what the block says.
  */
 function Hit({
   hit,
   selected,
   onPick,
+  byMeaning,
 }: {
   hit: SearchHit;
   selected: boolean;
   onPick: (path: string, block?: string) => void;
+  byMeaning: boolean;
 }) {
   const place = placeCrumb(createVaultPath(hit.path));
-  const isHighlight = hit.block !== undefined;
+  const isHighlight = hit.block !== undefined && !byMeaning;
   return (
     <button
       type="button"
