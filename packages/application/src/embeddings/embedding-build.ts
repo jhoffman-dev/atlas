@@ -93,7 +93,9 @@ interface Work {
 export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
   const queue = new Map<string, Work>();
   // What this build has learned about chunks the model found too long, for as long as it lives.
-  const session: Session = { halved: new Map(), cautious: false };
+  const session: Session = { halved: new Map(), cautious: 0 };
+  // Each note the write under way has read, by the digest it is embedded at (null: it is being forgotten).
+  const reading = new Map<string, string | null>();
   let asked = 0;
   let done = 0;
   let failure: string | null = null;
@@ -115,11 +117,12 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
   const run = async () => {
     try {
       while (!stopped && queue.size > 0)
-        await oneWrite({ deps, queue, session, isStopped: () => stopped, countDone });
+        await oneWrite({ deps, queue, session, reading, isStopped: () => stopped, countDone });
     } catch (cause) {
       failure = messageWithoutPaths(cause);
       damaged = cause instanceof CacheDamagedError;
     } finally {
+      reading.clear();
       running = null;
       if (queue.size === 0) done = 0;
       tell();
@@ -148,7 +151,10 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
       if (deps.blocks.note(change.path) !== undefined || queued !== undefined)
         enqueue(change.path, 'forget');
     } else if (
-      deps.blocks.note(change.path)?.digest !== change.digest ||
+      // A note being written is compared with what is being written, not with what is held.
+      (reading.has(change.path)
+        ? reading.get(change.path)
+        : deps.blocks.note(change.path)?.digest) !== change.digest ||
       queued?.kind === 'forget'
     ) {
       // Back before its forget was written (or while it was): read again, whatever the cache holds.
@@ -187,8 +193,11 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
 /** What a build learns as it goes, and keeps for as long as it lives. */
 interface Session {
   readonly halved: HalvedChunks;
-  /** A write of several notes failed: the next are written one at a time, to find the one that cannot be. */
-  cautious: boolean;
+  /**
+   * A write of several notes failed: this many notes are written one at a
+   * time, to find the one that cannot be, before notes are written together again.
+   */
+  cautious: number;
 }
 
 /**
@@ -201,16 +210,19 @@ async function oneWrite({
   deps,
   queue,
   session,
+  reading,
   isStopped,
   countDone,
 }: {
   deps: EmbeddingBuildDeps;
   queue: Map<string, Work>;
   session: Session;
+  reading: Map<string, string | null>;
   isStopped: () => boolean;
   countDone: (count: number) => void;
 }): Promise<void> {
-  const most = session.cautious ? 1 : NOTES_PER_WRITE;
+  reading.clear();
+  const most = session.cautious > 0 ? 1 : NOTES_PER_WRITE;
   const taken: [string, Work][] = [];
   const forget: string[] = [];
   const read: NotePassages[] = [];
@@ -220,11 +232,13 @@ async function oneWrite({
     taken.push([path, work]);
     if (work.kind === 'forget') {
       forget.push(path);
+      reading.set(path, null);
       continue;
     }
     await deps.idle.idle();
     if (isStopped()) return;
     const note = await readNote(deps, path);
+    reading.set(path, note?.digest ?? null);
     if (note === null) forget.push(path);
     else {
       read.push(note);
@@ -236,6 +250,7 @@ async function oneWrite({
   await write(deps, { notes, forget, session });
   // A note asked for again while this write was made stays queued: it changed since it was read.
   for (const [path, work] of taken) if (queue.get(path) === work) queue.delete(path);
+  session.cautious = Math.max(0, session.cautious - taken.length);
   countDone(taken.length);
 }
 
@@ -325,14 +340,15 @@ async function write(
   try {
     await deps.cache.put(notes, scope);
   } catch (cause) {
+    // A damaged cache was made again empty: no retry onto it; the build stops and starts over.
+    if (cause instanceof CacheDamagedError) throw cause;
     if (notes.length > 1) {
-      session.cautious = true;
+      session.cautious = notes.length + forget.length;
       throw cause;
     }
     written = [await putAlone(deps, notes[0] as NoteToCache)];
   }
   for (const note of written) deps.blocks.put(heldNote(note));
-  session.cautious = false;
 }
 
 /**
@@ -347,7 +363,8 @@ async function putAlone(deps: EmbeddingBuildDeps, note: NoteToCache): Promise<No
   try {
     await deps.cache.put([note], scope);
     return note;
-  } catch {
+  } catch (cause) {
+    if (cause instanceof CacheDamagedError) throw cause;
     // Why it is safe: the bare note below is written instead, and a cache that fails that throws.
     const bare = { ...note, blocks: [] };
     await deps.cache.put([bare], scope);

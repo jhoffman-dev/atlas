@@ -121,6 +121,24 @@ describe('a block whose digest is cached is not embedded again', () => {
     // The PR: "A block whose digest is already cached is never embedded again, even if it moved".
     expect(embedder.passages().slice(before)).toEqual([]);
   });
+
+  it('a move as a sync reports it — the new path added before the old removed — is not sent again', async () => {
+    const { engine, vault, embedder } = setUp({ 'Projects/Standup.md': STANDUP });
+    await engine.start();
+    await engine.settled();
+    const before = embedder.passages().length;
+    vault.files.delete('Projects/Standup.md');
+    vault.files.set('Areas/Standup.md', STANDUP);
+    // `noteChanges` lists what was added before what was removed.
+    engine.hear({
+      vault: VAULT,
+      changes: [added('Areas/Standup.md', STANDUP), removed('Projects/Standup.md', STANDUP)],
+    });
+    await engine.settled();
+    expect(embedder.passages().slice(before)).toEqual([]);
+    const { hits } = await engine.search({ query: 'payday', limit: 100 });
+    expect(new Set(hits.map((hit) => hit.path))).toEqual(new Set(['Areas/Standup.md']));
+  });
 });
 
 describe('the change feed never leaves the cache out of step with the vault', () => {
@@ -392,6 +410,36 @@ describe('a cache the host found torn mid-session is started over from the notes
     const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
     expect(hits.map((hit) => hit.path)).toContain('Home/Garden.md');
     expect(engine.progress().failure).toBeNull();
+  });
+
+  it('a cache torn on every write stops the build with a stated failure, which a search does not resume', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async put() {
+        await inner.clear();
+        throw new CacheDamagedError('the embeddings cache was damaged and was made again');
+      },
+    };
+    const told: (string | null)[] = [];
+    const { engine, embedder } = setUp({ 'Home/Garden.md': GARDEN }, { cache });
+    engine.subscribe((progress) => told.push(progress.failure));
+    await engine.start();
+    for (let at = 0; at < 20; at += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await engine.settled();
+    }
+    const failure = engine.progress().failure;
+    expect(failure).toMatch(/kept being damaged/);
+    expect(told.at(-1)).toBe(failure);
+    // The first build and two starts over, each sending the one note once.
+    expect(embedder.passages()).toHaveLength(3);
+
+    const sent = embedder.passages().length;
+    await engine.search({ query: 'honey hive', limit: 100 });
+    await engine.settled();
+    expect(embedder.passages().length - sent).toBe(0);
+    expect(engine.progress().failure).toBe(failure);
   });
 });
 

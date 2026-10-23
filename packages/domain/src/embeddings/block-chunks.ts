@@ -158,26 +158,30 @@ function notePieces(doc: EditorDocument, title: string): Piece[] {
   doc.content.forEach((block, index) => {
     const at = [index];
     if (block.type === 'heading') {
-      const words = squeezed(comments.shown(lineText(block)));
+      const words = squeezed(lineText(block, comments));
       if (words === '') return;
       heading = words;
       const anchor = ownAnchor(block, at);
       if (words !== title || anchor !== null) pieces.push({ words, anchor, heading });
     } else if (LISTS.has(block.type)) {
-      for (const item of listItems(block, at))
-        pieces.push({
-          words: squeezed(comments.shown(item.words)),
-          anchor: ownAnchor(item.node, item.at),
-          heading,
-        });
+      for (const item of listItems(block, at, comments))
+        pieces.push({ words: item.words, anchor: ownAnchor(item.node, item.at), heading });
     } else if (WHOLE.has(block.type)) {
-      // Code is code: a `%%` in it is not a comment.
-      const own = wordsOf(block);
-      const words = block.type === 'codeBlock' ? own : squeezed(comments.shown(own));
-      pieces.push({ words, anchor: ownAnchor(block, at), heading });
+      pieces.push({ words: wordsOf(block, comments), anchor: ownAnchor(block, at), heading });
     }
   });
   return pieces.filter((piece) => piece.words !== '');
+}
+
+/** What of a note's text is shown, read in order; the state carries from one call to the next. */
+interface CommentFilter {
+  /** Text, with what a comment covers left out; a `%%` in it opens or closes one. */
+  shown(text: string): string;
+  /**
+   * Code (a code block or an inline code span): a `%%` in it is not a mark
+   * (ADR-0043 §8), but an open comment hides it whole (ADR-0031).
+   */
+  code(text: string): string;
 }
 
 /**
@@ -185,9 +189,10 @@ function notePieces(doc: EditorDocument, title: string): Piece[] {
  * read: a comment may open in one block and close in a later one, and one
  * never closed hides all that follows.
  */
-function commentFilter(): { shown(text: string): string } {
+function commentFilter(): CommentFilter {
   let hidden = false;
   return {
+    code: (text) => (hidden ? '' : text),
     shown(text) {
       let kept = '';
       let from = 0;
@@ -211,36 +216,49 @@ const COMMENT_MARK = '%%';
 function listItems(
   list: EditorNode,
   at: NodePath,
+  comments: CommentFilter,
 ): { node: EditorNode; at: NodePath; words: string }[] {
   const found: { node: EditorNode; at: NodePath; words: string }[] = [];
   (list.content ?? []).forEach((item, index) => {
     if (!ITEMS.has(item.type)) return;
     const itemAt = [...at, index];
     const own = (item.content ?? []).filter((child) => !LISTS.has(child.type));
-    found.push({ node: item, at: itemAt, words: squeezed(own.map(wordsOf).join(' ')) });
+    const words = squeezed(own.map((child) => wordsOf(child, comments)).join(' '));
+    found.push({ node: item, at: itemAt, words });
     (item.content ?? []).forEach((child, childIndex) => {
-      if (LISTS.has(child.type)) found.push(...listItems(child, [...itemAt, childIndex]));
+      if (LISTS.has(child.type)) found.push(...listItems(child, [...itemAt, childIndex], comments));
     });
   });
   return found;
 }
 
 /**
- * A node's words as they read, with a space between blocks and table cells. A
- * callout says its title first.
+ * A node's shown words as they read, with a space between blocks and table
+ * cells. A callout says its title first.
  */
-function wordsOf(node: EditorNode): string {
-  if (INLINE.has(node.type) || node.content === undefined) return squeezed(lineText(node));
-  const body = node.content.map(wordsOf);
-  const title = node.type === 'callout' ? node.attrs?.['title'] : undefined;
-  return squeezed((typeof title === 'string' ? [title, ...body] : body).join(' '));
+function wordsOf(node: EditorNode, comments: CommentFilter): string {
+  if (node.type === 'codeBlock') return comments.code(squeezed(nodeText(node)));
+  if (INLINE.has(node.type) || node.content === undefined)
+    return squeezed(lineText(node, comments));
+  const rawTitle = node.type === 'callout' ? node.attrs?.['title'] : undefined;
+  const title = typeof rawTitle === 'string' ? [comments.shown(rawTitle)] : [];
+  const body = node.content.map((child) => wordsOf(child, comments));
+  return squeezed([...title, ...body].join(' '));
 }
 
-/** A line's text as `nodeText` reads it, but an embed (`![[Other]]`) is another note's words, not this one's. */
-function lineText(node: EditorNode): string {
+/**
+ * A line's shown text as `nodeText` reads it, but an embed (`![[Other]]`) is
+ * another note's words, not this one's.
+ */
+function lineText(node: EditorNode, comments: CommentFilter): string {
   if (node.type === 'wikiLink' && node.attrs?.['embed'] === true) return '';
-  if (node.content === undefined || node.type === 'text') return nodeText(node);
-  return node.content.map(lineText).join('');
+  if (node.type === 'text' && isInlineCode(node)) return comments.code(nodeText(node));
+  if (node.content === undefined || node.type === 'text') return comments.shown(nodeText(node));
+  return node.content.map((child) => lineText(child, comments)).join('');
+}
+
+function isInlineCode(node: EditorNode): boolean {
+  return (node.marks ?? []).some((mark) => mark.type === 'code');
 }
 
 /** Words cut at spaces into runs of at most `most` characters; a longer word is cut where it must be. */

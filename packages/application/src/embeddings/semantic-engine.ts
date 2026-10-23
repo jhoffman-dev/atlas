@@ -15,7 +15,12 @@ import {
   type NoteChunker,
 } from './embedding-build.ts';
 import { inlineChunker } from './note-passages.ts';
-import type { EmbeddingCachePort, EmbeddingPort, IdlePort } from './ports.ts';
+import {
+  CacheDamagedError,
+  type EmbeddingCachePort,
+  type EmbeddingPort,
+  type IdlePort,
+} from './ports.ts';
 import { createSemanticBlocks, type SemanticBlocks } from './semantic-blocks.ts';
 import {
   CacheMismatchError,
@@ -28,6 +33,15 @@ import {
 export const EMBEDDING_GENERATION = `chunks-${CHUNKER_VERSION}`;
 
 const NOT_STARTED: BuildProgress = { done: 0, total: 0, failure: null };
+
+/**
+ * How many times one session throws the cache away and starts over. A disk
+ * that tears every write would otherwise clear it and send every note to the
+ * model again without end; the next time, the build stops and says so.
+ */
+const MOST_STARTS_OVER = 2;
+const GAVE_UP =
+  'The embeddings cache kept being damaged, so semantic search stopped building it. Open the vault again to try again.';
 
 /**
  * Whether semantic search has been used in a vault on this Mac, so its cache
@@ -84,6 +98,8 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
   let opened: Promise<{ blocks: SemanticBlocks; build: EmbeddingBuild }> | null = null;
   let build: EmbeddingBuild | null = null;
   let stopped = false;
+  let startsOver = 0;
+  let gaveUp = false;
   const listeners = new Set<(progress: BuildProgress) => void>();
   const questions: QuestionVectors = { last: null };
   const chunker = deps.chunker ?? inlineChunker(deps.markdown);
@@ -143,12 +159,21 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
     const { build: stale } = await opening();
     stale.stop();
     await stale.settled();
+    if (startsOver >= MOST_STARTS_OVER) {
+      gaveUp = true;
+      onProgress(progress());
+      return;
+    }
+    startsOver += 1;
     await deps.cache.clear();
     opened = null;
     build = null;
     await start();
   };
-  const progress = () => build?.progress() ?? NOT_STARTED;
+  const progress = (): BuildProgress => {
+    const now = build?.progress() ?? NOT_STARTED;
+    return gaveUp ? { ...now, failure: GAVE_UP } : now;
+  };
   const start = async () => {
     deps.optIn.turnOn(deps.vault);
     const { build: started } = await opening();
@@ -182,7 +207,8 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
           asked,
         );
       } catch (cause) {
-        if (!(cause instanceof CacheMismatchError)) throw cause;
+        if (!(cause instanceof CacheMismatchError || cause instanceof CacheDamagedError))
+          throw cause;
         await rebuild();
         return { hits: [], progress: progress() };
       }
