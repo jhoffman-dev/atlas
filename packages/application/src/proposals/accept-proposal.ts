@@ -25,6 +25,7 @@ import {
 } from '../meetings/make-task-from-meeting.ts';
 import { readMadeItems } from '../meetings/made-items.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
+import { refuseOutdatedTerm } from './accept-term.ts';
 import { pointedAtItsMeeting, relationChanged } from './proposal-meeting.ts';
 import {
   archiveProposal,
@@ -107,6 +108,7 @@ export async function acceptProposalNote({
   const meeting = await pointedAtItsMeeting({ ports, proposal: asked, notePaths });
   const proposal = spelledAsVault(meeting, notePaths);
   await refuseAlreadyMade(ports, { file: { ...file, path }, proposal, notePaths, today, via });
+  await refuseOutdatedTerm(ports, { proposal, notePaths });
   const headline = proposalHeadline(proposal);
   const wrote = await writeAccepted(ports, { proposal, notePaths, today, headline });
   await stampProposal(

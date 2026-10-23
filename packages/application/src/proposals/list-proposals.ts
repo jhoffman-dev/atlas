@@ -107,7 +107,7 @@ export async function listProposals({
  * one folder is read, not the whole vault: the sidebar counts it on every
  * change.
  */
-async function proposalsFolderOf(fs: VaultFsPort): Promise<VaultPath | null> {
+export async function proposalsFolderOf(fs: VaultFsPort): Promise<VaultPath | null> {
   let folder: VaultPath = VAULT_ROOT;
   for (const name of vaultPathSegments(createVaultPath(PROPOSALS_FOLDER))) {
     const wanted = foldedVaultPath(name);

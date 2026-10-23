@@ -385,7 +385,7 @@ describe('the turn an item cites', () => {
 
 describe('an answer that does not read', () => {
   it.each([
-    [{ kind: 'idea' }, 'Its kind is not one of task, waiting, decision, follow-up.'],
+    [{ kind: 'idea' }, 'Its kind is not one of task, waiting, decision, follow-up, term.'],
     [{ title: '  ' }, 'It has no "title".'],
     [{ owner: 7 }, 'Its "owner" is not text.'],
     [{ owner: 'x'.repeat(121) }, 'Its "owner" is longer than a name: at most 120.'],
@@ -413,7 +413,7 @@ describe('an answer that does not read', () => {
     expect(read([item({ why: 'because' })])).toEqual({
       ok: false,
       problem:
-        'Item 1: It has “why”, which is not one of kind, title, owner, due, source_block, confidence, asked_by_owner.',
+        'Item 1: It has “why”, which is not one of kind, title, owner, due, source_block, confidence, asked_by_owner, heard.',
     });
   });
 

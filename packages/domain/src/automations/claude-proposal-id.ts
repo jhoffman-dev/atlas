@@ -11,6 +11,7 @@
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { NewProposal } from '../proposals/new-proposal.ts';
 import { digestOf } from '../sources/merge.ts';
+import { glossaryKey } from '../terms/spelling-folds.ts';
 import type { CheckedProposal } from './proposal-schema.ts';
 
 /**
@@ -23,6 +24,13 @@ import type { CheckedProposal } from './proposal-schema.ts';
  * What tells two items of one title on one turn apart (`distinguishedBy`, who
  * they concern) is part of it. Two hashes of the same text, so a collision (a 32-bit hash alone would meet
  * one in a large vault) needs both to meet.
+ *
+ * A term a meeting schema suggests (#19, a schema whose proposals are shared
+ * across rules) is the glossary's, not a meeting's: it is known by its right
+ * spelling alone (`glossaryKey`: case, a possessive and Latin accents aside,
+ * never a plural), so a term proposed once — and one rejected — is never
+ * proposed again, by a re-run or by the next meeting that mishears it. A
+ * term any other schema proposes keeps the rule- and citation-scoped id.
  */
 export function claudeProposalId({
   rule,
@@ -31,6 +39,9 @@ export function claudeProposalId({
   rule: string;
   proposal: CheckedProposal;
 }): string {
+  if (proposal.kind === 'term' && proposal.sharedAcrossRules) {
+    return idOf(['', 'term', glossaryKey(proposal.payload.title)].join('\n'));
+  }
   const title = proposal.payload.title.replace(/\s+/g, ' ').trim().toLowerCase();
   const { note, meeting, block } = proposal.cites;
   // JSON, so no spelling of one part can be taken for another's.
@@ -40,7 +51,10 @@ export function claudeProposalId({
       : JSON.stringify(['meeting', meeting.provider, meeting.externalId.trim()]);
   // A schema whose proposals are the meeting's, not the rule's, leaves the rule out: two rules make each once.
   const scope = proposal.sharedAcrossRules ? '' : rule;
-  const what = [scope, proposal.kind, title, proposal.distinguishedBy, cited, block].join('\n');
+  return idOf([scope, proposal.kind, title, proposal.distinguishedBy, cited, block].join('\n'));
+}
+
+function idOf(what: string): string {
   return `claude-${digestOf(`a${what}`)}${digestOf(`b${what}`)}`;
 }
 
