@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import mcpPackage from '../package.json' with { type: 'json' };
 import type { AtlasClient } from './client.ts';
 import { archiveTools } from './tools/archive.ts';
+import { assistantTools } from './tools/assistant.ts';
 import { artifactTools } from './tools/artifacts.ts';
 import { automationTools } from './tools/automations.ts';
 import { checklistTools } from './tools/checklists.ts';
@@ -48,6 +49,7 @@ export const ATLAS_TOOLS = [
   ...reviewTools,
   ...automationTools,
   ...meetingTools,
+  ...assistantTools,
   ...proposalTools,
 ];
 

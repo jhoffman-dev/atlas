@@ -210,6 +210,10 @@ describe('linkedSectionPlans', () => {
     );
     expect(notes.recentQuery).toContain('AND modified >= @-30d');
     expect(notes.showsType).toBe(true);
+    // Counted from a day it is handed, not from the index's today: the 30 days up to and including it.
+    expect(notes.recentQueryOn?.('2026-10-20')).toContain(
+      'AND modified >= 2026-09-20 AND modified < 2026-10-21 SORT BY',
+    );
     expect(section(linkedSectionPlans('company', TYPES), 'notes').query).toContain(
       'FROM meeting, company, area, resource WHERE CONNECTED TO this AND NOT (type = meeting AND companies = this) ',
     );

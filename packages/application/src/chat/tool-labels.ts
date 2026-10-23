@@ -38,6 +38,14 @@ export function describeToolCall(call: ToolCall): string {
       return `Found notes tagged #${text('tag').replace(/^#/, '')}`;
     case 'atlas_archived':
       return 'Listed the archive';
+    case 'atlas_brief':
+      return `Read the brief on ${text('entity')}`;
+    case 'atlas_open_loops':
+      return `Read the open loops of ${text('entity')}`;
+    case 'atlas_meeting_quotes':
+      return text('about') === ''
+        ? `Read the meetings of ${text('entity')}`
+        : `Read what was said about “${text('about')}” in the meetings of ${text('entity')}`;
     case 'propose_edit':
       return `Proposed an edit to ${text('path')}`;
     case 'propose_note':

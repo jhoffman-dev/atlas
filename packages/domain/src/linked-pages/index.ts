@@ -1,6 +1,7 @@
 export {
   DEFAULT_LINKED_RANGE,
   isLinkedPageType,
+  isQueryIdentifier,
   LINKED_FETCH_LIMIT,
   LINKED_RANGES,
   LINKED_ROWS_SHOWN,
