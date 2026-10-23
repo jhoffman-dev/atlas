@@ -19,6 +19,7 @@ import {
 import { ClaudeStepFailed } from '../automations/claude-step.ts';
 import { runAutomation } from '../automations/run-automation.ts';
 import type { ModelEvent } from '../chat/ports.ts';
+import { acceptProposalNote } from '../proposals/accept-proposal.ts';
 import { listProposals } from '../proposals/list-proposals.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
@@ -286,5 +287,56 @@ describe('proposeMeetingTasks', () => {
       }),
     ).rejects.toBeInstanceOf(ClaudeStepFailed);
     expect(vault.log).toEqual([]);
+  });
+});
+
+/**
+ * Verify pass on PR #549: the unchanged-meeting skip is keyed on the meeting's
+ * words alone, not on which meeting they are, nor on the note being a proposal.
+ */
+describe('proposeMeetingTasks — the unchanged-meeting skip (verify-549)', () => {
+  const COPY = 'Meetings/Platform weekly sync, second room.md';
+
+  it('asks Claude about a second meeting whose words match one drafted before', async () => {
+    const { claude, vault, propose } = setUp([FROM_SYNC, FROM_SYNC]);
+    vault.files.set(COPY, GEMINI.replace('gemini-7f3a9c21', 'gemini-0000beef'));
+    await propose();
+
+    const second = await propose(COPY);
+
+    expect(second.unchanged).toBe(false);
+    expect(claude.fake.requests).toHaveLength(2);
+  });
+
+  it('is not suppressed by a note that is not a proposal carrying the digest', async () => {
+    const { claude, vault, propose } = setUp([FROM_SYNC]);
+    vault.files.set(
+      'Notes/Scratch.md',
+      jsonNote({ type: 'note', meeting_digest: digestOf(splitFrontmatter(GEMINI).body) }, ''),
+    );
+
+    const drafted = await propose();
+
+    expect(drafted.unchanged).toBe(false);
+    expect(claude.fake.requests).toHaveLength(1);
+  });
+
+  it('keeps the digest off the task Accept writes', async () => {
+    const { vault, propose } = setUp([FROM_SYNC]);
+    const { proposed } = await propose();
+
+    const accepted = await acceptProposalNote({
+      ports: vault.ports,
+      path: proposed[0]!,
+      today: TODAY,
+      via: 'app',
+    });
+
+    const written = [...vault.files.keys()].filter((path) => path.startsWith('Tasks/'));
+    expect(accepted).toBeTruthy();
+    for (const path of written) {
+      expect(vault.properties(createVaultPath(path))['meeting_digest']).toBeUndefined();
+    }
+    expect(vault.properties(createVaultPath(SYNC))['meeting_digest']).toBeUndefined();
   });
 });
