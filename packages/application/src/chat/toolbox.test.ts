@@ -61,6 +61,9 @@ describe('the chat toolbox', () => {
       atlas_tags: { sort: 'frequency' },
       atlas_tagged_notes: { tag: 'idea', limit: 3 },
       atlas_archived: { search: 'old', limit: 4 },
+      atlas_brief: { entity: 'Plan.md', date: '2026-09-22' },
+      atlas_open_loops: { entity: 'Plan.md' },
+      atlas_meeting_quotes: { entity: 'Plan.md', since: '2026-09-01', about: 'bank', limit: 3 },
     };
     const readTools = box.specs.filter((spec) => spec.name.startsWith('atlas_'));
     expect(readTools.map((spec) => spec.name).sort()).toEqual(Object.keys(inputs).sort());

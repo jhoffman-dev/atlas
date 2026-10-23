@@ -837,3 +837,29 @@ the preview read. On the same terms as a tag rename:
   vault's settings note, which only the app's one settings writer may write
   (two writers would refuse each other's writes as stale); the router is not
   handed it yet.
+
+## The assistant's tools: read, cited, never writing (P32-04, 2026-10-23)
+
+`GET /v1/assistant/brief`, `/v1/assistant/open-loops` and
+`/v1/assistant/meetings` answer what a person, company, project or area — or,
+for a brief, a meeting — has around it, as MCP's `atlas_brief`,
+`atlas_open_loops` and `atlas_meeting_quotes` and as the chat's read tools of
+the same names (so a rule's Claude step may name them too).
+
+- **Read-only, and cited.** Each is read from the note's linked page
+  (P30-06): one bounded DFAI query a section, plus one statement for every
+  item's `source` and one for follow-ups. Only the named note — and, for
+  `meetings`, the meeting files it quotes, at most 50 — is read from the
+  vault. Every item carries a wiki link to where it came from.
+- **A read never writes a block id.** A transcript turn the file left without
+  a `^id` is cited by its Transcript heading, and the citation says so
+  (`kind: heading`). ADR-0022 keeps id-writing to the person who first links
+  to a block; a tool that wrote ids to cite would edit notes on every
+  question.
+- **`about` goes through a seam.** Which meetings hold `about` is asked of a
+  `PassageFinder`; full-text search answers it today, and semantic search
+  (#33) will, naming the matching blocks itself. The matching of turns is the
+  domain's either way.
+- **The same refusals as every route.** `entity` is a user-space `.md` note,
+  checked as a body's paths are; a day is a real day; `about` is at most 500
+  characters, searched as words, never as query syntax.

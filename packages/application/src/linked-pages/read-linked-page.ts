@@ -75,6 +75,8 @@ export async function readLinkedPage({
   typeName,
   projectStatus = null,
   ranges = {},
+  only = null,
+  asWritten = false,
 }: {
   index: IndexPort;
   clock: Pick<Clock, 'today'>;
@@ -88,12 +90,27 @@ export async function readLinkedPage({
   projectStatus?: string | null;
   /** Recent or all, for the sections last left on one; the rest are recent. */
   ranges?: Readonly<Partial<Record<LinkedSectionId, LinkedRange>>>;
+  /** Only these sections, for a caller that needs no others; every section when null. */
+  only?: readonly LinkedSectionId[] | null;
+  /**
+   * Rows as the notes write them — `next-action`, `resource` — for a caller
+   * that reads them rather than draws them; as their labels when false.
+   */
+  asWritten?: boolean;
 }): Promise<LinkedSection[]> {
-  const plans = linkedSectionPlans(typeName, types);
+  const plans = linkedSectionPlans(typeName, types).filter(
+    (plan) => only === null || only.includes(plan.id),
+  );
   const today = clock.today();
   const sections = await Promise.all(
     plans.map((plan) =>
-      readSection({ plan, range: rangeOf(plan, ranges), index, types, notePaths, notePath, today }),
+      readSection({
+        plan,
+        range: rangeOf(plan, ranges),
+        asked: { index, types, notePaths, notePath },
+        today,
+        asWritten,
+      }),
     ),
   );
   const waiting = sections.find(({ section }) => section.id === 'waiting')?.section;
@@ -120,22 +137,27 @@ function rangeOf(
 async function readSection({
   plan,
   range,
+  asked,
   today,
-  ...asked
+  asWritten,
 }: {
   plan: LinkedSectionPlan;
   range: LinkedRange | null;
-  index: IndexPort;
-  types: readonly ObjectType[];
-  notePaths: readonly string[];
-  notePath: string;
+  asked: {
+    index: IndexPort;
+    types: readonly ObjectType[];
+    notePaths: readonly string[];
+    notePath: string;
+  };
   today: string;
+  asWritten: boolean;
 }): Promise<ReadSection> {
   const head = { id: plan.id, title: plan.title, range, hint: null };
   const text = range === 'recent' && plan.recentQuery !== null ? plan.recentQuery : plan.query;
   try {
     const answer = await runAtlasQuery({ ...asked, text, thisNote: asked.notePath });
-    const drawn = shaped({ plan, answer, today, types: asked.types, page: asked.notePath });
+    const types = asWritten ? null : asked.types;
+    const drawn = shaped({ plan, answer, today, types, page: asked.notePath });
     return {
       section: { ...head, ...drawn, problem: null },
       groupedBy: answer.compiled.groups[0]?.text ?? null,
@@ -159,7 +181,8 @@ function shaped({
   plan: LinkedSectionPlan;
   answer: AtlasQueryAnswer;
   today: string;
-  types: readonly ObjectType[];
+  /** The types a row's labels are read from; null for rows as written. */
+  types: readonly ObjectType[] | null;
   page: string;
 }): Pick<LinkedSection, 'fields' | 'rows' | 'groups' | 'truncated'> {
   const held = sectionRows({
@@ -173,7 +196,10 @@ function shaped({
   const choices = shown
     .filter((field) => field.kind === 'select' && !grouped.has(field.key))
     .map((field) => field.key);
-  const read = held.rows.map((row) => withLabels(withTypeLabel(row, types), choices));
+  const read =
+    types === null
+      ? held.rows
+      : held.rows.map((row) => withLabels(withTypeLabel(row, types), choices));
   const rows = plan.waited ? withDaysWaited(read, today) : read;
   const fields = shown
     // A group's field is its heading; a waiting-for's `modified` is drawn as its age.
