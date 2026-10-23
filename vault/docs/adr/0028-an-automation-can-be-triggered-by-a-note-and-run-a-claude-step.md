@@ -738,20 +738,20 @@ which broke "never overwriting one" in spirit: two drafts of one brief.
     folder: only a note naming this rule uses up this rule's period. A note
     naming no rule (a draft from before the stamp, a note a person copied)
     counts only when this rule's log says it made that note.
-  A later run in the period asks Claude nothing and is logged as having found
-  the note made, so its schedule still counts on from it. A period whose run
-  failed made nothing, so the next run in it writes the note. A period ahead of
-  the clock (a Mac whose clock ran a month fast) is never counted as made.
-  **Deleted or undone drafts:** a scheduled run never writes a period that is
-  recorded, even if its note was deleted or its run undone; Run now writes a
-  fresh note when the period's note is no longer on disk (an undone run does
-  not count as having made it). The key can carry an item —
-  `` - period `"…"` for `"Meetings/2026-10-23 Standup.md"` `` — so a rule that
-  writes one note per item of a period (#39, a brief per meeting of the day)
-  uses the same record (`outputPeriod`, `currentPeriod`, `periodNoteMade`,
-  `periodRecorded`). Hourly, on-open, by-hand-only and note-triggered rules have
-  no periods and behave as before. A dry run says what Run now would do: "Would
-  write its note", or that the period's note is made already.
+    A later run in the period asks Claude nothing and is logged as having found
+    the note made, so its schedule still counts on from it. A period whose run
+    failed made nothing, so the next run in it writes the note. A period ahead of
+    the clock (a Mac whose clock ran a month fast) is never counted as made.
+    **Deleted or undone drafts:** a scheduled run never writes a period that is
+    recorded, even if its note was deleted or its run undone; Run now writes a
+    fresh note when the period's note is no longer on disk (an undone run does
+    not count as having made it). The key can carry an item —
+    `` - period `"…"` for `"Meetings/2026-10-23 Standup.md"` `` — so a rule that
+    writes one note per item of a period (#39, a brief per meeting of the day)
+    uses the same record (`outputPeriod`, `currentPeriod`, `periodNoteMade`,
+    `periodRecorded`). Hourly, on-open, by-hand-only and note-triggered rules have
+    no periods and behave as before. A dry run says what Run now would do: "Would
+    write its note", or that the period's note is made already.
 - **Two Macs.** Scheduled Claude runs are already gated to the named Mac
   (`gatedByFreshPull`, ADR-0035), so only one of them writes the draft; the
   note's own `atlas_period` is what lets the other Mac, once the note syncs in,
@@ -792,11 +792,17 @@ which broke "never overwriting one" in spirit: two drafts of one brief.
   (`claude.adjusted`). A note whose every item was left out, or that has no
   list item at all when the run was given notes to cite, is refused and
   nothing is written. A run given nothing to cite (a quiet week) is never
-  refused: its items are kept as written, their links made plain. Headings and
+  refused, but it has nothing an item could cite, so every item is left out
+  (named in the log as dropped) and the draft is its frame plus the line
+  "Nothing to cite this week.", which DFAI adds and the model does not. Headings and
   sentences (the Inbox's count) are the draft's frame, not claims, and are not
   held to it, but their links are written as an item's are: a link to a note
   the run was not given becomes plain text and a source id its title. The
   check is the domain's (`keepCitedItems`), whatever the prompt says.
+  A period's note is the rule's by the `id:` stamped in it (compared by case and
+  Unicode form, as ids name files). A legacy rule with no `id:` written, renamed
+  by hand, has the new name as its id, so one draft made under the old name does
+  not count for it and the week can get one duplicate draft.
   A note whose name no link can hold (`#`, `|`, `[`, `]`, `^`) is handed under a
   source id, `[[src:3]]`; the id is accepted as a citation and written in the
   draft as the note's title in plain text, so no link in the draft fails to
