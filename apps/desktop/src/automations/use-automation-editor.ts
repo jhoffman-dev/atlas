@@ -134,11 +134,12 @@ export function useAutomationEditor({
     try {
       const plan = await dryRunAutomation({
         ports,
-        rule: draft,
+        rule: loaded === undefined ? draft : { ...draft, id: loaded.rule.id },
         log,
         ledger: loaded?.ledger ?? null,
         named,
         today: clock.today(),
+        at: clock.localNow(),
         activity,
       });
       setDryRun(dryRunView(plan));

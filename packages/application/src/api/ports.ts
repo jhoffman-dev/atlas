@@ -136,6 +136,12 @@ export interface ApiRouterDeps {
    * it has not been turned on from the app, `semantic_off`.
    */
   readonly semantic?: (vault: string) => SemanticAccess | null;
+  /**
+   * The vault owner's name from Settings → Profile, null when it has none or
+   * cannot be read: whose `You` turns in a transcript the assistant's quotes
+   * attribute to a person. Left out, no transcript's `You` is anyone's.
+   */
+  readonly ownerName?: () => string | null;
 }
 
 /** What a source refresh reaches outside the vault through. Never the secret store. */

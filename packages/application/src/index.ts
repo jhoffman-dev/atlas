@@ -60,6 +60,7 @@ export * from './review/index.ts';
 export * from './today/index.ts';
 export * from './pending/index.ts';
 export * from './linked-pages/index.ts';
+export * from './assistant/index.ts';
 export * from './automations/index.ts';
 export * from './people/index.ts';
 export * from './terms/index.ts';

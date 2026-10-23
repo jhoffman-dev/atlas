@@ -119,6 +119,8 @@ export default defineConfig({
         'packages/application/src/highlights/**': { lines: 90, functions: 90, branches: 85 },
         // Reads every source and highlight for the research views; a wrong read hides them (#507).
         'packages/application/src/research/**': { lines: 90, functions: 90, branches: 85 },
+        // Answers what Claude is told about a person, a project or a meeting, every item cited (#35).
+        'packages/application/src/assistant/**': { lines: 90, functions: 90, branches: 85 },
         // Copies a PDF into the vault and makes its literature note; writes the reader's highlights (#504).
         'packages/application/src/reader/**': { lines: 90, functions: 90, branches: 85 },
         // A task's schedule is read from the index and answered to the API (P31-01);

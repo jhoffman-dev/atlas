@@ -197,6 +197,7 @@ import { vaultSettingsWriter } from './settings/vault-settings-writer.ts';
 import { useLocalApi, type LocalApiPorts } from './api/use-local-api.ts';
 import { useApiHost } from './api/use-api-host.ts';
 import { createAutomationRelay } from './api/automation-relay.ts';
+import { createOwnerNameRelay } from './api/owner-name-relay.ts';
 import { createMoveRelay } from './api/move-relay.ts';
 import { SettingsPanel } from './settings/settings-panel.tsx';
 import {
@@ -743,6 +744,8 @@ function AppWindow({
   );
   // Steady too: the engine of the vault open now, for a request that names it.
   const apiSemantic = useSteadyCallback((vault: string) => (vault === vaultKey ? semantic : null));
+  // The owner's name is read further down, from the profile; a request asks for it when it arrives.
+  const apiOwner = useMemo(() => createOwnerNameRelay(), []);
   const apiDeps = useMemo<ApiRouterDeps>(
     () => ({
       host: apiHost,
@@ -771,6 +774,7 @@ function AppWindow({
       timeZone: localTimeZone,
       // The palette's own engine, so the API and the app share one cache and one build.
       semantic: apiSemantic,
+      ownerName: apiOwner.name,
     }),
     [
       apiHost,
@@ -791,6 +795,7 @@ function AppWindow({
       activityLog,
       googleCalendar,
       apiSemantic,
+      apiOwner.name,
     ],
   );
   // A write from another tool shows up the way one made here does.
@@ -1089,6 +1094,7 @@ function AppWindow({
   // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05)
   // and their addresses as the vault's settings hold them (#173).
   const ownerName = profileSetting.profile === 'unknown' ? null : profileSetting.profile.name;
+  useEffect(() => apiOwner.point(ownerName), [apiOwner, ownerName]);
   const ownerEmails = selfEmailsSetting.emails;
   // Whether both were read, so nothing that asks who the owner is acts on a stand-in: an unreadable settings note is not known.
   const ownerKnown = vaultOwnerKnown(profileSetting, selfEmailsSetting);

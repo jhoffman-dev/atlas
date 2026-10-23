@@ -1,3 +1,4 @@
+import { addDays } from '../timeline/timeline.ts';
 import { TASK_KEYS, TASK_TYPE, WAITING_STATUS } from '../gtd/gtd-status.ts';
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { COMPANY_TYPE } from '../people/company.ts';
@@ -62,6 +63,11 @@ export interface LinkedSectionPlan {
   readonly query: string;
   /** The same, kept to the last {@link RECENT_DAYS} days; null where recency means nothing. */
   readonly recentQuery: string | null;
+  /**
+   * The same, kept to the {@link RECENT_DAYS} days up to and including `day`
+   * rather than up to the index's today; null where recency means nothing.
+   */
+  readonly recentQueryOn: ((day: string) => string) | null;
   /** Its rows are waiting-fors: each says how long it has waited, read from `modified`. */
   readonly waited: boolean;
   /** Its rows are a project's open tasks, which should hold a next action while it is active. */
@@ -72,6 +78,11 @@ export interface LinkedSectionPlan {
 
 /** A field or type name a query can spell bare. */
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Whether a property key is one the query language can name: the only keys a linked page reads. */
+export function isQueryIdentifier(key: string): boolean {
+  return IDENTIFIER.test(key);
+}
 
 const THIS_PAGE = 'CONNECTED TO this';
 
@@ -163,6 +174,15 @@ function recently(field: string): string {
   return field === 'modified' ? within : `(${within} OR ${field} IS EMPTY)`;
 }
 
+/** `recently`, counted back from a day the caller names rather than the index's today. */
+function recentlyOn(field: string, day: string): string {
+  const since = addDays(day, -RECENT_DAYS);
+  const within = `${field} >= ${since}`;
+  return field === 'modified'
+    ? `${within} AND ${field} < ${addDays(day, 1)}`
+    : `(${within} OR ${field} IS EMPTY)`;
+}
+
 function plan(section: Section): LinkedSectionPlan {
   const text = (where: readonly string[]) =>
     `FROM ${section.from.join(', ')} WHERE ${where.join(' AND ')} ${section.rest} LIMIT ${LINKED_FETCH_LIMIT}`;
@@ -172,6 +192,8 @@ function plan(section: Section): LinkedSectionPlan {
     title: section.title,
     query: text(section.where),
     recentQuery: recentBy === undefined ? null : text([...section.where, recently(recentBy)]),
+    recentQueryOn:
+      recentBy === undefined ? null : (day) => text([...section.where, recentlyOn(recentBy, day)]),
     waited: section.waited ?? false,
     wantsNextAction: section.wantsNextAction ?? false,
     showsType: section.showsType ?? false,

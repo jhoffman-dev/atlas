@@ -1182,8 +1182,8 @@ export interface ApiAutomation {
   readonly path: string;
   readonly enabled: boolean;
   /**
-   * As its file writes it: `daily at 03:00`, `every 6 hours`, `on app open`,
-   * `manually`, or `a meeting is created or changed`.
+   * As its file writes it: `daily at 03:00`, `fridays at 15:00`, `every 6 hours`,
+   * `on app open`, `manually`, or `a meeting is created or changed`.
    */
   readonly when: string;
   /** The note that sets it off (P29-01), or null for a rule on a clock, on opening or by hand. */
@@ -1248,6 +1248,8 @@ export interface ApiClaudeStep {
   readonly output: string;
   /** Where its one new note goes, for `output: note`; null otherwise. */
   readonly folder: string | null;
+  /** What DFAI hands it beside its notes (#40): `weekly-review`, or null for its notes alone. */
+  readonly data: string | null;
 }
 
 /** One entry in a rule's log, as its file records it. */
@@ -1458,6 +1460,136 @@ export interface ApiToday {
   readonly truncated: boolean;
 }
 
+/**
+ * Where an assistant item came from (P32-04): a wiki link that opens it.
+ * `block` names the block itself (`[[Kickoff#^t0003]]`); `heading` the
+ * heading over it, for a transcript turn the file left without an id, or with
+ * one written twice — a read never writes one (ADR-0022); `note` the whole
+ * note, also for a `source` block the index no longer holds.
+ */
+export interface ApiCitation {
+  /** Null when the note's name holds what no wiki link can (`C# sync`): cite it by `path`. */
+  readonly link: string | null;
+  readonly kind: 'block' | 'heading' | 'note';
+  /** The note it opens; null for a link that names no note in the vault. */
+  readonly path: string | null;
+}
+
+/** A note an assistant answer names, cited. */
+export interface ApiCitedNote {
+  readonly path: string;
+  readonly title: string;
+  readonly cite: ApiCitation;
+}
+
+/** A meeting or a decision, with the day it is dated (null when undated). */
+export interface ApiDatedNote extends ApiCitedNote {
+  readonly date: string | null;
+}
+
+/** A decision, and the turn it came from when its `source` says. */
+export interface ApiCitedDecision extends ApiDatedNote {
+  readonly source: ApiCitation | null;
+}
+
+/** An open task, a waiting-for or a follow-up, as the assistant routes answer it. */
+export interface ApiLoopTask extends ApiCitedNote {
+  readonly status: string | null;
+  readonly due: string | null;
+  /** Due before the day asked about and not finished. */
+  readonly overdue: boolean;
+  /** Who a waiting-for waits on, as the task writes it; null otherwise. */
+  readonly waitingOn: string | null;
+  /** For a waiting-for, whole days since its file last changed; null otherwise. */
+  readonly waitingDays: number | null;
+  /** The meeting turn (or note) its `source` says it came from. */
+  readonly source: ApiCitation | null;
+}
+
+/** A follow-up: how it was reached from the page, and through which meeting. */
+export interface ApiFollowUp extends ApiLoopTask {
+  /** `direct`: it names the page itself; `meeting`: it was reached only through a meeting of the page. */
+  readonly via: 'direct' | 'meeting';
+  /** The meeting it was reached through; null when `via` is `direct`. */
+  readonly meeting: ApiCitedNote | null;
+}
+
+/** The page an assistant answer is about, cited. */
+export interface ApiAssistantEntity extends ApiCitedNote {
+  /** Its `type:`, as written. */
+  readonly type: string;
+}
+
+/** A section of the page that could not be answered, and why. */
+export interface ApiSectionProblem {
+  readonly section: string;
+  readonly problem: string;
+}
+
+/** `GET /v1/assistant/open-loops`: what is still open around a page. */
+export interface ApiOpenLoops {
+  readonly entity: ApiAssistantEntity;
+  /** The day it was read, `YYYY-MM-DD`: what `overdue` and `waitingDays` count to. */
+  readonly date: string;
+  /** Open tasks linked with the page that are neither waiting-fors nor follow-ups. */
+  readonly openTasks: readonly ApiLoopTask[];
+  readonly waitingFor: readonly ApiLoopTask[];
+  /**
+   * Open `#follow-up` tasks linked with the page or one of its meetings. One
+   * reached only through a meeting names no Person but the page's own.
+   */
+  readonly followUps: readonly ApiFollowUp[];
+  readonly truncated: boolean;
+  readonly problems: readonly ApiSectionProblem[];
+}
+
+/** `GET /v1/assistant/brief`: what to know about a page on a day. */
+export interface ApiBrief extends ApiOpenLoops {
+  /** The newest meeting dated on or before `date`; null when none. */
+  readonly lastTouch: ApiDatedNote | null;
+  readonly meetings: readonly ApiDatedNote[];
+  /** Every task joined to `lastTouch`, finished or not, and its decisions. */
+  readonly lastMeeting: {
+    readonly meeting: ApiDatedNote;
+    readonly tasks: readonly ApiLoopTask[];
+    readonly decisions: readonly ApiCitedNote[];
+  } | null;
+  readonly decisions: readonly ApiCitedDecision[];
+  /** Other notes linked with the page, changed in the 30 days up to `date`. */
+  readonly mentions: readonly ApiCitedNote[];
+  readonly related: readonly (ApiCitedNote & {
+    readonly relation: 'person' | 'company' | 'project';
+  })[];
+}
+
+/** One thing said in a meeting. */
+export interface ApiSpeakerQuote {
+  readonly speaker: string;
+  readonly time: string | null;
+  readonly quote: string;
+  /** Whether the quote was cut. */
+  readonly cut: boolean;
+  readonly cite: ApiCitation;
+}
+
+/** `GET /v1/assistant/meetings`: a page's meetings, with who said what in them. */
+export interface ApiAssistantMeetings {
+  readonly entity: ApiAssistantEntity;
+  readonly since: string | null;
+  /** The last day a meeting may be dated: the day asked for, else the app's today. */
+  readonly until: string;
+  readonly about: string | null;
+  /** The names a person's turns were matched by; null for a page that does not speak. */
+  readonly speakers: readonly string[] | null;
+  readonly meetings: readonly (ApiDatedNote & {
+    readonly quotes: readonly ApiSpeakerQuote[];
+    /** How many turns were wanted before the cap. */
+    readonly matched: number;
+  })[];
+  readonly truncated: boolean;
+  readonly problems: readonly ApiSectionProblem[];
+}
+
 // ---------------------------------------------------------------------------
 // Success bodies, per route
 // ---------------------------------------------------------------------------
@@ -1554,7 +1686,10 @@ export type ApiSuccessBody =
   | { readonly rejected: ApiProposalArchived }
   | { readonly review: ApiWeeklyReview }
   | { readonly today: ApiToday }
-  | { readonly export: ApiNoteExport };
+  | { readonly export: ApiNoteExport }
+  | { readonly brief: ApiBrief }
+  | { readonly openLoops: ApiOpenLoops }
+  | { readonly meetingQuotes: ApiAssistantMeetings };
 
 /**
  * Every route, as the router and the MCP server both need to know them.
@@ -1781,6 +1916,24 @@ export const API_ROUTES = [
     path: '/v1/today',
     summary:
       'The Today page: overdue, due today, back from deferral, in progress, next actions, waiting.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/assistant/brief',
+    summary:
+      'A brief on a person, company, project, area or meeting for a day: last meeting, open loops, decisions, mentions — every item cited. Query: entity, date.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/assistant/open-loops',
+    summary:
+      'Open tasks, waiting-fors and follow-ups around a person, company, project or area, each cited. Query: entity.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/assistant/meetings',
+    summary:
+      'A page’s meetings with the turns that answer the question: speaker, quote, block link. Query: entity, since, about, limit.',
   },
   {
     method: 'GET',

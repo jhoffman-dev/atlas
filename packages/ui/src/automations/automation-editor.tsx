@@ -1,13 +1,17 @@
 import type { ReactNode } from 'react';
 import {
+  CLAUDE_DATA,
   claudeStepDefaultModel,
   outputHasItems,
   withClaudeChoices,
+  withClaudeData,
   type AutomationAction,
   type AutomationDraft,
   type ClaudeAction,
+  type ClaudeData,
   type NoteEvent,
   type Schedule,
+  type Weekday,
 } from '@dfai/domain';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { Toggle } from '../toggle.tsx';
@@ -45,11 +49,28 @@ type ScheduleKind = Schedule['kind'];
 
 const SCHEDULES = [
   { value: 'daily' as const, label: 'Daily' },
+  { value: 'weekly' as const, label: 'Weekly' },
   { value: 'hourly' as const, label: 'Every few hours' },
   { value: 'open' as const, label: 'When DFAI opens' },
   { value: 'manual' as const, label: 'By hand' },
   { value: 'note' as const, label: 'When a note appears' },
 ];
+
+/** The days a weekly rule may run on, Monday first, as a person reads a week. */
+const DAYS: readonly { value: Weekday; label: string }[] = [
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+  { value: 'saturday', label: 'Saturday' },
+  { value: 'sunday', label: 'Sunday' },
+];
+
+/** What DFAI may hand a Claude step beside its notes, as the editor offers it. */
+const DATA_LABELS: Readonly<Record<ClaudeData, string>> = {
+  'weekly-review': 'The weekly review',
+};
 
 const NOTE_EVENTS: readonly { value: NoteEvent; label: string }[] = [
   { value: 'created', label: 'is created' },
@@ -78,6 +99,7 @@ const OUTPUT_LABELS: Readonly<Record<string, string>> = {
 function scheduleOf(kind: ScheduleKind, was: Schedule, type: string): Schedule {
   if (kind === was.kind) return was;
   if (kind === 'daily') return { kind, at: '03:00' };
+  if (kind === 'weekly') return { kind, day: 'friday', at: '15:00' };
   if (kind === 'hourly') return { kind, every: 6 };
   if (kind === 'note') return { kind, type, on: ['created'] };
   return { kind };
@@ -179,6 +201,34 @@ function ScheduleField({
               onChange({ ...draft, when: { kind: 'daily', at: event.target.value.slice(0, 5) } })
             }
           />
+        )}
+        {when.kind === 'weekly' && (
+          <>
+            <select
+              className="field automation-editor__small"
+              aria-label="Day of the week"
+              value={when.day}
+              onChange={(event) =>
+                onChange({ ...draft, when: { ...when, day: event.target.value as Weekday } })
+              }
+            >
+              {DAYS.map((day) => (
+                <option key={day.value} value={day.value}>
+                  {day.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="time"
+              className="field automation-editor__small"
+              aria-label="Time of day"
+              value={when.at}
+              onChange={(event) =>
+                event.target.value !== '' &&
+                onChange({ ...draft, when: { ...when, at: event.target.value.slice(0, 5) } })
+              }
+            />
+          </>
         )}
         {when.kind === 'hourly' && (
           <label className="automation-editor__inline">
@@ -369,14 +419,17 @@ function ClaudeFields({ draft, onChange, claudeTools, claudeOutputs }: ActionPro
           className="field automation-editor__small"
           aria-label="What Claude writes"
           value={output}
-          onChange={(event) =>
-            change({
-              output:
-                event.target.value === NOTE_OUTPUT
-                  ? { kind: 'note', folder: '' }
-                  : { kind: 'proposals', schema: event.target.value },
-            })
-          }
+          onChange={(event) => {
+            const toNote = event.target.value === NOTE_OUTPUT;
+            const next = {
+              ...action,
+              output: toNote
+                ? ({ kind: 'note', folder: '' } as const)
+                : ({ kind: 'proposals', schema: event.target.value } as const),
+            };
+            // The data is for a note only; its control goes with the note output, so it must not stay hidden.
+            onChange({ ...draft, action: toNote ? next : withClaudeData(next, null) });
+          }}
         >
           {[...claudeOutputs, NOTE_OUTPUT].map((name) => (
             <option key={name} value={name}>
@@ -395,6 +448,27 @@ function ClaudeFields({ draft, onChange, claudeTools, claudeOutputs }: ActionPro
             value={action.output.folder}
             onChange={(event) => change({ output: { kind: 'note', folder: event.target.value } })}
           />
+        </label>
+      )}
+      {action.output.kind === 'note' && (
+        <label className="automation-editor__inline">
+          given
+          <select
+            className="field automation-editor__small"
+            aria-label="What DFAI hands Claude"
+            value={action.data ?? ''}
+            onChange={(event) => {
+              const data = CLAUDE_DATA.find((each) => each === event.target.value) ?? null;
+              onChange({ ...draft, action: withClaudeData(action, data) });
+            }}
+          >
+            <option value="">Only its notes</option>
+            {CLAUDE_DATA.map((data) => (
+              <option key={data} value={data}>
+                {DATA_LABELS[data]}
+              </option>
+            ))}
+          </select>
         </label>
       )}
       <ClaudeChoices action={action} onChange={(next) => onChange({ ...draft, action: next })} />

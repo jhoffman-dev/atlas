@@ -1,3 +1,4 @@
+import { readEventTime } from '@dfai/domain';
 import { ApiError } from './api-error.ts';
 
 /*
@@ -93,4 +94,14 @@ export function countOf(
     throw new ApiError('invalid', `${field} must be a whole number from 1 to ${max}`);
   }
   return count;
+}
+
+/** A day from the query string, `YYYY-MM-DD`, one the calendar has; null when it is left out. */
+export function dayParam(raw: string | undefined, field: string): string | null {
+  if (raw === undefined) return null;
+  const read = readEventTime(raw);
+  if (read === null || read.minutes !== null || read.date !== raw) {
+    throw new ApiError('invalid', `${field} must be a real day, written YYYY-MM-DD`);
+  }
+  return raw;
 }
