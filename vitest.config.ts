@@ -126,6 +126,8 @@ export default defineConfig({
         'packages/application/src/highlights/**': { lines: 90, functions: 90, branches: 85 },
         // Reads every source and highlight for the research views; a wrong read hides them (#507).
         'packages/application/src/research/**': { lines: 90, functions: 90, branches: 85 },
+        // Answers what Claude is told about a person, a project or a meeting, every item cited (#35).
+        'packages/application/src/assistant/**': { lines: 90, functions: 90, branches: 85 },
         // Copies a PDF or an EPUB into the vault and makes its literature note; writes the readers' highlights (#504, #505).
         'packages/application/src/reader/**': { lines: 90, functions: 90, branches: 85 },
         // What stands between an untrusted book and the app: the cleaning, what the frame is

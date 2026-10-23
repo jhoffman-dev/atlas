@@ -1,5 +1,6 @@
 import { ApiError } from './api-error.ts';
 import { archiveListRoute, archiveRoute, unarchiveRoute } from './archive.ts';
+import { assistantMeetingsRoute, briefRoute, openLoopsRoute } from './assistant.ts';
 import { atlasQueryRoute } from './atlas-query.ts';
 import { automationDryRunRoute, automationLogRoute, automationsRoute } from './automations.ts';
 import { API_ROUTES, type ApiRequest, type ApiRoute } from './contract.ts';
@@ -122,6 +123,9 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'POST /v1/inbox/clarify': vaultWrite(clarifyInboxRoute),
   'POST /v1/tasks/schedule': vaultWrite(scheduleTaskRoute),
   'GET /v1/review/weekly': vaultRoute(weeklyReviewRoute),
+  'GET /v1/assistant/brief': vaultRoute(briefRoute),
+  'GET /v1/assistant/open-loops': vaultRoute(openLoopsRoute),
+  'GET /v1/assistant/meetings': vaultRoute(assistantMeetingsRoute),
   'GET /v1/today': vaultRoute(todayRoute),
   'GET /v1/automations': vaultRoute(automationsRoute),
   'GET /v1/automations/{id}/log': vaultRoute(automationLogRoute),

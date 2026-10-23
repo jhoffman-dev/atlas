@@ -4,7 +4,6 @@ import {
   isArchivedPath,
   MEETING_LIST_LIMIT,
   MeetingMappingError,
-  readEventTime,
   createVaultPath,
   type MeetingFields,
 } from '@dfai/domain';
@@ -20,6 +19,7 @@ import type { ApiMeeting } from './contract.ts';
 import {
   bodyObject,
   countOf,
+  dayParam,
   isRecord,
   offsetOf,
   optionalArray,
@@ -39,7 +39,7 @@ const LISTED = { fallback: 50, max: MEETING_LIST_LIMIT };
  * A duplicate is archived, so it is listed only with `includeArchived`.
  */
 export async function meetingsRoute(request: VaultRequest): Promise<RouteResult> {
-  const since = sinceOf(request.query['since']);
+  const since = dayParam(request.query['since'], 'since');
   const limit = countOf(request.query['limit'], { field: 'limit', ...LISTED });
   const offset = offsetOf(request.query['offset']);
   const includeArchived = queryFlag(request.query['includeArchived'], 'includeArchived');
@@ -66,15 +66,6 @@ export async function meetingsRoute(request: VaultRequest): Promise<RouteResult>
     status: 200,
     body: { meetings, truncated, next: truncated ? offset + meetings.length : null },
   };
-}
-
-function sinceOf(raw: string | undefined): string | null {
-  if (raw === undefined) return null;
-  const read = readEventTime(raw);
-  if (read === null || read.minutes !== null || read.date !== raw) {
-    throw new ApiError('invalid', 'since must be a real day, written YYYY-MM-DD');
-  }
-  return raw;
 }
 
 /** Where each listed meeting's summary stands, read from its file and the vault's rules; reads only. */

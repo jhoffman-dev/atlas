@@ -73,6 +73,10 @@ export interface ApiFixture {
   indexReady: boolean;
   /** The zone the Mac keeps time in; tests move it. Starts at `America/Los_Angeles`. */
   timeZone: string;
+  /** The app's today, `YYYY-MM-DD`; starts at `TODAY`, tests move it. */
+  today: string;
+  /** The vault owner's name from the profile; null (none) to start, tests set it. */
+  ownerName: string | null;
   /** Pictures every page; a test swaps it to make pictures fail. */
   snapshot: PageSnapshotPort;
   /** Every request a source refresh handed the host, with the vault it named. */
@@ -122,6 +126,8 @@ export function apiFixture({
     now: NOW,
     indexReady: true,
     timeZone: 'America/Los_Angeles',
+    today: TODAY,
+    ownerName: null as string | null,
     writes: [] as { path: string; contents: string }[],
     followed: [] as EntryMove[],
     flushed: [] as (readonly VaultPath[])[],
@@ -311,7 +317,11 @@ export function apiFixture({
   const deps: ApiRouterDeps = {
     host: { currentVault: () => state.open, indexReady: () => state.indexReady },
     appInfo: { read: async () => ({ name: 'DFAI', version: '1.4.0', build: '0a1b2c3' }) },
-    clock: { today: () => TODAY, now: () => state.now, localNow: () => `${TODAY}T09:00:00` },
+    clock: {
+      today: () => state.today,
+      now: () => state.now,
+      localNow: () => `${state.today}T09:00:00`,
+    },
     fs,
     markdown,
     index: fakeIndexPort(index),
@@ -352,6 +362,7 @@ export function apiFixture({
     activity,
     googleCalendar: google.port,
     timeZone: () => state.timeZone,
+    ownerName: () => state.ownerName,
   };
   const fixture: ApiFixture = Object.assign(state, {
     automations: new Map<string, AutomationClockState>(),
