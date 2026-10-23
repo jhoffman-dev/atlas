@@ -20,6 +20,9 @@ export const CHAT_READ_TOOLS = [
   'atlas_tags',
   'atlas_tagged_notes',
   'atlas_archived',
+  'atlas_brief',
+  'atlas_open_loops',
+  'atlas_meeting_quotes',
 ] as const;
 
 export type ChatReadTool = (typeof CHAT_READ_TOOLS)[number];

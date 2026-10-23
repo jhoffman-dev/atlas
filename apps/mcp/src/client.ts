@@ -8,6 +8,9 @@
  */
 
 import type {
+  ApiAssistantMeetings,
+  ApiBrief,
+  ApiOpenLoops,
   ApiAcceptedProposal,
   ApiDuplicatePair,
   ApiMergePeopleBody,
@@ -123,6 +126,19 @@ export interface MeetingsQuery {
   readonly limit?: number;
   readonly offset?: number;
   readonly includeArchived?: boolean;
+}
+
+export interface BriefQuery {
+  readonly entity: string;
+  readonly date?: string;
+}
+
+export interface AssistantMeetingsQuery {
+  readonly entity: string;
+  readonly since?: string;
+  readonly until?: string;
+  readonly about?: string;
+  readonly limit?: number;
 }
 
 export interface ArchiveListQuery {
@@ -430,6 +446,27 @@ export class AtlasClient {
     this.json<{ review: ApiWeeklyReview }>({ method: 'GET', path: '/v1/review/weekly' });
 
   today = () => this.json<{ today: ApiToday }>({ method: 'GET', path: '/v1/today' });
+
+  brief = (query: BriefQuery) =>
+    this.json<{ brief: ApiBrief }>({
+      method: 'GET',
+      path: '/v1/assistant/brief',
+      query: { ...query },
+    });
+
+  openLoops = (entity: string) =>
+    this.json<{ openLoops: ApiOpenLoops }>({
+      method: 'GET',
+      path: '/v1/assistant/open-loops',
+      query: { entity },
+    });
+
+  assistantMeetings = (query: AssistantMeetingsQuery) =>
+    this.json<{ meetingQuotes: ApiAssistantMeetings }>({
+      method: 'GET',
+      path: '/v1/assistant/meetings',
+      query: { ...query },
+    });
 
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
 

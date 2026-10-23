@@ -128,6 +128,12 @@ export interface ApiRouterDeps {
   readonly googleCalendar: Pick<GoogleCalendarPort, 'status'>;
   /** The IANA zone this Mac keeps time in (`America/Los_Angeles`): a sent meeting's default (#93). */
   readonly timeZone: () => string;
+  /**
+   * The vault owner's name from Settings → Profile, null when it has none or
+   * cannot be read: whose `You` turns in a transcript the assistant's quotes
+   * attribute to a person. Left out, no transcript's `You` is anyone's.
+   */
+  readonly ownerName?: () => string | null;
 }
 
 /** What a source refresh reaches outside the vault through. Never the secret store. */
