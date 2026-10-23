@@ -44,6 +44,7 @@ export type {
 } from './highlight-block.ts';
 export {
   commentLines,
+  highlightAsPlainQuote,
   plainQuote,
   quoteLines,
   sameComment,

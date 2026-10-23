@@ -356,7 +356,7 @@ describe('a highlight, when it is copied and pasted', () => {
   function pasteAtEnd(into: Editor, slice: Slice): void {
     let pasted = Slice.fromJSON(into.schema, slice.toJSON());
     into.view.someProp('transformPasted', (transform) => {
-      pasted = transform(pasted, into.view);
+      pasted = transform(pasted, into.view, false);
     });
     const end = into.state.doc.content.size;
     into.view.dispatch(into.state.tr.replaceRange(end, end, pasted));

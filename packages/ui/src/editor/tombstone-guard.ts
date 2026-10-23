@@ -3,7 +3,7 @@ import { Plugin, TextSelection, type EditorState, type Transaction } from '@tipt
 import { liftTarget, Mapping } from '@tiptap/pm/transform';
 import { Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
-import { isTombstoneBlock } from '@dfai/domain';
+import { BLOCK_ANCHOR_ATTR, highlightAsPlainQuote, isTombstoneBlock } from '@dfai/domain';
 import { READ_FROM_FILE } from './block-anchor.ts';
 
 /*
@@ -28,6 +28,11 @@ import { READ_FROM_FILE } from './block-anchor.ts';
  * Nor is one ever put on the clipboard, or taken off it: copied with the
  * words around it, a paste would hold it twice, or carry a removed
  * highlight's tombstone into a note that never had it.
+ *
+ * Nor is a highlight ever pasted as one: a copy holding its marker would be
+ * a second live highlight of the passage, in its own note or another. Pasted,
+ * it is a plain quote, its words and comment kept, its marker and id dropped.
+ * A highlight dragged within its note is moved, not copied, and stays one.
  */
 
 const isTombstone = (node: ProseMirrorNode): boolean =>
@@ -143,6 +148,38 @@ function offTheClipboard(slice: Slice): Slice {
   );
 }
 
+/** `content` with each highlight block made a plain quote, and one with nothing to show dropped. */
+function highlightsAsQuotes(content: Fragment): Fragment {
+  const kept: ProseMirrorNode[] = [];
+  content.forEach((node) => {
+    if (node.type.name === 'rawBlock') {
+      const quote = highlightAsPlainQuote(String(node.attrs['markdown'] ?? ''));
+      if (quote === null) kept.push(node);
+      else if (quote !== '') {
+        kept.push(node.type.create({ ...node.attrs, markdown: quote, [BLOCK_ANCHOR_ATTR]: null }));
+      }
+      return;
+    }
+    if (node.isTextblock || node.isLeaf || node.childCount === 0) kept.push(node);
+    else kept.push(node.copy(highlightsAsQuotes(node.content)));
+  });
+  return Fragment.from(kept);
+}
+
+/** A pasted slice: no tombstone, and no highlight but the ones moved by a drag within the note. */
+function pastedOff(slice: Slice, view: EditorView): Slice {
+  const clean = offTheClipboard(slice);
+  if (view.dragging?.move === true) return clean;
+  const content = highlightsAsQuotes(clean.content);
+  if (content.eq(clean.content)) return clean;
+  const deepest = Slice.maxOpen(content);
+  return new Slice(
+    content,
+    Math.min(clean.openStart, deepest.openStart),
+    Math.min(clean.openEnd, deepest.openEnd),
+  );
+}
+
 /** The tombstones the transactions took, put back at the block boundary nearest where they were. */
 function restoration(
   transactions: readonly Transaction[],
@@ -222,7 +259,7 @@ export const TombstoneGuard = Extension.create({
     return [
       new Plugin({
         appendTransaction: restoration,
-        props: { transformCopied: offTheClipboard, transformPasted: offTheClipboard },
+        props: { transformCopied: offTheClipboard, transformPasted: pastedOff },
       }),
     ];
   },

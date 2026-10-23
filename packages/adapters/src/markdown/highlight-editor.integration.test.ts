@@ -5,6 +5,7 @@ import {
   areaHighlight,
   BLOCK_ANCHOR_ATTR,
   commentLines,
+  highlightAsPlainQuote,
   isTombstoneBlock,
   kindleHighlightKey,
   kindleNoteKey,
@@ -280,5 +281,43 @@ describe('a comment edited in place', () => {
         expect(again).toBe(text);
       }
     }
+  });
+});
+
+/*
+ * Regression (#534): a highlight copied and pasted is made a plain quote as
+ * it is pasted (tombstone-guard.ts). Saved, the note holds the original
+ * highlight, byte for byte, and the copy as a quote with no marker and no id.
+ */
+describe('a highlight pasted as a plain quote', () => {
+  const MARKER =
+    '<!-- atlas:highlight {"v":1,"mark":"underline","color":"pink","kind":"kindle","location":41} -->';
+  const body = [
+    'My own paragraph.',
+    '',
+    '> The tide keeps its hours.',
+    `> ${MARKER}`,
+    '>',
+    '> Lit by Mara.',
+    '',
+    '^kd0041',
+    '',
+  ].join('\n');
+
+  it('is saved as a quote after the one highlight, which is unchanged', () => {
+    const { doc } = remarkMarkdown.parseBody(body);
+    const original = doc.content.find((node) => node.type === 'rawBlock');
+    const quote = highlightAsPlainQuote(String(original?.attrs?.['markdown'] ?? ''));
+    expect(quote).not.toBeNull();
+    const pasted: EditorDocument = {
+      ...doc,
+      content: [
+        ...doc.content,
+        { type: 'rawBlock', attrs: { markdown: quote ?? '', [BLOCK_ANCHOR_ATTR]: null } },
+      ],
+    };
+    const saved = save(body, pasted);
+    expect(saved).toBe(`${body}\n> The tide keeps its hours.\n>\n> Lit by Mara.\n`);
+    expect(saved.split('atlas:highlight ')).toHaveLength(2);
   });
 });
