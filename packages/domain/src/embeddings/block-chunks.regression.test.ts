@@ -104,6 +104,33 @@ describe('Obsidian %% comments are hidden, so not embedded or shown', () => {
   });
 });
 
+describe('a %% comment that spans blocks, and code', () => {
+  it('a comment opened in one paragraph and closed in a later one hides the blocks between', () => {
+    const chunks = blockChunks({
+      title: 'Review',
+      doc: doc(
+        paragraph(text('Kept before. %% start of a private aside')),
+        paragraph(text('Mara Quill is leaving in May.')),
+        paragraph(text('end of it %% Kept after.')),
+      ),
+    });
+    expect(wordsOf(chunks)).toEqual(['Kept before.', 'Kept after.']);
+  });
+
+  it('a comment never closed hides all that follows', () => {
+    const chunks = blockChunks({
+      title: 'Review',
+      doc: doc(paragraph(text('Shown. %% never closed')), paragraph(text('Hidden too.'))),
+    });
+    expect(wordsOf(chunks)).toEqual(['Shown.']);
+  });
+
+  it('a %% inside a code block is code, not a comment', () => {
+    const code: EditorNode = { type: 'codeBlock', content: [text('printf("100%%");')] };
+    expect(wordsOf(blockChunks({ title: 'Notes', doc: doc(code) }))).toEqual(['printf("100%%");']);
+  });
+});
+
 describe('ranking is never garbage', () => {
   const unit = (...values: number[]): Float32Array => {
     const length = Math.hypot(...values);

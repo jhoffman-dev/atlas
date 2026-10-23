@@ -83,9 +83,8 @@ export function passageOf(chunk: Pick<BlockChunk, 'context' | 'words'>): string 
 /** What a hit shows of a chunk: its words, cut to `CHUNK_EXCERPT_LENGTH`. */
 export function chunkExcerpt(chunk: Pick<BlockChunk, 'words'>): string {
   const { words } = chunk;
-  return words.length <= CHUNK_EXCERPT_LENGTH
-    ? words
-    : `${words.slice(0, CHUNK_EXCERPT_LENGTH - 1).trimEnd()}…`;
+  if (words.length <= CHUNK_EXCERPT_LENGTH) return words;
+  return `${words.slice(0, characterBoundary(words, CHUNK_EXCERPT_LENGTH - 1)).trimEnd()}…`;
 }
 
 /** Every chunk of a note, in the note's order, numbered from 0. */
@@ -106,6 +105,8 @@ export function blockChunks({ title, doc }: { title: string; doc: EditorDocument
 export function halvedChunk(chunk: BlockChunk): [BlockChunk, BlockChunk] | null {
   if (chunk.words.length < 2) return null;
   const at = splitPoint(chunk.words, Math.ceil(chunk.words.length / 2));
+  // One character (an emoji, a letter with its accents) cannot be split in two.
+  if (at <= 0 || at >= chunk.words.length) return null;
   const half = (words: string): BlockChunk => withDigest({ ...chunk, words });
   return [half(chunk.words.slice(0, at).trimEnd()), half(chunk.words.slice(at).trimStart())];
 }
@@ -143,25 +144,60 @@ function notePieces(doc: EditorDocument, title: string): Piece[] {
     // An id an earlier block also holds names that one (`locateFragment`), not this.
     return typeof id === 'string' && named.get(id) === pathKey(at) ? id : null;
   };
+  const comments = commentFilter();
   const pieces: Piece[] = [];
   let heading: string | null = null;
   doc.content.forEach((block, index) => {
     const at = [index];
     if (block.type === 'heading') {
-      const words = squeezed(nodeText(block));
+      const words = squeezed(comments.shown(lineText(block)));
       if (words === '') return;
       heading = words;
       const anchor = ownAnchor(block, at);
       if (words !== title || anchor !== null) pieces.push({ words, anchor, heading });
     } else if (LISTS.has(block.type)) {
       for (const item of listItems(block, at))
-        pieces.push({ words: item.words, anchor: ownAnchor(item.node, item.at), heading });
+        pieces.push({
+          words: squeezed(comments.shown(item.words)),
+          anchor: ownAnchor(item.node, item.at),
+          heading,
+        });
     } else if (WHOLE.has(block.type)) {
-      pieces.push({ words: wordsOf(block), anchor: ownAnchor(block, at), heading });
+      // Code is code: a `%%` in it is not a comment.
+      const own = wordsOf(block);
+      const words = block.type === 'codeBlock' ? own : squeezed(comments.shown(own));
+      pieces.push({ words, anchor: ownAnchor(block, at), heading });
     }
   });
   return pieces.filter((piece) => piece.words !== '');
 }
+
+/**
+ * Hides what an Obsidian `%%…%%` comment covers, in the order the note is
+ * read: a comment may open in one block and close in a later one, and one
+ * never closed hides all that follows.
+ */
+function commentFilter(): { shown(text: string): string } {
+  let hidden = false;
+  return {
+    shown(text) {
+      let kept = '';
+      let from = 0;
+      for (;;) {
+        const mark = text.indexOf(COMMENT_MARK, from);
+        if (mark < 0) {
+          if (!hidden) kept += text.slice(from);
+          return kept;
+        }
+        if (!hidden) kept += text.slice(from, mark);
+        hidden = !hidden;
+        from = mark + COMMENT_MARK.length;
+      }
+    },
+  };
+}
+
+const COMMENT_MARK = '%%';
 
 /** Every item of a list, nested ones after the item they are under, with its own words. */
 function listItems(
@@ -181,10 +217,22 @@ function listItems(
   return found;
 }
 
-/** A node's words as they read, with a space between blocks and table cells. */
+/**
+ * A node's words as they read, with a space between blocks and table cells. A
+ * callout says its title first.
+ */
 function wordsOf(node: EditorNode): string {
-  if (INLINE.has(node.type) || node.content === undefined) return squeezed(nodeText(node));
-  return squeezed(node.content.map(wordsOf).join(' '));
+  if (INLINE.has(node.type) || node.content === undefined) return squeezed(lineText(node));
+  const body = node.content.map(wordsOf);
+  const title = node.type === 'callout' ? node.attrs?.['title'] : undefined;
+  return squeezed((typeof title === 'string' ? [title, ...body] : body).join(' '));
+}
+
+/** A line's text as `nodeText` reads it, but an embed (`![[Other]]`) is another note's words, not this one's. */
+function lineText(node: EditorNode): string {
+  if (node.type === 'wikiLink' && node.attrs?.['embed'] === true) return '';
+  if (node.content === undefined || node.type === 'text') return nodeText(node);
+  return node.content.map(lineText).join('');
 }
 
 /** Words cut at spaces into runs of at most `most` characters; a longer word is cut where it must be. */
@@ -200,10 +248,34 @@ function cutWords(words: string, most: number): string[] {
   return runs;
 }
 
-/** Where to cut `words` at most `wanted` characters in: after the last space before it, else at it. */
+/** Where to cut `words` at most `wanted` code units in: after the last space before it, else between characters. */
 function splitPoint(words: string, wanted: number): number {
   const before = words.lastIndexOf(' ', wanted);
-  return before > 0 ? before + 1 : wanted;
+  return before > 0 ? before + 1 : characterBoundary(words, wanted);
+}
+
+const characters = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+/** How far either side of a cut is looked at to find where a character begins: longer than any emoji sequence. */
+const CHARACTER_REACH = 64;
+
+/**
+ * The last place at or before `index` where a user-perceived character begins
+ * (`Intl.Segmenter`): a cut there never splits a surrogate pair, an emoji with
+ * its modifiers, or a letter from its accents. 0 when the text up to `index` is
+ * one character, which no cut can shorten. A "character" longer than the reach
+ * (a stack of combining marks) is cut `CHARACTER_REACH` before `index`, so a
+ * caller always makes progress.
+ */
+function characterBoundary(text: string, index: number): number {
+  if (index <= 0) return 0;
+  if (index >= text.length) return text.length;
+  const from = Math.max(0, index - CHARACTER_REACH);
+  let boundary = from;
+  for (const { index: offset } of characters.segment(text.slice(from, index + CHARACTER_REACH))) {
+    if (from + offset > index) break;
+    boundary = from + offset;
+  }
+  return boundary;
 }
 
 const squeezed = (text: string): string => text.replace(/\s+/g, ' ').trim();

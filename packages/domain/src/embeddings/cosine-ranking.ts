@@ -48,7 +48,8 @@ export function cosine(left: Float32Array, right: Float32Array): number {
 /**
  * The `limit` vectors most like `query`, best first. Those `include` turns
  * away are not compared at all. Two of the same score keep the order they
- * were given in, so the same cache always ranks the same way.
+ * were given in, so the same cache always ranks the same way. A vector whose
+ * score is not a finite number is skipped, never ranked.
  */
 export function topByCosine({
   query,
@@ -66,6 +67,8 @@ export function topByCosine({
   vectors.forEach((vector, at) => {
     if (!include(at)) return;
     const score = cosine(query, vector);
+    // A torn row or a broken model gives NaN, which compares false with everything and would sit first.
+    if (!Number.isFinite(score)) return;
     if (best.length === limit && score <= (best[limit - 1] as Ranked).score) return;
     // Placed after every equal score, so an earlier vector stays ahead of a later one.
     let place = best.length;
