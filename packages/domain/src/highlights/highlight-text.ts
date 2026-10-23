@@ -68,6 +68,14 @@ export function undoCommentEscapes(comment: string): string {
     .join('\n');
 }
 
+/**
+ * Whether two comments are the same words once written: both as the file
+ * would hold them, so a comment shown as typed matches the one written from it.
+ */
+export function sameComment(typed: string, written: string): boolean {
+  return commentLines(typed).join('\n') === commentLines(undoCommentEscapes(written)).join('\n');
+}
+
 function paragraphsOf(words: string): string[] {
   return words
     .replace(/\r\n?/g, '\n')

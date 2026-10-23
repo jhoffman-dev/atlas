@@ -81,19 +81,22 @@ export async function addHighlight(
 
 /**
  * Makes the comment of highlight `id` in the note at `path` say `comment`;
- * a blank one takes the comment off. Throws `HighlightNotFoundError` when
- * the note no longer holds it, and `HighlightNotReadBackError`, writing
+ * a blank one takes the comment off. With `base`, the comment the writer
+ * started from, a comment that is not that one any more is never overwritten:
+ * throws `HighlightCommentChangedError` (#534). Throws `HighlightNotFoundError`
+ * when the note no longer holds it, and `HighlightNotReadBackError`, writing
  * nothing, when the note would then hide another highlight.
  */
 export async function editHighlightComment(
   ports: LiteratureNoteWritePorts,
-  { path, id, comment }: { path: VaultPath; id: string; comment: string },
+  { path, id, comment, base }: { path: VaultPath; id: string; comment: string; base?: string },
 ): Promise<void> {
   const change = (text: string) =>
     withHighlightComment({
       text,
       id,
       comment,
+      ...(base !== undefined && { base }),
       noteBlocks: (note) => ports.markdown.noteBlocks(note),
     });
   await changeLiteratureNote(ports, { path, change });
