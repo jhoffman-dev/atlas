@@ -65,9 +65,23 @@ export function usePaletteInput(store: OverlayStore): PaletteInput {
 
 // ---- The peek, the layer under the overlays (slice 6b) ----------------------
 
+/** How many times each store's peek has been opened: which opening a peek that is up is. */
+const peekOpenings = new WeakMap<OverlayStore, number>();
+
 /** Opens the peek on a note, by `withPeekOpened`'s rule: never above an overlay. */
 export function openPeek(store: OverlayStore, peek: Peek): void {
+  const was = store.getState().peek;
   store.setState((state) => withPeekOpened(state, peek));
+  if (store.getState().peek !== was) peekOpenings.set(store, peekOpening(store) + 1);
+}
+
+/**
+ * Which opening of the peek this is: a peek closed and opened again on the
+ * same note is another opening, so what was asked in the first is not the
+ * second's (#506).
+ */
+export function peekOpening(store: OverlayStore): number {
+  return peekOpenings.get(store) ?? 0;
 }
 
 /** Shows another note in the peek that is up: a link followed or a result picked in it. */

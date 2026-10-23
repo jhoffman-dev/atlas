@@ -203,6 +203,7 @@ export function apiFixture({
           : entry;
       });
     },
+    listFiles: async () => [],
     listNotes: async () =>
       [...stored].map(([path, note]) => ({
         name: path.split('/').at(-1) ?? '',

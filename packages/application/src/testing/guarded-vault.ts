@@ -61,6 +61,7 @@ export function guardedVault(entries: Record<string, string>) {
           name: path.split('/').at(-1)!,
           path: p(path),
         })),
+    listFiles: async () => [],
     listNotes: async () =>
       [...files]
         .filter(([path]) => path.endsWith('.md'))

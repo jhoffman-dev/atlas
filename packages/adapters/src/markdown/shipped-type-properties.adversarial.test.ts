@@ -48,6 +48,7 @@ function memoryHost(initial: Record<string, string>) {
       }
       return [...names.values()];
     },
+    listFiles: async () => [],
     listNotes: async () => [],
     readNotes: async (paths) =>
       paths.flatMap((path) => {

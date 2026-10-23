@@ -1,9 +1,12 @@
 import { isArchivedPath } from '../archive/archive.ts';
+import type { HighlightBlock } from '../highlights/highlight-block.ts';
+import type { LiteratureNote } from '../highlights/literature-note.ts';
 import { fragmentContent } from '../markdown/block-outline.ts';
 import type { EditorNode, EditorDocument } from '../markdown/editor-node.ts';
 import { linkFragment, type LinkFragment } from '../markdown/link-fragment.ts';
 import { wikiLinkLabel, type WikiLink } from '../markdown/wikilink.ts';
 import { pageTitle } from '../page/page-title.ts';
+import { highlightChip, type HighlightChip } from '../reader/highlight-opening.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { paragraphOfEmbed } from './block-embed.ts';
@@ -34,7 +37,15 @@ export type Transclusion =
       readonly fragment: LinkFragment;
       /** The block, or the heading and what is under it, as blocks of their own. */
       readonly content: EditorDocument;
+      /** Where a highlight shown is from (#506): its source and page; null for any other block. */
+      readonly highlight: HighlightChip | null;
     };
+
+/** A literature note's source and highlights, read for the embeds of its highlights (#506). */
+export interface ShownLiterature {
+  readonly source: LiteratureNote;
+  readonly highlights: readonly HighlightBlock[];
+}
 
 /** The shown block of a link that names no note. */
 export function missingTransclusion(link: WikiLink): Transclusion {
@@ -52,11 +63,14 @@ export function transclusionOf({
   path,
   properties,
   doc,
+  literature = null,
 }: {
   link: WikiLink;
   path: VaultPath;
   properties: Readonly<Record<string, unknown>>;
   doc: EditorDocument;
+  /** What the note says as a literature note; null, or left out, for any other note. */
+  literature?: ShownLiterature | null;
 }): Transclusion {
   const title = pageTitle({ fileTitle: noteTitle(path), properties }).text;
   const archived = isArchivedPath(path);
@@ -72,7 +86,15 @@ export function transclusionOf({
     archived,
     fragment,
     content: { type: 'doc', content: nodes.map(oneLevel) },
+    highlight: chipOf(literature, fragment),
   };
+}
+
+/** The source chip of the highlight a fragment names, or null when it names none. */
+function chipOf(literature: ShownLiterature | null, fragment: LinkFragment): HighlightChip | null {
+  if (literature === null || fragment.kind !== 'block') return null;
+  const shown = literature.highlights.find((highlight) => highlight.id === fragment.id);
+  return shown === undefined ? null : highlightChip(literature.source, shown);
 }
 
 /** A block with every shown block inside it made its link again. */

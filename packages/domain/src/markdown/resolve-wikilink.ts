@@ -15,7 +15,7 @@ const NOT_PLAIN_ASCII = /[^ -~\t\n\r]/;
  * `ë` as one character, and files synced from elsewhere often spell it as `e`
  * and a combining mark; both are the same name to the person (A21-02).
  */
-const composed = (name: string): string =>
+export const composed = (name: string): string =>
   // Most names are plain ASCII, which composes to itself: skipping them keeps
   // resolving every link in a large vault as quick as it was.
   NOT_PLAIN_ASCII.test(name) ? name.normalize('NFC') : name;

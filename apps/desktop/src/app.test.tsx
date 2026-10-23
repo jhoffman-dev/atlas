@@ -87,6 +87,7 @@ function fakeVault({
   };
   const fs: VaultFsPort = {
     listDirectory: async (path: VaultPath) => directories[path] ?? [],
+    listFiles: async () => [],
     listNotes: async () =>
       Object.keys(files)
         .filter((name) => name.endsWith('.md'))
@@ -2533,6 +2534,7 @@ describe('each pane reads what it shows, and nothing for a note saved elsewhere 
     const heard: ((paths: readonly string[]) => void)[] = [];
     const fs: VaultFsPort = {
       ...base.fs,
+      listFiles: async () => [],
       listNotes: async (options) =>
         (await base.fs.listNotes(options)).map((note) => ({
           ...note,

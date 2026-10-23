@@ -175,6 +175,7 @@ describe('a shown block drawn again', () => {
     archived: false,
     fragment: { kind: 'block', id: 't1' },
     content: doc(paragraph('Pack the tent')),
+    highlight: null,
   };
   const shownDoc = doc({
     type: 'blockEmbed',
