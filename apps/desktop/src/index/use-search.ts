@@ -5,17 +5,19 @@ import {
   toSearchQuery,
   type PaletteCommand,
 } from '@dfai/domain';
-import {
-  searchNotes,
-  type BuildProgress,
-  type IndexPort,
-  type SearchHit,
-  type SemanticSearch,
-} from '@dfai/application';
+import { searchNotes, type BuildProgress, type IndexPort, type SearchHit } from '@dfai/application';
 import { withArchived, withMeaning, withMoved, withQuery } from '../overlay.ts';
 import { changePalette, usePaletteInput, type OverlayStore } from '../overlay-store.ts';
+import { useSemanticKey, type MeaningSource } from '../semantic/use-semantic-key.ts';
 
 const LIMIT = 20;
+/**
+ * By meaning, two blocks of a note with no id open the same place and are one row:
+ * three times the rows are asked for, so the rows left once they are one still fill the list.
+ */
+const MEANING_ASKED = LIMIT * 3;
+/** How long a question by meaning waits for the next key before the model is asked. */
+const MEANING_TYPING_MS = 150;
 
 const NO_COMMANDS: readonly PaletteCommand[] = [];
 const NO_HITS: readonly SearchHit[] = [];
@@ -53,7 +55,6 @@ export function useSearch({
   changeKey,
   store,
   semantic,
-  semanticKey = '',
 }: {
   index: IndexPort;
   commands?: readonly PaletteCommand[];
@@ -67,15 +68,13 @@ export function useSearch({
   /** Where the query and the chosen row are kept (#261). */
   store: OverlayStore;
   /** Search by meaning in the open vault (P32-02); null or left out, it is not offered. */
-  semantic?: SemanticSearch | null;
-  /**
-   * Changes as the cache of meanings is built: a search by meaning is asked
-   * again, so notes reached since are found without typing again.
-   */
-  semanticKey?: string;
+  semantic?: MeaningSource | null;
 }) {
   const { query, selected, includeArchived, byMeaning: meaningAsked } = usePaletteInput(store);
   const byMeaning = meaningAsked && semantic !== null && semantic !== undefined;
+  // Moves as the cache of meanings is built, so a search by meaning is asked again and notes
+  // reached since are found without typing again; heard only while searching by meaning.
+  const semanticKey = useSemanticKey(byMeaning ? semantic : null);
   const [answer, setAnswer] = useState<Answer>(NO_ANSWER);
   // By meaning, the question is asked as typed: punctuation and all, it still means something.
   const prepared = byMeaning ? nonEmpty(query.trim()) : toSearchQuery(query);
@@ -109,16 +108,21 @@ export function useSearch({
     const asked = asking;
     const searching =
       byMeaning && semantic !== null && semantic !== undefined
-        ? meaningHits(semantic, { query: prepared, includeArchived })
-        : // The highlights in literature notes too, after the notes, each opening at its block (#507).
-          searchNotes({
-            index,
-            query: prepared,
-            limit: LIMIT,
-            includeArchived,
-            highlights: true,
-          }).then((hits) => ({ hits }));
-    searching
+        ? afterTyping(MEANING_TYPING_MS, () =>
+            meaningHits(semantic, { query: prepared, includeArchived }),
+          )
+        : {
+            // The highlights in literature notes too, after the notes, each opening at its block (#507).
+            promise: searchNotes({
+              index,
+              query: prepared,
+              limit: LIMIT,
+              includeArchived,
+              highlights: true,
+            }).then((hits) => ({ hits })),
+            cancel: () => undefined,
+          };
+    searching.promise
       .then((found) => {
         if (cancelled) return;
         const was = shown.current;
@@ -139,6 +143,7 @@ export function useSearch({
 
     return () => {
       cancelled = true;
+      searching.cancel();
     };
   }, [index, semantic, byMeaning, prepared, includeArchived, asking, searchKey, store]);
 
@@ -195,6 +200,24 @@ export function useSearch({
   };
 }
 
+/**
+ * `ask` after `milliseconds` without a call to cancel it: a key typed into a
+ * question by meaning cancels the one before it, so the model is asked about
+ * the words typed, not each letter on the way to them.
+ */
+function afterTyping<T>(milliseconds: number, ask: () => Promise<T>) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const promise = new Promise<T>((resolve, reject) => {
+    timer = setTimeout(() => ask().then(resolve, reject), milliseconds);
+  });
+  return {
+    promise,
+    cancel: () => {
+      if (timer !== null) clearTimeout(timer);
+    },
+  };
+}
+
 const nonEmpty = (text: string): string | null => (text === '' ? null : text);
 
 /**
@@ -204,13 +227,14 @@ const nonEmpty = (text: string): string | null => (text === '' ? null : text);
  * row, the closer block's.
  */
 async function meaningHits(
-  semantic: SemanticSearch,
+  semantic: MeaningSource,
   { query, includeArchived }: { query: string; includeArchived: boolean },
 ): Promise<{ hits: readonly SearchHit[]; meaning: MeaningStatus }> {
-  const answer = await semantic.search({ query, limit: LIMIT, includeArchived });
+  const answer = await semantic.search({ query, limit: MEANING_ASKED, includeArchived });
   const seen = new Set<string>();
   const hits: SearchHit[] = [];
   for (const { path, title, text, block } of answer.hits) {
+    if (hits.length === LIMIT) break;
     const place = `${path}#${block ?? ''}`;
     if (seen.has(place)) continue;
     seen.add(place);

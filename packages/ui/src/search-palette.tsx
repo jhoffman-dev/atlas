@@ -37,7 +37,12 @@ export interface MeaningToggle {
   readonly on: boolean;
   readonly onChange: (on: boolean) => void;
   /** How far the cache of meanings is built, as the hits on screen were found; null before any. */
-  readonly progress: { readonly done: number; readonly total: number } | null;
+  readonly progress: {
+    readonly done: number;
+    readonly total: number;
+    /** Why the build stopped, when it did. */
+    readonly failure?: string | null;
+  } | null;
   /** Why the search by meaning could not run, or null. */
   readonly problem: string | null;
 }
@@ -87,8 +92,11 @@ export function SearchPalette({
 }) {
   const byMeaning = meaning?.on === true;
   const finalFocus = useReturnFocus(fallbackFocus);
-  // Steady, so a command still listed after a key is typed is not drawn again for it.
+  // Steady, so a command or hit still listed after a key is typed is not drawn again for it.
   const runCommand = useSteadyCallback(onCommand);
+  const pick = useSteadyCallback(onPick);
+  const changeArchived = useSteadyCallback((included: boolean) => archived?.onChange(included));
+  const changeMeaning = useSteadyCallback((on: boolean) => meaning?.onChange(on));
   const hitsRef = useRef<HTMLUListElement>(null);
   // The selection the list was last scrolled for. It starts at the one the
   // palette opens on, which is already drawn in view: opening does no scroll work.
@@ -142,26 +150,23 @@ export function SearchPalette({
               </span>
             </div>
             {(archived !== undefined || meaning !== undefined) && (
-              <div className="palette__scope">
-                {archived !== undefined && (
-                  <label className="palette__switch">
-                    <Toggle
-                      label="Include archived"
-                      checked={archived.included}
-                      onChange={archived.onChange}
-                    />
-                    <span aria-hidden="true">Include archived</span>
-                  </label>
-                )}
-                {meaning !== undefined && (
-                  <label className="palette__switch">
-                    <Toggle label="By meaning" checked={meaning.on} onChange={meaning.onChange} />
-                    <span aria-hidden="true">By meaning</span>
-                  </label>
-                )}
-              </div>
+              <PaletteScope
+                archivable={archived !== undefined}
+                archived={archived?.included === true}
+                onArchived={changeArchived}
+                meaningful={meaning !== undefined}
+                byMeaning={byMeaning}
+                onMeaning={changeMeaning}
+              />
             )}
-            {byMeaning && <MeaningNote meaning={meaning as MeaningToggle} />}
+            {byMeaning && (
+              <MeaningNote
+                problem={meaning?.problem ?? null}
+                done={meaning?.progress?.done ?? null}
+                total={meaning?.progress?.total ?? 0}
+                failure={meaning?.progress?.failure ?? null}
+              />
+            )}
 
             {query.trim() !== '' && hits.length === 0 && commands.length === 0 ? (
               <p className="palette__empty">Nothing matches.</p>
@@ -181,7 +186,7 @@ export function SearchPalette({
                     <Hit
                       hit={hit}
                       selected={index + commands.length === selected}
-                      onPick={onPick}
+                      onPick={pick}
                       byMeaning={byMeaning}
                     />
                   </li>
@@ -247,20 +252,76 @@ function pickHit(hit: SearchHit, onPick: (path: string, block?: string) => void)
 }
 
 /**
- * What the palette says of a search by meaning: why it could not run, or that
- * the cache of meanings is still being built, so a missing note is expected.
+ * The two switches under the field. Drawn again only when one is switched or
+ * offered or let go: typing on leaves them as they were, so what it is given
+ * is plain values and callbacks that stay the same.
  */
-function MeaningNote({ meaning }: { meaning: MeaningToggle }) {
-  const { problem, progress } = meaning;
+const PaletteScope = memo(function PaletteScope({
+  archivable,
+  archived,
+  onArchived,
+  meaningful,
+  byMeaning,
+  onMeaning,
+}: {
+  archivable: boolean;
+  archived: boolean;
+  onArchived: (included: boolean) => void;
+  meaningful: boolean;
+  byMeaning: boolean;
+  onMeaning: (on: boolean) => void;
+}) {
+  return (
+    <div className="palette__scope">
+      {archivable && (
+        <label className="palette__switch">
+          <Toggle label="Include archived" checked={archived} onChange={onArchived} />
+          <span aria-hidden="true">Include archived</span>
+        </label>
+      )}
+      {meaningful && (
+        <label className="palette__switch">
+          <Toggle label="By meaning" checked={byMeaning} onChange={onMeaning} />
+          <span aria-hidden="true">By meaning</span>
+        </label>
+      )}
+    </div>
+  );
+});
+
+/**
+ * What the palette says of a search by meaning: why it could not run, why the
+ * cache of meanings stopped being built, or that it is still being built, so a
+ * missing note is expected.
+ */
+const MeaningNote = memo(function MeaningNote({
+  problem,
+  done,
+  total,
+  failure,
+}: {
+  problem: string | null;
+  /** Notes read for meaning so far; null before any search has answered. */
+  done: number | null;
+  total: number;
+  failure: string | null;
+}) {
   if (problem !== null)
     return <p className="palette__note">Search by meaning is not available: {problem}</p>;
-  if (progress === null || progress.done >= progress.total) return null;
+  if (done === null) return null;
+  if (failure !== null)
+    return (
+      <p className="palette__note">
+        Stopped reading notes for meaning ({done} of {total}): {failure}
+      </p>
+    );
+  if (done >= total) return null;
   return (
     <p className="palette__note" role="status">
-      Still reading notes for meaning: {progress.done} of {progress.total}.
+      Still reading notes for meaning: {done} of {total}.
     </p>
   );
-}
+});
 
 /**
  * One result: what kind of note it is and where it lives (never `.atlas/…`),
@@ -268,7 +329,7 @@ function MeaningNote({ meaning }: { meaning: MeaningToggle }) {
  * source it is in, in place of the folder; a block found by meaning shows
  * what the block says.
  */
-function Hit({
+const Hit = memo(function Hit({
   hit,
   selected,
   onPick,
@@ -309,4 +370,4 @@ function Hit({
       )}
     </button>
   );
-}
+});

@@ -261,6 +261,55 @@ describe('SearchPalette by meaning (P32-02)', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('says why the cache of meanings stopped being built, and how far it had got', () => {
+    render(
+      <SearchPalette
+        {...props}
+        meaning={meaning({ progress: { done: 12, total: 40, failure: 'no network' } })}
+      />,
+    );
+    expect(
+      screen.getByText('Stopped reading notes for meaning (12 of 40): no network'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('does not draw a row, or the switches, again for a key typed or a handler made anew', () => {
+    let titleReads = 0;
+    const counted = {
+      path: 'a.md',
+      snippet: 'sourdough',
+      get title() {
+        titleReads += 1;
+        return 'Recipes';
+      },
+    };
+    const switches = vi.fn();
+    const { rerender } = render(
+      <SearchPalette
+        {...props}
+        query="s"
+        hits={[counted]}
+        onPick={() => {}}
+        archived={{ included: false, onChange: switches }}
+        meaning={meaning({ onChange: () => {} })}
+      />,
+    );
+    const drawn = titleReads;
+    expect(drawn).toBeGreaterThan(0);
+    rerender(
+      <SearchPalette
+        {...props}
+        query="so"
+        hits={[counted]}
+        onPick={() => {}}
+        archived={{ included: false, onChange: switches }}
+        meaning={meaning({ onChange: () => {} })}
+      />,
+    );
+    expect(titleReads).toBe(drawn);
+  });
+
   it('says why a search by meaning could not run', () => {
     render(<SearchPalette {...props} meaning={meaning({ problem: 'no network' })} />);
     expect(screen.getByText('Search by meaning is not available: no network')).toBeTruthy();

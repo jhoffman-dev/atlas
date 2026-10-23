@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { memo, useMemo } from 'react';
 import type { NavigationPlace, PaletteCommand } from '@dfai/domain';
 import { SEARCH_SCOPE, type IndexPort, type SemanticEngine } from '@dfai/application';
 import { SearchPalette } from '@dfai/ui';
@@ -70,8 +70,7 @@ function OpenSearchPalette({
   );
   const commands = useMemo(() => commandsFor(focused), [commandsFor, focused]);
   const changeKey = usePaletteKey(indexStatus, vault);
-  const semanticKey = useSemanticKey(semantic);
-  const search = useSearch({ index, semantic, semanticKey, commands, offerFor, changeKey, store });
+  const search = useSearch({ index, semantic, commands, offerFor, changeKey, store });
   return (
     <SearchPalette
       query={search.query}
@@ -114,22 +113,4 @@ function usePaletteKey(status: IndexStatusStore, vault: string | null): string {
   const building = useIndexPhase(status, vault) === 'building';
   const key = useScopedIndexKey({ status, vault, reader: ['search'], scope: SEARCH_SCOPE });
   return building ? 'building' : key;
-}
-
-/**
- * How far the cache of meanings is built, as a key that moves with it: the
- * hits by meaning are searched again as notes are reached. Read only while
- * the palette is up, so the build drawing nothing else.
- */
-function useSemanticKey(semantic: SemanticEngine | null): string {
-  const subscribe = useCallback(
-    (onChange: () => void) => semantic?.subscribe(onChange) ?? (() => undefined),
-    [semantic],
-  );
-  return useSyncExternalStore(subscribe, () => {
-    const progress = semantic?.progress();
-    return progress === undefined
-      ? ''
-      : `${progress.done}/${progress.total}/${progress.failure ?? ''}`;
-  });
 }
