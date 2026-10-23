@@ -239,3 +239,41 @@ and from then on the build resumes at each launch once the index is ready.
 of the cache held in the window; at 50,000 blocks it was measured in the PR
 for P32-02 (#33). The model's vectors are unit length, so cosine is a dot
 product.
+
+### Review round (2026-10-23)
+
+**Privacy: `%%…%%` comments are never embedded or shown.** Text inside an
+Obsidian comment, in a block or across blocks, is not a chunk's words; so it is
+not sent to the model, not kept as an excerpt and not shown in a hit or by the
+API. A paragraph that is only a comment is not a chunk, and an unclosed `%%`
+hides the rest of the note, as Obsidian does. Code is code: a `%%` in a code
+block is not a comment. A callout's title is part of its chunk (a callout with
+only a title is a chunk of its title), and an `![[embed]]` is passed over.
+
+**The API and MCP never opt a vault in.** Turning search by meaning on fetches
+a 91 MB model, which is the person's to ask for from the app (⌘K, "By
+meaning"). `GET /v1/search?mode=semantic` on a vault that has not been opted in
+answers `semantic_off` (409) and asks nothing; once it is on, the caller shares
+the palette's cache and build. `q` is at most 1000 characters there, and the
+in-process seam cuts a longer question to what the model reads rather than
+failing; its `limit` is held to 1–100 (20 when not a number).
+
+**A damaged cache is thrown away, never a dead end.** Opening a file that is
+torn or no database discards it and makes it afresh; one met damaged later is
+made again and the window starts over from the notes. A load that cannot be
+read back whole (vectors of different lengths, not whole numbers), or vectors
+that are not the model's length at search time, clear the cache and rebuild.
+`put` refuses vectors of mixed lengths; the connection waits up to 2 s for a
+lock (`busy_timeout`).
+
+**The window.** A passage's vector is found by digest wherever it is held, and
+for a while after its last block is gone, so moving a note or folder embeds
+nothing. A hit's excerpt is read `AND digest = ?`, so it can never show another
+block's words; a search ranks again when a block changed under it. Hit links
+resolve against every note the index holds, not only those embedded. Notes are
+parsed in the index's worker, and the load is a header of lines read between
+frames, padded so the vectors are viewed in place: no frame over 50 ms during
+the first build (long notes included) or a relaunch with 50,000 cached blocks.
+Cutting is at user-perceived characters (`Intl.Segmenter`), so a chunk, excerpt
+or half never ends in half an emoji; a note that cannot be written alone is
+held without blocks rather than stop the build.
