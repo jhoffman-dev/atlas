@@ -20,6 +20,7 @@ import {
   type TagSuggestion,
 } from '@dfai/domain';
 import { createEditorExtensions } from './editor/extensions.ts';
+import type { ReaderLinks } from './editor/raw-block.ts';
 import { showAsRead } from './editor/block-anchor.ts';
 import type { LinkedNoteMaker, WikiSuggestionView } from './editor/wiki-link-suggestion.ts';
 import { IMAGE_REQUEST, LINK_REQUEST, type SlashCommandView } from './editor/slash-commands.ts';
@@ -104,6 +105,7 @@ export function NoteEditor({
   reveal = null,
   onPromoteLine,
   onCreateNote,
+  highlightLinks,
   ref,
 }: {
   doc: EditorDocument;
@@ -140,6 +142,8 @@ export function NoteEditor({
   onPromoteLine?: PromoteLine;
   /** Makes a note of a name typed after `[[` that no note has (#465); left out, `[[` offers none. */
   onCreateNote?: LinkedNoteMaker;
+  /** The highlights of a literature note that open in a reader, and the words that offer it (#506). */
+  highlightLinks?: HighlightLinks | null;
   ref?: Ref<NoteEditorHandle>;
 }) {
   const [links, setLinks] = useState<WikiSuggestionView | null>(null);
@@ -206,6 +210,7 @@ export function NoteEditor({
     [creator],
   );
 
+  const readerLinks = useReaderLinks(highlightLinks ?? null);
   const bookmarkSource = useBookmarkSource(bookmarks);
   const transclusionSource = useTransclusionSource(transclusions);
   const queryBlockSource = useQueryBlockSource(queries);
@@ -230,8 +235,10 @@ export function NoteEditor({
         picking: blockPicking,
         promoteLine: promotes ? stablePromote : null,
         createNote: creates ? stableCreate : null,
+        readerLinks,
       }),
     [
+      readerLinks,
       promotes,
       stablePromote,
       creates,
@@ -356,8 +363,17 @@ export function NoteEditor({
 
   useReveal(editor, reveal);
 
+  // A link drawn as a role="link" with a tab stop — a shown highlight's chip,
+  // "Open in PDF", an embed's name — follows on Enter as a link does, with the
+  // same modifiers. Only those: Enter typed in the text is the editor's.
+  const followFromKeyboard = (event: Parameters<typeof followLink>[0] & { key: string }) => {
+    const onLink =
+      event.target instanceof HTMLElement && event.target.matches('[role="link"][data-wikilink]');
+    if (event.key === 'Enter' && onLink) followLink(event);
+  };
+
   return (
-    <div onClick={followLink} {...linkMenu.handlers}>
+    <div onClick={followLink} onKeyDown={followFromKeyboard} {...linkMenu.handlers}>
       <EditorContent editor={editor} />
       {linkMenu.overlay}
       {offerImage && (
@@ -418,4 +434,29 @@ function insertLinkInto(
       ? { at: end - 1, node: link }
       : { at: end, node: { type: 'paragraph', content: [link] } };
   editor.chain().insertContentAt(content.at, content.node).focus('end').run();
+}
+
+/** Which highlights of a literature note offer to open in its reader, and in what words ("Open in PDF"). */
+export interface HighlightLinks {
+  readonly label: string;
+  readonly ids: ReadonlySet<string>;
+}
+
+/**
+ * The raw blocks' reader links, read through a ref: the highlights change
+ * as the note is saved, and a new set each time would rebuild the editor.
+ */
+function useReaderLinks(links: HighlightLinks | null): ReaderLinks | null {
+  const latest = useLatest(links);
+  const offers = links !== null;
+  return useMemo(
+    () =>
+      offers
+        ? {
+            labelFor: (id: string) =>
+              latest.current?.ids.has(id) === true ? latest.current.label : null,
+          }
+        : null,
+    [offers, latest],
+  );
 }

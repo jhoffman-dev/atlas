@@ -79,6 +79,7 @@ function fakeFs(files: Record<string, string>) {
             }) as VaultEntry,
         );
     },
+    listFiles: async () => [],
     listNotes: async () => [],
     readNotes: async (paths) =>
       paths.flatMap((path) =>

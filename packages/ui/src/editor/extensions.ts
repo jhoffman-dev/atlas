@@ -34,6 +34,7 @@ import { BlockEmbed, type TransclusionSource } from './block-embed.tsx';
 import type { BlockPicking } from './block-picking.ts';
 import { Bookmark, TopLevelDocument, type BookmarkSource } from './bookmark.tsx';
 import { LinkKeys } from './link-keys.ts';
+import { ControlKeys } from './control-keys.ts';
 import { EscapeUnused } from './escape-unused.ts';
 import { QueryBlock, type QueryBlockSource } from './query-block.tsx';
 import { Callout } from './callout.ts';
@@ -47,7 +48,7 @@ import {
 import { PendingMention } from './pending-mention.ts';
 import { PromoteLineButton, type PromoteLine } from './promote-line.ts';
 import { PersonChips, type PersonFor } from './person-chips.ts';
-import { RawBlock } from './raw-block.ts';
+import { RawBlock, type ReaderLinks } from './raw-block.ts';
 import { WikiLink } from './wiki-link.ts';
 import {
   WikiLinkSuggestion,
@@ -79,6 +80,7 @@ export function createEditorExtensions({
   picking = null,
   promoteLine = null,
   createNote = null,
+  readerLinks = null,
 }: {
   suggest: (query: string) => NoteSuggestion[];
   onView: (view: WikiSuggestionView | null) => void;
@@ -107,9 +109,13 @@ export function createEditorExtensions({
   promoteLine?: PromoteLine | null;
   /** Makes a note of a name typed after `[[` that no note has; left out, none is offered. */
   createNote?: LinkedNoteMaker | null;
+  /** Which raw blocks offer to open their place in a reader (#506); left out, none does. */
+  readerLinks?: ReaderLinks | null;
 }) {
   return [
     ...baseExtensions,
+    ControlKeys,
+    RawBlock.configure({ readerLinks }),
     TagHighlight.configure({ onOpen: onOpenTag }),
     PersonChips.configure({ personFor: people.personFor }),
     PendingMention,
@@ -174,6 +180,7 @@ export function createReadingExtensions({
 }) {
   return [
     ...baseExtensions,
+    RawBlock,
     TagHighlight,
     VaultImage.configure({ loadImage }),
     Bookmark,
@@ -200,7 +207,6 @@ const baseExtensions = [
   TableKit.configure({ table: { resizable: false } }),
   TopLevelDocument,
   Callout,
-  RawBlock,
   WikiLink,
   BlockId,
   BlockAnchor,

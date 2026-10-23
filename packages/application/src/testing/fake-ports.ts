@@ -15,6 +15,7 @@ export function fakeVaultFs(overrides: Partial<VaultFsPort> = {}): VaultFsPort {
   return {
     listDirectory: async () => [],
     listNotes: async () => [],
+    listFiles: async () => [],
     readNotes: async () => [],
     readBinaryFile: async () => new ArrayBuffer(0),
     readTextFile: async () => ({ text: '', modified: 0 }),

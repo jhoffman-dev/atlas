@@ -5,6 +5,7 @@ import { PdfReader, type ReaderPageSize, type ReaderReveal } from '@dfai/ui';
 import type { PdfJsDocument } from '@dfai/adapters/pdf';
 import { PageFrameFallback, type PageChrome } from '../page-frame-fallback.tsx';
 import { appPdfReader } from './app-pdf-reader.ts';
+import { missingHighlightNotice } from './missing-highlight.ts';
 import {
   useLiteratureNoteOf,
   usePlacedHighlights,
@@ -80,7 +81,11 @@ function OpenDocument(props: DocumentReaderProps & { opened: PdfJsDocument; gene
       outline={outline}
       highlights={placed.highlights}
       reveal={props.reveal}
-      notice={notice ?? placed.notice ?? (found === null ? NO_NOTE : null)}
+      notice={
+        notice ??
+        placed.notice ??
+        (found === null ? NO_NOTE : missingHighlightNotice(props.reveal, placed.ids))
+      }
       onOpenNote={note === null ? null : () => props.onOpenNote(note)}
       {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
       {...(props.history !== undefined && { history: props.history })}

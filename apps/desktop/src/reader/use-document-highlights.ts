@@ -93,9 +93,15 @@ export function usePlacedHighlights({
   note: VaultPath | null;
   opened: PdfJsDocument;
   generation: number;
-}): { readonly highlights: readonly ReaderHighlight[]; readonly notice: string | null } {
+}): {
+  readonly highlights: readonly ReaderHighlight[];
+  /** The ids of the note's highlights, placed or not; null until the note is read. */
+  readonly ids: readonly string[] | null;
+  readonly notice: string | null;
+} {
   const read = useNoteHighlights({ ports, vault, note });
   const highlights = read.data ?? NONE;
+  const ids = useMemo(() => read.data?.map((block) => block.id) ?? null, [read.data]);
   const signature = useMemo(() => highlights.map(signatureOf).join('\n'), [highlights]);
   const placements = useQuery({
     // The open document is this tab's own, told apart by when it was opened.
@@ -111,6 +117,7 @@ export function usePlacedHighlights({
   const failure = read.error ?? placements.error;
   return {
     highlights: shown,
+    ids,
     notice: failure === null ? null : `The highlights could not be shown: ${messageOf(failure)}`,
   };
 }

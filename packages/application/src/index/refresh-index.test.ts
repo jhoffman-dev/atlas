@@ -42,6 +42,7 @@ const markdown: MarkdownPort = {
 function fakeVault(files: Record<string, { text: string; modified: number }>) {
   const fs: VaultFsPort = {
     listDirectory: async () => [],
+    listFiles: async () => [],
     listNotes: async () =>
       Object.entries(files).map(([path, file]) => ({
         name: path.split('/').at(-1) ?? path,

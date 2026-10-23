@@ -32,6 +32,7 @@ const markdown: MarkdownPort = {
 function memoryVault(files: Map<string, string>): VaultFsPort {
   return {
     listDirectory: async () => [],
+    listFiles: async () => [],
     listNotes: async () =>
       [...files].map(([path, text]) => ({
         name: path.split('/').at(-1) ?? path,

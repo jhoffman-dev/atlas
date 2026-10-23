@@ -83,6 +83,56 @@ describe('transclusionOf', () => {
       archived: false,
       fragment: { kind: 'block', id: 'p1' },
       content: { type: 'doc', content: [SOURCE.content[1]] },
+      highlight: null,
+    });
+  });
+
+  describe("a literature note's highlight (#506)", () => {
+    const literature = {
+      source: {
+        kind: 'pdf' as const,
+        title: 'Summer reading',
+        author: null,
+        file: 'Trips/r.pdf' as VaultPath,
+      },
+      highlights: [
+        {
+          id: 'q1',
+          quote: 'Quoted.',
+          comment: '',
+          style: { mark: 'highlight' as const, color: 'yellow' as const },
+          anchor: {
+            kind: 'pdf' as const,
+            page: 7,
+            quote: null,
+            rects: [{ x: 0, y: 0, width: 1, height: 1 }],
+          },
+          start: 0,
+          markerEnd: 0,
+          quoteEnd: 0,
+          end: 0,
+        },
+      ],
+    };
+    const shown = (source: string) =>
+      transclusionOf({ link: linkOf(source), path, properties: {}, doc: SOURCE, literature });
+
+    it('wears a chip naming its source and page', () => {
+      const card = shown('![[Plans#^q1]]');
+      expect(card.kind === 'block' ? card.highlight : 'not shown').toEqual({
+        kind: 'pdf',
+        hue: 'red',
+        title: 'Summer reading',
+        place: 'p. 7',
+        opensInReader: true,
+      });
+    });
+
+    it('wears none for a block of the note that is not a highlight, nor for a heading', () => {
+      const block = shown('![[Plans#^p1]]');
+      expect(block.kind === 'block' ? block.highlight : 'not shown').toBeNull();
+      const heading = shown('![[Plans#Plans]]');
+      expect(heading.kind === 'block' ? heading.highlight : 'not shown').toBeNull();
     });
   });
 

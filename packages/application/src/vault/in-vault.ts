@@ -18,6 +18,7 @@ export function inVault({ fs, vault }: { fs: HostVaultFsPort; vault: string }): 
   return {
     listDirectory: (path) => fs.listDirectory(path),
     listNotes: (options) => fs.listNotes(options),
+    listFiles: (options) => fs.listFiles(options),
     readNotes: (paths) => fs.readNotes(paths),
     readTextFile: (path) => fs.readTextFile(path),
     readBinaryFile: (path) => fs.readBinaryFile(path),
@@ -40,6 +41,7 @@ export function noVaultOpen(fs: HostVaultFsPort): VaultFsPort {
   return {
     listDirectory: (path) => fs.listDirectory(path),
     listNotes: (options) => fs.listNotes(options),
+    listFiles: (options) => fs.listFiles(options),
     readNotes: (paths) => fs.readNotes(paths),
     readTextFile: (path) => fs.readTextFile(path),
     readBinaryFile: (path) => fs.readBinaryFile(path),

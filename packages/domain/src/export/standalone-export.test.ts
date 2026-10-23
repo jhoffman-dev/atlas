@@ -145,6 +145,7 @@ describe('exportStandalone (#501)', () => {
       archived: false,
       fragment: { kind: 'block', id: 'abc123' },
       content: doc(paragraph(text('Book the train.'))),
+      highlight: null,
     };
     const found = exported(
       doc(blockEmbedNode({ target: 'Plans', heading: '#^abc123', alias: null })),
