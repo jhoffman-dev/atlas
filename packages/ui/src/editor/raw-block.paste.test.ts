@@ -148,6 +148,12 @@ describe('HTML from another app, read by the editor', () => {
     ]);
   });
 
+  it('keeps a block whose source is not one DFAI wrote a code block of its text', () => {
+    expect(blocksOf('<pre data-raw-block="" data-markdown="%E0%A4%A">| Kale | 55 |</pre>')).toEqual(
+      [{ type: 'codeBlock', text: '| Kale | 55 |' }],
+    );
+  });
+
   it('keeps a block marked raw but carrying no source a code block of its text', () => {
     expect(blocksOf('<pre data-raw-block="">| Kale | 55 |</pre>')).toEqual([
       { type: 'codeBlock', text: '| Kale | 55 |' },

@@ -50,7 +50,7 @@ export const RawBlock = Node.create<RawBlockOptions>({
         // also holds the reader link's words. Without one, the rule passes and
         // the code block keeps the text.
         getAttrs: (element) => {
-          const markdown = element.getAttribute('data-markdown');
+          const markdown = sourceFromAttribute(element.getAttribute('data-markdown'));
           return markdown === null ? false : { markdown };
         },
       },
@@ -67,7 +67,9 @@ export const RawBlock = Node.create<RawBlockOptions>({
     const markdown = String(node.attrs['markdown'] ?? '');
     const attributes = {
       'data-raw-block': '',
-      'data-markdown': markdown,
+      // Percent-encoded: serialisers leave `<` bare in an attribute, which
+      // would put the source's tags into the HTML of a page made from the note.
+      'data-markdown': encodeURIComponent(markdown),
       class: isComment(markdown) ? 'raw-block raw-block--comment' : 'raw-block',
       title: 'Not editable yet — saved unchanged',
     };
@@ -77,6 +79,17 @@ export const RawBlock = Node.create<RawBlockOptions>({
     return ['pre', attributes, markdown, readerLink(id as string, label)];
   },
 });
+
+/** The source `data-markdown` holds, or null without one or with one DFAI did not write. */
+const sourceFromAttribute = (encoded: string | null): string | null => {
+  if (encoded === null) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    // Not percent-encoding, so not ours: the code block's rule reads it instead.
+    return null;
+  }
+};
 
 /**
  * The block's own link — `[[#^id]]`, a place in this note — which the note's
