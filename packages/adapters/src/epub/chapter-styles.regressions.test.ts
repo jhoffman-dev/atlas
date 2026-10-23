@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { bookCss } from './chapter-styles.ts';
+import { bookCss, bookDeclarations, MOST_IMPORTED_LENGTH, MOST_IMPORTS, MOST_SHEET_LENGTH } from './chapter-styles.ts';
 
 /*
  * Regressions from the attack on and verification of PR #536 (#505, ADR-0045 §5): the reader's cleaning of a book's CSS
@@ -96,5 +96,92 @@ describe("a book's CSS made the book's own, in the spellings WebKit still loads"
     // Read as one string, `'#*/"https://…" 1x/*'` begins with `#` and is kept as a place in the chapter.
     const css = `p { background-image: image-set(/*'#*/"https://${BEACON}/quote.png" 1x/*'*/); }`;
     expect(await made(css)).not.toContain(BEACON);
+  });
+});
+
+// From the review of PR #536: a book's imports, followed into each other.
+describe("a book's imports", () => {
+  /** The book's stylesheets by path; one read more often than `most` stops the test. */
+  const book = (sheets: Record<string, string>, most = 200) => {
+    const reads: string[] = [];
+    const stylesheet = async (path: string) => {
+      reads.push(path);
+      if (reads.length > most) throw new Error(`${reads.length} stylesheets read`);
+      return sheets[path] ?? null;
+    };
+    const made = (css: string, from = 'OEBPS/chapter.xhtml') =>
+      bookCss({ css, from, address: async () => null, stylesheet });
+    return { made, reads };
+  };
+
+  it('inlines a sheet that imports itself a hundred times once', async () => {
+    const loop = `${'@import "loop.css";\n'.repeat(100)}p { color: red; }`;
+    const { made, reads } = book({ 'OEBPS/loop.css': loop });
+    const text = await made('@import "loop.css"; @import "loop.css";');
+    expect(text.match(/color: red/g)).toHaveLength(1);
+    expect(reads).toEqual(['OEBPS/loop.css']);
+  });
+
+  it('never inlines the sheet it is making', async () => {
+    const { made, reads } = book({ 'OEBPS/style.css': 'p { color: red; }' });
+    expect(await made('@import "style.css"; h1 { color: blue; }', 'OEBPS/style.css')).not.toMatch(
+      /color: red/,
+    );
+    expect(reads).toEqual([]);
+  });
+
+  it(`reads no more than ${MOST_IMPORTS} imported sheets in all`, async () => {
+    const sheets: Record<string, string> = {};
+    const fan = (prefix: string) =>
+      Array.from({ length: 20 }, (_, n) => `@import "${prefix}${n}.css";`).join('\n');
+    for (let n = 0; n < 20; n += 1) sheets[`OEBPS/a${n}.css`] = `${fan(`b${n}-`)} .a${n} {}`;
+    for (let n = 0; n < 400; n += 1) sheets[`OEBPS/b${Math.floor(n / 20)}-${n % 20}.css`] = '';
+    const { made, reads } = book(sheets);
+    await made(fan('a'));
+    expect(reads.length).toBe(MOST_IMPORTS);
+  });
+
+  it('drops an imported sheet longer than the most one may be, and stops at the most in all', async () => {
+    const long = (n: number) => `p.s${n} { color: red; }`.padEnd(MOST_SHEET_LENGTH - 1, ' ');
+    const sheets: Record<string, string> = { 'OEBPS/huge.css': `${long(0)}  ` };
+    for (let n = 1; n <= 4; n += 1) sheets[`OEBPS/s${n}.css`] = long(n);
+    const { made } = book(sheets);
+    const text = await made(
+      ['huge', 's1', 's2', 's3', 's4'].map((name) => `@import "${name}.css";`).join(''),
+    );
+    expect(text).not.toContain('p.s0');
+    // Two sheets just under the most one may be fill the most all may be.
+    expect(MOST_IMPORTED_LENGTH).toBe(2 * MOST_SHEET_LENGTH);
+    expect(text).toContain('p.s1');
+    expect(text).toContain('p.s2');
+    expect(text).not.toContain('p.s3');
+    expect(text).not.toContain('p.s4');
+  });
+
+  it('makes nothing of a sheet longer than the most one may be', async () => {
+    const { made } = book({});
+    expect(await made(`p { color: red; }${' '.repeat(MOST_SHEET_LENGTH)}`)).toBe('');
+  });
+});
+
+describe("a custom property in a book's CSS", () => {
+  it('is dropped when it holds a string or an address, and kept when it does not', async () => {
+    const text = await made(
+      `p { --a: "https://${BEACON}/a.png"; --b: url(#k); --c: image-set(red 1x); --d: 3px; }`,
+    );
+    expect(text).not.toContain('--a');
+    expect(text).not.toContain('--b');
+    expect(text).not.toContain('--c');
+    expect(text).toContain('--d: 3px');
+  });
+
+  it('is dropped from a style= too', async () => {
+    const style = await bookDeclarations({
+      style: `--a: 'https://${BEACON}/a.png'; color: red`,
+      from: 'OEBPS/chapter.xhtml',
+      address: async () => null,
+    });
+    expect(style).not.toContain(BEACON);
+    expect(style).toContain('color: red');
   });
 });

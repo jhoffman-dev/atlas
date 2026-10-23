@@ -254,3 +254,39 @@ p { text-indent: 1em; }
   expect(styled.font).toContain('Brightwater');
   expect(hits).toEqual([]);
 });
+
+// From the review of PR #536: WebKit writes out a shorthand built with var() as the book spelled
+// it, with every longhand empty, so reading longhand by longhand never saw the address inside it.
+test("the book's CSS asks nothing of another site through a var() inside a shorthand", async ({
+  page,
+}) => {
+  const at = (name: string) => `"${HOSTILE_ORIGIN}/${name}.png"`;
+  const book = fixtureEpub({
+    chapters: [
+      {
+        ...HARE_AND_TORTOISE,
+        head: `<style>
+p { --bg: ${at('bg')}; background: image-set(var(--bg) 1x) red; }
+h1 { --bi: ${at('border')}; border: 3px solid; border-image: image-set(var(--bi) 1x) 30 round; }
+.moral { --ls: ${at('list')}; display: list-item; list-style: image-set(var(--ls) 1x) inside; }
+body { --mask: ${at('mask')}; mask: image-set(var(--mask) 1x) no-repeat; -webkit-mask: image-set(var(--mask) 1x) no-repeat; }
+html { --content: ${at('content')}; }
+h1::before { content: image-set(var(--content) 1x); }
+</style>`,
+        body: `${HARE_AND_TORTOISE.body}\n<p style="--inline: ${at('inline').replaceAll('"', "'")}; background: -webkit-image-set(var(--inline) 1x) blue">Styled in place.</p>`,
+      },
+    ],
+  });
+  const { hits } = await openBook(page, book);
+  const frame = await frameOf(page);
+  await expect(text(page)).toContainText('Styled in place.');
+  const css = await frame.evaluate(() =>
+    [
+      ...[...document.querySelectorAll('style')].map((s) => s.textContent),
+      ...[...document.querySelectorAll('[style]')].map((e) => e.getAttribute('style')),
+    ].join('\n'),
+  );
+  expect(css).not.toContain('beacon.example.com');
+  await page.waitForLoadState('networkidle');
+  expect(hits).toEqual([]);
+});

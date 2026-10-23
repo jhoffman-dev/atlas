@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { addressesIn, namesAddress, valueMade, type AddressMade } from './css-references.ts';
+import {
+  addressesIn,
+  declarationsIn,
+  importsIn,
+  namesAddress,
+  namesStringOrAddress,
+  valueMade,
+  type AddressMade,
+} from './css-references.ts';
 
 /*
  * The addresses one CSS value names, read as CSS's tokenizer reads them
@@ -90,5 +98,73 @@ describe('a CSS value made the book’s own', () => {
     expect(await namesAddress('@counter-style s { symbols: image-set(var(--x) 1x); }', made)).toBe(
       true,
     );
+  });
+});
+
+// From the review of PR #536: WebKit writes a shorthand built with var() out whole, so each
+// declaration is read again as the rule writes it out.
+describe('the declarations a rule writes out', () => {
+  it('splits them where a declaration ends, not inside a string, a function or a block', () => {
+    expect(
+      declarationsIn(
+        `--a: "x; y"; background: image-set(var(--a) 1x) red; --b: { c: d; }; mask-clip: ; color: red !important`,
+      ).map(({ name, value }) => [name, value]),
+    ).toEqual([
+      ['--a', '"x; y"'],
+      ['background', 'image-set(var(--a) 1x) red'],
+      ['--b', '{ c: d; }'],
+      ['mask-clip', ''],
+      ['color', 'red !important'],
+    ]);
+  });
+});
+
+describe('a value that could name an address through var()', () => {
+  it('holds a string, a url() or a function that takes an address', () => {
+    expect(namesStringOrAddress('"https://x.example/a.png"')).toBe(true);
+    expect(namesStringOrAddress("'Georgia'")).toBe(true);
+    expect(namesStringOrAddress('u\\72l(a.png)')).toBe(true);
+    expect(namesStringOrAddress('IMAGE-SET(a 1x)')).toBe(true);
+    expect(namesStringOrAddress('cross-fade(red, blue)')).toBe(true);
+    expect(namesStringOrAddress('3px solid /* "a" */ rgb(0 0 0)')).toBe(false);
+  });
+});
+
+describe('the stylesheets a sheet imports', () => {
+  it('reads each @import, quoted, in url() or after a comment', () => {
+    expect(
+      importsIn(
+        `@import "a.css"; @IMPORT url( 'b.css' ) screen; @import/**/url(c.css); @import/* x */"d.css";\np {}`,
+      ),
+    ).toEqual(['a.css', 'b.css', 'c.css', 'd.css']);
+  });
+
+  it('reads no import from a comment left open', () => {
+    expect(importsIn('@import "a.css"; /* @import "b.css";')).toEqual(['a.css']);
+  });
+});
+
+// From the review of PR #536: each of these took time growing with the square of the CSS.
+describe('reading CSS a book writes to be slow', () => {
+  const quickly = (read: () => unknown) => {
+    const started = performance.now();
+    read();
+    return performance.now() - started;
+  };
+
+  it('reads a var() inside fifty thousand parentheses in linear time', () => {
+    const value = `${'('.repeat(50_000)}${'var(--x)'.repeat(50_000)}`;
+    expect(quickly(() => addressesIn(value))).toBeLessThan(2_000);
+  });
+
+  it('finds the imports among a hundred thousand left open in linear time', () => {
+    for (const css of [
+      '@import /*'.repeat(100_000),
+      `${'@import /*'.repeat(100_000)}*/`,
+      '@import url('.repeat(100_000),
+      `@import '${'@import "'.repeat(100_000)}`,
+    ]) {
+      expect(quickly(() => importsIn(css))).toBeLessThan(2_000);
+    }
   });
 });
