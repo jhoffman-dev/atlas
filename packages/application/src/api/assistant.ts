@@ -7,11 +7,12 @@ import {
   readOpenLoops,
   type AssistantReads,
 } from '../assistant/index.ts';
-import { ApiError, messageWithoutPaths } from './api-error.ts';
+import { ApiError } from './api-error.ts';
 import { vaultQueryContext } from './atlas-query-answer.ts';
 import type { ApiAssistantMeetings, ApiBrief, ApiOpenLoops } from './contract.ts';
 import { countOf, dayParam, requiredText } from './fields.ts';
-import { notePathFrom } from './paths.ts';
+import { isApiNotePath, notePathFrom } from './paths.ts';
+import { spelledAsVault } from './vault-spelling.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /*
@@ -23,9 +24,14 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 const MEETINGS_LISTED = { field: 'limit', fallback: 10, max: 50 };
 
-/** The note asked about, and what it is read with: the vault's types and notes, as the app has them. */
+/**
+ * The note asked about, spelt as the vault spells it (the notes route opens
+ * `people/mara quill.md` on a case-insensitive disk too), and what it is read
+ * with: the vault's types and notes, as the app has them.
+ */
 async function askedOf(request: VaultRequest) {
-  const path = notePathFrom(requiredText(request.query, 'entity'), 'entity');
+  const asked = notePathFrom(requiredText(request.query, 'entity'), 'entity');
+  const path = await spelledAsVault({ fs: request.fs, asked, accepts: isApiNotePath });
   const { types, notePaths } = await vaultQueryContext(request);
   const reads: AssistantReads = {
     index: request.index,
@@ -37,7 +43,11 @@ async function askedOf(request: VaultRequest) {
   return { path, reads };
 }
 
-/** A read as the API answers it: a page it cannot answer about refused, an index failure said without paths. */
+/**
+ * A read as the API answers it: a page it cannot answer about refused. An
+ * index that fails mid-answer is not an error here — each read names what it
+ * lost in `problems` and answers with the rest.
+ */
 async function answered<Answer>(request: VaultRequest, read: Promise<Answer>): Promise<Answer> {
   try {
     const answer = await read;
@@ -50,7 +60,7 @@ async function answered<Answer>(request: VaultRequest, read: Promise<Answer>): P
     if (error instanceof AssistantEntityError) {
       throw new ApiError(error.reason === 'not_found' ? 'not_found' : 'invalid', error.message);
     }
-    throw new ApiError('query_failed', `The index could not answer: ${messageWithoutPaths(error)}`);
+    throw error;
   }
 }
 
@@ -75,23 +85,25 @@ export async function openLoopsRoute(request: VaultRequest): Promise<RouteResult
   return { status: 200, body: { openLoops } };
 }
 
-/** `GET /v1/assistant/meetings?entity=&since=&about=&limit=`: who said what in a page's meetings. */
+/** `GET /v1/assistant/meetings?entity=&since=&until=&about=&limit=`: who said what in a page's meetings. */
 export async function assistantMeetingsRoute(request: VaultRequest): Promise<RouteResult> {
   const since = dayParam(request.query['since'], 'since');
+  const until = dayParam(request.query['until'], 'until');
   const about = aboutOf(request.query['about']);
   const limit = countOf(request.query['limit'], MEETINGS_LISTED);
   const { path, reads } = await askedOf(request);
-  const meetings: ApiAssistantMeetings = await answered(
+  const meetingQuotes: ApiAssistantMeetings = await answered(
     request,
     readMeetingQuotes({
       reads,
       clock: request.clock,
       finder: indexPassageFinder(request.index),
       path,
-      asked: { since, about, limit },
+      asked: { since, until, about, limit },
+      selfName: request.ownerName,
     }),
   );
-  return { status: 200, body: meetings };
+  return { status: 200, body: { meetingQuotes } };
 }
 
 /** `about`, trimmed; null when left out or blank. Longer than a question's subject is refused. */

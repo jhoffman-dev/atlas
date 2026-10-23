@@ -28,6 +28,10 @@ const get = (path: string, query: Record<string, string>) => ({
   query,
 });
 
+/** The meetings route wraps its answer as the other two do: `{ meetingQuotes }`. */
+const meetingQuotesOf = (response: Parameters<typeof bodyOf>[0]): ApiAssistantMeetings =>
+  bodyOf(response)['meetingQuotes'] as unknown as ApiAssistantMeetings;
+
 describe('GET /v1/assistant/brief', () => {
   it('briefs a person for a day, every item cited, writing nothing', async () => {
     const { api } = assistantApi();
@@ -50,7 +54,7 @@ describe('GET /v1/assistant/brief', () => {
     const { api } = assistantApi();
     const response = await api.send(get('/v1/assistant/brief', { entity: MIGRATION }));
     expect(response.status).toBe(200);
-    expect((bodyOf(response)['brief'] as ApiBrief).date).toBe('2026-09-22');
+    expect((bodyOf(response)['brief'] as ApiBrief).date).toBe(ASSISTANT_TODAY);
   });
 
   it('refuses a task: only a person, company, project, area or meeting has a brief', async () => {
@@ -97,7 +101,7 @@ describe('GET /v1/assistant/meetings', () => {
       }),
     );
     expect(response.status).toBe(200);
-    const said = bodyOf(response) as unknown as ApiAssistantMeetings;
+    const said = meetingQuotesOf(response);
     expect(said.speakers).toEqual(['Mara Quill', 'MQ']);
     expect(
       said.meetings.map((meeting) => [
@@ -114,7 +118,7 @@ describe('GET /v1/assistant/meetings', () => {
   it('takes a blank about as none', async () => {
     const { api } = assistantApi();
     const response = await api.send(get('/v1/assistant/meetings', { entity: MARA, about: '   ' }));
-    expect((bodyOf(response) as unknown as ApiAssistantMeetings).about).toBeNull();
+    expect(meetingQuotesOf(response).about).toBeNull();
   });
 });
 
@@ -175,7 +179,7 @@ describe('the assistant routes refuse a bad parameter', () => {
       get('/v1/assistant/meetings', { entity: MARA, since: '9999-12-31' }),
     );
     expect(response.status).toBe(200);
-    expect((bodyOf(response) as unknown as ApiAssistantMeetings).meetings).toEqual([]);
+    expect(meetingQuotesOf(response).meetings).toEqual([]);
   });
 
   it('searches an about full of query syntax as words, never as syntax', async () => {
@@ -194,23 +198,122 @@ describe('the assistant routes, when the index cannot answer', () => {
       markdown: jsonMarkdown(),
       index: {
         query: () => Promise.reject(new Error('unable to open /Users/j/Library/dfai/index.db')),
+        search: () => Promise.reject(new Error('unable to open /Users/j/Library/dfai/index.db')),
       },
     });
 
-  it('say so without the machine’s paths', async () => {
-    for (const route of ['/v1/assistant/brief', '/v1/assistant/open-loops']) {
-      const response = await failing().send(get(route, { entity: MARA }));
-      expect(codeOf(response)).toBe('query_failed');
-      expect(JSON.stringify(response.body)).toContain('unable to open');
-      expect(JSON.stringify(response.body)).not.toContain('/Users/j');
+  it('answer all three the same way: 200, with each part they lost named, and no machine paths', async () => {
+    const asked = [
+      ['/v1/assistant/brief', { entity: MARA }],
+      ['/v1/assistant/open-loops', { entity: MARA }],
+      ['/v1/assistant/meetings', { entity: MARA }],
+    ] as const;
+    for (const [route, query] of asked) {
+      const response = await failing().send(get(route, query));
+      expect(response.status, route).toBe(200);
+      const body = JSON.stringify(response.body);
+      expect(body, route).toContain('unable to open <path>');
+      expect(body, route).not.toContain('/Users/j');
+      const { problems } = Object.values(bodyOf(response))[0] as ApiOpenLoops;
+      expect(problems.length, route).toBeGreaterThan(0);
     }
+  });
+
+  it('name the follow-ups, not "the index", when only they could not be read', async () => {
+    const { api } = assistantApi();
+    const flaky = apiFixture({
+      files: FILES,
+      markdown: jsonMarkdown(),
+      index: {
+        query: (sql, parameters) =>
+          sql.includes('WITH around')
+            ? Promise.reject(new Error('database is locked'))
+            : api.deps.index.query(sql, parameters),
+      },
+    });
+    const response = await flaky.send(get('/v1/assistant/open-loops', { entity: MARA }));
+    expect(response.status).toBe(200);
+    const loops = bodyOf(response)['openLoops'] as ApiOpenLoops;
+    expect(loops.problems).toEqual([
+      { section: 'follow-ups', problem: 'The index could not answer: database is locked' },
+    ]);
   });
 
   it('say which section could not be answered when it is the only thing asked', async () => {
     const response = await failing().send(get('/v1/assistant/meetings', { entity: MARA }));
     expect(response.status).toBe(200);
-    const said = bodyOf(response) as unknown as ApiAssistantMeetings;
+    const said = meetingQuotesOf(response);
     expect(said.meetings).toEqual([]);
     expect(said.problems).toEqual([{ section: 'meetings', problem: 'unable to open <path>' }]);
+  });
+
+  it('say the search failed, and that more may match, when `about` cannot be searched', async () => {
+    const { api } = assistantApi();
+    const unsearchable = apiFixture({
+      files: FILES,
+      markdown: jsonMarkdown(),
+      index: {
+        query: (sql, parameters) => api.deps.index.query(sql, parameters),
+        search: () => Promise.reject(new Error('unable to open /Users/j/Library/dfai/index.db')),
+      },
+    });
+    unsearchable.today = ASSISTANT_TODAY;
+    const response = await unsearchable.send(
+      get('/v1/assistant/meetings', { entity: MARA, about: 'bank' }),
+    );
+    expect(response.status).toBe(200);
+    const said = meetingQuotesOf(response);
+    expect(said.meetings).toEqual([]);
+    expect(said.truncated).toBe(true);
+    expect(said.problems).toEqual([
+      { section: 'search', problem: 'The index could not answer: unable to open <path>' },
+    ]);
+  });
+});
+
+describe('the assistant routes, asked about a note by the spelling the disk finds it by', () => {
+  it('answer about people/mara quill.md on a case-insensitive vault, as the notes route does', async () => {
+    const { api } = assistantApi();
+    const insensitive = apiFixture({
+      files: { ...FILES },
+      markdown: jsonMarkdown(),
+      caseInsensitive: true,
+      index: api.deps.index,
+    });
+    insensitive.today = api.today;
+    const response = await insensitive.send(
+      get('/v1/assistant/open-loops', { entity: 'people/mara quill.md' }),
+    );
+    expect(response.status).toBe(200);
+    expect((bodyOf(response)['openLoops'] as ApiOpenLoops).entity.path).toBe(MARA);
+  });
+});
+
+describe('GET /v1/assistant/meetings, until', () => {
+  it('takes `until` as a day, and answers it', async () => {
+    const { api } = assistantApi();
+    const response = await api.send(
+      get('/v1/assistant/meetings', { entity: MARA, since: daysAgo(30), until: daysAgo(5) }),
+    );
+    expect(response.status).toBe(200);
+    const said = meetingQuotesOf(response);
+    expect(said.until).toBe(daysAgo(5));
+    expect(said.meetings.map((meeting) => meeting.path)).toEqual([KICKOFF]);
+  });
+
+  it('answers the app’s today as `until` when none is asked, leaving out a meeting still to come', async () => {
+    const { api } = assistantApi();
+    const response = await api.send(get('/v1/assistant/meetings', { entity: MARA }));
+    const said = meetingQuotesOf(response);
+    expect(said.until).toBe(ASSISTANT_TODAY);
+    expect(said.meetings.map((meeting) => meeting.path)).not.toContain('Meetings/Later.md');
+  });
+
+  it('refuses an until that is not a day', async () => {
+    const { api } = assistantApi();
+    const response = await api.send(
+      get('/v1/assistant/meetings', { entity: MARA, until: 'next week' }),
+    );
+    expect(codeOf(response)).toBe('invalid');
   });
 });

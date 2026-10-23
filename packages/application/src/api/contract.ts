@@ -1430,11 +1430,13 @@ export interface ApiToday {
 /**
  * Where an assistant item came from (P32-04): a wiki link that opens it.
  * `block` names the block itself (`[[Kickoff#^t0003]]`); `heading` the
- * heading over it, for a transcript turn the file left without an id — a read
- * never writes one (ADR-0022); `note` the whole note.
+ * heading over it, for a transcript turn the file left without an id, or with
+ * one written twice — a read never writes one (ADR-0022); `note` the whole
+ * note, also for a `source` block the index no longer holds.
  */
 export interface ApiCitation {
-  readonly link: string;
+  /** Null when the note's name holds what no wiki link can (`C# sync`): cite it by `path`. */
+  readonly link: string | null;
   readonly kind: 'block' | 'heading' | 'note';
   /** The note it opens; null for a link that names no note in the vault. */
   readonly path: string | null;
@@ -1471,6 +1473,14 @@ export interface ApiLoopTask extends ApiCitedNote {
   readonly source: ApiCitation | null;
 }
 
+/** A follow-up: how it was reached from the page, and through which meeting. */
+export interface ApiFollowUp extends ApiLoopTask {
+  /** `direct`: it names the page itself; `meeting`: it was reached only through a meeting of the page. */
+  readonly via: 'direct' | 'meeting';
+  /** The meeting it was reached through; null when `via` is `direct`. */
+  readonly meeting: ApiCitedNote | null;
+}
+
 /** The page an assistant answer is about, cited. */
 export interface ApiAssistantEntity extends ApiCitedNote {
   /** Its `type:`, as written. */
@@ -1486,19 +1496,22 @@ export interface ApiSectionProblem {
 /** `GET /v1/assistant/open-loops`: what is still open around a page. */
 export interface ApiOpenLoops {
   readonly entity: ApiAssistantEntity;
-  readonly today: string;
+  /** The day it was read, `YYYY-MM-DD`: what `overdue` and `waitingDays` count to. */
+  readonly date: string;
   /** Open tasks linked with the page that are neither waiting-fors nor follow-ups. */
   readonly openTasks: readonly ApiLoopTask[];
   readonly waitingFor: readonly ApiLoopTask[];
-  /** Open `#follow-up` tasks linked with the page or one of its meetings. */
-  readonly followUps: readonly ApiLoopTask[];
+  /**
+   * Open `#follow-up` tasks linked with the page or one of its meetings. One
+   * reached only through a meeting names no Person but the page's own.
+   */
+  readonly followUps: readonly ApiFollowUp[];
   readonly truncated: boolean;
   readonly problems: readonly ApiSectionProblem[];
 }
 
 /** `GET /v1/assistant/brief`: what to know about a page on a day. */
-export interface ApiBrief extends Omit<ApiOpenLoops, 'today'> {
-  readonly date: string;
+export interface ApiBrief extends ApiOpenLoops {
   /** The newest meeting dated on or before `date`; null when none. */
   readonly lastTouch: ApiDatedNote | null;
   readonly meetings: readonly ApiDatedNote[];
@@ -1509,7 +1522,7 @@ export interface ApiBrief extends Omit<ApiOpenLoops, 'today'> {
     readonly decisions: readonly ApiCitedNote[];
   } | null;
   readonly decisions: readonly ApiCitedDecision[];
-  /** Other notes linked with the page, changed in the last 30 days. */
+  /** Other notes linked with the page, changed in the 30 days up to `date`. */
   readonly mentions: readonly ApiCitedNote[];
   readonly related: readonly (ApiCitedNote & {
     readonly relation: 'person' | 'company' | 'project';
@@ -1530,6 +1543,8 @@ export interface ApiSpeakerQuote {
 export interface ApiAssistantMeetings {
   readonly entity: ApiAssistantEntity;
   readonly since: string | null;
+  /** The last day a meeting may be dated: the day asked for, else the app's today. */
+  readonly until: string;
   readonly about: string | null;
   /** The names a person's turns were matched by; null for a page that does not speak. */
   readonly speakers: readonly string[] | null;
@@ -1640,7 +1655,7 @@ export type ApiSuccessBody =
   | { readonly export: ApiNoteExport }
   | { readonly brief: ApiBrief }
   | { readonly openLoops: ApiOpenLoops }
-  | ApiAssistantMeetings;
+  | { readonly meetingQuotes: ApiAssistantMeetings };
 
 /**
  * Every route, as the router and the MCP server both need to know them.

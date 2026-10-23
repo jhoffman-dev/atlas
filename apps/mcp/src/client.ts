@@ -136,6 +136,7 @@ export interface BriefQuery {
 export interface AssistantMeetingsQuery {
   readonly entity: string;
   readonly since?: string;
+  readonly until?: string;
   readonly about?: string;
   readonly limit?: number;
 }
@@ -461,7 +462,7 @@ export class AtlasClient {
     });
 
   assistantMeetings = (query: AssistantMeetingsQuery) =>
-    this.json<ApiAssistantMeetings>({
+    this.json<{ meetingQuotes: ApiAssistantMeetings }>({
       method: 'GET',
       path: '/v1/assistant/meetings',
       query: { ...query },

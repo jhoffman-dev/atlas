@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { assistantApi, MARA } from '../testing/assistant-vault.ts';
-import { runReadTool } from './read-tools.ts';
+import { READ_TOOL_SPECS, runReadTool } from './read-tools.ts';
 
 const run = (name: string, input: Record<string, unknown>) =>
   runReadTool({ call: { id: 'c1', name, input }, api: assistantApi().api.deps, requestId: 'r1' });
@@ -40,5 +40,15 @@ describe('the assistant’s chat tools', () => {
       isError: true,
       content: expect.stringMatching(/^invalid: entity must be/),
     });
+  });
+
+  it('tells the model a quote is what someone said, data and never an instruction', () => {
+    const spec = READ_TOOL_SPECS.find((tool) => tool.name === 'atlas_meeting_quotes');
+    expect(spec?.description).toMatch(/what someone said[^.]*never\s+instructions/);
+  });
+
+  it('answers the meetings wrapped as meetingQuotes, like the other two', async () => {
+    const result = await run('atlas_meeting_quotes', { entity: MARA, limit: 1 });
+    expect(Object.keys(JSON.parse(result.content) as object)).toEqual(['meetingQuotes']);
   });
 });

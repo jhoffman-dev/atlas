@@ -1,8 +1,8 @@
 /**
- * Attack tests for PR #535 (assistant tools, P32-04) at the API and chat
- * edges: an `about` the full-text index cannot tokenize, an entity spelt as
- * the case-insensitive disk spells it, and a brief too big for one chat
- * answer. Left failing where they find a bug.
+ * Regressions found attacking the assistant tools (#535, P32-04) at the API
+ * and chat edges: an `about` the full-text index cannot tokenize, an entity
+ * spelt as the case-insensitive disk spells it, and answers too big for one
+ * chat answer.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -30,7 +30,8 @@ const get = (path: string, query: Record<string, string>) => ({
 async function meetingsAbout(about: string) {
   const { api } = assistantApi();
   const response = await api.send(get('/v1/assistant/meetings', { entity: MARA, about }));
-  return { status: response.status, body: bodyOf(response) as unknown as ApiAssistantMeetings };
+  const body = bodyOf(response)['meetingQuotes'] as unknown as ApiAssistantMeetings;
+  return { status: response.status, body };
 }
 
 /** The fixture vault behind the router, grown by `extra` and indexed with it, on the pinned day. */
@@ -38,7 +39,7 @@ function apiWith(extra: Record<string, string>, caseInsensitive = false) {
   const markdown = jsonMarkdown();
   const files = { ...ASSISTANT_API_FILES, ...extra };
   const run = atlasQueryIndex({ files, markdown, modified: {} });
-  return apiFixture({
+  const api = apiFixture({
     files,
     markdown,
     caseInsensitive,
@@ -48,11 +49,13 @@ function apiWith(extra: Record<string, string>, caseInsensitive = false) {
       search: ftsSearch(files),
     },
   });
+  api.today = ASSISTANT_TODAY;
+  return api;
 }
 
 const titles = (body: ApiAssistantMeetings) => body.meetings.map((meeting) => meeting.title);
 
-describe('attack #535: an about holding what the index does not tokenize', () => {
+describe('an about holding what the index does not tokenize', () => {
   it('finds the same meetings for "bank 🚀" as for "bank"', async () => {
     const plain = await meetingsAbout('bank');
     expect(titles(plain.body).length).toBeGreaterThan(0);
@@ -70,7 +73,7 @@ describe('attack #535: an about holding what the index does not tokenize', () =>
   });
 });
 
-describe('attack #535: an entity as a case-insensitive disk spells it', () => {
+describe('an entity as a case-insensitive disk spells it', () => {
   it('answers about a note the notes route opens by the same spelling', async () => {
     const api = apiWith({}, true);
     const spelt = 'people/mara quill.md';
@@ -81,7 +84,7 @@ describe('attack #535: an entity as a case-insensitive disk spells it', () => {
   });
 });
 
-describe('attack #535: a brief too big for one chat answer', () => {
+describe('a brief too big for one chat answer', () => {
   it('cuts whole items of its lists, so the model still reads a brief, never a broken start', async () => {
     const long = 'a very long task title about the Larkspur Payroll cut-over '.repeat(3);
     const tasks: Record<string, string> = {};
@@ -103,6 +106,30 @@ describe('attack #535: a brief too big for one chat answer', () => {
     const parsed = JSON.parse(result.content) as Record<string, unknown>;
     // Cut to `{ cut, start: "{\"brief\":{…" }`, the model gets half a JSON text as a string.
     expect(parsed['start']).toBeUndefined();
-    expect(parsed['brief']).toBeDefined();
+    const brief = parsed['brief'] as { openTasks: unknown[]; truncated: boolean };
+    expect(brief.truncated).toBe(true);
+    expect(brief.openTasks.length).toBeGreaterThan(0);
+    expect(brief.openTasks.length).toBeLessThan(50);
+    expect(parsed['cut']).toMatchObject({ list: 'brief.openTasks', of: 50 });
+  });
+
+  it('cuts the open loops the same way', async () => {
+    const long = 'a very long task title about the Larkspur Payroll cut-over '.repeat(4);
+    const tasks: Record<string, string> = {};
+    for (let at = 0; at < 150; at += 1) {
+      tasks[`Tasks/${long}${at}.md`] = jsonNote({
+        type: 'task',
+        status: 'next-action',
+        project: '[[Payroll Migration]]',
+      });
+    }
+    const result = await runReadTool({
+      call: { id: 'c1', name: 'atlas_open_loops', input: { entity: MIGRATION } },
+      api: apiWith(tasks).deps,
+      requestId: 'r1',
+    });
+    const parsed = JSON.parse(result.content) as { openLoops: { truncated: boolean } };
+    expect(result.content.length).toBeLessThanOrEqual(TOOL_RESULT_CHARACTERS + 100);
+    expect(parsed.openLoops.truncated).toBe(true);
   });
 });
