@@ -108,7 +108,7 @@ import type { NoteCut } from './answered-note.ts';
 import type { DroppedItem } from './proposal-schema.ts';
 import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
 import type { NoteVersionRef } from './note-trigger.ts';
-import type { LocalTime } from './schedule.ts';
+import { localTimeMs, type LocalTime } from './schedule.ts';
 import type { OutputPeriod } from './output-period.ts';
 
 export const MAX_LOG_ENTRIES = 100;
@@ -653,9 +653,10 @@ export function appendEntryToLog({
   let total =
     utf8Length(head) + utf8Length(ledgerText) + bytes.reduce((sum, size) => sum + size, 0);
   const dropped = new Set<number>();
-  // The newest entry, the one being added, always stays.
+  const pinned = lastPeriodMade(all);
+  // The newest entry, the one being added, always stays; so does the one that made a period's note.
   for (let at = 0; at < all.length - 1 && (entries > keep || total > maxBytes); at += 1) {
-    if (!isEntry[at]) continue;
+    if (!isEntry[at] || at === pinned) continue;
     dropped.add(at);
     entries -= 1;
     total -= bytes[at]!;
@@ -665,6 +666,23 @@ export function appendEntryToLog({
     text: `${head}${ledgerText}${kept.join('\n')}`,
     ledgerRepaired: found.ledger?.damaged === true,
   };
+}
+
+/**
+ * Where the section is that last made a note for a period (#40), or -1. A log
+ * that has outgrown its cap keeps it: the runs after it that found the note
+ * made must not push out the only line that says it was.
+ */
+function lastPeriodMade(sections: readonly string[]): number {
+  return sections.findLastIndex((section) => {
+    const entry = parseSection(section);
+    return (
+      entry !== null &&
+      entry.kind === 'run' &&
+      entry.period !== undefined &&
+      entry.done.some((action) => action.kind === 'created')
+    );
+  });
 }
 
 /** {@link appendEntryToLog}, for whoever wants only the text. */
@@ -1175,7 +1193,7 @@ export function lastScheduleMark(entries: readonly LogEntry[], now: LocalTime): 
   const marks = entries
     .filter(isMark)
     .map((entry) => entry.at)
-    .filter((at) => at <= now);
+    .filter((at) => !isAhead(at, now));
   return marks.length === 0 ? null : marks.reduce((latest, at) => (at > latest ? at : latest));
 }
 
@@ -1184,8 +1202,29 @@ export function futureMarkOf(entries: readonly LogEntry[], now: LocalTime): Loca
   const ahead = entries
     .filter(isMark)
     .map((entry) => entry.at)
-    .filter((at) => at > now);
+    .filter((at) => isAhead(at, now));
   return ahead.length === 0 ? null : ahead.reduce((latest, at) => (at > latest ? at : latest));
+}
+
+/**
+ * The most the wall clock goes back at once: an hour, when the clocks fall
+ * back and the same hour shows twice. A mark that far ahead or less is the
+ * same instant seen the first time round, so it still counts.
+ */
+const REPEATED_HOUR_MS = 3_600_000;
+
+/**
+ * Whether a mark's wall-clock time is later than `now` by more than a repeated
+ * hour. The log keeps wall-clock time, not instants, so a run at 02:30:40 the
+ * first time the clocks show 02:30 reads as later than the 02:30:10 of the
+ * second pass; compared by the wall clock it would not count, and the rule
+ * would run twice.
+ */
+function isAhead(at: LocalTime, now: LocalTime): boolean {
+  const mark = localTimeMs(at);
+  const moment = localTimeMs(now);
+  if (mark === null || moment === null) return at > now;
+  return mark - moment > REPEATED_HOUR_MS;
 }
 
 /** Whether a run entry only says notes went or moved: it did, left and handled nothing. */

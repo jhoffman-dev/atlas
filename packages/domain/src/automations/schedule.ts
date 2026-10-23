@@ -100,6 +100,9 @@ function clockTime(written: string): string | null {
   return CLOCK_TIME.test(at) ? at : null;
 }
 
+/** Short forms of a day that are not its first three letters; "tues" and "weds" read as "tue" and "wed". */
+const SHORT_FORMS: Readonly<Record<string, Weekday>> = { thur: 'thursday' };
+
 /**
  * `fridays at 15:00`, as the file writes it — or `friday at 15:00`,
  * `every friday at 15:00`, `weekly on fri at 15:00`, as a person may.
@@ -108,7 +111,9 @@ function parseWeekly(text: string): Schedule | null {
   const match = /^(?:every |weekly on )?([a-z]+?)s? at (\d{1,2}:\d{2})$/.exec(text);
   if (match === null) return null;
   const word = match[1]!;
-  const day = WEEKDAYS.find((each) => each === word || each.slice(0, 3) === word);
+  const day = WEEKDAYS.find(
+    (each) => each === word || each.slice(0, 3) === word || SHORT_FORMS[word] === each,
+  );
   const at = clockTime(match[2]!);
   return day === undefined || at === null ? null : { kind: 'weekly', day, at };
 }
