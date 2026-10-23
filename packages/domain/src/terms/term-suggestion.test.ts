@@ -333,3 +333,83 @@ describe('a term proposal at Accept, once the vault has moved on', () => {
     );
   });
 });
+
+/** Verification of PR #553 (#19): what the fix round's rules still let through. */
+describe('verify #553: Accept holds a term to what proposing it was held to', () => {
+  const brenda = vocabulary({
+    terms: [],
+    people: [named('People', 'Brenda Wick', ['Bren Wick'])],
+    companies: [],
+  });
+  const brenWickJones = vocabulary({
+    terms: [],
+    people: [named('People', 'Bren Wick Jones')],
+    companies: [],
+  });
+  const lowerCased = vocabulary({
+    terms: [term('Brenwick Labs', ['bren wick'])],
+    people: [],
+    companies: [],
+  });
+  const heardAsBrenWick = { canonical: 'Brenwick', variants: ['Bren Wick'] };
+
+  it('refuses at Accept a heard spelling that is now what a person goes by', () => {
+    expect(
+      suggestedTermRefusal({ heard: 'Bren Wick', canonical: 'Brenwick' }, brenda),
+    ).not.toBeNull();
+    expect(acceptedTermRefusal(heardAsBrenWick, brenda)).not.toBeNull();
+  });
+
+  it('refuses at Accept a heard spelling that is now words of a known name', () => {
+    expect(
+      suggestedTermRefusal({ heard: 'Bren Wick', canonical: 'Brenwick' }, brenWickJones),
+    ).not.toBeNull();
+    expect(acceptedTermRefusal(heardAsBrenWick, brenWickJones)).not.toBeNull();
+  });
+
+  it('refuses at Accept a heard spelling another note now has in other capitals', () => {
+    expect(
+      suggestedTermRefusal({ heard: 'Bren Wick', canonical: 'Brenwick' }, lowerCased),
+    ).not.toBeNull();
+    expect(acceptedTermRefusal(heardAsBrenWick, lowerCased)).not.toBeNull();
+  });
+});
+
+describe('verify #553: glossaryKey is idempotent', () => {
+  /** A small seeded generator (LCG): the same seed makes the same strings. */
+  function seeded(seed: number) {
+    let state = seed >>> 0;
+    return () => {
+      state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+      return state / 2 ** 32;
+    };
+  }
+  // Letters, apostrophes, an s, and accents: what a possessive and accent folding interact on.
+  const PIECES = ['a', 'S', 's', "'", '’', 'é', 'ś', '́', ' ', 'й', 'ά', 'Ł'];
+
+  it('keys a key to itself when an accented s follows an apostrophe', () => {
+    const key = glossaryKey('Atlas’ś');
+    expect(glossaryKey(key)).toBe(key);
+  });
+
+  it('keys every key to itself, over seeded strings', () => {
+    const next = seeded(553);
+    for (let run = 0; run < 2_000; run += 1) {
+      const length = 1 + Math.floor(next() * 8);
+      const spelling = Array.from(
+        { length },
+        () => PIECES[Math.floor(next() * PIECES.length)],
+      ).join('');
+      const key = glossaryKey(spelling);
+      expect(glossaryKey(key), JSON.stringify(spelling)).toBe(key);
+    }
+  });
+});
+
+describe('verify #553: the shortest heard spelling counts letters in any script', () => {
+  it('counts a Devanagari vowel sign as part of the name: राम is three letters as read', () => {
+    // राम is र + the vowel sign ा + म: the sign is a mark, not \p{L}, so it is counted as two.
+    const refusal = suggestedTermRefusal({ heard: 'राम', canonical: 'रम्या' }, EMPTY);
+    expect(refusal ?? '').not.toContain('too short');
+  });
+});
