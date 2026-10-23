@@ -518,13 +518,17 @@ function useHighlightBlocks(
   const images = useLatest(loadImage);
   const [drafts] = useState(() => new HighlightDrafts());
   const offers = highlights !== null;
+  // The last highlights the note had: a note read again as no literature note
+  // any more still has the words typed in its fields, and they go through these.
+  const lastHeld = useRef(highlights);
+  useEffect(() => {
+    if (highlights !== null) lastHeld.current = highlights;
+    else if (lastHeld.current !== null) writeAsLeaving(drafts, lastHeld.current);
+  }, [highlights, drafts]);
   useEffect(
     () => () => {
-      const leaving = latest.current;
-      if (leaving === null) return;
-      void drafts.flush(leaving.editComment).then((lost) => {
-        if (lost.length > 0) leaving.onUnwrittenComments?.(lost);
-      });
+      const leaving = latest.current ?? lastHeld.current;
+      if (leaving !== null) writeAsLeaving(drafts, leaving);
     },
     [drafts, latest],
   );
@@ -546,6 +550,13 @@ function useHighlightBlocks(
         : null,
     [offers, latest, images, drafts],
   );
+}
+
+/** Writes every draft through `leaving`, and tells it of the words that could not be. */
+function writeAsLeaving(drafts: HighlightDrafts, leaving: NoteHighlights): void {
+  void drafts.flush(leaving.editComment).then((lost) => {
+    if (lost.length > 0) leaving.onUnwrittenComments?.(lost);
+  });
 }
 
 /** The write of the highlights as they are now: a note moved keeps its editor, and writes to where it is. */
