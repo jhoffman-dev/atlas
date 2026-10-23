@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withoutMarkerLines } from './index.ts';
+import { withoutBlockIds, withoutMarkerLines } from './index.ts';
 
 const HIGHLIGHT_MARKER =
   '<!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow","kind":"pdf","page":3} -->';
@@ -41,5 +41,24 @@ describe('a block of markdown without its marker lines', () => {
     expect(withoutMarkerLines('<!-- a note to self -->')).toBe('<!-- a note to self -->');
     const table = '| Seed | Days |\n| --- | --- |\n| Kale | 55 |';
     expect(withoutMarkerLines(table)).toBe(table);
+  });
+});
+
+describe('a block of markdown without its block ids', () => {
+  it('drops an id that ends a line', () => {
+    expect(withoutBlockIds('<div>x</div>\n\nAbove. ^keep1')).toBe('<div>x</div>\n\nAbove.');
+  });
+
+  it('drops an id on a line of its own, and the blank line before it', () => {
+    expect(withoutBlockIds('| Kale | 55 |\n\n^keep1')).toBe('| Kale | 55 |');
+  });
+
+  it("drops each line's id, keeping CRLF endings", () => {
+    expect(withoutBlockIds('One ^a1\r\nTwo ^b-2\r\nThree')).toBe('One\r\nTwo\r\nThree');
+  });
+
+  it('keeps a caret that ends no id: escaped, inside a word, or not an id', () => {
+    const kept = 'Escaped \\^keep1\nx^2\nA ^not_an_id\n| --- |';
+    expect(withoutBlockIds(kept)).toBe(kept);
   });
 });

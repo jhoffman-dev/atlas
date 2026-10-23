@@ -11,7 +11,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { DOMParser } from '@tiptap/pm/model';
-import { AllSelection, TextSelection } from '@tiptap/pm/state';
+import { AllSelection, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { createEditorExtensions } from './extensions.ts';
 
 const TABLE = '| Seed | Days |\n| --- | --- |\n| Kale | 55 |';
@@ -154,6 +154,15 @@ describe('HTML from another app, read by the editor', () => {
     );
   });
 
+  it('reads the source from data-markdown, never from a bare markdown attribute', () => {
+    const target = noteWith([]);
+    pasteAtEnd(
+      target,
+      htmlClipboard('<pre data-raw-block="" markdown="<img src=x>" data-markdown="a">a</pre>'),
+    );
+    expect(rawSources(target)).toEqual(['a']);
+  });
+
   it('keeps a block marked raw but carrying no source a code block of its text', () => {
     expect(blocksOf('<pre data-raw-block="">| Kale | 55 |</pre>')).toEqual([
       { type: 'codeBlock', text: '| Kale | 55 |' },
@@ -182,5 +191,67 @@ describe('a note with DFAI markers, copied', () => {
     expect(plain).toContain('Ferns spread by spores.');
     expect(plain).toContain('Check the north bed.');
     expect(plain).not.toContain('atlas:');
+  });
+});
+
+const HIGHLIGHT = [
+  '> Ferns spread by spores.',
+  '> <!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow","kind":"pdf","page":3} -->',
+  '>',
+  '> Check the north bed.',
+].join('\n');
+const HIGHLIGHT_WITHOUT_MARKER = '> Ferns spread by spores.\n>\n> Check the north bed.';
+const REMOVED =
+  '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A9","words":"3f2a"} -->';
+
+/** A clipboard as a web page could fill it: a raw block of any source DFAI never wrote. */
+function htmlClipboard(html: string): Map<string, string> {
+  return new Map([
+    ['text/html', html],
+    ['text/plain', ''],
+  ]);
+}
+const forgedRawBlock = (source: string) =>
+  `<pre data-raw-block="" data-markdown="${encodeURIComponent(source)}">x</pre>`;
+
+describe('a raw block pasted, with DFAI markers or ids in its source', () => {
+  it("pastes a copied highlight's quote and comment, and not its marker", () => {
+    const instance = noteWith([HIGHLIGHT]);
+    pasteAtEnd(instance, copyAll(instance, 'copy'));
+    expect(rawSources(instance)).toEqual([HIGHLIGHT, HIGHLIGHT_WITHOUT_MARKER]);
+  });
+
+  it('drops a tombstone from another clipboard, pasting nothing of it', () => {
+    const target = noteWith([]);
+    pasteAtEnd(target, htmlClipboard(forgedRawBlock(REMOVED)));
+    expect(rawSources(target)).toEqual([]);
+    expect(JSON.stringify(target.getJSON())).not.toContain('atlas:');
+  });
+
+  it('strips a forged highlight marker from another clipboard', () => {
+    const target = noteWith([]);
+    pasteAtEnd(target, htmlClipboard(forgedRawBlock(HIGHLIGHT)));
+    expect(rawSources(target)).toEqual([HIGHLIGHT_WITHOUT_MARKER]);
+  });
+
+  it('takes a block id off the pasted source, so a note never holds an id twice', () => {
+    const target = noteWith([]);
+    pasteAtEnd(target, htmlClipboard(forgedRawBlock('<div>x</div>\n\nAbove. ^keep1')));
+    expect(rawSources(target)).toEqual(['<div>x</div>\n\nAbove.']);
+  });
+
+  it('keeps the source whole when the block is moved by dragging within the note', () => {
+    const instance = noteWith([HIGHLIGHT]);
+    const at = instance.state.doc.child(0).nodeSize;
+    const selection = NodeSelection.create(instance.state.doc, at);
+    const slice = selection.content();
+    const { view } = instance;
+    view.dragging = { slice, move: true };
+    let moved = slice;
+    view.someProp('transformPasted', (transform) => {
+      moved = transform(moved, view, false);
+    });
+    view.dragging = null;
+    expect(moved.content.firstChild?.attrs['markdown']).toBe(HIGHLIGHT);
   });
 });
