@@ -40,8 +40,20 @@ export {
   WEEKDAYS,
 } from './schedule.ts';
 export type { LocalTime, Schedule, Weekday } from './schedule.ts';
-export { outputPeriod, periodNoteMade, samePeriod, writesOneNoteAPeriod } from './output-period.ts';
-export type { OutputPeriod } from './output-period.ts';
+export {
+  currentPeriod,
+  notePeriod,
+  outputPeriod,
+  periodKey,
+  periodNoteMade,
+  periodProperties,
+  periodRecorded,
+  PERIOD_ITEM_KEY,
+  PERIOD_KEY,
+  samePeriod,
+  writesOneNoteAPeriod,
+} from './output-period.ts';
+export type { OutputPeriod, PeriodNote } from './output-period.ts';
 export {
   appendEntryToLog,
   appendLogEntry,

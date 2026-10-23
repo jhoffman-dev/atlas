@@ -86,30 +86,34 @@ describe('outputPeriod', () => {
 });
 
 describe('samePeriod', () => {
-  it('is the same slot and the same item, or both without one', () => {
-    expect(samePeriod(WEEK, { slot: WEEK.slot })).toBe(true);
-    expect(samePeriod(WEEK, { slot: '2026-10-30T15:00:00' })).toBe(false);
-    expect(samePeriod({ ...WEEK, item: 'a' }, { ...WEEK, item: 'a' })).toBe(true);
-    expect(samePeriod({ ...WEEK, item: 'a' }, { ...WEEK, item: 'b' })).toBe(false);
-    expect(samePeriod({ ...WEEK, item: 'a' }, WEEK)).toBe(false);
+  it('is the same week and the same item, or both without one', () => {
+    const same = (left: OutputPeriod, right: OutputPeriod) => samePeriod(left, right, FRIDAYS);
+    expect(same(WEEK, { slot: WEEK.slot })).toBe(true);
+    expect(same(WEEK, { slot: '2026-10-30T15:00:00' })).toBe(false);
+    expect(same({ ...WEEK, item: 'a' }, { ...WEEK, item: 'a' })).toBe(true);
+    expect(same({ ...WEEK, item: 'a' }, { ...WEEK, item: 'b' })).toBe(false);
+    expect(same({ ...WEEK, item: 'a' }, WEEK)).toBe(false);
   });
 });
 
 describe('periodNoteMade', () => {
+  const madeFor = (entries: LogEntry[], period: OutputPeriod, schedule: Schedule = FRIDAYS) =>
+    periodNoteMade({ entries, period, schedule, now: '2026-10-24T08:00:00' });
+
   const made = run({ done: [{ kind: 'created', path: REVIEW }], period: WEEK });
 
   it('is the note a run made for the period', () => {
-    expect(periodNoteMade([made], WEEK)).toBe(REVIEW);
-    expect(periodNoteMade([made, run({ at: '2026-10-24T08:00:00' })], WEEK)).toBe(REVIEW);
+    expect(madeFor([made], WEEK)).toBe(REVIEW);
+    expect(madeFor([made, run({ at: '2026-10-24T08:00:00' })], WEEK)).toBe(REVIEW);
   });
 
   it('is none for another period, another item, or a run that made no note', () => {
-    expect(periodNoteMade([made], { slot: '2026-10-30T15:00:00' })).toBeNull();
-    expect(periodNoteMade([made], { ...WEEK, item: 'Meetings/a.md' })).toBeNull();
-    expect(periodNoteMade([run({ period: WEEK })], WEEK)).toBeNull();
+    expect(madeFor([made], { slot: '2026-10-30T15:00:00' })).toBeNull();
+    expect(madeFor([made], { ...WEEK, item: 'Meetings/a.md' })).toBeNull();
+    expect(madeFor([run({ period: WEEK })], WEEK)).toBeNull();
     // A note made by a run that did not say its period is not this period's.
-    expect(periodNoteMade([run({ done: [{ kind: 'created', path: REVIEW }] })], WEEK)).toBeNull();
-    expect(periodNoteMade([], WEEK)).toBeNull();
+    expect(madeFor([run({ done: [{ kind: 'created', path: REVIEW }] })], WEEK)).toBeNull();
+    expect(madeFor([], WEEK)).toBeNull();
   });
 
   it('tells one item from another within a period', () => {
@@ -117,8 +121,8 @@ describe('periodNoteMade', () => {
     const review = { slot: '2026-10-23T07:00:00', item: 'Meetings/Review.md' };
     const brief = createVaultPath('Briefs/Standup brief.md');
     const log = [run({ done: [{ kind: 'created', path: brief }], period: standup })];
-    expect(periodNoteMade(log, standup)).toBe(brief);
-    expect(periodNoteMade(log, review)).toBeNull();
+    expect(madeFor(log, standup, MORNINGS)).toBe(brief);
+    expect(madeFor(log, review, MORNINGS)).toBeNull();
   });
 });
 
