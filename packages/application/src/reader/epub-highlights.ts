@@ -20,7 +20,7 @@ import {
   type LiteratureNoteWritePorts,
 } from '../highlights/literature-note-writes.ts';
 import type { Rng } from '../ports.ts';
-import type { EpubBook } from './epub-ports.ts';
+import type { EpubBook, YieldToHost } from './epub-ports.ts';
 import { NothingToHighlightError } from './pdf-highlights.ts';
 
 /*
@@ -75,9 +75,11 @@ type EpubBlock = PlacedBookHighlight['block'];
 export async function placeBookHighlights({
   book,
   blocks,
+  pause,
 }: {
   book: BookText & Pick<EpubBook, 'placeOfCfi'>;
   blocks: readonly HighlightBlock[];
+  pause: YieldToHost;
 }): Promise<PlacedBookHighlight[]> {
   const epubBlocks = blocks.filter((block): block is EpubBlock => block.anchor.kind === 'epub');
   const atCfi = await Promise.all(epubBlocks.map((block) => cfiPlaceOrNone(book, block.anchor)));
@@ -89,7 +91,7 @@ export async function placeBookHighlights({
       return text === null ? null : placeInCfiSection({ anchor: block.anchor, atCfi: place, text });
     }),
   );
-  const everySection = inOwn.includes(null) ? await allSectionTexts(book) : [];
+  const everySection = inOwn.includes(null) ? await allSectionTexts(book, pause) : [];
   const placed = epubBlocks.map((block, at) => ({
     block,
     placement:
@@ -125,19 +127,25 @@ async function sectionTextOrNone(book: BookText, section: number): Promise<strin
   }
 }
 
-/** Every chapter's text, in order; one that cannot be read is a chapter without words. */
-export async function allSectionTexts(book: BookText): Promise<string[]> {
+/**
+ * Every chapter's text, in order; one that cannot be read is a chapter
+ * without words. The host's other work runs between chapters (`pause`).
+ */
+export async function allSectionTexts(book: BookText, pause: YieldToHost): Promise<string[]> {
   const texts: string[] = [];
   for (let section = 0; section < book.sectionCount; section += 1) {
+    if (section > 0) await pause();
     texts.push((await sectionTextOrNone(book, section)) ?? '');
   }
   return texts;
 }
 
-/** Every place `phrase` is in the book (`findInBook`). */
+/** Every place `phrase` is in the book (`findInBook`), read chapter by chapter with `pause` between. */
 export async function searchBook(
   book: BookText,
   phrase: string,
+  pause: YieldToHost,
 ): Promise<{ matches: BookRange[]; more: boolean }> {
-  return findInBook(await allSectionTexts(book), phrase);
+  if (phrase.trim() === '') return { matches: [], more: false };
+  return findInBook(await allSectionTexts(book, pause), phrase);
 }

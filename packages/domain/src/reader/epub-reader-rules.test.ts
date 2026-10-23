@@ -10,7 +10,7 @@ import {
 } from './book-font.ts';
 import { documentKindOf, isEpubName, withoutDocumentExtension } from './document-kind.ts';
 import { placeOfFile } from './document-place.ts';
-import { bookReference, EPUB_FRAME_POLICY } from './epub-frame.ts';
+import { bookReference, EPUB_FRAME_SANDBOX, epubFramePolicy } from './epub-frame.ts';
 import { epubProtection, looksLikeEpub, protectedEpubMessage } from './epub-library.ts';
 import {
   bookQuoteAt,
@@ -165,19 +165,41 @@ describe('a book locked with DRM', () => {
 });
 
 describe('what a book may load', () => {
-  it('runs no script and loads nothing from outside the book', () => {
+  const HASH = 'n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=';
+
+  it("runs only DFAI's script, by its hash, and loads nothing from outside the book", () => {
+    const policy = epubFramePolicy(HASH);
     for (const rule of [
       "default-src 'none'",
-      "script-src 'none'",
-      'img-src blob: data:',
+      `script-src 'sha256-${HASH}'`,
+      'img-src data:',
+      'font-src data:',
       "connect-src 'none'",
       "frame-src 'none'",
       "form-action 'none'",
       "base-uri 'none'",
     ]) {
-      expect(EPUB_FRAME_POLICY).toContain(rule);
+      expect(policy).toContain(rule);
     }
-    expect(EPUB_FRAME_POLICY).not.toMatch(/https?:/);
+    expect(policy).not.toMatch(/https?:|blob:|'self'|unsafe-eval|'unsafe-inline'[^;]*script/);
+    expect(policy.match(/script-src [^;]*/)?.[0]).toBe(`script-src 'sha256-${HASH}'`);
+  });
+
+  it('is made only from a SHA-256 hash, so nothing else can be written into it', () => {
+    for (const bad of [
+      '',
+      'abc',
+      `${HASH}; script-src *`,
+      `${HASH.slice(0, -1)}`,
+      "x' 'unsafe-inline",
+    ]) {
+      expect(() => epubFramePolicy(bad), bad).toThrow(/not a SHA-256 hash/);
+    }
+  });
+
+  it('gives the frame an opaque origin: scripts, and nothing of the app', () => {
+    expect(EPUB_FRAME_SANDBOX).toBe('allow-scripts');
+    expect(EPUB_FRAME_SANDBOX).not.toContain('allow-same-origin');
   });
 
   it('reads a reference against the file it is in, inside the book', () => {

@@ -4,6 +4,7 @@
  * chunk, the first time a book opens, and by adding an EPUB.
  */
 export { foliateEpubReader } from './foliate-reader.ts';
+export { yieldToHost } from './yield-to-host.ts';
 export type { FoliateBook, FoliateReader } from './foliate-reader.ts';
 export type {
   ChapterAppearance,

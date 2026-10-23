@@ -1,0 +1,142 @@
+---
+type: adr
+id: ADR-0045
+title: A book is shown in a frame with an opaque origin, and only DFAI's script runs there
+status: proposed
+date: 2026-10-23
+---
+
+# ADR-0045 — A book is shown in a frame with an opaque origin, and only DFAI's script runs there
+
+Part of #505 (the EPUB reader). Replaces the frame ADR-0043's EPUB addendum
+first described; the rest of that addendum stands.
+
+## Context
+
+An EPUB is untrusted: anyone can write one, and people download them from
+anywhere. Its chapters are XHTML, and may hold scripts, handlers, pictures and
+fonts on other sites (beacons), frames, forms, refreshes, `javascript:` links,
+and links in places a sanitiser does not think of.
+
+The first design showed each chapter in a `srcdoc` frame sandboxed
+`allow-same-origin allow-scripts`, so the reader could reach into the frame to
+read the selection and draw highlights; the book's files were given `blob:`
+addresses of the app's origin. A review proved that one gap in the cleaning was
+enough: `<math><mtext href="evil.svg">` kept its `href` as a file to load, the
+file became a `blob:` typed `image/svg+xml`, WebKit treats a MathML `href` as a
+link, the reader stopped clicks only on `<a>` and `<area>`, and a click led the
+frame to the blob — an SVG document of the app's origin whose script had the app
+as `window.parent`, and with it the IPC. Only `index.html`'s unrelated
+`frame-src 'none'` stopped it. The e2e test `epub-reader.hostile.spec.ts`
+reproduces it on that design with that line removed: the frame's address became
+`blob:http://localhost:…/…`, the script set a value on the app's window, and the
+host was called.
+
+The lesson is that the frame itself must be unable to hurt the app whatever the
+cleaning misses.
+
+## Decision
+
+1. **The frame's origin is opaque.** It is `sandbox="allow-scripts"`
+   (`EPUB_FRAME_SANDBOX`), without `allow-same-origin`. Nothing in it — DFAI's
+   script, or a book's that got past everything else — can reach the app's
+   window, storage or IPC, and anything it is led to stays opaque. No forms,
+   pop-ups, or navigation of the window.
+
+2. **Only DFAI's script runs in it, named by its hash.** The frame's document is
+   DFAI's: a policy first (`epubFramePolicy`), then one inline script. The policy
+   is `default-src 'none'`, `script-src 'sha256-…'` of that script and nothing
+   else, `style-src 'unsafe-inline'`, pictures, fonts and media only `data:`, and
+   no request, frame, worker, object, form or `<base>`. The script is made from
+   `packages/adapters/src/epub/frame-bootstrap.ts` and `text-positions.ts` by
+   `tools/epub/frame-bootstrap.ts`, which writes it and its hash into
+   `frame-bootstrap.generated.ts`; a unit test makes it again and fails when the
+   committed file is not what the sources make, and checks the hash in the
+   policy is the script's.
+
+3. **The book is handed over as data; nothing comes back as markup.** The reader
+   (the parent) cleans the chapter, then hands the frame its nodes as a flat list
+   (`chapterSource`): elements by namespace, name and attributes, texts with the
+   offset their words begin at in the chapter's text. The frame builds them
+   itself with the DOM — no HTML or XML is parsed there. The book's pictures,
+   fonts and stylesheets are written in as `data:` addresses (`bookFiles`), never
+   `blob:`: a `data:` document is opaque wherever it is opened.
+
+4. **The message protocol** (`frame-protocol.ts`), by `postMessage` only:
+   - reader → frame: `style` (the reader's CSS, set as an adopted sheet),
+     `chapter` (the nodes and the text's length; one per frame), `paint` (names
+     to clear by prefix, and groups of `[start, end)` offsets under `dfai-…`
+     names, drawn with the CSS Custom Highlight API), `scroll-to-offset`,
+     `scroll-to-fragment`, `clear-selection`;
+   - frame → reader: `ready` (the script runs), `shown`, `selection` (offsets and
+     its box in the frame's viewport, on a press or key let go, or a scroll),
+     `link` (a book path and fragment, never a URL), `key` (name and modifiers).
+
+   Each side reads every message against the protocol and drops what does not
+   fit. The reader takes a message only from its frame's window with origin
+   `null`, and checks offsets against the chapter's length, paths and keys
+   against length caps, boxes for finite numbers. The frame takes a message only
+   from the window that made it, and caps nodes (2,000,000), strings (32 MB),
+   paint groups and ranges; a paint with any group out of the chapter, or under
+   a name it does not clear, draws nothing. A frame whose script never says
+   `ready` by a task after it loads is a failure, said as one, and taken away.
+
+5. **Defence in depth.** Each layer assumes the others failed:
+   - the reader's cleaning (`makeChapterSafe`) still takes out scripts, frames,
+     plug-ins, `<base>`, `<meta>`, handlers, SVG animation, form actions and
+     references off the book; it now keeps `href` only on links (`<a>`,
+     `<area>`) — kept as the book path they lead to, `data-dfai-path` — and on
+     SVG's resource loaders (`image`, `use`, `feImage`, `pattern`, `textPath`,
+     `linearGradient`, `radialGradient`), and drops any `data-dfai-…` the book
+     writes itself, so it cannot pose as one the cleaning wrote;
+   - the frame's builder refuses the same elements again and builds no handler,
+     no `href` but `#` on a link or `#…`/`data:` on an SVG loader, and no file
+     address that is not `data:`;
+   - the frame's script stops every click (and `auxclick` and `submit`) and
+     follows a link only by the `data-dfai-path` the cleaning wrote, by telling
+     the reader;
+   - the frame's own policy runs no other script and loads nothing;
+   - `index.html`'s `frame-src 'none'` is inherited by the frame as one more
+     layer. A comment there and `index-html.test.ts` keep it, but nothing relies
+     on it alone: the hostile e2e suite passes with it removed.
+
+6. **A long book is held a little at a time.** Each chapter's text is kept once
+   read, for find and re-anchoring; only the three chapters parsed last are kept
+   as documents, and another is parsed again when it is shown or a CFI in it is
+   read. Find and re-anchoring read the book chapter by chapter with a message
+   task between (`YieldToHost`), never one long task. Each stylesheet's rewritten
+   CSS, and each file's address, is made once per open book.
+
+## Consequences
+
+- A book's HTML never runs, and could not reach the app if it did. The exploit
+  above, and every other trick in the hostile fixture, is an e2e test in WebKit
+  (`e2e/epub-reader.hostile.spec.ts`): no sentinel on the app's window, nothing
+  fetched (a fake server for the book's site records no hit), the frame still
+  `about:srcdoc`, the host never called — also with the cleaning bypassed by the
+  test, and with `index.html`'s policy removed.
+- The frame's script is a fixed string. Changing `frame-bootstrap.ts` or
+  `text-positions.ts` means running `node tools/epub/frame-bootstrap.ts`; the
+  unit test says so when it is forgotten.
+- The reader no longer reaches into the frame, so the selection is what the
+  frame last said, and the frame's copy of the chapter is DFAI's own build.
+  CFIs are made and read on the reader's parsed chapter.
+- A book's pictures and fonts are `data:` strings held for the open book: about
+  a third larger than their bytes.
+- The work budgets hold the reader to a generated 1,000-chapter, 30 MB book:
+  open to the first chapter, turn a chapter, and find in the whole book.
+
+## Alternatives rejected
+
+- **Keep `allow-same-origin` and clean harder.** One missed attribute was enough
+  once; a sanitiser cannot be the only wall between a book and the IPC.
+- **foliate-js's own renderer.** It loads chapters from `blob:` addresses into a
+  frame that needs `allow-scripts` and relies on a page-wide policy to hold a
+  book's scripts back (ADR-0043's addendum).
+- **Compute the hash at run time.** It would match whatever script was built,
+  so nothing would hold the script to its reviewed source; a generated constant
+  checked by a test does.
+- **Send the chapter as markup for the frame to parse.** Parsing again in the
+  frame invites a parser difference between the two sides (mutation XSS) and
+  needs an HTML/XML round trip that some books do not survive; nodes as data are
+  built exactly.

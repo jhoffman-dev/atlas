@@ -26,6 +26,13 @@ export interface EpubBook {
   close(): void;
 }
 
+/**
+ * Lets the window's other work run. A read of every chapter of a book — find,
+ * or a highlight looked for by its words — waits on it between chapters, so
+ * a long book is read in many short tasks, not one that holds the window.
+ */
+export type YieldToHost = () => Promise<void>;
+
 /** Opens EPUBs from their bytes. The bytes are the caller's still: they are not handed over. */
 export interface EpubReaderPort {
   /**

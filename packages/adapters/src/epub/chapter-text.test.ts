@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { bookCss } from './chapter-styles.ts';
-import { chapterText, offsetAt, positionAt, rangeAt } from './chapter-text.ts';
+import { chapterText } from './chapter-text.ts';
+import { offsetAt, positionAt, rangeAt } from './text-positions.ts';
 
 /*
  * A chapter's text as the EPUB reader counts it (#505), and the translation

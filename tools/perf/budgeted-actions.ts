@@ -31,6 +31,10 @@ export const BUDGETED_ACTIONS = [
   'Open All highlights (20,000)',
   'Open a 500-page PDF',
   'Scroll a 500-page PDF to its middle',
+  // A generated book of 1,000 chapters, about 30 MB (#505).
+  'Open a 1,000-chapter EPUB',
+  'Turn a chapter of a 1,000-chapter EPUB',
+  'Find in a 1,000-chapter EPUB',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];

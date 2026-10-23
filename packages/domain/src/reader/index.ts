@@ -77,7 +77,7 @@ export {
   protectedEpubMessage,
 } from './epub-library.ts';
 export type { EpubEncryption, EpubProtection } from './epub-library.ts';
-export { bookReference, EPUB_FRAME_POLICY } from './epub-frame.ts';
+export { bookReference, EPUB_FRAME_SANDBOX, epubFramePolicy } from './epub-frame.ts';
 export {
   BOOK_FONT_DEFAULT,
   BOOK_FONT_SIZES,

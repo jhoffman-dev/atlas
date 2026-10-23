@@ -530,31 +530,22 @@ asin, file: null })` in the literature type's home folder (`Library` by
   app's `frame-src 'none'` refuses, and it needs `allow-scripts` with nothing
   but a page-wide policy to hold a book's scripts back. epub.js was the other
   choice; it has had no release since 2022 and renders the same way.
-- **A chapter is made safe, then shown in a frame of DFAI's own.** Before a
-  chapter reaches its frame (`makeChapterSafe`), scripts, frames, plug-ins,
-  `<base>`, `<meta>`, handlers, SVG animation, form actions and every reference
-  to another site are taken out; a link inside the book is kept as where it
-  leads, and the reader follows it to that chapter; no link leads out. The
-  book's own pictures, fonts and stylesheets are given `blob:` addresses read
-  from the book (`chapterWithFiles`, `bookCss`); anything else becomes nothing.
-  The frame is a `srcdoc` document whose first element is a policy
-  (`EPUB_FRAME_POLICY`: no script, no request, no frame, no form, no `<base>`,
-  pictures and fonts only `blob:` and `data:`), the chapter then put in as its
-  root. Either layer alone keeps a hostile book from running or loading
-  anything; the e2e suite checks each without the other.
-- **The frame has `allow-same-origin allow-scripts`.** The reader must read the
-  selection and draw in the chapter, so it needs the frame's document; and
-  WebKit delivers no event to a listener in a sandboxed frame without
-  `allow-scripts` (WebKit bug 218086, which the reader's tests reproduced in
-  Playwright's WebKit). No script of the book runs all the same: the chapter
-  holds none and the policy says `script-src 'none'`. No forms, pop-ups or
-  navigation of the window.
+- **A chapter is made safe, then shown in a frame of DFAI's own, with an
+  opaque origin.** How, and why it is not the `allow-same-origin` frame this
+  addendum first described, is ADR-0045: the chapter is cleaned in the reader
+  (`makeChapterSafe`), handed as data to DFAI's one script in a
+  `sandbox="allow-scripts"` frame whose policy runs only that script, by its
+  hash, and the book's files go in as `data:` addresses, never `blob:` ones of
+  the app's origin.
 - **A safe chapter keeps every node where it was.** What is taken away leaves
   an empty, hidden element in its place, and a stylesheet `<link>` becomes a
   `<style>` in its place, so a chapter's elements are counted as the book's
   file counts them and a CFI made in DFAI names the same place in any reader.
   Highlights and find's matches are drawn with the CSS Custom Highlight API and
-  the reader's own styles are adopted, so neither adds a node either.
+  the reader's own styles are adopted, so neither adds a node either. (The
+  frame builds its own copy of the chapter; places in it are offsets of the
+  chapter's text, so the copy need not match node for node: CFIs are made and
+  read on the reader's parsed chapter.)
 - **A chapter's text** is its body's words in order, a line break where a block
   begins or ends, nothing of the head, scripts or styles (`chapterText`). A
   selection is a stretch of it; its selector is the words as they read — every

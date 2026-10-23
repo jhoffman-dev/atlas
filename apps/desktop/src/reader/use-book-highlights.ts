@@ -10,7 +10,7 @@ import {
 } from '@dfai/application';
 import { plainQuote, type HighlightBlock, type VaultPath } from '@dfai/domain';
 import type { BookReaderActions, ReaderBookHighlight } from '@dfai/ui';
-import type { FoliateBook } from '@dfai/adapters/epub';
+import { yieldToHost, type FoliateBook } from '@dfai/adapters/epub';
 import { scopedReadKey, scopedReadMeta } from '../reads/query-client.ts';
 import {
   useNoteHighlights,
@@ -51,7 +51,7 @@ export function usePlacedBookHighlights({
   const placements = useQuery({
     // The open book is this tab's own, told apart by when it was opened.
     queryKey: scopedReadKey(vault, 'epub-placements', note, generation, signature),
-    queryFn: () => placeBookHighlights({ book, blocks }),
+    queryFn: () => placeBookHighlights({ book, blocks, pause: yieldToHost }),
     meta: scopedReadMeta({ notes: note === null ? [] : [note] }),
     enabled: blocks.length > 0,
   });
@@ -108,7 +108,7 @@ export function useBookWrites({
       onEditComment: ({ id, comment }) =>
         writing((path, write) => editHighlightComment(write, { path, id, comment })),
       onRemove: (id) => writing((path, write) => removeHighlight(write, { path, id })),
-      onSearch: (phrase) => searchBook(book, phrase),
+      onSearch: (phrase) => searchBook(book, phrase, yieldToHost),
     }),
     [book, writing],
   );

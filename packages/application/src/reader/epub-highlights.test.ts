@@ -37,6 +37,16 @@ const HARE =
   'The Hare and the Tortoise\n  A Hare one day ridiculed\n  the short feet.\nSlow but steady wins the race.';
 const ANTS = 'The Ant and the Grasshopper\nWhen the winter came the Grasshopper had no food.';
 
+/** The host's turn, as a test takes it: at once, counted. */
+function countedPause() {
+  const pause = async () => {
+    pause.taken += 1;
+  };
+  pause.taken = 0;
+  return pause;
+}
+const pause = countedPause();
+
 function vault(text = SOURCE) {
   const memory = memoryFiles({ [NOTE]: text });
   let draws = 0;
@@ -141,6 +151,7 @@ describe("placing the note's highlights in the open book", () => {
     const slow = range(0, HARE, 'Slow but steady');
     const placed = await placeBookHighlights({
       book,
+      pause,
       blocks: [
         block('w', `epubcfi(/6/4!/${winter.start}:${winter.end})`, 'When the winter came'),
         block('s', `epubcfi(/6/2!/${slow.start}:${slow.end})`, 'Slow but steady'),
@@ -157,6 +168,7 @@ describe("placing the note's highlights in the open book", () => {
     const book = fakeBook([HARE, ANTS]);
     const [placed] = await placeBookHighlights({
       book,
+      pause,
       blocks: [block('s', 'epubcfi(/6/2!/0:3)', 'Slow but steady')],
     });
     expect(placed?.placement).toEqual({ kind: 'words', range: range(0, HARE, 'Slow but steady') });
@@ -167,6 +179,7 @@ describe("placing the note's highlights in the open book", () => {
     const book = fakeBook([HARE, ANTS]);
     const placed = await placeBookHighlights({
       book,
+      pause,
       blocks: [
         block('elsewhere', 'epubcfi(/6/2!/0:3)', 'had no food'),
         block('foreign', 'epubcfi(/6/14[ch7]!/4/2/1:0)', 'the short feet'),
@@ -195,6 +208,7 @@ describe("placing the note's highlights in the open book", () => {
     };
     const placed = await placeBookHighlights({
       book,
+      pause,
       blocks: [
         block('a', 'epubcfi(broken)', 'Slow but steady'),
         block('b', 'epubcfi(/6/4!)', 'the short feet'),
@@ -208,7 +222,7 @@ describe("placing the note's highlights in the open book", () => {
       ...block('p', 'epubcfi(/6/2!)', 'x'),
       anchor: { kind: 'pdf', page: 1, quote: { exact: 'x', prefix: '', suffix: '' }, rects: [] },
     };
-    expect(await placeBookHighlights({ book: fakeBook([HARE]), blocks: [pdf] })).toEqual([]);
+    expect(await placeBookHighlights({ book: fakeBook([HARE]), blocks: [pdf], pause })).toEqual([]);
   });
 });
 
@@ -221,8 +235,37 @@ describe('find in the book', () => {
         return [HARE, ANTS, 'the grasshopper sang'][section] as string;
       },
     };
-    expect(await allSectionTexts(book)).toEqual([HARE, '', 'the grasshopper sang']);
-    const found = await searchBook(book, 'GRASSHOPPER');
+    expect(await allSectionTexts(book, pause)).toEqual([HARE, '', 'the grasshopper sang']);
+    const found = await searchBook(book, 'GRASSHOPPER', pause);
     expect(found).toEqual({ matches: [{ section: 2, start: 4, end: 15 }], more: false });
+  });
+
+  it("gives the window its turn between chapters, so a long book's find is many short tasks", async () => {
+    const chapters = Array.from({ length: 40 }, (_, at) => `chapter ${at} of the long book`);
+    const book = fakeBook(chapters);
+    const between = countedPause();
+    const order: string[] = [];
+    const watched = {
+      ...book,
+      sectionText: async (section: number) => {
+        order.push(`read ${section}`);
+        return book.sectionText(section);
+      },
+    };
+    const turn = async () => {
+      order.push('turn');
+      await between();
+    };
+    const found = await searchBook(watched, 'LONG book', turn);
+    expect(found.matches).toHaveLength(40);
+    expect(between.taken).toBe(39);
+    // A turn between every two chapters read, none before the first.
+    expect(order.slice(0, 5)).toEqual(['read 0', 'turn', 'read 1', 'turn', 'read 2']);
+  });
+
+  it('reads nothing of the book for a blank phrase', async () => {
+    const book = fakeBook([HARE, ANTS]);
+    expect(await searchBook(book, '   ', pause)).toEqual({ matches: [], more: false });
+    expect(book.textsRead).toEqual([]);
   });
 });

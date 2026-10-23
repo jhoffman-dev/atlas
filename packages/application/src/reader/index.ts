@@ -4,7 +4,7 @@ export { addEpubToLibrary, EpubNotAddedError } from './add-epub.ts';
 export type { AddEpubPorts } from './add-epub.ts';
 export type { AddedDocument, PickedDocument } from './library-copy.ts';
 export { EpubProtectedError, EpubUnreadableError } from './epub-ports.ts';
-export type { EpubBook, EpubReaderPort } from './epub-ports.ts';
+export type { EpubBook, EpubReaderPort, YieldToHost } from './epub-ports.ts';
 export {
   allSectionTexts,
   highlightBookSelection,

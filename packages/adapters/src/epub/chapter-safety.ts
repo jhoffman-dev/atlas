@@ -5,8 +5,8 @@ import { bookReference } from '@dfai/domain';
  * before a chapter reaches its frame everything in it that could run,
  * load from outside the book, or lead out of it is taken away: scripts,
  * frames, plug-ins, `<base>`, `<meta>`, handlers, and references to other
- * sites. The frame's own policy (`EPUB_FRAME_POLICY`) refuses the same
- * again, so either one alone is enough. What is taken away is put back as
+ * sites. The frame's own policy (`epubFramePolicy`) and its opaque origin
+ * refuse the same again (ADR-0045), so no one of them alone is relied on. What is taken away is put back as
  * an empty, hidden element of the same place, so the chapter keeps every
  * node where it was: an EPUB CFI counts a chapter's elements, and one made
  * here must name the same place in any other reader.
@@ -14,8 +14,12 @@ import { bookReference } from '@dfai/domain';
  * Links and the book's own files are not followed here: a link inside the
  * book is kept as where it leads (`data-dfai-path`, `data-dfai-fragment`),
  * for the reader to go to; a picture, a stylesheet or a font of the book is
- * kept as its path in the archive (`data-dfai-…`), for the frame to load
- * from the book itself.
+ * kept as its path in the archive (`data-dfai-…`), to be written into the
+ * chapter as a `data:` address. Only `<a>` and `<area>` are links, and only
+ * SVG's resource loaders may name a file by `href`: any other element's
+ * `href` is dropped — WebKit follows a MathML element's, and once that led
+ * the frame to a picture of the book holding a script. A `data-dfai-…` the
+ * book writes itself is dropped too, so it cannot pose as one of these.
  */
 
 const XHTML = 'http://www.w3.org/1999/xhtml';
@@ -50,6 +54,22 @@ const DROPPED_ATTRIBUTES = new Set([
   'srcset',
   'target',
 ]);
+
+/** SVG elements that load what their `href` names: a picture, a shape to reuse, a paint server, a path for text. */
+const SVG_LOADERS = new Set([
+  'image',
+  'use',
+  'feimage',
+  'pattern',
+  'textpath',
+  'lineargradient',
+  'radialgradient',
+]);
+
+const SVG = 'http://www.w3.org/2000/svg';
+
+/** What DFAI writes on an element: a book's own attribute of the same name is dropped before. */
+const DFAI_ATTRIBUTE = 'data-dfai-';
 
 /** A `url(…)` in an SVG attribute (`fill`, `filter`, `mask`) that is not a place in the chapter itself (`url(#id)`). */
 const FOREIGN_URL = /url\(\s*(?!['"]?#)[^)]*\)/gi;
@@ -98,7 +118,7 @@ function keepStylesheet(doc: Document, link: Element, from: string): void {
 
 function safeAttribute(element: Element, attribute: Attr, from: string): void {
   const name = attribute.localName.toLowerCase();
-  if (name.startsWith('on') || DROPPED_ATTRIBUTES.has(name)) {
+  if (name.startsWith('on') || name.startsWith(DFAI_ATTRIBUTE) || DROPPED_ATTRIBUTES.has(name)) {
     element.removeAttributeNode(attribute);
   } else if (name === 'href') {
     keepLink(element, attribute, from);
@@ -112,16 +132,23 @@ function safeAttribute(element: Element, attribute: Attr, from: string): void {
 }
 
 /**
- * A link or an SVG picture's `href`. On a link (`<a>`, `<area>`) it is kept
- * as where it leads inside the book, and points nowhere itself; on anything
- * else it names a file to load, as `src` does.
+ * An `href`. On a link (`<a>`, `<area>`, in HTML or SVG) it is kept as where
+ * it leads inside the book, and points nowhere itself; on an SVG resource
+ * loader it names a file to load, as `src` does, or a place in the chapter
+ * (`#id`), kept as it is; on anything else it is dropped.
  */
 function keepLink(element: Element, attribute: Attr, from: string): void {
   const name = element.localName.toLowerCase();
-  if (name !== 'a' && name !== 'area') {
-    keepResource(element, attribute, from);
-    return;
+  if (name === 'a' || name === 'area') {
+    keepBookLink(element, attribute, from);
+  } else if (element.namespaceURI === SVG && SVG_LOADERS.has(name)) {
+    if (!attribute.value.trim().startsWith('#')) keepResource(element, attribute, from);
+  } else {
+    element.removeAttributeNode(attribute);
   }
+}
+
+function keepBookLink(element: Element, attribute: Attr, from: string): void {
   const target = bookReference({ from, ref: attribute.value });
   element.removeAttributeNode(attribute);
   // A link still reads and looks like one, and goes nowhere: the reader follows the book's own.

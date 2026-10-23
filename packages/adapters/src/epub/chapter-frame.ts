@@ -1,29 +1,32 @@
-import { EPUB_FRAME_POLICY, type HighlightColor, type HighlightStyle } from '@dfai/domain';
-import { chapterText, offsetAt, rangeAt, type ChapterText } from './chapter-text.ts';
-import { LINK_FRAGMENT, LINK_PATH } from './chapter-safety.ts';
+import {
+  EPUB_FRAME_SANDBOX,
+  epubFramePolicy,
+  type HighlightColor,
+  type HighlightStyle,
+} from '@dfai/domain';
+import type { ChapterSource } from './chapter-source.ts';
+import { yieldToHost } from './yield-to-host.ts';
+import { FRAME_BOOTSTRAP, FRAME_BOOTSTRAP_SHA256 } from './frame-bootstrap.generated.ts';
+import {
+  readFrameMessage,
+  type FramePaintGroup,
+  type FrameSelection,
+  type FromFrame,
+  type ToFrame,
+} from './frame-protocol.ts';
 
 /*
- * A chapter shown in a frame of its own (#505). The frame is made from a
- * document DFAI writes — the policy that loads nothing from outside the book
- * and runs no script, first in its head — and the chapter, already made
- * safe (`makeChapterSafe`) and its files given addresses, is then put in as
- * its root, node for node, so a place in it is the same CFI as in the book.
- * Highlights and find's matches are drawn with the CSS Custom Highlight API,
- * which marks text without adding a node; the reader's own styles are
- * adopted, not written into the chapter, for the same reason.
- *
- * The frame is sandboxed with `allow-same-origin`, so the reader can read
- * the selection and draw in it, and `allow-scripts`, because WebKit
- * delivers no event to a listener in a frame without it (WebKit bug
- * 218086): no script of the book can run all the same — the chapter holds
- * none, and the frame's policy says `script-src 'none'`. No forms, no
- * pop-ups, no navigation of the window.
+ * A chapter shown in a frame of its own (#505, ADR-0045). The frame's origin
+ * is opaque (`EPUB_FRAME_SANDBOX`): nothing in it can reach the app, and the
+ * app does not reach in. Its document is DFAI's — the policy first, then
+ * DFAI's one script, named in the policy by its hash — and the chapter is
+ * handed to that script as data (`chapterSource`), with the reader's styles
+ * and what to draw; it answers with the selection, the links followed, the
+ * keys pressed and the scrolling, which are read against the protocol
+ * (`readFrameMessage`) before anything is done with them. Highlights and
+ * find's matches are drawn there with the CSS Custom Highlight API, which
+ * marks text without adding a node.
  */
-
-const FRAME_SANDBOX = 'allow-same-origin allow-scripts';
-
-/** The frame's window, with its own constructors: a highlight or a stylesheet is made in the frame's realm. */
-type FrameWindow = Window & typeof globalThis;
 
 /** How the book looks: the reader's colours, read from its own theme. */
 export interface ChapterAppearance {
@@ -82,7 +85,10 @@ export interface ShownChapter {
   destroy(): void;
 }
 
-/** Shows `chapter` (made safe, its files given addresses) in a new frame inside `host`. */
+/** The document the frame starts as: the policy first, then DFAI's script, before anything of the book. */
+export const FRAME_SHELL = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${epubFramePolicy(FRAME_BOOTSTRAP_SHA256)}"><script>${FRAME_BOOTSTRAP}</script></head><body></body></html>`;
+
+/** Shows `chapter` (made safe, as its frame is handed it) in a new frame inside `host`. */
 export async function showChapter({
   host,
   chapter,
@@ -90,177 +96,232 @@ export async function showChapter({
   events,
 }: {
   host: HTMLElement;
-  chapter: Document;
+  chapter: ChapterSource;
   appearance: ChapterAppearance;
   events: ChapterEvents;
 }): Promise<ShownChapter> {
   const frame = host.ownerDocument.createElement('iframe');
   frame.className = 'epub-frame';
   frame.title = 'Book text';
-  frame.setAttribute('sandbox', FRAME_SANDBOX);
+  frame.setAttribute('sandbox', EPUB_FRAME_SANDBOX);
   frame.setAttribute('referrerpolicy', 'no-referrer');
   frame.srcdoc = FRAME_SHELL;
-  const loaded = new Promise<void>((resolve) =>
-    frame.addEventListener('load', () => resolve(), { once: true }),
-  );
-  host.append(frame);
-  await loaded;
-  const doc = frame.contentDocument;
-  const view = frame.contentWindow as FrameWindow | null;
-  if (doc === null || view === null)
-    throw new Error('The book could not be shown: its frame did not open.');
-  doc.replaceChild(doc.importNode(chapter.documentElement, true), doc.documentElement);
-  const text = chapterText(doc);
-  const sheet = new view.CSSStyleSheet();
-  doc.adoptedStyleSheets = [sheet];
-  const detach = listen(doc, view, events);
-  const shown = shownChapter({ frame, doc, view, text, sheet, detach });
-  shown.setAppearance(appearance);
-  return shown;
+  const link = frameLink(frame, chapter.length);
+  try {
+    const ready = whenReady(frame, link);
+    host.append(frame);
+    await ready;
+    link.post({ kind: 'style', css: readerCss(appearance) });
+    const shown = link.next('shown');
+    link.post({ kind: 'chapter', nodes: chapter.nodes, length: chapter.length });
+    await shown;
+  } catch (error) {
+    link.close();
+    frame.remove();
+    throw error;
+  }
+  return shownChapter({ frame, link, events, length: chapter.length });
 }
 
-/** The document the frame starts as: the policy first, before anything of the book is in it. */
-const FRAME_SHELL = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${EPUB_FRAME_POLICY}"></head><body></body></html>`;
+/** The reader's side of the frame's messages: only the frame's own, and only those that fit the protocol. */
+export interface FrameLink {
+  post(message: ToFrame): void;
+  /** Resolves on the frame's next message of `kind`. */
+  next(kind: FromFrame['kind']): Promise<void>;
+  listen(handler: (message: FromFrame) => void): void;
+  close(): void;
+}
 
-function listen(doc: Document, view: FrameWindow, events: ChapterEvents): () => void {
-  const onClick = (event: MouseEvent) => {
-    const link = (event.target as Element | null)?.closest?.('a, area');
-    if (link === null || link === undefined) return;
-    // Nothing in a book navigates the frame: a link of the book is the reader's to follow.
-    event.preventDefault();
-    const path = link.getAttribute(LINK_PATH);
-    if (path !== null) events.onLink({ path, fragment: link.getAttribute(LINK_FRAGMENT) });
+function frameLink(frame: HTMLIFrameElement, length: number): FrameLink {
+  const view = frame.ownerDocument.defaultView;
+  const handlers = new Set<(message: FromFrame) => void>();
+  const onMessage = (event: MessageEvent) => {
+    // The frame's origin is opaque, so it says `null`; a message from any other window is not the frame's.
+    if (event.source !== frame.contentWindow || event.origin !== 'null') return;
+    const message = readFrameMessage(event.data, length);
+    if (message !== null) for (const handler of [...handlers]) handler(message);
   };
-  const onSubmit = (event: Event) => event.preventDefault();
-  const onUp = () => events.onSelectionEnd();
-  const onKey = (event: KeyboardEvent) => events.onKeyDown(event);
-  const onScroll = () => events.onScroll();
-  doc.addEventListener('click', onClick, true);
-  doc.addEventListener('submit', onSubmit, true);
-  doc.addEventListener('mouseup', onUp);
-  doc.addEventListener('keyup', onUp);
-  doc.addEventListener('keydown', onKey);
-  view.addEventListener('scroll', onScroll, { passive: true });
-  return () => {
-    doc.removeEventListener('click', onClick, true);
-    doc.removeEventListener('submit', onSubmit, true);
-    doc.removeEventListener('mouseup', onUp);
-    doc.removeEventListener('keyup', onUp);
-    doc.removeEventListener('keydown', onKey);
-    view.removeEventListener('scroll', onScroll);
+  view?.addEventListener('message', onMessage);
+  return {
+    post: (message) => frame.contentWindow?.postMessage(message, '*'),
+    next: (kind) =>
+      new Promise((resolve) => {
+        const once = (message: FromFrame) => {
+          if (message.kind !== kind) return;
+          handlers.delete(once);
+          resolve();
+        };
+        handlers.add(once);
+      }),
+    listen: (handler) => void handlers.add(handler),
+    close: () => {
+      handlers.clear();
+      view?.removeEventListener('message', onMessage);
+    },
   };
 }
 
-/** The highlights the frame's registry holds under DFAI's names, so a repaint takes away only its own. */
-const MARK_PREFIX = 'dfai-';
+/**
+ * Resolves once DFAI's script in the frame says it listens. It runs while the
+ * frame's document is read, so its word is posted before the frame loads;
+ * none a task after the load means it never ran (a policy that refused it).
+ */
+function whenReady(frame: HTMLIFrameElement, link: FrameLink): Promise<void> {
+  let ready = false;
+  return new Promise((resolve, reject) => {
+    void link.next('ready').then(() => {
+      ready = true;
+      resolve();
+    });
+    frame.addEventListener(
+      'load',
+      () =>
+        void yieldToHost().then(() => {
+          if (!ready) reject(new Error('The book could not be shown: its frame did not start.'));
+        }),
+      { once: true },
+    );
+  });
+}
 
-function shownChapter({
+/** The chapter on screen in `frame`: what the frame says, turned into the reader's events; what the reader asks, sent. */
+export function shownChapter({
   frame,
-  doc,
-  view,
-  text,
-  sheet,
-  detach,
+  link,
+  events,
+  length,
 }: {
   frame: HTMLIFrameElement;
-  doc: Document;
-  view: FrameWindow;
-  text: ChapterText;
-  sheet: CSSStyleSheet;
-  detach: () => void;
+  link: FrameLink;
+  events: ChapterEvents;
+  length: number;
 }): ShownChapter {
-  const registry = highlightRegistry(view);
-  const rangeOf = (start: number, end: number) => rangeAt(text, start, end);
-  const draw = (prefix: string, groups: ReadonlyMap<string, Range[]>) => {
-    if (registry === null) return;
-    for (const name of [...registry.keys()]) {
-      if (name.startsWith(prefix) && !groups.has(name)) registry.delete(name);
+  let selected: FrameSelection | null = null;
+  link.listen((message) => {
+    if (message.kind === 'selection') {
+      selected = message.selection;
+      if (message.cause === 'end') events.onSelectionEnd();
+      else events.onScroll();
+    } else if (message.kind === 'link') {
+      events.onLink({ path: message.path, fragment: message.fragment });
+    } else if (message.kind === 'key') {
+      events.onKeyDown(keyEventOf(message));
     }
-    for (const [name, ranges] of groups) {
-      const highlight = new view.Highlight(...ranges);
-      // Lit and current marks are drawn over the highlights they fall on.
-      if (name.endsWith('flash') || name.endsWith('-current')) highlight.priority = 1;
-      registry.set(name, highlight);
-    }
-  };
+  });
   return {
-    selection() {
-      const selected = view.getSelection();
-      if (selected === null || selected.rangeCount === 0 || selected.isCollapsed) return null;
-      const range = selected.getRangeAt(0);
-      const start = offsetAt(text, range.startContainer, range.startOffset);
-      const end = offsetAt(text, range.endContainer, range.endOffset);
-      if (start === end) return null;
-      const box = range.getBoundingClientRect();
-      const at = frame.getBoundingClientRect();
-      return {
-        start,
-        end,
-        rect: new DOMRect(at.left + box.left, at.top + box.top, box.width, box.height),
-      };
+    selection: () => (selected === null ? null : onScreen(frame, selected)),
+    clearSelection() {
+      selected = null;
+      link.post({ kind: 'clear-selection' });
     },
-    clearSelection: () => view.getSelection()?.removeAllRanges(),
-    paint(marks, flashing) {
-      const groups = new Map<string, Range[]>();
-      for (const mark of marks) {
-        const range = rangeOf(mark.start, mark.end);
-        if (range === null) continue;
-        groupInto(groups, `${MARK_PREFIX}${mark.style.mark}-${mark.style.color}`, range);
-        if (mark.id === flashing) groupInto(groups, `${MARK_PREFIX}flash`, range);
-      }
-      draw(`${MARK_PREFIX}highlight-`, groups);
-      draw(`${MARK_PREFIX}underline-`, groups);
-      draw(`${MARK_PREFIX}flash`, groups);
-    },
-    paintFound(found, current) {
-      const groups = new Map<string, Range[]>();
-      for (const [at, match] of found.entries()) {
-        const range = rangeOf(match.start, match.end);
-        if (range !== null)
-          groupInto(groups, `${MARK_PREFIX}found${at === current ? '-current' : ''}`, range);
-      }
-      draw(`${MARK_PREFIX}found`, groups);
-    },
-    scrollToOffset(offset) {
-      const range = rangeOf(offset, offset);
-      const box = range?.getBoundingClientRect();
-      if (box === undefined) return;
-      view.scrollTo({ top: Math.max(0, view.scrollY + box.top - 80) });
-    },
-    scrollToFragment(fragment) {
-      const target =
-        fragment === null
-          ? null
-          : (doc.getElementById(fragment) ??
-            doc.querySelector(`[name="${view.CSS.escape(fragment)}"]`));
-      if (target === null) view.scrollTo({ top: 0 });
-      else target.scrollIntoView({ block: 'start' });
-    },
-    setAppearance(appearance) {
-      sheet.replaceSync(readerCss(appearance));
-    },
+    paint: (marks, flashing) => link.post(markPaint({ marks, flashing, length })),
+    paintFound: (found, current) => link.post(foundPaint({ found, current, length })),
+    scrollToOffset: (offset) => link.post({ kind: 'scroll-to-offset', offset }),
+    scrollToFragment: (fragment) => link.post({ kind: 'scroll-to-fragment', fragment }),
+    setAppearance: (appearance) => link.post({ kind: 'style', css: readerCss(appearance) }),
     destroy() {
-      detach();
+      link.close();
       frame.remove();
     },
   };
 }
 
-function groupInto(groups: Map<string, Range[]>, name: string, range: Range): void {
-  const group = groups.get(name);
-  if (group === undefined) groups.set(name, [range]);
-  else group.push(range);
+/** The selection's box on the reader's page: the frame's own box, and the selection's within it. */
+function onScreen(frame: HTMLIFrameElement, selected: FrameSelection) {
+  const at = frame.getBoundingClientRect();
+  const { left, top, width, height } = selected.rect;
+  return {
+    start: selected.start,
+    end: selected.end,
+    rect: new DOMRect(at.left + left, at.top + top, width, height),
+  };
 }
 
-/** The frame's highlight registry, or null in a browser without the CSS Custom Highlight API. */
-function highlightRegistry(view: FrameWindow): HighlightRegistry | null {
-  return typeof view.CSS?.highlights === 'object' && typeof view.Highlight === 'function'
-    ? view.CSS.highlights
-    : null;
+/** A key the frame told of, as the reader's shortcuts read one; it is the frame's to stop, not the reader's. */
+function keyEventOf(message: Extract<FromFrame, { kind: 'key' }>): KeyboardEvent {
+  return new KeyboardEvent('keydown', {
+    key: message.key,
+    metaKey: message.meta,
+    ctrlKey: message.ctrl,
+    shiftKey: message.shift,
+    altKey: message.alt,
+    cancelable: true,
+  });
+}
+
+/** The highlights the frame's registry holds under DFAI's names, so a repaint takes away only its own. */
+const MARK_PREFIX = 'dfai-';
+
+/** The paint of the chapter's highlights: each style's ranges under its name, the lit one again over them. */
+export function markPaint({
+  marks,
+  flashing,
+  length,
+}: {
+  marks: readonly ChapterMark[];
+  flashing: string | null;
+  length: number;
+}): ToFrame {
+  const groups = new Map<string, FramePaintGroup & { ranges: number[] }>();
+  for (const mark of marks) {
+    if (!inChapter(mark, length)) continue;
+    const name = `${MARK_PREFIX}${mark.style.mark}-${mark.style.color}`;
+    groupInto(groups, { name, priority: 0, start: mark.start, end: mark.end });
+    if (mark.id === flashing) {
+      groupInto(groups, {
+        name: `${MARK_PREFIX}flash`,
+        priority: 1,
+        start: mark.start,
+        end: mark.end,
+      });
+    }
+  }
+  return {
+    kind: 'paint',
+    clear: [`${MARK_PREFIX}highlight-`, `${MARK_PREFIX}underline-`, `${MARK_PREFIX}flash`],
+    groups: [...groups.values()],
+  };
+}
+
+/** The paint of find's matches in the chapter, the current one apart and over the rest. */
+export function foundPaint({
+  found,
+  current,
+  length,
+}: {
+  found: readonly { start: number; end: number }[];
+  current: number | null;
+  length: number;
+}): ToFrame {
+  const groups = new Map<string, FramePaintGroup & { ranges: number[] }>();
+  for (const [at, match] of found.entries()) {
+    if (!inChapter(match, length)) continue;
+    const name = `${MARK_PREFIX}found${at === current ? '-current' : ''}`;
+    groupInto(groups, {
+      name,
+      priority: at === current ? 1 : 0,
+      start: match.start,
+      end: match.end,
+    });
+  }
+  return { kind: 'paint', clear: [`${MARK_PREFIX}found`], groups: [...groups.values()] };
+}
+
+/** A stretch the frame can draw: within the chapter's text, and not backwards. */
+const inChapter = ({ start, end }: { start: number; end: number }, length: number) =>
+  Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start <= end && end <= length;
+
+function groupInto(
+  groups: Map<string, FramePaintGroup & { ranges: number[] }>,
+  { name, priority, start, end }: { name: string; priority: 0 | 1; start: number; end: number },
+): void {
+  const group = groups.get(name);
+  if (group === undefined) groups.set(name, { name, priority, ranges: [start, end] });
+  else group.ranges.push(start, end);
 }
 
 /** The reader's styles inside the frame: the size the person chose, the theme's colours, and how marks are drawn. */
-function readerCss(look: ChapterAppearance): string {
+export function readerCss(look: ChapterAppearance): string {
   const marks = Object.entries(look.marks).flatMap(([color, { fill, line }]) => [
     `::highlight(${MARK_PREFIX}highlight-${color}) { background-color: ${fill}; color: ${look.markInk}; }`,
     `::highlight(${MARK_PREFIX}underline-${color}) { text-decoration: underline 2px ${line}; text-decoration-color: ${line}; }`,

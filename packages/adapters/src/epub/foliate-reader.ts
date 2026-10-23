@@ -15,9 +15,12 @@ import {
   type EpubReaderPort,
 } from '@dfai/application';
 import { openArchive, type BookArchive } from './zip-loader.ts';
-import { chapterText, offsetAt, rangeAt, type ChapterText } from './chapter-text.ts';
+import { chapterText, type ChapterText } from './chapter-text.ts';
+import { offsetAt, rangeAt } from './text-positions.ts';
 import { makeChapterSafe } from './chapter-safety.ts';
-import { chapterWithFiles } from './chapter-files.ts';
+import { bookFiles } from './book-files.ts';
+import { chapterSource } from './chapter-source.ts';
+import { recentCache } from './recent-cache.ts';
 import {
   showChapter,
   type ChapterAppearance,
@@ -32,7 +35,15 @@ import {
  * and back, its failures into `EpubUnreadableError`. A book locked with DRM
  * is refused before it is parsed (`epubProtection`). Nothing is fetched:
  * every book is opened from its bytes.
+ *
+ * A long book is not held whole: each chapter's text is kept once it has
+ * been read (find and re-anchoring read them all), but only the few
+ * chapters parsed last are kept as documents (`PARSED_CHAPTERS`); another is
+ * parsed again when it is shown or a CFI in it is read.
  */
+
+/** How many parsed chapters an open book keeps: the one on screen, the one before, and one a highlight named. */
+const PARSED_CHAPTERS = 3;
 
 /** An open EPUB that can also show its chapters. */
 export interface FoliateBook extends EpubBook {
@@ -111,33 +122,27 @@ interface Chapter {
 }
 
 function openedBook(book: EPUB, archive: BookArchive): FoliateBook {
-  const chapters = new Map<number, Promise<Chapter>>();
-  const addresses = new Map<string, Promise<string | null>>();
   const sections = book.sections;
+  const parsed = recentCache<number, Promise<Chapter>>(PARSED_CHAPTERS);
+  const texts = new Map<number, string>();
+  const files = bookFiles(archive);
   const chapter = (section: number): Promise<Chapter> => {
-    const held = chapters.get(section);
+    const held = parsed.get(section);
     if (held !== undefined) return held;
     const reading = readChapter(archive, sectionAt(sections, section).id);
-    chapters.set(section, reading);
-    // A chapter that failed to read is read again the next time it is asked for.
-    reading.catch(() => chapters.delete(section));
+    parsed.set(section, reading);
+    reading.then(
+      ({ text }) => void texts.set(section, text.text),
+      // A chapter that failed to read is read again the next time it is asked for.
+      () => parsed.delete(section),
+    );
     return reading;
   };
-  const address = (path: string): Promise<string | null> => {
-    const held = addresses.get(path);
-    if (held !== undefined) return held;
-    const made = archive
-      .loadBlob(path, mediaTypeOf(path))
-      .then((blob) => (blob === null ? null : URL.createObjectURL(blob)));
-    addresses.set(path, made);
-    return made;
-  };
-  const contents = contentsOf(book, book.toc ?? []);
   return {
     sectionCount: sections.length,
     metadata: metadataOf(book.metadata),
-    contents,
-    sectionText: async (section) => (await chapter(section)).text.text,
+    contents: contentsOf(book, book.toc ?? []),
+    sectionText: async (section) => texts.get(section) ?? (await chapter(section)).text.text,
     async placeOfCfi(cfi) {
       const { index, anchor } = book.resolveCFI(cfi);
       if (index < 0 || index >= sections.length) return null;
@@ -154,21 +159,14 @@ function openedBook(book: EPUB, archive: BookArchive): FoliateBook {
       return index === -1 ? null : index;
     },
     async show({ section, host, appearance, events }) {
-      const { doc } = await chapter(section);
+      const { doc, text } = await chapter(section);
       const path = sectionAt(sections, section).id;
-      const shown = await chapterWithFiles({ chapter: doc, path, address, archive });
-      return showChapter({ host, chapter: shown, appearance, events });
+      const source = await chapterSource({ chapter: doc, text, path, files });
+      return showChapter({ host, chapter: source, appearance, events });
     },
     close() {
-      for (const made of addresses.values()) {
-        // An address never made has nothing to let go of.
-        void made.then(
-          (url) => url !== null && URL.revokeObjectURL(url),
-          () => undefined,
-        );
-      }
-      addresses.clear();
-      chapters.clear();
+      parsed.clear();
+      texts.clear();
       book.destroy();
     },
   };
@@ -246,27 +244,5 @@ function sectionOfHref(book: EPUB, href: string): number | null {
     return null;
   }
 }
-
-/** A file's type by its name, for a blob the frame shows: an SVG picture is drawn only when it says it is one. */
-function mediaTypeOf(path: string): string {
-  const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
-  return MEDIA_TYPES[extension] ?? 'application/octet-stream';
-}
-
-const MEDIA_TYPES: Readonly<Record<string, string>> = {
-  css: 'text/css',
-  gif: 'image/gif',
-  jpeg: 'image/jpeg',
-  jpg: 'image/jpeg',
-  png: 'image/png',
-  svg: 'image/svg+xml',
-  webp: 'image/webp',
-  otf: 'font/otf',
-  ttf: 'font/ttf',
-  woff: 'font/woff',
-  woff2: 'font/woff2',
-  mp3: 'audio/mpeg',
-  mp4: 'video/mp4',
-};
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));

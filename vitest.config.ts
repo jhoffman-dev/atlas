@@ -128,6 +128,10 @@ export default defineConfig({
         'packages/application/src/research/**': { lines: 90, functions: 90, branches: 85 },
         // Copies a PDF or an EPUB into the vault and makes its literature note; writes the readers' highlights (#504, #505).
         'packages/application/src/reader/**': { lines: 90, functions: 90, branches: 85 },
+        // What stands between an untrusted book and the app: the cleaning, what the frame is
+        // handed and builds, and every message between them (#505, ADR-0045).
+        'packages/adapters/src/epub/{chapter-safety,chapter-source,frame-bootstrap,frame-protocol,text-positions}.ts':
+          { lines: 90, functions: 90, branches: 85 },
         // A task's schedule is read from the index and answered to the API (P31-01);
         // a drop on the calendar writes a block or links a task into one, and undoes it (P31-02).
         'packages/application/src/timeblocks/**': { lines: 90, functions: 90, branches: 85 },

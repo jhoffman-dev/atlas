@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EpubProtectedError, EpubUnreadableError } from '@dfai/application';
 import { findQuote } from '@dfai/domain';
 import {
@@ -136,5 +136,50 @@ describe('an EPUB the reader refuses', () => {
       EpubUnreadableError,
     );
     book.close();
+  });
+});
+
+describe('a long book, held a little at a time', () => {
+  const originalParse = DOMParser.prototype.parseFromString;
+  /** Each chapter's title as it is parsed, by the reader or by foliate-js. */
+  function parsedChapters() {
+    const parsed: string[] = [];
+    const parse = vi.spyOn(DOMParser.prototype, 'parseFromString').mockImplementation(function (
+      this: DOMParser,
+      source: string,
+      type: DOMParserSupportedType,
+    ) {
+      const title = /<title>([^<]*)<\/title>/.exec(source)?.[1];
+      if (title?.startsWith('Part ')) parsed.push(title);
+      return originalParse.call(this, source, type);
+    });
+    return { parsed, restore: () => parse.mockRestore() };
+  }
+  const parts = Array.from({ length: 6 }, (_, at) => ({
+    file: `part-${at + 1}.xhtml`,
+    title: `Part ${at + 1}`,
+    body: `<p>The words of part ${at + 1}.</p>`,
+  }));
+
+  it("keeps every chapter's text once read, but parses a chapter again once three others were since", async () => {
+    const book = await open(fixtureEpub({ title: 'A Long Book', chapters: parts }));
+    const { parsed, restore } = parsedChapters();
+    try {
+      for (let section = 0; section < parts.length; section += 1) await book.sectionText(section);
+      expect(parsed).toEqual(parts.map((part) => part.title));
+      for (let section = 0; section < parts.length; section += 1) await book.sectionText(section);
+      expect(parsed).toHaveLength(parts.length);
+      // Parts 4–6 are the three parsed last; a CFI in part 6 needs no parse, one in part 1 does.
+      const last = await book.sectionText(5);
+      await book.cfiOf({ section: 5, start: 0, end: last.trim().length });
+      expect(parsed).toHaveLength(parts.length);
+      const first = await book.sectionText(0);
+      const cfi = await book.cfiOf({ section: 0, start: 0, end: first.trim().length });
+      expect(parsed.slice(parts.length)).toEqual(['Part 1']);
+      expect((await book.placeOfCfi(cfi))?.section).toBe(0);
+    } finally {
+      restore();
+      book.close();
+    }
   });
 });
