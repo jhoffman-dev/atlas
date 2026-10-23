@@ -95,7 +95,8 @@ export function describePlan(plan: AutomationPlan): string {
   // A step that reads its data asks with no note at all, and still writes one.
   const writes = count === 0 && readsData(plan.action) ? 'Would write its note.' : null;
   const head =
-    writes ?? (count === 0 ? 'Nothing to do right now.' : `Would ${planVerb(plan.action)} ${notes}.`);
+    writes ??
+    (count === 0 ? 'Nothing to do right now.' : `Would ${planVerb(plan.action)} ${notes}.`);
   return plan.capped ? `${head} ${cappedLine(plan.paths.length)}` : head;
 }
 

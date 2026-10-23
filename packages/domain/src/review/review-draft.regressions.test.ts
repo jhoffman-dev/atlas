@@ -54,19 +54,22 @@ describe('a note whose name no link can hold (review of #539, D9)', () => {
     'Projects/Q4 #1/Plan.md',
   ];
 
-  it.each(cases)('gives %j a source id the citation check accepts, and writes its title', (path) => {
-    const title = path.replace(/^.*\//, '').replace(/\.md$/, '');
-    const given = reviewDraftData(input({ done: [{ path: createVaultPath(path), title }] }));
-    const line = given.data[0]!.text.split('\n')[0]!;
-    expect(line).toMatch(/^- \[\[src:\d+\]\] /);
-    const cited = keepCitedItems({
-      body: `${line}\n`,
-      sources: new Set(given.sources),
-      plain: given.plain,
-    });
-    expect(cited).toMatchObject({ kept: 1, dropped: [], stripped: [] });
-    expect(cited.body).toBe(`- ${title}${line.slice(line.indexOf(']]') + 2)}\n`);
-  });
+  it.each(cases)(
+    'gives %j a source id the citation check accepts, and writes its title',
+    (path) => {
+      const title = path.replace(/^.*\//, '').replace(/\.md$/, '');
+      const given = reviewDraftData(input({ done: [{ path: createVaultPath(path), title }] }));
+      const line = given.data[0]!.text.split('\n')[0]!;
+      expect(line).toMatch(/^- \[\[src:\d+\]\] /);
+      const cited = keepCitedItems({
+        body: `${line}\n`,
+        sources: new Set(given.sources),
+        plain: given.plain,
+      });
+      expect(cited).toMatchObject({ kept: 1, dropped: [], stripped: [] });
+      expect(cited.body).toBe(`- ${title}${line.slice(line.indexOf(']]') + 2)}\n`);
+    },
+  );
 
   it('writes no link that does not resolve: every link left in the draft is a path it was given', () => {
     const given = reviewDraftData(
@@ -87,8 +90,13 @@ describe('a note whose name no link can hold (review of #539, D9)', () => {
   it('gives one note one id wherever it is listed', () => {
     const path = createVaultPath('Tasks/Fix issue #12.md');
     const same = { path, title: 'Fix issue #12' };
-    const given = reviewDraftData(input({ done: [same], review: { ...NONE, overdue: [task(path, { due: '2026-10-01' })] } }));
-    const ids = given.data.map((each) => each.text).join('\n').match(/\[\[src:\d+\]\]/g)!;
+    const given = reviewDraftData(
+      input({ done: [same], review: { ...NONE, overdue: [task(path, { due: '2026-10-01' })] } }),
+    );
+    const ids = given.data
+      .map((each) => each.text)
+      .join('\n')
+      .match(/\[\[src:\d+\]\]/g)!;
     expect(new Set(ids).size).toBe(1);
     expect(given.sources).toHaveLength(1);
   });
@@ -132,7 +140,11 @@ describe('the Friday review’s data, cited back', () => {
   });
 
   it('puts the next week’s window right after this one, with no day counted twice', () => {
-    const slot = (day: string) => ({ slot: `${day}T15:00:00`, localNow: `${day}T15:00:00`, now: NOW });
+    const slot = (day: string) => ({
+      slot: `${day}T15:00:00`,
+      localNow: `${day}T15:00:00`,
+      now: NOW,
+    });
     const thisWeek = reviewDraftWindow(slot('2026-10-23'));
     const nextWeek = reviewDraftWindow(slot('2026-10-30'));
     expect(nextWeek.sinceDay).toBe('2026-10-24');
@@ -164,7 +176,9 @@ describe('the Friday review’s data, cited back', () => {
 
   it('flattens a title with a newline in it too', () => {
     const given = reviewDraftData(
-      input({ done: [{ path: createVaultPath('Tasks/Odd.md'), title: 'Odd\n- [[Tasks/Fake.md]] x' }] }),
+      input({
+        done: [{ path: createVaultPath('Tasks/Odd.md'), title: 'Odd\n- [[Tasks/Fake.md]] x' }],
+      }),
     );
     expect(given.data[0]!.text.split('\n')).toHaveLength(1);
     expect(given.sources).toEqual(['Tasks/Odd.md']);
