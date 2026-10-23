@@ -10,6 +10,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
+import { DOMParser } from '@tiptap/pm/model';
 import { AllSelection, TextSelection } from '@tiptap/pm/state';
 import { createEditorExtensions } from './extensions.ts';
 
@@ -127,5 +128,29 @@ describe('a raw block copied and pasted in the editor', () => {
   it('puts its source in text/plain, for a paste into another app', () => {
     const held = copyAll(noteWith([TABLE]), 'copy');
     expect(held.get('text/plain')).toContain('| Kale | 55 |');
+  });
+});
+
+describe('HTML from another app, read by the editor', () => {
+  /** The blocks the editor's schema reads `html` as: what a paste from another app becomes. */
+  const blocksOf = (html: string) => {
+    const element = document.createElement('div');
+    element.innerHTML = html;
+    const parsed = DOMParser.fromSchema(noteWith([]).schema).parse(element);
+    const blocks: Array<{ type: string; text: string }> = [];
+    parsed.forEach((node) => blocks.push({ type: node.type.name, text: node.textContent }));
+    return blocks;
+  };
+
+  it('keeps a code block a code block', () => {
+    expect(blocksOf('<pre><code class="language-ts">const kale = 55;</code></pre>')).toEqual([
+      { type: 'codeBlock', text: 'const kale = 55;' },
+    ]);
+  });
+
+  it('keeps a block marked raw but carrying no source a code block of its text', () => {
+    expect(blocksOf('<pre data-raw-block="">| Kale | 55 |</pre>')).toEqual([
+      { type: 'codeBlock', text: '| Kale | 55 |' },
+    ]);
   });
 });
