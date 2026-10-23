@@ -490,3 +490,43 @@ describe('a comment kept from the last time the note closed', () => {
     expect(onUnwrittenComments.mock.calls[0]?.[0]).toHaveLength(1);
   });
 });
+
+/*
+ * Regression (#534, found on f4c54b6b): the editor's own flush as it goes (a
+ * vault switch, the tab closed) waited on its write for ever. A hung disk
+ * must not swallow the words: after the panes' cap they are handed back to be
+ * kept, as a refused write's are.
+ */
+describe('a comment typed, when its write hangs as the editor goes', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is handed back to be kept once the panes would have stopped waiting', async () => {
+    const onUnwrittenComments = vi.fn();
+    const view = render(
+      <NoteEditor
+        doc={lamp('Lit by Mara.')}
+        onChange={vi.fn()}
+        onFollowLink={vi.fn()}
+        suggestNotes={() => []}
+        loadImage={async () => null}
+        highlights={{
+          viewOf,
+          editComment: () => new Promise<void>(() => {}),
+          onUnwrittenComments,
+        }}
+      />,
+    );
+    await screen.findByText('The last lamp.');
+    type('Typed as the disk hung.');
+    vi.useFakeTimers();
+    view.unmount();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(onUnwrittenComments).toHaveBeenCalledTimes(1);
+    expect(onUnwrittenComments.mock.calls[0]?.[0]).toMatchObject([
+      { id: 'k3x9q2', comment: 'Typed as the disk hung.', base: 'Lit by Mara.' },
+    ]);
+  });
+});
+

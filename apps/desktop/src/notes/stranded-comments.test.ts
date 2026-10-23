@@ -42,7 +42,13 @@ describe('comments a closing note could not write (#534)', () => {
     expect(hook.result.current.notice).toContain(REFUSED);
     expect(hook.result.current.notice).toContain('Typed, then ⌘W.');
     expect(hook.result.current.waiting).toEqual([NOTE]);
-    act(() => hook.result.current.settle({ vault: VAULT, path: NOTE }));
+    act(() =>
+      hook.result.current.settle({
+        vault: VAULT,
+        path: NOTE,
+        comments: hook.result.current.offered(NOTE),
+      }),
+    );
     expect(hook.result.current.notice).toBeNull();
     expect(hook.result.current.offered(NOTE)).toEqual([]);
   });

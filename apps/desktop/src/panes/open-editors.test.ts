@@ -4,6 +4,8 @@ import { renderHook } from '@testing-library/react';
 import { createVaultPath, type VaultPath } from '@dfai/domain';
 import {
   EDITORS_CLOSE_WAIT_MS,
+  PANES_WRITE_GAVE_UP,
+  SWITCH_WRITE_GAVE_UP,
   useOpenEditors,
   writtenWithin,
   type OpenEditor,
@@ -265,5 +267,12 @@ describe('every pane’s work, waited for by a vault switch or a sync', () => {
       onGaveUp: vi.fn(),
     });
     await expect(failing()).rejects.toThrow('The disk is full.');
+  });
+
+  /* Regression (#534, found on f4c54b6b): after a switch the panes are gone, so their work is not "in their panes". */
+  it('tells of a switch that stopped waiting without sending the person to panes that are gone', () => {
+    expect(SWITCH_WRITE_GAVE_UP).not.toMatch(/in their panes/);
+    expect(SWITCH_WRITE_GAVE_UP).toMatch(/kept/);
+    expect(PANES_WRITE_GAVE_UP).toMatch(/in their panes/);
   });
 });
