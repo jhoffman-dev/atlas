@@ -101,8 +101,10 @@ test("a comment left before the pane hears of a sync keeps the sync's words", as
   // The sync has written; the watcher has not told the pane yet.
   await vault.write('Library/Brightwater.md', SYNCED);
   await page.keyboard.press('Tab');
-  await expectFile(vault, 'Library/Brightwater.md').not.toBe(SYNCED);
-  expect(await vault.read('Library/Brightwater.md')).toContain('From the Kindle.');
+  // Refused rather than written over (#534): the sync's words stay on disk exactly as they are,
+  // and the field says what is there now.
+  await expect(page.getByRole('alert').filter({ hasText: 'From the Kindle.' })).toBeVisible();
+  expect(await vault.read('Library/Brightwater.md')).toBe(SYNCED);
 });
 
 test('a comment left over one that changed shows the new one and lets the person choose', async ({
