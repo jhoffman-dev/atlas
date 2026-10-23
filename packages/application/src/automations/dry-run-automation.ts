@@ -31,7 +31,10 @@ export async function dryRunAutomation({
   activity,
 }: {
   ports: RuleQueryPorts;
-  rule: Pick<AutomationRule, 'when' | 'which' | 'olderThanDays' | 'action'>;
+  /** Its `id`, once it has a file: the notes that name it are its period's. */
+  rule: Pick<AutomationRule, 'when' | 'which' | 'olderThanDays' | 'action'> & {
+    readonly id?: string;
+  };
   /** The rule's log, for what it has handled; empty for a rule not yet saved. */
   log: readonly LogEntry[];
   /** What the rule has handled beyond its log's entries; null for a log from before the ledger. */
@@ -76,7 +79,7 @@ export async function withPeriodNote({
   ports,
 }: {
   plan: AutomationPlan;
-  rule: Pick<AutomationRule, 'when' | 'action'>;
+  rule: Pick<AutomationRule, 'when' | 'action'> & { readonly id?: string };
   log: readonly LogEntry[];
   at: LocalTime;
   ports: RuleQueryPorts;

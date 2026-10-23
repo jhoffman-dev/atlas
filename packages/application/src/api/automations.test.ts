@@ -768,7 +768,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     });
 
     it('says the week’s note is made already when a note in its folder carries the week', async () => {
-      const made = jsonNote({ atlas_period: '2026-09-25T15:00:00' });
+      const made = jsonNote({ atlas_period: '2026-09-25T15:00:00', atlas_period_rule: 'friday' });
       const api = apiFixture({
         files: { ...reviewFiles, 'Reviews/Weekly review.md': made },
         markdown: jsonMarkdown(),

@@ -733,7 +733,11 @@ which broke "never overwriting one" in spirit: two drafts of one brief.
     full disk between the note and its log line, a log that outgrew its cap,
     and a note synced in from the other Mac all still say the period is made.
     The log's cap (100 entries) never drops the one entry that last made a
-    period's note.
+    period's note. The note also carries the id of the rule that made it,
+    `atlas_period_rule: "Friday review"`, for two rules can write into one
+    folder: only a note naming this rule uses up this rule's period. A note
+    naming no rule (a draft from before the stamp, a note a person copied)
+    counts only when this rule's log says it made that note.
   A later run in the period asks Claude nothing and is logged as having found
   the note made, so its schedule still counts on from it. A period whose run
   failed made nothing, so the next run in it writes the note. A period ahead of
@@ -751,7 +755,10 @@ which broke "never overwriting one" in spirit: two drafts of one brief.
 - **Two Macs.** Scheduled Claude runs are already gated to the named Mac
   (`gatedByFreshPull`, ADR-0035), so only one of them writes the draft; the
   note's own `atlas_period` is what lets the other Mac, once the note syncs in,
-  count the week as made.
+  count the week as made. The period is read again at the last gate before
+  the write, after Claude has answered: a note for it that synced in while
+  Claude was asked means nothing is written, and the run is logged as one
+  that found the note made.
 - **Each period asks afresh — when something to ask about changed.** A
   note-a-period step is not held to "never asked again about a version it has
   answered": this week's draft is about the week as it is. But a scheduled run
@@ -784,14 +791,19 @@ which broke "never overwriting one" in spirit: two drafts of one brief.
   written as the words it showed and named in the log as `- adjusted …`
   (`claude.adjusted`). A note whose every item was left out, or that has no
   list item at all when the run was given notes to cite, is refused and
-  nothing is written. Headings and sentences (the Inbox's count) are the
-  draft's frame, not claims, and are not held to it. The check is the
-  domain's (`keepCitedItems`), whatever the prompt says.
+  nothing is written. A run given nothing to cite (a quiet week) is never
+  refused: its items are kept as written, their links made plain. Headings and
+  sentences (the Inbox's count) are the draft's frame, not claims, and are not
+  held to it, but their links are written as an item's are: a link to a note
+  the run was not given becomes plain text and a source id its title. The
+  check is the domain's (`keepCitedItems`), whatever the prompt says.
   A note whose name no link can hold (`#`, `|`, `[`, `]`, `^`) is handed under a
   source id, `[[src:3]]`; the id is accepted as a citation and written in the
   draft as the note's title in plain text, so no link in the draft fails to
-  resolve. Values from notes (a task's waiting-on, a title) are flattened to one
-  line with `[[` and `]]` broken, so vault text cannot forge an item or a link.
+  resolve, and the written draft never holds `[[src:`, in an item, a sentence
+  or a heading (only in code, which is shown as written). Values from notes (a
+  task's waiting-on, a title) are flattened to one line with every run of
+  brackets broken (`[[[` too), so vault text cannot forge an item or a link.
 - **The editor** clears a step's data when its Writes is switched away from a
   note, since the control that sets it goes with the note output.
 - **The Friday review preset** puts these together: `fridays at 15:00`, its

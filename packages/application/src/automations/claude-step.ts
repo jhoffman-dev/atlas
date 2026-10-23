@@ -80,6 +80,7 @@ import { planNote, type PlannedNote } from './claude-writes.ts';
 import { readMadeItems } from '../meetings/made-items.ts';
 import { MeetingSummaryRefused, writeMeetingSummary } from '../meetings/write-meeting-summary.ts';
 import { HeldForPullError } from './fresh-pull-hold.ts';
+import { PeriodNoteArrived } from './period-state.ts';
 import type { PropertyChange } from './apply-changes.ts';
 import {
   fileChosenMeetings,
@@ -379,6 +380,7 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
     return { done: written.done, left: [...plan.skipped, ...summarised], claude: claudeRun() };
   } catch (error) {
     if (error instanceof ClaudeStepFailed || error instanceof HeldForPullError) throw error;
+    if (error instanceof PeriodNoteArrived) throw new PeriodNoteArrived(claudeRun());
     // Anything else after the model was asked (the index, the disk) still cost an ask: on record, then raised.
     throw new ClaudeStepFailed(messageWithoutPaths(error), claudeRun(), {
       cause: error,
@@ -707,15 +709,15 @@ async function planNoteAnswer({
     note: {
       ...note.value,
       body,
-      properties: { ...note.value.properties, ...stamp(asking.period) },
+      properties: { ...note.value.properties, ...stamp(asking.period, asking.rule) },
     },
   });
   return { planned: [planned], proposed: 0 };
 }
 
-/** The properties that say which period a note was made for, so the note itself can say so. */
-const stamp = (period: StepArgs['period']): Record<string, string> =>
-  period === undefined ? {} : periodProperties(period.period);
+/** The properties that say which period, and which rule, a note was made for, so the note itself can say so. */
+const stamp = (period: StepArgs['period'], rule: string): Record<string, string> =>
+  period === undefined ? {} : periodProperties(period.period, rule);
 
 /** What DFAI reads and hands the step beside its notes; null for a step handed none. */
 async function readStepData({

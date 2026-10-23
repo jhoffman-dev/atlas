@@ -34,7 +34,7 @@ import { changeProperties, type PropertyOutcome } from './apply-changes.ts';
 import { withHandledKeys } from './handled-keys.ts';
 import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
 import { holdUnlessFresh, type FreshPullCheck } from './fresh-pull-hold.ts';
-import { periodStateOf } from './period-state.ts';
+import { PeriodNoteArrived, periodStateOf } from './period-state.ts';
 import { heldEntries } from '../index/refresh-index.ts';
 import { allowanceEntries, askedThisHour } from './ask-allowance.ts';
 import { appendForRun, reported } from './automation-activity.ts';
@@ -452,6 +452,13 @@ async function askClaude({
   const hold = () =>
     holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths: plan.paths });
   await hold();
+  /** The fresh-pull gate, then the period read again: its note may have synced in while Claude was asked. */
+  const beforeWrite = async () => {
+    await hold();
+    if (period !== null && (await periodMadeSince({ run, ports, at, trigger }))) {
+      throw new PeriodNoteArrived();
+    }
+  };
   const spent = await askedThisHour(ports, run.rule, at);
   // Only the declared step keeps answers and tells a backfill from an arrival (ADR-0036).
   const declared = action.apply === 'mine';
@@ -468,7 +475,7 @@ async function askClaude({
       notePaths: ports.notePaths,
       rule: run.rule.id,
       madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
-      beforeWrite: hold,
+      beforeWrite,
       askedThisHour: spent,
       storedAnswer: (key) => storedAnswerFor(ledger, key),
       ruleSince: declared ? await savedAt(ports.fs, run.rule.path) : null,
@@ -490,6 +497,14 @@ async function askClaude({
     await (done.length > 0 ? append(entry) : log(entry, plan.paths));
     return entry;
   } catch (cause) {
+    if (cause instanceof PeriodNoteArrived && period !== null) {
+      const found: LogEntry = {
+        ...ranEmpty({ at, trigger, plan, period: period.period }),
+        ...(cause.claude !== undefined && { claude: cause.claude }),
+      };
+      await log(found);
+      return found;
+    }
     if (!(cause instanceof ClaudeStepFailed)) throw cause;
     const failed: LogEntry = {
       kind: 'failed',
@@ -560,6 +575,31 @@ function ranUnchanged({
     capped: plan.capped,
     versions: askedAbout(target),
   };
+}
+
+/** Whether the period's note is made now, as the rule's log and the vault's notes, read afresh, say. */
+async function periodMadeSince({
+  run,
+  ports,
+  at,
+  trigger,
+}: {
+  run: AutomationRun;
+  ports: Pick<AutomationPorts, 'fs' | 'markdown'>;
+  at: string;
+  trigger: RunTrigger;
+}): Promise<boolean> {
+  const { entries } = await readRuleLog(ports.fs, run.rule);
+  const state = await periodStateOf({
+    rule: run.rule,
+    entries,
+    at,
+    trigger,
+    fs: ports.fs,
+    markdown: ports.markdown,
+    notePaths: await listVaultNotes({ fs: ports.fs }),
+  });
+  return state?.made === true;
 }
 
 /** What a step whose period's note is made logs: a run that did nothing, for that period. */

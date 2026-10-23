@@ -1,12 +1,13 @@
 import {
   currentPeriod,
-  notePeriod,
   outputPeriod,
   periodNoteMade,
+  periodNoteOf,
   periodRecorded,
   splitFrontmatter,
   writesOneNoteAPeriod,
   type AutomationRule,
+  type ClaudeRunInfo,
   type LocalTime,
   type LogEntry,
   type OutputPeriod,
@@ -21,6 +22,18 @@ import type { VaultFsPort } from '../vault/ports.ts';
 export interface PeriodState {
   readonly period: OutputPeriod;
   readonly made: boolean;
+}
+
+/**
+ * The period's note arrived while the step was asking Claude — synced in from
+ * the other Mac, which ran the rule too: nothing is written, and the run is
+ * logged as one that found the note made. `claude` is what the ask cost.
+ */
+export class PeriodNoteArrived extends Error {
+  constructor(readonly claude?: ClaudeRunInfo) {
+    super('The note for this period arrived while Claude was asked: nothing was written.');
+    this.name = 'PeriodNoteArrived';
+  }
 }
 
 /** How many notes of the rule's folder are read at once, looking for the periods they say. */
@@ -48,7 +61,8 @@ export async function periodStateOf({
   markdown,
   notePaths,
 }: {
-  rule: Pick<AutomationRule, 'when' | 'action'>;
+  /** Its `id` is left off for a rule not saved yet: then no note names it. */
+  rule: Pick<AutomationRule, 'when' | 'action'> & { readonly id?: string };
   /** The rule's log, oldest first. */
   entries: readonly LogEntry[];
   /** The wall clock now. */
@@ -64,7 +78,14 @@ export async function periodStateOf({
   if (period === null) return null;
   const existing = new Set(notePaths);
   const isMade = (notes: readonly PeriodNote[]): boolean => {
-    const asked = { entries, notes, period, schedule: rule.when, now: at };
+    const asked = {
+      entries,
+      notes,
+      ...(rule.id !== undefined && { rule: rule.id }),
+      period,
+      schedule: rule.when,
+      now: at,
+    };
     return trigger === 'hand'
       ? periodNoteMade({ ...asked, exists: (path) => existing.has(path) }) !== null
       : periodRecorded(asked);
@@ -74,7 +95,7 @@ export async function periodStateOf({
   return { period, made: isMade(notes) };
 }
 
-/** The notes in the rule's folder that say the period they were made for. */
+/** The notes in the rule's folder that say the period they were made for, and the rule they name. */
 async function periodNotesIn({
   rule,
   fs,
@@ -93,10 +114,11 @@ async function periodNotesIn({
   const found: PeriodNote[] = [];
   for (let start = 0; start < inFolder.length; start += READ_BATCH) {
     for (const file of await fs.readNotes(inFolder.slice(start, start + READ_BATCH))) {
-      const period = notePeriod(
+      const note = periodNoteOf(
+        file.path as VaultPath,
         markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter),
       );
-      if (period !== null) found.push({ path: file.path as VaultPath, period });
+      if (note !== null) found.push(note);
     }
   }
   return found;

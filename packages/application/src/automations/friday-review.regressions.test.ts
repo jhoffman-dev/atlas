@@ -220,7 +220,7 @@ describe('the period is written into the note (review of #539, D5)', () => {
     const { run, vault, asked, notesIn } = setUp([draft()]);
     vault.files.set(
       'Reviews/Weekly review from the laptop.md',
-      jsonNote({ atlas_period: '2026-10-23T15:00:00' }),
+      jsonNote({ atlas_period: '2026-10-23T15:00:00', atlas_period_rule: 'Friday review' }),
     );
     await run({ time: '15:00:00' });
     expect(asked()).toBe(0);
@@ -229,7 +229,10 @@ describe('the period is written into the note (review of #539, D5)', () => {
 
   it('does not let a note stamped for a week ahead use up this week', async () => {
     const { run, vault, asked } = setUp([draft()]);
-    vault.files.set('Reviews/Ahead.md', jsonNote({ atlas_period: '2026-11-20T15:00:00' }));
+    vault.files.set(
+      'Reviews/Ahead.md',
+      jsonNote({ atlas_period: '2026-11-20T15:00:00', atlas_period_rule: 'Friday review' }),
+    );
     await run({ time: '15:00:00' });
     expect(asked()).toBe(1);
   });
@@ -450,4 +453,35 @@ describe('one review a week over random runs (verification of #539, seeded)', ()
       }
     },
   );
+});
+
+describe('a week’s note that syncs in while Claude is asked (verification of #539, two Macs)', () => {
+  it('writes nothing, and logs the week as made, when the other Mac’s note arrives mid-ask', async () => {
+    let arrive = (): void => undefined;
+    const answering: ScriptedRound = async function* () {
+      arrive();
+      yield* draft();
+    };
+    const { run, vault, asked, notesIn, logOf } = setUp([answering]);
+    arrive = () =>
+      vault.files.set(
+        'Reviews/Weekly review from the laptop.md',
+        jsonNote({ atlas_period: '2026-10-23T15:00:00', atlas_period_rule: 'Friday review' }),
+      );
+
+    const entry = await run({ time: '15:00:00' });
+
+    expect(asked()).toBe(1);
+    expect(notesIn('Reviews')).toEqual(['Reviews/Weekly review from the laptop.md']);
+    expect(entry).toMatchObject({ kind: 'run', done: [], period: { slot: '2026-10-23T15:00:00' } });
+    expect(logOf().at(-1)).toMatchObject({ kind: 'run', done: [] });
+  });
+
+  it('stamps the note it writes with the rule that made it', async () => {
+    const { run, vault, notesIn } = setUp([draft()]);
+    await run({ time: '15:00:00' });
+    const [path] = notesIn('Reviews');
+    expect(vault.files.get(path!)).toContain('atlas_period_rule');
+    expect(vault.files.get(path!)).toContain('Friday review');
+  });
 });

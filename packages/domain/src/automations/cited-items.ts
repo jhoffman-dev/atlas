@@ -8,12 +8,15 @@
  * meeting's uncited action item is; a link to a note the run was not given is
  * turned into plain text. The run's log names each one. An answer with no item
  * that cites, when it was given notes to cite, is refused: no draft is written
- * that cites nothing.
+ * that cites nothing. Given nothing to cite — a quiet week — its items are
+ * kept as written, links made plain: there is nothing they could have cited.
  *
  * Only list items are held to it — in a block quote too: a heading, or a
  * sentence such as the Inbox's count, is the draft's frame, not a claim about
- * a note. A link in code, inline or fenced, is not a citation, and nor is a
- * link by bare title, which two notes can share.
+ * a note. Its links are written as list items' are all the same, so no
+ * source id, and no link to a note the run was not given, reaches the note.
+ * A link in code, inline or fenced, is not a citation, and nor is a link by
+ * bare title, which two notes can share.
  */
 
 import { wikiLinkSpans } from '../markdown/wikilink-spans.ts';
@@ -70,7 +73,7 @@ function readLine(line: string): Line {
   };
 }
 
-/** What a kept item's block is: its quote depth and the indent its lines must pass to belong to it. */
+/** What a dropped item's block is: its quote depth and the indent its lines must pass to belong to it. */
 interface Block {
   readonly depth: number;
   readonly indent: number;
@@ -98,7 +101,6 @@ export function keepCitedItems({
   let kept = 0;
   let fence: string | null = null;
   let skipping: Block | null = null;
-  let keeping: Block | null = null;
   /** Blank lines after a dropped item, kept only if its block ends before the next line joins it. */
   let held: string[] = [];
   let swallowedText = false;
@@ -141,31 +143,22 @@ export function keepCitedItems({
     }
     const item = fence === null && !THEMATIC_BREAK.test(line.rest) ? ITEM.exec(line.rest) : null;
     if (item === null) {
-      out.push(
-        fence === null && continues(keeping, line) ? rewritten(line, line.rest.trim()) : text,
-      );
-      if (fence === null && !line.blank && !continues(keeping, line)) keeping = null;
+      out.push(fence === null ? rewritten(line, line.rest.trim()) : text);
       continue;
     }
     const title = item[2]!;
-    if (citesASource(line.rest, sources)) {
-      kept += 1;
-      keeping = { depth: line.depth, indent: item[1]!.length };
+    const cites = citesASource(line.rest, sources);
+    if (cites || sources.size === 0) {
+      if (cites) kept += 1;
       out.push(rewritten(line, title));
     } else {
       dropped.push({ title, reason: UNCITED_REASON });
       skipping = { depth: line.depth, indent: item[1]!.length };
-      keeping = null;
       swallowedText = false;
     }
   }
   out.push(...held);
   return { body: out.join('\n'), dropped, stripped, kept, offered: sources.size };
-}
-
-/** A line that carries on a kept item: more indented than it, or a blank between its lines. */
-function continues(block: Block | null, line: Line): boolean {
-  return block !== null && !line.blank && line.depth === block.depth && line.indent > block.indent;
 }
 
 /** A line that a paragraph would carry on without a blank line: not a heading, a rule or a quote. */
@@ -224,11 +217,9 @@ function titleOfTarget(target: string): string {
 
 /** Why an answer is refused when it was given notes to cite and none of its items did. */
 export function nothingCitedProblem(cited: CitedBody): string | null {
-  if (cited.kept > 0) return null;
+  if (cited.kept > 0 || cited.offered === 0) return null;
   if (cited.dropped.length > 0) {
     return `None of its ${cited.dropped.length} items links a task, project or meeting it was given.`;
   }
-  return cited.offered > 0
-    ? 'It has no list item, so nothing in it links a task, project or meeting it was given.'
-    : null;
+  return 'It has no list item, so nothing in it links a task, project or meeting it was given.';
 }

@@ -16,6 +16,11 @@
  * crash between the note and its log line, a log that outgrew its cap, a note
  * synced in from the other Mac: any one of them still says the period is made.
  * File names are never read: a person renames them.
+ *
+ * A note says the rule that made it as well as the period, for two rules can
+ * write into one folder: only this rule's note uses up this rule's period. A
+ * note that names no rule — a draft from before notes named one, or a note a
+ * person copied — counts only when this rule's log says it made that note.
  */
 
 import type { VaultPath } from '../vault/vault-path.ts';
@@ -42,11 +47,14 @@ export interface OutputPeriod {
 export interface PeriodNote {
   readonly path: VaultPath;
   readonly period: OutputPeriod;
+  /** The id of the rule its properties say made it; absent on a note that names none. */
+  readonly rule?: string;
 }
 
-/** The properties a note carries, so the note itself says which period it is for. */
+/** The properties a note carries, so the note itself says which period, and which rule, it is for. */
 export const PERIOD_KEY = 'atlas_period';
 export const PERIOD_ITEM_KEY = 'atlas_period_item';
+export const PERIOD_RULE_KEY = 'atlas_period_rule';
 
 const DAY_MS = 86_400_000;
 
@@ -140,6 +148,8 @@ interface PeriodQuery {
   readonly entries: readonly LogEntry[];
   /** The notes in its folder and the periods they say they are for; none when not read. */
   readonly notes?: readonly PeriodNote[];
+  /** The rule's id: a note another rule made is not this rule's. */
+  readonly rule?: string;
   readonly period: OutputPeriod;
   readonly schedule: Schedule;
   /** The wall clock: a period after it is not one that has been made. */
@@ -156,6 +166,21 @@ function says(query: PeriodQuery, candidate: OutputPeriod): boolean {
     samePeriod(candidate, period, schedule) &&
     periodKey(schedule, candidate.slot) <= periodKey(schedule, now)
   );
+}
+
+/** Whether a note is this rule's: it names the rule, or names none and the rule's log says it made it. */
+function isTheRules(query: PeriodQuery, note: PeriodNote): boolean {
+  if (note.rule !== undefined) return note.rule === query.rule;
+  return query.entries.some(
+    (entry) =>
+      (entry.kind === 'run' || entry.kind === 'failed') &&
+      (entry.done ?? []).some((action) => action.kind === 'created' && action.path === note.path),
+  );
+}
+
+/** The rule's notes that say the query's period. */
+function notesSaying(query: PeriodQuery): PeriodNote[] {
+  return (query.notes ?? []).filter((note) => says(query, note.period) && isTheRules(query, note));
 }
 
 /**
@@ -178,7 +203,7 @@ export function periodNoteMade(
     const made = entry.done.find((action) => action.kind === 'created');
     if (made !== undefined && made.kind === 'created' && here(made.path)) return made.path;
   }
-  return (query.notes ?? []).find((note) => says(query, note.period))?.path ?? null;
+  return notesSaying(query)[0]?.path ?? null;
 }
 
 /**
@@ -195,12 +220,19 @@ export function periodRecorded(query: PeriodQuery): boolean {
       says(query, entry.period) &&
       entry.done.some((action) => action.kind === 'created'),
   );
-  return ranFor || (query.notes ?? []).some((note) => says(query, note.period));
+  return ranFor || notesSaying(query).length > 0;
 }
 
-/** The properties a note made for `period` carries. */
-export function periodProperties({ slot, item }: OutputPeriod): Record<string, string> {
-  return { [PERIOD_KEY]: slot, ...(item !== undefined && { [PERIOD_ITEM_KEY]: item }) };
+/** The properties a note made for `period` carries, by the rule whose id is `rule` when given. */
+export function periodProperties(
+  { slot, item }: OutputPeriod,
+  rule?: string,
+): Record<string, string> {
+  return {
+    [PERIOD_KEY]: slot,
+    ...(item !== undefined && { [PERIOD_ITEM_KEY]: item }),
+    ...(rule !== undefined && { [PERIOD_RULE_KEY]: rule }),
+  };
 }
 
 /** The period a note's properties say it was made for; null when they say none that reads. */
@@ -209,4 +241,15 @@ export function notePeriod(properties: Readonly<Record<string, unknown>>): Outpu
   if (typeof slot !== 'string' || localTimeMs(slot) === null) return null;
   const item = properties[PERIOD_ITEM_KEY];
   return typeof item === 'string' && item !== '' ? { slot, item } : { slot };
+}
+
+/** The note's period and the rule its properties say made it; null when they say no period that reads. */
+export function periodNoteOf(
+  path: VaultPath,
+  properties: Readonly<Record<string, unknown>>,
+): PeriodNote | null {
+  const period = notePeriod(properties);
+  if (period === null) return null;
+  const rule = properties[PERIOD_RULE_KEY];
+  return typeof rule === 'string' && rule !== '' ? { path, period, rule } : { path, period };
 }

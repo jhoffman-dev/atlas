@@ -17,8 +17,10 @@ import {
   notePeriod,
   outputPeriod,
   periodNoteMade,
+  periodNoteOf,
   periodProperties,
   periodRecorded,
+  type PeriodNote,
 } from './output-period.ts';
 import {
   appendLogEntry,
@@ -396,9 +398,16 @@ describe('which period a run is for (review of #539, D4 D6 D14)', () => {
       {
         path: createVaultPath('Reviews/Weekly review.md'),
         period: { slot: '2026-10-23T15:00:00' },
+        rule: 'Friday review',
       },
     ];
-    const args = { entries: [], notes, schedule: FRIDAYS, now: '2026-10-23T15:30:00' };
+    const args = {
+      entries: [],
+      notes,
+      rule: 'Friday review',
+      schedule: FRIDAYS,
+      now: '2026-10-23T15:30:00',
+    };
     expect(periodNoteMade({ ...args, period: { slot: '2026-10-23T15:00:00' } })).toBe(
       'Reviews/Weekly review.md',
     );
@@ -414,9 +423,16 @@ describe('which period a run is for (review of #539, D4 D6 D14)', () => {
       {
         path: createVaultPath('Briefs/A.md'),
         period: { slot: '2026-10-23T07:00:00', item: 'M/A.md' },
+        rule: 'Morning brief',
       },
     ];
-    const args = { entries: [], notes, schedule: DAILY, now: '2026-10-23T08:00:00' };
+    const args = {
+      entries: [],
+      notes,
+      rule: 'Morning brief',
+      schedule: DAILY,
+      now: '2026-10-23T08:00:00',
+    };
     expect(
       periodNoteMade({ ...args, period: { slot: '2026-10-23T07:00:00', item: 'M/A.md' } }),
     ).not.toBeNull();
@@ -694,5 +710,90 @@ describe('periods of two rules that share a folder (verification of #539)', () =
         now: '2026-10-23T15:00:00',
       }),
     ).toBe(false);
+  });
+});
+
+describe('the period is the rule’s own (verification of #539, atlas_period_rule)', () => {
+  const NOTE = createVaultPath('Reviews/Weekly review 2026-10-23.md');
+  const asked = (notes: readonly PeriodNote[], entries: LogEntry[] = []) =>
+    periodRecorded({
+      entries,
+      notes,
+      rule: 'Friday review',
+      period: { slot: '2026-10-23T15:00:00' },
+      schedule: FRIDAYS,
+      now: '2026-10-23T15:30:00',
+    });
+  const slot = { slot: '2026-10-23T15:00:00' };
+
+  it('counts a note that names this rule though the log never recorded it', () => {
+    expect(asked([{ path: NOTE, period: slot, rule: 'Friday review' }])).toBe(true);
+  });
+
+  it('does not count a note another rule made for the same week', () => {
+    expect(asked([{ path: NOTE, period: slot, rule: 'Daily notes' }])).toBe(false);
+  });
+
+  it('counts a note that names no rule only when this rule’s log made it', () => {
+    const older = [{ path: NOTE, period: slot }];
+    expect(asked(older)).toBe(false);
+    const madeEarlier: LogEntry = {
+      kind: 'run',
+      at: '2026-10-23T15:00:00',
+      trigger: 'schedule',
+      done: [{ kind: 'created', path: NOTE }],
+      left: [],
+      capped: false,
+    };
+    expect(asked(older, [madeEarlier])).toBe(true);
+  });
+
+  it('writes and reads the rule beside the period', () => {
+    const properties = periodProperties(slot, 'Friday review');
+    expect(properties).toEqual({ atlas_period: slot.slot, atlas_period_rule: 'Friday review' });
+    expect(periodNoteOf(NOTE, properties)).toEqual({
+      path: NOTE,
+      period: slot,
+      rule: 'Friday review',
+    });
+    expect(periodNoteOf(NOTE, { atlas_period: slot.slot })).toEqual({ path: NOTE, period: slot });
+    expect(periodNoteOf(NOTE, {})).toBeNull();
+  });
+});
+
+describe('a quiet week and the draft’s frame (verification of #539, fixes)', () => {
+  it('keeps a quiet week’s uncited items as written, links made plain', () => {
+    const cited = keepCitedItems({
+      body: '- Nothing finished.\n- See [[Tasks/Elsewhere.md]]\n',
+      sources: new Set(),
+    });
+    expect(cited.body).toBe('- Nothing finished.\n- See Elsewhere\n');
+    expect(cited.dropped).toEqual([]);
+  });
+
+  it('still refuses a draft whose items cite none of the notes it was given', () => {
+    const cited = keepCitedItems({ body: '- one\n', sources: new Set(['Tasks/A.md']) });
+    expect(nothingCitedProblem(cited)).not.toBeNull();
+  });
+
+  it('writes a link in a sentence or heading to a note it was not given as plain text', () => {
+    const cited = keepCitedItems({
+      body: '## About [[Tasks/Secret.md|the plan]]\n\n- [[Tasks/A.md]]\n\nSee [[Tasks/Secret.md]] and [[Tasks/A.md]].\n',
+      sources: new Set(['Tasks/A.md']),
+    });
+    expect(cited.body).toBe(
+      '## About the plan\n\n- [[Tasks/A.md]]\n\nSee Secret and [[Tasks/A.md]].\n',
+    );
+    expect(cited.stripped).toHaveLength(2);
+  });
+
+  it('leaves a source id in code as it is', () => {
+    const body = '- [[src:1]]\n\nWritten `[[src:1]]` in code.\n';
+    const cited = keepCitedItems({
+      body,
+      sources: new Set(['src:1']),
+      plain: new Map([['src:1', 'T']]),
+    });
+    expect(cited.body).toBe('- T\n\nWritten `[[src:1]]` in code.\n');
   });
 });

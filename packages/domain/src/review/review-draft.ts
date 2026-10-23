@@ -187,11 +187,16 @@ const plainLine = (note: { path: VaultPath; title: string }): SectionItem => sou
 
 /**
  * A value from a note on one line, as plain words: whitespace of any kind is
- * one space, and a double bracket is broken, so a name or title cannot start
- * another list item or link a note of its own choosing.
+ * one space, and every run of brackets is broken — `[[[` too, not just its
+ * first pair — so a name or title cannot start another list item or link a
+ * note of its own choosing.
  */
 function flattened(value: string): string {
-  return value.replace(/\s+/g, ' ').replace(/\[\[/g, '[ [').replace(/\]\]/g, '] ]').trim();
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/\[(?=\[)/g, '[ ')
+    .replace(/\](?=\])/g, '] ')
+    .trim();
 }
 
 /** "- [[Tasks/Send the file.md]] Send the file — due 2026-10-20". */

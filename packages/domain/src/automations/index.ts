@@ -46,10 +46,12 @@ export {
   outputPeriod,
   periodKey,
   periodNoteMade,
+  periodNoteOf,
   periodProperties,
   periodRecorded,
   PERIOD_ITEM_KEY,
   PERIOD_KEY,
+  PERIOD_RULE_KEY,
   samePeriod,
   writesOneNoteAPeriod,
 } from './output-period.ts';
