@@ -368,7 +368,13 @@ describe('a comment typed when the note closes or another takes its place', () =
     unmount();
     await waitFor(() => expect(lost).toHaveBeenCalledTimes(1));
     expect(lost.mock.calls[0]?.[0]).toEqual([
-      { id: 'k3x9q2', comment: 'Typed, then ⌘W.', why: 'The note has unsaved typing.' },
+      {
+        id: 'k3x9q2',
+        comment: 'Typed, then ⌘W.',
+        // The comment it was typed over: what it is written over when kept and put back.
+        base: 'Lit by Mara.',
+        why: 'The note has unsaved typing.',
+      },
     ]);
   });
 

@@ -135,7 +135,11 @@ import {
   writtenWithin,
 } from './panes/open-editors.ts';
 import { useStrandedEdits } from './notes/stranded-edits.ts';
-import { browserStrandedStore } from './notes/browser-stranded-store.ts';
+import {
+  browserStrandedCommentStore,
+  browserStrandedStore,
+} from './notes/browser-stranded-store.ts';
+import { useStrandedComments } from './notes/stranded-comments.ts';
 import { placeName } from './panes/place-name.ts';
 import type { PaneContext } from './panes/note-pane-container.tsx';
 import { createRevealStore } from './panes/reveals.ts';
@@ -1000,6 +1004,12 @@ function AppWindow({
     vaultKey: location?.absolutePath ?? null,
     now: Date.now,
   });
+  // Comments typed in a literature note's highlights that it could not write as it closed (#534).
+  const strandedComments = useStrandedComments({
+    store: browserStrandedCommentStore,
+    vaultKey: location?.absolutePath ?? null,
+    now: Date.now,
+  });
 
   const { onTypeSaved, newType, newNoteOfType } = useTypeCommands({
     ports: { fs: vault.fs, markdown: notes.markdown },
@@ -1656,6 +1666,7 @@ function AppWindow({
       openTag,
       editors,
       stranded,
+      strandedComments,
       activity: activityLog,
       toasts,
       savedViews: catalog.savedViews,
@@ -1698,6 +1709,7 @@ function AppWindow({
       openTag,
       editors,
       stranded,
+      strandedComments,
       activityLog,
       toasts,
       catalog.savedViews,
@@ -1820,7 +1832,10 @@ function AppWindow({
   // it. Nor is the sidebar's order, whose setting records it. Nor is the offer
   // to update links, which is a question, not a failure; edits kept for later
   // are a warning.
-  useNoticeActivity({ errors: noticeMessages, warnings: [stranded.notice] }, activityLog);
+  useNoticeActivity(
+    { errors: noticeMessages, warnings: [stranded.notice, strandedComments.notice] },
+    activityLog,
+  );
   const notices = (
     <AppNotices
       messages={[
@@ -1832,6 +1847,7 @@ function AppWindow({
       ]}
       links={entries.links}
       stranded={stranded}
+      keptComments={strandedComments}
     />
   );
   /** Writes what was typed in the peek, closes it, then runs `act`; at once with no peek up. */

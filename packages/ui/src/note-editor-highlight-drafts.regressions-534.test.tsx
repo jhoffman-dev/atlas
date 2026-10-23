@@ -440,7 +440,7 @@ describe('a comment kept from the last time the note closed', () => {
       <NoteEditor
         doc={lamp('Lit by Mara.')}
         {...props}
-        highlights={{ viewOf, editComment: vi.fn(), recovered: [kept] }}
+        highlights={{ viewOf, editComment: async () => {}, recovered: [kept] }}
       />,
     );
     await screen.findByText('The last lamp.');

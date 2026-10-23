@@ -31,10 +31,15 @@ export interface CommentDraft {
 }
 
 /** A draft whose words were not written, with why: for telling the person. */
-export interface LostDraft {
+export interface LostDraft extends KeptComment {
+  readonly why: string;
+}
+
+/** A comment typed and not written, with the comment it was typed over: to keep, or to put back. */
+export interface KeptComment {
   readonly id: string;
   readonly comment: string;
-  readonly why: string;
+  readonly base: string;
 }
 
 export class HighlightDrafts {
@@ -67,6 +72,20 @@ export class HighlightDrafts {
   /** The person left field `id`. */
   forgetFocus(id: string): void {
     if (this.focus?.id === id) this.focus = null;
+  }
+
+  /**
+   * Puts back comments kept from the last time the note closed, each over the
+   * comment it was typed over, so writing one still checks the note has not
+   * moved on. A field the person has typed in since keeps their words.
+   */
+  restore(kept: readonly KeptComment[]): void {
+    for (const { id, comment, base } of kept) {
+      const draft = this.drafts.get(id);
+      if (draft !== undefined && (draft.text !== draft.base || draft.saving !== null)) continue;
+      this.drafts.set(id, { text: comment, base, conflict: null, problem: null, saving: null });
+      this.told(id);
+    }
   }
 
   /** Highlight `id`'s draft, begun from `comment` when the field has none yet. */
@@ -203,7 +222,7 @@ export class HighlightDrafts {
     for (const id of pending) {
       const draft = this.drafts.get(id);
       if (draft === undefined || draft.text === draft.base) continue;
-      lost.push({ id, comment: draft.text, why: whyNotWritten(draft) });
+      lost.push({ id, comment: draft.text, base: draft.base, why: whyNotWritten(draft) });
     }
     this.drafts.clear();
     this.focus = null;

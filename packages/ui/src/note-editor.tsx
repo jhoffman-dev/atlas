@@ -22,7 +22,12 @@ import {
 } from '@dfai/domain';
 import { createEditorExtensions } from './editor/extensions.ts';
 import type { HighlightBlocks, ReaderLinks } from './editor/raw-block.ts';
-import { HighlightDrafts, type LostDraft, type WriteComment } from './editor/highlight-drafts.ts';
+import {
+  HighlightDrafts,
+  type KeptComment,
+  type LostDraft,
+  type WriteComment,
+} from './editor/highlight-drafts.ts';
 import { redrawHighlightBlocks } from './editor/raw-block.ts';
 import { showAsRead } from './editor/block-anchor.ts';
 import type { LinkedNoteMaker, WikiSuggestionView } from './editor/wiki-link-suggestion.ts';
@@ -491,8 +496,13 @@ export interface NoteHighlights {
    * note's comment is not `base` any more.
    */
   readonly editComment: WriteComment;
-  /** Told of words typed in a comment that could not be written as the note closed. */
+  /**
+   * Told, as the editor goes, of the words typed in comments that could not be
+   * written, each with the comment it was typed over: none when every one was.
+   */
   readonly onUnwrittenComments?: (lost: readonly LostDraft[]) => void;
+  /** Comments kept from the last time the note closed unwritten, put back in their fields. */
+  readonly recovered?: readonly KeptComment[];
   /**
    * Handed, while the editor is open, the write of every comment typed and not
    * yet written, over the comment it started from — for when every pane's work
@@ -516,14 +526,26 @@ function useHighlightBlocks(
 ): HighlightBlocks | null {
   const latest = useLatest(highlights);
   const images = useLatest(loadImage);
-  const [drafts] = useState(() => new HighlightDrafts());
+  const [drafts] = useState(() => {
+    const made = new HighlightDrafts();
+    made.restore(highlights?.recovered ?? []);
+    return made;
+  });
+  const recovered = highlights?.recovered;
+  useEffect(() => {
+    if (recovered !== undefined) drafts.restore(recovered);
+  }, [drafts, recovered]);
   const offers = highlights !== null;
   // The last highlights the note had: a note read again as no literature note
   // any more still has the words typed in its fields, and they go through these.
   const lastHeld = useRef(highlights);
   useEffect(() => {
     if (highlights !== null) lastHeld.current = highlights;
-    else if (lastHeld.current !== null) writeAsLeaving(drafts, lastHeld.current);
+    else if (lastHeld.current !== null) {
+      writeAsLeaving(drafts, lastHeld.current);
+      // Written and told of: the editor going after this has nothing more to say.
+      lastHeld.current = null;
+    }
   }, [highlights, drafts]);
   useEffect(
     () => () => {
@@ -554,9 +576,7 @@ function useHighlightBlocks(
 
 /** Writes every draft through `leaving`, and tells it of the words that could not be. */
 function writeAsLeaving(drafts: HighlightDrafts, leaving: NoteHighlights): void {
-  void drafts.flush(leaving.editComment).then((lost) => {
-    if (lost.length > 0) leaving.onUnwrittenComments?.(lost);
-  });
+  void drafts.flush(leaving.editComment).then((lost) => leaving.onUnwrittenComments?.(lost));
 }
 
 /** The write of the highlights as they are now: a note moved keeps its editor, and writes to where it is. */

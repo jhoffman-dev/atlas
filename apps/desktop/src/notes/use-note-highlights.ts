@@ -8,7 +8,7 @@ import {
   type OpenNotes,
   type VaultFsPort,
 } from '@dfai/application';
-import { noteTitle, type VaultPath } from '@dfai/domain';
+import { noteTitle, type StrandedComment, type VaultPath } from '@dfai/domain';
 import type { NoteHighlights } from '@dfai/ui';
 import type { Toasts } from '../toasts/toasts.ts';
 
@@ -31,6 +31,7 @@ export function useNoteHighlights({
   onChanged,
   toasts,
   onWritePending,
+  kept,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
@@ -45,6 +46,8 @@ export function useNoteHighlights({
   toasts?: Pick<Toasts, 'show'>;
   /** Handed the editor's write of the comments typed and not yet written, for the pane's own flush. */
   onWritePending?: NoteHighlights['onWritePending'];
+  /** Where comments the closing note could not write are kept, and offered back from, in the pane's vault. */
+  kept?: KeptCommentsOfVault;
 }): NoteHighlights | null {
   // Kept across readings of the note: its ids are built again only when its highlights change.
   const memo = useMemo(createHighlightReadMemo, [markdown, path]);
@@ -68,14 +71,19 @@ export function useNoteHighlights({
     },
     [fs, markdown, openNotes, flush, path, onChanged],
   );
+  const recovered = useMemo(
+    () => (path === null || kept === undefined ? undefined : kept.offered(path)),
+    [path, kept],
+  );
   const onUnwrittenComments = useMemo(
     () =>
-      path === null || toasts === undefined
+      path === null || (toasts === undefined && kept === undefined)
         ? undefined
-        : (lost: readonly { comment: string; why: string }[]) => {
+        : (lost: readonly LostComment[]) => {
+            keepOrSettle({ kept, path, lost });
             for (const each of lost) {
-              toasts.show({
-                message: `Your comment on a highlight in “${noteTitle(path)}” was not saved: ${each.why} It read: “${each.comment}”`,
+              toasts?.show({
+                message: `Your comment on a highlight in “${noteTitle(path)}” was not saved: ${each.why}${kept === undefined ? '' : ' It is kept: open the note again to get it back.'} It read: “${each.comment}”`,
                 tone: 'error',
                 action: {
                   label: 'Copy',
@@ -84,7 +92,7 @@ export function useNoteHighlights({
               });
             }
           },
-    [path, toasts],
+    [path, toasts, kept],
   );
   return useMemo(
     () =>
@@ -95,7 +103,45 @@ export function useNoteHighlights({
             editComment,
             ...(onUnwrittenComments !== undefined && { onUnwrittenComments }),
             ...(onWritePending !== undefined && { onWritePending }),
+            ...(recovered !== undefined && recovered.length > 0 && { recovered }),
           },
-    [viewOf, editComment, onUnwrittenComments, onWritePending],
+    [viewOf, editComment, onUnwrittenComments, onWritePending, recovered],
   );
+}
+
+/** A comment the closing note could not write, with the comment it was typed over and why. */
+type LostComment = StrandedComment & { readonly why: string };
+
+/** The pane's vault's kept comments (#534), as a note's highlights keep and take them. */
+export interface KeptCommentsOfVault {
+  readonly offered: (path: VaultPath) => readonly StrandedComment[];
+  readonly keep: (kept: {
+    path: VaultPath;
+    comments: readonly StrandedComment[];
+    reason: string;
+  }) => void;
+  readonly settle: (path: VaultPath) => void;
+}
+
+/** Keeps what the closing note could not write; lets go of what it was offered once all is written. */
+function keepOrSettle({
+  kept,
+  path,
+  lost,
+}: {
+  kept: KeptCommentsOfVault | undefined;
+  path: VaultPath;
+  lost: readonly LostComment[];
+}): void {
+  if (kept === undefined) return;
+  const first = lost[0];
+  if (first === undefined) {
+    if (kept.offered(path).length > 0) kept.settle(path);
+    return;
+  }
+  kept.keep({
+    path,
+    comments: lost.map(({ id, comment, base }) => ({ id, comment, base })),
+    reason: first.why,
+  });
 }
