@@ -35,13 +35,15 @@ export const EMBEDDING_GENERATION = `chunks-${CHUNKER_VERSION}`;
 const NOT_STARTED: BuildProgress = { done: 0, total: 0, failure: null };
 
 /**
- * How many times one session throws the cache away and starts over. A disk
- * that tears every write would otherwise clear it and send every note to the
- * model again without end; the next time, the build stops and says so.
+ * How many times one session starts over a cache found damaged. A disk that
+ * tears every write would otherwise clear it and send every note to the model
+ * again without end; the next time, the build stops and says so. The count
+ * lives in the engine, which is made again only when the app is (or another
+ * vault is opened), so that is what the message tells.
  */
 const MOST_STARTS_OVER = 2;
 const GAVE_UP =
-  'The embeddings cache kept being damaged, so semantic search stopped building it. Open the vault again to try again.';
+  'The embeddings cache kept being damaged, so semantic search stopped building it. Restart DFAI to try again.';
 
 /**
  * Whether semantic search has been used in a vault on this Mac, so its cache
@@ -100,6 +102,7 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
   let stopped = false;
   let startsOver = 0;
   let gaveUp = false;
+  let rebuilding: Promise<void> | null = null;
   const listeners = new Set<(progress: BuildProgress) => void>();
   const questions: QuestionVectors = { last: null };
   const chunker = deps.chunker ?? inlineChunker(deps.markdown);
@@ -149,22 +152,35 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
   /** The cache was torn and made again behind the build's back: what the window holds of it is gone. */
   const onDamaged = () => {
     queueMicrotask(() => {
-      rebuild().catch((cause: unknown) => {
+      rebuild('damaged').catch((cause: unknown) => {
         console.error('Semantic search could not start over:', cause);
       });
     });
   };
-  /** Throws the cache away and starts over: its vectors are not the model's. */
-  const rebuild = async () => {
+  /**
+   * Throws the cache away and starts over, one start-over at a time: a tear
+   * heard twice — by the build and by a search — is started over once, by one
+   * build. Only damage counts towards `MOST_STARTS_OVER`; a cache of another
+   * model is started over once and then holds this one's vectors.
+   */
+  const rebuild = (why: 'damaged' | 'mismatch'): Promise<void> => {
+    rebuilding ??= startOver(why).finally(() => {
+      rebuilding = null;
+    });
+    return rebuilding;
+  };
+  const startOver = async (why: 'damaged' | 'mismatch') => {
+    if (gaveUp) return;
+    const outOfStarts = why === 'damaged' && startsOver >= MOST_STARTS_OVER;
+    if (why === 'damaged' && !outOfStarts) startsOver += 1;
     const { build: stale } = await opening();
     stale.stop();
     await stale.settled();
-    if (startsOver >= MOST_STARTS_OVER) {
+    if (outOfStarts) {
       gaveUp = true;
       onProgress(progress());
       return;
     }
-    startsOver += 1;
     await deps.cache.clear();
     opened = null;
     build = null;
@@ -209,7 +225,7 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
       } catch (cause) {
         if (!(cause instanceof CacheMismatchError || cause instanceof CacheDamagedError))
           throw cause;
-        await rebuild();
+        await rebuild(cause instanceof CacheDamagedError ? 'damaged' : 'mismatch');
         return { hits: [], progress: progress() };
       }
     },

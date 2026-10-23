@@ -103,7 +103,6 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
   let running: Promise<void> | null = null;
   // A resume asked for while a run is under way, which may yet fail: honoured once it ends.
   let resumeAsked = false;
-  let damaged = false;
 
   const progress = (): BuildProgress => ({ done, total: done + queue.size, failure });
   const tell = () => deps.onProgress?.(progress());
@@ -115,6 +114,8 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
   };
 
   const run = async () => {
+    // Of this run alone: a run after it that ends well has not found the cache damaged.
+    let damaged = false;
     try {
       while (!stopped && queue.size > 0)
         await oneWrite({ deps, queue, session, reading, isStopped: () => stopped, countDone });
@@ -126,8 +127,11 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
       running = null;
       if (queue.size === 0) done = 0;
       tell();
-      if (damaged) deps.onDamaged?.();
-      if (resumeAsked) {
+      if (damaged) {
+        // The engine starts over with a new build: this one is not resumed, or it would tell twice.
+        resumeAsked = false;
+        deps.onDamaged?.();
+      } else if (resumeAsked) {
         resumeAsked = false;
         failure = null;
         kick();
