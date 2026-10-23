@@ -283,6 +283,10 @@
   width: 100%;
 }
 
+.highlight-quote__input::placeholder {
+  color: var(--ink-3);
+}
+
 .highlight-quote__input:hover {
   border-color: var(--line);
 }
