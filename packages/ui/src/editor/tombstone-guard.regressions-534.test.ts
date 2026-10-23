@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 /**
- * Verification pass on PR #534 after its fix round: the tombstone guard
- * (tombstone-guard.ts) counts only top-level tombstones, so a step that moves a
- * hidden tombstone into a container — wrapping the blocks around it in a quote —
- * reads as a deletion, and the guard "puts back" a second one.
+ * Regressions found in PR #534 (verification pass on 510eced0): the tombstone
+ * guard (tombstone-guard.ts) counted only top-level tombstones, so a step that
+ * moved a hidden tombstone into a container — wrapping the blocks around it in
+ * a quote or a list — read as a deletion, and the guard "put back" a second
+ * one. A tombstone is a top-level HTML block (ADR-0043): one moved into a quote
+ * would be written `> <!-- … -->`, the person's words and no tombstone, so it
+ * is taken back out to the top level where the wrap left it.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
@@ -56,6 +59,22 @@ const tombstonesAnywhere = (instance: Editor): number => {
   return count;
 };
 
+/** The tombstones that are blocks of the note itself, as ADR-0043 writes them. */
+const topLevelTombstones = (instance: Editor): number => {
+  let count = 0;
+  instance.state.doc.forEach((node) => {
+    if (
+      node.type.name === 'rawBlock' &&
+      String(node.attrs['markdown']).includes('highlight-removed')
+    ) {
+      count += 1;
+    }
+  });
+  return count;
+};
+
+const words = (instance: Editor): string => instance.state.doc.textContent;
+
 function selectFromAboveToBelow(instance: Editor): void {
   let from = -1;
   let to = -1;
@@ -90,5 +109,45 @@ describe('a hidden tombstone, when the blocks around it are wrapped', () => {
     expect(instance.commands.toggleBulletList()).toBe(true);
     expect(instance.state.doc.firstChild?.type.name).toBe('bulletList');
     expect(tombstonesAnywhere(instance)).toBe(1);
+  });
+
+  it('is a block of the note itself after the wrap, not a line of the quote', () => {
+    const instance = noteWithTombstone();
+    selectFromAboveToBelow(instance);
+    instance.commands.setBlockquote();
+    expect(topLevelTombstones(instance)).toBe(1);
+    expect(words(instance)).toBe('Above.Below.');
+  });
+
+  it('stays one tombstone when the quote is taken off again', () => {
+    const instance = noteWithTombstone();
+    selectFromAboveToBelow(instance);
+    instance.commands.setBlockquote();
+    instance.commands.selectAll();
+    instance.commands.lift('blockquote');
+    instance.commands.selectAll();
+    instance.commands.lift('blockquote');
+    expect(instance.state.doc.firstChild?.type.name).toBe('paragraph');
+    expect(tombstonesAnywhere(instance)).toBe(1);
+    expect(topLevelTombstones(instance)).toBe(1);
+  });
+
+  it('stays one tombstone when the list is taken off again', () => {
+    const instance = noteWithTombstone();
+    selectFromAboveToBelow(instance);
+    instance.commands.toggleBulletList();
+    selectFromAboveToBelow(instance);
+    instance.commands.toggleBulletList();
+    expect(tombstonesAnywhere(instance)).toBe(1);
+    expect(topLevelTombstones(instance)).toBe(1);
+  });
+
+  it('one undo puts the note back as it was, the tombstone once', () => {
+    const instance = noteWithTombstone();
+    const before = instance.state.doc.toJSON();
+    selectFromAboveToBelow(instance);
+    instance.commands.setBlockquote();
+    instance.commands.undo();
+    expect(instance.state.doc.toJSON()).toEqual(before);
   });
 });

@@ -89,9 +89,20 @@ function renderNote(
   );
   const rerender = (next: EditorDocument) =>
     view.rerender(<NoteEditor doc={next} {...props} highlights={highlightsOf(given.identity)} />);
-  /** Another note takes this editor's place, with its own write. */
+  /**
+   * Another note takes this editor's place, with its own write. The pane keys
+   * its page by note (usePageKey), so another note is another editor; the same
+   * editor handed a new identity is the same note, moved.
+   */
   const switchTo = (next: EditorDocument, identity: string, write: typeof editComment) =>
-    view.rerender(<NoteEditor doc={next} {...props} highlights={highlightsOf(identity, write)} />);
+    view.rerender(
+      <NoteEditor
+        key={identity}
+        doc={next}
+        {...props}
+        highlights={highlightsOf(identity, write)}
+      />,
+    );
   return { editComment, rerender, switchTo, unmount: view.unmount };
 }
 

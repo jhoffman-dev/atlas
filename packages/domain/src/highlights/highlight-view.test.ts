@@ -60,11 +60,10 @@ describe('highlightView', () => {
     expect(view.words).not.toBe('');
   });
 
-  it('shows the comment as typed, the escapes the write put in taken off (#534)', () => {
+  it('shows the comment exactly as the file holds it, its escapes visible (#534)', () => {
+    // Shown unescaped, a later edit could turn a person's own `%\\%` into a hidden `%%`.
     const written = 'Compare [[Larkspur Payroll]]. 50%\\% sure.\n\n**Second** thought.';
-    expect(highlightView(block({ comment: written })).comment).toBe(
-      'Compare [[Larkspur Payroll]]. 50%% sure.\n\n**Second** thought.',
-    );
+    expect(highlightView(block({ comment: written })).comment).toBe(written);
   });
 
   it('draws the mark and colour the marker gives', () => {

@@ -21,6 +21,7 @@ import {
   type VaultLocation,
   type VaultLocationStore,
   type VaultPickerPort,
+  type WindowClosingPort,
 } from '@dfai/application';
 import { remarkMarkdown } from '@dfai/adapters';
 import { App, localToday } from './app.tsx';
@@ -2702,6 +2703,116 @@ describe('each pane reads what it shows, and nothing for a note saved elsewhere 
     await waitFor(() => expect(edited.calls.today).toBe(read + 1));
     await untilQuiet();
     expect(edited.calls.today).toBe(read + 1);
+  });
+});
+
+/*
+ * Regressions found in PR #534 (verification pass on 510eced0): a comment typed
+ * in a highlight's field and not yet left is the person's work as much as the
+ * note's own typing. It is written, over the comment it started from, when every
+ * pane's work is — before another vault opens, and as the window closes — and
+ * to the vault it was typed in.
+ */
+describe("a highlight's comment typed, then the vault switched or the window closed (#534)", () => {
+  const BOOK = 'Brightwater.md';
+  const MARKER =
+    '<!-- atlas:highlight {"v":1,"mark":"underline","color":"pink","kind":"kindle","location":41,"locationEnd":44} -->';
+  const TEXT = [
+    '---',
+    'type: literature',
+    'kind: kindle',
+    'title: "Brightwater"',
+    'author: "Tobias Fenn"',
+    '---',
+    'My own paragraph.',
+    '',
+    '> The tide keeps its own hours.',
+    `> ${MARKER}`,
+    '>',
+    '> Lit by Mara.',
+    '',
+    '^kd0041',
+    '',
+  ].join('\n');
+  const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
+
+  /** The window's close, pressed by the test: the stages the app registered run, as the host runs them. */
+  function closeButton() {
+    const tasks: (() => Promise<void>)[] = [];
+    const closing: WindowClosingPort = {
+      beforeClose: async (task) => {
+        tasks.push(task);
+        return () => void tasks.splice(tasks.indexOf(task), 1);
+      },
+    };
+    const press = async () => {
+      for (const task of [...tasks]) await task();
+    };
+    return { closing, press };
+  }
+
+  function renderBook(closing: WindowClosingPort) {
+    const files = { [BOOK]: TEXT };
+    const otherFiles = { [BOOK]: TEXT };
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry(BOOK, 'file')] },
+      files,
+      elsewhere: { [other.absolutePath]: otherFiles },
+      picks: [other],
+    });
+    render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={fakeIndexPorts(vault)}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={{ store: memoryActivityStore(), closing }}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    return { files, otherFiles };
+  }
+
+  /** Types in the comment field and stays in it: no blur, so nothing but the switch or the close writes it. */
+  async function typeComment(words: string) {
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    const field = await screen.findByRole('textbox', { name: 'Comment on this highlight' });
+    act(() => {
+      field.focus();
+      fireEvent.change(field, { target: { value: words } });
+    });
+  }
+
+  it('is written to the vault it was typed in before another opens, and not to that one', async () => {
+    const { files, otherFiles } = renderBook(closeButton().closing);
+    await typeComment('Typed, then another vault.');
+    // Clicked without moving focus, as a person's click on the header would not blur first here.
+    fireEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
+    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
+    await waitFor(() => expect(files[BOOK]).toContain('> Typed, then another vault.'));
+    expect(files[BOOK]).not.toContain('Lit by Mara.');
+    expect(otherFiles[BOOK]).toBe(TEXT);
+  });
+
+  it('is written as the window closes', async () => {
+    const close = closeButton();
+    const { files } = renderBook(close.closing);
+    await typeComment('Typed, then the window closed.');
+    await act(async () => {
+      await close.press();
+    });
+    expect(files[BOOK]).toContain('> Typed, then the window closed.');
+    expect(files[BOOK]).not.toContain('Lit by Mara.');
   });
 });
 

@@ -90,7 +90,7 @@ test('a literature note shows its highlights as quotes with comments, never the 
   await expect(tide.locator('.highlight-quote')).toHaveAttribute('data-mark', 'underline');
   await expect(tide.locator('.highlight-quote')).toHaveAttribute('data-color', 'pink');
   await expect(comments(page)).toHaveCount(2);
-  await expect(comments(page).first()).toHaveValue('Like [[Larkspur Payroll]]: 50%% sure.');
+  await expect(comments(page).first()).toHaveValue('Like [[Larkspur Payroll]]: 50%\\% sure.');
   await expect(editor.locator('[data-highlight-block="kd0060"] blockquote')).toHaveText(
     'Gulls argue over nothing.',
   );
@@ -148,7 +148,7 @@ test('an embed of a highlight shows its quote and comment, read-only, under its 
     .click();
   const embed = page.getByRole('group', { name: 'Embedded block from Brightwater' });
   await expect(embed.locator('blockquote')).toHaveText('The tide keeps its own hours.');
-  await expect(embed).toContainText('Like [[Larkspur Payroll]]: 50%% sure.');
+  await expect(embed).toContainText('Like [[Larkspur Payroll]]: 50%\\% sure.');
   await expect(embed).not.toContainText('atlas:highlight');
   await expect(embed.locator('textarea')).toHaveCount(0);
   await expect(

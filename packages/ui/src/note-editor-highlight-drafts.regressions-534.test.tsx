@@ -11,10 +11,27 @@ import {
 import { NoteEditor, type NoteHighlights } from './note-editor.tsx';
 import { READ_FROM_FILE } from './editor/block-anchor.ts';
 
+/** Every highlight node view mounts its view once, as it is built. */
+const built = vi.hoisted(() => ({ views: 0 }));
+vi.mock('./editor/highlight-block-view.tsx', async (actual) => {
+  const { useEffect } = await import('react');
+  const real = await actual<typeof import('./editor/highlight-block-view.tsx')>();
+  return {
+    HighlightBlockView: (props: Parameters<typeof real.HighlightBlockView>[0]) => {
+      useEffect(() => {
+        built.views += 1;
+      }, []);
+      return real.HighlightBlockView(props);
+    },
+  };
+});
+
 /*
- * Verification pass on PR #534 after its fix round (head 510eced0): a comment
+ * Regressions found in PR #534 (verification pass on 510eced0): a comment
  * typed in a highlight's field, across a second change on disk while the
- * conflict notice is shown, and across a rename of the note under the pane.
+ * conflict notice is shown, across a rename of the note under the pane, and
+ * written when every pane's work is (a vault switch, the window's close); and
+ * a literature note's highlights each drawn once as it opens.
  */
 
 afterEach(cleanup);
@@ -55,7 +72,11 @@ const lamp = (comment: string) =>
 
 function renderNote(
   initial: EditorDocument,
-  given: { editComment: NoteHighlights['editComment']; identity?: string },
+  given: {
+    editComment: NoteHighlights['editComment'];
+    identity?: string;
+    onWritePending?: NoteHighlights['onWritePending'];
+  },
 ) {
   const props = {
     onChange: vi.fn(),
@@ -67,6 +88,7 @@ function renderNote(
     viewOf,
     editComment: write,
     ...(identity !== undefined && { identity }),
+    ...(given.onWritePending !== undefined && { onWritePending: given.onWritePending }),
   });
   const view = render(
     <NoteEditor
@@ -81,7 +103,7 @@ function renderNote(
     write: NoteHighlights['editComment'],
   ) =>
     view.rerender(<NoteEditor doc={next} {...props} highlights={highlightsOf(identity, write)} />);
-  return { show, props };
+  return { show, props, unmount: view.unmount };
 }
 
 const fields = () => screen.queryAllByRole('textbox', { name: 'Comment on this highlight' });
@@ -183,5 +205,118 @@ describe('a literature note, when it is opened', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+/** How many highlight node views were built while `run` ran: each mounts its view once. */
+async function highlightViewsBuilt(run: () => Promise<void>): Promise<number> {
+  const before = built.views;
+  await run();
+  await act(async () => {
+    for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  });
+  return built.views - before;
+}
+
+describe('a literature note, its highlights counted as they are built', () => {
+  const MARKS = 5;
+  const passages = (comment: string) =>
+    doc(
+      ...Array.from({ length: MARKS }, (_, at) => ({
+        type: 'rawBlock',
+        attrs: { markdown: block(`Passage ${at + 1}.`, comment), anchor: `h${at}` },
+      })),
+    );
+
+  it('builds each highlight once as the note opens', async () => {
+    const built = await highlightViewsBuilt(async () => {
+      renderNote(passages(''), { editComment: async () => {} });
+      await screen.findByText(`Passage ${MARKS}.`);
+    });
+    expect(built).toBe(MARKS);
+  });
+
+  it('builds none again when the note is read again with its comments changed', async () => {
+    const { show } = renderNote(passages(''), { editComment: async () => {} });
+    await screen.findByText(`Passage ${MARKS}.`);
+    const built = await highlightViewsBuilt(async () => {
+      show(passages('From the Kindle.'), undefined, async () => {});
+      await screen.findAllByDisplayValue('From the Kindle.');
+    });
+    expect(built).toBe(0);
+    expect(fields()).toHaveLength(MARKS);
+  });
+});
+
+describe('a comment typed, when every pane writes its work (a vault switch, the close)', () => {
+  type WritePending = (() => Promise<void>) | null;
+
+  it('is written over the comment it started from, and stays in the field', async () => {
+    const write = vi.fn<NoteHighlights['editComment']>(async () => {});
+    const handed: WritePending[] = [];
+    renderNote(lamp('Lit by Mara.'), {
+      editComment: write,
+      onWritePending: (writePending) => handed.push(writePending),
+    });
+    await screen.findByText('The last lamp.');
+    type('Typed, then the vault switched.');
+    const writePending = handed.at(-1);
+    expect(writePending).toBeTypeOf('function');
+    await act(async () => {
+      await writePending?.();
+    });
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write.mock.calls[0]?.[0]).toEqual({
+      id: 'k3x9q2',
+      comment: 'Typed, then the vault switched.',
+      base: 'Lit by Mara.',
+    });
+    // The person may be typing still: the field is theirs, and its words with it.
+    expect(field().value).toBe('Typed, then the vault switched.');
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('writes nothing when nothing was typed', async () => {
+    const write = vi.fn<NoteHighlights['editComment']>(async () => {});
+    const handed: WritePending[] = [];
+    renderNote(lamp('Lit by Mara.'), {
+      editComment: write,
+      onWritePending: (writePending) => handed.push(writePending),
+    });
+    await screen.findByText('The last lamp.');
+    await act(async () => {
+      await handed.at(-1)?.();
+    });
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('is not written over a comment changed on disk meanwhile: the notice says so', async () => {
+    const refused = vi.fn<NoteHighlights['editComment']>(async () => {
+      throw new HighlightCommentChangedError('k3x9q2', 'From the Kindle.');
+    });
+    const handed: WritePending[] = [];
+    renderNote(lamp('Lit by Mara.'), {
+      editComment: refused,
+      onWritePending: (writePending) => handed.push(writePending),
+    });
+    await screen.findByText('The last lamp.');
+    type('Typed in DFAI.');
+    await act(async () => {
+      await handed.at(-1)?.();
+    });
+    expect(refused.mock.calls[0]?.[0]).toMatchObject({ base: 'Lit by Mara.' });
+    expect((await screen.findByRole('alert')).textContent).toContain('From the Kindle.');
+    expect(field().value).toBe('Typed in DFAI.');
+  });
+
+  it('is handed back as the editor goes', async () => {
+    const handed: WritePending[] = [];
+    const { unmount } = renderNote(lamp('Lit by Mara.'), {
+      editComment: async () => {},
+      onWritePending: (writePending) => handed.push(writePending),
+    });
+    await screen.findByText('The last lamp.');
+    unmount();
+    expect(handed.at(-1)).toBeNull();
   });
 });
