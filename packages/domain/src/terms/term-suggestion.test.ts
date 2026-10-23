@@ -239,8 +239,11 @@ describe('a suggested term the glossary already has', () => {
     expect(refusal('Quilly', 'Quille')).toBe('“Quille” is already in the glossary, as “Quillé”.');
   });
 
-  it('refuses a term’s right spelling as a plural', () => {
-    expect(refusal('Larks Purr Payrolls', 'Larkspur Payrolls')).toMatch(/already in the glossary/);
+  it('takes a plural of a term’s right spelling for a name of its own, and its possessive for the term', () => {
+    expect(refusal('Larks Purr Payrolls', 'Larkspur Payrolls')).toBeNull();
+    expect(refusal('Larks Purr Payroll’s', 'Larkspur Payroll’s')).toMatch(
+      /already in the glossary/,
+    );
   });
 
   it('refuses a spelling the glossary lists as misheard', () => {
@@ -278,18 +281,16 @@ describe('a suggested term the glossary already has', () => {
     expect(refusal('Dee', 'Deebrick', disputed)).toBe('“Dee” is part of the name “dee brenwick”.');
   });
 
-  it('folds a plural onto a spelling the vault has, and only onto one it has', () => {
+  it('never folds a plural: with Luca known, Lucas is a name of its own, and so the other way', () => {
     const lucas = vocabulary({ terms: [term('Lucas')], people: [], companies: [] });
     const luca = vocabulary({ terms: [term('Luca')], people: [], companies: [] });
     expect(knownSpellingOf('Lucas', lucas)).toBe('Lucas');
-    // Lucas known: Luca is another name.
+    expect(knownSpellingOf('Lucas', luca)).toBeNull();
+    expect(refusal('Lookas', 'Lucas', luca)).toBeNull();
     expect(knownSpellingOf('Luca', lucas)).toBeNull();
     expect(refusal('Lukah', 'Luca', lucas)).toBeNull();
-    // Luca known: Lucas folds onto it, as Larkspurs does onto Larkspur.
-    expect(knownSpellingOf('Lucas', luca)).toBe('Luca');
-    expect(
-      knownSpellingOf('Glass', vocabulary({ terms: [term('Glas')], people: [], companies: [] })),
-    ).toBeNull();
+    // A possessive is still the name itself.
+    expect(knownSpellingOf('Luca’s', luca)).toBe('Luca');
   });
 
   it('refuses a spelling two notes disagree about', () => {

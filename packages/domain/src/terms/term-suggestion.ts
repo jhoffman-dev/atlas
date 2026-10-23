@@ -42,9 +42,9 @@ const CONTRACTION = /['’]\p{L}{1,2}(?!\p{L})/gu;
  * tidied, any case, a possessive `'s` at the end dropped (`Atlas's` is
  * `Atlas`), and the accents on a Latin letter — a base `a`–`z` — dropped
  * (`Quillé` is `quille`, `José` is `jose`). Letters of other scripts are
- * kept as they are: `Майя` is not `Маия`. A plural is never folded here, so
- * `Lucas` and `Luca` are two names; {@link knownSpellingOf} folds one only
- * against a spelling the vault has. Idempotent: a key keys to itself.
+ * kept as they are: `Майя` is not `Маия`. A plural is never folded, so
+ * `Lucas` and `Luca` are two names, here and in {@link knownSpellingOf}.
+ * Idempotent: a key keys to itself.
  */
 export function glossaryKey(spelling: string): string {
   return vocabularyKey(spelling)
@@ -182,10 +182,9 @@ function knownSpellings(vocabulary: SuggestionVocabulary): string[] {
 }
 
 /**
- * The spelling the vault has that `spelling` is, by {@link glossaryKey} — or,
- * failing that, whose plural it is: `Larkspurs` is the known `Larkspur`. A
- * plural folds only onto a spelling the vault has, so `Lucas` is not taken for
- * `Luca` unless the vault knows a `Luca`. Null when it knows neither.
+ * The spelling the vault has that `spelling` is, by {@link glossaryKey} — any
+ * case, a possessive, accents on Latin letters — or null. A plural is never
+ * folded: `Lucas` is a name of its own beside a known `Luca`.
  */
 export function knownSpellingOf(spelling: string, vocabulary: SuggestionVocabulary): string | null {
   const known = new Map<string, string>();
@@ -193,9 +192,7 @@ export function knownSpellingOf(spelling: string, vocabulary: SuggestionVocabula
   for (const each of knownSpellings(vocabulary)) {
     if (!known.has(glossaryKey(each))) known.set(glossaryKey(each), each);
   }
-  const key = glossaryKey(spelling);
-  const singular = /[^s]s$/u.test(key) ? key.slice(0, -1) : null;
-  return known.get(key) ?? (singular === null ? undefined : known.get(singular)) ?? null;
+  return known.get(glossaryKey(spelling)) ?? null;
 }
 
 function knownTermProblem(canonical: string, vocabulary: SuggestionVocabulary): string | null {
