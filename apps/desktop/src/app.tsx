@@ -11,6 +11,7 @@ import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
   activeTabOf,
+  ASK_PLACE,
   tabPlace,
   createVaultPath,
   favoriteValue,
@@ -138,9 +139,12 @@ import { ActiveSidebar } from './workspace/active-sidebar.tsx';
 import { browserWorkspaceStore } from './workspace/browser-workspace-store.ts';
 import { followLink, openNote as openNotePlace, openNoteAtBlock } from './workspace/open-place.ts';
 import { PanesContainer } from './workspace/panes-container.tsx';
+import { createAskFocus } from './ask/ask-focus.ts';
+import { AskSeatProvider, type AskSeat } from './ask/ask-seat.tsx';
 import {
   closeActiveTab,
   openPlace,
+  toggleAsk,
   usePageShown,
   closeNotes as closeNotesIn,
   activePlace,
@@ -858,8 +862,14 @@ function AppWindow({
     (place: PagePlace) => openPlace(workspace, place, 'here'),
     [workspace],
   );
+  // Ask is asked for the keys only by ⌘J and the sidebar's Ask, in the pane they land in (#37).
+  const [askFocus] = useState(createAskFocus);
+  const openAsk = useCallback(() => {
+    openPlace(workspace, ASK_PLACE, 'here');
+    askFocus.request(workspaceNow(workspace).focused);
+  }, [workspace, askFocus]);
   // The aside folds where the window is too narrow for it beside the left
-  // sidebar (collapse.ts). Asking for it there — ⌘J, the bar's button, ⌥⌘\ —
+  // sidebar (collapse.ts). Asking for it there — ⇧⌘J, the bar's button, ⌥⌘\ —
   // hides the left sidebar instead, where that makes room (not under 796px,
   // where the aside folds on its own: the sidebar then stays), so Claude is
   // reachable in a 1000px window; ⌘\ brings the sidebar back. The store is
@@ -1095,7 +1105,7 @@ function AppWindow({
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
-  // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings
+  // The chat's seat is the aside's Claude tab (plan question 4): ⇧⌘J brings
   // the aside up on it. Its toggle and close are one function each for the
   // window's life — every page's bar is handed the toggle (#325) — reading
   // the store at the press rather than closing over what was shown.
@@ -1113,10 +1123,13 @@ function AppWindow({
     () => ({ open: claudeShown, asked: claudeAsked, toggle: toggleChatSeat, close: closeChatSeat }),
     [claudeShown, claudeAsked, toggleChatSeat, closeChatSeat],
   );
+  // Ask (#37) is the chat's other seat: whether Claude can be reached is asked while it shows too.
+  const askShown = usePageShown(workspace, 'ask');
   const chat = useChat({
     ports: chatPorts,
     store: browserChatSettingsStore,
     seat: chatSeat,
+    askShown,
     vault: {
       api: apiDeps,
       fs: location === null ? null : vault.fs,
@@ -1599,16 +1612,19 @@ function AppWindow({
   );
   /** Follows a wiki link in the pane it was clicked in — a link opens where you are reading. */
   const followLinkInPane = useCallback(
-    (link: { pane: number; target: string; heading?: string | null }) =>
+    (link: { pane: number; target: string; heading?: string | null; how?: OpenHow }) =>
       followLink(
         { store: workspace, reveals, notePaths, onProblem: setLinkError, places: linkPlaces },
         link,
       ),
     [workspace, reveals, notePaths, linkPlaces],
   );
-  /** Opens the line a proposal cites — `[[2026-10-01 Standup#^t0003]]` — in the focused pane. */
+  /**
+   * Opens the line a proposal or an answer cites — `[[2026-10-01 Standup#^t0003]]` —
+   * in the focused pane, or where the click asked (⌘-click: a new tab).
+   */
   const followSource = useCallback(
-    (link: string) => {
+    (link: string, how: OpenHow = 'here') => {
       const read = readWikiLink(link.trim());
       if (read === null) {
         setLinkError(`${link} is not a link to a note`);
@@ -1618,9 +1634,19 @@ function AppWindow({
         pane: workspaceNow(workspace).focused,
         target: read.target,
         heading: read.heading,
+        how,
       });
     },
     [followLinkInPane, workspace],
+  );
+  /** A web address an answer gives, opened in the browser: the window never navigates. */
+  const openWebLink = useCallback(
+    (url: string) => {
+      links.open(url).catch((cause: unknown) => {
+        setLinkError(`${url} could not be opened: ${String(cause)}`);
+      });
+    },
+    [links],
   );
 
   const paneOpenNotes = useMemo(() => openNotesIn(editors), [editors]);
@@ -1740,6 +1766,9 @@ function AppWindow({
     forward: () => goForward(workspace),
     show: showOverlay,
     capture: askForCapture,
+    ask: () => {
+      if (toggleAsk(workspace)) askFocus.request(workspaceNow(workspace).focused);
+    },
     toggleChat: chat.toggle,
     toggleAside: () =>
       asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),
@@ -1945,6 +1974,21 @@ function AppWindow({
     () => (location === null ? null : { open: chat.open, onToggle: chat.toggle }),
     [location, chat.open, chat.toggle],
   );
+  // Ask's tab reads the chat through its own context (#37), drawn again with each streamed word.
+  const followInFocusedPane = useCallback(
+    (target: string) => followLinkInPane({ pane: workspaceNow(workspace).focused, target }),
+    [followLinkInPane, workspace],
+  );
+  const askSeat = useMemo<AskSeat>(
+    () => ({
+      chat,
+      onFollowCitation: followSource,
+      onOpenWeb: openWebLink,
+      onFollowLink: followInFocusedPane,
+      focus: askFocus,
+    }),
+    [chat, followSource, openWebLink, followInFocusedPane, askFocus],
+  );
   const inboxWiring = useMemo(
     () => ({
       closing: closing.writes,
@@ -2113,6 +2157,7 @@ function AppWindow({
                     onSearch={() => showOverlay('search')}
                     onOpenGraph={() => openGraph({ kind: 'vault' })}
                     onOpenTags={() => openTags(null)}
+                    onOpenAsk={openAsk}
                     onOpenLibrary={() => openPage({ kind: 'library' })}
                     onOpenHighlights={() => openPage({ kind: 'highlights' })}
                     onOpenAutomations={() => openPage({ kind: 'automations' })}
@@ -2216,7 +2261,9 @@ function AppWindow({
                   {/* Keyed by vault: its editors, and what each pane keeps mounted, are that vault's (R14-01). */}
                   <AsideToggleProvider value={asideToggle}>
                     <Fragment key={vaultKey ?? ''}>
-                      <PanesContainer />
+                      <AskSeatProvider value={askSeat}>
+                        <PanesContainer />
+                      </AskSeatProvider>
                       {/* The peek over the panes: its editor is the vault's too. */}
                       <PeekLayer />
                     </Fragment>

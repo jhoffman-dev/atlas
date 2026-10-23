@@ -20,6 +20,7 @@ function listen(overlay: Overlay | null = null): AppShortcuts {
     forward: vi.fn(),
     show: vi.fn(),
     capture: vi.fn(),
+    ask: vi.fn(),
     toggleChat: vi.fn(),
     toggleAside: vi.fn(),
     tabs: {
@@ -70,6 +71,7 @@ describe('Alt+Cmd+\\ and Cmd+J behind what holds the screen (attack #387)', () =
   it('guard: Cmd+J does nothing behind the ⌘K palette', () => {
     const shortcuts = listen('search');
     window.dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, key: 'j', code: 'KeyJ' }));
+    expect(shortcuts.ask).not.toHaveBeenCalled();
     expect(shortcuts.toggleChat).not.toHaveBeenCalled();
   });
 });

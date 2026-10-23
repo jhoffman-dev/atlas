@@ -26,6 +26,8 @@ export const BUDGETED_ACTIONS = [
   'Drag a board card',
   'Run a 2,000-row SQL query',
   'Run a 920-row DFAI query',
+  // Ask (#37), from the PDF the pass left open: the page, its chunk, and the recent questions.
+  'Open Ask (⌘J)',
   // On the research fixture (#507): 2,000 literature notes holding 20,000 highlights.
   'Open the Library (2,000 sources)',
   'Open All highlights (20,000)',

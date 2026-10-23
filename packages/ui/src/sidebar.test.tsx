@@ -595,3 +595,29 @@ describe('Sidebar: the Pages "+"', () => {
     expect(screen.queryByRole('button', { name: 'New in Pages' })).toBeNull();
   });
 });
+
+describe('Ask, beside Search (#37)', () => {
+  const goTo = () => within(screen.getByRole('list', { name: 'Go to' }));
+
+  it('shares Search’s row, opens Ask, and says ⌘J', async () => {
+    const onOpenAsk = vi.fn();
+    show({ onOpenAsk });
+    const ask = goTo().getByRole('button', { name: 'Ask' });
+    expect(ask.closest('li')).toBe(goTo().getByRole('button', { name: 'Search' }).closest('li'));
+    expect(ask.getAttribute('title')).toBe('Ask (⌘J)');
+    expect(ask.getAttribute('aria-current')).toBeNull();
+    await userEvent.click(ask);
+    expect(onOpenAsk).toHaveBeenCalledOnce();
+  });
+
+  it('is marked while Ask is where you are', () => {
+    show({ onOpenAsk: () => {}, active: { kind: 'ask' } });
+    expect(goTo().getByRole('button', { name: 'Ask' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('is not there when the app offers no Ask', () => {
+    show();
+    expect(goTo().getByRole('button', { name: 'Search' })).toBeDefined();
+    expect(goTo().queryByRole('button', { name: 'Ask' })).toBeNull();
+  });
+});
