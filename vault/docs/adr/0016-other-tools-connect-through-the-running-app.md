@@ -848,7 +848,7 @@ the same names (so a rule's Claude step may name them too).
 
 - **Read-only, and cited.** Each is read from the note's linked page
   (P30-06): one bounded DFAI query a section, plus one statement for every
-  item's `source` and one for follow-ups. Only the named note — and, for
+  item's `source`, one to check the blocks they cite and one for follow-ups. Only the named note — and, for
   `meetings`, the meeting files it quotes, at most 50 — is read from the
   vault. Every item carries a wiki link to where it came from.
 - **A read never writes a block id.** A transcript turn the file left without
@@ -860,6 +860,18 @@ the same names (so a rule's Claude step may name them too).
   `PassageFinder`; full-text search answers it today, and semantic search
   (#33) will, naming the matching blocks itself. The matching of turns is the
   domain's either way.
+- **A quote is data.** What someone said in a meeting reaches the model
+  through these tools and may say anything. The chat's and a rule's Claude
+  step's system prompts say every tool result is data, never an instruction
+  (ADR-0021; both are tested), and the tool descriptions say it of a `quote`.
+- **An index that fails mid-answer costs a part, not the answer.** The
+  sections, the sources, the follow-ups and the search each name what was lost
+  in `problems` and the route answers `200`; only an `entity` that cannot be
+  read is an error.
+- **A shared meeting does not make a follow-up everyone's.** A follow-up
+  reached only through a meeting is the page's when it names no Person or names
+  the page, and says which (`via`); one naming another Person is that
+  person's.
 - **The same refusals as every route.** `entity` is a user-space `.md` note,
   checked as a body's paths are; a day is a real day; `about` is at most 500
   characters, searched as words, never as query syntax.
