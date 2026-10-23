@@ -1,5 +1,15 @@
 import { isCommonWord } from './common-words.ts';
 import { isSearchable, tidySpelling, vocabularyKey } from './spelling.ts';
+import {
+  glossaryKey,
+  hasUnspacedScript,
+  isHangul,
+  readLetterCount,
+  withoutDiacritics,
+} from './spelling-folds.ts';
+
+/** Where suggestions are keyed, kept importable from here. */
+export { glossaryKey } from './spelling-folds.ts';
 import type { Vocabulary } from './vocabulary.ts';
 
 /** The longest a suggested spelling runs: a name, not a sentence. */
@@ -23,36 +33,15 @@ export interface SuggestedTerm {
 export type SuggestionVocabulary = Pick<Vocabulary, 'entries' | 'conflicts'> &
   Partial<Pick<Vocabulary, 'speakers'>>;
 
-const A_LETTER = /\p{L}/gu;
+const A_LETTER = /\p{L}/u;
 /** The fewest letters a misheard spelling holds: `Q` or `PR` would be rewritten in every message. */
 export const MIN_HEARD_LETTERS = 3;
-/**
- * A Latin letter followed by the accents it carries once decomposed: `é` is
- * `e` and U+0301. Only a Latin base loses its accents — `й` is a Cyrillic
- * letter of its own, not `и` with a mark, and Greek keeps its tonos.
- */
-const ACCENTED_LATIN = /([a-z])[̀-ͯ]+/gu;
+/** The fewest Hangul syllables a misheard spelling holds: each is a whole syllable, `민수` a name. */
+export const MIN_HEARD_HANGUL_SYLLABLES = 2;
 /** A possessive at the end of a spelling, one or more: `Larkspur's`, `Atlas's`. */
 const POSSESSIVE = /(?:['’]s)+$/u;
 /** A contraction or possessive ending inside heard words: the `'s` of `team's`, the `'t` of `don't`. */
 const CONTRACTION = /['’]\p{L}{1,2}(?!\p{L})/gu;
-
-/**
- * What a suggested term is known by, and what spellings are compared by:
- * tidied, any case, a possessive `'s` at the end dropped (`Atlas's` is
- * `Atlas`), and the accents on a Latin letter — a base `a`–`z` — dropped
- * (`Quillé` is `quille`, `José` is `jose`). Letters of other scripts are
- * kept as they are: `Майя` is not `Маия`. A plural is never folded, so
- * `Lucas` and `Luca` are two names, here and in {@link knownSpellingOf}.
- * Idempotent: a key keys to itself.
- */
-export function glossaryKey(spelling: string): string {
-  return vocabularyKey(spelling)
-    .replace(POSSESSIVE, '')
-    .normalize('NFD')
-    .replace(ACCENTED_LATIN, '$1')
-    .normalize('NFC');
-}
 
 const wordsOf = (spelling: string): string[] => spelling.split(' ').filter((word) => word !== '');
 
@@ -67,9 +56,11 @@ function isWordsOf(outer: string, inner: string): boolean {
  * proposals on every Mac:
  *
  * - both spellings are a name's, not a sentence's, with a letter in each;
- *   what was heard has at least {@link MIN_HEARD_LETTERS} letters, and differs
- *   from the right spelling by more than case, a possessive or a plural — an
- *   accent alone is a fix worth making (`Jose` for `José`);
+ *   what was heard has at least {@link MIN_HEARD_LETTERS} letters (two Hangul
+ *   syllables), is in a script written with spaces, and differs from the
+ *   right spelling by more than case, a possessive, a plural, or accents and
+ *   strokes alone — `Jose` is a name of its own, and as a variant of `José`
+ *   would rewrite every Jose;
  * - what was heard is not everyday words, read as words whatever joins them
  *   (`follow-up`, `step 2`, `mark,`): a variant is rewritten wherever it
  *   stands. The right spelling may be (`Team Sync`);
@@ -91,17 +82,34 @@ export function suggestedTermRefusal(
   return (
     shapeProblem(heard, canonical) ??
     everydayProblem(heard) ??
+    knownProblem({ canonical, variants: [heard] }, vocabulary)
+  );
+}
+
+/**
+ * What the vocabulary already has of a term, the one check proposing and
+ * accepting share: its right spelling known, or a misheard spelling of it
+ * known, part of a known name, or what someone goes by.
+ */
+function knownProblem(
+  { canonical, variants }: { canonical: string; variants: readonly string[] },
+  vocabulary: SuggestionVocabulary,
+): string | null {
+  return (
     knownTermProblem(canonical, vocabulary) ??
-    knownHeardProblem(heard, vocabulary)
+    variants.reduce<string | null>(
+      (found, heard) => found ?? knownHeardProblem(heard, vocabulary),
+      null,
+    )
   );
 }
 
 /**
  * Why a term proposal may no longer be accepted as it stands (#19), or null:
- * the vault has moved on since it was proposed. Its right spelling is in the
- * glossary now, or one of its misheard spellings is now another note's —
- * accepted, two notes would claim it, and correction would put it right to
- * neither.
+ * the vault has moved on since it was proposed, and the term is held to what
+ * proposing it was held to, against the vocabulary as it is now. A misheard
+ * spelling now another note's says so first — accepted, two notes would claim
+ * it, and correction would put it right to neither.
  */
 export function acceptedTermRefusal(
   term: { readonly canonical: string; readonly variants: readonly string[] },
@@ -121,7 +129,7 @@ export function acceptedTermRefusal(
       return `“${variant}” is already claimed by more than one note.`;
     }
   }
-  return null;
+  return knownProblem({ canonical, variants: term.variants.map(tidySpelling) }, vocabulary);
 }
 
 function shapeProblem(heard: string, canonical: string): string | null {
@@ -129,7 +137,7 @@ function shapeProblem(heard: string, canonical: string): string | null {
     return 'It needs both what was heard and the right spelling.';
   }
   const unspelt = [heard, canonical].find(
-    (spelling) => !isSearchable(spelling) || spelling.match(A_LETTER) === null,
+    (spelling) => !isSearchable(spelling) || !A_LETTER.test(spelling),
   );
   if (unspelt !== undefined) {
     return `“${unspelt}” has no letter in it, so it is no spelling of a name.`;
@@ -140,16 +148,33 @@ function shapeProblem(heard: string, canonical: string): string | null {
   if (tooLong || wordsOf(heard).length > MAX_HEARD_WORDS) {
     return 'It is longer than a name: a misheard spelling is a few words at most.';
   }
-  if ((heard.match(A_LETTER) ?? []).length < MIN_HEARD_LETTERS) {
-    return `“${heard}” is too short to tell from everyday text: a misheard spelling has at least ${MIN_HEARD_LETTERS} letters.`;
-  }
+  const script = scriptProblem(heard);
+  if (script !== null) return script;
   if (sameButForEnding(heard, canonical)) {
     return `“${heard}” is “${canonical}” in other capitals or as a plural, not a mishearing of it.`;
+  }
+  if (withoutDiacritics(heard) === withoutDiacritics(canonical)) {
+    return `“${heard}” is “${canonical}” but for its accents, and a name of its own: as a misheard spelling it would rewrite every “${heard}” in later meetings.`;
   }
   if (isWordsOf(canonical, heard)) {
     return `“${heard}” is part of “${canonical}” itself, not a mishearing of it.`;
   }
   return null;
+}
+
+/**
+ * Why heard text cannot be told apart in prose: a script written without
+ * spaces, which correction (whole words) cannot find a name inside, or too
+ * few letters — {@link MIN_HEARD_LETTERS}, or {@link MIN_HEARD_HANGUL_SYLLABLES}
+ * Hangul syllables.
+ */
+function scriptProblem(heard: string): string | null {
+  if (hasUnspacedScript(heard)) {
+    return `“${heard}” is written without spaces between words, and DFAI can’t correct names inside unspaced text yet.`;
+  }
+  const fewest = isHangul(heard) ? MIN_HEARD_HANGUL_SYLLABLES : MIN_HEARD_LETTERS;
+  if (readLetterCount(heard) >= fewest) return null;
+  return `“${heard}” is too short to tell from everyday text: a misheard spelling has at least ${fewest} letters.`;
 }
 
 /** Whether two spellings differ only in case, a possessive or a plural `s`. */

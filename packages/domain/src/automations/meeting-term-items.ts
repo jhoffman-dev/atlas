@@ -12,7 +12,8 @@ import type { ProposalConfidence, ProposalNote } from '../proposals/proposal.ts'
 import { correctTerms } from '../terms/correct-terms.ts';
 import { tidySpelling } from '../terms/spelling.ts';
 import { TERMS_FOLDER, VARIANTS_KEY } from '../terms/term.ts';
-import { glossaryKey, suggestedTermRefusal } from '../terms/term-suggestion.ts';
+import { glossaryKey } from '../terms/spelling-folds.ts';
+import { suggestedTermRefusal } from '../terms/term-suggestion.ts';
 import { truncated } from './answer-limits.ts';
 import type { AnswerContext, PendingTerm, ProposalDraft } from './proposal-schema.ts';
 
@@ -94,10 +95,16 @@ export function termDraft({
     source,
     confidence: item.confidence,
     why: `Heard as “${heard}” in ${from}. Accepted, “${title}” joins Terms, and the next meeting’s transcript is put right.`,
-    claim: {
-      key: glossaryKey(heard),
-      why: `“${heard}” is heard for another term of this answer already.`,
-    },
+    claims: [
+      {
+        key: `heard:${glossaryKey(heard)}`,
+        why: `“${heard}” is heard for another term of this answer already.`,
+      },
+      {
+        key: `term:${glossaryKey(title)}`,
+        why: `“${title}” is suggested already in this answer; once it is a term, add “${heard}” to its misheard spellings on the Terms page.`,
+      },
+    ],
   };
 }
 

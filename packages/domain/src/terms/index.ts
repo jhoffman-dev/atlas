@@ -38,11 +38,12 @@ export type { CorrectedText, TermChange } from './correct-terms.ts';
 export { isCommonWord } from './common-words.ts';
 export {
   acceptedTermRefusal,
-  glossaryKey,
   knownSpellingOf,
   MAX_HEARD_WORDS,
   MAX_SUGGESTED_SPELLING_CHARACTERS,
+  MIN_HEARD_HANGUL_SYLLABLES,
   MIN_HEARD_LETTERS,
   suggestedTermRefusal,
 } from './term-suggestion.ts';
 export type { SuggestedTerm, SuggestionVocabulary } from './term-suggestion.ts';
+export { glossaryKey, withoutDiacritics } from './spelling-folds.ts';

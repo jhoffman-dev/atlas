@@ -322,6 +322,36 @@ describe('accepting a term once the vault has moved on', () => {
   });
 });
 
+describe('what a run reads of the proposals folder', () => {
+  it('reads it once, for the terms waiting there and for what it will not propose twice', async () => {
+    const { vault, arrive, termProposals } = await setUp([
+      BRENWICK,
+      says(term('Brenwick', 'Bren Wik'), term('Quillworth', 'Quill Worth')),
+    ]);
+    await arrive('Contracts');
+    const list = vault.ports.fs.listDirectory;
+    const read = vault.ports.fs.readNotes;
+    let listed = 0;
+    let readBack = 0;
+    vault.ports.fs.listDirectory = async (folder) => {
+      if (folder === 'Inbox/Proposals') listed += 1;
+      return list(folder);
+    };
+    vault.ports.fs.readNotes = async (paths) => {
+      if (paths.some((at) => at.startsWith('Inbox/Proposals/'))) readBack += 1;
+      return read(paths);
+    };
+
+    await arrive('Renewal', 'The Bren Wik renewal is due, and Quill Worth signs it.');
+
+    expect(termProposals()).toEqual([
+      'Inbox/Proposals/Brenwick.md',
+      'Inbox/Proposals/Quillworth.md',
+    ]);
+    expect({ listed, readBack }).toEqual({ listed: 1, readBack: 1 });
+  });
+});
+
 describe('two runs writing the same term at once', () => {
   it('makes it once: the second finds it made at its path, and does not fail', async () => {
     const { vault, arrive, termProposals, log } = await setUp([BRENWICK]);

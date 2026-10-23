@@ -1,7 +1,6 @@
 import {
   compileProposalIdsQuery,
   createVaultPath,
-  isMarkdownFile,
   joinFrontmatter,
   messageWithoutPaths,
   nextAvailableNotePath,
@@ -11,12 +10,12 @@ import {
   PROPOSALS_FOLDER,
   splitFrontmatter,
   type NewProposal,
-  type VaultEntry,
   type VaultPath,
 } from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
+import { readProposalsFolder, type ProposalsFolder } from './proposals-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /** What proposals are written with: the vault, and the index to ask what was already proposed. */
@@ -69,14 +68,17 @@ export async function planProposals({
   index,
   markdown,
   proposals,
-}: ProposalWritePorts & { proposals: readonly NewProposal[] }): Promise<ProposalsPlanned> {
+  read,
+}: ProposalWritePorts & {
+  proposals: readonly NewProposal[];
+  /** The folder as this run read it already (a Claude step reads it once); read here when not given. */
+  read?: ProposalsFolder;
+}): Promise<ProposalsPlanned> {
   if (proposals.length === 0) return { planned: [], left: [] };
   const held = await heldIds(index, proposals);
-  // Made if missing, as it is for the first proposal written into it: then it is empty.
-  const folder = await ensureFolder({ fs, folder: createVaultPath(PROPOSALS_FOLDER) });
-  const waiting = await fs.listDirectory(folder);
-  for (const id of await waitingIds({ fs, markdown, waiting })) held.add(id);
-  const taken = new Set<string>(waiting.map((entry) => entry.path));
+  const { folder, entries, notes } = await folderToWrite(fs, read);
+  for (const id of waitingIds(markdown, notes)) held.add(id);
+  const taken = new Set<string>(entries.map((entry) => entry.path));
   const planned: PlannedProposal[] = [];
   const left: ProposalLeft[] = [];
   for (const proposal of proposals) {
@@ -93,6 +95,23 @@ export async function planProposals({
     }
   }
   return { planned, left };
+}
+
+/**
+ * The proposals folder as this batch writes into it: the read given, or one
+ * made now. A folder that is missing is made, as it is for the first proposal
+ * written into it, and read again — what is there to number past is read
+ * from the disk, and a folder that cannot be read stops the batch.
+ */
+async function folderToWrite(
+  fs: VaultFsPort,
+  read: ProposalsFolder | undefined,
+): Promise<ProposalsFolder & { readonly folder: VaultPath }> {
+  const before = read ?? (await readProposalsFolder({ fs }));
+  if (before.folder !== null) return { ...before, folder: before.folder };
+  const folder = await ensureFolder({ fs, folder: createVaultPath(PROPOSALS_FOLDER) });
+  const entries = await fs.listDirectory(folder);
+  return { folder, entries, notes: [] };
 }
 
 /**
@@ -117,7 +136,8 @@ export async function writeProposals(
       await args.fs.createNote(note);
       written.push(note.path);
     } catch (cause) {
-      if (await proposalMadeAlready(args, note)) continue;
+      // Unconfirmed when it cannot be read back: then the create's own error is what is said.
+      if (await proposalMadeAlready(args, note).catch(() => false)) continue;
       left.push({ path: note.path, reason: messageWithoutPaths(cause) });
     }
   }
@@ -146,15 +166,11 @@ async function heldIds(
 }
 
 /** The ids of the proposals waiting in the folder, read from the files. */
-async function waitingIds({
-  fs,
-  markdown,
-  waiting,
-}: Pick<ProposalWritePorts, 'fs' | 'markdown'> & {
-  waiting: readonly VaultEntry[];
-}): Promise<string[]> {
-  const read = await fs.readNotes(waiting.filter(isMarkdownFile).map((entry) => entry.path));
-  return read.flatMap((note) => {
+function waitingIds(
+  markdown: ProposalWritePorts['markdown'],
+  notes: ProposalsFolder['notes'],
+): string[] {
+  return notes.flatMap((note) => {
     const id = markdown.frontmatterProperties(splitFrontmatter(note.text).frontmatter)[
       PROPOSAL_ID_KEY
     ];

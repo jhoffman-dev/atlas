@@ -11,7 +11,7 @@
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { NewProposal } from '../proposals/new-proposal.ts';
 import { digestOf } from '../sources/merge.ts';
-import { glossaryKey } from '../terms/term-suggestion.ts';
+import { glossaryKey } from '../terms/spelling-folds.ts';
 import type { CheckedProposal } from './proposal-schema.ts';
 
 /**

@@ -192,10 +192,11 @@ export interface ProposalDraft {
   readonly meetingDecision?: MeetingDecisionClaim;
   /**
    * What only one draft of an answer may hold: a suggested term's heard
-   * spelling (#19), which two terms cannot both correct. A later draft with
-   * the same `key` is left out, saying `why`.
+   * spelling, which two terms cannot both correct, and the term itself (#19).
+   * A later draft holding a key an earlier one claimed is left out, saying
+   * that claim's `why`.
    */
-  readonly claim?: { readonly key: string; readonly why: string };
+  readonly claims?: readonly { readonly key: string; readonly why: string }[];
 }
 
 /**
@@ -460,11 +461,12 @@ function readAnswer<Item>({
     }
     if (item.adjusted !== undefined) adjusted.push(item.adjusted);
     for (const draft of item.drafts) {
-      if (draft.claim !== undefined && claimed.has(draft.claim.key)) {
-        dropped.push({ title: titleOf(value), reason: draft.claim.why });
+      const taken = draft.claims?.find(({ key }) => claimed.has(key));
+      if (taken !== undefined) {
+        dropped.push({ title: titleOf(value), reason: taken.why });
         continue;
       }
-      if (draft.claim !== undefined) claimed.add(draft.claim.key);
+      for (const { key } of draft.claims ?? []) claimed.add(key);
       const proposal = checkDraft(draft, context, schema.meetingRelations);
       if (!proposal.ok) return refused(`Item ${at + 1}: ${proposal.problem}`);
       checked.push({ ...proposal.value, sharedAcrossRules: schema.sharedAcrossRules === true });

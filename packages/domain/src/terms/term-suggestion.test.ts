@@ -83,6 +83,11 @@ describe('the key the glossary compares spellings by', () => {
     expect(glossaryKey('Bross')).toBe('bross');
   });
 
+  it('keys to itself where dropping a possessive leaves another behind it', () => {
+    expect(glossaryKey("Atlas's 's")).toBe('atlas');
+    expect(glossaryKey(glossaryKey("Atlas's 's"))).toBe('atlas');
+  });
+
   it('keeps names a plural would fold together apart: Luca and Lucas, Carlo and Carlos, Jen and Jens', () => {
     expect(glossaryKey('Lucas')).not.toBe(glossaryKey('Luca'));
     expect(glossaryKey('Carlos')).not.toBe(glossaryKey('Carlo'));
@@ -172,13 +177,45 @@ describe('a suggested term that is no name', () => {
     ['Lukasz', 'Łukasz'],
     ['Σοφια', 'Σοφία'],
     ['Ida Brenwíck', 'Ida Brenwick'],
-  ])('allows an accent or a stroke put right: “%s” for “%s”', (heard, canonical) => {
-    expect(refusal(heard, canonical, EMPTY)).toBeNull();
+  ])(
+    'refuses an accent or a stroke alone: “%s” for “%s” is a name of its own',
+    (heard, canonical) => {
+      expect(refusal(heard, canonical, EMPTY)).toBe(
+        `“${heard}” is “${canonical}” but for its accents, and a name of its own: as a misheard spelling it would rewrite every “${heard}” in later meetings.`,
+      );
+    },
+  );
+
+  it('refuses an accent put right when the vault has the right spelling already, too', () => {
+    const known = vocabulary({ terms: [term('José')], people: [], companies: [] });
+    expect(refusal('Jose', 'José', known)).not.toBeNull();
   });
 
-  it('refuses an accent put right when the vault has the right spelling already', () => {
-    const known = vocabulary({ terms: [term('José')], people: [], companies: [] });
-    expect(refusal('Jose', 'José', known)).toBe('“José” is already in the glossary, as “José”.');
+  it('keeps Cyrillic й a letter of its own: Майя for Маия is a mishearing', () => {
+    expect(refusal('Маия', 'Майя', EMPTY)).toBeNull();
+  });
+
+  it.each([
+    ['राम', 'रम्या'],
+    ['민수', '민서'],
+  ])(
+    'counts “%s” long enough: a vowel sign, or a Hangul syllable, is a letter',
+    (heard, canonical) => {
+      expect(refusal(heard, canonical, EMPTY)).toBeNull();
+    },
+  );
+
+  it.each(['東京', 'とうきょう', 'กรุงเทพ'])(
+    'refuses “%s”, written without spaces, for the reason it is refused',
+    (heard) => {
+      expect(refusal(heard, 'Kewbrick', EMPTY)).toBe(
+        `“${heard}” is written without spaces between words, and DFAI can’t correct names inside unspaced text yet.`,
+      );
+    },
+  );
+
+  it('refuses one Hangul syllable', () => {
+    expect(refusal('민', '민서', EMPTY)).toMatch(/at least 2 letters/);
   });
 
   it.each(['Q', 'PR', 'Q3', 'A.I.'])(
