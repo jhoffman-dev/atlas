@@ -4,6 +4,7 @@ import {
   DEFAULT_LIBRARY_SORT,
   filterLibrary,
   isLibraryFiltered,
+  LIBRARY_KIND_HUES,
   libraryChoices,
   libraryCover,
   libraryShown,
@@ -298,5 +299,11 @@ describe('settleLibraryFilter and isLibraryFiltered', () => {
       ['reading/fiction', 1],
       ['reading/poetry', 1],
     ]);
+  });
+});
+
+describe('LIBRARY_KIND_HUES', () => {
+  it('draws each kind in the same pastel as the highlight chip (#506)', () => {
+    expect(LIBRARY_KIND_HUES).toEqual({ pdf: 'red', epub: 'green', kindle: 'orange' });
   });
 });

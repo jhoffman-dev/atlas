@@ -62,10 +62,14 @@ export const SOURCE_KIND_LABELS: Readonly<Record<SourceKind, string>> = {
   kindle: 'Kindle',
 };
 
-/** Each kind's muted pastel (#413): fixed, so a kind is the same colour in every list. */
-export const SOURCE_KIND_HUES: Readonly<Record<SourceKind, PillHue>> = {
+/**
+ * Each kind's muted pastel (#413): fixed, so a kind is the same colour in every list.
+ * Mirrors the highlight chip's SOURCE_KIND_HUES (#506, reader/highlight-opening.ts); once both
+ * have merged, these become one table.
+ */
+export const LIBRARY_KIND_HUES: Readonly<Record<SourceKind, PillHue>> = {
   pdf: 'red',
-  epub: 'blue',
+  epub: 'green',
   kindle: 'orange',
 };
 

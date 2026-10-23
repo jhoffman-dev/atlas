@@ -29,7 +29,7 @@ export {
   projectKey,
   settleLibraryFilter,
   sortLibrary,
-  SOURCE_KIND_HUES,
+  LIBRARY_KIND_HUES,
   SOURCE_KIND_LABELS,
 } from './library.ts';
 export type {

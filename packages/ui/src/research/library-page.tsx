@@ -3,7 +3,7 @@ import {
   changedOn,
   isLibraryFiltered,
   NO_LIBRARY_FILTER,
-  SOURCE_KIND_HUES,
+  LIBRARY_KIND_HUES,
   SOURCE_KIND_LABELS,
   withToggled,
   type LibraryChoices,
@@ -132,7 +132,7 @@ function LibraryToolbar({ choices, filter, onFilter, sort, onSort }: LibraryPage
         label="Kind"
         choices={choices.kinds}
         on={filter.kinds}
-        hueOf={(kind) => SOURCE_KIND_HUES[kind]}
+        hueOf={(kind) => LIBRARY_KIND_HUES[kind]}
         onToggle={(kind) => onFilter({ ...filter, kinds: withToggled(filter.kinds, kind) })}
       />
       <FilterSelect
@@ -209,7 +209,7 @@ const LibraryRow = memo(function LibraryRow({
         {entry.author !== null && <span className="research__byline">{entry.author}</span>}
       </button>
       {entry.kind !== null && (
-        <span className="research__kind" data-hue={SOURCE_KIND_HUES[entry.kind]}>
+        <span className="research__kind" data-hue={LIBRARY_KIND_HUES[entry.kind]}>
           {SOURCE_KIND_LABELS[entry.kind]}
         </span>
       )}
