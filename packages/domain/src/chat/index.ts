@@ -19,6 +19,7 @@ export {
   CHAT_NOTE_LABEL,
   CHATS_FOLDER,
   chatNoteName,
+  isChatNoteText,
   isInChats,
   newChatNoteText,
   noteLabelForNotice,

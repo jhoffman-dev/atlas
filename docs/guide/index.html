@@ -204,7 +204,7 @@ pnpm tauri:dev</pre>
         <li><b>← →</b> Back and Forward, or <kbd>⌘[</kbd> <kbd>⌘]</kbd>, or your mouse's side buttons. Each tab keeps its own history.</li>
         <li><b>Breadcrumb</b> shows where the page lives, and beside the name a quiet count says what it holds — <b>5 to process</b>, <b>3 templates</b>. A page's own buttons (<b>New template</b>, <b>Open the Inbox view</b>) sit in the bar too. Only a note, a template or a type keeps a title on the page itself; press it to rename.</li>
         <li><b>Saved / Saving… / Unsaved</b> is the save status. Notes save as you type; <kbd>⌘S</kbd> saves at once.</li>
-        <li><b>Spark</b> button: <b>Ask Claude (⌘J)</b> — see <a href="#claude">Claude in DFAI</a>.</li>
+        <li><b>Spark</b> button: <b>Claude beside the page (⇧⌘J)</b> — see <a href="#claude">Claude in DFAI</a>.</li>
         <li><b>Right sidebar</b> button, beside the spark: <b>Show right sidebar (⌥⌘\)</b>, pressed while it is showing. See <a href="#right-sidebar">The right sidebar</a> below.</li>
         <li><b>Split</b> button, just before the <b>…</b>: <b>Split right (⇧⌘\)</b>. See <a href="#two-panes">Two pages side by side</a> below.</li>
         <li><b>…</b> menu: Link to…, Show in graph, Move to…, <a href="#export">Export…</a>, Archive (or Unarchive), Delete…, Split right, Close pane, and more for views and dashboards.</li>
@@ -255,9 +255,9 @@ pnpm tauri:dev</pre>
         <li><b>Outline</b> — the note's headings; click one to scroll to it.</li>
         <li><b>Claude</b> — the chat. See <a href="#claude">Claude in DFAI</a>.</li>
         <li><b>A table's row.</b> Click into a row of a type's table or a view's table — any cell — and the sidebar shows that note's properties under <b>Task · selected row</b>, without opening it. Editing them writes the row's file and the table follows; <b>Open</b> and <b>New tab</b> at the foot open the row's note. Click back into the page around the table and the sidebar follows the page again.</li>
-        <li><b>A narrow window</b> folds the right sidebar first — under about 1020px with the left sidebar open — and the left sidebar never folds on its own. Asking for the right sidebar there (the button, <kbd>⌥⌘\</kbd> or <kbd>⌘J</kbd>) hides the left one to make room; <kbd>⌘\</kbd> brings it back. <kbd>Esc</kbd> inside the sidebar puts the focus back on the page.</li>
+        <li><b>A narrow window</b> folds the right sidebar first — under about 1020px with the left sidebar open — and the left sidebar never folds on its own. Asking for the right sidebar there (the button, <kbd>⌥⌘\</kbd> or <kbd>⇧⌘J</kbd>) hides the left one to make room; <kbd>⌘\</kbd> brings it back. <kbd>Esc</kbd> inside the sidebar puts the focus back on the page.</li>
       </ul>
-      <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings (<kbd>⌘,</kbd>) and the theme button sit at the bottom of the sidebar, beside the <a href="#sync">sync</a> light once sync is set up. The theme button shows a moon in light and a sun in dark: press it to switch (<i>Switch to dark theme</i>). Until you press it, DFAI is light or dark as macOS is; Settings → <b>Appearance</b> → <b>Match system</b> turns that back on, and turning it off keeps the theme showing. The choice is this Mac's own. <kbd>⌘J</kbd> opens <a href="#claude">Claude</a> in the right sidebar's <b>Claude</b> tab.</p>
+      <p>Hide the sidebar with <kbd>⌘\</kbd>. Settings (<kbd>⌘,</kbd>) and the theme button sit at the bottom of the sidebar, beside the <a href="#sync">sync</a> light once sync is set up. The theme button shows a moon in light and a sun in dark: press it to switch (<i>Switch to dark theme</i>). Until you press it, DFAI is light or dark as macOS is; Settings → <b>Appearance</b> → <b>Match system</b> turns that back on, and turning it off keeps the theme showing. The choice is this Mac's own. <kbd>⌘J</kbd> opens <a href="#ask">Ask</a>; <kbd>⇧⌘J</kbd> opens <a href="#claude">Claude</a> in the right sidebar's <b>Claude</b> tab.</p>
       <h3 id="undo">Undo, and what DFAI tells you</h3>
       <p>A change you make from a list is said in a small dark box at the bottom right — <i>Finished “Send the Larkspur invoice”.</i>, <i>Clarified “Call the bank”.</i>, <i>Moved “Call Mara Quill” to waiting.</i> on a board, <i>Changed “Call Mara Quill”.</i> for a cell — with <b>Undo</b> and a <b>×</b>.</p>
       <ul>
@@ -1807,9 +1807,17 @@ do: archive</pre>
     <section id="claude">
       <h2>Claude in DFAI</h2>
       <p class="sub">Ask Claude about your vault without leaving the app. It starts out knowing the page you're on, can search and read everything, and proposes changes you accept — it never writes on its own.</p>
+      <h3 id="ask">Ask</h3>
+      <p>Ask is where a question starts: a page of its own, like Today. Press <kbd>⌘J</kbd>, or <b>Ask</b> beside <b>Search</b> in the sidebar, and type. Before you ask, it lists your <b>Recent questions</b> (the chats kept in <code>Chats/</code>); pick one to carry it on. <kbd>⌘J</kbd> on Ask takes you back to where you were.</p>
+      <ul>
+        <li>Every answer links to the notes it came from. A link shows as a coloured chip: click it to open the note at that block, or <kbd>⌘</kbd>-click for a new tab. A highlight's chip opens in the reader.</li>
+        <li>A paragraph, list item or quote with no link is still shown, marked <i>not cited</i>, and the answer's foot counts them (<i>1 paragraph not cited</i>).</li>
+        <li>Answers are text only: the only links are to your notes and to <code>https://</code> addresses, which open in your browser. A link whose words don't name its site shows the site beside them.</li>
+        <li>Ask and the chat beside the page are one conversation, kept as a note in <code>Chats/</code>.</li>
+      </ul>
       <h3>Open it</h3>
       <ul>
-        <li>Press the spark button in any page's top bar (<b>Ask Claude (⌘J)</b>), or <kbd>⌘J</kbd>. It opens in the <a href="#right-sidebar">right sidebar</a>, on its <b>Claude</b> tab; the same button, <kbd>⌘J</kbd> or the chat's own <b>×</b> closes the sidebar. With the sidebar already open on another tab, <kbd>⌘J</kbd> switches it to Claude. Not while a dialog is open.</li>
+        <li>Press the spark button in any page's top bar (<b>Claude beside the page (⇧⌘J)</b>), or <kbd>⇧⌘J</kbd>. It opens in the <a href="#right-sidebar">right sidebar</a>, on its <b>Claude</b> tab; the same button, <kbd>⇧⌘J</kbd> or the chat's own <b>×</b> closes the sidebar. With the sidebar already open on another tab, <kbd>⇧⌘J</kbd> switches it to Claude. Not while a dialog is open.</li>
         <li>What you have open comes along as a chip above the box: a note (its title, properties and text), a view (its first 20 rows), a dashboard (its widgets), or, on the Query page in <b>DFAI query</b>, the query you're writing and its first rows. The <b>×</b> on the chip (<b>Leave this out</b>) drops it.</li>
         <li>Nothing needs turning on first: the chat doesn't use the Local API, only the way to Claude chosen in <a href="#claude-setup">Settings → Claude</a>.</li>
       </ul>
@@ -2014,7 +2022,7 @@ do: archive</pre>
       <p>A footnote in an embed is renamed after the note it came from, like <code>[^Sources-1]</code>, so it can never be mistaken for one of this note's own.</p>
       <p>Some blocks — one with a footnote, raw HTML or a comment in it — are tidied as written. DFAI then reads the tidied block again, and if it would come out differently on the page (HTML turned into a paragraph, say) or still points into your vault, that block goes across as plain words instead, and is listed under <b>formatting</b> by its first line, so you know which to fix up by hand.</p>
       <p>Only notes outside <code>.atlas</code> and hidden folders are read for a title or an embed, so nothing from DFAI's own settings ever reaches the page.</p>
-      <div class="note"><b>Claude inside DFAI needs none of this.</b> The <a href="#claude">chat pane</a> (<kbd>⌘J</kbd>) uses the same read tools in the app itself, with the Local API off, and proposes changes for you to accept rather than writing them.</div>
+      <div class="note"><b>Claude inside DFAI needs none of this.</b> The <a href="#claude">chat pane</a> (<kbd>⇧⌘J</kbd>) and <a href="#ask">Ask</a> (<kbd>⌘J</kbd>) uses the same read tools in the app itself, with the Local API off, and proposes changes for you to accept rather than writing them.</div>
       <div class="note"><b>Don't see the new tools?</b> Rebuild the MCP server with <code>pnpm --filter @dfai/mcp build</code>, then restart it — in Claude Code start a new session; in Claude Desktop quit and reopen it.</div>
     </section>
 
@@ -2152,7 +2160,8 @@ pnpm tauri:dev</pre>
             <tr><td><kbd>⌥⌘N</kbd></td><td>Open capture (as <kbd>⇧⌘N</kbd>, but not over a palette, a dialog or the peek)</td></tr>
             <tr><td><kbd>⌥↑</kbd> <kbd>⌥↓</kbd></td><td>Move a sidebar section up or down, while its grip is focused</td></tr>
             <tr><td><kbd>⇧⌘D</kbd></td><td>Today's note</td></tr>
-            <tr><td><kbd>⌘J</kbd></td><td>Open or close <a href="#claude">Claude</a> in the right sidebar</td></tr>
+            <tr><td><kbd>⌘J</kbd></td><td>Open <a href="#ask">Ask</a>; on Ask, go back to where you were</td></tr>
+            <tr><td><kbd>⇧⌘J</kbd></td><td>Open or close <a href="#claude">Claude</a> in the right sidebar</td></tr>
             <tr><td><kbd>⌥⌘\</kbd></td><td>Show or hide <a href="#right-sidebar">the right sidebar</a></td></tr>
             <tr><td><kbd>⌘S</kbd></td><td>Save now</td></tr>
             <tr><td><kbd>⌘[</kbd> <kbd>⌘]</kbd></td><td>Back, Forward, in the tab you're in</td></tr>

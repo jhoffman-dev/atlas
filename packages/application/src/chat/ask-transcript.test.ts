@@ -152,7 +152,9 @@ describe('askTranscript', () => {
 describe('recentQuestions', () => {
   it('lists at most RECENT_QUESTIONS of the chats', async () => {
     const files: Record<string, string> = {};
-    for (let at = 0; at < RECENT_QUESTIONS + 2; at += 1) files[`Chats/Question ${at}.md`] = 'x';
+    for (let at = 0; at < RECENT_QUESTIONS + 2; at += 1) {
+      files[`Chats/Question ${at}.md`] = '---\ntype: chat\n---\n\n## You\n\nQ\n';
+    }
     const { fs } = apiFixture({ files });
     const found = await recentQuestions({ fs });
     expect(found).toHaveLength(RECENT_QUESTIONS);

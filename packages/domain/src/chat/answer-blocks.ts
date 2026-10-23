@@ -20,11 +20,15 @@ export interface RawAnswerBlock {
   readonly marker: string | null;
   /** How deep a list item is nested, from 0; 0 for every other block. */
   readonly depth: number;
+  /** Inside a `>` quote: a list there is drawn in the quote, each item judged on its own. */
+  readonly quoted: boolean;
 }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const HEADING = /^ {0,3}#{1,6}(?:\s|$)/;
 const RULE = /^ {0,3}([-*_])(?: *\1){2,} *$/;
+/** A line of `=` or `-` under a paragraph: it makes the paragraph a heading (setext). */
+const SETEXT = /^ {0,3}(?:=+|-+) *$/;
 const ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(?:\s+(.*))?$/;
 const QUOTE = /^ {0,3}> ?(.*)$/;
 const TABLE = /^\s*\|/;
@@ -59,12 +63,13 @@ class BlockReader {
   line(lines: readonly string[], at: number): number {
     const line = lines[at] as string;
     if (line.trim() === '') return this.blank(at);
-    const fence = FENCE.exec(line);
-    if (fence !== null) return this.fence(lines, at, fence[1] as string);
+    const fence = openingFence(line);
+    if (fence !== null) return this.fence(lines, at, fence);
     if (HEADING.test(line)) return this.alone('heading', headingText(line), at);
+    if (this.open?.kind === 'paragraph' && SETEXT.test(line)) return this.setext(at);
     if (RULE.test(line)) return this.alone('rule', line.trim(), at);
     const item = ITEM.exec(line);
-    if (item !== null) return this.item(item, at);
+    if (item !== null && this.mayStartItem(item)) return this.item(item, at);
     const quote = QUOTE.exec(line);
     if (quote !== null) return this.quote(quote[1] as string, at);
     if (TABLE.test(line)) return this.table(line, at);
@@ -89,15 +94,48 @@ class BlockReader {
     const closer = new RegExp(`^ {0,3}${opener[0] === '`' ? '`' : '~'}{${opener.length},}\\s*$`);
     let end = at + 1;
     while (end < lines.length && !closer.test(lines[end] as string)) end += 1;
-    this.push({ kind: 'code', text: lines.slice(at + 1, end).join('\n'), marker: null, depth: 0 });
+    this.push({
+      kind: 'code',
+      text: lines.slice(at + 1, end).join('\n'),
+      marker: null,
+      depth: 0,
+      quoted: false,
+    });
     // An unclosed fence runs to the end of the answer.
     return Math.min(end, lines.length - 1);
+  }
+
+  /** The paragraph above becomes a heading, as `Summary` over `=======` is one. */
+  private setext(at: number): number {
+    const open = this.open as Open;
+    this.open = null;
+    this.levels = [];
+    this.push({
+      kind: 'heading',
+      text: open.lines.join(' '),
+      marker: null,
+      depth: 0,
+      quoted: false,
+    });
+    return at;
+  }
+
+  /**
+   * Whether a marker starts an item here. In a paragraph only a bullet or a
+   * `1.` with words after it does, as CommonMark has it: a wrapped line that
+   * begins `2026.` carries the sentence on.
+   */
+  private mayStartItem(item: RegExpExecArray): boolean {
+    if (this.open?.kind !== 'paragraph') return true;
+    const marker = item[2] as string;
+    const empty = (item[3] ?? '').trim() === '';
+    return !empty && (!/^\d/.test(marker) || Number.parseInt(marker, 10) === 1);
   }
 
   private alone(kind: 'heading' | 'rule', text: string, at: number): number {
     this.close();
     this.levels = [];
-    this.push({ kind, text, marker: null, depth: 0 });
+    this.push({ kind, text, marker: null, depth: 0, quoted: false });
     return at;
   }
 
@@ -155,17 +193,46 @@ class BlockReader {
     const open = this.open;
     if (open === null) return;
     this.open = null;
-    this.push({
-      kind: open.kind,
-      text: open.lines.join('\n'),
-      marker: open.marker,
-      depth: open.depth,
-    });
+    const text = open.lines.join('\n');
+    if (open.kind === 'quote') {
+      this.blocks.push(...quoteBlocks(text));
+      return;
+    }
+    this.push({ kind: open.kind, text, marker: open.marker, depth: open.depth, quoted: false });
   }
 
   private push(block: RawAnswerBlock): void {
     this.blocks.push(block);
   }
+}
+
+/**
+ * A quote's blocks. Its text is read as an answer of its own: a list in it is
+ * each item its own block, judged on its own as one outside a quote is; the
+ * rest of the quote stays one quote, cited by a link on any of its lines.
+ */
+function quoteBlocks(text: string): RawAnswerBlock[] {
+  const inner = answerBlocks(text);
+  if (!inner.some((block) => block.kind === 'item')) {
+    return [{ kind: 'quote', text, marker: null, depth: 0, quoted: false }];
+  }
+  return inner.map((block) => ({
+    ...block,
+    kind: block.kind === 'paragraph' || block.kind === 'table' ? 'quote' : block.kind,
+    quoted: true,
+  }));
+}
+
+/**
+ * The fence a line opens, or null. A backtick fence's info string may hold
+ * no backtick (CommonMark): "```ls``` lists…" is a code span in a paragraph.
+ */
+function openingFence(line: string): string | null {
+  const fence = FENCE.exec(line);
+  if (fence === null) return null;
+  const opener = fence[1] as string;
+  if (opener.startsWith('`') && (fence[2] ?? '').includes('`')) return null;
+  return opener;
 }
 
 /** A heading without its `#` marks, before and closing. */

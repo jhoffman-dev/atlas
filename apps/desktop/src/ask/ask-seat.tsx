@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { OpenHow } from '@dfai/ui';
 import type { ChatController } from '../chat/use-chat.ts';
+import type { AskFocus } from './ask-focus.ts';
 
 /** What Ask is handed by the app (#37): the chat, and how to follow what an answer cites. */
 export interface AskSeat {
@@ -11,6 +12,8 @@ export interface AskSeat {
   readonly onOpenWeb: (url: string) => void;
   /** Follows a link in a proposed change, as the sidebar chat does. */
   readonly onFollowLink: (target: string) => void;
+  /** Whether, and in which pane, Ask was asked for the keys. */
+  readonly focus: AskFocus;
 }
 
 const AskSeatContext = createContext<AskSeat | null>(null);

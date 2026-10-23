@@ -61,6 +61,18 @@ export interface Workspace {
   readonly nextId: number;
   /** Tabs closed by hand, newest first, for ⌘⇧T. Not remembered across launches. */
   readonly closed: readonly Tab[];
+  /**
+   * Where ⌘J came from when it switched to a tab already on Ask (#37), so the
+   * next ⌘J goes back there. Not remembered across launches.
+   */
+  readonly askReturn?: AskReturn;
+}
+
+/** The tab ⌘J left for the Ask tab `ask`, in `pane`. */
+export interface AskReturn {
+  readonly pane: number;
+  readonly ask: TabId;
+  readonly from: TabId;
 }
 
 /** How many closed tabs ⌘⇧T can bring back; older ones are forgotten first. */

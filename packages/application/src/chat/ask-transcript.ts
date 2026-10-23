@@ -1,4 +1,4 @@
-import { citeAnswer, uncitedCount, type AnswerBlock } from '@dfai/domain';
+import { citeAnswer, isChatNoteText, uncitedCount, type AnswerBlock } from '@dfai/domain';
 import { listChats, type ChatSummary } from './chat-history.ts';
 import type { ChatItem, ChatState } from './chat-session.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -62,7 +62,24 @@ function lastQuestionAt(items: readonly ChatItem[]): number {
   return 0;
 }
 
-/** The questions asked most recently, newest first: the chats kept in `Chats/`, named for them. */
+/**
+ * The questions asked most recently, newest first: the chats kept in
+ * `Chats/`, named for their first question. Only chat notes (`type: chat`) —
+ * a note filed there by hand is not a question anyone asked. Read newest
+ * first, and only until enough are found.
+ */
 export async function recentQuestions({ fs }: { fs: VaultFsPort }): Promise<ChatSummary[]> {
-  return (await listChats({ fs })).slice(0, RECENT_QUESTIONS);
+  const listed = await listChats({ fs });
+  const found: ChatSummary[] = [];
+  for (let at = 0; at < listed.length && found.length < RECENT_QUESTIONS; at += RECENT_QUESTIONS) {
+    const batch = listed.slice(at, at + RECENT_QUESTIONS);
+    // One read for the batch; a note gone since the listing is left out of it.
+    const chats = new Set(
+      (await fs.readNotes(batch.map((chat) => chat.path)))
+        .filter((note) => isChatNoteText(note.text))
+        .map((note) => note.path),
+    );
+    found.push(...batch.filter((chat) => chats.has(chat.path)));
+  }
+  return found.slice(0, RECENT_QUESTIONS);
 }

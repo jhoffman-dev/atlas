@@ -1,3 +1,4 @@
+import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
@@ -61,6 +62,17 @@ export function chatNoteName(firstMessage: string): string {
 }
 
 /** The text a chat note starts as: its properties, and nothing said yet. */
+/**
+ * Whether a note's text is a chat's (#37): its frontmatter says
+ * `type: chat`, as `newChatNoteText` writes it. A note filed in `Chats/` by
+ * hand, with another type or none, is not a chat.
+ */
+export function isChatNoteText(text: string): boolean {
+  const { frontmatter } = splitFrontmatter(text);
+  if (frontmatter === null) return false;
+  return frontmatter.split(/\r?\n/).some((line) => /^type:\s*(["']?)chat\1\s*$/.test(line));
+}
+
 export function newChatNoteText({
   created,
   model,

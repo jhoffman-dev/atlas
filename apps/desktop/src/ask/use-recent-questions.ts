@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CHATS_FOLDER, type VaultPath } from '@dfai/domain';
 import { recentQuestions, type ChatSummary, type VaultFsPort } from '@dfai/application';
@@ -7,6 +7,17 @@ import { readAgain, scopedReadKey, scopedReadMeta } from '../reads/query-client.
 
 /** What the recent questions are made from: the notes in `Chats/`. */
 const RECENT_SCOPE = { folders: [CHATS_FOLDER] };
+
+const recentKey = (vault: string | null) => scopedReadKey(vault ?? '', 'recent-questions');
+
+export interface RecentQuestions {
+  /** The questions, or null while they are read. */
+  readonly recent: AskRecent;
+  /** Why they could not be read; null when they were, or are being. */
+  readonly problem: string | null;
+  /** Reads them again: a picked chat turned out to be gone. */
+  readonly refresh: () => void;
+}
 
 /**
  * The questions asked lately (#37), read once and kept (ADR-0040) until the
@@ -21,18 +32,25 @@ export function useRecentQuestions({
   fs: VaultFsPort;
   vault: string | null;
   chatPath: VaultPath | null;
-}): AskRecent {
+}): RecentQuestions {
   const client = useQueryClient();
-  const { data } = useQuery<ChatSummary[]>({
+  const { data, error } = useQuery<ChatSummary[]>({
     queryKey: recentKey(vault),
     queryFn: () => recentQuestions({ fs }),
     meta: scopedReadMeta(RECENT_SCOPE),
     enabled: vault !== null,
   });
+  const refresh = useCallback(() => void readAgain(client, recentKey(vault)), [client, vault]);
   useEffect(() => {
-    if (chatPath !== null) void readAgain(client, recentKey(vault));
-  }, [client, vault, chatPath]);
-  return data ?? null;
+    if (chatPath !== null) refresh();
+  }, [refresh, chatPath]);
+  return {
+    recent: data ?? (error === null ? null : []),
+    problem: error === null ? null : `The recent questions could not be read: ${messageOf(error)}`,
+    refresh,
+  };
 }
 
-const recentKey = (vault: string | null) => scopedReadKey(vault ?? '', 'recent-questions');
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

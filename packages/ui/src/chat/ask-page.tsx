@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import { Icon } from '../icon.tsx';
 import { PageAction, PageBar, type PageHistory } from '../page-bar.tsx';
 import { HiddenTitle } from '../page-head.tsx';
@@ -13,7 +13,17 @@ export interface AskPageProps {
   readonly model: string;
   readonly problem: ChatProblemView | null;
   readonly recent: AskRecent;
+  /** Why the recent questions could not be read, or a picked one opened; null when all is well. */
+  readonly recentProblem: string | null;
   readonly draft: ChatDraft;
+  /**
+   * A request that this Ask take the keys — ⌘J, the sidebar's Ask — by its
+   * number, or null. A tab brought back at launch, or in the pane not worked
+   * in, is not asked, and leaves the focus where it is.
+   */
+  readonly focusRequest: number | null;
+  /** Told once the box has the keys, so a request is taken once. */
+  readonly onFocusTaken: () => void;
   readonly actions: AskActions;
   readonly loadImage: (src: string) => Promise<string | null>;
   readonly onShowSidebar?: () => void;
@@ -30,8 +40,19 @@ const ASK_ROWS = 4;
  * the chat session decides, and the app reads the answers for citations.
  */
 export function AskPage(props: AskPageProps) {
-  const { state, actions } = props;
+  const { state, actions, focusRequest, onFocusTaken } = props;
   const asked = state.entries.length > 0;
+  const box = useRef<HTMLDivElement>(null);
+  const focusBox = () => box.current?.querySelector('textarea')?.focus();
+  useEffect(() => {
+    if (focusRequest === null) return;
+    box.current?.querySelector('textarea')?.focus();
+    onFocusTaken();
+  }, [focusRequest, onFocusTaken]);
+  const newQuestion = () => {
+    actions.onNewChat();
+    focusBox();
+  };
   return (
     <>
       <PageBar
@@ -43,7 +64,7 @@ export function AskPage(props: AskPageProps) {
               icon="plus"
               label="New question"
               title="New question"
-              onPress={actions.onNewChat}
+              onPress={newQuestion}
             />
           )
         }
@@ -51,31 +72,47 @@ export function AskPage(props: AskPageProps) {
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
-        <article className="page ask" aria-label="Ask" aria-busy={state.busy || undefined}>
+        <article
+          className={asked ? 'page ask' : 'page ask ask--start'}
+          aria-label="Ask"
+          aria-busy={state.busy || undefined}
+        >
           <HiddenTitle>Ask</HiddenTitle>
           {props.problem !== null && (
             <ProblemNotice problem={props.problem} onCopy={actions.onCopy} />
           )}
-          {asked ? <Conversation {...props} /> : <Start {...props} />}
+          {asked ? <Conversation {...props} /> : <Lede />}
+          {/* One box in one place, before and after the first question, so sending keeps the keys in it. */}
+          <AskBox box={box} draft={props.draft} actions={actions} busy={state.busy} />
+          {!asked && <StartFoot {...props} />}
         </article>
       </div>
     </>
   );
 }
 
-function Start({ draft, actions, recent, model, state }: AskPageProps) {
+function Lede() {
   return (
-    <div className="ask__start">
-      <p className="ask__lede">
-        <Icon name="spark" size={16} className="ask__spark" />
-        Ask anything in the vault. Each answer links to the notes it came from.
-      </p>
-      <AskBox draft={draft} actions={actions} busy={state.busy} />
+    <p className="ask__lede">
+      <Icon name="spark" size={16} className="ask__spark" />
+      Ask anything in the vault. Each answer links to the notes it came from.
+    </p>
+  );
+}
+
+function StartFoot({ actions, recent, recentProblem, model }: AskPageProps) {
+  return (
+    <>
       <p className="ask__model" title="The model, set in Settings → Claude">
         {model}
       </p>
+      {recentProblem !== null && (
+        <p className="ask__recent-problem" role="alert">
+          {recentProblem}
+        </p>
+      )}
       <Recent recent={recent} onPick={actions.onPickRecent} />
-    </div>
+    </>
   );
 }
 
@@ -99,7 +136,7 @@ function Recent({ recent, onPick }: { recent: AskRecent; onPick: (path: string) 
 }
 
 function Conversation(props: AskPageProps) {
-  const { state, actions, draft, loadImage } = props;
+  const { state, actions, loadImage } = props;
   const links = useMemo(
     () => ({ onFollowCitation: actions.onFollowCitation, onOpenWeb: actions.onOpenWeb }),
     [actions.onFollowCitation, actions.onOpenWeb],
@@ -133,24 +170,27 @@ function Conversation(props: AskPageProps) {
         )}
         {state.notice !== null && <p className="chat__notice">{state.notice}</p>}
       </div>
-      <AskBox draft={draft} actions={actions} busy={state.busy} />
     </>
   );
 }
 
 function AskBox({
+  box,
   draft,
   actions,
   busy,
-}: Pick<AskPageProps, 'draft' | 'actions'> & { busy: boolean }) {
+}: Pick<AskPageProps, 'draft' | 'actions'> & {
+  box: RefObject<HTMLDivElement | null>;
+  busy: boolean;
+}) {
   return (
-    <div className="ask__box">
+    <div className="ask__box" ref={box}>
       <Composer
         state={{ busy, context: null }}
         // Ask is opened on no page, so there is never a context chip to remove.
         actions={{ ...actions, onRemoveContext: () => {} }}
         draft={draft}
-        focusOnMount
+        focusOnMount={false}
         rows={ASK_ROWS}
       />
     </div>
@@ -214,9 +254,7 @@ function AnswerFoot({
   return (
     <div className="chat__actions ask__foot">
       {entry.checked && entry.uncited > 0 && (
-        <span className="ask__uncited-count">
-          {entry.uncited === 1 ? '1 paragraph not cited' : `${entry.uncited} paragraphs not cited`}
-        </span>
+        <span className="ask__uncited-count">{uncitedSaying(entry)}</span>
       )}
       <button
         type="button"
@@ -240,4 +278,24 @@ function AnswerFoot({
       )}
     </div>
   );
+}
+
+/** What a block of each kind is called in the answer's foot, one and many. */
+const BLOCK_NAMES: Readonly<Record<string, readonly [string, string]>> = {
+  paragraph: ['paragraph', 'paragraphs'],
+  item: ['list item', 'list items'],
+  quote: ['quote', 'quotes'],
+  table: ['table', 'tables'],
+};
+
+/** "1 paragraph not cited", "2 list items not cited", or "3 parts not cited" for a mix. */
+function uncitedSaying(entry: Extract<AskEntryView, { kind: 'answer' }>): string {
+  const kinds = new Set(
+    entry.blocks.filter((block) => block.citation === 'uncited').map((block) => block.kind),
+  );
+  const [one, many] = (kinds.size === 1 ? BLOCK_NAMES[[...kinds][0] ?? ''] : undefined) ?? [
+    'part',
+    'parts',
+  ];
+  return `${entry.uncited} ${entry.uncited === 1 ? one : many} not cited`;
 }

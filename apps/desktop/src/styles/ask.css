@@ -10,11 +10,15 @@
   max-width: 760px;
 }
 
-.ask__start {
-  display: flex;
-  flex-direction: column;
+.ask--start {
   gap: 10px;
-  margin-top: 8vh;
+  padding-top: 8vh;
+}
+
+.ask__recent-problem {
+  color: var(--ink-2);
+  font-size: var(--text-meta);
+  margin: 0;
 }
 
 .ask__lede {
@@ -248,4 +252,10 @@
   color: var(--ink-3);
   font-size: var(--text-meta);
   margin: 0;
+}
+
+/* The host a web link opens, beside a label that does not name it (#547). */
+.ask__host {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
 }

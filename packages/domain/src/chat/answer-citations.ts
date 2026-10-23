@@ -15,6 +15,8 @@ export interface AnswerBlock {
   /** A list item's marker as written (`-`, `2.`); null for every other block. */
   readonly marker: string | null;
   readonly depth: number;
+  /** Inside a `>` quote, as a list there is drawn. */
+  readonly quoted: boolean;
   /** What it says, in pieces. Fenced code is one code piece, as fenced; it is never read for links. */
   readonly inline: readonly AnswerInline[];
   readonly citation: AnswerCitation;
@@ -45,8 +47,8 @@ export function uncitedCount(blocks: readonly AnswerBlock[]): number {
   return blocks.filter((block) => block.citation === 'uncited').length;
 }
 
-function shape(block: RawAnswerBlock): Pick<AnswerBlock, 'kind' | 'marker' | 'depth'> {
-  return { kind: block.kind, marker: block.marker, depth: block.depth };
+function shape(block: RawAnswerBlock): Pick<AnswerBlock, 'kind' | 'marker' | 'depth' | 'quoted'> {
+  return { kind: block.kind, marker: block.marker, depth: block.depth, quoted: block.quoted };
 }
 
 function citationOf({
@@ -63,9 +65,20 @@ function citationOf({
   return leadsIntoList(block, next) ? 'exempt' : 'uncited';
 }
 
-/** `Three things are open:` with a list straight under it, deeper for an item. */
+/** Where one sentence ends and another begins: `.`, `!` or `?`, a closing mark or none, then space. */
+const SENTENCE_END = /[.!?]["'”’)\]]*\s+\S/;
+
+/**
+ * `Three things are open:` with a list straight under it, deeper for an item.
+ * One sentence only: `Mara moved the run to Friday. The steps were:` states a
+ * claim before its lead-in, and that claim must cite.
+ */
 function leadsIntoList(block: RawAnswerBlock, next: RawAnswerBlock | undefined): boolean {
-  if (block.kind !== 'paragraph' && block.kind !== 'item') return false;
-  if (!block.text.trimEnd().endsWith(':') || next?.kind !== 'item') return false;
-  return block.kind === 'paragraph' || next.depth > block.depth;
+  // A quoted paragraph is a quote block: it leads into the quoted list under it alike.
+  const prose = block.kind === 'paragraph' || (block.kind === 'quote' && block.quoted);
+  if (!prose && block.kind !== 'item') return false;
+  const text = block.text.trim();
+  if (!text.endsWith(':') || next?.kind !== 'item') return false;
+  if (SENTENCE_END.test(text.slice(0, -1))) return false;
+  return prose || next.depth > block.depth;
 }

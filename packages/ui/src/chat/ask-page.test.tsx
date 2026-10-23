@@ -32,22 +32,35 @@ const answer = (text: string, checked = true): AskAnswerView => {
 
 const IDLE: AskState = { entries: [], busy: false, error: null, notice: null };
 
+const BASE = {
+  model: 'claude-opus-5-5',
+  problem: null,
+  recent: [],
+  recentProblem: null,
+  focusRequest: null,
+  loadImage: async () => null,
+} as const;
+
 function page(state: Partial<AskState> = {}, extra: Partial<AskPageProps> = {}) {
   const handlers = actions();
   const draft = { text: '', onChange: vi.fn() };
-  render(
-    <AskPage
-      state={{ ...IDLE, ...state }}
-      model="claude-opus-5-5"
-      problem={null}
-      recent={[]}
-      draft={draft}
-      actions={handlers}
-      loadImage={async () => null}
-      {...extra}
-    />,
-  );
-  return { handlers, draft };
+  const onFocusTaken = vi.fn();
+  const props = (more: Partial<AskPageProps> = {}): AskPageProps => ({
+    ...BASE,
+    state: { ...IDLE, ...state },
+    draft,
+    actions: handlers,
+    onFocusTaken,
+    ...extra,
+    ...more,
+  });
+  const { rerender } = render(<AskPage {...props()} />);
+  return {
+    handlers,
+    draft,
+    onFocusTaken,
+    rerender: (more: Partial<AskPageProps>) => rerender(<AskPage {...props(more)} />),
+  };
 }
 
 const asked = (text: string, checked = true): Partial<AskState> => ({
@@ -55,7 +68,7 @@ const asked = (text: string, checked = true): Partial<AskState> => ({
 });
 
 describe('AskPage before a question', () => {
-  it('offers a big box with the keys in it, and lists the recent questions to open again', async () => {
+  it('offers a big box, leaves the keys where they are unasked, and lists the recent questions', async () => {
     const { handlers } = page(
       {},
       {
@@ -66,7 +79,8 @@ describe('AskPage before a question', () => {
       },
     );
     const box = screen.getByRole('textbox', { name: 'Ask Claude' });
-    expect(document.activeElement).toBe(box);
+    // A tab brought back at launch, or in the pane not worked in, takes no keys (#547).
+    expect(document.activeElement).not.toBe(box);
     expect(box.getAttribute('rows')).toBe('4');
 
     const recent = screen.getByRole('navigation', { name: 'Recent questions' });
@@ -90,7 +104,61 @@ describe('AskPage before a question', () => {
   });
 });
 
+describe('AskPage and the keys (#547)', () => {
+  it('takes the keys when asked, once per request, and says it took them', () => {
+    const { onFocusTaken, rerender } = page();
+    const box = screen.getByRole('textbox', { name: 'Ask Claude' });
+    expect(onFocusTaken).not.toHaveBeenCalled();
+    rerender({ focusRequest: 1 });
+    expect(document.activeElement).toBe(box);
+    expect(onFocusTaken).toHaveBeenCalledTimes(1);
+    box.blur();
+    rerender({ focusRequest: 1 });
+    expect(document.activeElement).not.toBe(box);
+    rerender({ focusRequest: 2 });
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('takes the keys on mount only when it was asked to', () => {
+    page({}, { focusRequest: 7 });
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Ask Claude' }));
+  });
+
+  it('keeps the same box, and its keys, as the first question turns the start into a conversation', () => {
+    const { rerender } = page();
+    const box = screen.getByRole('textbox', { name: 'Ask Claude' });
+    box.focus();
+    rerender({ state: { ...IDLE, ...asked('Hi [[A]]') } });
+    expect(screen.getByRole('textbox', { name: 'Ask Claude' })).toBe(box);
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('puts the keys in the box for a new question', async () => {
+    const { handlers } = page(asked('Hi [[A]]'));
+    await userEvent.click(screen.getByRole('button', { name: 'New question' }));
+    expect(handlers.onNewChat).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Ask Claude' }));
+  });
+
+  it('says why the recent questions could not be read or opened', () => {
+    page({}, { recentProblem: 'That chat could not be opened: gone' });
+    expect(screen.getByRole('alert').textContent).toBe('That chat could not be opened: gone');
+  });
+});
+
 describe('AskPage answers', () => {
+  it('names the kind of block not cited in the foot', () => {
+    page(asked('- One\n- Two\n- Three [[A]]'));
+    expect(screen.getByText('2 list items not cited')).toBeDefined();
+  });
+
+  it('draws a list in a quote inside the quote, marking the item that cites nothing', () => {
+    page(asked('> Said:\n> - One [[A]]\n> - Two'));
+    const quote = screen.getByRole('region', { name: 'Answer' }).querySelector('blockquote');
+    expect(quote?.querySelectorAll('li')).toHaveLength(2);
+    expect(quote?.querySelectorAll('[data-uncited]')).toHaveLength(1);
+  });
+
   it('draws a citation as a chip that follows its link, ⌘-click in a new tab', async () => {
     const { handlers } = page(asked('Mara wants a rollback plan [[Kickoff#^t0003]].'));
     const cite = screen.getByRole('button', { name: 'Kickoff' });
@@ -113,7 +181,7 @@ describe('AskPage answers', () => {
 
   it('counts more than one uncited paragraph', () => {
     page(asked('One.\n\n- Two\n- Three [[A]]'));
-    expect(screen.getByText('2 paragraphs not cited')).toBeDefined();
+    expect(screen.getByText('2 parts not cited')).toBeDefined();
     expect(screen.getAllByText('not cited')).toHaveLength(2);
   });
 
@@ -138,7 +206,8 @@ describe('AskPage answers', () => {
       asked('[spec](https://example.com/spec) and [run](javascript:alert(1)) [[A]]'),
     );
     const links = screen.getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['spec']);
+    // The host the link opens is shown beside a label that does not name it (#547).
+    expect(links.map((link) => link.textContent)).toEqual(['spec (example.com)']);
     await userEvent.click(links[0] as HTMLElement);
     expect(handlers.onOpenWeb).toHaveBeenCalledWith('https://example.com/spec');
     expect(screen.getByRole('region', { name: 'Answer' }).textContent).toContain(

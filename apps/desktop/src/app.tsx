@@ -139,6 +139,7 @@ import { ActiveSidebar } from './workspace/active-sidebar.tsx';
 import { browserWorkspaceStore } from './workspace/browser-workspace-store.ts';
 import { followLink, openNote as openNotePlace, openNoteAtBlock } from './workspace/open-place.ts';
 import { PanesContainer } from './workspace/panes-container.tsx';
+import { createAskFocus } from './ask/ask-focus.ts';
 import { AskSeatProvider, type AskSeat } from './ask/ask-seat.tsx';
 import {
   closeActiveTab,
@@ -375,11 +376,6 @@ export { localToday };
  * note being edited, or else the tree — somewhere a keyboard can carry on
  * from, rather than `<body>`.
  */
-/** ⌘J on an Ask with nowhere to go back to: the keys go to its question box (#37). */
-function focusAskBox(): void {
-  document.querySelector<HTMLElement>('.pane--focused .ask textarea')?.focus();
-}
-
 function focusFallback(): HTMLElement | null {
   return (
     document.querySelector<HTMLElement>('.pane--focused [contenteditable="true"]') ??
@@ -866,9 +862,14 @@ function AppWindow({
     (place: PagePlace) => openPlace(workspace, place, 'here'),
     [workspace],
   );
-  const openAsk = useCallback(() => openPlace(workspace, ASK_PLACE, 'here'), [workspace]);
+  // Ask is asked for the keys only by ⌘J and the sidebar's Ask, in the pane they land in (#37).
+  const [askFocus] = useState(createAskFocus);
+  const openAsk = useCallback(() => {
+    openPlace(workspace, ASK_PLACE, 'here');
+    askFocus.request(workspaceNow(workspace).focused);
+  }, [workspace, askFocus]);
   // The aside folds where the window is too narrow for it beside the left
-  // sidebar (collapse.ts). Asking for it there — ⌘J, the bar's button, ⌥⌘\ —
+  // sidebar (collapse.ts). Asking for it there — ⇧⌘J, the bar's button, ⌥⌘\ —
   // hides the left sidebar instead, where that makes room (not under 796px,
   // where the aside folds on its own: the sidebar then stays), so Claude is
   // reachable in a 1000px window; ⌘\ brings the sidebar back. The store is
@@ -1104,7 +1105,7 @@ function AppWindow({
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
-  // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings
+  // The chat's seat is the aside's Claude tab (plan question 4): ⇧⌘J brings
   // the aside up on it. Its toggle and close are one function each for the
   // window's life — every page's bar is handed the toggle (#325) — reading
   // the store at the press rather than closing over what was shown.
@@ -1766,7 +1767,7 @@ function AppWindow({
     show: showOverlay,
     capture: askForCapture,
     ask: () => {
-      if (!toggleAsk(workspace)) focusAskBox();
+      if (toggleAsk(workspace)) askFocus.request(workspaceNow(workspace).focused);
     },
     toggleChat: chat.toggle,
     toggleAside: () =>
@@ -1984,8 +1985,9 @@ function AppWindow({
       onFollowCitation: followSource,
       onOpenWeb: openWebLink,
       onFollowLink: followInFocusedPane,
+      focus: askFocus,
     }),
-    [chat, followSource, openWebLink, followInFocusedPane],
+    [chat, followSource, openWebLink, followInFocusedPane, askFocus],
   );
   const inboxWiring = useMemo(
     () => ({

@@ -42,7 +42,7 @@ export {
   tabPlace,
   unpinTab,
 } from './workspace.ts';
-export type { Pane, Tab, TabId, Workspace } from './workspace.ts';
+export type { AskReturn, Pane, Tab, TabId, Workspace } from './workspace.ts';
 export {
   parseRememberedWorkspace,
   rememberWorkspace,

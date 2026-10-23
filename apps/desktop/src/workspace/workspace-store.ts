@@ -331,17 +331,16 @@ export function focusPane(store: WorkspaceStore, pane: number): void {
   change(store, (ws) => focusPaneInWorkspace(ws, pane));
 }
 
-/** Back in the focused pane's shown tab: ⌘[ and the mouse's back button. */
 /**
- * ⌘J (#37): Ask, or back from it to where you were. False when it stayed on
- * an Ask with nowhere to go back to, where the question box takes the keys.
+ * ⌘J (#37): Ask, or back from it to where you were. True when Ask is what
+ * the focused pane shows after it, where the question box takes the keys.
  */
 export function toggleAsk(store: WorkspaceStore): boolean {
-  const before = workspaceNow(store);
   change(store, askShortcut);
-  return workspaceNow(store) !== before;
+  return activePlace(workspaceNow(store))?.kind === 'ask';
 }
 
+/** Back in the focused pane's shown tab: ⌘[ and the mouse's back button. */
 export function goBack(store: WorkspaceStore): void {
   change(store, goBackInTab);
 }

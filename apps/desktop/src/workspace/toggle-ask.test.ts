@@ -24,15 +24,15 @@ describe('toggleAsk (⌘J, #37)', () => {
     write.mockClear();
     expect(toggleAsk(made)).toBe(true);
     expect(activePlace(workspaceNow(made))).toEqual(ASK_PLACE);
-    expect(toggleAsk(made)).toBe(true);
+    expect(toggleAsk(made)).toBe(false);
     expect(activePlace(workspaceNow(made))).toEqual(PLAN);
     expect(write).toHaveBeenCalledTimes(2);
   });
 
-  it('says it stayed on an Ask with nowhere to go back to', () => {
+  it('says Ask is shown when it stayed on an Ask with nowhere to go back to', () => {
     const { made } = store();
     expect(toggleAsk(made)).toBe(true);
-    expect(toggleAsk(made)).toBe(false);
+    expect(toggleAsk(made)).toBe(true);
     expect(activePlace(workspaceNow(made))).toEqual(ASK_PLACE);
   });
 });

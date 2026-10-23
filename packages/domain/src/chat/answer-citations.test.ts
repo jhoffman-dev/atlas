@@ -176,9 +176,23 @@ describe('citeAnswer: the pieces of a block', () => {
     ]);
   });
 
-  it('names a link to a place in this note by the link', () => {
-    const [block] = citeAnswer('See [[#^abc]].');
-    expect(cites(block)).toEqual([{ kind: 'cite', link: '[[#^abc]]', label: '[[#^abc]]' }]);
+  it('leaves a link to a place in no note as its text: Ask is on no note to open (#547)', () => {
+    const [block] = citeAnswer('See [[#^abc]] and [[]].');
+    expect(block?.citation).toBe('uncited');
+    expect(block?.inline).toEqual([{ kind: 'text', text: 'See [[#^abc]] and [[]].' }]);
+  });
+
+  it('takes what draws nothing out of a citation’s label, keeping the link as written', () => {
+    const [block] = citeAnswer('From [[Kick\u200Boff#^t1]] and [[Plan|\u2066the plan\u2069]].');
+    expect(cites(block)).toEqual([
+      { kind: 'cite', link: '[[Kick\u200Boff#^t1]]', label: 'Kickoff' },
+      { kind: 'cite', link: '[[Plan|\u2066the plan\u2069]]', label: 'the plan' },
+    ]);
+  });
+
+  it('names a citation by its note when its alias is only invisible characters', () => {
+    const [block] = citeAnswer('From [[Plan|\u200B]].');
+    expect(cites(block)).toEqual([{ kind: 'cite', link: '[[Plan|\u200B]]', label: 'Plan' }]);
   });
 
   it('reads a markdown link to https as a web link, and anything else as the text it is', () => {
@@ -186,7 +200,7 @@ describe('citeAnswer: the pieces of a block', () => {
       '[spec](https://example.com/spec) [run](javascript:alert(1)) [old](http://example.com) [n](Plan.md)',
     );
     expect(block?.inline).toEqual([
-      { kind: 'web', url: 'https://example.com/spec', label: 'spec' },
+      { kind: 'web', url: 'https://example.com/spec', label: 'spec', host: 'example.com' },
       { kind: 'text', text: ' [run](javascript:alert(1)) [old](http://example.com) [n](Plan.md)' },
     ]);
   });
@@ -195,7 +209,12 @@ describe('citeAnswer: the pieces of a block', () => {
     const [block] = citeAnswer('Go to https://example.com/a?b=1. Then stop.');
     expect(block?.inline).toEqual([
       { kind: 'text', text: 'Go to ' },
-      { kind: 'web', url: 'https://example.com/a?b=1', label: 'https://example.com/a?b=1' },
+      {
+        kind: 'web',
+        url: 'https://example.com/a?b=1',
+        label: 'https://example.com/a?b=1',
+        host: null,
+      },
       { kind: 'text', text: '. Then stop.' },
     ]);
   });
@@ -235,6 +254,56 @@ describe('citeAnswer: the pieces of a block', () => {
   });
 });
 
+describe('web links, read by hand (#547)', () => {
+  const webOf = (text: string) =>
+    (citeAnswer(text)[0]?.inline ?? []).filter((piece) => piece.kind === 'web');
+
+  it('keeps a pair of brackets in a bare address and in a markdown link', () => {
+    const url = 'https://en.wikipedia.org/wiki/Foo_(bar)';
+    expect(webOf(`See ${url}.`).map((piece) => piece.kind === 'web' && piece.url)).toEqual([url]);
+    expect(webOf(`See [Foo](${url}).`).map((piece) => piece.kind === 'web' && piece.url)).toEqual([
+      url,
+    ]);
+  });
+
+  it('leaves a closing bracket the address did not open outside it', () => {
+    const [block] = citeAnswer('(see https://example.com/a) [[A]]');
+    expect(block?.inline[1]).toMatchObject({ kind: 'web', url: 'https://example.com/a' });
+    expect(block?.inline[2]).toMatchObject({ kind: 'text', text: ') ' });
+  });
+
+  it('draws an autolink without its angle brackets', () => {
+    const [block] = citeAnswer('Open <https://example.com/x> now.');
+    expect(block?.inline).toEqual([
+      { kind: 'text', text: 'Open ' },
+      { kind: 'web', url: 'https://example.com/x', label: 'https://example.com/x', host: null },
+      { kind: 'text', text: ' now.' },
+    ]);
+  });
+
+  it('shows the host beside a label that does not name it, and not beside one that does', () => {
+    expect(webOf('[the payroll portal](https://evil.example.com/p)')).toEqual([
+      {
+        kind: 'web',
+        url: 'https://evil.example.com/p',
+        label: 'the payroll portal',
+        host: 'evil.example.com',
+      },
+    ]);
+    expect(webOf('[docs at example.com](https://example.com/d)')[0]).toMatchObject({ host: null });
+  });
+
+  it('reads the address in a markdown link that is not one as a bare address, its own text shown', () => {
+    const bare = {
+      kind: 'web',
+      url: 'https://example.com',
+      label: 'https://example.com',
+      host: null,
+    };
+    expect(webOf('[](https://example.com) and [x](https://example.com')).toEqual([bare, bare]);
+  });
+});
+
 describe('isWebAddress', () => {
   it('opens only https with a host', () => {
     expect(isWebAddress('https://example.com')).toBe(true);
@@ -242,5 +311,57 @@ describe('isWebAddress', () => {
     expect(isWebAddress('javascript:alert(1)')).toBe(false);
     expect(isWebAddress('https://')).toBe(false);
     expect(isWebAddress('file:///etc/passwd')).toBe(false);
+  });
+
+  it('opens only an address written as it parses, with no user part (#547)', () => {
+    expect(isWebAddress('https://example.com/a?b=1#c')).toBe(true);
+    expect(isWebAddress('https://user@example.com')).toBe(false);
+    expect(isWebAddress('https://:pw@example.com')).toBe(false);
+    expect(isWebAddress('https://EXAMPLE.com')).toBe(false);
+    expect(isWebAddress('https://example.com/a b')).toBe(false);
+    expect(isWebAddress('https:///example.com')).toBe(false);
+  });
+});
+
+describe('citeAnswer: CommonMark’s edges (#547)', () => {
+  const judgedOf = (answer: string) =>
+    citeAnswer(answer).map((block) => `${block.kind}:${block.citation}`);
+
+  it('makes a paragraph over a line of dashes a heading, and a lone line of dashes a rule', () => {
+    expect(judgedOf('Open loops\n---\n\nOne [[A]]')).toEqual(['heading:exempt', 'paragraph:cited']);
+    expect(citeAnswer('Open loops\n---')[0]?.inline).toEqual([
+      { kind: 'text', text: 'Open loops' },
+    ]);
+    expect(judgedOf('---\n\nOne [[A]]')).toEqual(['rule:exempt', 'paragraph:cited']);
+  });
+
+  it('lets a bullet or a 1. with words interrupt a paragraph, and not an empty bullet', () => {
+    expect(judgedOf('Steps [[A]]\n1. One [[B]]')).toEqual(['paragraph:cited', 'item:cited']);
+    expect(judgedOf('Steps [[A]]\n- One [[B]]')).toEqual(['paragraph:cited', 'item:cited']);
+    // `-` alone under a paragraph is a setext heading; an empty `*` interrupts nothing.
+    expect(judgedOf('Steps [[A]]\n*')).toEqual(['paragraph:cited']);
+  });
+
+  it('opens a backtick fence with an info string, and a tilde fence whose info holds a backtick', () => {
+    expect(judgedOf('```ts\nx\n```')).toEqual(['code:exempt']);
+    expect(judgedOf('~~~ a`b\nx\n~~~')).toEqual(['code:exempt']);
+  });
+
+  it('marks the blocks of a quoted list as quoted, and keeps a quote without a list one block', () => {
+    const blocks = citeAnswer('> Said by Mara:\n> - One [[A]]\n> - Two');
+    expect(blocks.map((block) => [block.kind, block.quoted, block.citation])).toEqual([
+      ['quote', true, 'exempt'],
+      ['item', true, 'cited'],
+      ['item', true, 'uncited'],
+    ]);
+    expect(citeAnswer('> One\n>\n> Two [[A]]').map((block) => block.quoted)).toEqual([false]);
+  });
+
+  it('judges a claim before a lead-in, and passes a lead-in with no claim before it', () => {
+    expect(judgedOf('Moved to Friday. Steps:\n- One [[A]]')[0]).toBe('paragraph:uncited');
+    expect(judgedOf('Moved to Friday (see "Plan.") Steps:\n- One [[A]]')[0]).toBe(
+      'paragraph:uncited',
+    );
+    expect(judgedOf('The steps for v2.1 were:\n- One [[A]]')[0]).toBe('paragraph:exempt');
   });
 });

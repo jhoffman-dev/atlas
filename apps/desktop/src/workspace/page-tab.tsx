@@ -72,16 +72,21 @@ function usePageTab({ wiring, pane, tab, place }: PageTabProps) {
   };
   const pages: PageWiringContext = { pages: wiring.pages, pane: wiring.pane, overlays, reveals };
   return (
-    <div className="pane__tab">{containerFor({ place, wiring: pages, tabId: tab.id, chrome })}</div>
+    <div className="pane__tab">
+      {containerFor({ place, wiring: pages, tabId: tab.id, chrome, pane })}
+    </div>
   );
 }
 
 /** The page a place names, by its kind, in its container. */
 function containerFor({
   place,
+  pane,
   ...props
 }: {
   place: PagePlace;
+  /** The pane the tab is in: Ask takes the keys only when its own pane asked (#37). */
+  pane: number;
   wiring: PageWiringContext;
   tabId: TabId;
   chrome: PageChrome;
@@ -116,7 +121,7 @@ function containerFor({
     case 'highlights':
       return <HighlightsContainer {...props} />;
     case 'ask':
-      return <AskContainer {...props} />;
+      return <AskContainer {...props} pane={pane} />;
     case 'document':
       return <DocumentContainer {...props} path={place.path} />;
   }

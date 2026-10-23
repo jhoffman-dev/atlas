@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isChatNoteText,
   appendChatEntries,
   chatNoteName,
   newChatNoteText,
@@ -89,5 +90,21 @@ describe('noteLabelForNotice', () => {
     expect(noteLabelForNotice(createVaultPath('chats/Should Mara Quill get a raise.md'))).toBe(
       'a chat note',
     );
+  });
+});
+
+describe('isChatNoteText (#37)', () => {
+  it('is a chat when the frontmatter says type: chat, as a new chat note is written', () => {
+    expect(
+      isChatNoteText(newChatNoteText({ created: '2026-10-23 09:00', model: 'm', context: null })),
+    ).toBe(true);
+    expect(isChatNoteText('---\ntype: "chat"\n---\n')).toBe(true);
+  });
+
+  it('is not a chat with another type, none, or the word only in the body', () => {
+    expect(isChatNoteText('---\ntype: reference\n---\n\n# Chat etiquette\n')).toBe(false);
+    expect(isChatNoteText('# Notes\n\ntype: chat\n')).toBe(false);
+    expect(isChatNoteText('---\ntitle: chat\n---\n')).toBe(false);
+    expect(isChatNoteText('---\ntype: chats\n---\n')).toBe(false);
   });
 });

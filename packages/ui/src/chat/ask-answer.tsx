@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { Fragment, memo, type ReactNode } from 'react';
 import type { AnswerBlock, AnswerInline } from '@dfai/domain';
 import { openHowFrom, type OpenHow } from '../open-how.ts';
 import type { AskAnswerView } from './ask-view.ts';
@@ -22,10 +22,35 @@ export const AskAnswer = memo(function AskAnswer({
 }) {
   return (
     <div className="ask__answer">
-      {groupItems(answer.blocks).map((run, at) => drawRun({ run, at, answer, links }))}
+      {quotedRuns(answer.blocks).map(({ quoted, blocks }, at) => {
+        const drawn = groupItems(blocks).map((run, index) =>
+          drawRun({ run, at: index, answer, links }),
+        );
+        // A list in a quote is drawn in it, each item judged on its own.
+        return quoted ? (
+          <blockquote key={at} className="ask__quote ask__quote--list">
+            {drawn}
+          </blockquote>
+        ) : (
+          <Fragment key={at}>{drawn}</Fragment>
+        );
+      })}
     </div>
   );
 });
+
+/** The blocks, with each run of blocks from one quoted list gathered, so the quote is drawn as one. */
+function quotedRuns(
+  blocks: readonly AnswerBlock[],
+): { readonly quoted: boolean; readonly blocks: readonly AnswerBlock[] }[] {
+  const runs: { quoted: boolean; blocks: AnswerBlock[] }[] = [];
+  for (const block of blocks) {
+    const last = runs.at(-1);
+    if (last !== undefined && last.quoted === block.quoted) last.blocks.push(block);
+    else runs.push({ quoted: block.quoted, blocks: [block] });
+  }
+  return runs;
+}
 
 /** Blocks with each run of list items gathered, so a list is drawn as one. */
 type Run = { readonly list: readonly AnswerBlock[] } | { readonly block: AnswerBlock };
@@ -96,6 +121,15 @@ function Block({
         </pre>
       );
     case 'quote':
+      // A quoted paragraph is already inside the quote it was written in.
+      if (block.quoted) {
+        return (
+          <p className="ask__para" {...mark}>
+            {pieces}
+            <Uncited block={block} checked={checked} />
+          </p>
+        );
+      }
       return (
         <blockquote className="ask__quote" {...mark}>
           {pieces}
@@ -168,6 +202,7 @@ function Piece({ piece, links }: { piece: AnswerInline; links: AnswerLinks }) {
           }}
         >
           {piece.label}
+          {piece.host !== null && <span className="ask__host"> ({piece.host})</span>}
         </a>
       );
   }
