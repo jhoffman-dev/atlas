@@ -18,7 +18,6 @@ import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';
 import type { ScriptedRound } from '../testing/fake-model.ts';
 import { runAutomation, type AutomationPorts } from './run-automation.ts';
-import { undoLastRun } from './undo-last-run.ts';
 import type { VaultGuard } from './vault-guard.ts';
 
 const FRIDAY = '2026-10-23';
@@ -39,7 +38,6 @@ const NOTES = {
   // Overdue on every date these tests use, so a draft always has a note to cite.
   [OVERDUE]: jsonNote({ type: 'task', status: 'next-action', due: '2026-10-01' }),
 };
-const LOG = logPathFor(RULE.id);
 
 const says = (value: unknown): ModelEvent[] => [{ type: 'text', text: JSON.stringify(value) }];
 const draft = (title = 'Weekly review'): ModelEvent[] =>
@@ -61,14 +59,14 @@ function setUp(rounds: readonly ScriptedRound[], rule: AutomationRule = RULE) {
   const refusingFs: AutomationPorts['fs'] = {
     ...fs,
     createNote: async (args) => {
-      if (args.path === LOG && failLogWrites > 0) {
+      if (args.path === logPathFor(rule.id) && failLogWrites > 0) {
         failLogWrites -= 1;
         throw new Error('the disk is full');
       }
       return fs.createNote(args);
     },
     writeTextFile: async (args) => {
-      if (args.path === LOG && failLogWrites > 0) {
+      if (args.path === logPathFor(rule.id) && failLogWrites > 0) {
         failLogWrites -= 1;
         throw new Error('the disk is full');
       }
@@ -97,14 +95,12 @@ function setUp(rounds: readonly ScriptedRound[], rule: AutomationRule = RULE) {
   return {
     run,
     vault,
-    undo: () =>
-      undoLastRun({ ports, rule, clock: { ...clock }, guard: GUARD, activity: recordingActivity() }),
     notesIn,
     asked: () => claude.fake.requests.length,
     refuseLogOnce: () => {
       failLogWrites = 1;
     },
-    logOf: (): LogEntry[] => parseRunLog(vault.files.get(LOG) ?? ''),
+    logOf: (): LogEntry[] => parseRunLog(vault.files.get(logPathFor(rule.id)) ?? ''),
   };
 }
 
@@ -165,7 +161,7 @@ describe('a daily brief run by hand all day', () => {
   });
 });
 
-describe('a draft deleted, undone or asked for by hand (review of #539, D4)', () => {
+describe('a draft deleted or asked for by hand (review of #539, D4)', () => {
   it('does not write a deleted draft again on a scheduled run, though its note is gone', async () => {
     const { run, vault, notesIn, asked } = setUp([draft(), draft()]);
     await run({ time: '15:00:00' });
@@ -185,16 +181,13 @@ describe('a draft deleted, undone or asked for by hand (review of #539, D4)', ()
     expect(asked()).toBe(2);
   });
 
-  it('writes a fresh draft by hand after the run that made it is undone, and a scheduled run does not', async () => {
-    const { run, undo, notesIn, asked } = setUp([draft(), draft()]);
+  it('does not write a draft again on a scheduled run in the week it was made, whoever took it away', async () => {
+    const { run, vault, notesIn, asked } = setUp([draft(), draft()]);
     await run({ time: '15:00:00' });
-    expect(await undo()).not.toBeNull();
-    expect(notesIn('Reviews')).toHaveLength(0);
+    await vault.ports.fs.trashEntry({ path: createVaultPath(notesIn('Reviews')[0]!) });
     await run({ time: '15:30:00' });
+    await run({ day: '2026-10-25', time: '15:30:00' });
     expect(asked()).toBe(1);
-    await run({ time: '15:40:00' }, 'hand');
-    expect(notesIn('Reviews')).toHaveLength(1);
-    expect(asked()).toBe(2);
   });
 
   it('takes a run by hand on Wednesday for the week it is in, once, and Monday for the next', async () => {

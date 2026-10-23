@@ -26,6 +26,7 @@ import {
   NOTE_ANSWER_INSTRUCTIONS,
   noteTitle,
   nothingCitedProblem,
+  periodProperties,
   partSummaries,
   proposalSchemaNamed,
   readDigestReduce,
@@ -46,12 +47,14 @@ import {
   type ClaudeRunInfo,
   type DoneAction,
   type DroppedItem,
+  type LocalTime,
   type MeetingTally,
   type ModelMessage,
   type NewProposal,
   type NoteCut,
   type NoteSkipped,
   type ProjectChoice,
+  type OutputPeriod,
   type PromptData,
   type RegisteredProposalSchema,
   type ReviewDraftData,
@@ -219,6 +222,12 @@ interface StepArgs extends ProposalWritePorts {
    * it could not be read, and then every meeting is taken for a backfill.
    */
   readonly ruleSince?: number | null;
+  /**
+   * For a step that writes one note a period (#40): the period it writes for
+   * and the wall clock now. The note carries the period in its own properties,
+   * and a step handed data counts the week from it.
+   */
+  readonly period?: { readonly period: OutputPeriod; readonly at: LocalTime };
 }
 
 /**
@@ -334,7 +343,7 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   try {
     const answered =
       output.kind === 'note'
-        ? await planNoteAnswer({ ...asking, output, notes, counted, dropped })
+        ? await planNoteAnswer({ ...asking, output, notes, counted, dropped, adjusted })
         : await planProposalAnswers({
             ...asking,
             schema: output.schema,
@@ -666,6 +675,7 @@ async function planNoteAnswer({
   notes,
   counted,
   dropped,
+  adjusted,
   ...asking
 }: Asking & {
   output: Extract<StepOutput, { kind: 'note' }>;
@@ -673,6 +683,8 @@ async function planNoteAnswer({
   counted: () => void;
   /** Gains the list items left out for citing nothing. */
   dropped: DroppedItem[];
+  /** Gains the list items kept after a link to a note it was not given was written as text. */
+  adjusted: DroppedItem[];
 }): Promise<AnswerPlanned> {
   const given = await readStepData(asking);
   const data = given?.data ?? [];
@@ -681,20 +693,29 @@ async function planNoteAnswer({
   let { body } = note.value;
   if (given !== null) {
     const sources = new Set<string>([...given.sources, ...notes.map(({ path }) => path)]);
-    const cited = keepCitedItems({ body, sources });
+    const cited = keepCitedItems({ body, sources, plain: given.plain });
     const problem = nothingCitedProblem(cited);
     if (problem !== null) return asking.fail(unreadWords(problem));
     dropped.push(...cited.dropped);
+    adjusted.push(...cited.stripped);
     body = cited.body;
   }
   const planned = await planNote({
     ports: asking,
     notePaths: asking.notePaths,
     folder: asking.output.folder,
-    note: { ...note.value, body },
+    note: {
+      ...note.value,
+      body,
+      properties: { ...note.value.properties, ...stamp(asking.period) },
+    },
   });
   return { planned: [planned], proposed: 0 };
 }
+
+/** The properties that say which period a note was made for, so the note itself can say so. */
+const stamp = (period: StepArgs['period']): Record<string, string> =>
+  period === undefined ? {} : periodProperties(period.period);
 
 /** What DFAI reads and hands the step beside its notes; null for a step handed none. */
 async function readStepData({
@@ -703,9 +724,19 @@ async function readStepData({
   fs,
   markdown,
   ports,
+  period,
 }: Asking): Promise<ReviewDraftData | null> {
   if (action.data === undefined) return null;
-  return readReviewDraft({ index, fs, markdown, clock: ports.clock });
+  const clock = ports.clock;
+  // Counted from the slot the draft is for; a step with no period counts the week up to now.
+  const wall = period?.at ?? `${clock.today()}T00:00:00`;
+  return readReviewDraft({
+    index,
+    fs,
+    markdown,
+    clock,
+    week: { slot: period?.period.slot ?? wall, localNow: wall },
+  });
 }
 
 /** What every proposal answer of a run is read with. */

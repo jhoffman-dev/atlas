@@ -6,13 +6,10 @@ import {
   movedHandledNotes,
   noteRunsHeldUntil,
   noteTriggerHears,
-  outputPeriod,
-  periodNoteMade,
   readsData,
   storedAnswerFor,
   triggeringVersions,
   unhandledVersions,
-  writesOneNoteAPeriod,
   type AutomationPlan,
   type AutomationRule,
   type DoneAction,
@@ -37,6 +34,7 @@ import { changeProperties, type PropertyOutcome } from './apply-changes.ts';
 import { withHandledKeys } from './handled-keys.ts';
 import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
 import { holdUnlessFresh, type FreshPullCheck } from './fresh-pull-hold.ts';
+import { periodStateOf } from './period-state.ts';
 import { heldEntries } from '../index/refresh-index.ts';
 import { allowanceEntries, askedThisHour } from './ask-allowance.ts';
 import { appendForRun, reported } from './automation-activity.ts';
@@ -431,11 +429,25 @@ async function askClaude({
   append: (entry: LogEntry, stored?: readonly StoredAnswerDraft[]) => Promise<void>;
 }): Promise<LogEntry> {
   const { plan } = target;
-  const period = await periodToWrite(run.rule, ports.fs, at);
+  const { entries } = await readRuleLog(ports.fs, run.rule);
+  const period = await periodStateOf({
+    rule: run.rule,
+    entries,
+    at,
+    trigger,
+    fs: ports.fs,
+    markdown: ports.markdown,
+    notePaths: ports.notePaths,
+  });
   if (period?.made === true) {
     const found = ranEmpty({ at, trigger, plan, period: period.period });
     await log(found);
     return found;
+  }
+  if (period !== null && unchangedSinceLastNote({ entries, target, trigger, action })) {
+    const unchanged = ranUnchanged({ at, trigger, target });
+    await log(unchanged);
+    return unchanged;
   }
   const hold = () =>
     holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths: plan.paths });
@@ -460,6 +472,7 @@ async function askClaude({
       askedThisHour: spent,
       storedAnswer: (key) => storedAnswerFor(ledger, key),
       ruleSince: declared ? await savedAt(ports.fs, run.rule.path) : null,
+      ...(period !== null && { period: { period: period.period, at } }),
     });
     const entry: LogEntry = {
       kind: 'run',
@@ -499,19 +512,54 @@ async function askClaude({
 }
 
 /**
- * The period a run of a rule that writes one note a period writes for, and
- * whether its log says that note is made; null for any other rule.
+ * Whether a scheduled run of a step that reads notes has nothing new to ask
+ * about: every note its fixed query matches is as it was when the last note
+ * was written. A step handed data is not skipped, for the data is what changes
+ * from one period to the next; nor is a run by hand, which is asked for.
  */
-async function periodToWrite(
-  rule: AutomationRule,
-  fs: AutomationPorts['fs'],
-  at: string,
-): Promise<{ period: OutputPeriod; made: boolean } | null> {
-  if (!writesOneNoteAPeriod(rule)) return null;
-  const period = outputPeriod({ schedule: rule.when, at });
-  if (period === null) return null;
-  const { entries } = await readRuleLog(fs, rule);
-  return { period, made: periodNoteMade(entries, period) !== null };
+function unchangedSinceLastNote({
+  entries,
+  target,
+  trigger,
+  action,
+}: {
+  entries: readonly LogEntry[];
+  target: RuleTarget;
+  trigger: RunTrigger;
+  action: Extract<AutomationRule['action'], { kind: 'claude' }>;
+}): boolean {
+  if (trigger === 'hand' || readsData(action)) return false;
+  const now = askedAbout(target);
+  if (now.length === 0) return false;
+  const last = entries.findLast((entry) => entry.kind === 'run' && entry.versions !== undefined);
+  const before = last?.kind === 'run' ? (last.versions ?? []) : null;
+  if (before === null) return false;
+  const seen = new Set(before.map(({ path, digest }) => `${path}\n${digest}`));
+  return (
+    now.length === seen.size && now.every(({ path, digest }) => seen.has(`${path}\n${digest}`))
+  );
+}
+
+/** What a scheduled step logs when none of the notes it reads changed: it asked no one, made nothing. */
+function ranUnchanged({
+  at,
+  trigger,
+  target,
+}: {
+  at: string;
+  trigger: RunTrigger;
+  target: RuleTarget;
+}): LogEntry {
+  const { plan } = target;
+  return {
+    kind: 'run',
+    at,
+    trigger,
+    done: [],
+    left: [...plan.passedOver],
+    capped: plan.capped,
+    versions: askedAbout(target),
+  };
 }
 
 /** What a step whose period's note is made logs: a run that did nothing, for that period. */

@@ -89,7 +89,10 @@ describe('the Friday review preset', () => {
     const entry = await run({ time: '15:00:00' });
 
     expect(reviews()).toEqual(['Reviews/Weekly review 2026-10-23.md']);
-    expect(vault.files.get('Reviews/Weekly review 2026-10-23.md')).toBe(CITED);
+    // The note says which week it is for, ahead of the draft itself.
+    const written = vault.files.get('Reviews/Weekly review 2026-10-23.md')!;
+    expect(written).toContain('"atlas_period":"2026-10-23T15:00:00"');
+    expect(written.endsWith(`---\n${CITED}`)).toBe(true);
     expect(entry).toMatchObject({ kind: 'run', period: { slot: '2026-10-23T15:00:00' } });
     expect(logOf().at(-1)).toMatchObject({ period: { slot: '2026-10-23T15:00:00' } });
     // Handed the review as data: the week's win and the stale waiting-for, by path, and the Inbox.
@@ -143,7 +146,9 @@ describe('the Friday review preset', () => {
     const { run, vault, logOf } = setUp([draft(body)]);
     const entry = await run({ time: '15:00:00' });
 
-    expect(vault.files.get('Reviews/Weekly review 2026-10-23.md')).toBe(CITED);
+    expect(vault.files.get('Reviews/Weekly review 2026-10-23.md')!.endsWith(`---\n${CITED}`)).toBe(
+      true,
+    );
     expect(entry.kind === 'run' && entry.claude?.dropped).toEqual([
       { title: 'Closed the quarter', reason: expect.stringContaining('links no task') },
       { title: 'Met [[Meetings/Elsewhere.md]]', reason: expect.stringContaining('links no task') },

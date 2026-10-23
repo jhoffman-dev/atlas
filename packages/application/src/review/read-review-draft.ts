@@ -4,6 +4,7 @@ import {
   reviewDraftData,
   reviewDraftWindow,
   reviewSource,
+  type LocalTime,
   type ReviewDraftData,
 } from '@dfai/domain';
 import type { Clock } from '../ports.ts';
@@ -13,20 +14,25 @@ import { rowsOf, type ReviewReadPorts } from './review-reads.ts';
 /**
  * What the Friday review draft (#40) is handed, read at one moment on the
  * injected clock: the weekly review as its page shows it, with the tasks
- * finished and the meetings held in the last `REVIEW_DRAFT_DAYS` days,
- * and the notes the draft may cite.
+ * finished and the meetings held in the week `week` names — from the slot
+ * before it to its own — and the notes the draft may cite.
  */
 export async function readReviewDraft({
   clock,
+  week,
   ...reads
-}: ReviewReadPorts & { clock: Pick<Clock, 'today' | 'now'> }): Promise<ReviewDraftData> {
+}: ReviewReadPorts & {
+  clock: Pick<Clock, 'today' | 'now'>;
+  /** The slot the draft is for, and the wall clock at `clock.now()`. */
+  week: { slot: LocalTime; localNow: LocalTime };
+}): Promise<ReviewDraftData> {
   const now = clock.now();
   const today = clock.today();
-  const { since, sinceDay } = reviewDraftWindow({ today, now });
+  const window = reviewDraftWindow({ ...week, now });
   const [report, done, meetings] = await Promise.all([
     readWeeklyReview({ clock: { today: () => today, now: () => now }, ...reads }),
-    rowsOf(reads.index, compileReviewDoneQuery(since)),
-    rowsOf(reads.index, compileReviewMeetingsQuery({ sinceDay, today })),
+    rowsOf(reads.index, compileReviewDoneQuery(window.since, window)),
+    rowsOf(reads.index, compileReviewMeetingsQuery(window)),
   ]);
   return reviewDraftData({
     review: report,

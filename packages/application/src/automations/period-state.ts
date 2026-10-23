@@ -1,0 +1,103 @@
+import {
+  currentPeriod,
+  notePeriod,
+  outputPeriod,
+  periodNoteMade,
+  periodRecorded,
+  splitFrontmatter,
+  writesOneNoteAPeriod,
+  type AutomationRule,
+  type LocalTime,
+  type LogEntry,
+  type OutputPeriod,
+  type PeriodNote,
+  type RunTrigger,
+  type VaultPath,
+} from '@dfai/domain';
+import type { MarkdownPort } from '../notes/ports.ts';
+import type { VaultFsPort } from '../vault/ports.ts';
+
+/** The period a run of a rule that writes one note a period writes for, and whether it is made. */
+export interface PeriodState {
+  readonly period: OutputPeriod;
+  readonly made: boolean;
+}
+
+/** How many notes of the rule's folder are read at once, looking for the periods they say. */
+const READ_BATCH = 100;
+
+/**
+ * Where a rule that writes one note a period stands for the run now: the
+ * period it writes for — the one its schedule fell due at, or, by hand, the
+ * calendar week or day it is now — and whether that period is made. Null for
+ * any other rule.
+ *
+ * A scheduled run never writes a period that is recorded: its log says a run
+ * made a note for it, or a note carries it, though that run was undone or the
+ * note deleted since. A run by hand writes it afresh when its note is no longer
+ * there. The log settles it when it can; the folder's notes are read only when
+ * it does not, since a crash between the note and its log line leaves the
+ * note alone to say so.
+ */
+export async function periodStateOf({
+  rule,
+  entries,
+  at,
+  trigger,
+  fs,
+  markdown,
+  notePaths,
+}: {
+  rule: Pick<AutomationRule, 'when' | 'action'>;
+  /** The rule's log, oldest first. */
+  entries: readonly LogEntry[];
+  /** The wall clock now. */
+  at: LocalTime;
+  trigger: RunTrigger;
+  fs: Pick<VaultFsPort, 'readNotes'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  notePaths: readonly string[];
+}): Promise<PeriodState | null> {
+  if (!writesOneNoteAPeriod(rule)) return null;
+  const find = trigger === 'hand' ? currentPeriod : outputPeriod;
+  const period = find({ schedule: rule.when, at });
+  if (period === null) return null;
+  const existing = new Set(notePaths);
+  const isMade = (notes: readonly PeriodNote[]): boolean => {
+    const asked = { entries, notes, period, schedule: rule.when, now: at };
+    return trigger === 'hand'
+      ? periodNoteMade({ ...asked, exists: (path) => existing.has(path) }) !== null
+      : periodRecorded(asked);
+  };
+  if (isMade([])) return { period, made: true };
+  const notes = await periodNotesIn({ rule, fs, markdown, notePaths });
+  return { period, made: isMade(notes) };
+}
+
+/** The notes in the rule's folder that say the period they were made for. */
+async function periodNotesIn({
+  rule,
+  fs,
+  markdown,
+  notePaths,
+}: {
+  rule: Pick<AutomationRule, 'action'>;
+  fs: Pick<VaultFsPort, 'readNotes'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  notePaths: readonly string[];
+}): Promise<PeriodNote[]> {
+  const { action } = rule;
+  if (action.kind !== 'claude' || action.output.kind !== 'note') return [];
+  const folder = `${action.output.folder.replace(/\/+$/, '')}/`;
+  const inFolder = notePaths.filter((path) => path.startsWith(folder));
+  const found: PeriodNote[] = [];
+  for (let start = 0; start < inFolder.length; start += READ_BATCH) {
+    for (const file of await fs.readNotes(inFolder.slice(start, start + READ_BATCH))) {
+      const period = notePeriod(
+        markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter),
+      );
+      if (period !== null) found.push({ path: file.path as VaultPath, period });
+    }
+  }
+  return found;
+}
