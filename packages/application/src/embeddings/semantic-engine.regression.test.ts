@@ -10,6 +10,9 @@ import {
 import type { NoteChange } from '@dfai/domain';
 import { createSemanticEngine, type SemanticOptIn } from './semantic-engine.ts';
 import { CacheMismatchError } from './semantic-search.ts';
+import { createEmbeddingBuild } from './embedding-build.ts';
+import { inlineChunker } from './note-passages.ts';
+import { createSemanticBlocks } from './semantic-blocks.ts';
 import {
   CacheDamagedError,
   type CachedEmbeddings,
@@ -603,6 +606,63 @@ describe('one torn cache is started over once, by one build', () => {
     expect((await inner.load()).notes).toHaveLength(40);
   });
 
+  it('a tear found by a search and by the write under way at once is started over once', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const held = gate();
+    const entered = gate();
+    let opens = 0;
+    let holdNext = false;
+    let tearExcerpts = false;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async open(asked) {
+        opens += 1;
+        return inner.open(asked);
+      },
+      async excerpts(keys) {
+        if (tearExcerpts) {
+          tearExcerpts = false;
+          throw new CacheDamagedError(TORN);
+        }
+        return inner.excerpts(keys);
+      },
+      async put(notes, scope) {
+        if (holdNext) {
+          holdNext = false;
+          entered.open();
+          await held.opened;
+          await inner.clear();
+          throw new CacheDamagedError(TORN);
+        }
+        await inner.put(notes, scope);
+      },
+    };
+    const { engine, vault } = setUp(
+      { 'Meetings/Standup.md': STANDUP, 'Home/Garden.md': GARDEN },
+      { cache },
+    );
+    await engine.start();
+    await engine.settled();
+
+    const edited = `${STANDUP} Ida Brenwick fixed the printer.`;
+    vault.files.set('Meetings/Standup.md', edited);
+    holdNext = true;
+    engine.hear({ vault: VAULT, changes: [changedTo('Meetings/Standup.md', edited)] });
+    await entered.opened;
+    // The search finds the tear first, and starts over once the write under way ends; the write then finds it too.
+    tearExcerpts = true;
+    const searched = engine.search({ query: 'honey hive', limit: 100 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    held.open();
+    await searched;
+    await settleThrough(engine);
+
+    expect(opens).toBe(2);
+    expect(engine.progress().failure).toBeNull();
+    const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toContain('Home/Garden.md');
+  });
+
   it('two tears, each started over, do not stop the build', async () => {
     const inner = memoryEmbeddingCache({ vault: VAULT });
     let tears = 2;
@@ -731,5 +791,51 @@ describe('after one note cannot be written, the build writes notes together agai
     expect(sizes.slice(1)).toEqual([...Array<number>(18).fill(1), 16, 8]);
     expect(engine.progress().failure).toBeNull();
     expect((await inner.load()).notes).toHaveLength(40);
+  });
+});
+
+describe('a build that found the cache damaged is not resumed', () => {
+  it('tells of the damage once and writes nothing more, though a resume was asked while it wrote', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const held = gate();
+    const entered = gate();
+    let puts = 0;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async put(notes, scope) {
+        puts += 1;
+        if (puts === 1) {
+          entered.open();
+          await held.opened;
+          await inner.clear();
+          throw new CacheDamagedError(TORN);
+        }
+        await inner.put(notes, scope);
+      },
+    };
+    const notes = manyNotes(40);
+    const vault = disk(notes);
+    let damaged = 0;
+    const build = createEmbeddingBuild({
+      vault: VAULT,
+      fs: vault.fs,
+      chunker: inlineChunker(blockMarkdown()),
+      embedder: fakeEmbedder(),
+      cache,
+      idle,
+      blocks: createSemanticBlocks({ notes: [], blocks: [] }),
+      onDamaged: () => {
+        damaged += 1;
+      },
+    });
+    build.plan(new Map(Object.entries(notes).map(([path, text]) => [path, digestOf(text)])));
+    await entered.opened;
+    build.resume();
+    held.open();
+    await build.settled();
+
+    expect(damaged).toBe(1);
+    // The engine starts over with a new build; this one writes nothing onto the emptied cache.
+    expect(puts).toBe(1);
   });
 });
