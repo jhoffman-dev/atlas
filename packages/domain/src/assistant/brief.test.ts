@@ -226,6 +226,14 @@ describe('openLoopsOf', () => {
       context: context(),
     });
     expect(held.truncated).toBe(true);
+    // Follow-ups are found through the meetings listed: held-back meetings may hold more.
+    const heldMeetings = openLoopsOf({
+      sections: [section('meetings', [], { truncated: true })],
+      followUps: [],
+      status: STATUS,
+      context: context(),
+    });
+    expect(heldMeetings.truncated).toBe(true);
     const whole = openLoopsOf({ sections, followUps: [], status: STATUS, context: context() });
     expect(whole.truncated).toBe(false);
   });

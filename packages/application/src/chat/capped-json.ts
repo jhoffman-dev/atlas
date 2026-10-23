@@ -6,7 +6,8 @@
  * so whole items are dropped from the end of its longest list, and a `cut`
  * says how many were kept of how many. The list may be one the answer wraps
  * (`{ brief: { openTasks: […] } }`, as the assistant's tools answer): the
- * object that holds a cut list and has a `truncated` flag has it set. When
+ * nearest object on the way to a cut list that has a `truncated` flag has it
+ * set — the one holding the list, or else the one wrapping that. When
  * the longest list cut to nothing is still too long, the next longest is cut
  * too; those after the first are named in `alsoCut`. An answer with no list
  * to shorten, or one whose other fields alone are too long, comes back as the
@@ -76,7 +77,10 @@ function listsIn(body: Fields, path: readonly string[] = []): ListAt[] {
   });
 }
 
-/** The body with the list at `at` cut to `count` items, and `truncated` set on the object that holds it. */
+/**
+ * The body with the list at `at` cut to `count` items, and `truncated` set on
+ * the nearest object on the way to it that has one.
+ */
 function withItems(body: Fields, at: ListAt, count: number): Fields {
   const [key, ...rest] = at.path;
   if (key === undefined) return body;
@@ -84,7 +88,16 @@ function withItems(body: Fields, at: ListAt, count: number): Fields {
     const flagged = 'truncated' in body ? { truncated: true } : {};
     return { ...body, ...flagged, [key]: at.items.slice(0, count) };
   }
-  return { ...body, [key]: withItems(body[key] as Fields, { ...at, path: rest }, count) };
+  const inner = body[key] as Fields;
+  const flagged = 'truncated' in body && !flagHeldBelow(inner, rest) ? { truncated: true } : {};
+  return { ...body, ...flagged, [key]: withItems(inner, { ...at, path: rest }, count) };
+}
+
+/** Whether `body`, or an object below it on the way to the list at `path`, has a `truncated` flag. */
+function flagHeldBelow(body: Fields, path: readonly string[]): boolean {
+  if ('truncated' in body) return true;
+  const [key, ...rest] = path;
+  return key !== undefined && rest.length > 0 && flagHeldBelow(body[key] as Fields, rest);
 }
 
 /** The body with its cuts said: the first as `cut`, any others as `alsoCut`. */

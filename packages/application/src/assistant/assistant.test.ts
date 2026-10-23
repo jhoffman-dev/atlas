@@ -398,9 +398,13 @@ describe('readMeetingQuotes', () => {
       if (path === KICKOFF) throw new VaultAccessError('gone');
       return vault.reads.fs.readTextFile(path);
     };
-    const gone = { ...vault, reads: { ...vault.reads, fs: { ...vault.reads.fs, readTextFile } } };
+    // Gone from the files and from the vault's notes; only the page's listing is behind.
+    const notePaths = vault.reads.notePaths.filter((note) => note !== KICKOFF);
+    const fs = { ...vault.reads.fs, readTextFile };
+    const gone = { ...vault, reads: { ...vault.reads, fs, notePaths } };
     const said = await ask(gone, { since: daysAgo(30) });
     expect(said.meetings.find((meeting) => meeting.path === KICKOFF)?.quotes).toEqual([]);
+    expect(said.problems).toEqual([]);
   });
 
   it('refuses a meeting: it holds no meetings', async () => {

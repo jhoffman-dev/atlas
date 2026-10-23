@@ -62,6 +62,8 @@ function capped<Item>(items: readonly Item[], limit: number): Capped<Item> {
   return { items: items.slice(0, limit), cut: items.length > limit };
 }
 
+const HELD_SECTIONS: ReadonlySet<string> = new Set(['tasks', 'waiting', 'meetings']);
+
 /** A page's open loops, each listed once: a waiting-for before a follow-up, a follow-up before a task. */
 export function openLoopsOf({
   sections,
@@ -92,9 +94,8 @@ export function openLoopsOf({
   const openTasks = capped(rest, LOOP_LIMIT);
   const waitingFor = capped(waiting, LOOP_LIMIT);
   const followUpList = capped(chased, LOOP_LIMIT);
-  const held = sections.some(
-    (section) => (section.id === 'tasks' || section.id === 'waiting') && section.truncated,
-  );
+  // Follow-ups are found through the meetings listed: meetings held back may hold more.
+  const held = sections.some((section) => HELD_SECTIONS.has(section.id) && section.truncated);
   return {
     openTasks: openTasks.items,
     waitingFor: waitingFor.items,

@@ -6,6 +6,7 @@ import {
   linkingAmong,
   meetingQuotes,
   meetingTurnsOf,
+  messageWithoutPaths,
   namesOf,
   noteTitle,
   speaksInMeetings,
@@ -193,7 +194,11 @@ async function quotedMeetings(quoting: Quoting): Promise<Quoted> {
   const { asked, inRange } = quoting;
   if (asked.about === null) {
     const read = await readQuoted(quoting, inRange.slice(0, asked.limit), () => null);
-    return { meetings: read, truncated: inRange.length > asked.limit, problems: [] };
+    return {
+      meetings: read.meetings,
+      truncated: inRange.length > asked.limit || read.problems.length > 0,
+      problems: read.problems,
+    };
   }
   const words = aboutWords(asked.about);
   if (words === null) return { meetings: [], truncated: false, problems: [] };
@@ -213,14 +218,15 @@ async function quotedMeetings(quoting: Quoting): Promise<Quoted> {
   const read = await readQuoted(quoting, candidates, (meeting) =>
     passageFilter(byPath.get(meeting.path), words),
   );
-  const answered = read.filter((meeting) => meeting.quotes.length > 0);
+  const answered = read.meetings.filter((meeting) => meeting.quotes.length > 0);
   return {
     meetings: answered.slice(0, asked.limit),
     truncated:
       answered.length > asked.limit ||
       candidates.length > MEETINGS_READ_CAP ||
-      !found.value.complete,
-    problems: found.problems,
+      !found.value.complete ||
+      read.problems.length > 0,
+    problems: [...found.problems, ...read.problems],
   };
 }
 
@@ -233,14 +239,17 @@ function passageFilter(
     ? { words, blocks: null }
     : { words: null, blocks: new Set(passage.blocks) };
 }
-
-/** Reads each meeting — at most {@link MEETINGS_READ_CAP} — and quotes the turns its filter wants. */
+/**
+ * Reads each meeting — at most {@link MEETINGS_READ_CAP} — and quotes the turns
+ * its filter wants, naming each meeting the index lists but that could not be read.
+ */
 async function readQuoted(
   { reads, speakers, includesSelf, context }: Quoting,
   meetings: readonly DatedNote[],
   about: (meeting: DatedNote) => Pick<TurnFilter, 'words' | 'blocks'> | null,
-): Promise<QuotedMeeting[]> {
-  return Promise.all(
+): Promise<{ meetings: QuotedMeeting[]; problems: SectionProblem[] }> {
+  const problems: SectionProblem[] = [];
+  const quoted = await Promise.all(
     meetings.slice(0, MEETINGS_READ_CAP).map(async (meeting) => {
       const filter: TurnFilter = {
         speakers,
@@ -254,22 +263,30 @@ async function readQuoted(
         return { ...meeting, quotes: [], matched: 0 };
       }
       const path = createVaultPath(meeting.path);
-      const turns = await turnsOf(reads, path);
+      const read = await turnsOf(reads, path);
+      if (read.problem !== null) problems.push(read.problem);
+      const turns = read.turns;
       return { ...meeting, ...meetingQuotes({ path, turns, filter, targetOf: context.targetOf }) };
     }),
   );
+  return { meetings: quoted, problems };
 }
 
-/** A meeting's turns as its file holds them now; none for a file gone since the index listed it. */
+/**
+ * A meeting's turns as its file holds them now. A file the index no longer
+ * lists was deleted since and says nothing; one it still lists but that cannot
+ * be read is a problem, never a meeting where nothing was said.
+ */
 async function turnsOf(
-  reads: Pick<AssistantReads, 'fs'>,
+  reads: Pick<AssistantReads, 'fs' | 'notePaths'>,
   path: VaultPath,
-): Promise<readonly TranscriptTurn[]> {
+): Promise<{ turns: readonly TranscriptTurn[]; problem: SectionProblem | null }> {
   try {
-    return meetingTurnsOf((await reads.fs.readTextFile(path)).text);
+    return { turns: meetingTurnsOf((await reads.fs.readTextFile(path)).text), problem: null };
   } catch (error) {
-    // The index can be a moment behind the files: a meeting deleted since says nothing.
-    if (error instanceof VaultAccessError) return [];
-    throw error;
+    if (!(error instanceof VaultAccessError)) throw error;
+    if (!reads.notePaths.includes(path)) return { turns: [], problem: null };
+    const problem = `${noteTitle(path)} could not be read: ${messageWithoutPaths(error)}`;
+    return { turns: [], problem: { section: 'meetings', problem } };
   }
 }
