@@ -13,6 +13,7 @@ import type { Editor } from '@tiptap/core';
 import {
   IMAGE_PICKER_ACCEPT,
   type EditorDocument,
+  type HighlightView,
   type LinkFragment,
   type MentionSuggestion,
   type NoteSuggestion,
@@ -20,7 +21,7 @@ import {
   type TagSuggestion,
 } from '@dfai/domain';
 import { createEditorExtensions } from './editor/extensions.ts';
-import type { ReaderLinks } from './editor/raw-block.ts';
+import type { HighlightBlocks, ReaderLinks } from './editor/raw-block.ts';
 import { showAsRead } from './editor/block-anchor.ts';
 import type { LinkedNoteMaker, WikiSuggestionView } from './editor/wiki-link-suggestion.ts';
 import { IMAGE_REQUEST, LINK_REQUEST, type SlashCommandView } from './editor/slash-commands.ts';
@@ -106,6 +107,7 @@ export function NoteEditor({
   onPromoteLine,
   onCreateNote,
   highlightLinks,
+  highlights,
   ref,
 }: {
   doc: EditorDocument;
@@ -144,6 +146,8 @@ export function NoteEditor({
   onCreateNote?: LinkedNoteMaker;
   /** The highlights of a literature note that open in a reader, and the words that offer it (#506). */
   highlightLinks?: HighlightLinks | null;
+  /** A literature note's highlights, drawn as quotes with comments to type in (#523); left out, as source. */
+  highlights?: NoteHighlights | null;
   ref?: Ref<NoteEditorHandle>;
 }) {
   const [links, setLinks] = useState<WikiSuggestionView | null>(null);
@@ -211,6 +215,7 @@ export function NoteEditor({
   );
 
   const readerLinks = useReaderLinks(highlightLinks ?? null);
+  const highlightBlocks = useHighlightBlocks(highlights ?? null, loadImage);
   const bookmarkSource = useBookmarkSource(bookmarks);
   const transclusionSource = useTransclusionSource(transclusions);
   const queryBlockSource = useQueryBlockSource(queries);
@@ -236,9 +241,11 @@ export function NoteEditor({
         promoteLine: promotes ? stablePromote : null,
         createNote: creates ? stableCreate : null,
         readerLinks,
+        highlights: highlightBlocks,
       }),
     [
       readerLinks,
+      highlightBlocks,
       promotes,
       stablePromote,
       creates,
@@ -458,5 +465,43 @@ function useReaderLinks(links: HighlightLinks | null): ReaderLinks | null {
           }
         : null,
     [offers, latest],
+  );
+}
+
+/** A literature note's highlights as its editor draws them (#523), and the write of a comment. */
+export interface NoteHighlights {
+  /** The highlight a block of the note is — its markdown and `^id` — or null when it is none. */
+  readonly viewOf: (block: {
+    readonly markdown: string;
+    readonly id: string;
+  }) => HighlightView | null;
+  /** Writes a highlight's comment; rejects with why it could not. */
+  readonly editComment: (edit: { readonly id: string; readonly comment: string }) => Promise<void>;
+}
+
+/**
+ * The raw blocks' highlights, read through refs as the reader links are: a
+ * note saved hands over a new reading, and a new object each time would
+ * rebuild the editor.
+ */
+function useHighlightBlocks(
+  highlights: NoteHighlights | null,
+  loadImage: (src: string) => Promise<string | null>,
+): HighlightBlocks | null {
+  const latest = useLatest(highlights);
+  const images = useLatest(loadImage);
+  const offers = highlights !== null;
+  return useMemo(
+    () =>
+      offers
+        ? {
+            viewOf: (block) => latest.current?.viewOf(block) ?? null,
+            editComment: (edit) =>
+              latest.current?.editComment(edit) ??
+              Promise.reject(new Error('This note holds no highlights now.')),
+            loadImage: (src) => images.current(src),
+          }
+        : null,
+    [offers, latest, images],
   );
 }

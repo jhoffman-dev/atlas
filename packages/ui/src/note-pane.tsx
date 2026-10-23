@@ -16,6 +16,7 @@ import { FavoriteStar } from './favorite-star.tsx';
 import {
   NoteEditor,
   type HighlightLinks,
+  type NoteHighlights,
   type NoteBookmarks,
   type NoteEditorHandle,
   type NotePeople,
@@ -130,6 +131,8 @@ export interface NotePaneProps {
   transclusions?: NoteTransclusions;
   /** A literature note's highlights that open in its reader ("Open in PDF", #506); left out, none offer it. */
   highlightLinks?: HighlightLinks | null;
+  /** A literature note's highlights, drawn as quotes with comments to type in (#523); left out, as source. */
+  highlights?: NoteHighlights | null;
   /** Where query blocks are answered, `this` being this note; left out, each is drawn as its code. */
   queries?: NoteQueryBlocks;
   /** A note's headings and blocks after `[[Note#`; left out, `#` offers nothing. */
@@ -537,6 +540,7 @@ function NoteBody({
           {...(props.transclusions !== undefined && { transclusions: props.transclusions })}
           {...(props.queries !== undefined && { queries: props.queries })}
           highlightLinks={props.highlightLinks ?? null}
+          highlights={props.highlights ?? null}
           {...(props.picking !== undefined && { picking: props.picking })}
           {...(props.promotion !== undefined && { onPromoteLine: props.promotion.promote })}
           {...(props.onCreateNote !== undefined && { onCreateNote: props.onCreateNote })}

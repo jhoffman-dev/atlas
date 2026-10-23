@@ -1,5 +1,8 @@
-import { Node } from '@tiptap/core';
-import { BLOCK_ANCHOR_ATTR } from '@dfai/domain';
+import { Node, type NodeViewRenderer } from '@tiptap/core';
+import { DOMSerializer, type Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { ReactNodeViewRenderer } from '@tiptap/react';
+import { BLOCK_ANCHOR_ATTR, isTombstoneBlock, type HighlightView } from '@dfai/domain';
+import { HighlightBlockView } from './highlight-block-view.tsx';
 
 /**
  * Which raw blocks offer to open their place elsewhere: a highlight in its
@@ -13,15 +16,34 @@ export interface ReaderLinks {
   labelFor(id: string): string | null;
 }
 
+/**
+ * The highlights of a literature note, which its raw blocks are drawn as
+ * (#523): the quote and its comment, the marker hidden. Asked when a block
+ * is drawn, from the block itself, so what it shows is its own bytes.
+ */
+export interface HighlightBlocks {
+  /** The highlight the block with this markdown and `^id` is, or null when it is none. */
+  viewOf(block: { readonly markdown: string; readonly id: string }): HighlightView | null;
+  /** Writes highlight `id`'s comment, as the literature note's own writes do; rejects with why not. */
+  editComment(edit: { readonly id: string; readonly comment: string }): Promise<void>;
+  /** An area highlight's picture, found as the note's images are. */
+  loadImage(src: string): Promise<string | null>;
+}
+
 export interface RawBlockOptions {
   /** Null where no raw block offers a link: a note read elsewhere, or one that is no literature note. */
   readonly readerLinks: ReaderLinks | null;
+  /** Null where no raw block is a highlight: a note read elsewhere, or one that is no literature note. */
+  readonly highlights: HighlightBlocks | null;
 }
 
 /**
  * A block of markdown the editor does not model — a table, an image, raw HTML.
  * It is an atom: shown as its source and carried through a save untouched, so an
- * unsupported construct is never approximated and quietly rewritten.
+ * unsupported construct is never approximated and quietly rewritten. A
+ * highlight in its literature note is one too, drawn as its quote and comment
+ * (#523), and saved from its bytes as every raw block is: its comment is
+ * written by the literature note's own write, never by the editor's save.
  */
 export const RawBlock = Node.create<RawBlockOptions>({
   name: 'rawBlock',
@@ -30,7 +52,7 @@ export const RawBlock = Node.create<RawBlockOptions>({
   selectable: true,
 
   addOptions() {
-    return { readerLinks: null };
+    return { readerLinks: null, highlights: null };
   },
 
   addAttributes() {
@@ -44,18 +66,67 @@ export const RawBlock = Node.create<RawBlockOptions>({
   },
 
   renderHTML({ node }) {
-    const markdown = String(node.attrs['markdown'] ?? '');
-    const attributes = {
-      'data-raw-block': '',
-      class: isComment(markdown) ? 'raw-block raw-block--comment' : 'raw-block',
-      title: 'Not editable yet — saved unchanged',
-    };
-    const id = node.attrs[BLOCK_ANCHOR_ATTR];
-    const label = typeof id === 'string' ? (this.options.readerLinks?.labelFor(id) ?? null) : null;
-    if (label === null) return ['pre', attributes, markdown];
-    return ['pre', attributes, markdown, readerLink(id as string, label)];
+    return rawBlockSpec(node, this.options.readerLinks);
+  },
+
+  addNodeView() {
+    const { highlights, readerLinks } = this.options;
+    if (highlights === null) return null;
+    return highlightOrSource(highlights, readerLinks);
   },
 });
+
+/** The block's source, as a `pre`, with its reader link when it offers one. */
+function rawBlockSpec(node: ProseMirrorNode, readerLinks: ReaderLinks | null) {
+  const markdown = String(node.attrs['markdown'] ?? '');
+  const attributes = {
+    'data-raw-block': '',
+    class: classOf(markdown),
+    title: 'Not editable yet — saved unchanged',
+  };
+  const id = node.attrs[BLOCK_ANCHOR_ATTR];
+  const label = typeof id === 'string' ? (readerLinks?.labelFor(id) ?? null) : null;
+  if (label === null) return ['pre', attributes, markdown] as const;
+  return ['pre', attributes, markdown, readerLink(id as string, label)] as const;
+}
+
+function classOf(markdown: string): string {
+  // A removed highlight's tombstone is hidden by every reader (ADR-0043 §5), and here.
+  if (isTombstoneBlock(markdown)) return 'raw-block raw-block--comment raw-block--hidden';
+  return isComment(markdown) ? 'raw-block raw-block--comment' : 'raw-block';
+}
+
+/**
+ * Each block drawn as the highlight it is, or as its source when it is none.
+ * Which one is settled when the block is drawn: a block whose bytes change
+ * is drawn again, so a source that became a highlight — or stopped being
+ * one — is drawn as what it now is.
+ */
+function highlightOrSource(
+  highlights: HighlightBlocks,
+  readerLinks: ReaderLinks | null,
+): NodeViewRenderer {
+  const highlightView = ReactNodeViewRenderer(HighlightBlockView, {
+    update: ({ oldNode, newNode, updateProps }) => {
+      if (!sameBlock(oldNode, newNode)) return false;
+      updateProps();
+      return true;
+    },
+  });
+  return (props) => {
+    const markdown = String(props.node.attrs['markdown'] ?? '');
+    const id = props.node.attrs[BLOCK_ANCHOR_ATTR];
+    if (typeof id === 'string' && highlights.viewOf({ markdown, id }) !== null) {
+      return highlightView(props);
+    }
+    const { dom } = DOMSerializer.renderSpec(document, rawBlockSpec(props.node, readerLinks));
+    return { dom, update: () => false };
+  };
+}
+
+const sameBlock = (one: ProseMirrorNode, other: ProseMirrorNode): boolean =>
+  one.attrs['markdown'] === other.attrs['markdown'] &&
+  one.attrs[BLOCK_ANCHOR_ATTR] === other.attrs[BLOCK_ANCHOR_ATTR];
 
 /**
  * The block's own link — `[[#^id]]`, a place in this note — which the note's

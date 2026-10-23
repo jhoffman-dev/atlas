@@ -471,9 +471,18 @@ asin, file: null })` in the literature type's home folder (`Library` by
 - A literature note reads as a list of quotes with comments in Obsidian; its
   highlights link and transclude with Obsidian's own grammar; search finds
   quotes and comments and never the marker.
-- DFAI's editor shows a highlight as one raw block, written back untouched,
-  until a highlight node is built (the reader's views edit comments through
-  `editHighlightComment` meanwhile).
+- DFAI's editor draws a highlight as its quote, in its mark's muted pastel,
+  with its comment under it as a field (#523); the marker is never drawn, nor
+  is a tombstone. The block is still one raw atom of the note, saved from its
+  bytes; a comment typed in place is written by `editHighlightComment`, after
+  the pane's own typing is written, so it is byte-preserving, `%%`-escaped,
+  read back before it lands, and refused while typing elsewhere in the note
+  is unsaved. Whether a block is a highlight is the note's answer in place
+  (`literatureHighlightReader`); what it shows is read from the block's own
+  bytes (`highlightView`). An embed of a highlight draws the same quote and
+  comment, read-only, under its source chip. The quote is not edited in
+  DFAI — it is the source's words; a person who wants to tidy one edits the
+  note in Obsidian or any text editor, as §4 allows.
 - The domain's public API — `appendHighlights`, `withHighlightComment`,
   `withoutHighlight`, `readHighlights`, `findQuote`, `literatureNoteText` — is
   pure, and takes the note's blocks as a `noteBlocks` function (the markdown

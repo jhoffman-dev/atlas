@@ -164,7 +164,8 @@
   position: relative;
 }
 
-.raw-block .raw-block__open {
+.raw-block .raw-block__open,
+.highlight-block .raw-block__open {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-chip);
@@ -180,7 +181,8 @@
   white-space: nowrap;
 }
 
-.raw-block .raw-block__open:hover {
+.raw-block .raw-block__open:hover,
+.highlight-block .raw-block__open:hover {
   background: var(--hover);
   color: var(--ink);
 }
@@ -192,6 +194,129 @@
   font-size: 11px;
   opacity: 0.55;
   padding: 0 4px;
+}
+
+/* A removed highlight's tombstone: hidden by every reader (ADR-0043 §5), and here. */
+.raw-block--hidden {
+  display: none;
+}
+
+/* ---- highlights (#523) ---- */
+
+/* A highlight in a literature note, or shown in another: the source's words as
+   a quote in its mark's pastel, and the person's comment under it. The marker
+   is never drawn. Each colour names its fill and its line once. */
+.highlight-quote {
+  --highlight-fill: var(--mark-yellow);
+  --highlight-line: var(--mark-yellow-line);
+}
+.highlight-quote[data-color='green'] {
+  --highlight-fill: var(--mark-green);
+  --highlight-line: var(--mark-green-line);
+}
+.highlight-quote[data-color='blue'] {
+  --highlight-fill: var(--mark-blue);
+  --highlight-line: var(--mark-blue-line);
+}
+.highlight-quote[data-color='pink'] {
+  --highlight-fill: var(--mark-pink);
+  --highlight-line: var(--mark-pink-line);
+}
+.highlight-quote[data-color='purple'] {
+  --highlight-fill: var(--mark-purple);
+  --highlight-line: var(--mark-purple-line);
+}
+.highlight-quote[data-color='orange'] {
+  --highlight-fill: var(--mark-orange);
+  --highlight-line: var(--mark-orange-line);
+}
+
+/* Two classes, so the quote's mark beats the editor's own `blockquote` rule. */
+.highlight-quote .highlight-quote__quote {
+  border-left: 3px solid var(--highlight-fill);
+  color: var(--ink);
+  margin: 0;
+  padding-left: 14px;
+  white-space: pre-line;
+}
+
+/* Muted over the page, so the words keep their own ink in light and dark. */
+.highlight-quote[data-mark='highlight'] .highlight-quote__words {
+  background: color-mix(in srgb, var(--highlight-fill) 45%, transparent);
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 2px;
+}
+
+.highlight-quote[data-mark='underline'] .highlight-quote__words {
+  text-decoration: underline 2px var(--highlight-line);
+  text-underline-offset: 3px;
+}
+
+.highlight-quote__picture {
+  display: block;
+  max-width: 100%;
+}
+
+.highlight-quote__missing {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+.highlight-quote__comment {
+  color: var(--ink-2);
+  margin: var(--space-1) 0 0;
+  padding-left: 17px;
+  white-space: pre-wrap;
+}
+
+/* The comment in its own note: text to type in, drawn as the words it is. */
+.highlight-quote__input {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-chip);
+  box-sizing: border-box;
+  display: block;
+  font: inherit;
+  resize: none;
+  width: 100%;
+}
+
+.highlight-quote__input:hover {
+  border-color: var(--line);
+}
+
+.highlight-quote__input:focus {
+  border-color: var(--focus);
+  outline: none;
+}
+
+.highlight-quote__problem {
+  color: var(--danger);
+  font-size: var(--text-small);
+  margin: var(--space-1) 0 0;
+  padding-left: 17px;
+}
+
+.highlight-block {
+  margin: 0.6em 0;
+  position: relative;
+}
+
+.highlight-block--selected .highlight-quote__quote {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.highlight-block .highlight-block__open {
+  right: 0;
+  top: 0;
+}
+
+/* Room for "Open in PDF" beside the quote's first line, so it covers no words. */
+.highlight-block:has(.highlight-block__open) .highlight-quote__quote {
+  padding-right: 104px;
 }
 
 /* ---- wiki links ---- */

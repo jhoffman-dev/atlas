@@ -48,7 +48,7 @@ import {
 import { PendingMention } from './pending-mention.ts';
 import { PromoteLineButton, type PromoteLine } from './promote-line.ts';
 import { PersonChips, type PersonFor } from './person-chips.ts';
-import { RawBlock, type ReaderLinks } from './raw-block.ts';
+import { RawBlock, type HighlightBlocks, type ReaderLinks } from './raw-block.ts';
 import { WikiLink } from './wiki-link.ts';
 import {
   WikiLinkSuggestion,
@@ -81,6 +81,7 @@ export function createEditorExtensions({
   promoteLine = null,
   createNote = null,
   readerLinks = null,
+  highlights = null,
 }: {
   suggest: (query: string) => NoteSuggestion[];
   onView: (view: WikiSuggestionView | null) => void;
@@ -111,11 +112,13 @@ export function createEditorExtensions({
   createNote?: LinkedNoteMaker | null;
   /** Which raw blocks offer to open their place in a reader (#506); left out, none does. */
   readerLinks?: ReaderLinks | null;
+  /** A literature note's highlights, which its raw blocks are drawn as (#523); left out, as source. */
+  highlights?: HighlightBlocks | null;
 }) {
   return [
     ...baseExtensions,
     ControlKeys,
-    RawBlock.configure({ readerLinks }),
+    RawBlock.configure({ readerLinks, highlights }),
     TagHighlight.configure({ onOpen: onOpenTag }),
     PersonChips.configure({ personFor: people.personFor }),
     PendingMention,

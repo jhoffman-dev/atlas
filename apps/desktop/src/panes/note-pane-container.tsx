@@ -115,6 +115,7 @@ import { useBookmarks } from '../notes/use-bookmarks.ts';
 import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
 import { useLinePromotion } from '../notes/use-line-promotion.ts';
+import { useNoteHighlights } from '../notes/use-note-highlights.ts';
 import { useMeetingCorrections } from '../notes/use-meeting-corrections.ts';
 import { cryptoRng } from '../random.ts';
 import { usePlanner } from '../timeblocks/use-planner.ts';
@@ -747,6 +748,15 @@ export function useNotePane({
     activity: context.activity,
     toasts: context.toasts,
   });
+  const highlights = useNoteHighlights({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    openNotes: context.openNotes,
+    flush: note.flush,
+    path,
+    open: note.open,
+    onChanged,
+  });
   const corrections = useMeetingCorrections({
     fs: notes.fs,
     markdown: notes.markdown,
@@ -912,6 +922,7 @@ export function useNotePane({
       bookmarks={bookmarks}
       transclusions={transclusions}
       highlightLinks={highlightLinks}
+      highlights={highlights}
       {...(queries !== undefined && { queries })}
       picking={picking}
       // A template's lines are what new notes start with, not work to promote.

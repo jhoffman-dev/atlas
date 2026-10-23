@@ -70,6 +70,7 @@ export type {
   HighlightLinks,
   NoteBookmarks,
   NoteEditorHandle,
+  NoteHighlights,
   NotePeople,
   NoteQueryBlocks,
   NoteReveal,
