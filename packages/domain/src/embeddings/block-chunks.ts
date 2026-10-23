@@ -87,6 +87,14 @@ export function chunkExcerpt(chunk: Pick<BlockChunk, 'words'>): string {
   return `${words.slice(0, characterBoundary(words, CHUNK_EXCERPT_LENGTH - 1)).trimEnd()}…`;
 }
 
+/**
+ * `text` cut to at most `most` code units, between characters (never inside
+ * an emoji or a letter with its accents), without the space the cut leaves.
+ */
+export function cutAtCharacter(text: string, most: number): string {
+  return text.length <= most ? text : text.slice(0, characterBoundary(text, most)).trimEnd();
+}
+
 /** Every chunk of a note, in the note's order, numbered from 0. */
 export function blockChunks({ title, doc }: { title: string; doc: EditorDocument }): BlockChunk[] {
   const name = squeezed(title);

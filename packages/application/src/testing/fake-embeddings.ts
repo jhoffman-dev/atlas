@@ -149,7 +149,10 @@ export function memoryEmbeddingCache({
     async excerpts(keys: readonly BlockKey[]) {
       return keys.map(
         (key) =>
-          blocks.get(key.path)?.find((block) => block.ordinal === key.ordinal)?.excerpt ?? '',
+          blocks
+            .get(key.path)
+            ?.find((block) => block.ordinal === key.ordinal && block.digest === key.digest)
+            ?.excerpt ?? '',
       );
     },
     async put(sent, scope) {

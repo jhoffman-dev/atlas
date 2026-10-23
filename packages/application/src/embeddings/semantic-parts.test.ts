@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { blockChunks, type EditorDocument } from '@dfai/domain';
+import { blockChunks, createWikiLinkResolver, type EditorDocument } from '@dfai/domain';
 import { fakeEmbedder, memoryEmbeddingCache } from '../testing/fake-embeddings.ts';
-import { embedPassages, type KnownVectors } from './embed-passages.ts';
+import { embedPassages } from './embed-passages.ts';
 import { EmbeddingError, type CachedBlock, type EmbeddingPort } from './ports.ts';
-import { createSemanticBlocks } from './semantic-blocks.ts';
+import { createSemanticBlocks, MixedVectorsError } from './semantic-blocks.ts';
 import { createSemanticEngine } from './semantic-engine.ts';
 import { semanticSearch } from './semantic-search.ts';
 
@@ -60,7 +60,40 @@ describe('createSemanticBlocks', () => {
     const before = held.rankable();
     held.put({ path: 'c.md', digest: '9', title: 'C', blocks: [block('c.md', 0, [1, 0])] });
     expect(held.rankable()).not.toBe(before);
-    expect(held.paths().sort()).toEqual(['B.md', 'b.md', 'c.md']);
+    expect(held.digests().get('c.md')).toBe('9');
+  });
+
+  it('still knows the vector of a passage whose last block was forgotten, for a note that moves', () => {
+    const held = createSemanticBlocks(cached);
+    held.remove('b.md');
+    expect(held.vectorOf('b.md:0')).toEqual(vector(1, 0));
+    expect(held.vectorOf('a.md:0')).toBeNull();
+    expect(held.vectorOf('nowhere')).toBeUndefined();
+  });
+
+  it('marks the Archive’s blocks once, with the ranking', () => {
+    const held = createSemanticBlocks({
+      notes: [
+        { path: 'Archive/old.md', digest: '1', title: 'Old' },
+        { path: 'Notes/new.md', digest: '2', title: 'New' },
+      ],
+      blocks: [block('Archive/old.md', 0, [1, 0]), block('Notes/new.md', 0, [0, 1])],
+    });
+    expect(held.rankable().archived).toEqual([true, false]);
+  });
+
+  it('refuses vectors of different lengths, held together or put together', () => {
+    expect(() =>
+      createSemanticBlocks({
+        notes: [{ path: 'a.md', digest: '1', title: 'A' }],
+        blocks: [block('a.md', 0, [1, 0]), block('a.md', 1, [1, 0, 0])],
+      }),
+    ).toThrow(MixedVectorsError);
+    const held = createSemanticBlocks(cached);
+    expect(() =>
+      held.put({ path: 'c.md', digest: '9', title: 'C', blocks: [block('c.md', 0, [1, 0, 0])] }),
+    ).toThrow(MixedVectorsError);
+    expect(held.note('c.md')).toBeUndefined();
   });
 
   it('holds a note with no blocks', () => {
@@ -95,7 +128,7 @@ describe('embedPassages', () => {
 
   it('sends a passage two notes share once', async () => {
     const embedder = fakeEmbedder();
-    const known: KnownVectors = new Map();
+    const known = new Map<string, Float32Array | null>();
     await embedPassages({ notes: [{ chunks: chunks() }, { chunks: chunks() }], known, embedder });
     expect(embedder.passages()).toEqual(['T\none', 'T\ntwo']);
     expect(known.size).toBe(2);
@@ -114,30 +147,23 @@ describe('embedPassages', () => {
 });
 
 describe('semanticSearch', () => {
-  it('shows a block’s path when its note is not held, and no words for one the cache lacks', async () => {
+  const resolve = () => createWikiLinkResolver([]);
+
+  it('shows a block’s path for a note that is not held, and drops a block the cache has no words for', async () => {
     const blocks = createSemanticBlocks({ notes: [], blocks: [] });
     blocks.put({ path: 'x.md', digest: '1', title: 'X', blocks: [block('x.md', 0, [1, 0])] });
     const stale = { ...blocks, note: () => undefined };
-    const { hits } = await semanticSearch(
-      {
-        blocks: stale,
-        embedder: { embed: async () => [vector(1, 0)] },
-        cache: { excerpts: async () => [] },
-        progress: () => IDLE,
-      },
-      { query: 'q', limit: -5 },
-    );
-    expect(hits).toEqual([]);
-    const found = await semanticSearch(
-      {
-        blocks: stale,
-        embedder: { embed: async () => [vector(1, 0)] },
-        cache: { excerpts: async () => [] },
-        progress: () => IDLE,
-      },
-      { query: 'q' },
-    );
-    expect(found.hits[0]).toMatchObject({ title: 'x.md', text: '', link: '[[x]]' });
+    const deps = (excerpt: string) => ({
+      blocks: stale,
+      embedder: { embed: async () => [vector(1, 0)] },
+      cache: { excerpts: async () => [excerpt] },
+      progress: () => IDLE,
+      resolve,
+    });
+    const gone = await semanticSearch(deps(''), { query: 'q', limit: -5 });
+    expect(gone.hits).toEqual([]);
+    const found = await semanticSearch(deps('Words.'), { query: 'q' });
+    expect(found.hits[0]).toMatchObject({ title: 'x.md', text: 'Words.', link: '[[x]]' });
   });
 
   it('finds nothing when the model answers a question with no vector', async () => {
@@ -147,6 +173,7 @@ describe('semanticSearch', () => {
         embedder: { embed: async () => [] },
         cache: { excerpts: async () => [] },
         progress: () => IDLE,
+        resolve,
       },
       { query: 'q' },
     );

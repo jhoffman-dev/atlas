@@ -8,8 +8,19 @@ import { EmbeddingError, type EmbeddingPort, type RefusedText } from './ports.ts
  */
 export const PASSAGES_PER_CALL = 32;
 
-/** A vector for a passage, or null when the model will not read it. */
-export type KnownVectors = Map<string, Float32Array | null>;
+/**
+ * The vectors known by passage digest: a vector, or null when the model will
+ * not read the passage. A `Map` is one; the build layers its own over the
+ * window's copy of the cache (`SemanticBlocks.vectorOf`), so none is copied.
+ */
+export interface KnownVectors {
+  has(digest: string): boolean;
+  get(digest: string): Float32Array | null | undefined;
+  set(digest: string, vector: Float32Array | null): void;
+}
+
+/** The two halves a chunk the model found too long was cut into, by the digest of the whole. */
+export type HalvedChunks = Map<string, readonly [BlockChunk, BlockChunk]>;
 
 /** A note's chunks while its vectors are found; a chunk the model finds too long is halved in place. */
 export interface ChunkedNote {
@@ -31,11 +42,18 @@ export async function embedPassages({
   notes,
   known,
   embedder,
+  halved = new Map(),
 }: {
   notes: readonly ChunkedNote[];
   known: KnownVectors;
   embedder: EmbeddingPort;
+  /**
+   * Chunks already found too long: cut in halves before anything is sent, so a
+   * note that is cut again does not send the whole to be refused again.
+   */
+  halved?: HalvedChunks;
 }): Promise<void> {
+  for (const note of notes) note.chunks = note.chunks.flatMap((chunk) => halvesOf(chunk, halved));
   for (;;) {
     const wanted = unknownPassages(notes, known).slice(0, PASSAGES_PER_CALL);
     if (wanted.length === 0) return;
@@ -44,7 +62,13 @@ export async function embedPassages({
       vectors = await embedder.embed({ texts: wanted.map(passageOf), purpose: 'passage' });
     } catch (cause) {
       if (!(cause instanceof EmbeddingError) || cause.refused === undefined) throw cause;
-      settleRefusal({ notes, known, chunk: refusedChunk(wanted, cause.refused), cause });
+      settleRefusal({
+        notes,
+        known,
+        halved,
+        chunk: refusedChunk(wanted, cause.refused),
+        cause,
+      });
       continue;
     }
     if (vectors.length !== wanted.length)
@@ -76,14 +100,22 @@ function refusedChunk(sent: readonly BlockChunk[], refused: RefusedText): BlockC
   return chunk;
 }
 
+/** A chunk as the halves it was cut into before, however deep, else as it is. */
+function halvesOf(chunk: BlockChunk, halved: HalvedChunks): BlockChunk[] {
+  const halves = halved.get(chunk.digest);
+  return halves === undefined ? [chunk] : halves.flatMap((half) => halvesOf(half, halved));
+}
+
 function settleRefusal({
   notes,
   known,
+  halved,
   chunk,
   cause,
 }: {
   notes: readonly ChunkedNote[];
   known: KnownVectors;
+  halved: HalvedChunks;
   chunk: BlockChunk;
   cause: EmbeddingError;
 }): void {
@@ -92,6 +124,7 @@ function settleRefusal({
     known.set(chunk.digest, null);
     return;
   }
+  halved.set(chunk.digest, halves);
   for (const note of notes)
     note.chunks = note.chunks.flatMap((each) => (each.digest === chunk.digest ? halves : [each]));
 }

@@ -116,7 +116,7 @@ describe('tauriEmbeddingCache', () => {
 
   it('asks for excerpts by block, removes by path, and clears', async () => {
     invoke.mockResolvedValue(['one']);
-    await expect(tauriEmbeddingCache.excerpts([{ path: 'a.md', ordinal: 2 }])).resolves.toEqual([
+    await expect(tauriEmbeddingCache.excerpts([{ path: 'a.md', ordinal: 2, digest: 'd2' }])).resolves.toEqual([
       'one',
     ]);
     expect(invoke).toHaveBeenLastCalledWith('embedding_cache_excerpts', {

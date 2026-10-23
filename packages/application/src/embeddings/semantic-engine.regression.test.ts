@@ -304,6 +304,61 @@ describe('the search seam (#35) holds its own limits', () => {
   });
 });
 
+describe('a link names its note against the whole vault', () => {
+  it('is never [[Plan]] when another note in the vault is called Plan, embedded yet or not', async () => {
+    const { engine } = setUp({
+      'Zeta/Plan.md': 'The wages are paid on Friday.',
+      '.atlas/Plan.md': 'A type definition that is never embedded.',
+    });
+    await engine.start();
+    await engine.settled();
+    const { hits } = await engine.search({ query: 'when are wages paid' });
+    expect(hits[0]?.link).toBe('[[Zeta/Plan]]');
+  });
+});
+
+describe('one note that cannot be written does not stop the build', () => {
+  it('is held with no blocks, and the notes after it are cached', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async put(notes, scope) {
+        if (notes.some((note) => note.path === 'Bad.md' && note.blocks.length > 0))
+          throw new Error('the host refused this note');
+        await inner.put(notes, scope);
+      },
+    };
+    const { engine } = setUp({ 'Bad.md': STANDUP, 'Home/Garden.md': GARDEN }, { cache });
+    await engine.start();
+    await engine.settled();
+    // The two together failed; the next search writes them one at a time and finds the one.
+    expect(engine.progress().failure).toBe('the host refused this note');
+    await engine.search({ query: 'honey hive' });
+    await engine.settled();
+    expect(engine.progress()).toEqual({ done: 0, total: 0, failure: null });
+    const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toContain('Home/Garden.md');
+    expect((await inner.load()).notes.map((note) => note.path)).toContain('Bad.md');
+  });
+});
+
+describe('a chunk the model found too long is not sent whole again', () => {
+  it('is cut in halves before sending when the note is embedded again', async () => {
+    const long = Array.from({ length: 30 }, (_, at) => `bees${at}`).join(' ');
+    const embedder = fakeEmbedder({ refuse: (text) => (text.length > 150 ? 'too-long' : null) });
+    const { engine, vault } = setUp({ 'Home/Long.md': `${long}\n\nShort.` }, { embedder });
+    await engine.start();
+    await engine.settled();
+    const before = embedder.passages().length;
+    const edited = `${long}\n\nShort, and more.`;
+    vault.files.set('Home/Long.md', edited);
+    engine.hear({ vault: VAULT, changes: [changedTo('Home/Long.md', edited)] });
+    await engine.settled();
+    const sent = embedder.passages().slice(before);
+    expect(sent.some((text) => text.length > 150)).toBe(false);
+  });
+});
+
 /** mulberry32: a seeded RNG, so a failing sequence is the same on every run. */
 function seeded(seed: number) {
   let state = seed >>> 0;

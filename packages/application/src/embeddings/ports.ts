@@ -86,10 +86,15 @@ export interface CachedEmbeddings {
   readonly blocks: readonly CachedBlock[];
 }
 
-/** Which block of which note, for reading its words back. */
+/**
+ * Which block of which note, for reading its words back. The digest says which
+ * block it was when it was ranked: a block that has since changed has other
+ * words under its place, and a read of it finds nothing rather than those.
+ */
 export interface BlockKey {
   readonly path: string;
   readonly ordinal: number;
+  readonly digest: string;
 }
 
 /**
@@ -108,7 +113,7 @@ export interface EmbeddingCachePort {
   /** Throws the cache away and makes it again, empty. */
   clear(): Promise<void>;
   load(): Promise<CachedEmbeddings>;
-  /** Each block's words, cut to what a hit shows, in the order asked; '' for a block the cache lacks. */
+  /** Each block's words, cut to what a hit shows, in the order asked; '' for a block the cache lacks or holds as another digest. */
   excerpts(keys: readonly BlockKey[]): Promise<readonly string[]>;
   /** Replaces each note's blocks, each note whole or not at all; refused once `vault` is not the one open. */
   put(notes: readonly NoteToCache[], scope: { vault: string }): Promise<void>;

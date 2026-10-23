@@ -1,4 +1,9 @@
-import { CHUNKER_VERSION } from '@dfai/domain';
+import {
+  CHUNKER_VERSION,
+  createVaultPath,
+  createWikiLinkResolver,
+  type VaultPath,
+} from '@dfai/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { NoteChangeNews } from '../index/note-changes.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -7,10 +12,17 @@ import {
   createEmbeddingBuild,
   type BuildProgress,
   type EmbeddingBuild,
+  type NoteChunker,
 } from './embedding-build.ts';
+import { inlineChunker } from './note-passages.ts';
 import type { EmbeddingCachePort, EmbeddingPort, IdlePort } from './ports.ts';
 import { createSemanticBlocks, type SemanticBlocks } from './semantic-blocks.ts';
-import { semanticSearch, type SemanticSearch } from './semantic-search.ts';
+import {
+  CacheMismatchError,
+  semanticSearch,
+  type QuestionVectors,
+  type SemanticAccess,
+} from './semantic-search.ts';
 
 /** What the cache's vectors were made by: the chunking rules; the host adds the model. */
 export const EMBEDDING_GENERATION = `chunks-${CHUNKER_VERSION}`;
@@ -32,6 +44,11 @@ export interface SemanticEngineDeps {
   readonly vault: string;
   readonly fs: Pick<VaultFsPort, 'readNotes'>;
   readonly markdown: MarkdownPort;
+  /**
+   * Cuts a note into its chunks, where the window would rather not: a worker.
+   * Left out, the notes are parsed on `markdown`, in the window.
+   */
+  readonly chunker?: NoteChunker;
   readonly index: Pick<IndexPort, 'manifest'>;
   readonly embedder: EmbeddingPort;
   readonly cache: EmbeddingCachePort;
@@ -45,7 +62,7 @@ export interface SemanticEngineDeps {
  * (P32-02). Nothing is opened, read or embedded until `start` — called by
  * the first search, or at launch in a vault where it was used before.
  */
-export interface SemanticEngine extends SemanticSearch {
+export interface SemanticEngine extends SemanticAccess {
   /**
    * Opens and loads the cache, if not yet, and queues the work between it
    * and the index's notes. Call again whenever the index has been rebuilt:
@@ -68,19 +85,42 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
   let build: EmbeddingBuild | null = null;
   let stopped = false;
   const listeners = new Set<(progress: BuildProgress) => void>();
+  const questions: QuestionVectors = { last: null };
+  const chunker = deps.chunker ?? inlineChunker(deps.markdown);
   const onProgress = (progress: BuildProgress) => {
     deps.onProgress?.(progress);
     for (const listener of listeners) listener(progress);
   };
 
+  // The notes the index holds, for the shortest link that still names a hit's note.
+  // Worked out again only once the index has changed.
+  let notePaths: Set<string> | null = null;
+  let resolver: ((target: string) => VaultPath | null) | null = null;
+  const resolve = () => {
+    resolver ??= createWikiLinkResolver([...(notePaths ?? [])].map(createVaultPath));
+    return resolver;
+  };
+
   const open = async () => {
     const { fresh } = await deps.cache.open({ generation: EMBEDDING_GENERATION });
-    const blocks = createSemanticBlocks(
-      fresh ? { notes: [], blocks: [] } : await deps.cache.load(),
-    );
-    build = createEmbeddingBuild({ ...deps, blocks, onProgress });
+    const blocks = fresh ? createSemanticBlocks({ notes: [], blocks: [] }) : await loadedBlocks();
+    build = createEmbeddingBuild({ ...deps, chunker, blocks, onProgress });
     if (stopped) build.stop();
     return { blocks, build };
+  };
+  /**
+   * What the cache holds, or nothing: a cache that cannot be read back whole —
+   * a torn file, vectors of different lengths — is thrown away and built
+   * again, as it is derived and disposable (ADR-0031), never a dead end.
+   */
+  const loadedBlocks = async () => {
+    try {
+      return createSemanticBlocks(await deps.cache.load());
+    } catch {
+      // Why it is safe: the cache is cleared, and every note is embedded again from the vault.
+      await deps.cache.clear();
+      return createSemanticBlocks({ notes: [], blocks: [] });
+    }
   };
   const opening = () => {
     opened ??= open().catch((cause: unknown) => {
@@ -90,27 +130,54 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
     });
     return opened;
   };
+  /** Throws the cache away and starts over: its vectors are not the model's. */
+  const rebuild = async () => {
+    const { build: stale } = await opening();
+    stale.stop();
+    await stale.settled();
+    await deps.cache.clear();
+    opened = null;
+    build = null;
+    await start();
+  };
   const progress = () => build?.progress() ?? NOT_STARTED;
   const start = async () => {
     deps.optIn.turnOn(deps.vault);
     const { build: started } = await opening();
     const manifest = await deps.index.manifest();
+    notePaths = new Set(manifest.map((entry) => entry.path));
+    resolver = null;
     started.plan(new Map(manifest.map((entry) => [entry.path, entry.digest])));
   };
 
   return {
     start,
+    isOn: () => deps.optIn.isOn(deps.vault),
     hear(news) {
-      if (news.vault === deps.vault) build?.hear(news.changes);
+      if (news.vault !== deps.vault) return;
+      if (notePaths !== null) {
+        for (const { kind, path } of news.changes) {
+          if (kind === 'added') notePaths.add(path);
+          else if (kind === 'removed') notePaths.delete(path);
+        }
+        resolver = null;
+      }
+      build?.hear(news.changes);
     },
     async search(asked) {
       if (opened === null) await start();
       const { blocks, build: started } = await opening();
       started.resume();
-      return semanticSearch(
-        { blocks, embedder: deps.embedder, cache: deps.cache, progress },
-        asked,
-      );
+      try {
+        return await semanticSearch(
+          { blocks, embedder: deps.embedder, cache: deps.cache, progress, resolve, questions },
+          asked,
+        );
+      } catch (cause) {
+        if (!(cause instanceof CacheMismatchError)) throw cause;
+        await rebuild();
+        return { hits: [], progress: progress() };
+      }
     },
     progress,
     subscribe(listener) {

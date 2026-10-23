@@ -9,6 +9,7 @@ export {
   CHUNK_EXCERPT_LENGTH,
   CHUNKER_VERSION,
   chunkExcerpt,
+  cutAtCharacter,
   halvedChunk,
   MAX_CHUNK_CHARACTERS,
   numbered,

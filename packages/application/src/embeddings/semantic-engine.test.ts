@@ -167,8 +167,13 @@ describe('semantic search', () => {
     expect((await engine.search({ query: 'bees' })).hits).toHaveLength(20);
     const before = embedder.calls.length;
     expect((await engine.search({ query: '   ' })).hits).toEqual([]);
-    expect((await engine.search({ query: 'bees', limit: 0 })).hits).toEqual([]);
     expect(embedder.calls.length).toBe(before);
+    // A limit that is not a sensible number is held to 1 to 100, 20 when it is not a number at all.
+    expect((await engine.search({ query: 'bees', limit: 0 })).hits).toHaveLength(1);
+    expect((await engine.search({ query: 'bees', limit: -4 })).hits).toHaveLength(1);
+    expect((await engine.search({ query: 'bees', limit: Number.NaN })).hits).toHaveLength(20);
+    expect((await engine.search({ query: 'bees', limit: Infinity })).hits).toHaveLength(20);
+    expect((await engine.search({ query: 'bees', limit: 2.9 })).hits).toHaveLength(2);
   });
 
   it('asks the model about the question as a query, not a passage', async () => {
@@ -179,16 +184,39 @@ describe('semantic search', () => {
     expect(embedder.calls.at(-1)).toEqual({ texts: ['honey'], purpose: 'query' });
   });
 
-  it('finds nothing for a question the model cannot read, and passes on any other refusal', async () => {
+  it('finds nothing for a question the model cannot read, and passes on any other failure', async () => {
     let reason: EmbeddingRefusalReason | null = null;
-    const embedder = fakeEmbedder({ refuse: (text) => (text === 'q' ? reason : null) });
+    let failure: string | null = null;
+    const embedder = fakeEmbedder({
+      refuse: (text) => (text === 'q' ? reason : null),
+      failWith: () => failure,
+    });
     const { engine } = setUp(NOTES, { embedder });
     await engine.start();
     await engine.settled();
     reason = 'nothing-readable';
     expect((await engine.search({ query: 'q' })).hits).toEqual([]);
-    reason = 'too-long';
-    await expect(engine.search({ query: 'q' })).rejects.toThrow('refused');
+    reason = null;
+    failure = 'the model could not be fetched';
+    await expect(engine.search({ query: 'z' })).rejects.toThrow('could not be fetched');
+  });
+
+  it('halves a question the model finds too long until it reads what is left', async () => {
+    const embedder = fakeEmbedder({ refuse: (text) => (text.length > 12 ? 'too-long' : null) });
+    const { engine } = setUp(NOTES, { embedder });
+    await engine.start();
+    await engine.settled();
+    await engine.search({ query: 'honey honey honey honey honey honey' });
+    expect(embedder.calls.at(-1)?.texts[0]?.length).toBeLessThanOrEqual(12);
+  });
+
+  it('asks the model once for the same question searched again as the cache moves', async () => {
+    const { engine, embedder } = setUp(NOTES);
+    await engine.start();
+    await engine.settled();
+    await engine.search({ query: 'honey' });
+    await engine.search({ query: 'honey' });
+    expect(embedder.calls.filter((call) => call.purpose === 'query')).toHaveLength(1);
   });
 });
 

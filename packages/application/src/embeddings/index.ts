@@ -13,11 +13,25 @@ export type {
   RefusedText,
 } from './ports.ts';
 export { createEmbeddingBuild } from './embedding-build.ts';
-export type { BuildProgress, EmbeddingBuild, EmbeddingBuildDeps } from './embedding-build.ts';
-export { createSemanticBlocks } from './semantic-blocks.ts';
-export type { HeldNote, RankableBlocks, SemanticBlocks } from './semantic-blocks.ts';
-export { SEMANTIC_HITS, semanticSearch } from './semantic-search.ts';
 export type {
+  BuildProgress,
+  EmbeddingBuild,
+  EmbeddingBuildDeps,
+  NoteChunker,
+} from './embedding-build.ts';
+export { inlineChunker, notePassages } from './note-passages.ts';
+export type { NotePassages } from './note-passages.ts';
+export { createSemanticBlocks, MixedVectorsError } from './semantic-blocks.ts';
+export type { HeldNote, RankableBlocks, SemanticBlocks } from './semantic-blocks.ts';
+export {
+  CacheMismatchError,
+  MAX_QUERY_CHARACTERS,
+  SEMANTIC_HITS,
+  semanticSearch,
+} from './semantic-search.ts';
+export type {
+  QuestionVectors,
+  SemanticAccess,
   SemanticAnswer,
   SemanticHit,
   SemanticQuery,
