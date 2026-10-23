@@ -10,8 +10,8 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
-import { NodeSelection, TextSelection } from '@tiptap/pm/state';
-import { Slice } from '@tiptap/pm/model';
+import { NodeSelection, TextSelection, type Selection } from '@tiptap/pm/state';
+import { Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { createEditorExtensions } from './extensions.ts';
 
 const TOMBSTONE =
@@ -445,23 +445,30 @@ describe('a highlight dragged within its note, the copy key changed mid-drag', (
    */
   function dragHighlightToEnd(
     instance: Editor,
-    { moveAtStart, copyKeyAtDrop }: { moveAtStart: boolean; copyKeyAtDrop: boolean },
+    keys: { moveAtStart: boolean; copyKeyAtDrop: boolean },
   ): void {
     let at = -1;
     instance.state.doc.forEach((node, offset) => {
       if (node.type.name === 'rawBlock') at = offset;
     });
-    const node = instance.state.doc.nodeAt(at);
-    if (node === null) throw new Error('No highlight to drag.');
+    if (instance.state.doc.nodeAt(at) === null) throw new Error('No highlight to drag.');
+    dragToEnd(instance, NodeSelection.create(instance.state.doc, at), keys);
+  }
+
+  /** Drags `selection` to the note's end, as {@link dragHighlightToEnd} does. */
+  function dragToEnd(
+    instance: Editor,
+    selection: Selection,
+    { moveAtStart, copyKeyAtDrop }: { moveAtStart: boolean; copyKeyAtDrop: boolean },
+  ): void {
     const { view } = instance;
-    const selection = NodeSelection.create(instance.state.doc, at);
     view.dispatch(instance.state.tr.setSelection(selection));
     const end = instance.state.doc.content.size;
     view.posAtCoords = () => ({ pos: end, inside: -1 });
     (view as unknown as { dragging: unknown }).dragging = {
       slice: selection.content(),
       move: moveAtStart,
-      node: selection,
+      node: selection instanceof NodeSelection ? selection : undefined,
     };
     const drop = new Event('drop', { bubbles: true, cancelable: true });
     Object.assign(drop, {
@@ -498,11 +505,84 @@ describe('a highlight dragged within its note, the copy key changed mid-drag', (
     expect(liveHighlights(instance)).toHaveLength(1);
   });
 
+  /**
+   * The note's last raw block and where it starts: a copy dropped at the end
+   * lands there, before the empty line the editor keeps after a last atom.
+   */
+  const lastRawBlock = (instance: Editor) => {
+    let found: { at: number; node: ProseMirrorNode } | null = null;
+    instance.state.doc.forEach((node, at) => {
+      if (node.type.name === 'rawBlock') found = { at, node };
+    });
+    if (found === null) throw new Error('No raw block.');
+    return found as { at: number; node: ProseMirrorNode };
+  };
+  const lastBlock = (instance: Editor) => {
+    const { at, node } = lastRawBlock(instance);
+    const next = instance.state.doc.nodeAt(at + node.nodeSize);
+    return {
+      type: node.type.name,
+      anchor: node.attrs['anchor'],
+      marked: String(node.attrs['markdown']).includes('atlas:highlight '),
+      // Nothing but the editor's empty last line comes after it.
+      last: next === instance.state.doc.lastChild && next?.content.size === 0,
+    };
+  };
+  const plainQuote = { type: 'rawBlock', anchor: null, marked: false, last: true };
+
   it('begun plain and dropped holding the copy key, leaves one live highlight, not two', () => {
     const instance = literatureNote();
     editor = instance;
     dragHighlightToEnd(instance, { moveAtStart: true, copyKeyAtDrop: true });
     expect(liveHighlights(instance)).toEqual([{ markdown: HIGHLIGHT, anchor: 'kd0041' }]);
+    expect(lastBlock(instance)).toEqual(plainQuote);
+  });
+
+  it('begun and dropped holding the copy key, leaves one live highlight and a plain quote', () => {
+    const instance = literatureNote();
+    editor = instance;
+    dragHighlightToEnd(instance, { moveAtStart: false, copyKeyAtDrop: true });
+    expect(liveHighlights(instance)).toEqual([{ markdown: HIGHLIGHT, anchor: 'kd0041' }]);
+    expect(lastBlock(instance)).toEqual(plainQuote);
+  });
+
+  it('dropped as a copy, selects the dropped copy, not the highlight it came from', () => {
+    const instance = literatureNote();
+    editor = instance;
+    dragHighlightToEnd(instance, { moveAtStart: true, copyKeyAtDrop: true });
+    const { selection } = instance.state;
+    expect(selection).toBeInstanceOf(NodeSelection);
+    expect(selection.from).toBe(lastRawBlock(instance).at);
+    expect((selection as NodeSelection).node.attrs['anchor']).toBeNull();
+  });
+
+  it('dropped as a copy, is taken back by one undo', () => {
+    const instance = literatureNote();
+    editor = instance;
+    const before = instance.state.doc.toJSON();
+    dragHighlightToEnd(instance, { moveAtStart: true, copyKeyAtDrop: true });
+    expect(instance.state.doc.toJSON()).not.toEqual(before);
+    instance.commands.undo();
+    expect(instance.state.doc.toJSON()).toEqual(before);
+  });
+
+  it('dropped as a copy with a block id beside it, leaves the id on one block', () => {
+    const instance = literatureNote();
+    editor = instance;
+    instance.view.dispatch(instance.state.tr.setNodeAttribute(0, 'anchor', 'ab12cd'));
+    let afterStart = -1;
+    instance.state.doc.forEach((node, offset) => {
+      if (node.textContent === 'After.') afterStart = offset + 1;
+    });
+    const across = TextSelection.create(instance.state.doc, 1, afterStart);
+    dragToEnd(instance, across, { moveAtStart: true, copyKeyAtDrop: true });
+    const holders: number[] = [];
+    instance.state.doc.forEach((node, offset) => {
+      if (node.attrs['anchor'] === 'ab12cd') holders.push(offset);
+    });
+    expect(holders).toEqual([0]);
+    expect(liveHighlights(instance)).toEqual([{ markdown: HIGHLIGHT, anchor: 'kd0041' }]);
+    expect(instance.state.doc.textContent.match(/My own paragraph\./g)).toHaveLength(2);
   });
 
   it('begun holding the copy key and dropped plain, is moved and still a highlight', () => {
