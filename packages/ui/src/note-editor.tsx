@@ -22,6 +22,8 @@ import {
 } from '@dfai/domain';
 import { createEditorExtensions } from './editor/extensions.ts';
 import type { HighlightBlocks, ReaderLinks } from './editor/raw-block.ts';
+import { HighlightDrafts, type LostDraft, type WriteComment } from './editor/highlight-drafts.ts';
+import { redrawHighlightBlocks } from './editor/raw-block.ts';
 import { showAsRead } from './editor/block-anchor.ts';
 import type { LinkedNoteMaker, WikiSuggestionView } from './editor/wiki-link-suggestion.ts';
 import { IMAGE_REQUEST, LINK_REQUEST, type SlashCommandView } from './editor/slash-commands.ts';
@@ -298,6 +300,14 @@ export function NoteEditor({
     if (editor !== null && personFor !== undefined) redrawPersonChips(editor);
   }, [editor, personFor]);
 
+  // Which quotes are highlights can change with no change to their own bytes.
+  const highlightReading = highlights?.viewOf;
+  useEffect(() => {
+    if (editor !== null && highlightReading !== undefined) {
+      redrawHighlightBlocks(editor, highlightBlocks);
+    }
+  }, [editor, highlightReading, highlightBlocks]);
+
   useEffect(() => {
     if (editor === null || onRequestLink === undefined) return;
     const element = editor.view.dom;
@@ -475,14 +485,26 @@ export interface NoteHighlights {
     readonly markdown: string;
     readonly id: string;
   }) => HighlightView | null;
-  /** Writes a highlight's comment; rejects with why it could not. */
-  readonly editComment: (edit: { readonly id: string; readonly comment: string }) => Promise<void>;
+  /**
+   * Writes a highlight's comment over `base`, the comment its field started
+   * from; rejects with why it could not, `HighlightCommentChangedError` when the
+   * note's comment is not `base` any more.
+   */
+  readonly editComment: WriteComment;
+  /**
+   * The note these highlights are of. A field's unwritten words are written
+   * to it, and not to the note drawn next, when this changes or the editor goes.
+   */
+  readonly identity?: string;
+  /** Told of words typed in a comment that could not be written as the note closed. */
+  readonly onUnwrittenComments?: (lost: readonly LostDraft[]) => void;
 }
 
 /**
  * The raw blocks' highlights, read through refs as the reader links are: a
  * note saved hands over a new reading, and a new object each time would
- * rebuild the editor.
+ * rebuild the editor. Comments typed and not written when the note closes, or
+ * another takes its place, are written to the note they were typed in.
  */
 function useHighlightBlocks(
   highlights: NoteHighlights | null,
@@ -490,7 +512,24 @@ function useHighlightBlocks(
 ): HighlightBlocks | null {
   const latest = useLatest(highlights);
   const images = useLatest(loadImage);
+  const [drafts] = useState(() => new HighlightDrafts());
   const offers = highlights !== null;
+  // The reading of the note being left: effects clean up before the next ones run.
+  const bound = useRef(highlights);
+  useEffect(() => {
+    bound.current = highlights;
+  });
+  const identity = highlights?.identity;
+  useEffect(
+    () => () => {
+      const leaving = bound.current;
+      if (leaving === null) return;
+      void drafts.flush(leaving.editComment).then((lost) => {
+        if (lost.length > 0) leaving.onUnwrittenComments?.(lost);
+      });
+    },
+    [drafts, identity],
+  );
   return useMemo(
     () =>
       offers
@@ -499,9 +538,10 @@ function useHighlightBlocks(
             editComment: (edit) =>
               latest.current?.editComment(edit) ??
               Promise.reject(new Error('This note holds no highlights now.')),
+            drafts,
             loadImage: (src) => images.current(src),
           }
         : null,
-    [offers, latest, images],
+    [offers, latest, images, drafts],
   );
 }

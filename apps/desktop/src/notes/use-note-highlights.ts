@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import {
+  createHighlightReadMemo,
   editHighlightComment,
   literatureHighlightReader,
   type MarkdownPort,
@@ -7,8 +8,9 @@ import {
   type OpenNotes,
   type VaultFsPort,
 } from '@dfai/application';
-import type { VaultPath } from '@dfai/domain';
+import { noteTitle, type VaultPath } from '@dfai/domain';
 import type { NoteHighlights } from '@dfai/ui';
+import type { Toasts } from '../toasts/toasts.ts';
 
 /**
  * A literature note's highlights as its pane draws them (#523): each quote
@@ -27,6 +29,7 @@ export function useNoteHighlights({
   path,
   open,
   onChanged,
+  toasts,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
@@ -37,22 +40,59 @@ export function useNoteHighlights({
   open: OpenNote | null;
   /** Re-reads the tree and the index, after a comment was written. */
   onChanged: () => void;
+  /** Where words that could not be written as the pane closed are told of. */
+  toasts?: Pick<Toasts, 'show'>;
 }): NoteHighlights | null {
+  // Kept across readings of the note: its ids are built again only when its highlights change.
+  const memo = useMemo(createHighlightReadMemo, [markdown, path]);
   const viewOf = useMemo(
     () =>
       open === null
         ? null
-        : literatureHighlightReader(markdown, { properties: open.properties, text: open.onDisk }),
-    [markdown, open],
+        : literatureHighlightReader(
+            markdown,
+            { properties: open.properties, text: open.onDisk },
+            memo,
+          ),
+    [markdown, open, memo],
   );
   const editComment = useCallback(
-    async ({ id, comment }: { id: string; comment: string }) => {
+    async ({ id, comment, base }: { id: string; comment: string; base: string }) => {
       if (path === null) throw new Error('No note is open to write the comment to.');
       await flush();
-      await editHighlightComment({ fs, markdown, openNotes }, { path, id, comment });
+      await editHighlightComment({ fs, markdown, openNotes }, { path, id, comment, base });
       onChanged();
     },
     [fs, markdown, openNotes, flush, path, onChanged],
   );
-  return useMemo(() => (viewOf === null ? null : { viewOf, editComment }), [viewOf, editComment]);
+  const onUnwrittenComments = useMemo(
+    () =>
+      path === null || toasts === undefined
+        ? undefined
+        : (lost: readonly { comment: string; why: string }[]) => {
+            for (const each of lost) {
+              toasts.show({
+                message: `Your comment on a highlight in “${noteTitle(path)}” was not saved: ${each.why} It read: “${each.comment}”`,
+                tone: 'error',
+                action: {
+                  label: 'Copy',
+                  onClick: () => void navigator.clipboard.writeText(each.comment),
+                },
+              });
+            }
+          },
+    [path, toasts],
+  );
+  return useMemo(
+    () =>
+      viewOf === null
+        ? null
+        : {
+            viewOf,
+            editComment,
+            ...(path !== null && { identity: path }),
+            ...(onUnwrittenComments !== undefined && { onUnwrittenComments }),
+          },
+    [viewOf, editComment, path, onUnwrittenComments],
+  );
 }

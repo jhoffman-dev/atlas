@@ -32,7 +32,7 @@ const DATA_ATTRIBUTE = 'data-block-anchor';
 const HISTORY = 'history$';
 
 /** The meta a document read from its file is shown with: its ids are as the file has them. */
-const READ_FROM_FILE = 'atlas:readFromFile';
+export const READ_FROM_FILE = 'atlas:readFromFile';
 
 /**
  * Shows `doc`, read from its file, in place of what the editor holds. Its ids

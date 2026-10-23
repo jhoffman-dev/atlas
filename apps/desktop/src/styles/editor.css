@@ -208,32 +208,32 @@
    is never drawn. Each colour names its fill and its line once. */
 .highlight-quote {
   --highlight-fill: var(--mark-yellow);
-  --highlight-line: var(--mark-yellow-line);
+  --highlight-line: var(--mark-yellow-edge);
 }
 .highlight-quote[data-color='green'] {
   --highlight-fill: var(--mark-green);
-  --highlight-line: var(--mark-green-line);
+  --highlight-line: var(--mark-green-edge);
 }
 .highlight-quote[data-color='blue'] {
   --highlight-fill: var(--mark-blue);
-  --highlight-line: var(--mark-blue-line);
+  --highlight-line: var(--mark-blue-edge);
 }
 .highlight-quote[data-color='pink'] {
   --highlight-fill: var(--mark-pink);
-  --highlight-line: var(--mark-pink-line);
+  --highlight-line: var(--mark-pink-edge);
 }
 .highlight-quote[data-color='purple'] {
   --highlight-fill: var(--mark-purple);
-  --highlight-line: var(--mark-purple-line);
+  --highlight-line: var(--mark-purple-edge);
 }
 .highlight-quote[data-color='orange'] {
   --highlight-fill: var(--mark-orange);
-  --highlight-line: var(--mark-orange-line);
+  --highlight-line: var(--mark-orange-edge);
 }
 
 /* Two classes, so the quote's mark beats the editor's own `blockquote` rule. */
 .highlight-quote .highlight-quote__quote {
-  border-left: 3px solid var(--highlight-fill);
+  border-left: 3px solid var(--highlight-line);
   color: var(--ink);
   margin: 0;
   padding-left: 14px;
@@ -242,7 +242,7 @@
 
 /* Muted over the page, so the words keep their own ink in light and dark. */
 .highlight-quote[data-mark='highlight'] .highlight-quote__words {
-  background: color-mix(in srgb, var(--highlight-fill) 45%, transparent);
+  background: color-mix(in srgb, var(--highlight-fill) var(--highlight-mix), transparent);
   border-radius: 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;

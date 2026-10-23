@@ -32,8 +32,10 @@ export function HighlightBlockView({ node, extension, selected }: NodeViewProps)
         loadImage={highlights.loadImage}
         comment={
           <HighlightCommentField
+            id={id}
             comment={view.comment}
-            onSave={(comment) => highlights.editComment({ id, comment })}
+            drafts={highlights.drafts}
+            onSave={highlights.editComment}
           />
         }
       />

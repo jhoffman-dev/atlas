@@ -49,6 +49,7 @@ import { PendingMention } from './pending-mention.ts';
 import { PromoteLineButton, type PromoteLine } from './promote-line.ts';
 import { PersonChips, type PersonFor } from './person-chips.ts';
 import { RawBlock, type HighlightBlocks, type ReaderLinks } from './raw-block.ts';
+import { TombstoneGuard } from './tombstone-guard.ts';
 import { WikiLink } from './wiki-link.ts';
 import {
   WikiLinkSuggestion,
@@ -119,6 +120,7 @@ export function createEditorExtensions({
     ...baseExtensions,
     ControlKeys,
     RawBlock.configure({ readerLinks, highlights }),
+    TombstoneGuard,
     TagHighlight.configure({ onOpen: onOpenTag }),
     PersonChips.configure({ personFor: people.personFor }),
     PendingMention,

@@ -756,6 +756,7 @@ export function useNotePane({
     path,
     open: note.open,
     onChanged,
+    toasts: context.toasts,
   });
   const corrections = useMeetingCorrections({
     fs: notes.fs,

@@ -1,8 +1,10 @@
-import { Node, type NodeViewRenderer } from '@tiptap/core';
+import { Node, type Editor, type NodeViewRenderer } from '@tiptap/core';
 import { DOMSerializer, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { BLOCK_ANCHOR_ATTR, isTombstoneBlock, type HighlightView } from '@dfai/domain';
+import { READ_FROM_FILE } from './block-anchor.ts';
 import { HighlightBlockView } from './highlight-block-view.tsx';
+import type { HighlightDrafts, WriteComment } from './highlight-drafts.ts';
 
 /**
  * Which raw blocks offer to open their place elsewhere: a highlight in its
@@ -24,8 +26,14 @@ export interface ReaderLinks {
 export interface HighlightBlocks {
   /** The highlight the block with this markdown and `^id` is, or null when it is none. */
   viewOf(block: { readonly markdown: string; readonly id: string }): HighlightView | null;
-  /** Writes highlight `id`'s comment, as the literature note's own writes do; rejects with why not. */
-  editComment(edit: { readonly id: string; readonly comment: string }): Promise<void>;
+  /**
+   * Writes highlight `id`'s comment, as the literature note's own writes do,
+   * over `base`, the comment the field started from; rejects with why not,
+   * `HighlightCommentChangedError` when the note's comment is not `base` any more.
+   */
+  editComment: WriteComment;
+  /** What is typed in the comment fields and not yet written, kept across redraws. */
+  readonly drafts: HighlightDrafts;
   /** An area highlight's picture, found as the note's images are. */
   loadImage(src: string): Promise<string | null>;
 }
@@ -107,26 +115,28 @@ function highlightOrSource(
   readerLinks: ReaderLinks | null,
 ): NodeViewRenderer {
   const highlightView = ReactNodeViewRenderer(HighlightBlockView, {
+    // The block's bytes may change under the person (a sync, an edit elsewhere): the
+    // same highlight is kept, its field and the words typed in it with it.
     update: ({ oldNode, newNode, updateProps }) => {
-      if (!sameBlock(oldNode, newNode)) return false;
+      if (oldNode.attrs[BLOCK_ANCHOR_ATTR] !== newNode.attrs[BLOCK_ANCHOR_ATTR]) return false;
+      if (!isHighlight(highlights, newNode)) return false;
       updateProps();
       return true;
     },
   });
   return (props) => {
-    const markdown = String(props.node.attrs['markdown'] ?? '');
-    const id = props.node.attrs[BLOCK_ANCHOR_ATTR];
-    if (typeof id === 'string' && highlights.viewOf({ markdown, id }) !== null) {
-      return highlightView(props);
-    }
+    if (isHighlight(highlights, props.node)) return highlightView(props);
     const { dom } = DOMSerializer.renderSpec(document, rawBlockSpec(props.node, readerLinks));
     return { dom, update: () => false };
   };
 }
 
-const sameBlock = (one: ProseMirrorNode, other: ProseMirrorNode): boolean =>
-  one.attrs['markdown'] === other.attrs['markdown'] &&
-  one.attrs[BLOCK_ANCHOR_ATTR] === other.attrs[BLOCK_ANCHOR_ATTR];
+/** Whether the note reads this raw block as a highlight now. */
+export function isHighlight(highlights: HighlightBlocks, node: ProseMirrorNode): boolean {
+  const id = node.attrs[BLOCK_ANCHOR_ATTR];
+  const markdown = String(node.attrs['markdown'] ?? '');
+  return typeof id === 'string' && highlights.viewOf({ markdown, id }) !== null;
+}
 
 /**
  * The block's own link — `[[#^id]]`, a place in this note — which the note's
@@ -154,3 +164,48 @@ const readerLink = (id: string, label: string) =>
  */
 const isComment = (markdown: string): boolean =>
   /^<!--(?:(?!-->)[\s\S])*-->$/.test(markdown.trim());
+
+/**
+ * Draws again the raw blocks whose answer changed: a `%%` typed above a
+ * highlight hides it from the note's reading though its own bytes did not
+ * change, and one taken away shows it. A block is drawn as a highlight or as
+ * its source when it is drawn, so one whose bytes are the same is changed and
+ * changed back — neither a step to undo nor a save.
+ */
+export function redrawHighlightBlocks(editor: Editor, highlights: HighlightBlocks | null): void {
+  if (highlights === null) return;
+  const { view, state } = editor;
+  const stale: number[] = [];
+  state.doc.descendants((node, pos) => {
+    if (node.type.name !== 'rawBlock') return false;
+    const dom = view.nodeDOM(pos);
+    // The highlight's view sits inside the wrapper its node view renderer draws.
+    const drawnAsHighlight =
+      dom instanceof HTMLElement && dom.querySelector('[data-highlight-block]') !== null;
+    if (
+      typeof node.attrs[BLOCK_ANCHOR_ATTR] === 'string' &&
+      isHighlight(highlights, node) !== drawnAsHighlight
+    ) {
+      stale.push(pos);
+    }
+    return false;
+  });
+  if (stale.length === 0) return;
+  // ProseMirror keeps a node view whose node is equal to the one it drew, so the
+  // blocks are changed and changed back: each is a step the view draws again.
+  const changeBlocks = (positions: readonly number[], change: (markdown: string) => string) => {
+    const tr = editor.state.tr;
+    for (const pos of positions) {
+      const attrs = tr.doc.nodeAt(pos)?.attrs ?? {};
+      tr.setNodeMarkup(pos, undefined, { ...attrs, markdown: change(String(attrs['markdown'])) });
+    }
+    editor.view.dispatch(
+      tr
+        .setMeta(READ_FROM_FILE, true)
+        .setMeta('addToHistory', false)
+        .setMeta('preventUpdate', true),
+    );
+  };
+  changeBlocks(stale, (markdown) => `${markdown} `);
+  changeBlocks(stale, (markdown) => markdown.slice(0, -1));
+}
