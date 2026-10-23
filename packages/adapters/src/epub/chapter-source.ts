@@ -1,6 +1,5 @@
 import { LINK_FRAGMENT, LINK_PATH, resourceAttribute, STYLESHEET_PATH } from './chapter-safety.ts';
 import type { BookFiles } from './book-files.ts';
-import { styleBudget } from './book-styles.ts';
 import type { ChapterText } from './chapter-text.ts';
 import type { FrameNode } from './frame-protocol.ts';
 
@@ -79,7 +78,7 @@ async function madeFiles(chapter: Document, path: string, files: BookFiles): Pro
   // The chapter's CSS, made one piece at a time in document order: all of it shares one budget,
   // so what is dropped once it runs out is the same however the book's files load.
   const styling: (() => Promise<void>)[] = [];
-  const budget = styleBudget();
+  const budget = files.budget();
   for (const element of Array.from(chapter.getElementsByTagName('*'))) {
     for (const name of RESOURCES) {
       const kept = element.getAttribute(resourceAttribute(name));

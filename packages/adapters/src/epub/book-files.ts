@@ -1,4 +1,10 @@
-import { bookStyles, type StyleBudget } from './book-styles.ts';
+import {
+  bookStyles,
+  STYLE_LIMITS,
+  styleBudget,
+  type StyleBudget,
+  type StyleLimits,
+} from './book-styles.ts';
 import { bookDeclarations } from './chapter-styles.ts';
 import type { BookArchive } from './zip-loader.ts';
 
@@ -21,9 +27,14 @@ export interface BookFiles {
   css(css: string, from: string, budget?: StyleBudget): Promise<string>;
   /** `style`, a `style=` written in the book's file at `from`, made the same way, within its chapter's `budget`. */
   declarations(style: string, from: string, budget?: StyleBudget): Promise<string>;
+  /** A budget for one chapter's CSS, made fresh each time the chapter is. */
+  budget(): StyleBudget;
 }
 
-export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): BookFiles {
+export function bookFiles(
+  archive: Pick<BookArchive, 'loadText' | 'loadBlob'>,
+  limits: StyleLimits = STYLE_LIMITS,
+): BookFiles {
   const addresses = new Map<string, Promise<string | null>>();
   const address = (path: string) =>
     held(addresses, path, async () => {
@@ -31,11 +42,13 @@ export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): 
       return blob === null ? null : dataAddress(blob);
     });
   // Each stylesheet is read and made once, whether a chapter links it or a sheet imports it.
-  const styles = bookStyles({ address, stylesheet: (path) => archive.loadText(path) });
+  const styles = bookStyles({ address, stylesheet: (path) => archive.loadText(path), limits });
   return {
     address,
     css: (css, from, budget) => styles.css(css, from, budget),
-    declarations: (style, from, budget) => bookDeclarations({ style, from, address, budget }),
+    declarations: (style, from, budget) =>
+      bookDeclarations({ style, from, address, limits, budget }),
+    budget: () => styleBudget(limits),
     // Only the made sheets are kept: putting their imports in costs no more than joining them.
     stylesheet: (path, budget) => styles.sheet(path, budget),
   };

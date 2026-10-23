@@ -58,7 +58,23 @@ export interface LookupBudget {
   readonly most: number;
 }
 
-const sheetBudget = (): LookupBudget => ({ lookups: 0, most: MOST_LOOKUPS });
+/** How much of a sheet is read: today's limits are the defaults, and a test may make them small. */
+export interface SheetLimits {
+  readonly sheetLength: number;
+  readonly nesting: number;
+  readonly ruleLength: number;
+  /** The most longhands and rules read in one sheet. */
+  readonly lookups: number;
+}
+
+export const SHEET_LIMITS: SheetLimits = {
+  sheetLength: MOST_SHEET_LENGTH,
+  nesting: MOST_NESTING,
+  ruleLength: MOST_RULE_LENGTH,
+  lookups: MOST_LOOKUPS,
+};
+
+const sheetBudget = (limits: SheetLimits): LookupBudget => ({ lookups: 0, most: limits.lookups });
 
 /** One sheet of the book made: the book's files its `@import`s name, in order, and its own rules made. */
 export interface MadeSheet {
@@ -72,6 +88,7 @@ export interface MadeSheet {
 interface Making {
   readonly made: AddressMade;
   readonly budget: LookupBudget;
+  readonly limits: SheetLimits;
 }
 
 /**
@@ -84,14 +101,16 @@ export async function sheetMade({
   css,
   from,
   address,
-  budget = sheetBudget(),
+  limits = SHEET_LIMITS,
+  budget = sheetBudget(limits),
 }: {
   css: string;
   from: string;
   address: FileAddress;
+  limits?: SheetLimits | undefined;
   budget?: LookupBudget | undefined;
 }): Promise<MadeSheet> {
-  if (css.length > MOST_SHEET_LENGTH || nestsDeeperThan(css, MOST_NESTING)) {
+  if (css.length > limits.sheetLength || nestsDeeperThan(css, limits.nesting)) {
     return { imports: [], own: '', length: css.length };
   }
   const imports: string[] = [];
@@ -100,7 +119,7 @@ export async function sheetMade({
     if (target.kind === 'inside') imports.push(target.path);
   }
   const sheet = parsed(css);
-  await rulesMade(sheet, { made: addressMade({ from, address }), budget });
+  await rulesMade(sheet, { made: addressMade({ from, address }), budget, limits });
   const own = Array.from(sheet.cssRules, (rule) => rule.cssText).join('\n');
   return { imports, own, length: css.length };
 }
@@ -110,19 +129,25 @@ export async function bookDeclarations({
   style,
   from,
   address,
-  budget = sheetBudget(),
+  limits = SHEET_LIMITS,
+  budget = sheetBudget(limits),
 }: {
   style: string;
   from: string;
   address: FileAddress;
+  limits?: SheetLimits | undefined;
   budget?: LookupBudget | undefined;
 }): Promise<string> {
-  if (style.length > MOST_SHEET_LENGTH || nestsDeeperThan(style, MOST_NESTING)) return '';
+  if (style.length > limits.sheetLength || nestsDeeperThan(style, limits.nesting)) return '';
   // A rule around the declarations, read as a style attribute is; anything after a `}` that
   // closes it early is another rule, and is left out.
   const first = parsed(`*{${style}\n}`).cssRules[0];
   if (!(first instanceof CSSStyleRule)) return '';
-  await declarationsMade(first.style, { made: addressMade({ from, address }), budget });
+  await declarationsMade(first.style, {
+    made: addressMade({ from, address }),
+    budget,
+    limits,
+  });
   return first.style.cssText;
 }
 
@@ -191,13 +216,13 @@ function withDelete(list: RuleList): RuleList {
 /** Each declaration in `style` with its addresses made; one naming an address that may not stay is dropped. */
 async function declarationsMade(
   style: CSSStyleDeclaration,
-  { made, budget }: Making,
+  { made, budget, limits }: Making,
 ): Promise<void> {
   // Each declaration of a rule is found by walking its list in WebKit, so a long one costs the
   // square of its length: it, and every rule past the budget, is dropped before any is read.
   const length = style.length;
   budget.lookups += Math.max(length, 1);
-  if (length > MOST_RULE_LENGTH || budget.lookups > budget.most) {
+  if (length > limits.ruleLength || budget.lookups > budget.most) {
     style.cssText = '';
     return;
   }

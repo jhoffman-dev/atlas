@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { bookFiles, type BookFiles } from './book-files.ts';
-import { MOST_IMPORTED_LENGTH, MOST_IMPORTS } from './book-styles.ts';
+import { MOST_IMPORTS, STYLE_LIMITS, styleBudget, type StyleLimits } from './book-styles.ts';
 import { makeChapterSafe } from './chapter-safety.ts';
 import { chapterSource } from './chapter-source.ts';
 import { chapterText } from './chapter-text.ts';
@@ -19,6 +19,7 @@ const NO_FILES: BookFiles = {
   stylesheet: async () => '',
   css: async (css) => css,
   declarations: async (style) => style,
+  budget: styleBudget,
 };
 
 async function handed(doc: Document, path = 'OEBPS/one.xhtml') {
@@ -64,15 +65,19 @@ describe("a chapter's stylesheets, within one budget", () => {
   };
 
   /** A book whose sheets load after a seeded number of turns of the microtask queue. */
-  const slowBook = (sheets: Record<string, string>, seed: number) => {
+  const slowBook = (sheets: Record<string, string>, seed: number, limits?: StyleLimits) => {
     const random = seeded(seed);
-    return bookFiles({
-      loadText: async (name) => {
-        for (let turns = Math.floor(random() * 50); turns > 0; turns -= 1) await Promise.resolve();
-        return sheets[name] ?? null;
+    return bookFiles(
+      {
+        loadText: async (name) => {
+          for (let turns = Math.floor(random() * 50); turns > 0; turns -= 1)
+            await Promise.resolve();
+          return sheets[name] ?? null;
+        },
+        loadBlob: async () => null,
       },
-      loadBlob: async () => null,
-    });
+      limits,
+    );
   };
 
   const stylesOf = async (head: string, files: BookFiles) => {
@@ -103,8 +108,9 @@ describe("a chapter's stylesheets, within one budget", () => {
   });
 
   it('keeps the same sheets, those first in the chapter, however its files load', async () => {
-    // Each sheet a tenth of the most a chapter may take: the first ten fit, and no more.
-    const size = Math.floor(MOST_IMPORTED_LENGTH / 10);
+    // Each sheet a tenth of the most a chapter may take, made small: the first ten fit, and no more.
+    const limits = { ...STYLE_LIMITS, importedLength: 1_000 };
+    const size = Math.floor(limits.importedLength / 10);
     const sheets: Record<string, string> = {};
     const head: string[] = [];
     for (let n = 0; n < 15; n += 1) {
@@ -112,7 +118,9 @@ describe("a chapter's stylesheets, within one budget", () => {
       head.push(`<style>@import "s${n}.css";</style>`);
     }
     const kept = async (seed: number) =>
-      (await stylesOf(head.join(''), slowBook(sheets, seed))).map((css) => css.includes('color'));
+      (await stylesOf(head.join(''), slowBook(sheets, seed, limits))).map((css) =>
+        css.includes('color'),
+      );
     const first = await kept(1);
     expect(first).toEqual(Array.from({ length: 15 }, (_, n) => n < 10));
     for (const seed of [2, 3, 4, 5]) expect(await kept(seed)).toEqual(first);

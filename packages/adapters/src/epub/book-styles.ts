@@ -1,7 +1,8 @@
 import {
   MOST_CHAPTER_LOOKUPS,
-  MOST_SHEET_LENGTH,
+  SHEET_LIMITS,
   sheetMade,
+  type SheetLimits,
   type FileAddress,
   type LookupBudget,
   type MadeSheet,
@@ -32,11 +33,28 @@ export interface StyleBudget extends LookupBudget {
   length: number;
 }
 
-export const styleBudget = (): StyleBudget => ({
+/** How much of the book's CSS one chapter may take: today's limits are the defaults, and a test may make them small. */
+export interface StyleLimits extends SheetLimits {
+  readonly imports: number;
+  readonly importDepth: number;
+  readonly importedLength: number;
+  /** The most longhands and rules read in all of one chapter's own `<style>`s and `style=`s. */
+  readonly chapterLookups: number;
+}
+
+export const STYLE_LIMITS: StyleLimits = {
+  ...SHEET_LIMITS,
+  imports: MOST_IMPORTS,
+  importDepth: MOST_IMPORT_DEPTH,
+  importedLength: MOST_IMPORTED_LENGTH,
+  chapterLookups: MOST_CHAPTER_LOOKUPS,
+};
+
+export const styleBudget = (limits: StyleLimits = STYLE_LIMITS): StyleBudget => ({
   imports: 0,
   length: 0,
   lookups: 0,
-  most: MOST_CHAPTER_LOOKUPS,
+  most: limits.chapterLookups,
 });
 
 export interface BookStyles {
@@ -46,39 +64,48 @@ export interface BookStyles {
   sheet(path: string, budget?: StyleBudget): Promise<string>;
 }
 
+/** What putting a sheet's imports in needs: each of the book's sheets, made, and the limits. */
+interface Importing {
+  readonly madeAt: (path: string) => Promise<MadeSheet | null>;
+  readonly limits: StyleLimits;
+}
+
 /** The book's stylesheets, each read by `stylesheet` and made once. */
 export function bookStyles({
   address,
   stylesheet,
+  limits = STYLE_LIMITS,
 }: {
   address: FileAddress;
   stylesheet: (path: string) => Promise<string | null>;
+  limits?: StyleLimits;
 }): BookStyles {
   const sheets = new Map<string, Promise<MadeSheet | null>>();
   const madeAt = (path: string): Promise<MadeSheet | null> => {
     const found = sheets.get(path);
     if (found !== undefined) return found;
     const made = stylesheet(path).then((css) =>
-      css === null || css.length > MOST_SHEET_LENGTH
+      css === null || css.length > limits.sheetLength
         ? null
-        : sheetMade({ css, from: path, address }),
+        : sheetMade({ css, from: path, address, limits }),
     );
     sheets.set(path, made);
     // One that failed is made again the next time it is asked for.
     made.catch(() => sheets.delete(path));
     return made;
   };
+  const importing: Importing = { madeAt, limits };
   const written = (top: MadeSheet, from: string, budget: StyleBudget) =>
-    withImports({ sheet: top, depth: 0, seen: new Set([from]), budget, madeAt });
+    withImports({ sheet: top, depth: 0, seen: new Set([from]), budget, importing });
   return {
-    css: async (css, from, budget = styleBudget()) =>
-      written(await sheetMade({ css, from, address, budget }), from, budget),
-    sheet: async (path, budget = styleBudget()) => {
+    css: async (css, from, budget = styleBudget(limits)) =>
+      written(await sheetMade({ css, from, address, limits, budget }), from, budget),
+    sheet: async (path, budget = styleBudget(limits)) => {
       // A linked sheet counts against its chapter's budget as an imported one does.
-      if (budget.imports >= MOST_IMPORTS) return '';
+      if (budget.imports >= limits.imports) return '';
       budget.imports += 1;
       const top = await madeAt(path);
-      if (top === null || budget.length + top.length > MOST_IMPORTED_LENGTH) return '';
+      if (top === null || budget.length + top.length > limits.importedLength) return '';
       budget.length += top.length;
       return written(top, path, budget);
     },
@@ -91,13 +118,15 @@ export function bookCss({
   from,
   address,
   stylesheet,
+  limits = STYLE_LIMITS,
 }: {
   css: string;
   from: string;
   address: FileAddress;
   stylesheet: (path: string) => Promise<string | null>;
+  limits?: StyleLimits;
 }): Promise<string> {
-  return bookStyles({ address, stylesheet }).css(css, from);
+  return bookStyles({ address, stylesheet, limits }).css(css, from);
 }
 
 /** `sheet` written out, each sheet it imports before its own rules, those not yet `seen`, within `budget`. */
@@ -106,24 +135,25 @@ async function withImports({
   depth,
   seen,
   budget,
-  madeAt,
+  importing,
 }: {
   sheet: MadeSheet;
   depth: number;
   seen: Set<string>;
   budget: StyleBudget;
-  madeAt: (path: string) => Promise<MadeSheet | null>;
+  importing: Importing;
 }): Promise<string> {
+  const { madeAt, limits } = importing;
   const parts: string[] = [];
-  for (const path of depth < MOST_IMPORT_DEPTH ? sheet.imports : []) {
+  for (const path of depth < limits.importDepth ? sheet.imports : []) {
     if (seen.has(path)) continue;
-    if (budget.imports >= MOST_IMPORTS) break;
+    if (budget.imports >= limits.imports) break;
     seen.add(path);
     budget.imports += 1;
     const imported = await madeAt(path);
-    if (imported === null || budget.length + imported.length > MOST_IMPORTED_LENGTH) continue;
+    if (imported === null || budget.length + imported.length > limits.importedLength) continue;
     budget.length += imported.length;
-    parts.push(await withImports({ sheet: imported, depth: depth + 1, seen, budget, madeAt }));
+    parts.push(await withImports({ sheet: imported, depth: depth + 1, seen, budget, importing }));
   }
   parts.push(sheet.own);
   return parts.filter((part) => part !== '').join('\n');

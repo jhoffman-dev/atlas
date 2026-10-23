@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { bookCss, MOST_IMPORTED_LENGTH, MOST_IMPORTS } from './book-styles.ts';
+import { bookCss, MOST_IMPORTED_LENGTH, MOST_IMPORTS, STYLE_LIMITS } from './book-styles.ts';
 import {
   bookDeclarations,
   MOST_NESTING,
@@ -109,7 +109,7 @@ describe("a book's CSS made the book's own, in the spellings WebKit still loads"
 // From the review of PR #536: a book's imports, followed into each other.
 describe("a book's imports", () => {
   /** The book's stylesheets by path; one read more often than `most` stops the test. */
-  const book = (sheets: Record<string, string>, most = 200) => {
+  const book = (sheets: Record<string, string>, most = 200, limits = STYLE_LIMITS) => {
     const reads: string[] = [];
     const stylesheet = async (path: string) => {
       reads.push(path);
@@ -117,7 +117,7 @@ describe("a book's imports", () => {
       return sheets[path] ?? null;
     };
     const made = (css: string, from = 'OEBPS/chapter.xhtml') =>
-      bookCss({ css, from, address: async () => null, stylesheet });
+      bookCss({ css, from, address: async () => null, stylesheet, limits });
     return { made, reads };
   };
 
@@ -148,17 +148,28 @@ describe("a book's imports", () => {
     expect(reads.length).toBe(MOST_IMPORTS);
   });
 
+  // The limits made small, so the rules run on small sheets; the e2e suite reads them at full size.
+  const small = { ...STYLE_LIMITS, sheetLength: 100, importedLength: 200 };
+
+  it('holds a book to the limits of today by default', () => {
+    expect(STYLE_LIMITS).toMatchObject({
+      sheetLength: MOST_SHEET_LENGTH,
+      imports: MOST_IMPORTS,
+      importedLength: MOST_IMPORTED_LENGTH,
+    });
+    // Two sheets of the most one may be fill the most all may be.
+    expect(MOST_IMPORTED_LENGTH).toBe(2 * MOST_SHEET_LENGTH);
+  });
+
   it('drops an imported sheet longer than the most one may be, and stops at the most in all', async () => {
-    const long = (n: number) => `p.s${n} { color: red; }`.padEnd(MOST_SHEET_LENGTH - 1, ' ');
+    const long = (n: number) => `p.s${n} { color: red; }`.padEnd(small.sheetLength - 1, ' ');
     const sheets: Record<string, string> = { 'OEBPS/huge.css': `${long(0)}  ` };
     for (let n = 1; n <= 4; n += 1) sheets[`OEBPS/s${n}.css`] = long(n);
-    const { made } = book(sheets);
+    const { made } = book(sheets, 200, small);
     const text = await made(
       ['huge', 's1', 's2', 's3', 's4'].map((name) => `@import "${name}.css";`).join(''),
     );
     expect(text).not.toContain('p.s0');
-    // Two sheets just under the most one may be fill the most all may be.
-    expect(MOST_IMPORTED_LENGTH).toBe(2 * MOST_SHEET_LENGTH);
     expect(text).toContain('p.s1');
     expect(text).toContain('p.s2');
     expect(text).not.toContain('p.s3');
@@ -166,8 +177,9 @@ describe("a book's imports", () => {
   });
 
   it('makes nothing of a sheet longer than the most one may be', async () => {
-    const { made } = book({});
-    expect(await made(`p { color: red; }${' '.repeat(MOST_SHEET_LENGTH)}`)).toBe('');
+    const { made } = book({}, 200, small);
+    expect(await made(`p { color: red; }${' '.repeat(small.sheetLength)}`)).toBe('');
+    expect(await made('p { color: red; }')).toContain('color: red');
   });
 });
 
