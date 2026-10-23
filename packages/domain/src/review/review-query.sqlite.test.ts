@@ -342,7 +342,7 @@ describe('the Friday review draft’s statements (#40)', () => {
         'Meetings/Undated.md': { frontmatter: { type: 'meeting' } },
         'Notes/Dated.md': { frontmatter: { type: 'note', date: '2026-10-20' } },
       },
-      compileReviewMeetingsQuery({ sinceDay: '2026-10-16', today: '2026-10-23' }),
+      compileReviewMeetingsQuery({ sinceDay: '2026-10-16', untilDay: '2026-10-23' }),
     );
     expect(meetings).toEqual([
       { path: 'Meetings/Kickoff.md', title: 'Kickoff', date: '2026-10-16' },

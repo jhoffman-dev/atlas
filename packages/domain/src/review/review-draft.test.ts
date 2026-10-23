@@ -151,15 +151,20 @@ describe('reviewDraftData', () => {
 });
 
 describe('reviewDraftWindow', () => {
-  it('is seven days back: a moment for finished tasks, a calendar day for meetings', () => {
-    expect(reviewDraftWindow({ today: TODAY, now: NOW })).toEqual({
+  const at = (slot: string, now = Date.parse(`${slot}Z`)) =>
+    reviewDraftWindow({ slot, localNow: slot, now });
+
+  it('is the week from the slot before to the slot: moments for finished tasks, days for meetings', () => {
+    expect(at('2026-10-23T15:00:00', NOW)).toEqual({
       since: NOW - 7 * DAY_MS,
-      sinceDay: '2026-10-16',
+      until: NOW,
+      sinceDay: '2026-10-17',
+      untilDay: '2026-10-23',
     });
   });
 
-  it('counts the day on the calendar across a month and a clock change', () => {
-    expect(reviewDraftWindow({ today: '2026-11-03', now: 0 }).sinceDay).toBe('2026-10-27');
-    expect(reviewDraftWindow({ today: '2026-03-02', now: 0 }).sinceDay).toBe('2026-02-23');
+  it('counts the days on the calendar across a month and a clock change', () => {
+    expect(at('2026-11-03T15:00:00').sinceDay).toBe('2026-10-28');
+    expect(at('2026-03-02T15:00:00').sinceDay).toBe('2026-02-24');
   });
 });

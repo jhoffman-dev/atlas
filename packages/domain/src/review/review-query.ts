@@ -175,13 +175,32 @@ export const REVIEW_MEETINGS_QUERY_MARK = '/* weekly review: meetings */';
 /** The key a meeting's day is kept under. */
 const MEETING_DATE_KEY = 'date';
 
+/** The days and moments a week of wins is counted over, when it is not "since" alone. */
+export interface ReviewWeekBounds {
+  /** `YYYY-MM-DD`: the first day a task's `completed` may be. */
+  readonly sinceDay: string;
+  /** Milliseconds since the epoch: a task with no `completed` day must have changed before it. */
+  readonly until: number;
+  /** `YYYY-MM-DD`: the last day a task's `completed` may be. */
+  readonly untilDay: string;
+}
+
 /**
  * The tasks finished since `since` (milliseconds since the epoch), asked of
- * the index: in the finished status, last changed since then — finishing a
- * task is a change to it — and in user space, whether or not it has been
- * moved into the Archive yet. Newest first.
+ * the index: in the finished status, and finished in the window — by the
+ * day it says it was `completed` when it says one, since filing a task into
+ * the Archive or touching it later rewrites it without finishing it again;
+ * by when it was last changed only when it says no day. In user space,
+ * whether or not it has been moved into the Archive yet. Newest first.
+ *
+ * Without `bounds` the window has no end and starts at the day `since` falls on.
  */
-export function compileReviewDoneQuery(since: number): CompiledQuery {
+export function compileReviewDoneQuery(since: number, bounds?: ReviewWeekBounds): CompiledQuery {
+  const { sinceDay, until, untilDay } = bounds ?? {
+    sinceDay: new Date(since).toISOString().slice(0, 10),
+    until: Number.MAX_SAFE_INTEGER,
+    untilDay: '9999-12-31',
+  };
   return {
     sql: [
       `${REVIEW_DONE_QUERY_MARK} SELECT f.path AS "path", f.title AS "title", f.modified AS "modified"`,
@@ -190,20 +209,22 @@ export function compileReviewDoneQuery(since: number): CompiledQuery {
       `    AND lower(trim(ty.value_text)) = ?)`,
       `  AND ${userSpaceNoteSql('f.path')}`,
       `  AND EXISTS (SELECT 1 FROM props AS s WHERE s.path = f.path AND s.key = '${TASK_KEYS.status}' AND +s.value_text = ?)`,
-      `  AND f.modified >= ?`,
+      `  AND CASE WHEN ${firstDay(TASK_KEYS.completed)} IS NOT NULL`,
+      `    THEN ${firstDay(TASK_KEYS.completed)} BETWEEN ? AND ?`,
+      `    ELSE f.modified >= ? AND f.modified < ? END`,
       `ORDER BY f.modified DESC, f.path`,
     ].join('\n'),
-    parameters: [TASK_TYPE, FINISHED_TASK_STATUS, since],
+    parameters: [TASK_TYPE, FINISHED_TASK_STATUS, sinceDay, untilDay, since, until],
   };
 }
 
-/** The meetings held from `sinceDay` (`YYYY-MM-DD`) to `today`, asked of the index, by day. */
+/** The meetings held from `sinceDay` to `untilDay` (`YYYY-MM-DD`), asked of the index, by day. */
 export function compileReviewMeetingsQuery({
   sinceDay,
-  today,
+  untilDay,
 }: {
   sinceDay: string;
-  today: string;
+  untilDay: string;
 }): CompiledQuery {
   return {
     sql: [
@@ -213,7 +234,7 @@ export function compileReviewMeetingsQuery({
       `  AND ${firstDay(MEETING_DATE_KEY)} BETWEEN ? AND ?`,
       `ORDER BY "date", f.path`,
     ].join('\n'),
-    parameters: [MEETING_TYPE, sinceDay, today],
+    parameters: [MEETING_TYPE, sinceDay, untilDay],
   };
 }
 

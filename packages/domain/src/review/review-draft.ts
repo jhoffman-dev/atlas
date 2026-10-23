@@ -6,6 +6,8 @@
  */
 
 import type { PromptData } from '../automations/proposal-schema.ts';
+import { localTimeMs, type LocalTime } from '../automations/schedule.ts';
+import { linkBreakingCharacter } from '../markdown/wikilink.ts';
 import { addDays } from '../timeline/timeline.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import {
@@ -44,24 +46,60 @@ export interface ReviewDraftInput {
 }
 
 /**
- * Since when the draft counts the week, from the injected clock: tasks
- * finished since `since` (milliseconds) and meetings held from `sinceDay`.
- * The day is counted on the calendar, so a clock change moves neither.
+ * The week the draft counts, from the slot it is written for back to the slot
+ * before it: tasks finished from `sinceDay` to `untilDay`, meetings held on
+ * those days — exactly seven, so a Friday's meetings are in one review and not
+ * the next — and, for a task that says no day it was finished, when it was last
+ * changed, from `since` to `until` (milliseconds since the epoch).
+ *
+ * The days are counted on the calendar, so a clock change moves none. The two
+ * moments are the slot and the slot a week before it, taken from the wall clock
+ * by how far it is from the instant `now`; across a clock change in between
+ * they are an hour out, which only a task with no finished day can feel.
  */
-export function reviewDraftWindow({ today, now }: { today: string; now: number }): {
-  since: number;
-  sinceDay: string;
-} {
-  return {
-    since: now - REVIEW_DRAFT_DAYS * DAY_MS,
-    sinceDay: addDays(today, -REVIEW_DRAFT_DAYS) ?? today,
+export function reviewDraftWindow({
+  slot,
+  localNow,
+  now,
+}: {
+  /** The time the schedule fell due that the draft is written for. */
+  slot: LocalTime;
+  /** The wall clock at `now`. */
+  localNow: LocalTime;
+  now: number;
+}): ReviewWeek {
+  const slotDay = slot.slice(0, 10);
+  const wallToInstant = (day: string): number => {
+    const wall = localTimeMs(`${day}T${slot.slice(11)}`) ?? now;
+    return wall - ((localTimeMs(localNow) ?? now) - now);
   };
+  const before = addDays(slotDay, -REVIEW_DRAFT_DAYS) ?? slotDay;
+  return {
+    since: wallToInstant(before),
+    until: wallToInstant(slotDay),
+    sinceDay: addDays(slotDay, 1 - REVIEW_DRAFT_DAYS) ?? slotDay,
+    untilDay: slotDay,
+  };
+}
+
+/** A week of the draft's window: see {@link reviewDraftWindow}. */
+export interface ReviewWeek {
+  readonly since: number;
+  readonly until: number;
+  readonly sinceDay: string;
+  readonly untilDay: string;
 }
 
 /** The data the step is handed, and the notes it may cite. */
 export interface ReviewDraftData {
   readonly data: readonly PromptData[];
-  readonly sources: readonly VaultPath[];
+  /**
+   * What a list item may link to be taken as citing: a note's path, or — for a
+   * note whose name no link can hold — the id handed in its place (`src:3`).
+   */
+  readonly sources: readonly string[];
+  /** For each such id, the note's title, which the draft shows where the id was. */
+  readonly plain: ReadonlyMap<string, string>;
 }
 
 /** Each section of the draft's data, the items it lists, and how each is said. */
@@ -99,10 +137,35 @@ export function reviewDraftData(input: ReviewDraftInput): ReviewDraftData {
     items: items.slice(0, REVIEW_DRAFT_SECTION_ITEMS),
     more: Math.max(0, items.length - REVIEW_DRAFT_SECTION_ITEMS),
   }));
+  const citations = new Citations();
   return {
-    data: [...shown.map(sectionData), inboxData(input)],
-    sources: [...new Set(shown.flatMap(({ items }) => items.map((item) => item.path)))],
+    data: [...shown.map((section) => sectionData(section, citations)), inboxData(input)],
+    sources: citations.sources,
+    plain: citations.plain,
   };
+}
+
+/**
+ * How each note is cited: by its path, or by an id when no link could hold
+ * its path. One note has one citation wherever it is listed.
+ */
+class Citations {
+  private readonly byPath = new Map<string, string>();
+  readonly plain = new Map<string, string>();
+
+  get sources(): string[] {
+    return [...this.byPath.values()];
+  }
+
+  /** What a link to the note is written with. */
+  targetOf({ path, title }: { path: VaultPath; title: string }): string {
+    const known = this.byPath.get(path);
+    if (known !== undefined) return known;
+    const target = linkBreakingCharacter(path) === null ? path : `src:${this.byPath.size + 1}`;
+    this.byPath.set(path, target);
+    if (target !== path) this.plain.set(target, flattened(title));
+    return target;
+  }
 }
 
 interface Section {
@@ -111,28 +174,48 @@ interface Section {
 }
 
 interface SectionItem {
-  readonly path: VaultPath;
-  readonly line: string;
+  readonly note: { path: VaultPath; title: string };
+  readonly detail: string;
 }
 
-/** "- [[Tasks/Send the file.md]] Send the file — due 2026-10-20". */
-function sourceLine(note: { path: VaultPath; title: string }, detail: string): SectionItem {
-  const after = detail === '' ? '' : ` — ${detail}`;
-  return { path: note.path, line: `- [[${note.path}]] ${note.title}${after}` };
-}
+const sourceLine = (note: { path: VaultPath; title: string }, detail: string): SectionItem => ({
+  note,
+  detail,
+});
 
 const plainLine = (note: { path: VaultPath; title: string }): SectionItem => sourceLine(note, '');
 
-function sectionData({
-  about,
-  items,
-  more,
-}: {
-  about: string;
-  items: readonly SectionItem[];
-  more: number;
-}): PromptData {
-  const lines = items.length === 0 ? ['None.'] : items.map((item) => item.line);
+/**
+ * A value from a note on one line, as plain words: whitespace of any kind is
+ * one space, and a double bracket is broken, so a name or title cannot start
+ * another list item or link a note of its own choosing.
+ */
+function flattened(value: string): string {
+  return value.replace(/\s+/g, ' ').replace(/\[\[/g, '[ [').replace(/\]\]/g, '] ]').trim();
+}
+
+/** "- [[Tasks/Send the file.md]] Send the file — due 2026-10-20". */
+function lineOf({ note, detail }: SectionItem, target: string): string {
+  const after = detail === '' ? '' : ` — ${flattened(detail)}`;
+  return `- [[${target}]] ${flattened(note.title)}${after}`;
+}
+
+function sectionData(
+  {
+    about,
+    items,
+    more,
+  }: {
+    about: string;
+    items: readonly SectionItem[];
+    more: number;
+  },
+  citations: Citations,
+): PromptData {
+  const lines =
+    items.length === 0
+      ? ['None.']
+      : items.map((item) => lineOf(item, citations.targetOf(item.note)));
   return { about, text: [...lines, ...(more > 0 ? [`And ${more} more.`] : [])].join('\n') };
 }
 

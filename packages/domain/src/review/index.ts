@@ -16,6 +16,7 @@ export type {
   ReviewTaskSection,
   WeeklyReview,
 } from './weekly-review.ts';
+export type { ReviewWeekBounds } from './review-query.ts';
 export {
   compileReviewDoneQuery,
   compileReviewMeetingsQuery,
@@ -37,4 +38,9 @@ export {
   reviewDraftData,
   reviewDraftWindow,
 } from './review-draft.ts';
-export type { ReviewDraftData, ReviewDraftInput, ReviewSource } from './review-draft.ts';
+export type {
+  ReviewDraftData,
+  ReviewDraftInput,
+  ReviewSource,
+  ReviewWeek,
+} from './review-draft.ts';
