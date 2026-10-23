@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { withoutMarkerLines } from './index.ts';
 
-const HIGHLIGHT_MARKER = '<!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow","kind":"pdf","page":3} -->';
+const HIGHLIGHT_MARKER =
+  '<!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow","kind":"pdf","page":3} -->';
 const TOMBSTONE =
   '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A9","words":"3f2a"} -->';
 
