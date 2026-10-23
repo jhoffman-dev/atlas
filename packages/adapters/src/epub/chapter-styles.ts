@@ -1,5 +1,13 @@
 import { bookReference } from '@dfai/domain';
-import { namesAddress, valueMade, type AddressMade } from './css-references.ts';
+import {
+  declarationsIn,
+  importsIn,
+  namesAddress,
+  namesStringOrAddress,
+  valueMade,
+  type AddressMade,
+  type Declaration,
+} from './css-references.ts';
 
 /*
  * A book's stylesheets, made to load only from the book (#505, ADR-0045 §5).
@@ -16,19 +24,31 @@ import { namesAddress, valueMade, type AddressMade } from './css-references.ts';
  * is what a browser read, not the book's spelling of it.
  *
  * The parser drops `@import`, so the book's own imports are found in its
- * text first, by pattern, and put before its rules, made the same way. The
- * pattern only finds the book's own files: a spelling it misses is an
- * import the parser drops. The frame's policy still stands behind this.
+ * text first (`importsIn`) and put before its rules, made the same way. Only
+ * the book's own files are followed: a spelling the scan misses is an import
+ * the parser drops. Each is inlined at most once, within a budget, so a book
+ * that imports itself over and over costs no more than one that does not.
+ * The frame's policy still stands behind this.
  */
 
 /** How the frame loads a file of the book: its address, or null when the book has no such file. */
 export type FileAddress = (path: string) => Promise<string | null>;
 
-const IMPORT =
-  /@import(?:\s|\/\*[\s\S]*?\*\/)*(?:url\(\s*(['"]?)(.*?)\1\s*\)|(['"])(.*?)\3)[^;]*;?/gi;
+/** How deep `@import`s are followed. */
+const MOST_IMPORT_DEPTH = 4;
+/** The most stylesheets one sheet's `@import`s may read, however deep: a book has a handful. */
+export const MOST_IMPORTS = 64;
+/** The most one sheet may be, in characters; a longer one is dropped whole, before it is read. */
+export const MOST_SHEET_LENGTH = 2 * 1024 * 1024;
+/** The most all of one sheet's imported sheets may be together, in characters. */
+export const MOST_IMPORTED_LENGTH = 4 * 1024 * 1024;
 
-/** How deep `@import`s are followed: a book that imports itself in a loop stops here. */
-const MOST_IMPORTS = 4;
+/** What one sheet's `@import`s have read so far: each sheet is inlined at most once. */
+interface ImportBudget {
+  readonly seen: Set<string>;
+  imports: number;
+  length: number;
+}
 
 /**
  * `css`, written in the book's file at `from`, with every reference made
@@ -40,23 +60,53 @@ export async function bookCss({
   from,
   address,
   stylesheet,
-  depth = 0,
 }: {
   css: string;
   from: string;
   address: FileAddress;
   stylesheet: (path: string) => Promise<string | null>;
-  depth?: number;
 }): Promise<string> {
+  const budget: ImportBudget = { seen: new Set([from]), imports: 0, length: 0 };
+  return sheetMade({ css, from, address, stylesheet, depth: 0, budget });
+}
+
+async function sheetMade({
+  css,
+  from,
+  address,
+  stylesheet,
+  depth,
+  budget,
+}: {
+  css: string;
+  from: string;
+  address: FileAddress;
+  stylesheet: (path: string) => Promise<string | null>;
+  depth: number;
+  budget: ImportBudget;
+}): Promise<string> {
+  if (css.length > MOST_SHEET_LENGTH) return '';
   const imports: string[] = [];
-  if (depth < MOST_IMPORTS) {
-    for (const match of css.matchAll(IMPORT)) {
-      const target = bookReference({ from, ref: match[2] ?? match[4] ?? '' });
-      if (target.kind !== 'inside') continue;
+  if (depth < MOST_IMPORT_DEPTH) {
+    for (const ref of importsIn(css)) {
+      const target = bookReference({ from, ref });
+      if (target.kind !== 'inside' || budget.seen.has(target.path)) continue;
+      if (budget.imports >= MOST_IMPORTS) break;
+      budget.seen.add(target.path);
+      budget.imports += 1;
       const text = await stylesheet(target.path);
-      if (text === null) continue;
+      if (text === null || text.length > MOST_SHEET_LENGTH) continue;
+      if (budget.length + text.length > MOST_IMPORTED_LENGTH) continue;
+      budget.length += text.length;
       imports.push(
-        await bookCss({ css: text, from: target.path, address, stylesheet, depth: depth + 1 }),
+        await sheetMade({
+          css: text,
+          from: target.path,
+          address,
+          stylesheet,
+          depth: depth + 1,
+          budget,
+        }),
       );
     }
   }
@@ -148,6 +198,19 @@ function withDelete(list: RuleList): RuleList {
 
 /** Each declaration in `style` with its addresses made; one naming an address that may not stay is dropped. */
 async function declarationsMade(style: CSSStyleDeclaration, made: AddressMade): Promise<void> {
+  // The addresses given here are the book's own files: read again below, they stay.
+  const given = new Set<string>();
+  const giving: AddressMade = async (ref) => {
+    const next = await made(ref);
+    if (next !== null && next !== 'keep') given.add(next);
+    return next;
+  };
+  await longhandsMade(style, giving);
+  await writtenOutMade(style, async (ref) => (given.has(ref) ? 'keep' : made(ref)));
+}
+
+/** Each declaration `style` lists, longhand by longhand, its addresses made. */
+async function longhandsMade(style: CSSStyleDeclaration, made: AddressMade): Promise<void> {
   const names = Array.from({ length: style.length }, (_, at) => style.item(at));
   for (const name of names) {
     const value = style.getPropertyValue(name);
@@ -160,4 +223,37 @@ async function declarationsMade(style: CSSStyleDeclaration, made: AddressMade): 
     }
     style.removeProperty(name);
   }
+}
+
+/**
+ * Each declaration as `style` writes it out, shorthands and all, read
+ * again: WebKit writes a shorthand built with `var()` out as the book spelled
+ * it, every longhand of it empty, so reading longhand by longhand never saw
+ * what is inside it. One that may not stay is dropped; if the parser keeps
+ * any such one, none of the declarations stay.
+ */
+async function writtenOutMade(style: CSSStyleDeclaration, made: AddressMade): Promise<void> {
+  const written = declarationsIn(style.cssText);
+  const kept: string[] = [];
+  for (const declaration of written) {
+    if (!(await mayNotStay(declaration, made))) kept.push(declaration.text);
+  }
+  if (kept.length === written.length) return;
+  style.cssText = kept.join(' ');
+  for (const declaration of declarationsIn(style.cssText)) {
+    if (await mayNotStay(declaration, made)) {
+      style.cssText = '';
+      return;
+    }
+  }
+}
+
+/**
+ * Whether `declaration` names an address that may not stay, builds one from
+ * `var()`, `env()` or `attr()`, or is a custom property that could give a
+ * `var()` an address: a string, a `url()` or an address function.
+ */
+async function mayNotStay({ name, value }: Declaration, made: AddressMade): Promise<boolean> {
+  if (name.startsWith('--') && namesStringOrAddress(value)) return true;
+  return namesAddress(value, made);
 }

@@ -120,11 +120,23 @@ cleaning misses.
      declaration naming anything else, or building an address from `var()`,
      `env()` or `attr()`, is dropped. Another rule naming an address
      (`@property`, `@counter-style`) is dropped whole. The sheet is written out
-     as the parser serialises it. A `style=` is read the same way, as the
-     declarations of one rule. The book's own `@import`s are the one thing
-     still found by pattern, because the parser drops them: each is put before
-     the sheet's rules, made the same way; a spelling the pattern misses is an
-     import the parser drops, never one that loads;
+     as the parser serialises it. Each rule's declarations are then read again
+     as the rule writes them out (`style.cssText`), shorthands and all, because
+     WebKit writes a shorthand built with `var()` out as the book spelled it,
+     every longhand empty: one that builds an address from `var()`, `env()` or
+     `attr()`, or names one that may not stay, is dropped. Every custom
+     property (`--*`) whose value holds a string, a `url()` or an address
+     function is dropped, so no `var()` is ever handed an address. A `style=`
+     is read the same way, as the declarations of one rule. The book's own
+     `@import`s are the one thing still found by the reader's own scan, because
+     the parser drops them: each is put before the sheet's rules, made the same
+     way; a spelling the scan misses is an import the parser drops, never one
+     that loads. The scan reads comments and strings as CSS does in one pass
+     that never goes back. Imports are bounded per stylesheet made: each sheet
+     is inlined at most once (the sheet being made counts as seen), at most 64
+     sheets are read, 4 deep, and at most 4 MiB of imported CSS is inlined in
+     all; a sheet of more than 2 MiB, imported or not, is dropped whole before
+     it is read;
    - the frame's own policy runs no other script and loads nothing;
    - `index.html`'s `frame-src 'none'` is inherited by the frame as one more
      layer. A comment there and `index-html.test.ts` keep it, but nothing relies
@@ -138,9 +150,10 @@ cleaning misses.
    lie, so each file is also refused, as unreadable, the moment it inflates past
    the size it said. Each file listed costs memory however empty it says it is,
    so an archive listing more than 10,000 files is refused too, by the count its
-   central directory declares, before more than its first entry is read (and by
-   the entries read, should that count lie low). A long book with every picture
-   has a few thousand.
+   central directory declares, before more than its first entry is read; zip.js
+   makes exactly the entries that count declares. The directory's bytes are
+   still read whole first, bounded only by the size of the archive. A long book
+   with every picture has a few thousand.
 
 7. **A long book is held a little at a time.** Each chapter's text is kept once
    read, for find and re-anchoring; only the three chapters parsed last are kept

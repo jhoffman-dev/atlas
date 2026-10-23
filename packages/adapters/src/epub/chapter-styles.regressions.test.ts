@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { bookCss, bookDeclarations, MOST_IMPORTED_LENGTH, MOST_IMPORTS, MOST_SHEET_LENGTH } from './chapter-styles.ts';
+import {
+  bookCss,
+  bookDeclarations,
+  MOST_IMPORTED_LENGTH,
+  MOST_IMPORTS,
+  MOST_SHEET_LENGTH,
+} from './chapter-styles.ts';
 
 /*
  * Regressions from the attack on and verification of PR #536 (#505, ADR-0045 §5): the reader's cleaning of a book's CSS

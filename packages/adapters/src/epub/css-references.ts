@@ -69,6 +69,8 @@ export async function namesAddress(css: string, made: AddressMade): Promise<bool
 export function addressesIn(value: string): Found[] | null {
   const found: Found[] = [];
   const open: string[] = [];
+  // How many of the functions open are address functions: counted, so a var() costs no walk of them.
+  let inAddress = 0;
   let at = 0;
   while (at < value.length) {
     if (value.startsWith('/*', at)) {
@@ -85,24 +87,150 @@ export function addressesIn(value: string): Found[] | null {
       at = name.end;
       if (value[at] !== '(') continue;
       const fn = name.text.toLowerCase();
-      if (UNKNOWN_FUNCTIONS.has(fn) && open.some((outer) => ADDRESS_FUNCTIONS.has(outer))) {
-        return null;
-      }
+      if (UNKNOWN_FUNCTIONS.has(fn) && inAddress > 0) return null;
       const bare = fn === 'url' ? bareUrlAt(value, at + 1) : null;
       if (bare !== null) {
         found.push({ start: name.start, end: bare.end, ref: bare.text, form: 'url' });
         at = bare.end;
       } else {
         open.push(fn);
+        if (ADDRESS_FUNCTIONS.has(fn)) inAddress += 1;
         at += 1;
       }
     } else {
       if (value[at] === '(') open.push('');
-      else if (value[at] === ')') open.pop();
+      else if (value[at] === ')' && ADDRESS_FUNCTIONS.has(open.pop() ?? '')) inAddress -= 1;
       at += value[at] === '\\' ? 2 : 1;
     }
   }
   return found;
+}
+
+/**
+ * Whether `value` holds a string, a `url()` or a function that takes an
+ * address. A custom property holding one could hand an address to a `var()`
+ * inside an address function, where it is only known once the page is styled.
+ */
+export function namesStringOrAddress(value: string): boolean {
+  let at = 0;
+  while (at < value.length) {
+    if (value.startsWith('/*', at)) {
+      const close = value.indexOf('*/', at + 2);
+      at = close === -1 ? value.length : close + 2;
+    } else if (value[at] === '"' || value[at] === "'") {
+      return true;
+    } else if (startsName(value, at)) {
+      const name = nameAt(value, at);
+      at = name.end;
+      if (value[at] === '(' && ADDRESS_FUNCTIONS.has(name.text.toLowerCase())) return true;
+    } else {
+      at += value[at] === '\\' ? 2 : 1;
+    }
+  }
+  return false;
+}
+
+/** One declaration as a rule writes it out: its name, its value, and its text. */
+export interface Declaration {
+  readonly name: string;
+  readonly value: string;
+  readonly text: string;
+}
+
+/**
+ * The declarations of `cssText`, as a rule's style writes them out, split
+ * where each ends: at a `;` outside any string, comment, function or block.
+ */
+export function declarationsIn(cssText: string): Declaration[] {
+  const declarations: Declaration[] = [];
+  let depth = 0;
+  let start = 0;
+  let at = 0;
+  const end = () => {
+    const text = cssText.slice(start, at).trim();
+    const colon = text.indexOf(':');
+    if (colon !== -1) {
+      declarations.push({
+        name: text.slice(0, colon).trim(),
+        value: text.slice(colon + 1).trim(),
+        text: `${text};`,
+      });
+    }
+    start = at + 1;
+  };
+  while (at < cssText.length) {
+    const character = cssText[at];
+    if (cssText.startsWith('/*', at)) {
+      const close = cssText.indexOf('*/', at + 2);
+      at = close === -1 ? cssText.length : close + 2;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      at = stringAt(cssText, at).end;
+      continue;
+    }
+    if (character === '(' || character === '[' || character === '{') depth += 1;
+    else if ((character === ')' || character === ']' || character === '}') && depth > 0) depth -= 1;
+    else if (character === ';' && depth === 0) end();
+    at += character === '\\' ? 2 : 1;
+  }
+  at = cssText.length;
+  end();
+  return declarations;
+}
+
+/**
+ * The stylesheet each `@import` in `css` names, in order: quoted, or in a
+ * `url()`, after any space and comments. Comments and strings are passed
+ * over as CSS reads them, in one pass that never goes back, so no spelling
+ * makes it slow; a comment left open ends the reading, as it ends the sheet.
+ */
+export function importsIn(css: string): string[] {
+  const found: string[] = [];
+  let at = 0;
+  while (at < css.length) {
+    if (css.startsWith('/*', at)) {
+      const close = css.indexOf('*/', at + 2);
+      if (close === -1) break;
+      at = close + 2;
+    } else if (isQuote(css[at])) {
+      at = stringAt(css, at).end;
+    } else if (css[at] === '@' && css.slice(at, at + 7).toLowerCase() === '@import') {
+      const reference = importAt(css, at + 7);
+      if (reference === null) break;
+      if (reference.text !== null) found.push(reference.text);
+      at = reference.end;
+    } else {
+      at += css[at] === '\\' ? 2 : 1;
+    }
+  }
+  return found;
+}
+
+/** The stylesheet an `@import` whose name ends at `start` names, if any, and where it ends; null when a comment is left open. */
+function importAt(css: string, start: number): { end: number; text: string | null } | null {
+  const at = spaceAndCommentsAfter(css, start);
+  if (at === null) return null;
+  if (isQuote(css[at])) return stringAt(css, at);
+  if (css.slice(at, at + 4).toLowerCase() !== 'url(') return { end: at, text: null };
+  // Inside `url(`, only space comes before a string: a comment there is the address's own.
+  let inside = at + 4;
+  while (isSpace(css[inside])) inside += 1;
+  return isQuote(css[inside])
+    ? stringAt(css, inside)
+    : (bareUrlAt(css, at + 4) ?? { end: inside, text: null });
+}
+
+/** Where the space and comments from `start` end; null when a comment is left open to the end. */
+function spaceAndCommentsAfter(css: string, start: number): number | null {
+  let at = start;
+  for (;;) {
+    while (isSpace(css[at])) at += 1;
+    if (!css.startsWith('/*', at)) return at;
+    const close = css.indexOf('*/', at + 2);
+    if (close === -1) return null;
+    at = close + 2;
+  }
 }
 
 /** The string token at `start`, its escapes read; it ends at its quote, or unclosed at a line break. */
@@ -189,6 +317,7 @@ const isNameCharacter = (character: string | undefined) =>
   character !== undefined && /[\w\u0080-\uFFFF-]/.test(character);
 const isNewline = (character: string | undefined) =>
   character === '\n' || character === '\r' || character === '\f';
+const isQuote = (character: string | undefined) => character === '"' || character === "'";
 const isSpace = (character: string | undefined) =>
   character === ' ' || character === '\t' || isNewline(character);
 

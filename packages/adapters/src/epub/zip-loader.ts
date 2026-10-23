@@ -16,7 +16,9 @@ import { EpubUnreadableError } from '@dfai/application';
  * size it said. A ZIP's directory can be a bomb too: a file listed costs
  * memory as the archive is opened, however empty it says it is, so an
  * archive listing more than `MOST_FILES` files is refused, by the count its
- * directory declares, before the rest are read.
+ * directory declares, as its first entry is read. The directory's bytes
+ * are still read whole first, so what they cost is bounded only by the size
+ * of the archive itself.
  */
 
 const MIB = 1024 * 1024;
@@ -71,11 +73,9 @@ export async function openArchive(bytes: Uint8Array): Promise<BookArchive> {
   const counted = (_index: number, total: number) => {
     listed = Math.max(listed, total);
   };
-  let read = 0;
+  // zip.js makes exactly the count declared, so no more entries come than were counted.
   for await (const entry of reader.getEntriesGenerator({ onprogress: counted })) {
-    read += 1;
-    // The count read stands in for a declared count that lies low.
-    if (Math.max(listed, read) > MOST_FILES) throw tooMany();
+    if (listed > MOST_FILES) throw tooMany();
     if (!entry.directory) files.set(entry.filename, entry);
   }
   const bomb = bombReason([...files.values()]);

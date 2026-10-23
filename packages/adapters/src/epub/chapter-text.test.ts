@@ -111,14 +111,15 @@ describe("a book's stylesheet", () => {
     expect(text).not.toContain('example.com');
   });
 
+  // Each sheet is inlined at most once (PR #536's review): a loop no longer repeats to a depth.
   it('stops following imports that loop', async () => {
     const looping = async () => '@import "loop.css"; p { color: red; }';
     const text = await bookCss({
       css: '@import "loop.css";',
-      from: 'loop.css',
+      from: 'OEBPS/ch1.xhtml',
       address,
       stylesheet: looping,
     });
-    expect(text.match(/color: red/g)).toHaveLength(4);
+    expect(text.match(/color: red/g)).toHaveLength(1);
   });
 });
