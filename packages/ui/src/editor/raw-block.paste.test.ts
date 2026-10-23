@@ -155,7 +155,7 @@ describe('HTML from another app, read by the editor', () => {
   });
 });
 
-describe('a note with a removed highlight tombstone, copied', () => {
+describe('a note with DFAI markers, copied', () => {
   const TOMBSTONE =
     '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A9","words":"3f2a"} -->';
 
@@ -165,9 +165,16 @@ describe('a note with a removed highlight tombstone, copied', () => {
     expect(held.get('text/plain')).toContain('Above.');
   });
 
-  it('still carries the tombstone in text/html, so a paste back in keeps it', () => {
-    const target = noteWith([]);
-    pasteAtEnd(target, copyAll(noteWith([TOMBSTONE]), 'copy'));
-    expect(rawSources(target)).toEqual([TOMBSTONE]);
+  it("puts a highlight's quote and comment in text/plain, and not its marker", () => {
+    const highlight = [
+      '> Ferns spread by spores.',
+      '> <!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow","kind":"pdf","page":3} -->',
+      '>',
+      '> Check the north bed.',
+    ].join('\n');
+    const plain = copyAll(noteWith([highlight]), 'copy').get('text/plain') ?? '';
+    expect(plain).toContain('Ferns spread by spores.');
+    expect(plain).toContain('Check the north bed.');
+    expect(plain).not.toContain('atlas:');
   });
 });

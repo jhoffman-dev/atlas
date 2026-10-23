@@ -33,4 +33,18 @@ describe('a raw block pasted into a note, saved', () => {
     const doc: EditorDocument = { type: 'doc', content: [pasted(source)] };
     expect(serializeMarkdownBody({ originalBody: '', parsed, doc })).toBe(`${source}\n`);
   });
+
+  it.each([
+    ['table', TABLE],
+    ['raw HTML block', HTML_BLOCK],
+  ])('writes a %s pasted into a CRLF note with CRLF, keeping the original', (_label, source) => {
+    const crlf = (text: string) => text.replace(/\n/g, '\r\n');
+    const originalBody = crlf(`Above.\n\n${source}\n\nBelow.\n`);
+    const parsed = parseMarkdownBody(originalBody);
+    // The clipboard's HTML holds LF only: an HTML parser reads every CRLF as LF.
+    const doc: EditorDocument = { type: 'doc', content: [...parsed.doc.content, pasted(source)] };
+    expect(serializeMarkdownBody({ originalBody, parsed, doc })).toBe(
+      crlf(`Above.\n\n${source}\n\nBelow.\n\n${source}\n`),
+    );
+  });
 });
