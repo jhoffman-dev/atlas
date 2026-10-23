@@ -1,5 +1,24 @@
 import type { FrameNode, FramePaintGroup, FrameSelection, FromFrame } from './frame-protocol.ts';
 import { offsetAt, rangeAt, type Run, type TextRuns } from './text-positions.ts';
+import {
+  appendChild,
+  closest,
+  createElementNS,
+  createTextNode,
+  documentElementOf,
+  getAttribute,
+  getElementById,
+  localNameOf,
+  namespaceOf,
+  nodeTypeOf,
+  querySelector,
+  replaceChild,
+  scrollIntoView,
+  setAdoptedStyleSheets,
+  setAttribute,
+  setAttributeNS,
+  shadowsAMember,
+} from './unshadowed-dom.ts';
 
 /*
  * DFAI's own script in a chapter's frame (#505, ADR-0045): the one script the
@@ -14,8 +33,14 @@ import { offsetAt, rangeAt, type Run, type TextRuns } from './text-positions.ts'
  * reader's own cleaning missed. Every click is stopped: a link of the book
  * is followed by the reader, by the path the cleaning wrote on it.
  *
- * tools/epub/frame-bootstrap.ts turns this file and `text-positions.ts` into
- * the frame's script, so neither imports anything but types and each other.
+ * The chapter is the frame's document, so a name in it can shadow the
+ * document's own members (`<img name="createRange">`): every call on the
+ * document or on a built node goes through `unshadowed-dom.ts`, read as the
+ * script starts, and a name or id that would shadow a member is not built.
+ *
+ * tools/epub/frame-bootstrap.ts turns this file, `text-positions.ts` and
+ * `unshadowed-dom.ts` into the frame's script, so none imports anything but
+ * types and the others.
  */
 
 /** What the reader's cleaning writes on a link of the book: the book's file it leads to, and the place in it. */
@@ -148,10 +173,10 @@ function scrollToFragment(view: FrameWindow, fragment: string | null): void {
   const target =
     fragment === null || fragment === ''
       ? null
-      : (doc.getElementById(fragment) ??
-        doc.querySelector(`[name="${view.CSS.escape(fragment)}"]`));
+      : (getElementById(doc, fragment) ??
+        querySelector(doc, `[name="${view.CSS.escape(fragment)}"]`));
   if (target === null) view.scrollTo({ top: 0 });
-  else target.scrollIntoView({ block: 'start' });
+  else scrollIntoView(target, { block: 'start' });
 }
 
 const isShortString = (value: unknown, most: number): value is string =>
@@ -173,14 +198,15 @@ export function buildChapter(doc: Document, nodes: unknown, length: unknown): Te
     const node = nodeOf(doc, record);
     built.push(node);
     if (index > 0) attach({ built, index, record, node });
-    const start = node.nodeType === 3 ? (record as FrameNode)[3] : -1;
+    const start = nodeTypeOf(node) === 3 ? (record as FrameNode)[3] : -1;
     if (typeof start === 'number' && isRunStart(start, runs, length as number)) {
       runs.push({ node: node as Text, start });
     }
   }
   const root = built[0];
-  if (root === undefined || root.nodeType !== 1) return null;
-  doc.replaceChild(root, doc.documentElement);
+  const current = documentElementOf(doc);
+  if (root === undefined || nodeTypeOf(root) !== 1 || current === null) return null;
+  replaceChild(doc, root, current);
   return { runs, length: length as number };
 }
 
@@ -202,16 +228,16 @@ function attach({
 }): void {
   const at = Array.isArray(record) ? (record[0] as number) : -1;
   const parent = at >= 0 && at < index ? built[at] : undefined;
-  if (parent === undefined || parent.nodeType !== 1) return;
-  parent.appendChild(node);
+  if (parent === undefined || nodeTypeOf(parent) !== 1) return;
+  appendChild(parent, node);
 }
 
 /** The node a record names: an element, a text, or an empty text for anything else. */
 function nodeOf(doc: Document, record: unknown): Node {
-  if (!Array.isArray(record) || !Number.isInteger(record[0])) return doc.createTextNode('');
+  if (!Array.isArray(record) || !Number.isInteger(record[0])) return createTextNode(doc, '');
   if (record[1] === 3 && isShortString(record[2], MOST_STRING))
-    return doc.createTextNode(record[2]);
-  if (record[1] !== 1) return doc.createTextNode('');
+    return createTextNode(doc, record[2]);
+  if (record[1] !== 1) return createTextNode(doc, '');
   const [, , namespace, name, attributes] = record as unknown[];
   if (!isShortString(namespace, MOST_NAME) || !isShortString(name, MOST_NAME)) return hidden(doc);
   const element = elementOf(doc, namespace, name);
@@ -223,7 +249,7 @@ function elementOf(doc: Document, namespace: string, name: string): Element {
   const local = name.slice(name.indexOf(':') + 1).toLowerCase();
   if (REFUSED_ELEMENTS.has(local)) return hidden(doc);
   try {
-    return doc.createElementNS(namespace === '' ? null : namespace, name);
+    return createElementNS(doc, namespace === '' ? null : namespace, name);
   } catch {
     // A name the DOM refuses (the book's HTML allowed it): an empty element keeps its place.
     return hidden(doc);
@@ -231,8 +257,8 @@ function elementOf(doc: Document, namespace: string, name: string): Element {
 }
 
 function hidden(doc: Document): Element {
-  const empty = doc.createElementNS(XHTML, 'span');
-  empty.setAttribute('hidden', '');
+  const empty = createElementNS(doc, XHTML, 'span');
+  setAttribute(empty, 'hidden', '');
   return empty;
 }
 
@@ -244,7 +270,7 @@ function setAttributes(element: Element, attributes: readonly unknown[]): void {
       continue;
     }
     try {
-      element.setAttributeNS(namespace === '' ? null : namespace, name, value);
+      setAttributeNS({ element, namespace: namespace === '' ? null : namespace, name, value });
     } catch {
       // A name the DOM refuses is an attribute no reader needs.
     }
@@ -266,6 +292,7 @@ function isAllowed({
   const local = name.slice(name.indexOf(':') + 1).toLowerCase();
   if (namespace === XMLNS || local === 'xmlns' || local.startsWith('on')) return false;
   if (REFUSED_ATTRIBUTES.has(local)) return false;
+  if (namespace === '' && shadowsAMember(element, name, value)) return false;
   if (local === 'href') return isAllowedHref(element, value.trim());
   if (RESOURCE_ATTRIBUTES.has(local)) return /^data:/i.test(value.trim());
   return true;
@@ -273,9 +300,9 @@ function isAllowed({
 
 /** A link's `href` points nowhere (`#`); an SVG loader's names a place in the chapter or a file written in. */
 function isAllowedHref(element: Element, value: string): boolean {
-  const tag = element.localName.toLowerCase();
+  const tag = localNameOf(element).toLowerCase();
   if (tag === 'a' || tag === 'area') return value === '#';
-  if (element.namespaceURI !== SVG || !SVG_LOADERS.has(tag)) return false;
+  if (namespaceOf(element) !== SVG || !SVG_LOADERS.has(tag)) return false;
   return value.startsWith('#') || /^data:/i.test(value);
 }
 
@@ -284,7 +311,7 @@ function setStyle(view: FrameWindow, css: unknown): void {
   if (!isShortString(css, MOST_STRING)) return;
   const sheet = new view.CSSStyleSheet();
   sheet.replaceSync(css);
-  view.document.adoptedStyleSheets = [sheet];
+  setAdoptedStyleSheets(view.document, [sheet]);
 }
 
 /** Draws the reader's highlights with the CSS Custom Highlight API, which marks text without adding a node. */
@@ -344,6 +371,7 @@ function listenToThePerson(
   state: FrameState,
   send: (message: FromFrame) => void,
 ): void {
+  // Listened for as the frame starts, before any chapter can name a member of the document.
   const doc = view.document;
   const selection = (cause: 'end' | 'scroll') =>
     send({ kind: 'selection', cause, selection: selectionOf(view, state.chapter) });
@@ -370,14 +398,16 @@ function listenToThePerson(
 /** Stops every click; one on a link the reader's cleaning marked is told to the reader to follow. */
 function followLink(event: MouseEvent, send: (message: FromFrame) => void): void {
   event.preventDefault();
-  const target = event.target as Element | null;
-  const link = typeof target?.closest === 'function' ? target.closest('a, area') : null;
-  const path = link?.getAttribute(LINK_PATH) ?? null;
-  if (link === null || link === undefined || path === null || path === '') return;
+  // A click's target is a node of the frame's document: no script but this one runs there.
+  const target = event.target as Node | null;
+  const link =
+    target !== null && nodeTypeOf(target) === 1 ? closest(target as Element, 'a, area') : null;
+  const path = link === null ? null : getAttribute(link, LINK_PATH);
+  if (link === null || path === null || path === '') return;
   send({
     kind: 'link',
     path: path.slice(0, MOST_PATH),
-    fragment: link.getAttribute(LINK_FRAGMENT)?.slice(0, MOST_PATH) ?? null,
+    fragment: getAttribute(link, LINK_FRAGMENT)?.slice(0, MOST_PATH) ?? null,
   });
 }
 

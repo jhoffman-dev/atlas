@@ -53,7 +53,8 @@ describe("a book's CSS made the book's own", () => {
     const kept = await bookCss({
       css,
       from: 'OEBPS/chapter.xhtml',
-      address: async (path) => (path === 'OEBPS/pics/hare.png' ? 'data:image/png;base64,HARE' : null),
+      address: async (path) =>
+        path === 'OEBPS/pics/hare.png' ? 'data:image/png;base64,HARE' : null,
       stylesheet: async () => null,
     });
     expect(kept).toBe(
@@ -67,4 +68,3 @@ describe("a book's CSS made the book's own", () => {
     expect(await made(css)).toBe(`.\\31 0A{ content: "\\"\\2f \\2a "; } Ab { color: red; }`);
   });
 });
-

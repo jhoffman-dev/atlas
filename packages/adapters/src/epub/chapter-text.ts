@@ -1,4 +1,9 @@
 import type { Run, TextRuns } from './text-positions.ts';
+import {
+  bodyOf as unshadowedBody,
+  documentElementOf,
+  getElementsByTagNameNS,
+} from './unshadowed-dom.ts';
 
 /*
  * A chapter's text as the EPUB reader counts it (#505): the words of its
@@ -85,7 +90,9 @@ export function chapterText(doc: Document): ChapterText {
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
 
+/** The chapter's body, read through the DOM's own members: a book's `<img name="body">` is not it. */
 function bodyOf(doc: Document): Node {
-  const body = doc.body ?? doc.getElementsByTagNameNS('http://www.w3.org/1999/xhtml', 'body')[0];
-  return body ?? doc.documentElement;
+  const body =
+    unshadowedBody(doc) ?? getElementsByTagNameNS(doc, 'http://www.w3.org/1999/xhtml', 'body')[0];
+  return body ?? documentElementOf(doc) ?? doc;
 }

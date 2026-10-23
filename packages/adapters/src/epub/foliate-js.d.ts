@@ -8,19 +8,14 @@ declare module 'foliate-js/vendor/zip.js' {
   export class BlobReader {
     constructor(blob: Blob);
   }
-  export class TextWriter {
-    private readonly writes: 'text';
-  }
-  export class BlobWriter {
-    constructor(type?: string);
-    private readonly writes: 'blob';
-  }
   export interface ZipEntry {
     readonly filename: string;
     readonly directory: boolean;
+    /** What the archive says the file inflates to: a ZIP's sizes can lie. */
     readonly uncompressedSize: number;
-    getData(writer: TextWriter): Promise<string>;
-    getData(writer: BlobWriter): Promise<Blob>;
+    readonly compressedSize: number;
+    /** Inflates the file into `writable`, a chunk at a time; rejects as the stream does. */
+    getData(writable: WritableStream<Uint8Array<ArrayBuffer>>): Promise<unknown>;
   }
   export class ZipReader {
     constructor(reader: BlobReader);

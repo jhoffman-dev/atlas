@@ -18,6 +18,11 @@ import { openArchive, type BookArchive } from './zip-loader.ts';
 import { chapterText, type ChapterText } from './chapter-text.ts';
 import { offsetAt, rangeAt } from './text-positions.ts';
 import { makeChapterSafe } from './chapter-safety.ts';
+import {
+  documentElementOf,
+  getElementsByTagName,
+  getElementsByTagNameNS,
+} from './unshadowed-dom.ts';
 import { bookFiles } from './book-files.ts';
 import { chapterSource } from './chapter-source.ts';
 import { recentCache } from './recent-cache.ts';
@@ -69,6 +74,8 @@ export function foliateEpubReader(): FoliateReader {
       try {
         archive = await openArchive(bytes);
       } catch (error) {
+        // A bomb is refused by name; anything else zip.js could not read is no ZIP at all.
+        if (error instanceof EpubUnreadableError) throw error;
         throw new EpubUnreadableError(`it is not a ZIP archive (${messageOf(error)})`);
       }
       if (epubProtection(await protectionOf(archive)).kind === 'protected') {
@@ -96,7 +103,7 @@ async function protectionOf(
   if (xml === null) return { encrypted: [], entries: archive.entries };
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   const encrypted = Array.from(
-    doc.getElementsByTagNameNS(ENCRYPTION_NS, 'EncryptedData'),
+    getElementsByTagNameNS(doc, ENCRYPTION_NS, 'EncryptedData'),
     (data) => ({
       algorithm:
         data
@@ -108,7 +115,7 @@ async function protectionOf(
     }),
   );
   // An encryption file that cannot be read says nothing is in the clear: taken as locked.
-  const unreadable = doc.getElementsByTagName('parsererror').length > 0;
+  const unreadable = getElementsByTagName(doc, 'parsererror').length > 0;
   return {
     encrypted: unreadable ? [{ algorithm: null, uri: null }] : encrypted,
     entries: archive.entries,
@@ -184,7 +191,8 @@ async function readChapter(archive: BookArchive, path: string): Promise<Chapter>
   if (source === null) throw new EpubUnreadableError(`its chapter ${path} is missing`);
   const parser = new DOMParser();
   let doc = parser.parseFromString(source, 'application/xhtml+xml');
-  if (doc.getElementsByTagName('parsererror').length > 0 || doc.documentElement === null) {
+  // Read through the DOM's own members: a name in the chapter can shadow the document's (`unshadowed-dom.ts`).
+  if (getElementsByTagName(doc, 'parsererror').length > 0 || documentElementOf(doc) === null) {
     // Many books' chapters are not well-formed XHTML: read as HTML, as every reader does.
     doc = parser.parseFromString(source, 'text/html');
   }

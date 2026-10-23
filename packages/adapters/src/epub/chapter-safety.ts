@@ -1,4 +1,10 @@
 import { bookReference } from '@dfai/domain';
+import {
+  getAttribute,
+  getElementsByTagName,
+  removeAttribute,
+  shadowsAMember,
+} from './unshadowed-dom.ts';
 
 /*
  * A chapter of a book made safe to show (#505). A book is untrusted, so
@@ -84,6 +90,7 @@ export const STYLESHEET_PATH = 'data-dfai-stylesheet';
 
 /** Makes the chapter at `path` in the archive, parsed as `doc`, safe to show, in place. */
 export function makeChapterSafe(doc: Document, path: string): void {
+  dropShadowingNames(doc);
   for (const element of Array.from(doc.getElementsByTagName('*'))) {
     const name = element.localName.toLowerCase();
     if (TAKEN_AWAY.has(name) || (ANIMATION.has(name) && element.namespaceURI !== XHTML)) {
@@ -95,6 +102,23 @@ export function makeChapterSafe(doc: Document, path: string): void {
       continue;
     }
     for (const attribute of Array.from(element.attributes)) safeAttribute(element, attribute, path);
+  }
+}
+
+/**
+ * Takes away each `name` and `id` that shadows a member of the document or
+ * a form (`<img name="body">`, `<input name="appendChild">`), through the
+ * DOM's own members, before anything else reads the chapter: once they are
+ * gone, the document's members are its own again, here and in the frame.
+ */
+function dropShadowingNames(doc: Document): void {
+  for (const element of Array.from(getElementsByTagName(doc, '*'))) {
+    for (const attribute of ['name', 'id']) {
+      const value = getAttribute(element, attribute);
+      if (value !== null && shadowsAMember(element, attribute, value)) {
+        removeAttribute(element, attribute);
+      }
+    }
   }
 }
 

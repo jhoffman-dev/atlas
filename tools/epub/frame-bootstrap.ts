@@ -8,10 +8,11 @@ import ts from 'typescript';
  * The EPUB reader's frame script, made from its source (#505, ADR-0045).
  * The frame's policy runs one script, named by its SHA-256, so the script
  * is a fixed string, written into the frame as it is: this turns
- * `frame-bootstrap.ts` and the `text-positions.ts` it uses into that string,
- * in one closure, and writes it beside them with its hash. A test makes it
- * again and fails when the file written is not what the sources make, so
- * the frame never runs a script its source no longer says.
+ * `frame-bootstrap.ts` and the `text-positions.ts` and `unshadowed-dom.ts` it
+ * uses into that string, in one closure, and writes it beside them with its
+ * hash. A test makes it again and fails when the file written is not what
+ * the sources make, so the frame never runs a script its source no longer
+ * says.
  *
  *   node tools/epub/frame-bootstrap.ts
  */
@@ -19,7 +20,7 @@ import ts from 'typescript';
 const EPUB = join(dirname(fileURLToPath(import.meta.url)), '../../packages/adapters/src/epub');
 
 /** The sources, in the order they are put together: each uses only those before it. */
-const SOURCES = ['text-positions.ts', 'frame-bootstrap.ts'] as const;
+const SOURCES = ['unshadowed-dom.ts', 'text-positions.ts', 'frame-bootstrap.ts'] as const;
 
 /** The file written, which the reader imports. */
 export const GENERATED = join(EPUB, 'frame-bootstrap.generated.ts');
@@ -70,7 +71,7 @@ export const sha256Base64 = (script: string): string =>
 export function frameBootstrapModule(): string {
   const script = frameBootstrapScript();
   return [
-    '// Made by `node tools/epub/frame-bootstrap.ts` from frame-bootstrap.ts and text-positions.ts.',
+    '// Made by `node tools/epub/frame-bootstrap.ts` from frame-bootstrap.ts, text-positions.ts and unshadowed-dom.ts.',
     '// Do not edit: the frame runs this exactly, named by its hash (ADR-0045).',
     `export const FRAME_BOOTSTRAP = ${JSON.stringify(script)};`,
     `export const FRAME_BOOTSTRAP_SHA256 = '${sha256Base64(script)}';`,

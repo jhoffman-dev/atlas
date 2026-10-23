@@ -48,7 +48,8 @@ cleaning misses.
    is `default-src 'none'`, `script-src 'sha256-…'` of that script and nothing
    else, `style-src 'unsafe-inline'`, pictures, fonts and media only `data:`, and
    no request, frame, worker, object, form or `<base>`. The script is made from
-   `packages/adapters/src/epub/frame-bootstrap.ts` and `text-positions.ts` by
+   `packages/adapters/src/epub/frame-bootstrap.ts`, `text-positions.ts` and
+   `unshadowed-dom.ts` by
    `tools/epub/frame-bootstrap.ts`, which writes it and its hash into
    `frame-bootstrap.generated.ts`; a unit test makes it again and fails when the
    committed file is not what the sources make, and checks the hash in the
@@ -95,12 +96,34 @@ cleaning misses.
    - the frame's script stops every click (and `auxclick` and `submit`) and
      follows a link only by the `data-dfai-path` the cleaning wrote, by telling
      the reader;
+   - neither the reader nor the frame's script calls a member through the
+     document or a built node, where a book's name can shadow it (DOM
+     clobbering: `<img name="createRange">` makes `document.createRange` that
+     picture, and `<input name="appendChild">` does the same to its form). They
+     call the DOM's own members, read off the prototypes as the script starts
+     (`unshadowed-dom.ts`), on the node; and both the cleaning and the builder
+     drop a `name` or `id` that would shadow a member of the document or a form
+     on the elements that can (`img`, `form`, `embed`, `object`, `iframe` and
+     the form controls). A `<p id="title">` or an `<a name="top">` shadows
+     nothing and stays a link's target. Window names are not dropped: a
+     window's own members are never shadowed by named elements;
+   - the cleaning of a book's CSS reads escapes of letters first (`u\72l(` is
+     `url(`), takes an `image-set()`'s plain strings as the addresses they are,
+     and drops an `@import` of any spelling it does not read as the book's own;
    - the frame's own policy runs no other script and loads nothing;
    - `index.html`'s `frame-src 'none'` is inherited by the frame as one more
      layer. A comment there and `index-html.test.ts` keep it, but nothing relies
      on it alone: the hostile e2e suite passes with it removed.
 
-6. **A long book is held a little at a time.** Each chapter's text is kept once
+6. **A zip bomb is refused.** An EPUB is a ZIP, inflated in the app's own
+   process, so the archive (`zip-loader.ts`) is refused as unreadable when it is
+   opened if any file says it inflates past 64 MB, all of them past 512 MB, or a
+   file of more than 1 MB says it inflates more than 100 times over (text
+   deflates about five times, a bomb about a thousand). The sizes a ZIP says can
+   lie, so each file is also refused, as unreadable, the moment it inflates past
+   the size it said.
+
+7. **A long book is held a little at a time.** Each chapter's text is kept once
    read, for find and re-anchoring; only the three chapters parsed last are kept
    as documents, and another is parsed again when it is shown or a CFI in it is
    read. Find and re-anchoring read the book chapter by chapter with a message
@@ -115,8 +138,8 @@ cleaning misses.
   fetched (a fake server for the book's site records no hit), the frame still
   `about:srcdoc`, the host never called — also with the cleaning bypassed by the
   test, and with `index.html`'s policy removed.
-- The frame's script is a fixed string. Changing `frame-bootstrap.ts` or
-  `text-positions.ts` means running `node tools/epub/frame-bootstrap.ts`; the
+- The frame's script is a fixed string. Changing `frame-bootstrap.ts`,
+  `text-positions.ts` or `unshadowed-dom.ts` means running `node tools/epub/frame-bootstrap.ts`; the
   unit test says so when it is forgotten.
 - The reader no longer reaches into the frame, so the selection is what the
   frame last said, and the frame's copy of the chapter is DFAI's own build.

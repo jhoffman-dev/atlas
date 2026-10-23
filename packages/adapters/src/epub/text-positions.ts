@@ -5,8 +5,11 @@
  * one of those nodes and back. The reader uses them on the parsed chapter,
  * for CFIs, and the chapter's frame uses the same ones on the chapter it
  * builds, for the selection and the highlights: this file is part of the
- * frame's script (tools/epub/frame-bootstrap.ts), so it imports nothing.
+ * frame's script (tools/epub/frame-bootstrap.ts), so it imports only the
+ * DOM's own members (`unshadowed-dom.ts`), which a book's names cannot shadow.
  */
+
+import { childNodesOf, createRange, nodeTypeOf, ownerDocumentOf } from './unshadowed-dom.ts';
 
 /** One text node of the chapter, and where its words begin in the chapter's text. */
 export interface Run {
@@ -52,7 +55,7 @@ export function rangeAt(chapter: TextRuns, start: number, end: number): Range | 
   const from = positionAt(chapter, start);
   const to = positionAt(chapter, end);
   if (from === null || to === null) return null;
-  const range = from.node.ownerDocument.createRange();
+  const range = createRange(from.node.ownerDocument);
   range.setStart(from.node, from.offset);
   range.setEnd(to.node, to.offset);
   return range;
@@ -63,12 +66,14 @@ export function rangeAt(chapter: TextRuns, start: number, end: number): Range | 
  * of it, or before the first word at or after a position between nodes.
  */
 export function offsetAt(chapter: TextRuns, node: Node, offset: number): number {
-  if (node.nodeType === TEXT) {
+  if (nodeTypeOf(node) === TEXT) {
     const run = chapter.runs.find((each) => each.node === node);
     if (run !== undefined) return run.start + Math.min(offset, run.node.data.length);
   }
-  const probe = node.ownerDocument?.createRange();
-  if (probe === undefined) return chapter.length;
+  const doc = ownerDocumentOf(node);
+  // A document itself has no owner, and no place among its chapter's words.
+  if (doc === null) return chapter.length;
+  const probe = createRange(doc);
   probe.setStart(node, Math.min(offset, childCount(node)));
   // The first run whose start is not before the position; past them all, the end of the text.
   const after = chapter.runs.find((run) => probe.comparePoint(run.node, 0) >= 0);
@@ -76,4 +81,4 @@ export function offsetAt(chapter: TextRuns, node: Node, offset: number): number 
 }
 
 const childCount = (node: Node): number =>
-  node.nodeType === TEXT ? (node as Text).data.length : node.childNodes.length;
+  nodeTypeOf(node) === TEXT ? (node as Text).data.length : childNodesOf(node).length;
