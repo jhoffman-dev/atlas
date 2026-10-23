@@ -87,6 +87,7 @@ async function commenting(
     flush?: () => Promise<void>;
     state?: () => string;
     toasts?: { show: (toast: unknown) => number };
+    kept?: Parameters<typeof useNoteHighlights>[0]['kept'];
   } = {},
 ) {
   const vault = memoryVault();
@@ -101,6 +102,7 @@ async function commenting(
       open,
       onChanged: () => {},
       ...(given.toasts !== undefined && { toasts: given.toasts }),
+      ...(given.kept !== undefined && { kept: given.kept }),
     }),
   );
   return { vault, hook };
@@ -196,7 +198,12 @@ describe('a comment write, in order (#534)', () => {
     const show = vi.fn(() => 1);
     const { hook } = await commenting({ toasts: { show } });
     hook.result.current?.onUnwrittenComments?.([
-      { id: ID, comment: 'Typed, then ⌘W.', why: 'The note has unsaved typing.' },
+      {
+        id: ID,
+        comment: 'Typed, then ⌘W.',
+        base: 'Lit by Mara.',
+        why: 'The note has unsaved typing.',
+      },
     ]);
     expect(show).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -205,5 +212,45 @@ describe('a comment write, in order (#534)', () => {
         action: expect.objectContaining({ label: 'Copy' }),
       }),
     );
+  });
+});
+
+/*
+ * Coordinator decision on PR #534: a comment the closing note could not write
+ * goes where its typing would (the stranded-edit store), with its highlight's
+ * id and base, and is offered back to the note's fields when it opens again.
+ */
+describe('a comment the closing note could not write', () => {
+  const typed = { id: ID, comment: 'Typed, then ⌘W.', base: 'Lit by Mara.' };
+  const keptFor = (offered: readonly (typeof typed)[] = []) => ({
+    offered: vi.fn(() => offered),
+    keep: vi.fn(),
+    settle: vi.fn(),
+  });
+
+  it('is kept, with its highlight and the comment it was typed over', async () => {
+    const kept = keptFor();
+    const { hook } = await commenting({ kept });
+    hook.result.current?.onUnwrittenComments?.([{ ...typed, why: 'The disk is full.' }]);
+    expect(kept.keep).toHaveBeenCalledWith({
+      path: BOOK,
+      comments: [typed],
+      reason: 'The disk is full.',
+    });
+  });
+
+  it('is offered back to the note’s fields when it opens again', async () => {
+    const kept = keptFor([typed]);
+    const { hook } = await commenting({ kept });
+    expect(hook.result.current?.recovered).toEqual([typed]);
+    expect(kept.offered).toHaveBeenCalledWith(BOOK);
+  });
+
+  it('is let go of once the note closes with every comment written', async () => {
+    const kept = keptFor([typed]);
+    const { hook } = await commenting({ kept });
+    hook.result.current?.onUnwrittenComments?.([]);
+    expect(kept.settle).toHaveBeenCalledWith(BOOK);
+    expect(kept.keep).not.toHaveBeenCalled();
   });
 });

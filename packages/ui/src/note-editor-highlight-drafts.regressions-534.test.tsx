@@ -397,3 +397,96 @@ describe('a comment typed, when the note stops being a literature note before it
     expect(write.mock.calls.length + onUnwrittenComments.mock.calls.length).toBeGreaterThan(0);
   });
 });
+
+/*
+ * Coordinator decision on PR #534: a comment a closing note could not write is
+ * kept as its typing is, with the highlight's id and the comment it was typed
+ * over, and put back in its field when the note opens again — where writing
+ * it still checks the note has not moved on meanwhile.
+ */
+describe('a comment kept from the last time the note closed', () => {
+  const props = {
+    onChange: vi.fn(),
+    onFollowLink: vi.fn(),
+    suggestNotes: () => [],
+    loadImage: async () => null,
+  };
+  const kept = { id: 'k3x9q2', comment: 'Typed, then ⌘W.', base: 'Lit by Mara.' };
+
+  it('is told of with the comment it was typed over, so it can be kept', async () => {
+    const onUnwrittenComments = vi.fn();
+    const view = render(
+      <NoteEditor
+        doc={lamp('Lit by Mara.')}
+        {...props}
+        highlights={{
+          viewOf,
+          editComment: async () => {
+            throw new Error('The disk is full.');
+          },
+          onUnwrittenComments,
+        }}
+      />,
+    );
+    await screen.findByText('The last lamp.');
+    type('Typed, then ⌘W.');
+    view.unmount();
+    await waitFor(() => expect(onUnwrittenComments).toHaveBeenCalledTimes(1));
+    expect(onUnwrittenComments.mock.calls[0]?.[0]).toEqual([{ ...kept, why: 'The disk is full.' }]);
+  });
+
+  it('is back in its field when the note opens again', async () => {
+    render(
+      <NoteEditor
+        doc={lamp('Lit by Mara.')}
+        {...props}
+        highlights={{ viewOf, editComment: vi.fn(), recovered: [kept] }}
+      />,
+    );
+    await screen.findByText('The last lamp.');
+    expect(field().value).toBe('Typed, then ⌘W.');
+  });
+
+  it('is written over the comment it was typed over as the note closes, and said to be settled', async () => {
+    const write = vi.fn<NoteHighlights['editComment']>(async () => {});
+    const onUnwrittenComments = vi.fn();
+    const view = render(
+      <NoteEditor
+        doc={lamp('Lit by Mara.')}
+        {...props}
+        highlights={{ viewOf, editComment: write, recovered: [kept], onUnwrittenComments }}
+      />,
+    );
+    await screen.findByText('The last lamp.');
+    view.unmount();
+    await waitFor(() => expect(onUnwrittenComments).toHaveBeenCalledWith([]));
+    expect(write).toHaveBeenCalledWith({
+      id: 'k3x9q2',
+      comment: 'Typed, then ⌘W.',
+      base: 'Lit by Mara.',
+    });
+  });
+
+  it('is told of once when the note stops being a literature note and then closes', async () => {
+    const onUnwrittenComments = vi.fn();
+    const highlights = {
+      viewOf,
+      editComment: async () => {
+        throw new Error('This note holds no highlights now.');
+      },
+      onUnwrittenComments,
+    };
+    const view = render(
+      <NoteEditor doc={lamp('Lit by Mara.')} {...props} highlights={highlights} />,
+    );
+    await screen.findByText('The last lamp.');
+    type('Typed, then the note changed.');
+    view.rerender(<NoteEditor doc={lamp('Lit by Mara.')} {...props} highlights={null} />);
+    view.unmount();
+    await act(async () => {
+      for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+    });
+    expect(onUnwrittenComments).toHaveBeenCalledTimes(1);
+    expect(onUnwrittenComments.mock.calls[0]?.[0]).toHaveLength(1);
+  });
+});
