@@ -4,11 +4,13 @@ import {
   type AutomationPlan,
   type AutomationRule,
   type HandledLedger,
+  type LocalTime,
   type LogEntry,
   type RuleNamed,
 } from '@dfai/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import { planRuleNow } from './note-runs.ts';
+import { periodStateOf } from './period-state.ts';
 import type { RuleQueryPorts } from './plan-run.ts';
 
 /**
@@ -25,6 +27,7 @@ export async function dryRunAutomation({
   ledger = null,
   named,
   today,
+  at,
   activity,
 }: {
   ports: RuleQueryPorts;
@@ -37,16 +40,55 @@ export async function dryRunAutomation({
   named: RuleNamed;
   /** `YYYY-MM-DD`, from the injected clock. */
   today: string;
+  /**
+   * The wall clock now, `YYYY-MM-DDTHH:MM:SS`: the period a run by hand would
+   * write for. Left off, a step that writes one note a period is planned without it.
+   */
+  at?: LocalTime;
   activity: ActivityLog;
 }): Promise<AutomationPlan> {
   // Taken before the plan waits, so its line lands in its own vault's log.
   const recorder = activity.inOpenVault();
   try {
-    const { plan } = await planRuleNow({ ports, rule, log, ledger, today });
+    const target = await planRuleNow({ ports, rule, log, ledger, today });
+    const plan =
+      at === undefined
+        ? target.plan
+        : await withPeriodNote({ plan: target.plan, rule, log, at, ports });
     recorder.record(dryRunReport(named, { plan }));
     return plan;
   } catch (cause) {
     recorder.record(dryRunReport(named, { problem: messageWithoutPaths(cause) }));
     throw cause;
   }
+}
+
+/**
+ * The plan with, for a step that writes one note a period, the period a run
+ * by hand would write for and whether its note is made already — so the dry run
+ * says what the run would do, not that there is nothing to do.
+ */
+export async function withPeriodNote({
+  plan,
+  rule,
+  log,
+  at,
+  ports,
+}: {
+  plan: AutomationPlan;
+  rule: Pick<AutomationRule, 'when' | 'action'>;
+  log: readonly LogEntry[];
+  at: LocalTime;
+  ports: RuleQueryPorts;
+}): Promise<AutomationPlan> {
+  const state = await periodStateOf({
+    rule,
+    entries: log,
+    at,
+    trigger: 'hand',
+    fs: ports.fs,
+    markdown: ports.markdown,
+    notePaths: ports.notePaths,
+  });
+  return state === null ? plan : { ...plan, periodNote: state };
 }

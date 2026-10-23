@@ -139,6 +139,7 @@ export function useAutomationEditor({
         ledger: loaded?.ledger ?? null,
         named,
         today: clock.today(),
+        at: clock.localNow(),
         activity,
       });
       setDryRun(dryRunView(plan));
