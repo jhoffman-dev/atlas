@@ -12,7 +12,8 @@
  */
 
 import type { SpecProblem } from '../errors/spec-problem.ts';
-import { entryNameProblem, hiddenCharacterProblem } from '../query/new-view.ts';
+import { hiddenCharacterProblem } from '../query/entry-name-characters.ts';
+import { entryNameProblem } from '../query/new-view.ts';
 import {
   DASHBOARD_MARKER,
   DASHBOARD_MARKER_VALUE,

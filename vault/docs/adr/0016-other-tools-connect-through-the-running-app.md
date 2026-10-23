@@ -900,9 +900,12 @@ unattended step reads.
   write it checks its vault is still open and the meeting still there. One
   meeting is drafted once at a time, per router (`MeetingDrafts`). This is
   the API's first route that spends, so it does not spend twice on the same
-  words: each proposal keeps `meeting_digest`, the digest of the meeting's
-  body it was drafted from, and asked again about a body unchanged, the route
-  answers `unchanged` without asking Claude. A meeting whose draft proposed
+  words: each proposal keeps `meeting_digest`, two hashes of which meeting it
+  was drafted from (provider and id, else path) with that meeting's body, and
+  asked again about the same meeting with its body unchanged — counting only
+  proposal notes — the route answers `unchanged` without asking Claude. The
+  check before the first write also asks that the meeting at the path is
+  still the same meeting, by provider and id. A meeting whose draft proposed
   nothing is asked about again; the MCP tool says that a draft costs.
 - **A dashboard or view, checked, then proposed.** `make-dashboard` checks a
   spec with the app's own checkers — the widget editor's (`widgetProblems`,
@@ -914,7 +917,10 @@ unattended step reads.
   of long text cannot make the answer large. The checker refuses rather
   than coerces what the editor's draft would read loosely: filters it cannot
   read, an unknown `show` or `icon`, a `span` or `limit` out of range, a
-  `title` that is not text, a name with invisible formatting characters.
+  `title` that is not text, a `highlight` neither text nor a number, a name
+  with nothing visible or an invisible character outside an emoji (a format
+  character, a joiner not between two emoji, tag characters outside a
+  subdivision flag).
   Asked for again, a spec already proposed is not proposed twice, and the
   answer says what became of the first. Before Accept, the Inbox card shows
   each widget as Accept will write it, every SQL statement and DFAI query

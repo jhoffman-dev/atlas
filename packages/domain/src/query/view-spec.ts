@@ -7,7 +7,8 @@
 
 import type { SpecProblem } from '../errors/spec-problem.ts';
 import type { ObjectType } from '../types/property-def.ts';
-import { hiddenCharacterProblem, newViewFieldProblems, type NewViewRequest } from './new-view.ts';
+import { hiddenCharacterProblem } from './entry-name-characters.ts';
+import { newViewFieldProblems, type NewViewRequest } from './new-view.ts';
 import type { ViewLayout } from './saved-view.ts';
 
 export type ViewSpecReading =

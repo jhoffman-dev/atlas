@@ -63,6 +63,7 @@ export {
   compileProposalIdsQuery,
   compileProposalsStampedQuery,
   MEETING_DIGEST_KEY,
+  meetingDraftDigest,
   PROPOSAL_ID_KEY,
   proposalFileFor,
 } from './new-proposal.ts';

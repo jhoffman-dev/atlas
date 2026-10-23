@@ -12,6 +12,7 @@ import {
   createVaultPath,
   digestOf,
   MEETING_EXTRACTION_PROMPT,
+  meetingDraftDigest,
   parseObjectType,
   splitFrontmatter,
   type AutomationRule,
@@ -182,11 +183,54 @@ describe('proposeMeetingTasks', () => {
     expect(claude.fake.requests).toHaveLength(2);
   });
 
+  it.each(['Inbox/Proposals/Scratch.md', 'Notes/Scratch.md'])(
+    'is not suppressed by a note at %s that carries this meeting’s digest but is no proposal',
+    async (path) => {
+      const { claude, vault, propose } = setUp([FROM_SYNC]);
+      const digest = meetingDraftDigest({
+        meeting: { provider: 'gemini', externalId: 'gemini-7f3a9c21' },
+        words: splitFrontmatter(GEMINI).body,
+      });
+      vault.files.set(path, jsonNote({ type: 'note', meeting_digest: digest }, ''));
+
+      expect(await propose()).toMatchObject({ unchanged: false });
+      expect(claude.fake.requests).toHaveLength(1);
+    },
+  );
+
+  it('writes nothing when another meeting took the path while Claude drafted it', async () => {
+    const claude = fakeClaudeStepPorts({
+      rounds: [FROM_SYNC],
+      today: TODAY,
+      selfName: 'Mara Quill',
+    });
+    const vault = automationVault({ notes: { ...NOTES }, today: TODAY, types: TYPES, claude });
+
+    const refused = await proposeMeetingTasks({
+      ports: vault.ports,
+      claude,
+      meeting: createVaultPath(SYNC),
+      madeBy: 'x',
+      // The meeting drafted is deleted and a different one written at its path.
+      beforeWrite: async () =>
+        void vault.files.set(SYNC, GEMINI.replace('gemini-7f3a9c21', 'gemini-1234abcd')),
+    }).catch((error: unknown) => error);
+
+    expect(refused).toBeInstanceOf(MeetingGoneError);
+    expect((refused as Error).message).toBe(
+      `${SYNC} is another meeting now, so nothing it proposed was written.`,
+    );
+    expect(vault.log.filter((line) => line.startsWith('create '))).toEqual([]);
+  });
+
   it('keeps on each proposal the digest of the words it was drafted from', async () => {
     const { vault, propose } = setUp([FROM_SYNC]);
     const { proposed } = await propose();
     expect(vault.properties(proposed[0]!)['meeting_digest']).toBe(
-      digestOf(splitFrontmatter(GEMINI).body),
+      meetingDraftDigest({
+        meeting: { provider: 'gemini', externalId: 'gemini-7f3a9c21' },
+        words: splitFrontmatter(GEMINI).body,
+      }),
     );
   });
 

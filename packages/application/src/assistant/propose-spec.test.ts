@@ -109,6 +109,7 @@ describe('proposeSpec', () => {
     });
 
     await rejectProposalNote({
+      via: 'app',
       ports: vault.ports,
       path: createVaultPath(first.proposal!),
       today: TODAY,
@@ -166,6 +167,7 @@ describe('answering a dashboard proposal', () => {
     const { proposal } = await propose(PAYROLL);
 
     await rejectProposalNote({
+      via: 'app',
       ports: vault.ports,
       path: createVaultPath(proposal!),
       today: TODAY,

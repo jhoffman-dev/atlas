@@ -110,8 +110,13 @@ export const MAX_PROBLEM_CHARACTERS = 200;
 
 /** A refusal's problems, kept to a size: so a spec of long text cannot make the answer a megabyte. */
 function boundedProblems(problems: readonly SpecProblem[]): SpecProblem[] {
-  const cut = (text: string) =>
-    text.length > MAX_PROBLEM_CHARACTERS ? `${text.slice(0, MAX_PROBLEM_CHARACTERS - 1)}…` : text;
+  // By whole code points, so a cut never leaves half of a surrogate pair behind.
+  const cut = (text: string) => {
+    const points = Array.from(text);
+    return points.length > MAX_PROBLEM_CHARACTERS
+      ? `${points.slice(0, MAX_PROBLEM_CHARACTERS - 1).join('')}…`
+      : text;
+  };
   const kept = problems.slice(0, MAX_SPEC_PROBLEMS).map(({ at, message }) => ({
     at: cut(at),
     message: cut(message),

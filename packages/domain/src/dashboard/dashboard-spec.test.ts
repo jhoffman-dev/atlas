@@ -230,3 +230,69 @@ describe('checkDashboardSpec refuses what the editor would read as something els
     ).toEqual({ ok: false, problems: [{ at: 'name', message: 'name must be text.' }] });
   });
 });
+
+describe('checkDashboardSpec: what the docs allow, and names that hide nothing (verify round)', () => {
+  const widget = (more: Record<string, unknown>) => ({
+    name: 'Board',
+    widgets: [{ kind: 'bar', type: 'task', groupBy: 'status', ...more }],
+  });
+  const named = (name: string) =>
+    checkDashboardSpec({ name, widgets: [{ kind: 'number', type: 'task' }] }, KNOWN);
+
+  it.each([[{ highlight: 15 }], [{ highlight: 'done' }]])('passes %j', (more) => {
+    expect(checkDashboardSpec(widget(more), KNOWN).ok).toBe(true);
+  });
+
+  it.each([[{ highlight: Number.NaN }], [{ highlight: ['done'] }], [{ highlight: true }]])(
+    'refuses %j',
+    (more) => {
+      expect(checkDashboardSpec(widget(more), KNOWN)).toEqual({
+        ok: false,
+        problems: [{ at: 'widgets[0]', message: 'highlight must be text or a number.' }],
+      });
+    },
+  );
+
+  it('passes a null value only with an operator that compares against nothing', () => {
+    const filter = (operator: string) =>
+      widget({ filters: [{ key: 'due', operator, value: null }] });
+    expect(checkDashboardSpec(filter('isEmpty'), KNOWN).ok).toBe(true);
+    expect(checkDashboardSpec(filter('isNotEmpty'), KNOWN).ok).toBe(true);
+    expect(checkDashboardSpec(filter('is'), KNOWN).ok).toBe(false);
+  });
+
+  it.each([
+    ['a family emoji', 'Team \u{1F468}‍\u{1F469}‍\u{1F467}'],
+    ['a joiner after a presentation selector', 'Love ❤️‍\u{1F525}'],
+    [
+      'a subdivision flag',
+      'Scotland \u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}',
+    ],
+  ])('keeps %s', (_what, name) => {
+    expect(named(name).ok).toBe(true);
+  });
+
+  it.each([
+    ['a joiner at the end', 'Board‍'],
+    ['a joiner after an emoji, before a letter', 'Board \u{1F468}‍a'],
+    ['tags with no flag', 'Board\u{E0067}\u{E007F}'],
+    ['a flag whose tags never end', 'Board \u{1F3F4}\u{E0067}\u{E0062}'],
+  ])('refuses %s', (_what, name) => {
+    expect(named(name)).toEqual({
+      ok: false,
+      problems: [
+        {
+          at: 'name',
+          message: 'A dashboard’s name cannot hold an invisible formatting character.',
+        },
+      ],
+    });
+  });
+
+  it('refuses a name with nothing that shows', () => {
+    expect(named('‍‍')).toEqual({
+      ok: false,
+      problems: [{ at: 'name', message: 'A dashboard’s name needs a character that shows.' }],
+    });
+  });
+});

@@ -275,7 +275,12 @@ export function useProposals(options: ProposalsOptions) {
   const onReject = useCallback(
     (path: VaultPath) =>
       answer(path, async () => {
-        const rejected = await rejectProposalNote({ ports, path, today: clock.today() });
+        const rejected = await rejectProposalNote({
+          via: 'app',
+          ports,
+          path,
+          today: clock.today(),
+        });
         return { notice: rejectedNotice(path, rejected), accepted: [] };
       }),
     [answer, ports, clock],
@@ -324,7 +329,7 @@ export function useProposals(options: ProposalsOptions) {
           settle(outcome, outcome.done);
         } else {
           const outcome = await inTurn(taken, (path) =>
-            recorded(path, () => rejectProposalNote({ ports, path, today })),
+            recorded(path, () => rejectProposalNote({ via: 'app', ports, path, today })),
           );
           settle(outcome, []);
         }
@@ -367,7 +372,7 @@ export function useProposals(options: ProposalsOptions) {
           return;
         }
         const rejects = await inTurn(others, (path) =>
-          recorded(path, () => rejectProposalNote({ ports, path, today })),
+          recorded(path, () => rejectProposalNote({ via: 'app', ports, path, today })),
         );
         if (vault !== openVault.current) return;
         const failed = rejects.failed.map(({ item }) => item);

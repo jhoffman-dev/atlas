@@ -12,12 +12,16 @@ import { GRID_COLUMNS, MAX_RANK_SIZE, SQL_SHOWS, WIDGET_ICONS } from './dashboar
 type Entry = Readonly<Record<string, unknown>>;
 
 /** The keys that must be text when they are given at all. */
-const TEXT_KEYS = ['title', 'type', 'groupBy', 'highlight', 'sql', 'query'] as const;
+const TEXT_KEYS = ['title', 'type', 'groupBy', 'sql', 'query'] as const;
+
+/** Operators that compare against nothing, so their value may be null. */
+const WITHOUT_VALUE: readonly FilterOperator[] = ['isEmpty', 'isNotEmpty'];
 
 /** Everything in the entry the draft would read as something it does not say; none when it reads as written. */
 export function widgetEntryShapeProblems(entry: Entry): string[] {
   return [
     ...TEXT_KEYS.flatMap((key) => textProblem(entry, key)),
+    ...highlightProblem(entry),
     ...filtersProblems(entry['filters'], 'filters'),
     ...progressProblems(entry['progress']),
     ...choiceProblem(entry, 'show', SQL_SHOWS),
@@ -33,6 +37,15 @@ function given(entry: Entry, key: string): boolean {
 
 function textProblem(entry: Entry, key: string): string[] {
   return given(entry, key) && typeof entry[key] !== 'string' ? [`${key} must be text.`] : [];
+}
+
+/** A highlight is a group's key as written — text, or a number such as `15` (docs/dashboards.md). */
+function highlightProblem(entry: Entry): string[] {
+  const value = entry['highlight'];
+  if (!given(entry, 'highlight') || typeof value === 'string') return [];
+  return typeof value === 'number' && Number.isFinite(value)
+    ? []
+    : ['highlight must be text or a number.'];
 }
 
 function filtersProblems(value: unknown, at: string): string[] {
@@ -51,7 +64,8 @@ function filterProblem(filter: unknown, at: string): string[] {
     return [`${at}’s operator must be one of ${FILTER_OPERATORS.join(', ')}.`];
   }
   const plain = ['string', 'number', 'boolean'].includes(typeof value);
-  return value === undefined || plain
+  const nothing = value === null && WITHOUT_VALUE.includes(operator as FilterOperator);
+  return value === undefined || plain || nothing
     ? []
     : [`${at}’s value must be text, a number or true/false.`];
 }

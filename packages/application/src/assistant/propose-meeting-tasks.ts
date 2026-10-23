@@ -1,14 +1,18 @@
 import {
   compileProposalsStampedQuery,
   createVaultPath,
-  digestOf,
   isMarkdownFile,
   isMeetingType,
+  isProposalNote,
   MEETING_DIGEST_KEY,
+  meetingDraftDigest,
+  meetingIdentityOf,
+  sameMeetingIdentity,
   MEETING_EXTRACTION_PROMPT,
   PROPOSALS_FOLDER,
   splitFrontmatter,
   type ClaudeAction,
+  type MeetingIdentity,
   type DroppedItem,
   type NoteSkipped,
   type VaultPath,
@@ -64,10 +68,20 @@ export interface ProposedTasks {
   readonly warnings: readonly string[];
 }
 
+/** Whether two reads of a path are one meeting, by provider and id; two without ids are taken as one. */
+function sameIdentity(a: MeetingIdentity | null, b: MeetingIdentity | null): boolean {
+  if (a === null || b === null) return a === b;
+  return sameMeetingIdentity(a, b);
+}
+
 /** The meeting went while Claude drafted it: nothing it proposed was written. */
 export class MeetingGoneError extends Error {
-  constructor(meeting: VaultPath) {
-    super(`${meeting} is not there any more, so nothing it proposed was written.`);
+  constructor(meeting: VaultPath, why: 'gone' | 'replaced' = 'gone') {
+    super(
+      why === 'gone'
+        ? `${meeting} is not there any more, so nothing it proposed was written.`
+        : `${meeting} is another meeting now, so nothing it proposed was written.`,
+    );
     this.name = 'MeetingGoneError';
   }
 }
@@ -104,8 +118,11 @@ export async function proposeMeetingTasks({
   /** Rejects to stop the draft before its first write; left out, only the meeting is checked. */
   beforeWrite?: () => Promise<void>;
 }): Promise<ProposedTasks> {
-  const words = await meetingWords(ports, meeting);
-  const digest = digestOf(words);
+  const read = await meetingRead(ports, meeting);
+  const digest = meetingDraftDigest({
+    meeting: read.identity ?? { path: meeting },
+    words: read.words,
+  });
   const before = await draftedFrom(ports, digest);
   if (before > 0) return { ...NOTHING_NEW, meeting, alreadyProposed: before, unchanged: true };
   // What stopped it before its first write, raised as it is: the step reports it as its own failure.
@@ -113,9 +130,12 @@ export async function proposeMeetingTasks({
   const gate = async () => {
     try {
       await beforeWrite?.();
-      await meetingWords(ports, meeting).catch((error: unknown) => {
+      const now = await meetingRead(ports, meeting).catch((error: unknown) => {
         throw error instanceof AssistantEntityError ? new MeetingGoneError(meeting) : error;
       });
+      // Another meeting at the path — the first deleted, a new one written there — is not the one drafted.
+      if (!sameIdentity(now.identity, read.identity))
+        throw new MeetingGoneError(meeting, 'replaced');
     } catch (error) {
       stopped = error;
       throw error;
@@ -169,16 +189,23 @@ async function draftedFrom(ports: DraftPorts, digest: string): Promise<number> {
     const properties = ports.markdown.frontmatterProperties(
       splitFrontmatter(note.text).frontmatter,
     );
-    if (properties[MEETING_DIGEST_KEY] === digest) found.add(note.path);
+    if (isProposalNote(properties) && properties[MEETING_DIGEST_KEY] === digest) {
+      found.add(note.path);
+    }
   }
   return found.size;
 }
 
 /**
- * The meeting's words — its body, without the frontmatter Accept writes its
- * tasks into — refused when it is not there or not a meeting.
+ * The meeting as a draft is keyed by: its words — its body, without the
+ * frontmatter Accept writes its tasks into — and which meeting it is, by
+ * provider and id when it has them. Refused when it is not there or not a
+ * meeting.
  */
-async function meetingWords({ fs, markdown }: DraftPorts, path: VaultPath): Promise<string> {
+async function meetingRead(
+  { fs, markdown }: DraftPorts,
+  path: VaultPath,
+): Promise<{ words: string; identity: MeetingIdentity | null }> {
   const text = await fs.readTextFile(path).then(
     (read) => read.text,
     (error: unknown) => {
@@ -189,8 +216,9 @@ async function meetingWords({ fs, markdown }: DraftPorts, path: VaultPath): Prom
     },
   );
   const { frontmatter, body } = splitFrontmatter(text);
-  if (!isMeetingType(markdown.frontmatterProperties(frontmatter)['type'])) {
+  const properties = markdown.frontmatterProperties(frontmatter);
+  if (!isMeetingType(properties['type'])) {
     throw new AssistantEntityError('not_a_page', `${path} is not a meeting note.`);
   }
-  return body;
+  return { words: body, identity: meetingIdentityOf(properties) };
 }

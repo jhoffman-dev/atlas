@@ -311,6 +311,7 @@ describe('rejectProposalNote', () => {
   it('archives the proposal with state: rejected, writing nothing it proposed', async () => {
     const setup = vault();
     const rejected = await rejectProposalNote({
+      via: 'app',
       ports: setup.ports,
       path: vaultPath(PROPOSAL),
       today: TODAY,
@@ -339,7 +340,12 @@ describe('rejectProposalNote', () => {
   it('refuses one already accepted', async () => {
     const setup = vault({ [PROPOSAL]: taskProposal({ state: 'accepted' }) });
     await expect(
-      rejectProposalNote({ ports: setup.ports, path: vaultPath(PROPOSAL), today: TODAY }),
+      rejectProposalNote({
+        via: 'app',
+        ports: setup.ports,
+        path: vaultPath(PROPOSAL),
+        today: TODAY,
+      }),
     ).rejects.toThrow('It was already accepted.');
   });
 });
@@ -569,6 +575,7 @@ describe('undoRejectedProposal — when the proposal is back but cannot be opene
   it('says where it is and why, rather than failing without a word', async () => {
     const setup = vault();
     const rejected = await rejectProposalNote({
+      via: 'app',
       ports: setup.ports,
       path: vaultPath(PROPOSAL),
       today: TODAY,
