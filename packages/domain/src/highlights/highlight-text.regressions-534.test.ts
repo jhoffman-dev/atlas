@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HighlightBlock } from './highlight-block.ts';
-import { commentLines } from './highlight-text.ts';
+import { commentLines, highlightAsPlainQuote } from './highlight-text.ts';
 import { highlightView } from './highlight-view.ts';
 
 /*
@@ -74,5 +74,48 @@ describe('a comment typed with a literal %\\% in it', () => {
       }
     }
     expect(broken.slice(0, 5)).toEqual([]);
+  });
+});
+
+/*
+ * Regression (#534): a highlight block copied and pasted is a second block
+ * holding the same marker — a second live highlight of one passage. Pasted,
+ * it is a plain quote: its words and its comment, no marker.
+ */
+describe('a highlight block as a plain quote', () => {
+  const MARKER =
+    '<!-- atlas:highlight {"v":1,"mark":"underline","color":"pink","kind":"kindle","location":41} -->';
+
+  it('keeps the quote and the comment, and drops the marker line', () => {
+    const block = ['> The tide keeps \\*its\\* hours.', `> ${MARKER}`, '>', '> Lit by Mara.'].join(
+      '\n',
+    );
+    expect(highlightAsPlainQuote(block)).toBe(
+      ['> The tide keeps \\*its\\* hours.', '>', '> Lit by Mara.'].join('\n'),
+    );
+  });
+
+  it('keeps a quote with no comment as its words alone', () => {
+    expect(highlightAsPlainQuote(`> The tide keeps its hours.\n> ${MARKER}`)).toBe(
+      '> The tide keeps its hours.',
+    );
+  });
+
+  it('keeps a comment line that only looks like a marker, escaped as it was written', () => {
+    const block = ['> Quiet.', `> ${MARKER}`, '>', `> \\${MARKER}`].join('\n');
+    expect(highlightAsPlainQuote(block)).toBe(['> Quiet.', '>', `> \\${MARKER}`].join('\n'));
+  });
+
+  it('takes off the blank quote lines a marker leaves at an edge', () => {
+    expect(highlightAsPlainQuote(`> ${MARKER}\n>\n> Only a comment.`)).toBe('> Only a comment.');
+  });
+
+  it('is nothing for a highlight with no words to show', () => {
+    expect(highlightAsPlainQuote(`> ${MARKER}`)).toBe('');
+  });
+
+  it('is null for a block that is no highlight', () => {
+    expect(highlightAsPlainQuote('> A quote of my own.')).toBeNull();
+    expect(highlightAsPlainQuote('<!-- atlas:highlight-removed {"v":1} -->')).toBeNull();
   });
 });

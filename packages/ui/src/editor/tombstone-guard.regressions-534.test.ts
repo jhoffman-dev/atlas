@@ -11,6 +11,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
+import { Slice } from '@tiptap/pm/model';
 import { createEditorExtensions } from './extensions.ts';
 
 const TOMBSTONE =
@@ -295,5 +296,105 @@ describe('a numbered list made across a hidden tombstone', () => {
       { start: 1, items: 2 },
       { start: 3, items: 1 },
     ]);
+  });
+});
+
+/*
+ * Regression (#534): a highlight block copied and pasted — in its own note or
+ * another — was a second block holding the same marker: a second live
+ * highlight of one passage, the same id or none. Pasted, it is a plain quote,
+ * its words and comment kept, its marker and its id dropped.
+ */
+describe('a highlight, when it is copied and pasted', () => {
+  const MARKER =
+    '<!-- atlas:highlight {"v":1,"mark":"underline","color":"pink","kind":"kindle","location":41} -->';
+  const HIGHLIGHT = ['> The tide keeps its hours.', `> ${MARKER}`, '>', '> Lit by Mara.'].join(
+    '\n',
+  );
+  const QUOTE = ['> The tide keeps its hours.', '>', '> Lit by Mara.'].join('\n');
+
+  function note(content: object[]): Editor {
+    const instance = new Editor({
+      extensions: createEditorExtensions({
+        suggest: () => [],
+        onView: () => {},
+        onSlashView: () => {},
+        suggestTags: () => [],
+        onTagView: () => {},
+        onOpenTag: null,
+        offerLink: false,
+        loadImage: async () => null,
+        embedImage: null,
+      }),
+      content: { type: 'doc', content },
+    });
+    return instance;
+  }
+  const literatureNote = () =>
+    note([
+      { type: 'paragraph', content: [{ type: 'text', text: 'My own paragraph.' }] },
+      { type: 'rawBlock', attrs: { markdown: HIGHLIGHT, anchor: 'kd0041' } },
+      { type: 'paragraph', content: [{ type: 'text', text: 'After.' }] },
+    ]);
+
+  /** The highlight block as the clipboard carries it: copied, its slice as pasting reads it. */
+  function copiedHighlight(from: Editor): Slice {
+    let at = -1;
+    from.state.doc.forEach((node, offset) => {
+      if (node.type.name === 'rawBlock') at = offset;
+    });
+    const node = from.state.doc.nodeAt(at);
+    if (node === null) throw new Error('No highlight to copy.');
+    return from.state.doc.slice(at, at + node.nodeSize);
+  }
+
+  /**
+   * Pastes `slice` at the end of `into`, through every plugin's paste
+   * transform, as a paste does: read again in `into`'s schema, as the
+   * clipboard is.
+   */
+  function pasteAtEnd(into: Editor, slice: Slice): void {
+    let pasted = Slice.fromJSON(into.schema, slice.toJSON());
+    into.view.someProp('transformPasted', (transform) => {
+      pasted = transform(pasted, into.view);
+    });
+    const end = into.state.doc.content.size;
+    into.view.dispatch(into.state.tr.replaceRange(end, end, pasted));
+  }
+
+  const rawBlocks = (instance: Editor) => {
+    const found: { markdown: string; anchor: unknown }[] = [];
+    instance.state.doc.descendants((node) => {
+      if (node.type.name === 'rawBlock') {
+        found.push({ markdown: String(node.attrs['markdown']), anchor: node.attrs['anchor'] });
+      }
+    });
+    return found;
+  };
+  const liveHighlights = (instance: Editor) =>
+    rawBlocks(instance).filter(({ markdown }) => markdown.includes('atlas:highlight '));
+
+  afterEach(() => {
+    other?.destroy();
+    other = null;
+  });
+  let other: Editor | null = null;
+
+  it('pasted in its own note, is a plain quote; the original stays the one highlight', () => {
+    const instance = literatureNote();
+    editor = instance;
+    pasteAtEnd(instance, copiedHighlight(instance));
+    expect(liveHighlights(instance)).toEqual([{ markdown: HIGHLIGHT, anchor: 'kd0041' }]);
+    expect(rawBlocks(instance).at(-1)).toEqual({ markdown: QUOTE, anchor: null });
+  });
+
+  it('pasted in another note, is a plain quote with no id', () => {
+    const from = literatureNote();
+    editor = from;
+    other = note([{ type: 'paragraph', content: [{ type: 'text', text: 'Elsewhere.' }] }]);
+    pasteAtEnd(other, copiedHighlight(from));
+    expect(liveHighlights(other)).toEqual([]);
+    expect(rawBlocks(other)).toEqual([{ markdown: QUOTE, anchor: null }]);
+    expect(liveHighlights(from)).toHaveLength(1);
   });
 });
