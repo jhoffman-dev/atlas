@@ -211,6 +211,43 @@ Leave out things like these (the names are made up):
 - "The weather's been awful." — small talk.
 `;
 
+/**
+ * The prompt of the "Friday review" rule (#40): a draft of the weekly review
+ * from the data DFAI hands it. Whatever it says, an item that links no note
+ * it was given is left out (`cited-items.ts`).
+ */
+export const FRIDAY_REVIEW_PROMPT = createVaultPath(`${PROMPTS_DIRECTORY}/friday-review.md`);
+
+const FRIDAY_REVIEW = `# Friday review
+
+Draft this week's review for the vault's owner to read on Friday afternoon:
+what got done, what is stuck, and what to decide. Keep it short and plain.
+
+This note is yours to edit: it is what the "Friday review" rule asks Claude.
+DFAI hands Claude the weekly review as data — the week's finished tasks and
+meetings, who has not come back, overdue tasks, projects with no next action,
+someday items left alone, and the Inbox's count — and checks every answer
+itself: a list item that does not link its task, project or meeting is left out.
+
+## What the draft holds
+
+- **Wins** — what got done: the finished tasks, and meetings where something
+  was settled.
+- **Open loops** — overdue tasks, and someday items worth a decision.
+- **Waiting for** — who has not come back, and whether to chase them.
+- **Projects with no next action** — each needs a next action, or to be put on hold.
+- **To decide** — at most five questions for the owner, each linking what it is about.
+- One closing sentence on the Inbox: how many notes to file and proposals to answer.
+
+## Rules
+
+1. Every list item links the task, project or meeting it is about by its path,
+   exactly as the data writes it: [[Tasks/Send the file.md]].
+2. Only what the data says. Do not invent a task, a date or a person.
+3. A section with nothing in it says "Nothing this week." as a sentence, not a list item.
+4. Title the note "Weekly review" and today's date, written YYYY-MM-DD.
+`;
+
 export const BUILT_IN_PROMPTS: readonly BuiltInPrompt[] = [
   {
     path: MEETING_EXTRACTION_PROMPT,
@@ -224,6 +261,7 @@ export const BUILT_IN_PROMPTS: readonly BuiltInPrompt[] = [
     // #179's, then the one that still called the app Atlas (#482).
     earlier: ['6e894bcafa0d09b9-3665', '4be4543b9c77ec18-5365'],
   },
+  { path: FRIDAY_REVIEW_PROMPT, contents: FRIDAY_REVIEW, earlier: [] },
 ];
 
 /** The prompt DFAI ships at `path`, or null when it ships none there. */

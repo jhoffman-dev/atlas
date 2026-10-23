@@ -23,6 +23,7 @@ describe('the prompts DFAI ships', () => {
     expect(BUILT_IN_PROMPTS.map((prompt) => prompt.path)).toEqual([
       '.atlas/prompts/meeting-extraction.md',
       '.atlas/prompts/after-a-meeting.md',
+      '.atlas/prompts/friday-review.md',
     ]);
     for (const prompt of BUILT_IN_PROMPTS) {
       expect(isPromptPath(prompt.path)).toBe(true);
@@ -121,7 +122,13 @@ describe('bringing an untouched prompt up to date (#226)', () => {
   });
 
   it('knows the words each shipped with while the app was called Atlas (ADR-0042)', () => {
-    for (const prompt of BUILT_IN_PROMPTS) {
+    // The Friday review's (#40) came after the rename: it has no words from then.
+    const beforeRename = BUILT_IN_PROMPTS.filter((prompt) => prompt.earlier.length > 0);
+    expect(beforeRename.map((prompt) => prompt.path)).toEqual([
+      MEETING_EXTRACTION_PROMPT,
+      AFTER_A_MEETING_PROMPT,
+    ]);
+    for (const prompt of beforeRename) {
       expect(prompt.contents).toContain('DFAI');
       const asAtlasWroteIt = prompt.contents.replaceAll('DFAI', 'Atlas');
       expect(outdatedBuiltInPrompt(prompt.path, asAtlasWroteIt)).toBe(prompt);

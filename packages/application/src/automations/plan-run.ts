@@ -58,8 +58,13 @@ interface PlanArgs {
   readonly among?: readonly VaultPath[];
 }
 
-/** The paths the rule's query matches today, in its order. Rejects as {@link planRun} does. */
+/**
+ * The paths the rule's query matches today, in its order; none for a rule
+ * with no query — a Claude step that reads only its data (#40). Rejects as
+ * {@link planRun} does.
+ */
 export async function matchedPaths({ ports, rule, today, among }: PlanArgs): Promise<VaultPath[]> {
+  if (rule.which.trim() === '') return [];
   const text = pinnedText({
     rule,
     today,
