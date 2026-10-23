@@ -1,5 +1,11 @@
 import { Extension } from '@tiptap/core';
-import { Plugin, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import {
+  NodeSelection,
+  Plugin,
+  TextSelection,
+  type EditorState,
+  type Transaction,
+} from '@tiptap/pm/state';
 import { dropPoint, liftTarget, Mapping } from '@tiptap/pm/transform';
 import { Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
@@ -203,13 +209,38 @@ function dropAsCopy(view: EditorView, event: DragEvent, slice: Slice, moved: boo
   const insertAt = dropPoint(view.state.doc, at.pos, quoted) ?? at.pos;
   const tr = view.state.tr;
   const single = quoted.openStart === 0 && quoted.openEnd === 0 && quoted.content.childCount === 1;
-  const only = quoted.content.firstChild;
-  if (single && only !== null) tr.replaceRangeWith(insertAt, insertAt, only);
+  const only = single ? quoted.content.firstChild : null;
+  if (only !== null) tr.replaceRangeWith(insertAt, insertAt, only);
   else tr.replaceRange(insertAt, insertAt, quoted);
   event.preventDefault();
+  if (tr.doc.eq(view.state.doc)) return true;
+  selectDropped(view, tr, { insertAt, only });
   view.focus();
   view.dispatch(tr.setMeta('uiEvent', 'drop'));
   return true;
+}
+
+/**
+ * Selects what the drop put in, not the block it was copied from: the one
+ * node, or the stretch inserted. Mirrors prosemirror-view 1.42's handleDrop.
+ */
+function selectDropped(
+  view: EditorView,
+  tr: Transaction,
+  { insertAt, only }: { insertAt: number; only: ProseMirrorNode | null },
+): void {
+  const $pos = tr.doc.resolve(insertAt);
+  if (only !== null && NodeSelection.isSelectable(only) && $pos.nodeAfter?.sameMarkup(only)) {
+    tr.setSelection(new NodeSelection($pos));
+    return;
+  }
+  let end = tr.mapping.map(insertAt);
+  tr.mapping.maps[tr.mapping.maps.length - 1]?.forEach((_from, _to, _newFrom, newTo) => {
+    end = newTo;
+  });
+  const $end = tr.doc.resolve(end);
+  const between = view.someProp('createSelectionBetween', (create) => create(view, $pos, $end));
+  tr.setSelection(between ?? TextSelection.between($pos, $end));
 }
 
 /** The tombstones the transactions took, put back at the block boundary nearest where they were. */
