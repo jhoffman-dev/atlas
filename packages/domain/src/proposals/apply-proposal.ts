@@ -20,20 +20,9 @@ import {
   type NoteProposalKind,
   type ProposalNote,
 } from './proposal.ts';
+import type { ProposalApplication, ProposalWrite } from './proposal-application.ts';
 
-/** One change accepting a proposal makes to the vault. */
-export type ProposalWrite =
-  | {
-      readonly kind: 'create';
-      readonly path: VaultPath;
-      readonly properties: Readonly<Record<string, unknown>>;
-      readonly body: string;
-    }
-  | {
-      readonly kind: 'set';
-      readonly path: VaultPath;
-      readonly changes: Readonly<Record<string, unknown>>;
-    };
+export type { ProposalApplication, ProposalWrite } from './proposal-application.ts';
 
 /** The note a link proposal changes, as it is now. */
 export interface LinkTarget {
@@ -75,10 +64,6 @@ export interface ProposalVault {
    */
   readonly specPaths?: readonly VaultPath[] | undefined;
 }
-
-export type ProposalApplication =
-  | { readonly ok: true; readonly writes: readonly ProposalWrite[] }
-  | { readonly ok: false; readonly problem: string };
 
 /** The kinds whose note records the line it came from, in its `source`. */
 const CITING_KINDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up', 'decision']);

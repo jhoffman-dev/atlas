@@ -407,3 +407,16 @@
   gap: 2px;
   justify-items: start;
 }
+
+/* A dashboard widget's SQL or DFAI query, whole and as written, so it is read before Accept runs it (#36). */
+.proposal-row__spec-query {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.proposal-row__spec-filter {
+  color: var(--ink-3);
+}

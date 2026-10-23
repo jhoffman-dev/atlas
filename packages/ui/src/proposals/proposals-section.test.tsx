@@ -577,3 +577,33 @@ describe('a dashboard proposal that runs a query (PR #549 attack)', () => {
     expect(card(/^Dashboard: Orchard queries$/).textContent).toContain(QUERY);
   });
 });
+
+describe('a dashboard proposal shows what Accept writes (P32-05)', () => {
+  const SQL = "SELECT title FROM notes WHERE type = 'task'\n  AND status <> 'done'";
+  const FILTERED = proposal('Filtered', {
+    kind: 'dashboard',
+    payload: {
+      title: 'Filtered',
+      spec: {
+        widgets: [
+          {
+            kind: 'number',
+            type: 'task',
+            title: 'Open',
+            filters: [{ key: 'status', operator: 'is', value: 'inbox' }],
+          },
+          { kind: 'sql', title: 'Raw', sql: SQL, show: 'table' },
+        ],
+      },
+    },
+  });
+
+  it('lists each widget’s filters, and its SQL whole in a code block', () => {
+    page({ contents: { open: [FILTERED], stranded: [], unreadable: [] } });
+    const row = card(/^Dashboard: Filtered$/);
+
+    expect(within(row).getByText('status is inbox')).toBeTruthy();
+    const code = row.querySelector('code.proposal-row__spec-query');
+    expect(code?.textContent).toBe(SQL);
+  });
+});

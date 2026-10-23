@@ -40,8 +40,14 @@ export type {
   SpecProposal,
   SpecProposalKind,
 } from './proposal.ts';
-export { applySpecProposal, checkSpec, specProposalFor } from './spec-proposal.ts';
-export type { CheckedSpec, SpecReading } from './spec-proposal.ts';
+export {
+  applySpecProposal,
+  checkSpec,
+  SPEC_FOLDERS,
+  specProposalFor,
+  specSummary,
+} from './spec-proposal.ts';
+export type { CheckedSpec, SpecReading, SpecSummary, WidgetSummary } from './spec-proposal.ts';
 export { PROPOSAL_TYPE_FILES } from './proposal-types.ts';
 export { applyNoteProposal, applyProposal, newNotePath } from './apply-proposal.ts';
 export type {
@@ -53,7 +59,13 @@ export type {
 } from './apply-proposal.ts';
 export { editedPayload, payloadFields, propertyFromText, propertyText } from './proposal-edit.ts';
 export type { PayloadFields } from './proposal-edit.ts';
-export { compileProposalIdsQuery, PROPOSAL_ID_KEY, proposalFileFor } from './new-proposal.ts';
+export {
+  compileProposalIdsQuery,
+  compileProposalsStampedQuery,
+  MEETING_DIGEST_KEY,
+  PROPOSAL_ID_KEY,
+  proposalFileFor,
+} from './new-proposal.ts';
 export type { NewProposal, NewProposalFile } from './new-proposal.ts';
 export {
   acceptableAtOnce,

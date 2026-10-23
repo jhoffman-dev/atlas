@@ -1833,8 +1833,8 @@ do: archive</pre>
       <p>Ask <i>“pull the tasks out of today's Larkspur Payroll sync”</i> and Claude runs the same reading the <a href="#meeting-extraction">meeting extraction</a> automation does, on that one meeting, now. You don't need the automation turned on.</p>
       <ul>
         <li>The conversation shows <i>Drafted the tasks of Meetings/2026-10-14 Larkspur Payroll sync.md as proposals</i>. Each item — yours, a waiting-for on someone else, a decision, a follow-up — is a proposal in the <a href="#proposals">Inbox</a>, citing the turn it came from, exactly as the automation's are. Nothing else is written: no task is made and the meeting isn't touched until you accept.</li>
-        <li><b>Ask again and nothing is proposed twice</b> — not what you already accepted or rejected, and not what the automation already proposed for that meeting.</li>
-        <li>It asks Claude as your Claude steps do, with the provider and model in <a href="#claude-setup">Settings → Claude</a>. A long meeting takes a while: if Claude is still reading after about 25 seconds, the conversation says it's still running, and the proposals turn up in the Inbox when it's done.</li>
+        <li><b>Ask again and nothing is proposed twice</b> — not what you already accepted or rejected, and not what the automation already proposed for that meeting. If the meeting's words haven't changed since Claude drafted it, Claude isn't asked again at all; once they change (a corrected transcript, say), it reads the meeting afresh.</li>
+        <li>It asks Claude as your Claude steps do, with the provider and model in <a href="#claude-setup">Settings → Claude</a>. A long meeting takes a while: if Claude is still reading after about 25 seconds, the conversation says it's still running, and the proposals turn up in the Inbox when it's done. If it fails then — Claude stopped, or you deleted the meeting or opened another vault meanwhile — DFAI says so in a notice and in <a href="#activity">Activity</a>, naming the meeting, and nothing is written.</li>
         <li>A note that isn't a meeting is refused: <i>Tasks/Send it.md is not a meeting note.</i></li>
         <li>A <a href="#connect">connected Claude</a> can do the same with <code>atlas_propose_tasks</code>.</li>
       </ul>
@@ -1847,7 +1847,9 @@ do: archive</pre>
       </ol>
       <ul>
         <li><b>A dashboard that wouldn't draw is never proposed.</b> If a widget counts a type your vault doesn't have, or a chart has nothing to group by, Claude is told exactly what the editor would tell you — <i>widgets[1]: A bar chart needs a property to group by.</i> — and fixes it before proposing. Accept checks again, in case you deleted a type since.</li>
-        <li>The same dashboard asked for twice is proposed once.</li>
+        <li><b>Read a query before you accept it.</b> The card shows each widget's filters (<i>status is inbox</i>), and a widget that runs SQL or a DFAI query shows it whole, in monospace — what you'd be accepting is exactly what's written.</li>
+        <li><b>No loose reading.</b> A filter DFAI can't read, a width that isn't a whole number of columns, an icon or chart style that doesn't exist, or a name with invisible characters is refused and Claude told why — never quietly dropped, which could make a tile count every note.</li>
+        <li>The same dashboard asked for twice is proposed once, and Claude is told what became of the first: still waiting, or accepted or rejected and when.</li>
         <li>A <a href="#connect">connected Claude</a> can propose one with <code>atlas_make_dashboard</code>, but only <b>Accept</b> here in DFAI makes it: <code>atlas_accept_proposal</code> refuses a dashboard or view proposal.</li>
       </ul>
       <h3>Changes you accept</h3>

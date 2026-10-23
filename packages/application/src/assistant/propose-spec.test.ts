@@ -58,7 +58,7 @@ describe('proposeSpec', () => {
       kind: 'dashboard',
       title: 'Larkspur Payroll',
       proposal: 'Inbox/Proposals/Larkspur Payroll.md',
-      left: null,
+      problem: null,
     });
     expect(atlasFiles()).toEqual(['.atlas/types/task.md']);
     const { open } = await listProposals({ fs: vault.ports.fs, markdown: vault.ports.markdown });
@@ -100,14 +100,28 @@ describe('proposeSpec', () => {
     const { vault, propose } = setUp();
 
     const first = await propose(PAYROLL);
-    expect(await propose(PAYROLL)).toMatchObject({ proposal: null, left: null });
+    expect(await propose(PAYROLL)).toMatchObject({
+      proposal: null,
+      problem: {
+        message: 'It is proposed already, waiting in the Inbox.',
+        proposal: 'Inbox/Proposals/Larkspur Payroll.md',
+      },
+    });
 
     await rejectProposalNote({
       ports: vault.ports,
       path: createVaultPath(first.proposal!),
       today: TODAY,
     });
-    expect(await propose(PAYROLL)).toMatchObject({ proposal: null });
+    expect(await propose(PAYROLL)).toEqual({
+      kind: 'dashboard',
+      title: 'Larkspur Payroll',
+      proposal: null,
+      problem: {
+        message: `It was already rejected on ${TODAY}.`,
+        proposal: 'Archive/Inbox/Proposals/Larkspur Payroll.md',
+      },
+    });
     const proposals = [...vault.files.keys()].filter((path) => path.includes('Larkspur Payroll'));
     expect(proposals).toEqual(['Archive/Inbox/Proposals/Larkspur Payroll.md']);
     // Something else is something else.
@@ -123,6 +137,7 @@ describe('answering a dashboard proposal', () => {
     const { proposal } = await propose(PAYROLL);
 
     const accepted = await acceptProposalNote({
+      via: 'app',
       ports: vault.ports,
       path: createVaultPath(proposal!),
       today: TODAY,
@@ -186,6 +201,7 @@ describe('answering a dashboard proposal', () => {
     const { proposal } = await propose(PAYROLL);
 
     await acceptProposalNote({
+      via: 'app',
       ports: vault.ports,
       path: createVaultPath(proposal!),
       today: TODAY,
@@ -203,7 +219,12 @@ describe('answering a dashboard proposal', () => {
     vault.files.delete('.atlas/types/task.md');
 
     await expect(
-      acceptProposalNote({ ports: vault.ports, path: createVaultPath(proposal!), today: TODAY }),
+      acceptProposalNote({
+        via: 'app',
+        ports: vault.ports,
+        path: createVaultPath(proposal!),
+        today: TODAY,
+      }),
     ).rejects.toThrow(
       /no longer passes the dashboard checker\. widgets\[0\]: There is no type called “task”\./,
     );
@@ -226,7 +247,7 @@ describe('answering a dashboard proposal', () => {
       },
     };
 
-    await acceptProposalNote({ ports, path: createVaultPath(proposal!), today: TODAY });
+    await acceptProposalNote({ via: 'app', ports, path: createVaultPath(proposal!), today: TODAY });
 
     expect(vault.properties(DASHBOARD_FILE)).toMatchObject({ atlas: 'dashboard' });
   });
@@ -241,6 +262,7 @@ describe('answering a dashboard proposal', () => {
     });
 
     await acceptProposalNote({
+      via: 'app',
       ports: vault.ports,
       path: createVaultPath(proposal!),
       today: TODAY,

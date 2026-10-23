@@ -101,6 +101,24 @@ export function entryNameProblem(name: string, noun: 'view' | 'dashboard'): stri
   return null;
 }
 
+/**
+ * Zero-width and bidirectional format characters: invisible in a sidebar, yet
+ * part of the file name, so two entries that look alike are not. The joiner
+ * (U+200D) is left alone — it holds emoji sequences together.
+ */
+const HIDDEN_FORMAT_CHARACTERS =
+  /[\u00ad\u061c\u200b\u200c\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/u;
+
+/**
+ * Why a name sent from outside the app — a spec Claude wrote (P32-05) — may
+ * not name an entry: it holds a character no one can see. Null when it may.
+ */
+export function hiddenCharacterProblem(name: string, noun: 'view' | 'dashboard'): string | null {
+  return HIDDEN_FORMAT_CHARACTERS.test(name)
+    ? `A ${noun}’s name cannot hold an invisible formatting character.`
+    : null;
+}
+
 /** What two paths share when a case- and normalisation-insensitive disk takes them for one file. */
 function sameFileKey(path: string): string {
   return path.normalize('NFC').toLowerCase();

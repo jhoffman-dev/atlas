@@ -152,12 +152,15 @@ writes.
 `atlas_propose_tasks` and `atlas_make_dashboard` draft, and only propose: each
 leaves proposals in DFAI's Inbox (`atlas_proposals`) and writes nothing else.
 `atlas_propose_tasks` runs the meeting extraction on one meeting now, with the
-Claude set up in DFAI — so each call costs what that provider charges — and
-answers what it proposed; a long meeting answers `proposingTasks` instead, and
-its proposals follow. `atlas_make_dashboard` checks a dashboard or view spec
+Claude set up in DFAI — so each draft costs what that provider charges — and
+answers what it proposed; a meeting whose words have not changed since it was
+drafted is not sent to Claude again (`unchanged: true`). A long meeting answers
+`proposingTasks` instead, and its proposals follow; if that draft fails, DFAI
+says so in its Activity log and in the window. `atlas_make_dashboard` checks a dashboard or view spec
 with the app's own checker: a spec that fails is refused with `problems`, each
 `{ at, message }`, to fix and send again. Asking twice for the same thing
-proposes it once. A dashboard or view proposal is accepted only in DFAI —
+proposes it once, and the second answer's `problem` says what became of the
+first (waiting, or accepted or rejected on a day). A dashboard or view proposal is accepted only in DFAI —
 `atlas_accept_proposal` refuses it with `forbidden` — since it is written into
 `.atlas`, which the API never writes.
 

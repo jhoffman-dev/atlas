@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { builtInPromptAt, MEETING_EXTRACTION_PROMPT } from '@dfai/domain';
-import { apiFixture, bodyOf, codeOf, encoded } from '../testing/api-fixture.ts';
+import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT } from '../testing/api-fixture.ts';
+import { PROPOSE_TASKS_WAIT_MS } from './assistant-proposals.ts';
 import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';
 import { jsonLinesMarkdown, jsonLinesNote } from '../testing/proposal-vault.ts';
 
@@ -92,7 +93,7 @@ describe('POST /v1/assistant/make-dashboard', () => {
       { at: 'widgets[0]', message: 'A bar chart needs a property to group by.' },
     ]);
     expect((bodyOf(response) as { error: { message: string } }).error.message).toBe(
-      'The spec was refused: name: Name the dashboard. widgets[0]: There is no type called “deal”. widgets[0]: A bar chart needs a property to group by.',
+      'The spec was refused: 3 problems, each in problems.',
     );
     expect(api.writes).toEqual([]);
   });
@@ -104,13 +105,43 @@ describe('POST /v1/assistant/make-dashboard', () => {
     expect(api.writes).toEqual([]);
   });
 
+  it('lists at most 50 problems, and says how many more there were', async () => {
+    const api = vault();
+    const filters = Array.from({ length: 60 }, () => 'not a filter');
+
+    const response = await api.send(
+      makeDashboard({
+        kind: 'dashboard',
+        name: 'Board',
+        widgets: [{ kind: 'number', type: 'task', filters }],
+      }),
+    );
+
+    const { problems } = (
+      bodyOf(response) as { error: { problems: { at: string; message: string }[] } }
+    ).error;
+    expect(problems).toHaveLength(51);
+    expect(problems.at(-1)).toEqual({ at: 'spec', message: '… and 10 more.' });
+    expect((bodyOf(response) as { error: { message: string } }).error.message).toBe(
+      'The spec was refused: 60 problems, each in problems.',
+    );
+  });
+
   it('proposes the same spec once', async () => {
     const api = vault();
     await api.send(makeDashboard(SPEC));
 
     const again = await api.send(makeDashboard(SPEC));
 
-    expect(bodyOf(again)).toMatchObject({ proposedSpec: { proposal: null, problem: null } });
+    expect(bodyOf(again)).toMatchObject({
+      proposedSpec: {
+        proposal: null,
+        problem: {
+          message: 'It is proposed already, waiting in the Inbox.',
+          proposal: 'Inbox/Proposals/Larkspur Payroll.md',
+        },
+      },
+    });
     expect(api.writes).toHaveLength(1);
   });
 
@@ -180,27 +211,38 @@ describe('POST /v1/assistant/propose-tasks', () => {
     expect(proposed[0]).toMatch(/^Inbox\/Proposals\//);
   });
 
-  it('answers 202 and keeps going when the draft outlasts the wait', async () => {
-    const api = vault();
+  /**
+   * Claude's answer held until `release`, and the route's wait — the deadline
+   * asked for `PROPOSE_TASKS_WAIT_MS`, whichever call it is — run out at once.
+   */
+  function heldPastTheWait(api: ReturnType<typeof vault>, { fails = false } = {}) {
     const claude = fakeClaudeStepPorts({ rounds: [ITEMS], selfName: 'Mara Quill' });
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => (release = resolve));
     api.claudeStep = {
       ...claude,
-      // The model answers only once the test lets it; the route's wait runs out first.
+      deadline: (ms) => {
+        const signal = claude.deadline(ms);
+        if (ms === PROPOSE_TASKS_WAIT_MS) claude.deadlines.at(-1)!.abort();
+        return signal;
+      },
       provider: () => ({
         ...claude.provider(),
         stream: async function* (request, signal) {
           await held;
+          if (fails) throw new Error('the model went away');
           yield* claude.provider().stream(request, signal);
         },
       }),
     };
-    const answering = api.send(proposeTasks(MEETING));
-    await expect.poll(() => claude.deadlines.length).toBeGreaterThan(0);
-    claude.deadlines[0]!.abort();
+    return { claude, release: () => release() };
+  }
 
-    const response = await answering;
+  it('answers 202 and keeps going when the draft outlasts the wait', async () => {
+    const api = vault();
+    const { release } = heldPastTheWait(api);
+
+    const response = await api.send(proposeTasks(MEETING));
 
     expect(response.status).toBe(202);
     expect(bodyOf(response)).toEqual({ proposingTasks: { meeting: MEETING, running: true } });
@@ -208,6 +250,71 @@ describe('POST /v1/assistant/propose-tasks', () => {
     expect(codeOf(await api.send(proposeTasks(MEETING)))).toBe('conflict');
     release();
     await expect.poll(() => api.writes.length).toBe(1);
+    // Done after its answer: said in the vault's Activity, and no notice, since nothing went wrong.
+    await expect
+      .poll(() => api.activity.reports.map(({ message }) => message))
+      .toContain('Drafted 1 proposals from 2026-10-01 Larkspur Payroll sync.');
+    expect(api.notices).toEqual([]);
+  });
+
+  it('says a draft that failed after its 202, naming the meeting and why, in Activity and a notice', async () => {
+    const api = vault();
+    const { release } = heldPastTheWait(api, { fails: true });
+    expect((await api.send(proposeTasks(MEETING))).status).toBe(202);
+
+    release();
+
+    await expect.poll(() => api.notices.length).toBe(1);
+    expect(api.notices[0]).toMatch(
+      /^Drafting the tasks of 2026-10-01 Larkspur Payroll sync stopped: .*the model went away/,
+    );
+    expect(api.activity.reports).toContainEqual({
+      level: 'error',
+      kind: 'api',
+      message: api.notices[0],
+      subject: { kind: 'note', path: MEETING },
+    });
+    expect(api.writes).toEqual([]);
+  });
+
+  it('says a meeting deleted while it was drafted, after its 202, and writes nothing', async () => {
+    const api = vault();
+    const { release } = heldPastTheWait(api);
+    expect((await api.send(proposeTasks(MEETING))).status).toBe(202);
+
+    api.files.delete(MEETING);
+    release();
+
+    await expect.poll(() => api.notices.length).toBe(1);
+    expect(api.notices[0]).toContain(`${MEETING} is not there any more`);
+    expect(api.writes).toEqual([]);
+  });
+
+  it('says a vault closed while it drafted, after its 202, and writes nothing', async () => {
+    const api = vault();
+    const { release } = heldPastTheWait(api);
+    expect((await api.send(proposeTasks(MEETING))).status).toBe(202);
+
+    api.open = OTHER_VAULT;
+    release();
+
+    await expect.poll(() => api.notices.length).toBe(1);
+    expect(api.notices[0]).toMatch(/vault (this request was for )?is (no longer|not) open/);
+    expect(api.writes).toEqual([]);
+  });
+
+  it('does not ask Claude again about a meeting whose words are unchanged, and says so', async () => {
+    const api = vault();
+    const claude = fakeClaudeStepPorts({ rounds: [ITEMS, ITEMS], selfName: 'Mara Quill' });
+    api.claudeStep = claude;
+    await api.send(proposeTasks(MEETING));
+
+    const again = await api.send(proposeTasks(MEETING));
+
+    expect(bodyOf(again)).toMatchObject({
+      proposedTasks: { proposed: [], alreadyProposed: 1, unchanged: true },
+    });
+    expect(claude.fake.requests).toHaveLength(1);
   });
 
   it('is refused while DFAI has no Claude to ask', async () => {

@@ -1,13 +1,23 @@
 import {
+  compileProposalsStampedQuery,
+  createVaultPath,
+  digestOf,
+  isMarkdownFile,
   isMeetingType,
+  MEETING_DIGEST_KEY,
   MEETING_EXTRACTION_PROMPT,
+  PROPOSALS_FOLDER,
   splitFrontmatter,
   type ClaudeAction,
   type DroppedItem,
   type NoteSkipped,
   type VaultPath,
 } from '@dfai/domain';
-import { runClaudeStep, type ClaudeStepPorts } from '../automations/claude-step.ts';
+import {
+  ClaudeStepFailed,
+  runClaudeStep,
+  type ClaudeStepPorts,
+} from '../automations/claude-step.ts';
 import type { NoteWritePorts } from '../proposals/proposal-writes.ts';
 import type { ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -42,6 +52,11 @@ export interface ProposedTasks {
   readonly proposed: readonly VaultPath[];
   /** How many the answer held that were proposed before — open or answered — and so were not again. */
   readonly alreadyProposed: number;
+  /**
+   * True when Claude was not asked at all: the meeting's words are those it
+   * was drafted from before, and `alreadyProposed` counts what that made.
+   */
+  readonly unchanged: boolean;
   /** Items left out of the answer, each with why: one citing no turn of this meeting, say. */
   readonly dropped: readonly DroppedItem[];
   /** Why the meeting was not asked about at all — a meeting with no transcript to cite. */
@@ -49,29 +64,63 @@ export interface ProposedTasks {
   readonly warnings: readonly string[];
 }
 
+/** The meeting went while Claude drafted it: nothing it proposed was written. */
+export class MeetingGoneError extends Error {
+  constructor(meeting: VaultPath) {
+    super(`${meeting} is not there any more, so nothing it proposed was written.`);
+    this.name = 'MeetingGoneError';
+  }
+}
+
+type DraftPorts = ProposalWritePorts & Pick<NoteWritePorts, 'editors'> & { markdown: MarkdownPort };
+
 /**
  * Drafts the tasks, waiting-fors, decisions and follow-ups of one meeting as
  * proposals (P32-05): the meeting extraction (P29-05) run on demand, its
  * answer checked against the meeting's own turns. Only proposals are
- * written; each waits in the Inbox for Accept.
+ * written; each waits in the Inbox for Accept, and keeps the digest of the
+ * meeting's words it was drafted from (`meeting_digest`). Asked again about
+ * words unchanged, Claude is not asked: what was made then is counted.
  *
  * Refuses, writing nothing, a note that is not there or not a meeting
  * (`AssistantEntityError`), and fails as the step fails (`ClaudeStepFailed`):
- * no provider ready, an answer that does not read.
+ * no provider ready, an answer that does not read. Right before it writes it
+ * asks `beforeWrite` (the caller's own check: is its vault still open?) and
+ * whether the meeting is still there (`MeetingGoneError`); either refusing
+ * stops it with nothing written.
  */
 export async function proposeMeetingTasks({
   ports,
   claude,
   meeting,
   madeBy,
+  beforeWrite,
 }: {
-  ports: ProposalWritePorts & Pick<NoteWritePorts, 'editors'> & { markdown: MarkdownPort };
+  ports: DraftPorts;
   claude: ClaudeStepPorts;
   meeting: VaultPath;
   /** Who asked, as each proposal's `made_by` says it. */
   madeBy: string;
+  /** Rejects to stop the draft before its first write; left out, only the meeting is checked. */
+  beforeWrite?: () => Promise<void>;
 }): Promise<ProposedTasks> {
-  await refuseUnlessMeeting(ports, meeting);
+  const words = await meetingWords(ports, meeting);
+  const digest = digestOf(words);
+  const before = await draftedFrom(ports, digest);
+  if (before > 0) return { ...NOTHING_NEW, meeting, alreadyProposed: before, unchanged: true };
+  // What stopped it before its first write, raised as it is: the step reports it as its own failure.
+  let stopped: unknown = undefined;
+  const gate = async () => {
+    try {
+      await beforeWrite?.();
+      await meetingWords(ports, meeting).catch((error: unknown) => {
+        throw error instanceof AssistantEntityError ? new MeetingGoneError(meeting) : error;
+      });
+    } catch (error) {
+      stopped = error;
+      throw error;
+    }
+  };
   const outcome = await runClaudeStep({
     ...ports,
     ports: claude,
@@ -80,21 +129,56 @@ export async function proposeMeetingTasks({
     notePaths: await listVaultNotes({ fs: ports.fs }),
     rule: PROPOSE_TASKS_RULE,
     madeBy,
+    stamp: { [MEETING_DIGEST_KEY]: digest },
+    beforeWrite: gate,
+  }).catch((error: unknown) => {
+    throw error instanceof ClaudeStepFailed &&
+      stopped !== undefined &&
+      error.interruption === stopped
+      ? stopped
+      : error;
   });
   return {
     meeting,
     proposed: outcome.done.flatMap((done) => (done.kind === 'proposed' ? [done.path] : [])),
     alreadyProposed: outcome.claude.alreadyMade ?? 0,
+    unchanged: false,
     dropped: outcome.claude.dropped ?? [],
     left: outcome.left,
     warnings: outcome.claude.warnings ?? [],
   };
 }
 
-async function refuseUnlessMeeting(
-  { fs, markdown }: { fs: ProposalWritePorts['fs']; markdown: MarkdownPort },
-  path: VaultPath,
-): Promise<void> {
+const NOTHING_NEW = { proposed: [], dropped: [], left: [], warnings: [] } as const;
+
+/**
+ * How many proposals, open or answered, were drafted from these words: the
+ * index for those in the Archive, and the proposals folder's own files, since
+ * the index lags a write made a moment ago. Counted once each.
+ */
+async function draftedFrom(ports: DraftPorts, digest: string): Promise<number> {
+  const { sql, parameters } = compileProposalsStampedQuery(MEETING_DIGEST_KEY, digest);
+  const indexed = await ports.index.query(sql, parameters);
+  const found = new Set(indexed.rows.map((row) => String(row[0])));
+  const waiting = await ports.fs
+    .listDirectory(createVaultPath(PROPOSALS_FOLDER))
+    // No proposals folder yet is none waiting there; the index has answered for the rest.
+    .catch(() => []);
+  const read = await ports.fs.readNotes(waiting.filter(isMarkdownFile).map(({ path }) => path));
+  for (const note of read) {
+    const properties = ports.markdown.frontmatterProperties(
+      splitFrontmatter(note.text).frontmatter,
+    );
+    if (properties[MEETING_DIGEST_KEY] === digest) found.add(note.path);
+  }
+  return found.size;
+}
+
+/**
+ * The meeting's words — its body, without the frontmatter Accept writes its
+ * tasks into — refused when it is not there or not a meeting.
+ */
+async function meetingWords({ fs, markdown }: DraftPorts, path: VaultPath): Promise<string> {
   const text = await fs.readTextFile(path).then(
     (read) => read.text,
     (error: unknown) => {
@@ -104,8 +188,9 @@ async function refuseUnlessMeeting(
       throw error;
     },
   );
-  const type = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)['type'];
-  if (!isMeetingType(type)) {
+  const { frontmatter, body } = splitFrontmatter(text);
+  if (!isMeetingType(markdown.frontmatterProperties(frontmatter)['type'])) {
     throw new AssistantEntityError('not_a_page', `${path} is not a meeting note.`);
   }
+  return body;
 }

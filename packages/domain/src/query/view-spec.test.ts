@@ -69,3 +69,16 @@ describe('checkViewSpec', () => {
     ).toBe(true);
   });
 });
+
+describe('checkViewSpec and invisible characters', () => {
+  it('refuses a name holding a bidirectional or zero-width character', () => {
+    expect(
+      checkViewSpec({ name: 'Open‏ tasks', type: 'task', layout: 'table' }, { types: TYPES }),
+    ).toEqual({
+      ok: false,
+      problems: [
+        { at: 'name', message: 'A view’s name cannot hold an invisible formatting character.' },
+      ],
+    });
+  });
+});

@@ -105,7 +105,11 @@ const PROPOSES =
   'It only proposes: what it drafts waits in DFAI’s Inbox (atlas_proposals) for James to accept ' +
   'or reject. Asking again for the same thing proposes nothing twice.';
 
-/** Each call writes proposal notes into Inbox/Proposals and nothing else. */
+/**
+ * Each call writes proposal notes into Inbox/Proposals and nothing else, and
+ * the same call again changes nothing: a spec is proposed once, and a meeting
+ * unchanged since its draft is not even sent to Claude again.
+ */
 const DRAFTS = { readOnlyHint: false, destructiveHint: false, idempotentHint: true } as const;
 
 export const proposeTasks = defineTool({
@@ -115,9 +119,13 @@ export const proposeTasks = defineTool({
     'Run DFAI’s meeting extraction on one meeting now, with the Claude set up in DFAI: James’s ' +
     'own tasks, what he waits on from others (a waiting-for on their Person), decisions and ' +
     'follow-ups, each a proposal citing the transcript turn it came from. Returns { proposedTasks: ' +
-    '{ meeting, proposed: [path], alreadyProposed, dropped: [{ title, reason }], left, warnings } }; ' +
-    'a long meeting may answer { proposingTasks: { meeting, running: true } } instead — its ' +
-    `proposals follow in atlas_proposals. ${PROPOSES} Refused with "invalid" for a note that is ` +
+    '{ meeting, proposed: [path], alreadyProposed, unchanged, dropped: [{ title, reason }], left, ' +
+    'warnings } }. Asked again about a meeting whose words have not changed since it was drafted, ' +
+    'Claude is not asked at all: "unchanged" is true and "alreadyProposed" counts what that ' +
+    'draft made. Each draft Claude does make costs what DFAI’s provider charges. A long meeting ' +
+    'may answer { proposingTasks: { meeting, running: true } } instead — its proposals follow in ' +
+    'atlas_proposals, and if it fails DFAI says so in its Activity log and in the window. ' +
+    `${PROPOSES} Refused with "invalid" for a note that is ` +
     'not a meeting, and "conflict" when DFAI cannot reach Claude or the meeting is being drafted.',
   inputSchema: z.object({
     meeting: z
@@ -141,7 +149,10 @@ export const makeDashboard = defineTool({
     'types; a spec that fails is refused with "invalid" and "problems": [{ at, message }] — ' +
     'each where it is ("name", "widgets[2]") and the checker’s words; fix them and send again. ' +
     'A spec that passes becomes a dashboard or view proposal: { proposedSpec: { kind, title, ' +
-    'proposal, problem } }, "proposal" null when the same spec was proposed before. Only ' +
+    'proposal, problem } }. "proposal" is null when none was written, and "problem" says why: ' +
+    '{ message, proposal } — the same spec proposed before, and what became of it ("It was ' +
+    'already accepted on 2026-10-23."), with that proposal’s path. At most 50 problems are ' +
+    'listed, each cut at 200 characters. Only ' +
     'Accept in DFAI’s Inbox writes it into .atlas; atlas_accept_proposal refuses it with ' +
     `"forbidden". ${PROPOSES} Read atlas_list_types first so every type and property is the vault’s.`,
   inputSchema: z.object({

@@ -91,6 +91,7 @@ export {
   layoutLabel,
   layoutProblem,
   entryNameProblem,
+  hiddenCharacterProblem,
   newViewFieldProblems,
   newViewNote,
   newViewProblems,

@@ -261,6 +261,7 @@ export function useProposals(options: ProposalsOptions) {
     (path: VaultPath, payload?: unknown) =>
       answer(path, async () => {
         const accepted = await acceptProposalNote({
+          via: 'app',
           ports,
           path,
           today: clock.today(),
@@ -318,7 +319,7 @@ export function useProposals(options: ProposalsOptions) {
       queue.enqueue(vault, async () => {
         if (verb === 'Accepted') {
           const outcome = await inTurn(taken, (path) =>
-            recorded(path, () => acceptProposalNote({ ports, path, today })),
+            recorded(path, () => acceptProposalNote({ via: 'app', ports, path, today })),
           );
           settle(outcome, outcome.done);
         } else {
@@ -357,7 +358,7 @@ export function useProposals(options: ProposalsOptions) {
         let accepted: AcceptedProposal;
         try {
           accepted = await recorded(picked, () =>
-            acceptProposalNote({ ports, path: picked, today }),
+            acceptProposalNote({ via: 'app', ports, path: picked, today }),
           );
         } catch (cause) {
           if (vault !== openVault.current) return;

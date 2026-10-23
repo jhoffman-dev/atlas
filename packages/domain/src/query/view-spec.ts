@@ -7,7 +7,7 @@
 
 import type { SpecProblem } from '../errors/spec-problem.ts';
 import type { ObjectType } from '../types/property-def.ts';
-import { newViewFieldProblems, type NewViewRequest } from './new-view.ts';
+import { hiddenCharacterProblem, newViewFieldProblems, type NewViewRequest } from './new-view.ts';
 import type { ViewLayout } from './saved-view.ts';
 
 export type ViewSpecReading =
@@ -36,6 +36,10 @@ export function checkViewSpec(
     type: String(value['type']).trim(),
     layout: String(value['layout']).trim() as ViewLayout,
   };
-  const problems = newViewFieldProblems(request, { types, takenPaths: [] });
+  const hidden = hiddenCharacterProblem(String(value['name']), 'view');
+  const problems = [
+    ...(hidden === null ? [] : [{ at: 'name', message: hidden }]),
+    ...newViewFieldProblems(request, { types, takenPaths: [] }),
+  ];
   return problems.length > 0 ? { ok: false, problems } : { ok: true, request };
 }

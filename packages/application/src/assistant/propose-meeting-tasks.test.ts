@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   builtInPromptAt,
   createVaultPath,
+  digestOf,
   MEETING_EXTRACTION_PROMPT,
   parseObjectType,
   splitFrontmatter,
@@ -23,7 +24,7 @@ import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';
 import type { ScriptedRound } from '../testing/fake-model.ts';
-import { proposeMeetingTasks } from './propose-meeting-tasks.ts';
+import { MeetingGoneError, proposeMeetingTasks } from './propose-meeting-tasks.ts';
 import { AssistantEntityError } from './read-entity.ts';
 
 const TODAY = '2026-10-11';
@@ -164,6 +165,69 @@ describe('proposeMeetingTasks', () => {
     expect(again).toMatchObject({ proposed: [], alreadyProposed: 2 });
     const { open } = await listProposals({ fs: vault.ports.fs, markdown: vault.ports.markdown });
     expect(open).toHaveLength(2);
+  });
+
+  it('does not ask Claude about words it drafted before, and asks again once they change', async () => {
+    const { claude, vault, propose } = setUp([FROM_SYNC, FROM_SYNC]);
+    await propose();
+
+    // Accepting a task writes the meeting's frontmatter, not its words: still unchanged.
+    vault.files.set(SYNC, GEMINI.replace('"type":"meeting"', '"type":"meeting","tasks":["[[x]]"]'));
+    expect(await propose()).toMatchObject({ proposed: [], alreadyProposed: 2, unchanged: true });
+    expect(claude.fake.requests).toHaveLength(1);
+
+    vault.files.set(SYNC, `${GEMINI}\nA line added after the call.\n`);
+    expect(await propose()).toMatchObject({ unchanged: false, alreadyProposed: 2 });
+    expect(claude.fake.requests).toHaveLength(2);
+  });
+
+  it('keeps on each proposal the digest of the words it was drafted from', async () => {
+    const { vault, propose } = setUp([FROM_SYNC]);
+    const { proposed } = await propose();
+    expect(vault.properties(proposed[0]!)['meeting_digest']).toBe(
+      digestOf(splitFrontmatter(GEMINI).body),
+    );
+  });
+
+  it('writes nothing when the caller’s check before writing refuses — a vault closed meanwhile', async () => {
+    const claude = fakeClaudeStepPorts({
+      rounds: [FROM_SYNC],
+      today: TODAY,
+      selfName: 'Mara Quill',
+    });
+    const vault = automationVault({ notes: { ...NOTES }, today: TODAY, types: TYPES, claude });
+    const closed = new Error('The vault this request was for is no longer open');
+
+    await expect(
+      proposeMeetingTasks({
+        ports: vault.ports,
+        claude,
+        meeting: createVaultPath(SYNC),
+        madeBy: 'x',
+        beforeWrite: () => Promise.reject(closed),
+      }),
+    ).rejects.toBe(closed);
+    expect(vault.log.filter((line) => line.startsWith('create '))).toEqual([]);
+  });
+
+  it('writes nothing when the meeting went while Claude drafted it', async () => {
+    const claude = fakeClaudeStepPorts({
+      rounds: [FROM_SYNC],
+      today: TODAY,
+      selfName: 'Mara Quill',
+    });
+    const vault = automationVault({ notes: { ...NOTES }, today: TODAY, types: TYPES, claude });
+
+    await expect(
+      proposeMeetingTasks({
+        ports: vault.ports,
+        claude,
+        meeting: createVaultPath(SYNC),
+        madeBy: 'x',
+        beforeWrite: async () => void vault.files.delete(SYNC),
+      }),
+    ).rejects.toBeInstanceOf(MeetingGoneError);
+    expect(vault.log.filter((line) => line.startsWith('create '))).toEqual([]);
   });
 
   it('proposes nothing the meeting extraction rule already proposed for the meeting', async () => {

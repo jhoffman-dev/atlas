@@ -6,6 +6,7 @@ import {
   payloadFields,
   propertyText,
   proposalHeadline,
+  specSummary,
   type PayloadFields,
   type ProposalConfidence,
   type ProposalKind,
@@ -200,7 +201,7 @@ function Payload({ proposal }: { proposal: ProposalNote }) {
       </p>
     );
   }
-  if (!isNoteProposal(proposal)) return <SpecSummary proposal={proposal} />;
+  if (!isNoteProposal(proposal)) return <SpecPreview proposal={proposal} />;
   const { properties, body, linkFrom } = proposal.payload;
   const entries = Object.entries(properties);
   return (
@@ -226,48 +227,51 @@ function Payload({ proposal }: { proposal: ProposalNote }) {
 }
 
 /**
- * What a dashboard or view would be, read from its spec as the proposal
- * holds it: each widget's kind and title, or the view's type and layout.
- * Accept checks the spec again; this only says what was asked for.
+ * What a dashboard or view would write, as Accept will write it
+ * (`specSummary`): each widget's kind and title, its filters, and a SQL
+ * statement or DFAI query whole — it runs once accepted, so it is read first.
+ * A view shows its type and layout.
  */
-function SpecSummary({ proposal }: { proposal: SpecProposal }) {
-  const { spec } = proposal.payload;
-  const where = proposal.kind === 'dashboard' ? '.atlas/dashboards' : '.atlas/views';
-  const widgets = Array.isArray(spec['widgets']) ? (spec['widgets'] as unknown[]) : [];
+function SpecPreview({ proposal }: { proposal: SpecProposal }) {
+  const summary = specSummary(proposal);
   return (
     <>
       <dl className="proposal-row__props" aria-label="What it would write">
-        {proposal.kind === 'view' ? (
+        {summary.kind === 'view' ? (
           <>
             <div>
               <dt>type</dt>
-              <dd>{propertyText(spec['type'])}</dd>
+              <dd>{summary.type}</dd>
             </div>
             <div>
               <dt>layout</dt>
-              <dd>{propertyText(spec['layout'])}</dd>
+              <dd>{summary.layout}</dd>
             </div>
           </>
         ) : (
-          widgets.map((widget, at) => (
+          summary.widgets.map((widget, at) => (
             <div key={at}>
-              <dt>{propertyText(fieldOf(widget, 'kind'))}</dt>
-              <dd>{propertyText(fieldOf(widget, 'title') ?? fieldOf(widget, 'type'))}</dd>
+              <dt>{widget.kind}</dt>
+              <dd>{widget.title}</dd>
+              {widget.filters.map((filter) => (
+                <dd key={filter} className="proposal-row__spec-filter">
+                  {filter}
+                </dd>
+              ))}
+              {widget.asks !== null && (
+                <dd>
+                  <code className="proposal-row__spec-query">{widget.asks}</code>
+                </dd>
+              )}
             </div>
           ))
         )}
       </dl>
       <p className="proposal-row__change">
-        Accepting makes it in <b>{where}</b>.
+        Accepting makes it in <b>{summary.folder}</b>.
       </p>
     </>
   );
-}
-
-function fieldOf(entry: unknown, key: string): unknown {
-  return typeof entry === 'object' && entry !== null
-    ? (entry as Record<string, unknown>)[key]
-    : undefined;
 }
 
 /** The payload's fields, to change before accepting. */

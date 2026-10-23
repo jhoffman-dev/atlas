@@ -47,6 +47,7 @@ import {
   createRefreshSpacing,
   createSourceRefresher,
   createTagRenames,
+  createMeetingDrafts,
   createToolboxes,
   findTaskTemplate,
   getAppInfo,
@@ -733,6 +734,7 @@ function AppWindow({
   // The owner's name is read further down, from the profile; a request asks for it when it arrives.
   const apiOwner = useMemo(() => createOwnerNameRelay(), []);
   const apiClaude = useMemo(() => createClaudeStepRelay(), []);
+  const meetingDrafts = useMemo(() => createMeetingDrafts(), []);
   const apiDeps = useMemo<ApiRouterDeps>(
     () => ({
       host: apiHost,
@@ -761,6 +763,9 @@ function AppWindow({
       timeZone: localTimeZone,
       ownerName: apiOwner.name,
       claudeStep: apiClaude.ports,
+      meetingDrafts,
+      // A draft that failed after the API answered is said in the window, where no caller is left.
+      notices: { warn: (message) => toasts.show({ message, tone: 'error' }) },
     }),
     [
       apiHost,
@@ -782,6 +787,8 @@ function AppWindow({
       googleCalendar,
       apiOwner.name,
       apiClaude.ports,
+      meetingDrafts,
+      toasts,
     ],
   );
   // A write from another tool shows up the way one made here does.

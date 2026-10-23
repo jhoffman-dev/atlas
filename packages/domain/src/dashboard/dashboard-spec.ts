@@ -12,7 +12,7 @@
  */
 
 import type { SpecProblem } from '../errors/spec-problem.ts';
-import { entryNameProblem } from '../query/new-view.ts';
+import { entryNameProblem, hiddenCharacterProblem } from '../query/new-view.ts';
 import {
   DASHBOARD_MARKER,
   DASHBOARD_MARKER_VALUE,
@@ -20,6 +20,7 @@ import {
   WIDGET_KINDS,
   type WidgetKind,
 } from './dashboard.ts';
+import { widgetEntryShapeProblems } from './widget-entry-checks.ts';
 import { draftFromEntry, entryFromDraft, widgetProblems } from './widget-draft.ts';
 
 /** The longest `description` a dashboard is proposed with: a line, not a page. */
@@ -47,7 +48,11 @@ export function checkDashboardSpec(
 ): DashboardSpecReading {
   const problems: SpecProblem[] = [];
   const name = typeof value['name'] === 'string' ? value['name'].trim() : '';
-  const nameProblem = entryNameProblem(name, 'dashboard');
+  const nameProblem =
+    typeof value['name'] === 'string' || value['name'] === undefined
+      ? (entryNameProblem(name, 'dashboard') ??
+        hiddenCharacterProblem(String(value['name'] ?? ''), 'dashboard'))
+      : 'name must be text.';
   if (nameProblem !== null) problems.push({ at: 'name', message: nameProblem });
   const description = descriptionOf(value['description'], problems);
   const widgets = widgetsOf(value['widgets'], knownTypes, problems);
@@ -111,5 +116,7 @@ function widgetEntryProblems(entry: unknown, knownTypes: readonly string[]): str
   if (!WIDGET_KINDS.includes(kind as WidgetKind)) {
     return [`There is no widget kind called “${kind}”: use one of ${WIDGET_KINDS.join(', ')}.`];
   }
+  const shape = widgetEntryShapeProblems(entry as Readonly<Record<string, unknown>>);
+  if (shape.length > 0) return shape;
   return widgetProblems(draftFromEntry(entry), { knownTypes });
 }

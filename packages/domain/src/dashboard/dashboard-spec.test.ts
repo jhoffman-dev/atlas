@@ -149,3 +149,84 @@ describe('checkDashboardSpec', () => {
     ]);
   });
 });
+
+describe('checkDashboardSpec refuses what the editor would read as something else', () => {
+  const board = (widget: Record<string, unknown>) => ({
+    name: 'Board',
+    widgets: [{ kind: 'number', type: 'task', ...widget }],
+  });
+
+  it.each([
+    [{ filters: 'status != done' }, 'filters must be a list of { key, operator, value }.'],
+    [
+      { filters: [{ key: 'status', operator: 'is-not', value: 'done' }] },
+      'filters[0]’s operator must be one of',
+    ],
+    [{ filters: [{ operator: 'is', value: 'done' }] }, 'filters[0] needs a key.'],
+    [{ filters: ['status'] }, 'filters[0] must be { key, operator, value }.'],
+    [
+      { filters: [{ key: 'status', operator: 'is', value: ['done'] }] },
+      'filters[0]’s value must be text, a number or true/false.',
+    ],
+    [{ kind: 'hero', progress: { filters: 'done' } }, 'progress.filters must be a list'],
+    [{ kind: 'hero', progress: 'done' }, 'progress must be { filters }.'],
+    [{ kind: 'sql', sql: 'SELECT 1', show: 'pie' }, 'show must be one of table, number, bar.'],
+    [{ icon: 'rocket' }, 'icon must be one of'],
+    [{ span: 3.5 }, 'span must be a whole number from 1 to 12.'],
+    [{ span: 13 }, 'span must be a whole number from 1 to 12.'],
+    [{ span: '4' }, 'span must be a whole number from 1 to 12.'],
+    [{ kind: 'rank', groupBy: 'status', limit: 21 }, 'limit must be a whole number from 1 to 20.'],
+    [{ kind: 'list', limit: 2.5 }, 'limit must be a whole number of 1 or more.'],
+    [{ title: 7 }, 'title must be text.'],
+    [{ type: ['task'] }, 'type must be text.'],
+  ])('refuses %j', (widget, message) => {
+    const reading = checkDashboardSpec(board(widget), KNOWN);
+    expect(reading.ok).toBe(false);
+    expect(reading.ok ? [] : reading.problems.map((problem) => problem.message)).toEqual([
+      expect.stringContaining(message),
+    ]);
+  });
+
+  it('passes the same keys when they say what they mean', () => {
+    const reading = checkDashboardSpec(
+      board({
+        filters: [{ key: 'status', operator: 'is', value: 'done' }],
+        icon: 'bolt',
+        span: 3,
+        title: 'Done',
+      }),
+      KNOWN,
+    );
+    expect(reading.ok).toBe(true);
+  });
+
+  it.each(['Board​', 'Bo‮ard', '﻿Board', 'Board⁦x⁩'])(
+    'refuses a name holding an invisible formatting character: %j',
+    (name) => {
+      expect(
+        checkDashboardSpec({ name, widgets: [{ kind: 'number', type: 'task' }] }, KNOWN),
+      ).toEqual({
+        ok: false,
+        problems: [
+          {
+            at: 'name',
+            message: 'A dashboard’s name cannot hold an invisible formatting character.',
+          },
+        ],
+      });
+    },
+  );
+
+  it('keeps an emoji held together by a joiner', () => {
+    const name = 'Team \u{1F468}‍\u{1F469}‍\u{1F467}';
+    expect(
+      checkDashboardSpec({ name, widgets: [{ kind: 'number', type: 'task' }] }, KNOWN).ok,
+    ).toBe(true);
+  });
+
+  it('refuses a name that is not text', () => {
+    expect(
+      checkDashboardSpec({ name: 7, widgets: [{ kind: 'number', type: 'task' }] }, KNOWN),
+    ).toEqual({ ok: false, problems: [{ at: 'name', message: 'name must be text.' }] });
+  });
+});

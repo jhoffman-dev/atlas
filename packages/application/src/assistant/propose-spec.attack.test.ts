@@ -26,6 +26,7 @@ async function proposed() {
     );
   const acceptAs = (title: string) =>
     acceptProposalNote({
+      via: 'app',
       ports: vault.ports,
       path: createVaultPath(proposal!),
       today: TODAY,

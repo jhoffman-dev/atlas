@@ -1584,6 +1584,11 @@ export interface ApiProposedTasks {
   readonly proposed: readonly string[];
   /** How many the answer held that were proposed before, open or answered, and so were not again. */
   readonly alreadyProposed: number;
+  /**
+   * True when Claude was not asked: the meeting's words are those it was
+   * drafted from before, and `alreadyProposed` counts what that made.
+   */
+  readonly unchanged: boolean;
   /** Items left out of the answer, each with why. */
   readonly dropped: readonly { readonly title: string; readonly reason: string }[];
   /** Why the meeting was not asked about at all, when it was not. */
@@ -1595,10 +1600,14 @@ export interface ApiProposedTasks {
 export interface ApiProposedSpec {
   readonly kind: 'dashboard' | 'view';
   readonly title: string;
-  /** The proposal written; null when the same spec was proposed before (or could not be written: see `problem`). */
+  /** The proposal written; null when it was not, and `problem` says why. */
   readonly proposal: string | null;
-  /** Why the proposal could not be written; null when it was, or was proposed before. */
-  readonly problem: string | null;
+  /**
+   * Why no proposal was written — the same spec proposed before, and what
+   * became of it (`already accepted on 2026-10-23`), or a write that failed —
+   * with that proposal's path when there is one. Null when one was written.
+   */
+  readonly problem: { readonly message: string; readonly proposal: string | null } | null;
 }
 
 // ---------------------------------------------------------------------------

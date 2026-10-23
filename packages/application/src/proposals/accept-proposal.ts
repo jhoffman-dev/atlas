@@ -99,14 +99,18 @@ export async function acceptProposalNote({
   ports,
   path,
   today,
-  via = 'app',
+  via,
   payload,
 }: {
   ports: ProposalPorts;
   path: VaultPath;
   today: string;
-  /** Who answered, recorded on the proposal as `answered_via`: the app's buttons unless said otherwise. */
-  via?: ProposalAnswerer;
+  /**
+   * Who answered — the app's buttons or the local API — recorded on the
+   * proposal as `answered_via`. Always said: a dashboard or view proposal is
+   * accepted only by the app's.
+   */
+  via: ProposalAnswerer;
   /** The payload as edited, in place of the proposal's own. */
   payload?: unknown;
 }): Promise<AcceptedProposal> {

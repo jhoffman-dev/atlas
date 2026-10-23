@@ -11,7 +11,7 @@ import {
   readProposal,
   type ProposalNote,
 } from './proposal.ts';
-import { applySpecProposal, checkSpec, specProposalFor } from './spec-proposal.ts';
+import { applySpecProposal, checkSpec, specProposalFor, specSummary } from './spec-proposal.ts';
 
 const TYPES = [
   parseObjectType({
@@ -183,5 +183,49 @@ describe('acceptRefusal', () => {
     expect(acceptRefusal('view', 'api')).toMatch(/written into \.atlas.*accept it in DFAI’s Inbox/);
     expect(acceptRefusal('dashboard', 'api')).not.toBeNull();
     expect(acceptRefusal('task', 'api')).toBeNull();
+  });
+});
+
+describe('specSummary', () => {
+  it('says each widget as Accept writes it: its filters, and a query whole', () => {
+    const sql = "SELECT title FROM notes WHERE type = 'task'";
+    const summary = specSummary({
+      kind: 'dashboard',
+      payload: {
+        title: 'Board',
+        spec: {
+          widgets: [
+            {
+              kind: 'number',
+              type: 'task',
+              title: 'Open',
+              filters: [{ key: 'status', operator: 'is', value: 'inbox' }],
+              unknown: 'dropped',
+            },
+            { kind: 'sql', title: 'Raw', sql, show: 'table' },
+            { kind: 'query', query: 'FROM task SORT due' },
+          ],
+        },
+      },
+    });
+
+    expect(summary).toEqual({
+      kind: 'dashboard',
+      folder: '.atlas/dashboards',
+      widgets: [
+        { kind: 'number', title: 'Open', asks: null, filters: ['status is inbox'] },
+        { kind: 'sql', title: 'Raw', asks: sql, filters: [] },
+        { kind: 'query', title: '', asks: 'FROM task SORT due', filters: [] },
+      ],
+    });
+  });
+
+  it('says a view’s type and layout, and where it goes', () => {
+    expect(specSummary(checked(VIEW))).toEqual({
+      kind: 'view',
+      folder: '.atlas/views',
+      type: 'task',
+      layout: 'board',
+    });
   });
 });

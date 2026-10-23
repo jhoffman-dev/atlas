@@ -894,16 +894,31 @@ unattended step reads.
   or after the rule ran, proposes nothing twice. A draft runs as long as
   Claude takes; the route waits 25 seconds — under the host's 30 — and then
   answers `202` while it goes on, so a long meeting is not reported as a
-  `timeout` that in fact landed. One meeting is drafted once at a time. This
-  is the API's first route that spends: each call asks Claude, so the MCP
-  tool says so.
+  `timeout` that in fact landed; how a draft past its `202` ended is said in
+  the vault's Activity log and, when it failed, as a notice in the window
+  (`AppNotices`), since no caller is left to hear it. Right before its first
+  write it checks its vault is still open and the meeting still there. One
+  meeting is drafted once at a time, per router (`MeetingDrafts`). This is
+  the API's first route that spends, so it does not spend twice on the same
+  words: each proposal keeps `meeting_digest`, the digest of the meeting's
+  body it was drafted from, and asked again about a body unchanged, the route
+  answers `unchanged` without asking Claude. A meeting whose draft proposed
+  nothing is asked about again; the MCP tool says that a draft costs.
 - **A dashboard or view, checked, then proposed.** `make-dashboard` checks a
   spec with the app's own checkers — the widget editor's (`widgetProblems`,
   whose last word is the dashboard parser) for a dashboard, the New view
   dialog's (`newViewFieldProblems`) for a view — against the vault's types. A
   spec either refuses is `invalid`, with every problem as `{ at, message }`
-  in the error's new `problems` field, the checker's words unchanged, so a
-  caller can fix it and ask again. One that passes becomes a `dashboard` or
+  in the error's new `problems` field, the checker's words, so a caller can
+  fix it and ask again — at most 50, each cut at 200 characters, so a spec
+  of long text cannot make the answer large. The checker refuses rather
+  than coerces what the editor's draft would read loosely: filters it cannot
+  read, an unknown `show` or `icon`, a `span` or `limit` out of range, a
+  `title` that is not text, a name with invisible formatting characters.
+  Asked for again, a spec already proposed is not proposed twice, and the
+  answer says what became of the first. Before Accept, the Inbox card shows
+  each widget as Accept will write it, every SQL statement and DFAI query
+  whole: what runs once it is accepted is read first. One that passes becomes a `dashboard` or
   `view` proposal in `Inbox/Proposals` — user space, as every proposal is.
   Nothing a spec says names a path: the folder is its kind's, the file name
   its name, cleaned as a view's is, and a widget's key the editor does not

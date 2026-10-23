@@ -29,6 +29,11 @@ export type NewProposal = Pick<ProposalNote, 'kind' | 'payload'> & {
   readonly name: string;
   /** Why it is proposed, in a sentence or two: the proposal note's body. */
   readonly reason: string;
+  /**
+   * More frontmatter its maker keeps on it — what it was drafted from
+   * (`meeting_digest`, P32-05). Never one of the keys above, which win.
+   */
+  readonly stamp?: Readonly<Record<string, string>>;
 };
 
 /** A proposal as a note: where it goes in `Inbox/Proposals/`, its frontmatter and its body. */
@@ -48,6 +53,7 @@ export function proposalFileFor(proposal: NewProposal): NewProposalFile {
   return {
     path: joinVaultPath(createVaultPath(PROPOSALS_FOLDER), `${stem}.md`),
     properties: {
+      ...proposal.stamp,
       type: PROPOSAL_TYPE,
       kind: proposal.kind,
       state: 'open',
@@ -58,6 +64,24 @@ export function proposalFileFor(proposal: NewProposal): NewProposalFile {
       payload: payloadRecord(proposal.payload),
     },
     body: proposal.reason === '' ? '' : `${proposal.reason}\n`,
+  };
+}
+
+/**
+ * The key a proposal drafted from a meeting on demand keeps that meeting's
+ * words by (P32-05): asked again about words unchanged, nothing is asked.
+ */
+export const MEETING_DIGEST_KEY = 'meeting_digest';
+
+/**
+ * The proposals, anywhere in the vault — the Archive too — whose `key` is
+ * `value`. Columns: path.
+ */
+export function compileProposalsStampedQuery(key: string, value: string): CompiledQuery {
+  return {
+    sql: `/* proposals: stamped */ SELECT path AS "path" FROM props
+ WHERE key = ? AND value_text = ? ORDER BY path`,
+    parameters: [key, value],
   };
 }
 
