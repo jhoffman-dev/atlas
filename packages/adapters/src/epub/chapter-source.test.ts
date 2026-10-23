@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import type { BookFiles } from './book-files.ts';
+import { bookFiles, type BookFiles } from './book-files.ts';
+import { MOST_IMPORTED_LENGTH, MOST_IMPORTS } from './book-styles.ts';
 import { makeChapterSafe } from './chapter-safety.ts';
 import { chapterSource } from './chapter-source.ts';
 import { chapterText } from './chapter-text.ts';
@@ -48,5 +49,72 @@ describe('a safe chapter, as its frame is handed it', () => {
     expect(source.nodes[0]?.[3]).toBe('html');
     expect(frame.documentElement.localName).toBe('html');
     expect(frame.getElementsByTagName('b')).toHaveLength(1);
+  });
+});
+
+// From the review of 522b35f4 on PR #536: one chapter's CSS shares one budget, linked or
+// imported, and what it keeps does not hang on which file loads first.
+describe("a chapter's stylesheets, within one budget", () => {
+  /** A seeded generator, so each "shuffle" is the same on every run. */
+  const seeded = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  /** A book whose sheets load after a seeded number of turns of the microtask queue. */
+  const slowBook = (sheets: Record<string, string>, seed: number) => {
+    const random = seeded(seed);
+    return bookFiles({
+      loadText: async (name) => {
+        for (let turns = Math.floor(random() * 50); turns > 0; turns -= 1) await Promise.resolve();
+        return sheets[name] ?? null;
+      },
+      loadBlob: async () => null,
+    });
+  };
+
+  const stylesOf = async (head: string, files: BookFiles) => {
+    const doc = new DOMParser().parseFromString(
+      `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>${head}</head><body><p>One</p></body></html>`,
+      'application/xhtml+xml',
+    );
+    const path = 'OEBPS/one.xhtml';
+    makeChapterSafe(doc, path);
+    const source = await chapterSource({ chapter: doc, text: chapterText(doc), path, files });
+    const frame = document.implementation.createHTMLDocument('');
+    buildChapter(frame, source.nodes, source.length);
+    return Array.from(frame.getElementsByTagName('style'), (style) => style.textContent ?? '');
+  };
+
+  it('puts in no more than MOST_IMPORTS sheets across all its links', async () => {
+    const sheets: Record<string, string> = {};
+    const links: string[] = [];
+    for (let link = 0; link < 3; link += 1) {
+      const imports = Array.from({ length: MOST_IMPORTS }, (_, n) => `l${link}-${n}`);
+      for (const name of imports) sheets[`OEBPS/${name}.css`] = `.${name} { color: red; }`;
+      sheets[`OEBPS/link${link}.css`] = imports.map((name) => `@import "${name}.css";`).join('\n');
+      links.push(`<link rel="stylesheet" type="text/css" href="link${link}.css"/>`);
+    }
+    const styles = await stylesOf(links.join(''), slowBook(sheets, 1));
+    expect(styles).toHaveLength(3);
+    expect(styles.join('\n').match(/color: red/g)?.length ?? 0).toBeLessThanOrEqual(MOST_IMPORTS);
+  });
+
+  it('keeps the same sheets, those first in the chapter, however its files load', async () => {
+    // Each sheet a tenth of the most a chapter may take: the first ten fit, and no more.
+    const size = Math.floor(MOST_IMPORTED_LENGTH / 10);
+    const sheets: Record<string, string> = {};
+    const head: string[] = [];
+    for (let n = 0; n < 15; n += 1) {
+      sheets[`OEBPS/s${n}.css`] = `.s${n} { color: red; }`.padEnd(size, ' ');
+      head.push(`<style>@import "s${n}.css";</style>`);
+    }
+    const kept = async (seed: number) =>
+      (await stylesOf(head.join(''), slowBook(sheets, seed))).map((css) => css.includes('color'));
+    const first = await kept(1);
+    expect(first).toEqual(Array.from({ length: 15 }, (_, n) => n < 10));
+    for (const seed of [2, 3, 4, 5]) expect(await kept(seed)).toEqual(first);
   });
 });

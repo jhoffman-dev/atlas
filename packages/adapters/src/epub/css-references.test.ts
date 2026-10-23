@@ -184,3 +184,155 @@ describe('what a value calls, and how deep it nests', () => {
     expect(nestsDeeperThan(`"${'('.repeat(10)}" /* ${'['.repeat(10)} */`, 1)).toBe(false);
   });
 });
+
+// From the review of 522b35f4 on PR #536: the nesting check must never read a sheet as shallower
+// than the browser's tokenizer does, or WebKit's quadratic parse is back.
+describe('how deep CSS nests, as the tokenizer reads it', () => {
+  it.each([
+    ['a closer that is not its opener’s', `a{b:${'(]'.repeat(1000)}}`],
+    ['a comment opened inside an unquoted url()', `a{b:url(x/*) ${'('.repeat(1000)}`],
+    ['a quote inside an unquoted url()', `a{b:url(x"y) ${'('.repeat(1000)}`],
+    ['an escaped closer', `a{b:${'(\\)'.repeat(1000)}}`],
+  ])('counts past %s', (_, css) => {
+    expect(nestsDeeperThan(css, 32)).toBe(true);
+  });
+
+  it('never counts less deep than a tokenizer written to the spec, over seeded soup', () => {
+    let seed = 536;
+    const random = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const PIECES = [
+      '(',
+      ')',
+      '[',
+      ']',
+      '{',
+      '}',
+      '"',
+      "'",
+      '/*',
+      '*/',
+      'url(',
+      '\\',
+      ';',
+      'a',
+      ' ',
+      '\n',
+    ];
+    for (let run = 0; run < 3000; run += 1) {
+      const length = 1 + Math.floor(random() * 120);
+      const css = Array.from({ length }, () => PIECES[Math.floor(random() * PIECES.length)]).join(
+        '',
+      );
+      const depth = specDepth(css);
+      if (depth > 0) expect(nestsDeeperThan(css, depth - 1), JSON.stringify(css)).toBe(true);
+    }
+  });
+});
+
+/**
+ * The deepest the blocks of `css` nest, as CSS Syntax Level 3 tokenizes it
+ * (§4.3) and nests its blocks (§5): an opener, or a function, is closed
+ * only by its own closer. Written apart from `nestsDeeperThan`, for the
+ * characters the soup above is made of.
+ */
+function specDepth(css: string): number {
+  let at = 0;
+  const open: string[] = [];
+  let deepest = 0;
+  const isHex = (c: string | undefined) => c !== undefined && /[0-9a-f]/i.test(c);
+  const isWhite = (c: string | undefined) => c === ' ' || c === '\n' || c === '\t';
+  const validEscape = (i: number) =>
+    css[i] === '\\' && css[i + 1] !== undefined && css[i + 1] !== '\n';
+  const isNameStart = (c: string | undefined) => c !== undefined && /[a-z_\u0080-￿]/i.test(c);
+  const isName = (c: string | undefined) => c !== undefined && (isNameStart(c) || /[0-9-]/.test(c));
+  const startsIdent = (i: number) =>
+    css[i] === '-'
+      ? isNameStart(css[i + 1]) || css[i + 1] === '-' || validEscape(i + 1)
+      : isNameStart(css[i]) || validEscape(i);
+  /** Consumes the escape whose backslash is at `at`, and says what it stands for. */
+  const escape = (): string => {
+    at += 1;
+    if (isHex(css[at])) {
+      let hex = '';
+      while (hex.length < 6 && isHex(css[at])) hex += css[at++];
+      if (isWhite(css[at])) at += 1;
+      return String.fromCodePoint(Math.min(Number.parseInt(hex, 16), 0x10ffff) || 0xfffd);
+    }
+    return css[at++] ?? '';
+  };
+  const push = (closer: string) => {
+    open.push(closer);
+    deepest = Math.max(deepest, open.length);
+  };
+  const remnants = () => {
+    while (at < css.length) {
+      if (css[at] === ')') return void (at += 1);
+      if (validEscape(at)) escape();
+      else at += 1;
+    }
+  };
+  const url = () => {
+    while (isWhite(css[at])) at += 1;
+    while (at < css.length) {
+      const c = css[at];
+      if (c === ')') return void (at += 1);
+      if (isWhite(c)) {
+        while (isWhite(css[at])) at += 1;
+        if (css[at] === ')' || at >= css.length) return void (at += 1);
+        return remnants();
+      }
+      if (c === '"' || c === "'" || c === '(') return remnants();
+      if (c === '\\') {
+        if (validEscape(at)) escape();
+        else return remnants();
+      } else at += 1;
+    }
+  };
+  while (at < css.length) {
+    const c = css[at];
+    if (c === '/' && css[at + 1] === '*') {
+      const close = css.indexOf('*/', at + 2);
+      at = close === -1 ? css.length : close + 2;
+    } else if (c === '"' || c === "'") {
+      at += 1;
+      while (at < css.length && css[at] !== c && css[at] !== '\n') {
+        if (css[at] === '\\') {
+          if (css[at + 1] === undefined) at += 1;
+          else if (css[at + 1] === '\n') at += 2;
+          else escape();
+        } else at += 1;
+      }
+      if (css[at] === c) at += 1;
+    } else if (startsIdent(at)) {
+      let name = '';
+      while (at < css.length) {
+        if (validEscape(at)) name += escape();
+        else if (isName(css[at])) name += css[at++];
+        else break;
+      }
+      if (css[at] !== '(') continue;
+      at += 1;
+      if (name.toLowerCase() === 'url') {
+        while (isWhite(css[at]) && isWhite(css[at + 1])) at += 1;
+        const next = isWhite(css[at]) ? css[at + 1] : css[at];
+        if (next !== '"' && next !== "'") {
+          url();
+          continue;
+        }
+      }
+      push(')');
+    } else {
+      if (c === '(') push(')');
+      else if (c === '[') push(']');
+      else if (c === '{') push('}');
+      else if (c === open.at(-1)) open.pop();
+      at += 1;
+    }
+  }
+  return deepest;
+}
