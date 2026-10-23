@@ -69,7 +69,8 @@ export function useSearch({
 
     let cancelled = false;
     const asked = asking;
-    searchNotes({ index, query: prepared, limit: LIMIT, includeArchived })
+    // The highlights in literature notes too, after the notes, each opening at its block (#507).
+    searchNotes({ index, query: prepared, limit: LIMIT, includeArchived, highlights: true })
       .then((found) => {
         if (cancelled) return;
         const was = shown.current;
@@ -131,18 +132,23 @@ export function useSearch({
   };
 }
 
+/** Which result a hit is: its note, and its block for a highlight in it. */
+const sameHit = (left: SearchHit | undefined, right: SearchHit) =>
+  left !== undefined && left.path === right.path && left.block === right.block;
+
 /**
  * Where the chosen result is once the same search is answered again: on the
- * same note if it still matches, else as near its place as the list allows.
- * Commands come first and do not move, since the query has not changed.
+ * same note (or highlight) if it still matches, else as near its place as the
+ * list allows. Commands come first and do not move, since the query has not
+ * changed.
  */
 function keptPlace(
   was: { readonly hits: readonly SearchHit[]; readonly selected: number; readonly ahead: number },
   found: readonly SearchHit[],
 ): number {
   if (was.selected < was.ahead) return was.selected;
-  const path = was.hits[was.selected - was.ahead]?.path;
-  const at = found.findIndex((hit) => hit.path === path);
+  const chosen = was.hits[was.selected - was.ahead];
+  const at = found.findIndex((hit) => sameHit(chosen, hit));
   if (at >= 0) return was.ahead + at;
   return Math.max(0, Math.min(was.selected, was.ahead + found.length - 1));
 }

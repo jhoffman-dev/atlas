@@ -97,7 +97,7 @@ function addFolders(folders: Set<string>, path: string): void {
   for (let at = 1; at <= parts.length; at += 1) folders.add(parts.slice(0, at).join('/'));
 }
 
-/** Markdown whose frontmatter is `key: value` lines, a quoted value read as JSON, and whose blocks are found line by line. */
+/** Markdown whose frontmatter is `key: value` lines, a quoted or bracketed value read as JSON, and whose blocks are found line by line. */
 export function readerMarkdown(): MarkdownPort {
   return {
     ...fakeMarkdown(),
@@ -108,7 +108,7 @@ export function readerMarkdown(): MarkdownPort {
           const found = /^([A-Za-z_]+):\s*(.*)$/.exec(line);
           if (found === null) return [];
           const value = (found[2] ?? '').trim();
-          return [[found[1], value.startsWith('"') ? (JSON.parse(value) as unknown) : value]];
+          return [[found[1], /^["[]/.test(value) ? (JSON.parse(value) as unknown) : value]];
         }),
       ),
   };

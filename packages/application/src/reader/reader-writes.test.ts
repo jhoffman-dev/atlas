@@ -177,6 +177,15 @@ describe("finding a PDF's literature note", () => {
     expect(found).toBe(NOTE);
   });
 
+  it('is a note whose type is a list holding literature, as the Library reads it', async () => {
+    const typedTwice = SOURCE.replace('type: literature', 'type: ["literature", "book"]');
+    expect(typedTwice).toContain('type: ["literature", "book"]');
+    const { fs } = memoryFiles({ [NOTE]: typedTwice });
+    expect(
+      await findLiteratureNote({ index: index([NOTE]), fs, markdown: readerMarkdown() }, PDF),
+    ).toBe(NOTE);
+  });
+
   it('is none when no literature note names it', async () => {
     const { fs } = memoryFiles({
       [NOTE]: '---\ntype: note\nfile: "[[Library/The Lantern Keepers.pdf]]"\n---\n',

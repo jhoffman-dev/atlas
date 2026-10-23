@@ -18,6 +18,8 @@ export type ActiveSidebarPage =
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
   | { readonly kind: 'terms' }
+  | { readonly kind: 'library' }
+  | { readonly kind: 'highlights' }
   | null;
 
 /**
@@ -55,6 +57,8 @@ export function activeSidebarPageOf(
     case 'activity':
     case 'templates':
     case 'terms':
+    case 'library':
+    case 'highlights':
       return { kind: place.kind };
   }
 }

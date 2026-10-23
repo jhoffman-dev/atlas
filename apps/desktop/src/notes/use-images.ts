@@ -36,9 +36,12 @@ export function useImages({
 export function useVaultImages({
   fs,
   resetKey,
+  vaultOnly = false,
 }: {
   fs: VaultFsPort;
   resetKey: unknown;
+  /** Read only what the vault holds: a source off the vault is shown as missing, never fetched. */
+  vaultOnly?: boolean;
 }): (args: { path: string; src: string }) => Promise<string | null> {
   const urls = useRef<string[]>([]);
 
@@ -53,7 +56,7 @@ export function useVaultImages({
     async ({ path, src }: { path: string; src: string }) => {
       const notePath = createVaultPath(path);
       const source = resolveImageSource({ src, notePath });
-      if (source.kind === 'external') return source.url;
+      if (source.kind === 'external') return vaultOnly ? null : source.url;
       if (source.kind === 'unresolved') return null;
 
       // Beside the note first, then from the vault root: the first file there wins.
@@ -70,6 +73,6 @@ export function useVaultImages({
       // A missing image shows as missing rather than failing the note.
       return null;
     },
-    [fs],
+    [fs, vaultOnly],
   );
 }

@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from './node-sqlite.ts';
 import { noteTags, splitFrontmatter, TAGS_KEY } from '@dfai/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';

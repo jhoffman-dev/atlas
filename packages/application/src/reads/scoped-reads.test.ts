@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { QUERY_BLOCK_NODE, queryBlockNode, type NoteChange } from '@dfai/domain';
 import {
   ARCHIVE_SCOPE,
+  changesTouching,
   AUTOMATIONS_SCOPE,
   INBOX_CHOICES_SCOPE,
+  HIGHLIGHTS_SCOPE,
   INBOX_SCOPE,
   MENTIONS_SCOPE,
   notePaneScope,
@@ -304,5 +306,20 @@ describe('which of the index’s news reaches the pages that still read on every
       expect(reaches(scope, changed('.atlas/types/task.md'))).toBe(true);
       expect(scopeTouched(scope, UNKNOWN_NEWS)).toBe(true);
     }
+  });
+});
+
+describe('changesTouching', () => {
+  it('keeps the notes of the news that reach the scope, in order, and none of the others', () => {
+    const news = [
+      changed('Library/A.md', 'literature'),
+      changed('Notes/Plain.md', 'note'),
+      changed('Library/B.md', 'note', { beforeType: 'literature' }),
+    ];
+    expect(changesTouching(HIGHLIGHTS_SCOPE, news).map((each) => each.path)).toEqual([
+      'Library/A.md',
+      'Library/B.md',
+    ]);
+    expect(changesTouching(HIGHLIGHTS_SCOPE, [])).toEqual([]);
   });
 });

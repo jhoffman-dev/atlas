@@ -7,6 +7,7 @@ import {
   FILED_UNDER_TYPES,
   foldedLinkName,
   INBOX_DIRECTORY,
+  LITERATURE_NOTE_TYPE,
   MEETING_TYPE,
   PERSON_TYPE,
   PROJECT_TYPE,
@@ -123,6 +124,22 @@ export const ARCHIVE_SCOPE: ReadScope = {
 export const TERMS_SCOPE: ReadScope = { types: [TERM_TYPE, PERSON_TYPE, COMPANY_TYPE] };
 
 /**
+ * What the Library lists (`loadLibrary`, #507): the literature notes, and the
+ * projects and areas they are filed under, whose titles it shows.
+ *
+ * Not covered here: a `project:` link to a note of another type, or of none.
+ * The Library covers it by `libraryScope`, from what it read.
+ */
+export const LIBRARY_SCOPE: ReadScope = { types: [LITERATURE_NOTE_TYPE, ...FILED_UNDER_TYPES] };
+
+/**
+ * What All highlights lists (`loadAllHighlights`, #507): the highlights in
+ * the literature notes, which are the notes' own blocks — a note's type
+ * before a change counts too, so one that stops being literature leaves.
+ */
+export const HIGHLIGHTS_SCOPE: ReadScope = { types: [LITERATURE_NOTE_TYPE] };
+
+/**
  * What a type's table lists (`typeTableQuery`): its notes, whose own
  * properties are its columns, and the type files, whose properties the
  * index's view of the type is built from.
@@ -171,7 +188,7 @@ const folded = (name: string) => name.trim().normalize('NFC').toLowerCase();
  * spelled by it, so a file named in one Unicode form and a link typed in the
  * other still meet (A21-02).
  */
-function nameOf(pathOrTarget: string): string {
+export function linkNameOf(pathOrTarget: string): string {
   return foldedLinkName(pathOrTarget.slice(pathOrTarget.lastIndexOf('/') + 1));
 }
 
@@ -193,15 +210,38 @@ function within(path: string, folder: string): boolean {
   return at === holder || at.startsWith(`${holder}/`);
 }
 
+/** A scope's notes, link names and types, folded once, so a change meets them in a lookup. */
+interface FoldedScope {
+  readonly notes: ReadonlySet<string>;
+  readonly linkedNames: ReadonlySet<string>;
+  readonly types: ReadonlySet<string>;
+}
+
+// A scope is built once per read and matched against every news after it; a
+// Library's holds a note per source, so folding it per change is
+// changes x scope work. Keyed by the scope object, which is never mutated.
+const foldedScopes = new WeakMap<ReadScope, FoldedScope>();
+
+function foldedScope(scope: ReadScope): FoldedScope {
+  const kept = foldedScopes.get(scope);
+  if (kept !== undefined) return kept;
+  const made: FoldedScope = {
+    notes: new Set(scope.notes?.map(folded)),
+    linkedNames: new Set(scope.linkedNames?.map(linkNameOf)),
+    types: new Set(scope.types?.map(folded)),
+  };
+  foldedScopes.set(scope, made);
+  return made;
+}
+
 /** Whether one note's change reaches a reader made from `scope`. */
 function changeTouches(scope: ReadScope, change: NoteChange): boolean {
   if (scope.anyNote === true) return true;
-  const path = folded(change.path);
-  if (scope.notes?.some((note) => folded(note) === path) === true) return true;
-  if (scope.linkedNames?.some((name) => nameOf(name) === nameOf(change.path)) === true) return true;
+  const { notes, linkedNames, types } = foldedScope(scope);
+  if (notes.has(folded(change.path))) return true;
+  if (linkedNames.has(linkNameOf(change.path))) return true;
   if (scope.folders?.some((folder) => within(change.path, folder)) === true) return true;
   if (scope.imports === true && imported(change)) return true;
-  const types = new Set(scope.types?.map(folded));
   return typesOf(change).some((type) => types.has(type));
 }
 
@@ -212,6 +252,11 @@ function imported(change: NoteChange): boolean {
     change.importOutcome !== undefined ||
     change.beforeImportOutcome !== undefined
   );
+}
+
+/** The notes of `changes` that reach a reader made from `scope`. */
+export function changesTouching(scope: ReadScope, changes: readonly NoteChange[]): NoteChange[] {
+  return changes.filter((change) => changeTouches(scope, change));
 }
 
 /**
@@ -243,7 +288,7 @@ function holdsQueryBlock(nodes: readonly EditorNode[]): boolean {
 /** The names of the notes `text` links to, embeds included. */
 function linkedNamesIn(text: string): string[] {
   return splitWikiLinks(text).flatMap((piece) =>
-    piece.kind === 'wikiLink' ? [nameOf(piece.target)] : [],
+    piece.kind === 'wikiLink' ? [linkNameOf(piece.target)] : [],
   );
 }
 

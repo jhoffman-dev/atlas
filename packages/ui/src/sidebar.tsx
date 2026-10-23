@@ -98,6 +98,8 @@ export function Sidebar({
   onSearch,
   onOpenGraph,
   onOpenTags,
+  onOpenLibrary,
+  onOpenHighlights,
   onOpenAutomations,
   activity,
   onOpenTemplates,
@@ -129,7 +131,11 @@ export function Sidebar({
   onOpenGraph?: () => void;
   /** Opens the tags page; its row sits under the graph's when given. */
   onOpenTags?: () => void;
-  /** Opens the Automations page; its row sits under the tags' when given. */
+  /** Opens the Library of literature notes (#507); its row sits under the tags' when given. */
+  onOpenLibrary?: () => void;
+  /** Opens All highlights (#507); its row sits under the Library's when given. */
+  onOpenHighlights?: () => void;
+  /** Opens the Automations page; its row sits under the research rows when given. */
   onOpenAutomations?: () => void;
   /** The Activity page's row, under the Automations', and how many errors arrived since it was last open. */
   activity?: ActivityRowLink;
@@ -253,6 +259,8 @@ export function Sidebar({
         open={open}
         graphOn={active?.kind === 'graph'}
         tagsOn={active?.kind === 'tags'}
+        libraryOn={active?.kind === 'library'}
+        highlightsOn={active?.kind === 'highlights'}
         automationsOn={active?.kind === 'automations'}
         activityOn={active?.kind === 'activity'}
         templatesOn={active?.kind === 'templates'}
@@ -264,6 +272,8 @@ export function Sidebar({
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
         {...(onOpenTags !== undefined && { onOpenTags })}
+        {...(onOpenLibrary !== undefined && { onOpenLibrary })}
+        {...(onOpenHighlights !== undefined && { onOpenHighlights })}
         {...(onOpenAutomations !== undefined && { onOpenAutomations })}
         {...(activity !== undefined && { activity })}
         {...(onOpenTemplates !== undefined && { onOpenTemplates })}
@@ -311,6 +321,8 @@ function QuickRows({
   open,
   graphOn,
   tagsOn,
+  libraryOn,
+  highlightsOn,
   automationsOn,
   activityOn,
   templatesOn,
@@ -321,6 +333,8 @@ function QuickRows({
   onSearch,
   onOpenGraph,
   onOpenTags,
+  onOpenLibrary,
+  onOpenHighlights,
   onOpenAutomations,
   activity,
   onOpenTemplates,
@@ -334,6 +348,8 @@ function QuickRows({
   open: ReadonlySet<string>;
   graphOn: boolean;
   tagsOn: boolean;
+  libraryOn: boolean;
+  highlightsOn: boolean;
   automationsOn: boolean;
   activityOn: boolean;
   templatesOn: boolean;
@@ -344,6 +360,8 @@ function QuickRows({
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
+  onOpenLibrary?: () => void;
+  onOpenHighlights?: () => void;
   onOpenAutomations?: () => void;
   activity?: ActivityRowLink;
   onOpenTemplates?: () => void;
@@ -437,6 +455,32 @@ function QuickRows({
           >
             <Icon name="tag" className="sidebar__icon" />
             <span className="sidebar__name">Tags</span>
+          </button>
+        </li>
+      )}
+      {onOpenLibrary !== undefined && (
+        <li className={libraryOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+          <button
+            type="button"
+            className="sidebar__row"
+            aria-current={libraryOn ? 'page' : undefined}
+            onClick={onOpenLibrary}
+          >
+            <Icon name="book" className="sidebar__icon" />
+            <span className="sidebar__name">Library</span>
+          </button>
+        </li>
+      )}
+      {onOpenHighlights !== undefined && (
+        <li className={highlightsOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+          <button
+            type="button"
+            className="sidebar__row"
+            aria-current={highlightsOn ? 'page' : undefined}
+            onClick={onOpenHighlights}
+          >
+            <Icon name="quote" className="sidebar__icon" />
+            <span className="sidebar__name">All highlights</span>
           </button>
         </li>
       )}

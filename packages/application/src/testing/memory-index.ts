@@ -3,8 +3,9 @@ import type { IndexedNote, IndexEntry, IndexPort, QueryResult } from '../index/p
 import { fakeIndexPort } from './fake-ports.ts';
 
 /**
- * An index kept in memory, for a test in a browser-like environment, where
- * `node:sqlite` (`sqliteIndexPort`) cannot load. A sync writes it; the graph's
+ * An index kept in memory, with no SQL engine behind it, for a test in a
+ * browser-like environment that wants none (`sqliteIndexPort` runs SQL for
+ * real there too, through `./node-sqlite.ts`). A sync writes it; the graph's
  * statements and the facet check (`/* index facets *\/`) are answered from
  * what was written, by the columns they read, and so are the tag counts and
  * the relation holders a sync asks; a few others are answered with no rows

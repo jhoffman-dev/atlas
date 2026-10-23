@@ -18,6 +18,7 @@ import {
 import { Icon } from '../icon.tsx';
 import { linkAttributes } from './link-attributes.ts';
 import { showAsRead } from './block-anchor.ts';
+import { blockEmbedDrop } from './block-embed-drop.ts';
 
 /** Where a shown block comes from: the note it names, read by the page. */
 export interface TransclusionSource {
@@ -284,5 +285,10 @@ export const BlockEmbed = Node.create<BlockEmbedOptions>({
 
   addNodeView() {
     return this.options.source === null ? null : ReactNodeViewRenderer(EmbedView);
+  },
+
+  // Only where notes are edited: a feed or a picture of a page takes no drops.
+  addProseMirrorPlugins() {
+    return this.options.source === null ? [] : [blockEmbedDrop()];
   },
 });
