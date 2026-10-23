@@ -168,3 +168,132 @@ describe('a hidden tombstone, when the blocks around it are wrapped', () => {
     expect(instance.state.doc.toJSON()).toEqual(before);
   });
 });
+
+/*
+ * Verification pass 2 on ba80bef2: a selection copied or cut across a hidden
+ * tombstone put the tombstone on the clipboard with the person's words. Pasted
+ * back, the note held it twice; pasted into another note, that note held a
+ * removed highlight's tombstone it never had.
+ */
+interface Clipboard {
+  readonly held: Map<string, string>;
+  readonly event: Event;
+}
+
+function clipboardEvent(type: 'copy' | 'cut' | 'paste', held = new Map<string, string>()) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      clearData: () => held.clear(),
+      setData: (kind: string, value: string) => void held.set(kind, value),
+      getData: (kind: string) => held.get(kind) ?? '',
+      types: [...held.keys()],
+      files: [],
+      items: [],
+    },
+  });
+  return { held, event } satisfies Clipboard;
+}
+
+function copyFromAboveToBelow(instance: Editor, type: 'copy' | 'cut'): Map<string, string> {
+  selectFromAboveToBelow(instance);
+  const { held, event } = clipboardEvent(type);
+  instance.view.dom.dispatchEvent(event);
+  return held;
+}
+
+function pasteAtEnd(instance: Editor, held: Map<string, string>): void {
+  const end = instance.state.doc.content.size - 1;
+  instance.view.dispatch(
+    instance.state.tr.setSelection(TextSelection.create(instance.state.doc, end)),
+  );
+  instance.view.dom.dispatchEvent(clipboardEvent('paste', new Map(held)).event);
+}
+
+describe('a hidden tombstone, when the words around it are copied or cut', () => {
+  it('is not put on the clipboard by a copy across it', () => {
+    const instance = noteWithTombstone();
+    const held = copyFromAboveToBelow(instance, 'copy');
+    expect(held.get('text/html')).toContain('Below.');
+    expect(held.get('text/html')).not.toContain('highlight-removed');
+    expect(held.get('text/plain')).not.toContain('highlight-removed');
+  });
+
+  it('is not put on the clipboard by a cut across it, and stays in the note', () => {
+    const instance = noteWithTombstone();
+    const held = copyFromAboveToBelow(instance, 'cut');
+    expect(held.get('text/html')).not.toContain('highlight-removed');
+    expect(tombstonesAnywhere(instance)).toBe(1);
+  });
+
+  it('is not doubled by pasting back what was copied across it', () => {
+    const instance = noteWithTombstone();
+    const held = copyFromAboveToBelow(instance, 'copy');
+    pasteAtEnd(instance, held);
+    expect(words(instance)).toContain('Below.Above.');
+    expect(tombstonesAnywhere(instance)).toBe(1);
+    // Nor left as an empty raw block where it was pasted: that is written to the file too.
+    let rawBlocks = 0;
+    instance.state.doc.descendants((node) => {
+      if (node.type.name === 'rawBlock') rawBlocks += 1;
+    });
+    expect(rawBlocks).toBe(1);
+  });
+
+  it('is never pasted in, even when the clipboard holds one', () => {
+    const instance = noteWithTombstone();
+    const html = `<p>Pasted.</p><pre data-raw-block="">${TOMBSTONE.replace(/</g, '&lt;')}</pre>`;
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    expect(parsed.querySelector('pre')).not.toBeNull();
+    pasteAtEnd(instance, new Map([['text/html', html]]));
+    expect(tombstonesAnywhere(instance)).toBe(1);
+  });
+});
+
+/*
+ * Verification pass 2 on ba80bef2: a numbered list made across a hidden
+ * tombstone is split around it as the tombstone is lifted back out, and both
+ * halves started at 1: the saved note read "1. Above." then "1. Below.".
+ * The markdown writer numbers a list from its `start` (editor-to-mdast.ts).
+ */
+describe('a numbered list made across a hidden tombstone', () => {
+  const lists = (instance: Editor) => {
+    const found: { start: unknown; items: number }[] = [];
+    instance.state.doc.forEach((node) => {
+      if (node.type.name === 'orderedList') {
+        found.push({ start: node.attrs['start'], items: node.childCount });
+      }
+    });
+    return found;
+  };
+
+  it('numbers its second half on from the first', () => {
+    const instance = noteWithTombstone();
+    selectFromAboveToBelow(instance);
+    expect(instance.commands.toggleOrderedList()).toBe(true);
+    expect(topLevelTombstones(instance)).toBe(1);
+    expect(lists(instance)).toEqual([
+      { start: 1, items: 1 },
+      { start: 2, items: 1 },
+    ]);
+  });
+
+  it('numbers on from where the first half started, several items in', () => {
+    const instance = noteWithTombstone();
+    instance.commands.setContent({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'First.' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Above.' }] },
+        { type: 'rawBlock', attrs: { markdown: TOMBSTONE } },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Below.' }] },
+      ],
+    });
+    instance.commands.selectAll();
+    expect(instance.commands.toggleOrderedList()).toBe(true);
+    expect(lists(instance)).toEqual([
+      { start: 1, items: 2 },
+      { start: 3, items: 1 },
+    ]);
+  });
+});
