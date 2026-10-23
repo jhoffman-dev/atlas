@@ -710,31 +710,64 @@ which broke "never overwriting one" in spirit: two drafts of one brief.
   the clocks go back. A time that never shows on the night they go forward
   (02:30) is due the first moment the clock reads past it; one that shows
   twice when they go back runs once, because the run is the mark the next is
-  counted from. A Friday missed while DFAI was closed is caught up once, on
+  counted from — and a mark up to an hour ahead of the wall clock still
+  counts, since the log keeps wall-clock time and the second pass through the
+  hour reads as earlier than the first run (a mark further ahead is a clock
+  that ran fast and is ignored, as before). `thurs` reads as Thursday, as
+  `tues` and `weds` do. A Friday missed while DFAI was closed is caught up once, on
   opening.
 - **One note a period.** A Claude step whose output is a note, on a daily or
-  weekly clock, writes one note for each time its schedule falls due — the
-  period's `slot`, the latest due time at or before the run — however it runs:
-  on time, caught up, or by hand. A run by hand on Friday morning, before
-  15:00, is in the week of the Friday before. Which periods have their note
-  is read from the rule's log, never from the folder's file names (which a
-  person renames): the run that made the note writes
-  `` - period `"2026-10-23T15:00:00"` ``, and a later run in that period asks
-  Claude nothing and is logged as having found the note made, so its schedule
-  still counts on from it. A period whose run failed made nothing, so the next
-  run in it writes the note. Deleting the note does not free its period: the
-  log says it was made. The key can carry an item —
+  weekly clock, writes one note for each day (a daily rule) or ISO week,
+  Monday first (a weekly one), however it runs. A period is the week or day,
+  not the slot string, so moving the rule from 15:00 to 16:00 the same Friday
+  opens no second period. A scheduled run writes for the latest time its
+  schedule fell due at or before the run (a Monday catch-up writes for the
+  Friday before); **Run now writes for the current calendar week** (today, for
+  a daily rule), whether or not that week's time has come. Which periods have
+  their note is read from two records that each work alone, never from the
+  folder's file names (which a person renames):
+  - the rule's log: the run that made the note writes
+    `` - period `"2026-10-23T15:00:00"` ``; and
+  - the note itself: it is written with `atlas_period: "2026-10-23T15:00:00"`
+    in its frontmatter (and `atlas_period_item` for an item), so a crash or a
+    full disk between the note and its log line, a log that outgrew its cap,
+    and a note synced in from the other Mac all still say the period is made.
+    The log's cap (100 entries) never drops the one entry that last made a
+    period's note.
+  A later run in the period asks Claude nothing and is logged as having found
+  the note made, so its schedule still counts on from it. A period whose run
+  failed made nothing, so the next run in it writes the note. A period ahead of
+  the clock (a Mac whose clock ran a month fast) is never counted as made.
+  **Deleted or undone drafts:** a scheduled run never writes a period that is
+  recorded, even if its note was deleted or its run undone; Run now writes a
+  fresh note when the period's note is no longer on disk (an undone run does
+  not count as having made it). The key can carry an item —
   `` - period `"…"` for `"Meetings/2026-10-23 Standup.md"` `` — so a rule that
   writes one note per item of a period (#39, a brief per meeting of the day)
-  uses the same record (`outputPeriod({ schedule, at, item })`,
-  `periodNoteMade(entries, period)`). Hourly, on-open, by-hand-only and
-  note-triggered rules have no periods and behave as before.
-- **Each period asks afresh.** A note-a-period step is not held to "never
-  asked again about a version it has answered": this week's draft is about
-  the week as it is, including notes last week's draft read.
+  uses the same record (`outputPeriod`, `currentPeriod`, `periodNoteMade`,
+  `periodRecorded`). Hourly, on-open, by-hand-only and note-triggered rules have
+  no periods and behave as before. A dry run says what Run now would do: "Would
+  write its note", or that the period's note is made already.
+- **Two Macs.** Scheduled Claude runs are already gated to the named Mac
+  (`gatedByFreshPull`, ADR-0035), so only one of them writes the draft; the
+  note's own `atlas_period` is what lets the other Mac, once the note syncs in,
+  count the week as made.
+- **Each period asks afresh — when something to ask about changed.** A
+  note-a-period step is not held to "never asked again about a version it has
+  answered": this week's draft is about the week as it is. But a scheduled run
+  of a step that reads notes through a fixed query (a morning brief of the
+  waiting tasks) and is handed no data asks nothing when none of the matched
+  notes changed since its last note: it records the matched versions and logs
+  a run that did nothing. A step handed data always asks once per period, for
+  the data is what changes; Run now always writes the period's note when it is
+  missing.
 - **Data beside the notes.** `data: weekly-review` hands the step the weekly
   review (P30-07) as `<vault_data about=…>` blocks — the tasks finished and
-  meetings held in the last 7 days, waiting-fors untouched for more than 7
+  meetings held in the 7 days from the slot before the period's to its own
+  (exactly one week: no eighth day, no overlap with the next review; the days
+  are counted on the calendar, so a clock change moves none), a task counted
+  as finished on the day its `completed` says, and by its last change only when
+  it says none, waiting-fors untouched for more than 7
   days, overdue tasks, active projects with no next action, someday items
   untouched for 30 days (at most 50 each), and the Inbox's count — each item
   with its note's path. It goes with `output: note` only, and a step with data
@@ -742,14 +775,25 @@ which broke "never overwriting one" in spirit: two drafts of one brief.
   is a data input rather than a read tool because it is what the step is
   about, not something it might look up, and a tool would be a new API route.
 - **Every item cites a note it was given.** In the note such a step writes,
-  each list item must link, by path, one of the notes in its data or among the
-  notes it read. An item that links none — no link, a link by bare title, a
-  link to a note it was not given, a link in code — is left out and the rest
-  kept, named in the log as `- dropped …` (`claude.dropped`), as a meeting's
-  uncited action item is. A note whose every item was left out is refused and
+  each list item — in a block quote too — must link, by path, one of the notes
+  in its data or among the notes it read. An item that links none — no link, a
+  link by bare title, a link to a note it was not given, a link in code — is
+  left out with its indented lines and children and the rest kept, named in the
+  log as `- dropped …` (`claude.dropped`), as a meeting's uncited action item
+  is. In an item that is kept, a link to a note the run was not given is
+  written as the words it showed and named in the log as `- adjusted …`
+  (`claude.adjusted`). A note whose every item was left out, or that has no
+  list item at all when the run was given notes to cite, is refused and
   nothing is written. Headings and sentences (the Inbox's count) are the
   draft's frame, not claims, and are not held to it. The check is the
   domain's (`keepCitedItems`), whatever the prompt says.
+  A note whose name no link can hold (`#`, `|`, `[`, `]`, `^`) is handed under a
+  source id, `[[src:3]]`; the id is accepted as a citation and written in the
+  draft as the note's title in plain text, so no link in the draft fails to
+  resolve. Values from notes (a task's waiting-on, a title) are flattened to one
+  line with `[[` and `]]` broken, so vault text cannot forge an item or a link.
+- **The editor** clears a step's data when its Writes is switched away from a
+  note, since the control that sets it goes with the note output.
 - **The Friday review preset** puts these together: `fridays at 15:00`, its
   prompt `.atlas/prompts/friday-review.md` (written once, never over yours),
   `output: note` into `Reviews/`, `data: weekly-review`, no query.
