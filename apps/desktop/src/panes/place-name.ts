@@ -49,6 +49,8 @@ export function placeName(
       return 'Library';
     case 'highlights':
       return 'All highlights';
+    case 'ask':
+      return 'Ask';
     case 'document':
       return vaultPathName(place.path);
   }

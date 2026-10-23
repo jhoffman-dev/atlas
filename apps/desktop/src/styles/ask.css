@@ -1,0 +1,251 @@
+/* Ask (#37): a question page. The chrome is neutral, as every page's is; the
+   only colour is the citation chips' muted pastel (`data-hue`), so the eye
+   finds where each thing came from. A paragraph that cites nothing is kept
+   whole and marked with a quiet "not cited", never hidden. */
+
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.ask__start {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8vh;
+}
+
+.ask__lede {
+  align-items: center;
+  color: var(--ink-2);
+  display: flex;
+  font-size: var(--text-body-lg);
+  gap: 8px;
+  margin: 0;
+}
+
+.ask__spark {
+  color: var(--ink-3);
+}
+
+.ask__model {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  margin: 0;
+}
+
+/* The question box: the sidebar chat's, given the page's width. */
+.ask__box .chat__composer {
+  border-top: 0;
+  padding: 0;
+}
+
+.ask__box .chat__ask textarea {
+  font-size: var(--text-body-lg);
+}
+
+.ask__recent {
+  margin-top: 18px;
+}
+
+.ask__recent-title {
+  color: var(--ink-3);
+  font-size: var(--text-header);
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+
+.ask__recent ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ask__recent-row {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-body);
+  gap: 8px;
+  padding: 5px 6px;
+  text-align: left;
+  width: 100%;
+}
+
+.ask__recent-row:hover {
+  background: var(--well);
+}
+
+.ask__recent-row svg {
+  color: var(--ink-3);
+  flex: none;
+}
+
+.ask__log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ask__question {
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink);
+  font-size: var(--text-section);
+  font-weight: 600;
+  margin: 8px 0 0;
+  padding-top: 12px;
+  white-space: pre-wrap;
+}
+
+.ask__question:first-child {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.ask__answer {
+  color: var(--ink);
+  font-size: var(--text-body-lg);
+  line-height: 1.55;
+}
+
+.ask__para,
+.ask__quote,
+.ask__table {
+  margin: 0 0 10px;
+}
+
+.ask__heading {
+  font-size: var(--text-section);
+  font-weight: 600;
+  margin: 14px 0 6px;
+}
+
+.ask__rule {
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  margin: 12px 0;
+}
+
+.ask__quote {
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-2);
+  padding-left: 10px;
+  white-space: pre-line;
+}
+
+.ask__table,
+.ask__code {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono);
+  white-space: pre-wrap;
+}
+
+.ask__code {
+  background: var(--well);
+  border-radius: var(--radius-control);
+  margin: 0 0 10px;
+  overflow-x: auto;
+  padding: 8px 10px;
+}
+
+.ask__inline-code {
+  background: var(--code-bg);
+  border-radius: var(--radius-chip);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  padding: 0 3px;
+}
+
+.ask__list {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.ask__item {
+  margin: 0 0 4px;
+}
+
+.ask__item[data-ordered] {
+  list-style: none;
+}
+
+.ask__marker {
+  color: var(--ink-3);
+  margin-right: 6px;
+  margin-left: -18px;
+}
+
+/* A citation: a muted pastel chip that opens the note at its block. */
+.ask__cite {
+  background: var(--pill);
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--pill-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-meta);
+  margin: 0 2px;
+  padding: 0 6px;
+  vertical-align: 1px;
+}
+
+.ask__cite:hover {
+  text-decoration: underline;
+}
+
+.ask__cite:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.ask__web {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+}
+
+/* Says something and cites nothing: a faint rule at its side and a quiet word after it. */
+[data-uncited] {
+  box-shadow: inset 2px 0 0 var(--line-strong);
+  padding-left: 8px;
+}
+
+.ask__item[data-uncited] {
+  box-shadow: none;
+  padding-left: 0;
+}
+
+.ask__uncited,
+.ask__uncited-count {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.ask__uncited {
+  margin-left: 6px;
+}
+
+.ask__foot {
+  align-items: center;
+  opacity: 1;
+}
+
+.ask__uncited-count {
+  margin-right: auto;
+}
+
+.ask__thinking {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  margin: 0;
+}

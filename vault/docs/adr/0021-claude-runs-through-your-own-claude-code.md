@@ -201,6 +201,32 @@ The conversation sent with each question is trimmed: the latest six tool
 results go in full, and each older one is cut to its first 400 characters with
 a note of how much was left out (`trimTranscript`).
 
+### Ask: the chat as a page, and every answer read for citations (#37)
+
+⌘J opens **Ask**, a page of its own like Today or the Library, with the
+question box focused; ⌘J on Ask goes back to where you were, as Back would
+(`askShortcut`). ⇧⌘J opens the same chat beside the work in the right
+sidebar. Ask and the sidebar draw one chat session, so a question asked on
+one is still there on the other, and chats stay notes in `Chats/` — Ask lists
+the latest of them as its recent questions.
+
+Each answer is read for citations by a pure domain rule (`citeAnswer`): every
+paragraph, list item, quote and table must hold a wiki link — `[[Note]]`,
+`[[Note#^id]]` or an embed — that is not in code or escaped, read as the
+editor reads links (`scanMarkdown`). Headings, rules and fenced code are
+exempt, and so is a line ending in `:` that leads into the list under it. A
+web address is not a citation. A block that cites nothing is shown whole and
+marked "not cited", never hidden; an answer still arriving, and what the model
+says on its way to a tool, are not marked. The system prompt asks for a link
+on every paragraph, so the marker is the exception it was told about.
+
+An answer is never drawn as HTML. It is cut into blocks and pieces in the
+domain, and the page draws text as text: a citation is a chip that follows
+its link through the app's own link following — at the block, or into the
+reader for a highlight; ⌘-click opens a new tab — and only an `https://`
+address with a host is a web link, opened in the browser. Any other markdown
+link stays the text it was written as.
+
 ## Consequences
 
 - Nothing new holds a credential. Logging out of Claude Code logs Atlas out.

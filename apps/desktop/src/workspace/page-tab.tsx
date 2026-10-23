@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from 'react';
 import type { PagePlace, Tab, TabId } from '@dfai/domain';
 import { ActivityContainer } from '../activity/activity-container.tsx';
+import { AskContainer } from '../ask/ask-container.tsx';
 import { ArchiveContainer } from '../archive/archive-container.tsx';
 import { AutomationsContainer } from '../automations/automations-container.tsx';
 import { GraphContainer } from '../graph/graph-container.tsx';
@@ -114,6 +115,8 @@ function containerFor({
       return <LibraryContainer {...props} />;
     case 'highlights':
       return <HighlightsContainer {...props} />;
+    case 'ask':
+      return <AskContainer {...props} />;
     case 'document':
       return <DocumentContainer {...props} path={place.path} />;
   }

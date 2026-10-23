@@ -39,3 +39,8 @@ export { FULL_TOOL_RESULTS, SUMMARY_CHARACTERS, trimTranscript } from './trim-tr
 export { ownerSection } from './owner-section.ts';
 export { CHAT_READ_TOOLS, isChatReadTool } from './read-tool-names.ts';
 export type { ChatReadTool } from './read-tool-names.ts';
+export { citeAnswer, uncitedCount } from './answer-citations.ts';
+export type { AnswerBlock, AnswerCitation } from './answer-citations.ts';
+export type { AnswerBlockKind } from './answer-blocks.ts';
+export { isWebAddress } from './answer-inline.ts';
+export type { AnswerInline } from './answer-inline.ts';

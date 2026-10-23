@@ -140,7 +140,7 @@ function ChatBar({
         type="button"
         className="icon-button"
         aria-label="Close Claude"
-        title="Close (⌘J)"
+        title="Close (⇧⌘J)"
         onClick={actions.onClose}
       >
         <Icon name="close" size={15} />
@@ -169,7 +169,8 @@ function ChatHistory({ history }: { history: ChatHistoryView }) {
   );
 }
 
-function ProblemNotice({
+/** Why the model cannot be reached, and the command that fixes it, with a way to copy it. */
+export function ProblemNotice({
   problem,
   onCopy,
 }: {
@@ -267,16 +268,20 @@ export interface ChatDraft {
   readonly onChange: (text: string) => void;
 }
 
-function Composer({
+/** The box a question is typed in, with Send (or Stop) and the chip of what the chat knows. */
+export function Composer({
   state,
   actions,
   draft: kept,
   focusOnMount,
+  rows = 2,
 }: {
-  state: ChatPanelState;
-  actions: ChatActions;
+  state: Pick<ChatPanelState, 'busy' | 'context'>;
+  actions: Pick<ChatActions, 'onSend' | 'onStop' | 'onRemoveContext'>;
   draft?: ChatDraft;
   focusOnMount: boolean;
+  /** How tall the box starts: Ask's is bigger than the sidebar's. */
+  rows?: number;
 }) {
   const [own, setOwn] = useState('');
   const draft = kept?.text ?? own;
@@ -320,7 +325,7 @@ function Composer({
         <textarea
           ref={box}
           value={draft}
-          rows={2}
+          rows={rows}
           aria-label="Ask Claude"
           placeholder="Ask Claude…"
           onChange={(event) => setDraft(event.currentTarget.value)}
