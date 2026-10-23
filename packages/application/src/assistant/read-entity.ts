@@ -42,7 +42,7 @@ export interface AssistantEntity {
 export async function readAssistantEntity({
   fs,
   markdown,
-  path,
+  path: asked,
   notePaths,
   types,
   tool,
@@ -54,7 +54,8 @@ export async function readAssistantEntity({
   types: readonly ObjectType[];
   tool: AssistantTool;
 }): Promise<AssistantEntity> {
-  if (!notePaths.includes(path)) throw new AssistantEntityError('not_found', `No note at ${path}`);
+  const path = spelledAsNotes(asked, notePaths);
+  if (path === null) throw new AssistantEntityError('not_found', `No note at ${asked}`);
   const text = await readText(fs, path);
   const frontmatter = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
   const type = noteTypeName(frontmatter);
@@ -78,6 +79,17 @@ export async function readAssistantEntity({
     status: typeof status === 'string' ? status : null,
     frontmatter,
   };
+}
+
+/**
+ * The note `asked` names, as the vault spells it: macOS hands a name out
+ * decomposed (`e` and an accent) where the note is composed, and the same
+ * name is one name (A21-02). Null when no note has it.
+ */
+function spelledAsNotes(asked: VaultPath, notePaths: readonly VaultPath[]): VaultPath | null {
+  if (notePaths.includes(asked)) return asked;
+  const composed = asked.normalize('NFC');
+  return notePaths.find((note) => note.normalize('NFC') === composed) ?? null;
 }
 
 async function readText(fs: VaultFsPort, path: VaultPath): Promise<string> {

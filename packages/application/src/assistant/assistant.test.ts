@@ -80,7 +80,7 @@ describe('readOpenLoops', () => {
       type: 'project',
       cite: { link: '[[Payroll Migration]]', kind: 'note', path: MIGRATION },
     });
-    expect(loops.today).toBe(ASSISTANT_TODAY);
+    expect(loops.date).toBe(ASSISTANT_TODAY);
     expect(paths(loops.openTasks)).toEqual(['Tasks/Draft the plan.md']);
     expect(loops.openTasks[0]).toMatchObject({
       status: 'next-action',
@@ -99,6 +99,9 @@ describe('readOpenLoops', () => {
     // Made from the kickoff, filed under no project: found through the meeting.
     expect(paths(loops.followUps)).toEqual(['Tasks/Chase the bank.md']);
     expect(loops.followUps[0]?.source).toEqual(block('[[Kickoff#^t0004]]', KICKOFF));
+    // It names no person, so it is the owner's to chase: it says it came through the kickoff.
+    expect(loops.followUps[0]).toMatchObject({ via: 'meeting' });
+    expect(loops.followUps[0]?.meeting?.cite.link).toBe('[[Kickoff]]');
     expect(loops.truncated).toBe(false);
     expect(loops.problems).toEqual([]);
     expectEveryItemCited(loops);
@@ -174,6 +177,21 @@ describe('readBrief', () => {
     );
   });
 
+  it('counts recent mentions and how long a waiting-for has waited from the day asked, not from today', async () => {
+    const vault = assistantVault();
+    // The runbook changed 2 days ago: not yet written 20 days ago, so not a mention then.
+    const then = await readBrief({ ...vault, path: at(MARA), date: daysAgo(20) });
+    expect(paths(then.mentions)).toEqual([]);
+    const now = await readBrief({ ...vault, path: at(MARA), date: null });
+    expect(paths(now.mentions)).toEqual(['Resources/Payroll runbook.md']);
+    // "Send the contract" last changed 9 days ago: it had waited 7 days as of 2 days ago, and 9 now.
+    const earlier = await readBrief({ ...vault, path: at(MIGRATION), date: daysAgo(2) });
+    const later = await readBrief({ ...vault, path: at(MIGRATION), date: null });
+    const waited = (brief: typeof later) =>
+      brief.waitingFor.find((task) => task.path === 'Tasks/Send the contract.md')?.waitingDays;
+    expect([waited(earlier), waited(later)]).toEqual([7, 9]);
+  });
+
   it('briefs a project with its decisions, each citing the turn it came from', async () => {
     const vault = assistantVault();
     const brief = await readBrief({ ...vault, path: at(MIGRATION), date: null });
@@ -231,7 +249,7 @@ describe('readBrief', () => {
 describe('readMeetingQuotes', () => {
   const ask = (
     vault = assistantVault(),
-    more: Partial<{ since: string; about: string; limit: number }> = {},
+    more: Partial<{ since: string; until: string; about: string; limit: number }> = {},
     path = MARA,
     finder?: PassageFinder,
   ) =>
@@ -239,16 +257,22 @@ describe('readMeetingQuotes', () => {
       ...vault,
       finder: finder ?? indexPassageFinder(vault.reads.index),
       path: at(path),
-      asked: { since: more.since ?? null, about: more.about ?? null, limit: more.limit ?? 10 },
+      asked: {
+        since: more.since ?? null,
+        until: more.until ?? null,
+        about: more.about ?? null,
+        limit: more.limit ?? 10,
+      },
     });
 
   it('quotes what a person said about something, by any of their names, each turn cited by its block', async () => {
     const vault = assistantVault();
     const said = await ask(vault, { about: 'bank file', since: daysAgo(30) });
     expect(said.speakers).toEqual(['Mara Quill', 'MQ']);
-    // The meeting dated ahead holds the words too: what a file says was said is listed.
-    expect(paths(said.meetings)).toEqual(['Meetings/Later.md', KICKOFF]);
-    expect(said.meetings[1]?.quotes).toEqual([
+    // The meeting dated ahead holds the words too, but has not been held: not listed by default.
+    expect(paths(said.meetings)).toEqual([KICKOFF]);
+    expect(said.until).toBe(ASSISTANT_TODAY);
+    expect(said.meetings[0]?.quotes).toEqual([
       {
         speaker: 'Mara Quill',
         time: '00:00:05',
@@ -293,8 +317,28 @@ describe('readMeetingQuotes', () => {
 
   it('lists a person’s meetings since a day with all they said, newest first, without about', async () => {
     const said = await ask(assistantVault(), { since: daysAgo(30) });
-    expect(paths(said.meetings)).toEqual(['Meetings/Later.md', CUTOVER, KICKOFF]);
-    expect(said.meetings.map((meeting) => meeting.matched)).toEqual([1, 1, 2]);
+    expect(paths(said.meetings)).toEqual([CUTOVER, KICKOFF]);
+    expect(said.meetings.map((meeting) => meeting.matched)).toEqual([1, 2]);
+  });
+
+  it('lists a meeting still to come only when `until` reaches it', async () => {
+    const files = {
+      ...ASSISTANT_FILES,
+      'Meetings/Next month.md': jsonNote(
+        { type: 'meeting', date: daysAgo(-30), people: ['[[Mara Quill]]'] },
+        '## Transcript\n\n**Mara Quill** The bank file will be late. ^t0001',
+      ),
+    };
+    const byDefault = await ask(assistantVault({ files }), { since: daysAgo(30) });
+    expect(paths(byDefault.meetings)).toEqual([CUTOVER, KICKOFF]);
+    const reaching = await ask(assistantVault({ files }), {
+      since: daysAgo(30),
+      until: daysAgo(-10),
+    });
+    expect(paths(reaching.meetings)).toEqual(['Meetings/Later.md', CUTOVER, KICKOFF]);
+    expect(reaching.until).toBe(daysAgo(-10));
+    const only = await ask(assistantVault({ files }), { until: daysAgo(5), since: daysAgo(30) });
+    expect(paths(only.meetings)).toEqual([KICKOFF]);
   });
 
   it('quotes everyone in a company’s meetings about something, and nobody without about', async () => {
@@ -315,7 +359,7 @@ describe('readMeetingQuotes', () => {
     const semantic: PassageFinder = {
       find: async ({ within }) => {
         expect(within).toContain(KICKOFF);
-        return [{ path: KICKOFF, blocks: ['t0003'] }];
+        return { passages: [{ path: KICKOFF, blocks: ['t0003'] }], complete: true };
       },
     };
     const said = await ask(assistantVault(), { about: 'contingency' }, MARA, semantic);
@@ -339,7 +383,7 @@ describe('readMeetingQuotes', () => {
     const all = await ask(assistantVault({ files }));
     expect(paths(all.meetings)).toContain('Meetings/Undated.md');
     const since = await ask(assistantVault({ files }), { since: daysAgo(5) });
-    expect(paths(since.meetings)).toEqual(['Meetings/Later.md', CUTOVER]);
+    expect(paths(since.meetings)).toEqual([CUTOVER]);
   });
 
   it('says there were more meetings than the limit', async () => {

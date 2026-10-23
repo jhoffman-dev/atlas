@@ -77,6 +77,7 @@ export async function readLinkedPage({
   ranges = {},
   only = null,
   asWritten = false,
+  recentOn = null,
 }: {
   index: IndexPort;
   clock: Pick<Clock, 'today'>;
@@ -97,6 +98,8 @@ export async function readLinkedPage({
    * that reads them rather than draws them; as their labels when false.
    */
   asWritten?: boolean;
+  /** The day "recent" counts back from, `YYYY-MM-DD`; the index's today when null. */
+  recentOn?: string | null;
 }): Promise<LinkedSection[]> {
   const plans = linkedSectionPlans(typeName, types).filter(
     (plan) => only === null || only.includes(plan.id),
@@ -110,6 +113,7 @@ export async function readLinkedPage({
         asked: { index, types, notePaths, notePath },
         today,
         asWritten,
+        recentOn,
       }),
     ),
   );
@@ -140,6 +144,7 @@ async function readSection({
   asked,
   today,
   asWritten,
+  recentOn,
 }: {
   plan: LinkedSectionPlan;
   range: LinkedRange | null;
@@ -151,9 +156,10 @@ async function readSection({
   };
   today: string;
   asWritten: boolean;
+  recentOn: string | null;
 }): Promise<ReadSection> {
   const head = { id: plan.id, title: plan.title, range, hint: null };
-  const text = range === 'recent' && plan.recentQuery !== null ? plan.recentQuery : plan.query;
+  const text = queryText({ plan, range, recentOn });
   try {
     const answer = await runAtlasQuery({ ...asked, text, thisNote: asked.notePath });
     const types = asWritten ? null : asked.types;
@@ -168,6 +174,22 @@ async function readSection({
     const unanswered = { fields: [], rows: [], groups: [], truncated: false };
     return { section: { ...head, ...unanswered, problem: cause.message }, groupedBy: null };
   }
+}
+
+/** The query for the range: the whole list, or the recent part counted from `recentOn` when given. */
+function queryText({
+  plan,
+  range,
+  recentOn,
+}: {
+  plan: LinkedSectionPlan;
+  range: LinkedRange | null;
+  recentOn: string | null;
+}): string {
+  if (range !== 'recent' || plan.recentQuery === null) return plan.query;
+  return recentOn !== null && plan.recentQueryOn !== null
+    ? plan.recentQueryOn(recentOn)
+    : plan.recentQuery;
 }
 
 /** The answer as the section draws it: its rows, the columns worth a glance, and its groups. */

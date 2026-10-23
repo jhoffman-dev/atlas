@@ -24,7 +24,7 @@ import { readAssistantEntity } from './read-entity.ts';
 export interface AssistantOpenLoops extends OpenLoops {
   readonly entity: CitedEntity;
   /** The day it was read, `YYYY-MM-DD`: what `overdue` and `waitingDays` are counted to. */
-  readonly today: string;
+  readonly date: string;
   readonly problems: readonly SectionProblem[];
 }
 
@@ -51,27 +51,37 @@ export async function readOpenLoops({
     ...reads,
     clock,
     asWritten: true,
-    notePath: path,
+    notePath: entity.path,
     typeName: entity.type,
     projectStatus: entity.status,
     ranges: { meetings: 'all' },
     only: ['tasks', 'waiting', 'meetings'],
   });
-  const today = clock.today();
+  const date = clock.today();
   const status = taskStatusWords(reads.types);
-  const [context, followUps] = await Promise.all([
-    itemContext({ reads, sourcePaths: rowPaths(sections, ['tasks', 'waiting']), day: today }),
-    followUpsAround({
-      ...reads,
-      around: [path, ...rowPaths(sections, ['meetings'])],
-      status,
-    }),
-  ]);
-  const loops = openLoopsOf({ sections, followUps, status: status ?? NO_STATUS, context });
+  const followUps = await followUpsAround({
+    ...reads,
+    entity: entity.path,
+    meetings: rowPaths(sections, ['meetings']),
+    status,
+  });
+  const cited = await itemContext({
+    reads,
+    sourcePaths: rowPaths(sections, ['tasks', 'waiting']),
+    followUps: followUps.value,
+    day: date,
+  });
+  const { value: context } = cited;
+  const loops = openLoopsOf({
+    sections,
+    followUps: followUps.value,
+    status: status ?? NO_STATUS,
+    context,
+  });
   return {
     entity: citedEntity(entity, context),
-    today,
+    date,
     ...loops,
-    problems: problemsOf(sections),
+    problems: [...problemsOf(sections), ...followUps.problems, ...cited.problems],
   };
 }

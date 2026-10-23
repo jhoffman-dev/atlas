@@ -2,10 +2,12 @@ import {
   aboutWords,
   createVaultPath,
   datedNote,
+  isVaultOwner,
   linkingAmong,
   meetingQuotes,
   meetingTurnsOf,
   namesOf,
+  noteTitle,
   speaksInMeetings,
   type DatedNote,
   type ItemContext,
@@ -18,6 +20,7 @@ import type { Clock } from '../ports.ts';
 import { readLinkedPage } from '../linked-pages/read-linked-page.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import {
+  askedOrProblem,
   citedEntity,
   problemsOf,
   type AssistantReads,
@@ -38,12 +41,14 @@ export interface QuotedMeeting extends DatedNote {
   readonly matched: number;
 }
 
-/** `meetings(entity, since, about)`: a page's meetings, with who said what in them. */
+/** `meetings(entity, since, until, about)`: a page's meetings, with who said what in them. */
 export interface AssistantMeetings {
   readonly entity: CitedEntity;
   readonly since: string | null;
+  /** The last day a meeting may be dated: the day asked for, else the app's today. */
+  readonly until: string;
   readonly about: string | null;
-  /** The names a person's turns were matched by — the title and aliases; null for a page that does not speak. */
+  /** The names a person's turns were matched by — the title, file name and aliases; null for a page that does not speak. */
   readonly speakers: readonly string[] | null;
   /** Newest first. With `about`, only meetings where a wanted turn was found. */
   readonly meetings: readonly QuotedMeeting[];
@@ -54,17 +59,22 @@ export interface AssistantMeetings {
 
 interface Asked {
   readonly since: string | null;
+  /** Meetings dated after this are left out; the app's today when null. */
+  readonly until?: string | null;
   readonly about: string | null;
   readonly limit: number;
 }
 
 /**
  * A Person's, Company's, Project's or Area's meetings (P32-04), as its
- * linked page lists them, on or after `since`, each with the turns that
- * answer the question: a person's own turns, and — with `about` — only the
- * turns holding it, in meetings the `finder` found it in. Only the meetings
- * answered are read from the vault, at most {@link MEETINGS_READ_CAP};
- * nothing is written.
+ * linked page lists them, dated from `since` to `until` (the app's today
+ * unless asked: a meeting on the calendar is not yet one that was held), each
+ * with the turns that answer the question: a person's own turns — `You`
+ * among them when the person is the vault's owner — and, with `about`, only
+ * the turns holding it, in meetings the `finder` found it in. Only the
+ * meetings answered are read from the vault, at most {@link MEETINGS_READ_CAP};
+ * a page that does not speak and is asked about nothing reads none.
+ * Nothing is written.
  */
 export async function readMeetingQuotes({
   reads,
@@ -72,42 +82,93 @@ export async function readMeetingQuotes({
   finder,
   path,
   asked,
+  selfName = null,
 }: {
   reads: AssistantReads;
   clock: Pick<Clock, 'today'>;
   finder: PassageFinder;
   path: VaultPath;
   asked: Asked;
+  /** The vault owner's name from the profile: whose `You` turns are the owner's own. */
+  selfName?: string | null;
 }): Promise<AssistantMeetings> {
   const entity = await readAssistantEntity({ ...reads, path, tool: 'meetings' });
   const sections = await readLinkedPage({
     ...reads,
     clock,
     asWritten: true,
-    notePath: path,
+    notePath: entity.path,
     typeName: entity.type,
     ranges: { meetings: 'all' },
     only: ['meetings'],
   });
-  const context = { ...linkingAmong(reads.notePaths), sources: new Map(), day: clock.today() };
+  const today = clock.today();
+  const until = asked.until ?? today;
+  // Meetings cite no `source`, so no block is looked up.
+  const context = {
+    ...linkingAmong(reads.notePaths),
+    sources: new Map<string, string>(),
+    hasBlock: () => false,
+    day: today,
+  };
   const listed = sections.flatMap((section) => section.rows).map((row) => datedNote(row, context));
-  const inRange = listed.filter((meeting) => since(meeting, asked.since));
-  const speakers = speaksInMeetings(entity.type) ? namesOf(entity.title, entity.frontmatter) : null;
-  const answered = await quotedMeetings({ reads, finder, inRange, speakers, asked, context });
+  const inRange = newestFirst(
+    listed.filter((meeting) =>
+      within({ meeting, since: asked.since, until: asked.until ?? null, today }),
+    ),
+  );
+  const speakers = speaksInMeetings(entity.type)
+    ? namesOf(entity.title, entity.frontmatter, noteTitle(entity.path))
+    : null;
+  const answered = await quotedMeetings({
+    reads,
+    finder,
+    inRange,
+    speakers,
+    includesSelf: speakers !== null && isVaultOwner(speakers, selfName),
+    asked,
+    context,
+  });
   return {
     entity: citedEntity(entity, context),
     since: asked.since,
+    until,
     about: asked.about,
     speakers,
     meetings: answered.meetings,
     truncated: answered.truncated || sections.some((section) => section.truncated),
-    problems: problemsOf(sections),
+    problems: [...problemsOf(sections), ...answered.problems],
   };
 }
 
-/** On or after the day; with no day, every meeting. An undated one cannot be said to be after it. */
-function since(meeting: DatedNote, day: string | null): boolean {
-  return day === null || (meeting.date !== null && meeting.date >= day);
+/**
+ * Whether a meeting is dated within the days asked. An undated one cannot be
+ * said to be after `since` or before an `until` that was asked for; with no
+ * `until` asked, only the app's today bounds a dated meeting.
+ */
+function within({
+  meeting,
+  since,
+  until,
+  today,
+}: {
+  meeting: DatedNote;
+  since: string | null;
+  until: string | null;
+  today: string;
+}): boolean {
+  if (meeting.date === null) return since === null && until === null;
+  return (since === null || meeting.date >= since) && meeting.date <= (until ?? today);
+}
+
+/** Newest first, an undated meeting after the dated ones; meetings of one day keep the order given. */
+function newestFirst(meetings: readonly DatedNote[]): DatedNote[] {
+  return [...meetings].sort((left, right) => {
+    if (left.date === right.date) return 0;
+    if (left.date === null) return 1;
+    if (right.date === null) return -1;
+    return left.date < right.date ? 1 : -1;
+  });
 }
 
 interface Quoting {
@@ -115,28 +176,39 @@ interface Quoting {
   readonly finder: PassageFinder;
   readonly inRange: readonly DatedNote[];
   readonly speakers: readonly string[] | null;
+  readonly includesSelf: boolean;
   readonly asked: Asked;
   readonly context: ItemContext;
 }
 
+interface Quoted {
+  readonly meetings: QuotedMeeting[];
+  /** More meetings matched than were read or listed. */
+  readonly truncated: boolean;
+  readonly problems: readonly SectionProblem[];
+}
+
 /** The meetings answered, newest first, and whether more matched than were read or listed. */
-async function quotedMeetings(quoting: Quoting): Promise<{
-  meetings: QuotedMeeting[];
-  truncated: boolean;
-}> {
+async function quotedMeetings(quoting: Quoting): Promise<Quoted> {
   const { asked, inRange } = quoting;
   if (asked.about === null) {
     const read = await readQuoted(quoting, inRange.slice(0, asked.limit), () => null);
-    return { meetings: read, truncated: inRange.length > asked.limit };
+    return { meetings: read, truncated: inRange.length > asked.limit, problems: [] };
   }
   const words = aboutWords(asked.about);
-  if (words === null) return { meetings: [], truncated: false };
-  const found = await quoting.finder.find({
-    about: asked.about,
-    within: inRange.map((meeting) => meeting.path),
-    limit: MEETINGS_READ_CAP,
+  if (words === null) return { meetings: [], truncated: false, problems: [] };
+  const found = await askedOrProblem({
+    part: 'search',
+    fallback: { passages: [], complete: false },
+    ask: () =>
+      quoting.finder.find({
+        about: asked.about ?? '',
+        within: inRange.map((meeting) => meeting.path),
+        limit: inRange.length,
+      }),
   });
-  const byPath = new Map(found.map((passage) => [passage.path, passage]));
+  const byPath = new Map(found.value.passages.map((passage) => [passage.path, passage]));
+  // Newest first, as the meetings were given: the ones to read are the newest holding `about`, not the best ranked.
   const candidates = inRange.filter((meeting) => byPath.has(meeting.path));
   const read = await readQuoted(quoting, candidates, (meeting) =>
     passageFilter(byPath.get(meeting.path), words),
@@ -144,7 +216,11 @@ async function quotedMeetings(quoting: Quoting): Promise<{
   const answered = read.filter((meeting) => meeting.quotes.length > 0);
   return {
     meetings: answered.slice(0, asked.limit),
-    truncated: answered.length > asked.limit || candidates.length > MEETINGS_READ_CAP,
+    truncated:
+      answered.length > asked.limit ||
+      candidates.length > MEETINGS_READ_CAP ||
+      !found.value.complete,
+    problems: found.problems,
   };
 }
 
@@ -160,22 +236,26 @@ function passageFilter(
 
 /** Reads each meeting — at most {@link MEETINGS_READ_CAP} — and quotes the turns its filter wants. */
 async function readQuoted(
-  { reads, speakers, context }: Quoting,
+  { reads, speakers, includesSelf, context }: Quoting,
   meetings: readonly DatedNote[],
   about: (meeting: DatedNote) => Pick<TurnFilter, 'words' | 'blocks'> | null,
 ): Promise<QuotedMeeting[]> {
   return Promise.all(
     meetings.slice(0, MEETINGS_READ_CAP).map(async (meeting) => {
+      const filter: TurnFilter = {
+        speakers,
+        includesSelf,
+        words: null,
+        blocks: null,
+        ...about(meeting),
+      };
+      // A page that does not speak, asked nothing about, lists the meeting unread: every turn is no answer.
+      if (filter.speakers === null && filter.words === null && filter.blocks === null) {
+        return { ...meeting, quotes: [], matched: 0 };
+      }
       const path = createVaultPath(meeting.path);
       const turns = await turnsOf(reads, path);
-      const filter: TurnFilter = { speakers, words: null, blocks: null, ...about(meeting) };
-      // A page that does not speak, asked nothing about, is listed without quotes: every turn is no answer.
-      const asksNothing =
-        filter.speakers === null && filter.words === null && filter.blocks === null;
-      const quoted = asksNothing
-        ? { quotes: [], matched: 0 }
-        : meetingQuotes({ path, turns, filter, targetOf: context.targetOf });
-      return { ...meeting, ...quoted };
+      return { ...meeting, ...meetingQuotes({ path, turns, filter, targetOf: context.targetOf }) };
     }),
   );
 }

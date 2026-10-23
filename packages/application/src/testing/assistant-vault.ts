@@ -280,5 +280,7 @@ export function assistantApi(): { api: ApiFixture; asked: string[] } {
       search: ftsSearch(files),
     },
   });
+  // The app's clock agrees with the index's: a meeting is "held" by the same today.
+  api.today = ASSISTANT_TODAY;
   return { api, asked };
 }

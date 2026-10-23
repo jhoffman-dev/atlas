@@ -1,8 +1,8 @@
 /**
  * The assistant's tools on a 5,000-note vault (P32-04): each answers from a
  * bounded number of index statements and reads only the notes it answers
- * with — never the vault — and does so fast. Times are generous ceilings
- * for a loaded CI machine; the counts are the real bar.
+ * with — never the vault. The counts are the bar; wall-clock time is not
+ * asserted, since it would make the test depend on the machine running it.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -66,12 +66,6 @@ function bigVault(): Record<string, string> {
   return files;
 }
 
-async function timed<Answer>(read: () => Promise<Answer>): Promise<{ answer: Answer; ms: number }> {
-  const started = performance.now();
-  const answer = await read();
-  return { answer, ms: performance.now() - started };
-}
-
 describe('the assistant on a 5,000-note vault', () => {
   const files = bigVault();
   const vault = assistantVault({ files, modified: {} });
@@ -84,68 +78,50 @@ describe('the assistant on a 5,000-note vault', () => {
   it('briefs a person from a bounded number of statements, reading one note', async () => {
     vault.read.length = 0;
     vault.asked.length = 0;
-    const { answer, ms } = await timed(() => readBrief({ ...vault, path: mara, date: null }));
-    console.log(
-      `brief: ${ms.toFixed(0)} ms, ${vault.asked.length} statements, ${vault.read.length} reads`,
-    );
+    const answer = await readBrief({ ...vault, path: mara, date: null });
     expect(answer.meetings.length).toBeGreaterThan(0);
     expect(answer.followUps.length).toBeGreaterThan(0);
     expect(vault.read).toEqual([MARA]);
     expect(vault.asked.length).toBeLessThanOrEqual(12);
-    expect(ms).toBeLessThan(3_000);
   });
 
   it('lists a project’s open loops from a bounded number of statements, reading one note', async () => {
     vault.read.length = 0;
     vault.asked.length = 0;
-    const { answer, ms } = await timed(() =>
-      readOpenLoops({ ...vault, path: createVaultPath(MIGRATION) }),
-    );
-    console.log(
-      `open loops: ${ms.toFixed(0)} ms, ${vault.asked.length} statements, ${vault.read.length} reads`,
-    );
+    const answer = await readOpenLoops({ ...vault, path: createVaultPath(MIGRATION) });
     expect(answer.openTasks.length).toBeGreaterThan(0);
     expect(answer.truncated).toBe(true);
     expect(vault.read).toEqual([MIGRATION]);
     expect(vault.asked.length).toBeLessThanOrEqual(6);
-    expect(ms).toBeLessThan(3_000);
   });
 
   it('quotes what was said about something, reading only the meetings search found, never more than its cap', async () => {
     vault.read.length = 0;
     vault.asked.length = 0;
-    const { answer, ms } = await timed(() =>
-      readMeetingQuotes({
-        ...vault,
-        finder: indexPassageFinder(vault.reads.index),
-        path: mara,
-        asked: { since: null, about: 'bank file', limit: 10 },
-      }),
-    );
-    console.log(`meetings(about): ${ms.toFixed(0)} ms, ${vault.read.length} reads`);
+    const answer = await readMeetingQuotes({
+      ...vault,
+      finder: indexPassageFinder(vault.reads.index),
+      path: mara,
+      asked: { since: null, about: 'bank file', limit: 10 },
+    });
     expect(answer.meetings.length).toBeGreaterThan(0);
     // Mara's own turns hold "ledger", never "bank file": only her kickoff turns answer.
     expect(
       answer.meetings.flatMap((meeting) => meeting.quotes.map((q) => q.speaker)),
     ).not.toContain('Tobias Fenn');
     expect(vault.read.length).toBeLessThanOrEqual(MEETINGS_READ_CAP + 1);
-    expect(ms).toBeLessThan(3_000);
   });
 
   it('lists a person’s meetings since a day, reading no more than the limit', async () => {
     vault.read.length = 0;
-    const { answer, ms } = await timed(() =>
-      readMeetingQuotes({
-        ...vault,
-        finder: indexPassageFinder(vault.reads.index),
-        path: mara,
-        asked: { since: daysAgo(60), about: null, limit: 20 },
-      }),
-    );
-    console.log(`meetings(since): ${ms.toFixed(0)} ms, ${vault.read.length} reads`);
+    const answer = await readMeetingQuotes({
+      ...vault,
+      finder: indexPassageFinder(vault.reads.index),
+      path: mara,
+      asked: { since: daysAgo(60), about: null, limit: 20 },
+    });
     expect(answer.meetings).toHaveLength(20);
     expect(answer.truncated).toBe(true);
     expect(vault.read).toHaveLength(21);
-    expect(ms).toBeLessThan(3_000);
   });
 });

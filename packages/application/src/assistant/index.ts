@@ -1,5 +1,5 @@
 export { indexPassageFinder, PASSAGE_SEARCH_CAP } from './index-passage-finder.ts';
-export type { FoundPassage, PassageFinder, PassageQuestion } from './ports.ts';
+export type { FoundPassage, FoundPassages, PassageFinder, PassageQuestion } from './ports.ts';
 export { AssistantEntityError } from './read-entity.ts';
 export type { AssistantEntity } from './read-entity.ts';
 export type { AssistantReads, CitedEntity, SectionProblem } from './assistant-reads.ts';

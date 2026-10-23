@@ -5,7 +5,19 @@
  * once it is there, and can say which block of a note matched.
  */
 export interface PassageFinder {
-  find(asked: PassageQuestion): Promise<readonly FoundPassage[]>;
+  find(asked: PassageQuestion): Promise<FoundPassages>;
+}
+
+/** What a finder found, and whether that is every note of `within` that holds `about`. */
+export interface FoundPassages {
+  /** Best first. */
+  readonly passages: readonly FoundPassage[];
+  /**
+   * False when the finder stopped looking before it had covered `within` —
+   * its search ranks the whole vault and gives up at a depth — or found more
+   * than `limit`: a note that holds `about` may be missing.
+   */
+  readonly complete: boolean;
 }
 
 export interface PassageQuestion {

@@ -60,7 +60,7 @@ export async function readBrief({
 }): Promise<AssistantBrief> {
   const entity = await readAssistantEntity({ ...reads, path, tool: 'brief' });
   const day = date ?? clock.today();
-  const sections = await pageSections(reads, clock, entity);
+  const sections = await pageSections({ reads, clock, entity, day });
   const last = lastMeetingRow(sections, day);
   const lastSections =
     last === null ? [] : await meetingSections(reads, clock, createVaultPath(last.path));
@@ -69,12 +69,21 @@ export async function readBrief({
     ...rowPaths(sections, ['tasks', 'waiting', 'decisions']),
     ...rowPaths(lastSections, ['tasks']),
   ];
-  const [context, followUps] = await Promise.all([
-    itemContext({ reads, sourcePaths: sourced, day }),
-    followUpsAround({ ...reads, around: [path, ...rowPaths(sections, ['meetings'])], status }),
-  ]);
+  const followUps = await followUpsAround({
+    ...reads,
+    entity: entity.path,
+    meetings: rowPaths(sections, ['meetings']),
+    status,
+  });
+  const cited = await itemContext({
+    reads,
+    sourcePaths: sourced,
+    followUps: followUps.value,
+    day,
+  });
+  const { value: context } = cited;
   const words = status ?? NO_STATUS;
-  const loops = openLoopsOf({ sections, followUps, status: words, context });
+  const loops = openLoopsOf({ sections, followUps: followUps.value, status: words, context });
   const parts = briefPartsOf({
     sections,
     lastMeetingSections: lastSections,
@@ -87,16 +96,27 @@ export async function readBrief({
     ...loops,
     ...parts,
     truncated: loops.truncated || parts.truncated,
-    problems: problemsOf([...sections, ...lastSections]),
+    problems: [
+      ...problemsOf([...sections, ...lastSections]),
+      ...followUps.problems,
+      ...cited.problems,
+    ],
   };
 }
 
 /** Every section of the page: its meetings and decisions all, its linked notes the recent ones. */
-function pageSections(
-  reads: AssistantReads,
-  clock: Pick<Clock, 'today'>,
-  entity: AssistantEntity,
-): Promise<LinkedSection[]> {
+function pageSections({
+  reads,
+  clock,
+  entity,
+  day,
+}: {
+  reads: AssistantReads;
+  clock: Pick<Clock, 'today'>;
+  entity: AssistantEntity;
+  /** The day the brief is for: "recent" counts back from it, not from today. */
+  day: string;
+}): Promise<LinkedSection[]> {
   return readLinkedPage({
     ...reads,
     clock,
@@ -105,6 +125,7 @@ function pageSections(
     typeName: entity.type,
     projectStatus: entity.status,
     ranges: { meetings: 'all', decisions: 'all', notes: 'recent' },
+    recentOn: day,
   });
 }
 
