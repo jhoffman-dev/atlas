@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { expect, test, type Page } from './fixtures.ts';
 import { caretAtLineStart } from './caret.ts';
 import {
@@ -170,4 +170,34 @@ test('text dropped on a comment field does not land in the note', async ({ page 
   });
   await expect(editor.locator('p', { hasText: 'Dropped words.' })).toHaveCount(0);
   expect(await vault.read('Library/Brightwater.md')).toBe(BRIGHTWATER);
+});
+
+test('a comment typed and not left is written to its vault before another opens, and not to that one', async ({
+  page,
+}) => {
+  const first = await createVault();
+  const second = await createVault();
+  for (const vault of [first, second]) {
+    await mkdir(join(vault.root, 'Library'), { recursive: true });
+    await writeFile(join(vault.root, 'Library/Brightwater.md'), BRIGHTWATER);
+  }
+  const host = await installHost(page, first);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await sidebarSection(page, 'userSpace').getByRole('treeitem', { name: 'Library' }).click();
+  await sidebarSection(page, 'userSpace')
+    .getByRole('treeitem', { name: 'Brightwater', exact: true })
+    .click();
+  await comment(page).click();
+  await comment(page).fill('Typed, then another vault.');
+  await expect(comment(page)).toBeFocused();
+  // Clicked without moving focus, so the field's own blur does not write it first.
+  host.offer(second);
+  const nameOf = (vault: FakeVault) => vault.root.split(sep).at(-1) ?? '';
+  await page.getByRole('button', { name: nameOf(first), exact: true }).dispatchEvent('click');
+  await page.getByRole('menuitem', { name: 'Open another folder…' }).dispatchEvent('click');
+  await expect(page.getByRole('button', { name: nameOf(second), exact: true })).toBeVisible();
+  await expectFile(first, 'Library/Brightwater.md').toContain('> Typed, then another vault.');
+  expect(await first.read('Library/Brightwater.md')).not.toContain('Lit by Mara.');
+  expect(await second.read('Library/Brightwater.md')).toBe(BRIGHTWATER);
 });

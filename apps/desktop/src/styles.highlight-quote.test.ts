@@ -81,6 +81,10 @@ describe.each(Object.entries(THEMES))('a highlight in the editor, %s', (_name, t
     },
   );
 
+  it("keeps a comment's words at 4.5:1 on the page", () => {
+    expect(contrast(rgb(resolved(theme, '--ink-2')), rgb(surface))).toBeGreaterThanOrEqual(4.5);
+  });
+
   it.each(COLOURS)('keeps the %s fill the muted pastel the reader uses', (colour) => {
     const [r, g, b] = rgb(resolved(theme, `--mark-${colour}`));
     // Pastels are light and not saturated to the full: the same fills in every theme.

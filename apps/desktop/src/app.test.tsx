@@ -2710,10 +2710,12 @@ describe('each pane reads what it shows, and nothing for a note saved elsewhere 
  * Regressions found in PR #534 (verification pass on 510eced0): a comment typed
  * in a highlight's field and not yet left is the person's work as much as the
  * note's own typing. It is written, over the comment it started from, when every
- * pane's work is — before another vault opens, and as the window closes — and
- * to the vault it was typed in.
+ * pane's work is — as the window closes here; before another vault opens in
+ * e2e/highlight-node.regressions-534.spec.ts, whose host moves to the next
+ * vault only once the last is settled, as Tauri's does (this fake's picker
+ * moves it as the folder is picked).
  */
-describe("a highlight's comment typed, then the vault switched or the window closed (#534)", () => {
+describe("a highlight's comment typed, then the window closed (#534)", () => {
   const BOOK = 'Brightwater.md';
   const MARKER =
     '<!-- atlas:highlight {"v":1,"mark":"underline","color":"pink","kind":"kindle","location":41,"locationEnd":44} -->';
@@ -2734,8 +2736,6 @@ describe("a highlight's comment typed, then the vault switched or the window clo
     '^kd0041',
     '',
   ].join('\n');
-  const other: VaultLocation = { absolutePath: '/Users/j/Other', name: 'Other' };
-
   /** The window's close, pressed by the test: the stages the app registered run, as the host runs them. */
   function closeButton() {
     const tasks: (() => Promise<void>)[] = [];
@@ -2753,13 +2753,10 @@ describe("a highlight's comment typed, then the vault switched or the window clo
 
   function renderBook(closing: WindowClosingPort) {
     const files = { [BOOK]: TEXT };
-    const otherFiles = { [BOOK]: TEXT };
     const vault = fakeVault({
       remembered: location,
       directories: { '': [entry(BOOK, 'file')] },
       files,
-      elsewhere: { [other.absolutePath]: otherFiles },
-      picks: [other],
     });
     render(
       <App
@@ -2779,10 +2776,10 @@ describe("a highlight's comment typed, then the vault switched or the window clo
         globalCapture={fakeGlobalCapture().ports}
       />,
     );
-    return { files, otherFiles };
+    return { files };
   }
 
-  /** Types in the comment field and stays in it: no blur, so nothing but the switch or the close writes it. */
+  /** Types in the comment field and stays in it: no blur, so nothing but the close writes it. */
   async function typeComment(words: string) {
     await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
     const field = await screen.findByRole('textbox', { name: 'Comment on this highlight' });
@@ -2791,18 +2788,6 @@ describe("a highlight's comment typed, then the vault switched or the window clo
       fireEvent.change(field, { target: { value: words } });
     });
   }
-
-  it('is written to the vault it was typed in before another opens, and not to that one', async () => {
-    const { files, otherFiles } = renderBook(closeButton().closing);
-    await typeComment('Typed, then another vault.');
-    // Clicked without moving focus, as a person's click on the header would not blur first here.
-    fireEvent.click(screen.getByRole('button', { name: 'Vault' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open another folder…' }));
-    expect(await screen.findByRole('button', { name: 'Other' })).toBeDefined();
-    await waitFor(() => expect(files[BOOK]).toContain('> Typed, then another vault.'));
-    expect(files[BOOK]).not.toContain('Lit by Mara.');
-    expect(otherFiles[BOOK]).toBe(TEXT);
-  });
 
   it('is written as the window closes', async () => {
     const close = closeButton();

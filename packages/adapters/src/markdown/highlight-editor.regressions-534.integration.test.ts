@@ -13,11 +13,12 @@ import { remarkMarkdown } from './markdown-port.ts';
 import { noteBlocks } from './note-blocks.ts';
 
 /*
- * Regressions found in PR #534 (#523): the comment field shows `HighlightView.comment`,
- * the comment's markdown as the file holds it, escapes and all. A person who
- * types `%%` in the field (an unbalanced one, which the write escapes so the
- * rest of the note is not hidden) then sees `%\%` in it — words they never
- * typed — and an embed shows them too.
+ * Regressions found in PR #534 (#523): the comment field shows `HighlightView.comment`.
+ * A first fix showed it with the write's escapes taken off; the verification
+ * pass found that a person's own `%\%`, shown so, was written back as a `%%`
+ * Obsidian hides. The decision was reversed: the field shows the comment
+ * exactly as the file holds it, escapes visible, and a comment written back as
+ * it reads is the same bytes.
  */
 
 /** A fixed random source: the same ids on every run. */
@@ -63,7 +64,12 @@ describe('a comment typed with an unbalanced `%%`', () => {
     expect(written).toContain('50%\\% sure.');
   });
 
-  it('reads back in its field as the person typed it', () => {
-    expect(fieldShows(written, id)).toBe(typed);
+  it('reads back in its field as the file holds it, the escape visible', () => {
+    expect(fieldShows(written, id)).toBe('Half of it, 50%\\% sure.');
+  });
+
+  it('written back as the field shows it, is the same bytes', () => {
+    const shown = fieldShows(written, id) ?? '';
+    expect(withHighlightComment({ text: written, id, comment: shown, noteBlocks })).toBe(written);
   });
 });

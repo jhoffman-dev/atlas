@@ -75,6 +75,26 @@ const topLevelTombstones = (instance: Editor): number => {
 
 const words = (instance: Editor): string => instance.state.doc.textContent;
 
+/** Takes off each `container` in turn, the caret in its first line, as a person would. */
+function takeOffEvery(instance: Editor, container: string, takeOff: () => boolean): void {
+  for (let guard = 0; guard < 10; guard += 1) {
+    let inside = -1;
+    instance.state.doc.descendants((node, pos, parent) => {
+      if (inside === -1 && node.isTextblock && parent?.type.name !== 'doc') inside = pos + 1;
+      return inside === -1;
+    });
+    let any = false;
+    instance.state.doc.forEach((node) => {
+      if (node.type.name === container) any = true;
+    });
+    if (!any || inside === -1) return;
+    instance.view.dispatch(
+      instance.state.tr.setSelection(TextSelection.create(instance.state.doc, inside)),
+    );
+    expect(takeOff()).toBe(true);
+  }
+}
+
 function selectFromAboveToBelow(instance: Editor): void {
   let from = -1;
   let to = -1;
@@ -123,10 +143,7 @@ describe('a hidden tombstone, when the blocks around it are wrapped', () => {
     const instance = noteWithTombstone();
     selectFromAboveToBelow(instance);
     instance.commands.setBlockquote();
-    instance.commands.selectAll();
-    instance.commands.lift('blockquote');
-    instance.commands.selectAll();
-    instance.commands.lift('blockquote');
+    takeOffEvery(instance, 'blockquote', () => instance.commands.lift('blockquote'));
     expect(instance.state.doc.firstChild?.type.name).toBe('paragraph');
     expect(tombstonesAnywhere(instance)).toBe(1);
     expect(topLevelTombstones(instance)).toBe(1);
@@ -136,8 +153,8 @@ describe('a hidden tombstone, when the blocks around it are wrapped', () => {
     const instance = noteWithTombstone();
     selectFromAboveToBelow(instance);
     instance.commands.toggleBulletList();
-    selectFromAboveToBelow(instance);
-    instance.commands.toggleBulletList();
+    takeOffEvery(instance, 'bulletList', () => instance.commands.liftListItem('listItem'));
+    expect(instance.state.doc.firstChild?.type.name).toBe('paragraph');
     expect(tombstonesAnywhere(instance)).toBe(1);
     expect(topLevelTombstones(instance)).toBe(1);
   });

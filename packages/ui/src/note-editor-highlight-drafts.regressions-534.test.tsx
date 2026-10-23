@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EditorView } from '@tiptap/pm/view';
 import {
   HighlightCommentChangedError,
@@ -10,12 +10,13 @@ import {
 } from '@dfai/domain';
 import { NoteEditor, type NoteHighlights } from './note-editor.tsx';
 import { READ_FROM_FILE } from './editor/block-anchor.ts';
+import type * as HighlightViewModule from './editor/highlight-block-view.tsx';
 
 /** Every highlight node view mounts its view once, as it is built. */
 const built = vi.hoisted(() => ({ views: 0 }));
 vi.mock('./editor/highlight-block-view.tsx', async (actual) => {
   const { useEffect } = await import('react');
-  const real = await actual<typeof import('./editor/highlight-block-view.tsx')>();
+  const real = await actual<typeof HighlightViewModule>();
   return {
     HighlightBlockView: (props: Parameters<typeof real.HighlightBlockView>[0]) => {
       useEffect(() => {
@@ -129,6 +130,10 @@ describe('a conflict notice, when the comment changes on disk again while it is 
     // The note is read again: the sync wrote the comment once more, then Obsidian changed it.
     show(lamp('From the Kindle.'), undefined, refused);
     show(lamp('Edited in Obsidian.'), undefined, refused);
+    // The notice names the comment on disk now, once the note read again is drawn.
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Edited in Obsidian.'),
+    );
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Keep theirs' }));
     });
