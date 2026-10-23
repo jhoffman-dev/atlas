@@ -161,6 +161,7 @@ Conventions for every slice: one PR, opened as a draft, mergeable on its own aga
   | `templates.css`         | Templates (ADR-0026)                                                                                                                                                   |
   | `terms.css`             | Corrections (P28-06); Terms (P28-05)                                                                                                                                   |
   | `archive.css`           | the Archive (U-22)                                                                                                                                                     |
+  | `research.css`          | the Library and All highlights (#507)                                                                                                                                  |
   | `inbox.css`             | the Inbox (P30-01)                                                                                                                                                     |
   | `weekly-review.css`     | the weekly review (P30-07)                                                                                                                                             |
   | `today.css`             | the Today page (#111)                                                                                                                                                  |

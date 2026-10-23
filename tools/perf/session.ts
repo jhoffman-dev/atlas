@@ -9,9 +9,13 @@ export const EVERY_NOTE_INDEXED = new RegExp(
 );
 
 /** Writes the fixture vault, and any `extra` files (a view to measure, say), to a new folder. */
-export async function writeFixtureVault(extra: readonly FixtureFile[] = []): Promise<FakeVault> {
+export function writeFixtureVault(extra: readonly FixtureFile[] = []): Promise<FakeVault> {
+  return writeVault([...fixtureVault(), ...extra]);
+}
+
+/** Writes `files` to a new folder, a batch at a time: any fixture's vault (the research views' too, #507). */
+export async function writeVault(files: readonly FixtureFile[]): Promise<FakeVault> {
   const vault = await createVault();
-  const files = [...fixtureVault(), ...extra];
   for (let start = 0; start < files.length; start += 200) {
     const batch = files.slice(start, start + 200);
     const folders = new Set(batch.map((file) => file.path.split('/').slice(0, -1).join('/')));

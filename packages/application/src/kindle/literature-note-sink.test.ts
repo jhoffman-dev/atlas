@@ -155,6 +155,19 @@ describe('literatureNoteKindleSink', () => {
     expect(quotesIn(vault.text(mine))).toEqual([VANITY.quote]);
   });
 
+  it('writes into a note whose type is a list holding literature, as the Library reads it', async () => {
+    const mine = 'Reading/Typed twice.md';
+    const typedTwice = note({ asin: 'B0EXAMPLE1' }).replace(
+      'type: literature',
+      'type: ["literature", "book"]',
+    );
+    expect(typedTwice).toContain('type: ["literature", "book"]');
+    const { vault, sink, created } = setUp({ [mine]: typedTwice }, { indexed: [mine] });
+    await sink.addHighlights({ book: BOOK, highlights: [VANITY], syncedAt: 0 });
+    expect(created).toEqual([]);
+    expect(quotesIn(vault.text(mine))).toEqual([VANITY.quote]);
+  });
+
   it('writes into a note with no ASIN that has the title and author', async () => {
     const path = 'Library/Pride and Prejudice.md';
     const { vault, sink, created } = setUp({ [path]: note({}) });

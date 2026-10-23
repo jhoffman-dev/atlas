@@ -33,6 +33,8 @@ export interface PageWiring {
   readonly onSettled: () => Promise<boolean>;
   /** Opens a note where asked: here, a new tab or a split. */
   readonly openNote: (path: VaultPath, how?: OpenHow) => void;
+  /** Opens a note at one of its blocks where asked: a highlight's place (#507). */
+  readonly openBlock: (path: VaultPath, block: string, how?: OpenHow) => void;
   /** Opens a page in the focused pane's active tab. */
   readonly openPage: (place: PagePlace) => void;
   /** What the pages hold in flight for the open vault, shared by every tab on a page. */

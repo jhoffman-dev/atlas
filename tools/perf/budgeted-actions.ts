@@ -26,6 +26,9 @@ export const BUDGETED_ACTIONS = [
   'Drag a board card',
   'Run a 2,000-row SQL query',
   'Run a 920-row DFAI query',
+  // On the research fixture (#507): 2,000 literature notes holding 20,000 highlights.
+  'Open the Library (2,000 sources)',
+  'Open All highlights (20,000)',
   'Open a 500-page PDF',
   'Scroll a 500-page PDF to its middle',
 ] as const;

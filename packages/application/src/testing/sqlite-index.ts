@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from './node-sqlite.ts';
 import type { VaultPath } from '@dfai/domain';
 import type { IndexedNote, IndexEntry, IndexPort, QueryResult } from '../index/ports.ts';
 
@@ -20,7 +20,11 @@ export function sqliteIndexPort(): IndexPort {
                             target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
     CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL,
-                        leaf TEXT NOT NULL DEFAULT '');`);
+                        leaf TEXT NOT NULL DEFAULT '');
+    CREATE TABLE highlights (path TEXT NOT NULL, idx INTEGER NOT NULL, id TEXT NOT NULL,
+                             kind TEXT NOT NULL, quote TEXT NOT NULL, comment TEXT NOT NULL,
+                             mark TEXT NOT NULL, color TEXT NOT NULL, anchor TEXT NOT NULL);
+    CREATE INDEX highlights_path_idx ON highlights(path, idx);`);
   const removeNote = (path: string) => {
     for (const [table, column] of TABLES) {
       database.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(path);
@@ -74,6 +78,7 @@ const TABLES: readonly (readonly [string, string])[] = [
   ['relations', 'src'],
   ['tags', 'path'],
   ['links', 'src'],
+  ['highlights', 'path'],
 ];
 
 function insertNote(database: DatabaseSync, note: IndexedNote): void {
@@ -107,4 +112,19 @@ function insertNote(database: DatabaseSync, note: IndexedNote): void {
       .prepare('INSERT INTO links VALUES (?, ?, ?, ?, ?)')
       .run(note.path, link.path, link.target, link.kind, link.leaf);
   }
+  note.highlights.forEach((row, at) =>
+    database
+      .prepare('INSERT INTO highlights VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(
+        note.path,
+        at,
+        row.id,
+        row.kind,
+        row.quote,
+        row.comment,
+        row.mark,
+        row.color,
+        row.anchor,
+      ),
+  );
 }

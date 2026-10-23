@@ -139,7 +139,7 @@ const GLYPHS = {
       {...joined}
     />
   ),
-  // An open book: a PDF in the reader (#504).
+  // An open book: a PDF in the reader (#504), and the Library of every source (#507).
   book: (
     <path
       d="M12 6.5c-1.8-1.3-4.3-2-7-2v13c2.7 0 5.2.7 7 2 1.8-1.3 4.3-2 7-2v-13c-2.7 0-5.2.7-7 2zM12 6.5v13"
@@ -319,6 +319,13 @@ const GLYPHS = {
       <path d="M19.9 12.2v6.3" {...round} />
     </>
   ),
+  // A highlight (#507): a quotation mark's two commas.
+  quote: (
+    <>
+      <path d="M5 16.5c2.5 0 4-1.6 4-4.2V7.5H4.5v5H8" {...joined} />
+      <path d="M15 16.5c2.5 0 4-1.6 4-4.2V7.5h-4.5v5H18" {...joined} />
+    </>
+  ),
   // Arranging a dashboard: the handle a widget is picked up by.
   grip: (
     <>
@@ -410,6 +417,7 @@ const SIDEBAR_GLYPHS: Readonly<Record<SidebarIcon, IconName>> = {
   term: 'term',
   inbox: 'inbox',
   today: 'sun',
+  library: 'book',
 };
 
 export function sidebarGlyph(icon: SidebarIcon): IconName {

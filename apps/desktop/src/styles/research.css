@@ -1,0 +1,236 @@
+/* the research area: the Library and All highlights (#507).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- the Library and All highlights (#507) ----
+   A page like the Archive's: its bar, a row of filters, then a long list
+   whose rows only near the screen are in the page. The chrome is neutral;
+   only a source's kind and a highlight's colour carry a muted pastel
+   (`data-hue`, #413), so the eye finds them again down the list. */
+
+.research__search {
+  flex: 0 1 280px;
+  min-width: 120px;
+}
+
+.research__toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
+}
+
+.research__suggest {
+  min-width: 160px;
+}
+
+.research__select {
+  max-width: 220px;
+}
+
+.research__sort {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.research__chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* A filter chip is chrome until it is on: then it wears its value's pastel. */
+.research__chip {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--text-meta);
+  gap: 4px;
+  padding: 2px 8px;
+}
+
+.research__chip:hover {
+  background: var(--hover);
+}
+
+.research__chip--on,
+.research__chip--on:hover {
+  background: var(--pill);
+  border-color: transparent;
+  color: var(--pill-ink);
+}
+
+.research__chip-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.research__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.research__gap {
+  list-style: none;
+}
+
+.research__row {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+/* The row's name: a plain button that opens the note, as the Archive's rows do. */
+.research__open {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-row);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 2px 4px;
+  text-align: left;
+}
+
+.research__open:hover {
+  background: var(--hover);
+}
+
+.research__title {
+  font-size: var(--text-ui);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research__byline,
+.research__count,
+.research__date {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
+.research__count,
+.research__date {
+  font-variant-numeric: tabular-nums;
+}
+
+.research__date {
+  min-width: 9em;
+  text-align: right;
+}
+
+.research__kind {
+  background: var(--pill);
+  border-radius: var(--radius-chip);
+  color: var(--pill-ink);
+  font-size: var(--text-meta);
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.research__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+/* A cover where the vault holds one, else the book's glyph in a quiet tile. */
+.library__cover {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  color: var(--ink-3);
+  display: flex;
+  flex: none;
+  height: 48px;
+  justify-content: center;
+  overflow: hidden;
+  width: 36px;
+}
+
+.library__cover img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+/* A highlight: its colour as a bar at the left — a wash for a highlight, a
+   line under nothing for an underline — then its words, its comment and its source. */
+.highlight__row {
+  align-items: stretch;
+  cursor: grab;
+}
+
+.highlight__swatch {
+  background: var(--pill);
+  border-radius: 2px;
+  flex: none;
+  width: 4px;
+}
+
+.highlight__swatch[data-mark='underline'] {
+  background: transparent;
+  border-left: 2px solid var(--pill-ink);
+}
+
+/* The keyboard's way to the embed a drag makes: shown on the row's hover or focus. */
+.highlight__copy {
+  flex: none;
+  opacity: 0;
+}
+
+.highlight__row:hover .highlight__copy,
+.highlight__row:focus-within .highlight__copy {
+  opacity: 1;
+}
+
+.research__clear {
+  margin-left: auto;
+}
+
+.highlight__quote {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink-body);
+  display: -webkit-box;
+  font-size: var(--text-body);
+  overflow: hidden;
+}
+
+.highlight__comment {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink-2);
+  display: -webkit-box;
+  font-size: var(--text-small);
+  overflow: hidden;
+}
+
+.highlight__source {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.highlight__source .research__title {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-weight: 400;
+}

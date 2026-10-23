@@ -51,4 +51,5 @@ export * from './granola/index.ts';
 export * from './kindle/index.ts';
 export * from './home-folders/index.ts';
 export * from './highlights/index.ts';
+export * from './research/index.ts';
 export * from './reader/index.ts';

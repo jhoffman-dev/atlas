@@ -336,7 +336,7 @@ of War p4 area.png]]` — so the highlight shows something wherever it is
    on another page is not taken for it. A page that failed to read is read
    again the next time it is asked for.
 
-10. **The index has a `highlights` table** (schema 19): `path, idx, id, kind,
+10. **The index has a `highlights` table** (schema 19; searched since schema 20, #507): `path, idx, id, kind,
 quote, comment, mark, color, anchor` — the quote's plain words, the
     comment's markdown, and the marker's JSON. TypeScript reads the rows
     (`highlightRows`); Rust stores them (ADR-0005). `/v1/sql` reads it.
@@ -485,6 +485,41 @@ asin, file: null })` in the literature type's home folder (`Library` by
   `files.note_type`; the `highlights` table holds the rest.
 - A marker of another version is left alone, so an older DFAI on another Mac
   never rewrites a newer one's highlights.
+
+## Addendum: the research views (#507)
+
+- **The Library and All highlights are pages of their own, not built-in
+  query views.** A query view lists notes, one row per note, with the
+  note's properties as columns; All highlights lists blocks, many per note,
+  and the Library's rows need a count of a table the query language does not
+  reach, a cover read from the vault, and a kind chip. Both reuse what the
+  query views are built from — the index's read-only `query`, the scoped
+  reads that refresh only on news of literature notes (ADR-0040), and the
+  virtualised rows — and keep their filters and order in the domain
+  (`filterLibrary`, `sortLibrary`, `filterHighlights`, `inDisplayOrder`).
+- **All highlights reads the `highlights` table by key**, `(path, idx) >
+(?, ?)` down `highlights_path_idx`, and not by offset (the last page of
+  150,000 highlights would cost sixty times the first). The statement keeps
+  to literature notes in use (`path IN (SELECT path FROM files WHERE …)`,
+  the Library's own test); the reader matches each row to the Library's read
+  of those notes by path, for the title, time and tags. A page is 2,500 rows,
+  so four-byte characters in every quote and comment stay under the host's
+  16 MiB answer. A change to a literature note re-reads only that note and
+  is spliced into what was kept; news that does not say which notes changed
+  reads it whole.
+- **A `type:` list that holds `literature` is a literature note**
+  (`[literature, book]`): `isLiteratureNote` reads a list as the index's
+  type check does, so the Library's rows, its highlight counts, All
+  highlights and ⌘K never disagree about a note.
+- **A highlight keeps no day of its own** (§3), so "date" filters by when
+  its literature note last changed.
+- **Search reaches highlights** (schema 20): each highlight's quote and
+  comment have a row in `highlights_fts`, keyed by the highlight's rowid, and
+  `index_search` answers them after the notes when the frontend asks
+  (`highlights`), each naming its block. The marker's JSON is not searched.
+- **A highlight is dragged into a note as its embed**: the row carries
+  `![[Source#^id]]` as text, and the block embed's own HTML, which the
+  editor's drop parses into the embed node, as a paste would.
 
 ## Alternatives rejected
 

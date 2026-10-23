@@ -227,6 +227,8 @@ function readPlace(value: unknown): NavigationPlace | null {
     case 'activity':
     case 'templates':
     case 'terms':
+    case 'library':
+    case 'highlights':
       return { kind: value.kind };
     default:
       return null;

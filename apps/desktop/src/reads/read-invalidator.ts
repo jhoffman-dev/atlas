@@ -1,6 +1,7 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { Query, QueryClient } from '@tanstack/react-query';
 import { INDEX_FACETS, type IndexFacet, type NoteChange } from '@dfai/domain';
 import {
+  changesTouching,
   READS_ON_INDEX_NEWS,
   scopeTouched,
   type IndexNews,
@@ -10,6 +11,7 @@ import {
   scopedQueries,
   readAgain,
   readerFailed,
+  refreshOfQuery,
   scopeOfQuery,
   vaultQueries,
   vaultReadKey,
@@ -73,6 +75,48 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
         readerFailed(query.meta) ||
         scopeTouched(scopeOfQuery(query.meta), news),
     });
+  /**
+   * Whether what a refresh begun at `count` of `query` made may be kept: the
+   * query is still the cache's — its vault did not close under it — and no
+   * read settled since it began. A whole read that settled meanwhile began
+   * after the news, so it holds these changes already, and is newer.
+   */
+  const stillCurrent = (query: Query, count: number) =>
+    client.getQueryCache().get(query.queryHash) === query && query.state.dataUpdateCount === count;
+  /** Each refresh of a query waits for the one before it, so none starts from a value the one before it replaces. */
+  const refreshing = new Map<string, Promise<void>>();
+  const refreshInPlace = (query: Query, changes: readonly NoteChange[]) => {
+    const refresh = refreshOfQuery(query.meta);
+    const queued = (refreshing.get(query.queryHash) ?? Promise.resolve()).then(async () => {
+      const count = query.state.dataUpdateCount;
+      try {
+        const next =
+          query.state.data === undefined ? null : await refresh?.(query.state.data, changes);
+        if (!stillCurrent(query, count)) return;
+        if (next === null || next === undefined) return await readAgain(client, query.queryKey);
+        // A whole read that failed meanwhile bumped no `dataUpdateCount`, so this lands over its
+        // error: the refresh built the value from the kept data and these changes, which is
+        // right, and the error was only that read's failure to see them.
+        client.setQueryData(query.queryKey, next);
+      } catch {
+        // A refresh that failed falls back to reading the whole again, which shows its own error.
+        if (stillCurrent(query, count)) await readAgain(client, query.queryKey);
+      }
+    });
+    refreshing.set(query.queryHash, queued);
+    void queued.finally(() => {
+      if (refreshing.get(query.queryHash) === queued) refreshing.delete(query.queryHash);
+    });
+  };
+  /** Whether a due read can be brought up to date from the notes that changed, not read whole. */
+  const refreshable = (query: Query, news: IndexNews) =>
+    news.changes !== null &&
+    changesTouching(scopeOfQuery(query.meta), news.changes).length > 0 &&
+    query.getObserversCount() > 0 &&
+    query.state.status === 'success' &&
+    query.state.fetchStatus === 'idle' &&
+    !readerFailed(query.meta) &&
+    refreshOfQuery(query.meta) !== null;
   return {
     invalidate,
     invalidateWithIndex(vault, reads) {
@@ -84,7 +128,8 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
       if (changes.length > 0) heard.set(vault, [...(heard.get(vault) ?? []), ...changes]);
     },
     indexMoved(vault, known = true) {
-      const scoped = scopedReadsDue(vault, newsOf(vault, known));
+      const news = newsOf(vault, known);
+      const scoped = scopedReadsDue(vault, news);
       const due = new Set([...(waiting.get(vault) ?? []), ...READS_ON_INDEX_NEWS]);
       waiting.delete(vault);
       heard.delete(vault);
@@ -93,7 +138,14 @@ export function createReadInvalidator({ client }: { client: QueryClient }): Read
         queryKey: vaultQueries(vault),
         predicate: (query) => query.state.status === 'error' && !scoped.includes(query),
       });
-      for (const query of [...scoped, ...failed]) void readAgain(client, query.queryKey);
+      for (const query of scoped) {
+        if (refreshable(query, news)) {
+          refreshInPlace(query, changesTouching(scopeOfQuery(query.meta), news.changes ?? []));
+        } else {
+          void readAgain(client, query.queryKey);
+        }
+      }
+      for (const query of failed) void readAgain(client, query.queryKey);
     },
     waitingFor: (vault) => new Set(waiting.get(vault)),
     forget(vault) {

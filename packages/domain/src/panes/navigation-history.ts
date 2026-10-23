@@ -6,7 +6,8 @@ import type { VaultPath } from '../vault/vault-path.ts';
  * Something a pane can be showing, and so be taken back to: a note (which is
  * also how a view, a dashboard or a source is opened), or one of the pages
  * that take the main area over — a type, the graph, the query page, the tags
- * (with the tag whose notes are listed, if one is).
+ * (with the tag whose notes are listed, if one is), the Library and All
+ * highlights (#507).
  */
 export type NavigationPlace =
   | { readonly kind: 'note'; readonly path: VaultPath }
@@ -22,6 +23,8 @@ export type NavigationPlace =
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
   | { readonly kind: 'terms' }
+  | { readonly kind: 'library' }
+  | { readonly kind: 'highlights' }
   /** A PDF open in the reader (#504), by the file's own path. */
   | { readonly kind: 'document'; readonly path: VaultPath };
 
@@ -77,6 +80,10 @@ export function samePlace(left: NavigationPlace, right: NavigationPlace): boolea
       return right.kind === 'templates';
     case 'terms':
       return right.kind === 'terms';
+    case 'library':
+      return right.kind === 'library';
+    case 'highlights':
+      return right.kind === 'highlights';
     case 'document':
       return right.kind === 'document' && right.path === left.path;
   }

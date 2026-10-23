@@ -102,6 +102,23 @@ export interface LinkPlaces {
   readonly linkedPdf: (target: string) => Promise<VaultPath | null>;
 }
 
+/**
+ * Opens a note at one of its blocks, where asked, as following
+ * `[[Note#^id]]` does: a highlight's row in All highlights, or its hit in
+ * search (#507). The block is brought into view in the tab it opened in.
+ */
+export function openNoteAtBlock(
+  { store, reveals }: { store: WorkspaceStore; reveals: RevealStore },
+  { path, block, how = 'here' }: { path: VaultPath; block: string; how?: OpenHow },
+): void {
+  openPlace(store, { kind: 'note', path }, how);
+  const ws = workspaceNow(store);
+  const shown = ws.panes[ws.focused];
+  if (shown !== undefined) {
+    requestReveal(reveals, { tab: shown.active, path, fragment: { kind: 'block', id: block } });
+  }
+}
+
 /** What following a link needs beside the store. */
 export interface LinkFollowing {
   readonly store: WorkspaceStore;
