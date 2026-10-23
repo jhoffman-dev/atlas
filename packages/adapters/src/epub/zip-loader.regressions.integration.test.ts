@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { EpubUnreadableError } from '@dfai/application';
-import { openArchive } from './zip-loader.ts';
+import { MOST_FILES, openArchive } from './zip-loader.ts';
 
 /*
  * Regressions from the verification of PR #536 (#505, ADR-0045 §6): a zip
@@ -60,4 +60,12 @@ describe('a zip bomb made of its directory', () => {
     expect(bytes.length).toBeLessThan(6 * 1024 * 1024);
     await expect(openArchive(bytes)).rejects.toBeInstanceOf(EpubUnreadableError);
   }, 60_000);
+
+  it('opens an archive listing as many files as a book may, and refuses one more', async () => {
+    const archive = await openArchive(directoryBomb(MOST_FILES));
+    expect(archive.entries).toHaveLength(MOST_FILES);
+    await expect(openArchive(directoryBomb(MOST_FILES + 1))).rejects.toThrow(
+      new EpubUnreadableError(`it lists more than ${MOST_FILES} files`),
+    );
+  });
 });

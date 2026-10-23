@@ -13,7 +13,10 @@ import { EpubUnreadableError } from '@dfai/application';
  * past `MOST_BOOK_BYTES`, or a file of more than `RATIO_FROM_BYTES` says it
  * inflates more than `MOST_RATIO` times over; and since what a file says
  * can lie, a file is refused while it inflates the moment it passes the
- * size it said.
+ * size it said. A ZIP's directory can be a bomb too: a file listed costs
+ * memory as the archive is opened, however empty it says it is, so an
+ * archive listing more than `MOST_FILES` files is refused, by the count its
+ * directory declares, before the rest are read.
  */
 
 const MIB = 1024 * 1024;
@@ -25,6 +28,8 @@ export const MOST_BOOK_BYTES = 512 * MIB;
 export const MOST_RATIO = 100;
 /** Below this, a file is too small to be a bomb, however well it deflates. */
 export const RATIO_FROM_BYTES = MIB;
+/** The most files a book's archive may list; a long book with every picture has a few thousand. */
+export const MOST_FILES = 10_000;
 
 /** The book's archive, as foliate-js's parser reads it, and the names of every file in it. */
 export interface BookArchive extends Loader {
@@ -61,7 +66,16 @@ export async function openArchive(bytes: Uint8Array): Promise<BookArchive> {
   // A copy, so the caller's bytes stay theirs whatever the archive does with its own.
   const reader = new ZipReader(new BlobReader(new Blob([bytes.slice()])));
   const files = new Map<string, ZipEntry>();
-  for (const entry of await reader.getEntries()) {
+  let listed = 0;
+  // zip.js says the count its directory declares before it yields the first entry.
+  const counted = (_index: number, total: number) => {
+    listed = Math.max(listed, total);
+  };
+  let read = 0;
+  for await (const entry of reader.getEntriesGenerator({ onprogress: counted })) {
+    read += 1;
+    // The count read stands in for a declared count that lies low.
+    if (Math.max(listed, read) > MOST_FILES) throw tooMany();
     if (!entry.directory) files.set(entry.filename, entry);
   }
   const bomb = bombReason([...files.values()]);
@@ -101,6 +115,8 @@ async function inflated(entry: ZipEntry, type?: string): Promise<Blob> {
   if (size > entry.uncompressedSize) throw lies(entry);
   return new Blob(chunks, type === undefined ? {} : { type });
 }
+
+const tooMany = () => new EpubUnreadableError(`it lists more than ${MOST_FILES} files`);
 
 const lies = (entry: ZipEntry) =>
   new EpubUnreadableError(`its file ${entry.filename} inflates past the size it declares`);

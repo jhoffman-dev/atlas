@@ -20,6 +20,13 @@ declare module 'foliate-js/vendor/zip.js' {
   export class ZipReader {
     constructor(reader: BlobReader);
     getEntries(): Promise<ZipEntry[]>;
+    /**
+     * The entries one at a time, read from the directory as asked for;
+     * `onprogress` is told the count the directory declares before each.
+     */
+    getEntriesGenerator(options?: {
+      onprogress?: (index: number, total: number) => unknown;
+    }): AsyncGenerator<ZipEntry, void>;
     close(): Promise<void>;
   }
 }
