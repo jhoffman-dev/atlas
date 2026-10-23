@@ -180,6 +180,10 @@ test("the book's CSS, however it spells another site's address, asks nothing of 
 h1 { background: u\\72l(${HOSTILE_ORIGIN}/escaped-url.png); }
 p { background-image: image-set("${HOSTILE_ORIGIN}/image-set.png" 1x); }
 .moral { filter: url(${HOSTILE_ORIGIN}/filter.svg#f); cursor: u\\72l(${HOSTILE_ORIGIN}/cursor.png), auto; }
+h1 { border-image: url("${HOSTILE_ORIGIN.slice(0, 12)}\\
+${HOSTILE_ORIGIN.slice(12)}/joined.png") 30; }
+body { background-image: image-set(/* ) */ "${HOSTILE_ORIGIN}/paren.png" 1x); }
+html { background-image: image-set(/*'#*/"${HOSTILE_ORIGIN}/quote.png" 1x/*'*/); }
 </style>`,
       },
     ],
@@ -195,5 +199,58 @@ p { background-image: image-set("${HOSTILE_ORIGIN}/image-set.png" 1x); }
   ).not.toContain('beacon.example.com');
   await frame.locator('.moral').hover();
   await page.waitForLoadState('networkidle');
+  expect(hits).toEqual([]);
+});
+
+/** A picture of one pixel, and a font's first bytes: the book's own files its CSS names. */
+const PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+test("the book's own fonts, pictures and colours in its CSS still style the chapter", async ({
+  page,
+}) => {
+  const book = fixtureEpub({
+    chapters: [
+      {
+        ...HARE_AND_TORTOISE,
+        body: `${HARE_AND_TORTOISE.body}\n<p class="pictured" style="color: rgb(0, 128, 0); background-image: url(pics/pixel.png)">The picture.</p>`,
+      },
+    ],
+    stylesheet: `@font-face { font-family: "Brightwater"; src: url("fonts/brightwater.woff2") format("woff2"); }
+h1 { font-family: "Brightwater", serif; background-image: image-set("pics/pixel.png" 1x); }
+@media screen { .pictured { border-left: 3px solid rgb(0, 0, 255); } }
+p { text-indent: 1em; }
+`,
+    extra: [
+      { name: 'OEBPS/pics/pixel.png', data: new Uint8Array(PIXEL) },
+      { name: 'OEBPS/fonts/brightwater.woff2', data: new TextEncoder().encode('wOF2') },
+    ],
+  });
+  const { hits } = await openBook(page, book);
+  const frame = await frameOf(page);
+  await expect(text(page)).toContainText('Slow but steady wins the race.');
+  const styled = await frame.evaluate(() => {
+    const p = document.querySelector('.pictured');
+    const h1 = document.querySelector('h1');
+    if (p === null || h1 === null) throw new Error('the chapter has no picture or title');
+    return {
+      css: [...document.querySelectorAll('style')].map((s) => s.textContent).join(''),
+      colour: getComputedStyle(p).color,
+      border: getComputedStyle(p).borderLeftColor,
+      indent: getComputedStyle(p).textIndent,
+      picture: getComputedStyle(p).backgroundImage,
+      title: getComputedStyle(h1).backgroundImage,
+      font: getComputedStyle(h1).fontFamily,
+    };
+  });
+  expect(styled.css).toMatch(/@font-face[^}]*src: url\("data:font\/woff2;base64,[^"]+"\)/);
+  expect(styled.colour).toBe('rgb(0, 128, 0)');
+  expect(styled.border).toBe('rgb(0, 0, 255)');
+  expect(styled.indent).not.toBe('0px');
+  expect(styled.picture).toMatch(/^url\("data:image\/png;base64,/);
+  expect(styled.title).toMatch(/image-set\(url\("data:image\/png;base64,/);
+  expect(styled.font).toContain('Brightwater');
   expect(hits).toEqual([]);
 });

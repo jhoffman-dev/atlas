@@ -17,6 +17,7 @@ const NO_FILES: BookFiles = {
   address: async () => null,
   stylesheet: async () => '',
   css: async (css) => css,
+  declarations: async (style) => style,
 };
 
 async function handed(doc: Document, path = 'OEBPS/one.xhtml') {

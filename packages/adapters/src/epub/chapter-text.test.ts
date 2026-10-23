@@ -78,29 +78,34 @@ describe("a book's stylesheet", () => {
   const css = (text: string) =>
     bookCss({ css: text, from: 'OEBPS/ch1.xhtml', address, stylesheet });
 
+  // The sheet comes back as the parser writes it out: jsdom's here, WebKit's in the app.
   it("gives the book's own files their addresses, and keeps data and the chapter's own places", async () => {
-    expect(await css("p { background: url('img/a.png') }")).toBe(
-      'p { background: url("blob:test/OEBPS/img/a.png") }',
+    expect(await css("p { background: url('img/a.png') }")).toContain(
+      'url("blob:test/OEBPS/img/a.png")',
     );
     expect(await css('p { background: url(data:image/png;base64,AAA) }')).toContain(
-      'url(data:image/png;base64,AAA)',
+      'data:image/png;base64,AAA',
     );
-    expect(await css('rect { fill: url(#grad) }')).toBe('rect { fill: url(#grad) }');
-    expect(await css('p { background: url(img/missing.png) }')).toBe('p { background: none }');
+    expect(await css('rect { fill: url(#grad) }')).toContain('#grad');
+    const missing = await css('p { background: url(img/missing.png); color: red }');
+    expect(missing).toContain('color: red');
+    expect(missing).not.toContain('missing.png');
   });
 
-  it('makes anything on another site nothing', async () => {
-    expect(await css('@font-face { src: url("https://beacon.example.com/f.woff") }')).toBe(
-      '@font-face { src: none }',
+  it('drops a declaration naming anything on another site, and keeps the rest of its rule', async () => {
+    const made = await css(
+      'p { background: url(//example.com/a.png); color: red } h1 { cursor: url("https://beacon.example.com/c.cur"), auto }',
     );
-    expect(await css('p { background: url(//example.com/a.png) }')).toBe('p { background: none }');
+    expect(made).toContain('color: red');
+    expect(made).toContain('h1');
+    expect(made).not.toContain('example.com');
   });
 
   it("puts the book's own imports in their place, nested, and drops any other", async () => {
     const text = await css(
       '@import url("base.css");\n@import "https://example.com/x.css" screen;\np {}',
     );
-    expect(text).toContain('body { margin: 0; }');
+    expect(text).toMatch(/body \{ margin: 0(px)?; \}/);
     expect(text).toContain('url("blob:test/OEBPS/img/h.png")');
     expect(text).not.toContain('@import');
     expect(text).not.toContain('example.com');

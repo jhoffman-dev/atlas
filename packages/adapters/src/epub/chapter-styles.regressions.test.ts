@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { bookCss } from './chapter-styles.ts';
 
@@ -48,24 +49,29 @@ describe("a book's CSS made the book's own", () => {
     expect(await made(css)).not.toContain(BEACON);
   });
 
-  it("keeps a book's own picture in an image-set(), at its address, and a type() as it is", async () => {
-    const css = `p { background-image: image-set("pics/hare.png" 1x type("image/png"), "data:image/png;base64,AA==" 2x); }`;
+  // jsdom's parser drops image-set() and a font's src, so the book's own picture in one is
+  // made in css-references.test.ts, and shown in WebKit by e2e/epub-reader.spec.ts.
+  it("keeps a book's own picture at its address, and a declaration beside one it drops", async () => {
     const kept = await bookCss({
-      css,
+      css: `p { background-image: url("pics/hare.png"); } q { color: red; background: url(https://${BEACON}/q.png); }`,
       from: 'OEBPS/chapter.xhtml',
       address: async (path) =>
         path === 'OEBPS/pics/hare.png' ? 'data:image/png;base64,HARE' : null,
       stylesheet: async () => null,
     });
-    expect(kept).toBe(
-      `p { background-image: image-set("data:image/png;base64,HARE" 1x type("image/png"), "data:image/png;base64,AA==" 2x); }`,
-    );
+    expect(kept).toContain('url("data:image/png;base64,HARE")');
+    expect(kept).toContain('color: red');
+    expect(kept).not.toContain(BEACON);
   });
 
-  it('reads an escape of a letter, and leaves every other escape meaning what it meant', async () => {
-    // The space after `\41` ends the escape, so the selector is `.10A` and the brace follows it.
+  it('leaves every escape meaning what it meant, as the parser reads it', async () => {
     const css = `.\\31 0\\41 { content: "\\"\\2f\\2a"; } \\41 b { color: r\\65 d; }`;
-    expect(await made(css)).toBe(`.\\31 0A{ content: "\\"\\2f \\2a "; } Ab { color: red; }`);
+    const read = (text: string) => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(text);
+      return Array.from(sheet.cssRules, (rule) => rule.cssText);
+    };
+    expect(read(await made(css))).toEqual(read(css));
   });
 });
 

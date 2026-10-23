@@ -37,7 +37,7 @@ describe("a book's files, as its frame is given them", () => {
 
   it('reads each file once, and makes a shared stylesheet once for every chapter', async () => {
     const book = archive({
-      'OEBPS/style.css': '@font-face { src: url("fonts/a.woff"); } p { color: red; }',
+      'OEBPS/style.css': 'p { color: red; background: url("fonts/a.woff"); }',
       'OEBPS/fonts/a.woff': 'font bytes',
     });
     const files = bookFiles(book);
@@ -47,7 +47,7 @@ describe("a book's files, as its frame is given them", () => {
     ]);
     expect(await files.stylesheet('OEBPS/style.css')).toBe(first);
     expect(second).toBe(first);
-    expect(first).toMatch(/src: url\("data:font\/woff;base64,[^"]+"\)/);
+    expect(first).toMatch(/url\("data:font\/woff;base64,[^"]+"\)/);
     expect(first).not.toContain('fonts/a.woff');
     await files.css('b { background: url(fonts/a.woff) }', 'OEBPS/chapter.xhtml');
     expect(book.reads.filter((name) => name === 'OEBPS/style.css')).toHaveLength(1);

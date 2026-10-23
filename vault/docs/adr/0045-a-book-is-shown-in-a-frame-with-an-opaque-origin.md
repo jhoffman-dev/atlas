@@ -107,9 +107,24 @@ cleaning misses.
      the form controls). A `<p id="title">` or an `<a name="top">` shadows
      nothing and stays a link's target. Window names are not dropped: a
      window's own members are never shadowed by named elements;
-   - the cleaning of a book's CSS reads escapes of letters first (`u\72l(` is
-     `url(`), takes an `image-set()`'s plain strings as the addresses they are,
-     and drops an `@import` of any spelling it does not read as the book's own;
+   - a book's CSS is read by the browser's own parser, not by pattern: a
+     constructed `CSSStyleSheet` that no document adopts (`replaceSync`, which
+     fetches nothing and drops every `@import`). Its rules are walked, into
+     `@media`, `@supports`, `@layer`, `@keyframes`, `@font-face` and nested
+     rules, and each declaration's addresses are read with CSS's own
+     tokenizing (`css-references.ts`: a `url()` quoted or bare, `src()`, and the
+     strings of `image-set()`, `-webkit-image-set()`, `image()` and
+     `cross-fade()`; comments, escapes and a backslash that joins two lines are
+     read as CSS reads them). One of the book's files becomes its `data:`
+     address, its `#place` kept; `data:` and a place in the chapter stay; a
+     declaration naming anything else, or building an address from `var()`,
+     `env()` or `attr()`, is dropped. Another rule naming an address
+     (`@property`, `@counter-style`) is dropped whole. The sheet is written out
+     as the parser serialises it. A `style=` is read the same way, as the
+     declarations of one rule. The book's own `@import`s are the one thing
+     still found by pattern, because the parser drops them: each is put before
+     the sheet's rules, made the same way; a spelling the pattern misses is an
+     import the parser drops, never one that loads;
    - the frame's own policy runs no other script and loads nothing;
    - `index.html`'s `frame-src 'none'` is inherited by the frame as one more
      layer. A comment there and `index-html.test.ts` keep it, but nothing relies
@@ -121,7 +136,11 @@ cleaning misses.
    file of more than 1 MB says it inflates more than 100 times over (text
    deflates about five times, a bomb about a thousand). The sizes a ZIP says can
    lie, so each file is also refused, as unreadable, the moment it inflates past
-   the size it said.
+   the size it said. Each file listed costs memory however empty it says it is,
+   so an archive listing more than 10,000 files is refused too, by the count its
+   central directory declares, before more than its first entry is read (and by
+   the entries read, should that count lie low). A long book with every picture
+   has a few thousand.
 
 7. **A long book is held a little at a time.** Each chapter's text is kept once
    read, for find and re-anchoring; only the three chapters parsed last are kept

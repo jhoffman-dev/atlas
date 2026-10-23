@@ -92,7 +92,7 @@ async function madeFiles(chapter: Document, path: string, files: BookFiles): Pro
     }
     const style = element.getAttribute('style');
     if (style !== null)
-      work.push(files.css(style, path).then((made) => void inline.set(element, made)));
+      work.push(files.declarations(style, path).then((made) => void inline.set(element, made)));
   }
   await Promise.all(work);
   return { addresses, css, inline };

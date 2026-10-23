@@ -88,8 +88,7 @@ describe('a hostile chapter made safe', () => {
     expect(styles.some((css) => css.includes('text-indent: 1em'))).toBe(true);
     const own = styles.join('\n');
     expect(own).not.toContain('@import');
-    expect(own).toContain('background-image: none');
-    expect(own).toContain('src: none');
+    expect(own).not.toContain('beacon.example.com');
   });
 
   it("writes a picture of the book's own in as data, and drops one on another site or not in the book", async () => {

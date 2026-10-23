@@ -1,4 +1,4 @@
-import { bookCss } from './chapter-styles.ts';
+import { bookCss, bookDeclarations } from './chapter-styles.ts';
 import type { BookArchive } from './zip-loader.ts';
 
 /*
@@ -16,8 +16,10 @@ export interface BookFiles {
   address(path: string): Promise<string | null>;
   /** The book's stylesheet at `path`, its references made the book's own or nothing; empty when there is none. */
   stylesheet(path: string): Promise<string>;
-  /** `css`, written in the book's file at `from` (a `<style>`, a `style=`), made the same way. */
+  /** `css`, a `<style>` written in the book's file at `from`, made the same way. */
   css(css: string, from: string): Promise<string>;
+  /** `style`, a `style=` written in the book's file at `from`, made the same way. */
+  declarations(style: string, from: string): Promise<string>;
 }
 
 export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): BookFiles {
@@ -33,6 +35,7 @@ export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): 
   return {
     address,
     css,
+    declarations: (style, from) => bookDeclarations({ style, from, address }),
     stylesheet: (path) =>
       held(sheets, path, async () => css((await archive.loadText(path)) ?? '', path)),
   };
