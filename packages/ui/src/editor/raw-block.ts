@@ -125,11 +125,21 @@ function highlightOrSource(
     },
   });
   return (props) => {
-    if (isHighlight(highlights, props.node)) return highlightView(props);
+    if (isHighlight(highlights, props.node)) {
+      const view = highlightView(props);
+      builtAsHighlight.add(view.dom);
+      return view;
+    }
     const { dom } = DOMSerializer.renderSpec(document, rawBlockSpec(props.node, readerLinks));
     return { dom, update: () => false };
   };
 }
+
+/**
+ * The blocks' DOM that was built as a highlight, known as it is built: the
+ * highlight's own view is drawn by React later, so its DOM cannot be asked.
+ */
+const builtAsHighlight = new WeakSet<globalThis.Node>();
 
 /** Whether the note reads this raw block as a highlight now. */
 export function isHighlight(highlights: HighlightBlocks, node: ProseMirrorNode): boolean {
@@ -179,9 +189,7 @@ export function redrawHighlightBlocks(editor: Editor, highlights: HighlightBlock
   state.doc.descendants((node, pos) => {
     if (node.type.name !== 'rawBlock') return false;
     const dom = view.nodeDOM(pos);
-    // The highlight's view sits inside the wrapper its node view renderer draws.
-    const drawnAsHighlight =
-      dom instanceof HTMLElement && dom.querySelector('[data-highlight-block]') !== null;
+    const drawnAsHighlight = dom !== null && builtAsHighlight.has(dom);
     if (
       typeof node.attrs[BLOCK_ANCHOR_ATTR] === 'string' &&
       isHighlight(highlights, node) !== drawnAsHighlight

@@ -30,6 +30,7 @@ export function useNoteHighlights({
   open,
   onChanged,
   toasts,
+  onWritePending,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
@@ -42,6 +43,8 @@ export function useNoteHighlights({
   onChanged: () => void;
   /** Where words that could not be written as the pane closed are told of. */
   toasts?: Pick<Toasts, 'show'>;
+  /** Handed the editor's write of the comments typed and not yet written, for the pane's own flush. */
+  onWritePending?: NoteHighlights['onWritePending'];
 }): NoteHighlights | null {
   // Kept across readings of the note: its ids are built again only when its highlights change.
   const memo = useMemo(createHighlightReadMemo, [markdown, path]);
@@ -90,9 +93,9 @@ export function useNoteHighlights({
         : {
             viewOf,
             editComment,
-            ...(path !== null && { identity: path }),
             ...(onUnwrittenComments !== undefined && { onUnwrittenComments }),
+            ...(onWritePending !== undefined && { onWritePending }),
           },
-    [viewOf, editComment, path, onUnwrittenComments],
+    [viewOf, editComment, onUnwrittenComments, onWritePending],
   );
 }

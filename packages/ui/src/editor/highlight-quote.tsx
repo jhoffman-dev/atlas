@@ -116,6 +116,9 @@ export function HighlightCommentField({
     if (drafts.follow(id, comment)) redraw();
   }, [drafts, id, comment]);
 
+  // A write the pane began (every pane's work written) settles here too.
+  useEffect(() => drafts.watch(id, redraw), [drafts, id]);
+
   // A field drawn again while the person is in it takes them back to where they were.
   useEffect(() => {
     const element = input.current;

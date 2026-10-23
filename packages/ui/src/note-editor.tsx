@@ -491,20 +491,24 @@ export interface NoteHighlights {
    * note's comment is not `base` any more.
    */
   readonly editComment: WriteComment;
-  /**
-   * The note these highlights are of. A field's unwritten words are written
-   * to it, and not to the note drawn next, when this changes or the editor goes.
-   */
-  readonly identity?: string;
   /** Told of words typed in a comment that could not be written as the note closed. */
   readonly onUnwrittenComments?: (lost: readonly LostDraft[]) => void;
+  /**
+   * Handed, while the editor is open, the write of every comment typed and not
+   * yet written, over the comment it started from — for when every pane's work
+   * is written (another vault opening, the window closing). The fields keep
+   * their words. Handed null as the editor goes.
+   */
+  readonly onWritePending?: (writePending: (() => Promise<void>) | null) => void;
 }
 
 /**
  * The raw blocks' highlights, read through refs as the reader links are: a
  * note saved hands over a new reading, and a new object each time would
- * rebuild the editor. Comments typed and not written when the note closes, or
- * another takes its place, are written to the note they were typed in.
+ * rebuild the editor. Comments typed and not written when the editor goes are
+ * written to the note they were typed in. Another note is another editor (the
+ * pane keys its page by note); one moved under the pane keeps this editor, and
+ * its drafts are written to where it is now, through the latest write.
  */
 function useHighlightBlocks(
   highlights: NoteHighlights | null,
@@ -514,30 +518,28 @@ function useHighlightBlocks(
   const images = useLatest(loadImage);
   const [drafts] = useState(() => new HighlightDrafts());
   const offers = highlights !== null;
-  // The reading of the note being left: effects clean up before the next ones run.
-  const bound = useRef(highlights);
-  useEffect(() => {
-    bound.current = highlights;
-  });
-  const identity = highlights?.identity;
   useEffect(
     () => () => {
-      const leaving = bound.current;
+      const leaving = latest.current;
       if (leaving === null) return;
       void drafts.flush(leaving.editComment).then((lost) => {
         if (lost.length > 0) leaving.onUnwrittenComments?.(lost);
       });
     },
-    [drafts, identity],
+    [drafts, latest],
   );
+  const handOver = highlights?.onWritePending;
+  useEffect(() => {
+    if (handOver === undefined) return;
+    handOver(() => drafts.writeUnwritten(writeThrough(latest)));
+    return () => handOver(null);
+  }, [handOver, drafts, latest]);
   return useMemo(
     () =>
       offers
         ? {
             viewOf: (block) => latest.current?.viewOf(block) ?? null,
-            editComment: (edit) =>
-              latest.current?.editComment(edit) ??
-              Promise.reject(new Error('This note holds no highlights now.')),
+            editComment: writeThrough(latest),
             drafts,
             loadImage: (src) => images.current(src),
           }
@@ -545,3 +547,10 @@ function useHighlightBlocks(
     [offers, latest, images, drafts],
   );
 }
+
+/** The write of the highlights as they are now: a note moved keeps its editor, and writes to where it is. */
+const writeThrough =
+  (latest: { readonly current: NoteHighlights | null }): WriteComment =>
+  (edit) =>
+    latest.current?.editComment(edit) ??
+    Promise.reject(new Error('This note holds no highlights now.'));

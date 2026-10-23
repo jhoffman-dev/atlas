@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
-import { Mapping } from '@tiptap/pm/transform';
+import { liftTarget, Mapping } from '@tiptap/pm/transform';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { isTombstoneBlock } from '@dfai/domain';
@@ -16,6 +16,13 @@ import { READ_FROM_FILE } from './block-anchor.ts';
  * tombstone is put back, after the block the deletion joined, in the same
  * undo step. Only a note read from its file (the highlight was removed on the
  * person's word) takes one away.
+ *
+ * A tombstone is a top-level HTML block of the file (ADR-0043): one a step
+ * moved into a container — the blocks around it wrapped in a quote or a list
+ * — would be written as a line of that quote, the person's words and no
+ * tombstone. So it is taken back out to the top level where the wrap left it,
+ * splitting the container there, and counted wherever it is, so a wrap is
+ * never read as a deletion and put back a second time.
  */
 
 const isTombstone = (node: ProseMirrorNode): boolean =>
@@ -24,14 +31,60 @@ const isTombstone = (node: ProseMirrorNode): boolean =>
 interface Held {
   readonly node: ProseMirrorNode;
   readonly pos: number;
+  /** Inside a container rather than a block of the note itself. */
+  readonly nested: boolean;
 }
 
+/** Every tombstone in the note, at any depth, in document order. */
 function tombstonesIn(doc: ProseMirrorNode): Held[] {
   const held: Held[] = [];
-  doc.forEach((node, pos) => {
-    if (isTombstone(node)) held.push({ node, pos });
+  doc.descendants((node, pos, parent) => {
+    if (isTombstone(node)) held.push({ node, pos, nested: parent !== doc });
+    // A textblock holds no blocks: nothing below it is looked at.
+    return !node.isTextblock;
   });
   return held;
+}
+
+const keyOf = (node: ProseMirrorNode): string => String(node.attrs['markdown']);
+
+/** How many of each tombstone `held` holds, by its bytes. */
+function countsOf(held: readonly Held[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const { node } of held) counts.set(keyOf(node), (counts.get(keyOf(node)) ?? 0) + 1);
+  return counts;
+}
+
+/**
+ * Lifts the tombstones the step moved into a container back to the top
+ * level, last first so none shifts another. One already nested before the
+ * step — read so from the file — is left where it is.
+ */
+function liftMovedIn(tr: Transaction, before: readonly Held[]): void {
+  const nestedBefore = countsOf(before.filter(({ nested }) => nested));
+  const moved = tombstonesIn(tr.doc).filter(({ node, nested }) => {
+    if (!nested) return false;
+    const left = nestedBefore.get(keyOf(node)) ?? 0;
+    nestedBefore.set(keyOf(node), left - 1);
+    return left <= 0;
+  });
+  for (const { pos } of moved.reverse()) liftToTopLevel(tr, pos);
+}
+
+/** Lifts the block at `pos` out of every container it is in, splitting each around it. */
+function liftToTopLevel(tr: Transaction, start: number): void {
+  let pos = start;
+  while (tr.doc.resolve(pos).depth > 0) {
+    const node = tr.doc.nodeAt(pos);
+    if (node === null) return;
+    const range = tr.doc.resolve(pos).blockRange(tr.doc.resolve(pos + node.nodeSize));
+    const target = range === null ? null : liftTarget(range);
+    // A container it cannot leave (an isolating one): it stays, counted, rather than be duplicated.
+    if (range === null || target === null) return;
+    const from = tr.steps.length;
+    tr.lift(range, target);
+    pos = tr.mapping.slice(from).map(pos, 1);
+  }
 }
 
 /** The tombstones the transactions took, put back at the block boundary nearest where they were. */
@@ -44,25 +97,22 @@ function restoration(
   if (transactions.some((transaction) => transaction.getMeta(READ_FROM_FILE) === true)) return null;
   const before = tombstonesIn(oldState.doc);
   if (before.length === 0) return null;
-  const remaining = new Map<string, number>();
-  for (const { node } of tombstonesIn(newState.doc)) {
-    const key = String(node.attrs['markdown']);
-    remaining.set(key, (remaining.get(key) ?? 0) + 1);
-  }
+  const tr = newState.tr;
+  liftMovedIn(tr, before);
+  const remaining = countsOf(tombstonesIn(tr.doc));
   const lost = before.filter(({ node }) => {
-    const key = String(node.attrs['markdown']);
-    const left = remaining.get(key) ?? 0;
-    remaining.set(key, Math.max(0, left - 1));
+    const left = remaining.get(keyOf(node)) ?? 0;
+    remaining.set(keyOf(node), Math.max(0, left - 1));
     return left === 0;
   });
-  if (lost.length === 0) return null;
+  if (lost.length === 0) return tr.docChanged ? tr : null;
   const mapping = new Mapping();
   for (const transaction of transactions) mapping.appendMapping(transaction.mapping);
+  mapping.appendMapping(tr.mapping);
   // Boundaries are found in the document as it is, then inserted last to first so none shifts another.
   const putBack = lost
-    .map(({ node, pos }) => ({ node, at: blockBoundary(newState.doc, mapping.map(pos, -1)) }))
+    .map(({ node, pos }) => ({ node, at: blockBoundary(tr.doc, mapping.map(pos, -1)) }))
     .sort((one, other) => other.at - one.at);
-  const tr = newState.tr;
   for (const { node, at } of putBack) tr.insert(at, node);
   return tr;
 }

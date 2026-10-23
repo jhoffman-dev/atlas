@@ -21,13 +21,7 @@ import {
   looksLikeHighlightMarker,
   readHighlightMarker,
 } from './highlight-marker.ts';
-import {
-  commentLines,
-  plainQuote,
-  quoteLines,
-  sameComment,
-  undoCommentEscapes,
-} from './highlight-text.ts';
+import { commentLines, plainQuote, quoteLines, sameComment } from './highlight-text.ts';
 import { UnsafeSourceFileError } from './literature-note.ts';
 import { matchPassages, type PassageMatch } from './passage-match.ts';
 
@@ -308,7 +302,7 @@ export function withHighlightComment({
   const before = readHighlights(text, noteBlocks);
   const block = namedIn(before, id);
   if (base !== undefined && !sameComment(base, block.comment)) {
-    throw new HighlightCommentChangedError(id, undoCommentEscapes(block.comment));
+    throw new HighlightCommentChangedError(id, block.comment);
   }
   const lines = commentBlockText(commentLines(comment), lineEndingOf(text));
   const written = text.slice(0, block.markerEnd) + lines + text.slice(block.quoteEnd);

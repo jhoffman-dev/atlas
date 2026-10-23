@@ -2,7 +2,7 @@ import { EMBEDDABLE_IMAGE_EXTENSIONS } from '../attachments/image-file.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import type { HighlightColor, HighlightStyle } from './anchor.ts';
 import type { HighlightBlock } from './highlight-block.ts';
-import { plainQuote, undoCommentEscapes } from './highlight-text.ts';
+import { plainQuote } from './highlight-text.ts';
 
 /*
  * A highlight as the editor draws it (#523): the quote as a quote, in its
@@ -20,9 +20,11 @@ export interface HighlightView {
   /** The picture an area highlight's quote embeds (`![[…png]]`, ADR-0043 §3), as written; null for words. */
   readonly picture: string | null;
   /**
-   * The comment as the person typed it: the `%\%` and `\<` the write put in
-   * (`commentLines`) taken off, so the field shows their words. Writing it
-   * escapes it again, so a comment saved as it reads is the same bytes.
+   * The comment exactly as the file holds it, its `%\%` and `\<` escapes
+   * visible (#534). Shown with them taken off, a person's own `%\%` would read
+   * as `%%`, and a later edit could change which `%%` Obsidian hides; as
+   * written, a comment saved as it reads is the same bytes (`commentLines`
+   * escapes only a new unbalanced `%%`).
    */
   readonly comment: string;
   readonly mark: HighlightStyle['mark'];
@@ -38,7 +40,7 @@ export function highlightView(block: HighlightBlock): HighlightView {
     id: block.id,
     words: plainQuote(words).trim(),
     picture,
-    comment: undoCommentEscapes(block.comment),
+    comment: block.comment,
     mark: block.style.mark,
     color: block.style.color,
   };

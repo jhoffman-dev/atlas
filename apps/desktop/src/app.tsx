@@ -128,7 +128,7 @@ import { browserSectionStore } from './sidebar/browser-section-store.ts';
 import { createBrowserGroupFoldStore } from './query/browser-group-fold-store.ts';
 import { createBrowserLinkedRangeStore } from './linked-pages/browser-linked-range-store.ts';
 import { useTemplates } from './types/use-templates.ts';
-import { useOpenEditors } from './panes/open-editors.ts';
+import { useEditorsWrittenBeforeClose, useOpenEditors } from './panes/open-editors.ts';
 import { useStrandedEdits } from './notes/stranded-edits.ts';
 import { browserStrandedStore } from './notes/browser-stranded-store.ts';
 import { placeName } from './panes/place-name.ts';
@@ -486,6 +486,8 @@ function AppWindow({
   }, [editors, pendingWrites, syncStore]);
   // So is the window's close, whatever tab those pages are in, or were.
   useAnswersWrittenBeforeClose(pendingWrites, closing.writes);
+  // And every pane's work, a comment typed in a highlight among it (#534), as leaving the vault does.
+  useEditorsWrittenBeforeClose(editors, closing.writes);
   // Every pane's unsaved work is written before the host moves to another vault,
   // while its paths still mean the vault it was typed in.
   // Choosing and listing a vault come before there is one to bind writes to,

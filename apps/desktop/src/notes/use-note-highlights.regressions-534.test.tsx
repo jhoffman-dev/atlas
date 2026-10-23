@@ -192,11 +192,6 @@ describe('a comment write, in order (#534)', () => {
     });
   });
 
-  it('is of the note it was made for', async () => {
-    const { hook } = await commenting();
-    expect(hook.result.current?.identity).toBe(BOOK);
-  });
-
   it('tells, in a toast that stays and offers the words, of a comment that could not be written', async () => {
     const show = vi.fn(() => 1);
     const { hook } = await commenting({ toasts: { show } });

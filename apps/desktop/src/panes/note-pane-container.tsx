@@ -489,7 +489,12 @@ export function useNotePane({
 }): DrawnNotePane {
   const { notes, index, sources, types, notePaths, onChanged, editors, savedViews } = context;
 
-  const note = usePaneNote({ tabId, path, context, hidden });
+  // The editor's comments typed in highlights and not yet written (#534): part of this pane's work.
+  const pendingComments = useRef<(() => Promise<void>) | null>(null);
+  const holdPendingComments = useCallback((writePending: (() => Promise<void>) | null) => {
+    pendingComments.current = writePending;
+  }, []);
+  const note = usePaneNote({ tabId, path, context, hidden, pendingComments });
   // What the pane's readers re-read on: the index's news of what this note
   // shows, not of a note saved anywhere (#325). A hidden tab reads nothing,
   // and once shown again reads what moved while it was hidden. An empty tab's
@@ -757,6 +762,7 @@ export function useNotePane({
     open: note.open,
     onChanged,
     toasts: context.toasts,
+    onWritePending: holdPendingComments,
   });
   const corrections = useMeetingCorrections({
     fs: notes.fs,
@@ -1164,11 +1170,14 @@ function usePaneNote({
   path,
   context,
   hidden,
+  pendingComments,
 }: {
   tabId: TabId;
   path: VaultPath | null;
   context: PaneContext;
   hidden: boolean;
+  /** The write of the comments typed in the note's highlights and not yet written, while it is open. */
+  pendingComments: { readonly current: (() => Promise<void>) | null };
 }) {
   const { editors, stranded, changes } = context;
   const note = useNote({
@@ -1215,14 +1224,18 @@ function usePaneNote({
       path,
       setProperties: (changes) => live.current.setProperties(changes),
       save: () => live.current.save(),
-      flush: () => live.current.flush(),
+      // The note's typing first: a comment's write is refused while the note holds unsaved typing.
+      flush: async () => {
+        await live.current.flush();
+        await pendingComments.current?.();
+      },
       reload: () => live.current.reload(),
       isDirty: () => live.current.dirty,
       repoint: (to) => live.current.repoint(to),
       abandon: () => live.current.abandon(),
     });
     return () => editors.register(tabId, null);
-  }, [editors, tabId, path]);
+  }, [editors, tabId, path, pendingComments]);
 
   return note;
 }

@@ -39,8 +39,25 @@ export interface LostDraft {
 
 export class HighlightDrafts {
   private readonly drafts = new Map<string, CommentDraft>();
+  /** Each field's redraw, told when its draft changes from outside it: a write the pane began. */
+  private readonly watchers = new Map<string, Set<() => void>>();
   /** The field the person was in, to put them back in it when it is drawn again. */
   focus: { id: string; start: number; end: number } | null = null;
+
+  /** Calls `changed` whenever draft `id`'s write begins or settles; answers how to stop. */
+  watch(id: string, changed: () => void): () => void {
+    const watching = this.watchers.get(id) ?? new Set();
+    this.watchers.set(id, watching);
+    watching.add(changed);
+    return () => {
+      watching.delete(changed);
+      if (watching.size === 0) this.watchers.delete(id);
+    };
+  }
+
+  private told(id: string): void {
+    for (const changed of this.watchers.get(id) ?? []) changed();
+  }
 
   /** The person is in field `id`, with this part of its words selected. */
   rememberFocus(id: string, start: number, end: number): void {
@@ -65,12 +82,21 @@ export class HighlightDrafts {
   /**
    * The note was read again with `comment` on disk. A field the person has not
    * typed in follows it; one they have keeps their words, which are written
-   * only over the comment they started from. Whether the field must be drawn again.
+   * only over the comment they started from; a conflict they are being told
+   * of names the comment on disk now, so "Keep theirs" takes that one. Whether
+   * the field must be drawn again.
    */
   follow(id: string, comment: string): boolean {
     const draft = this.drafts.get(id);
     if (draft === undefined || draft.saving !== null) return false;
-    if (draft.text !== draft.base && draft.text !== comment) return false;
+    if (draft.text !== draft.base && draft.text !== comment) {
+      if (draft.conflict === null) return false;
+      // Back to the comment the words started from: nothing to choose between any more.
+      const now = comment === draft.base ? null : comment;
+      const changed = draft.conflict !== now;
+      draft.conflict = now;
+      return changed;
+    }
     const changed = draft.text !== comment || draft.base !== comment || draft.conflict !== null;
     draft.text = comment;
     draft.base = comment;
@@ -140,8 +166,20 @@ export class HighlightDrafts {
       })
       .finally(() => {
         draft.saving = null;
+        this.told(id);
       });
+    this.told(id);
     return draft.saving;
+  }
+
+  /**
+   * Every pane's work is being written — another vault is opening, the window
+   * is closing — while the person may still be in a field: writes each draft
+   * holding words not yet written, over the comment it started from, and keeps
+   * every draft and the field's words. What came of each is in its draft.
+   */
+  async writeUnwritten(write: WriteComment): Promise<void> {
+    await Promise.all(this.unwritten().map((id) => this.write(id, write)));
   }
 
   /**
