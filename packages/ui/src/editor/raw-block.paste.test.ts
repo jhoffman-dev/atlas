@@ -1,0 +1,257 @@
+// @vitest-environment jsdom
+/**
+ * Issue #541. A raw block — a table, a callout
+ * DFAI does not model, raw HTML — is put on the clipboard as
+ * `<pre data-raw-block>` with its source as the text, but the parse rule
+ * (raw-block.ts `parseHTML`) is outranked by the code block's `pre` rule, and
+ * reads no `markdown` back even where it wins: pasted, the table comes back as
+ * a code block of its source, saved as a fenced block where the table was.
+ * Its text/plain is empty: a raw block has no leaf text.
+ */
+import { afterEach, describe, expect, it } from 'vitest';
+import { Editor } from '@tiptap/core';
+import { DOMParser } from '@tiptap/pm/model';
+import { AllSelection, NodeSelection, TextSelection } from '@tiptap/pm/state';
+import { createEditorExtensions } from './extensions.ts';
+
+const TABLE = '| Seed | Days |\n| --- | --- |\n| Kale | 55 |';
+const HTML_BLOCK = '<details>\n<summary>Fern notes</summary>\nSpores in autumn.\n</details>';
+
+const editors: Editor[] = [];
+afterEach(() => {
+  for (const instance of editors.splice(0)) instance.destroy();
+});
+
+function noteWith(blocks: readonly string[]): Editor {
+  const instance = new Editor({
+    extensions: createEditorExtensions({
+      suggest: () => [],
+      onView: () => {},
+      onSlashView: () => {},
+      suggestTags: () => [],
+      onTagView: () => {},
+      onOpenTag: null,
+      offerLink: false,
+      loadImage: async () => null,
+      embedImage: null,
+    }),
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Above.' }] },
+        ...blocks.map((markdown) => ({ type: 'rawBlock', attrs: { markdown } })),
+        { type: 'paragraph', content: [{ type: 'text', text: 'Below.' }] },
+      ],
+    },
+  });
+  editors.push(instance);
+  return instance;
+}
+
+function clipboardEvent(type: 'copy' | 'cut' | 'paste', held = new Map<string, string>()) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      clearData: () => held.clear(),
+      setData: (kind: string, value: string) => void held.set(kind, value),
+      getData: (kind: string) => held.get(kind) ?? '',
+      types: [...held.keys()],
+      files: [],
+      items: [],
+    },
+  });
+  return { held, event };
+}
+
+function copyAll(instance: Editor, type: 'copy' | 'cut'): Map<string, string> {
+  instance.view.dispatch(instance.state.tr.setSelection(new AllSelection(instance.state.doc)));
+  const { held, event } = clipboardEvent(type);
+  instance.view.dom.dispatchEvent(event);
+  return held;
+}
+
+function pasteAtEnd(instance: Editor, held: Map<string, string>): void {
+  const end = instance.state.doc.content.size - 1;
+  instance.view.dispatch(
+    instance.state.tr.setSelection(TextSelection.create(instance.state.doc, end)),
+  );
+  instance.view.dom.dispatchEvent(clipboardEvent('paste', new Map(held)).event);
+}
+
+/** Each raw block's source, in order: each is written to the file as it is. */
+const rawSources = (instance: Editor): string[] => {
+  const found: string[] = [];
+  instance.state.doc.descendants((node) => {
+    if (node.type.name === 'rawBlock') found.push(String(node.attrs['markdown']));
+  });
+  return found;
+};
+
+describe('a raw block copied and pasted in the editor', () => {
+  it('keeps the table bytes when pasted back into the same note', () => {
+    const instance = noteWith([TABLE]);
+    const held = copyAll(instance, 'copy');
+    pasteAtEnd(instance, held);
+    expect(rawSources(instance)).toEqual([TABLE, TABLE]);
+  });
+
+  it('keeps the table bytes when cut and pasted back', () => {
+    const instance = noteWith([TABLE]);
+    const held = copyAll(instance, 'cut');
+    pasteAtEnd(instance, held);
+    expect(rawSources(instance)).toEqual([TABLE]);
+  });
+
+  it('keeps the table bytes when pasted into another note', () => {
+    const source = noteWith([TABLE]);
+    const target = noteWith([]);
+    pasteAtEnd(target, copyAll(source, 'copy'));
+    expect(rawSources(target)).toEqual([TABLE]);
+  });
+
+  it('keeps a raw HTML block when pasted into another note', () => {
+    const source = noteWith([HTML_BLOCK]);
+    const target = noteWith([]);
+    pasteAtEnd(target, copyAll(source, 'copy'));
+    expect(rawSources(target)).toEqual([HTML_BLOCK]);
+  });
+
+  it('is not turned into a code block when pasted', () => {
+    const source = noteWith([TABLE]);
+    const target = noteWith([]);
+    pasteAtEnd(target, copyAll(source, 'copy'));
+    const types: string[] = [];
+    target.state.doc.forEach((node) => types.push(node.type.name));
+    expect(types).not.toContain('codeBlock');
+  });
+
+  it('puts its source in text/plain, for a paste into another app', () => {
+    const held = copyAll(noteWith([TABLE]), 'copy');
+    expect(held.get('text/plain')).toContain('| Kale | 55 |');
+  });
+});
+
+describe('HTML from another app, read by the editor', () => {
+  /** The blocks the editor's schema reads `html` as: what a paste from another app becomes. */
+  const blocksOf = (html: string) => {
+    const element = document.createElement('div');
+    element.innerHTML = html;
+    const parsed = DOMParser.fromSchema(noteWith([]).schema).parse(element);
+    const blocks: Array<{ type: string; text: string }> = [];
+    parsed.forEach((node) => blocks.push({ type: node.type.name, text: node.textContent }));
+    return blocks;
+  };
+
+  it('keeps a code block a code block', () => {
+    expect(blocksOf('<pre><code class="language-ts">const kale = 55;</code></pre>')).toEqual([
+      { type: 'codeBlock', text: 'const kale = 55;' },
+    ]);
+  });
+
+  it('keeps a block whose source is not one DFAI wrote a code block of its text', () => {
+    expect(blocksOf('<pre data-raw-block="" data-markdown="%E0%A4%A">| Kale | 55 |</pre>')).toEqual(
+      [{ type: 'codeBlock', text: '| Kale | 55 |' }],
+    );
+  });
+
+  it('reads the source from data-markdown, never from a bare markdown attribute', () => {
+    const target = noteWith([]);
+    pasteAtEnd(
+      target,
+      htmlClipboard('<pre data-raw-block="" markdown="<img src=x>" data-markdown="a">a</pre>'),
+    );
+    expect(rawSources(target)).toEqual(['a']);
+  });
+
+  it('keeps a block marked raw but carrying no source a code block of its text', () => {
+    expect(blocksOf('<pre data-raw-block="">| Kale | 55 |</pre>')).toEqual([
+      { type: 'codeBlock', text: '| Kale | 55 |' },
+    ]);
+  });
+});
+
+describe('a note with DFAI markers, copied', () => {
+  const TOMBSTONE =
+    '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A9","words":"3f2a"} -->';
+
+  it('puts no marker in text/plain, for a paste into another app', () => {
+    const held = copyAll(noteWith([TOMBSTONE]), 'copy');
+    expect(held.get('text/plain')).not.toContain('highlight-removed');
+    expect(held.get('text/plain')).toContain('Above.');
+  });
+
+  it("puts a highlight's quote and comment in text/plain, and not its marker", () => {
+    const highlight = [
+      '> Ferns spread by spores.',
+      '> <!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow","kind":"pdf","page":3} -->',
+      '>',
+      '> Check the north bed.',
+    ].join('\n');
+    const plain = copyAll(noteWith([highlight]), 'copy').get('text/plain') ?? '';
+    expect(plain).toContain('Ferns spread by spores.');
+    expect(plain).toContain('Check the north bed.');
+    expect(plain).not.toContain('atlas:');
+  });
+});
+
+const HIGHLIGHT = [
+  '> Ferns spread by spores.',
+  '> <!-- atlas:highlight {"v":1,"mark":"highlight","color":"yellow","kind":"pdf","page":3} -->',
+  '>',
+  '> Check the north bed.',
+].join('\n');
+const HIGHLIGHT_WITHOUT_MARKER = '> Ferns spread by spores.\n>\n> Check the north bed.';
+const REMOVED =
+  '<!-- atlas:highlight-removed {"v":1,"kind":"kindle","location":9,"annotationId":"A9","words":"3f2a"} -->';
+
+/** A clipboard as a web page could fill it: a raw block of any source DFAI never wrote. */
+function htmlClipboard(html: string): Map<string, string> {
+  return new Map([
+    ['text/html', html],
+    ['text/plain', ''],
+  ]);
+}
+const forgedRawBlock = (source: string) =>
+  `<pre data-raw-block="" data-markdown="${encodeURIComponent(source)}">x</pre>`;
+
+describe('a raw block pasted, with DFAI markers or ids in its source', () => {
+  it("pastes a copied highlight's quote and comment, and not its marker", () => {
+    const instance = noteWith([HIGHLIGHT]);
+    pasteAtEnd(instance, copyAll(instance, 'copy'));
+    expect(rawSources(instance)).toEqual([HIGHLIGHT, HIGHLIGHT_WITHOUT_MARKER]);
+  });
+
+  it('drops a tombstone from another clipboard, pasting nothing of it', () => {
+    const target = noteWith([]);
+    pasteAtEnd(target, htmlClipboard(forgedRawBlock(REMOVED)));
+    expect(rawSources(target)).toEqual([]);
+    expect(JSON.stringify(target.getJSON())).not.toContain('atlas:');
+  });
+
+  it('strips a forged highlight marker from another clipboard', () => {
+    const target = noteWith([]);
+    pasteAtEnd(target, htmlClipboard(forgedRawBlock(HIGHLIGHT)));
+    expect(rawSources(target)).toEqual([HIGHLIGHT_WITHOUT_MARKER]);
+  });
+
+  it('takes a block id off the pasted source, so a note never holds an id twice', () => {
+    const target = noteWith([]);
+    pasteAtEnd(target, htmlClipboard(forgedRawBlock('<div>x</div>\n\nAbove. ^keep1')));
+    expect(rawSources(target)).toEqual(['<div>x</div>\n\nAbove.']);
+  });
+
+  it('keeps the source whole when the block is moved by dragging within the note', () => {
+    const instance = noteWith([HIGHLIGHT]);
+    const at = instance.state.doc.child(0).nodeSize;
+    const selection = NodeSelection.create(instance.state.doc, at);
+    const slice = selection.content();
+    const { view } = instance;
+    view.dragging = { slice, move: true };
+    let moved = slice;
+    view.someProp('transformPasted', (transform) => {
+      moved = transform(moved, view, false);
+    });
+    view.dragging = null;
+    expect(moved.content.firstChild?.attrs['markdown']).toBe(HIGHLIGHT);
+  });
+});
