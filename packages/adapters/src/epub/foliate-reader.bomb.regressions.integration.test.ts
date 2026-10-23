@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { EpubUnreadableError } from '@dfai/application';
 import { fixtureEpub, HARE_AND_TORTOISE } from '../../../../tools/epub/fixture-epub.ts';
 import { foliateEpubReader } from './foliate-reader.ts';
+import { bombReason, MOST_BOOK_BYTES, MOST_FILE_BYTES } from './zip-loader.ts';
 
 /*
- * Attack on PR #536 (#505): a zip bomb. An EPUB is a ZIP, and a chapter of a
+ * Regressions from the attack on PR #536 (#505): a zip bomb. An EPUB is a ZIP, and a chapter of a
  * megabyte on disk can say, truthfully, that it inflates to a gigabyte. The
  * reader inflates a chapter whole (`loadText`), parses it with DOMParser and
  * copies it again into the frame's node list, all in the app's own web
@@ -120,8 +121,8 @@ function zipOf(entries: readonly Entry[]): Buffer {
   return Buffer.concat([...locals, directory, end]);
 }
 
-/** The fables' book, its one chapter swapped for one deflated with `count` spaces in it. */
-async function bombedEpub(count: number): Promise<Buffer> {
+/** The fables' book, its one chapter swapped for one deflated with `count` spaces in it, saying it is `says` bytes. */
+async function bombedEpub(count: number, says?: number): Promise<Buffer> {
   const book = storedEntries(fixtureEpub({ chapters: [HARE_AND_TORTOISE] }));
   const original = book.get(CHAPTER)?.toString('utf8') ?? '';
   const split = original.indexOf('</body>');
@@ -133,7 +134,7 @@ async function bombedEpub(count: number): Promise<Buffer> {
   return zipOf(
     [...book].map(([name, data]) =>
       name === CHAPTER
-        ? { name, ...filler, method: 8 }
+        ? { name, ...filler, size: says ?? filler.size, method: 8 }
         : { name, data, crc: crc32(data), size: data.length, method: 0 },
     ),
   );
@@ -153,5 +154,45 @@ describe('a zip bomb', () => {
     const book = await foliateEpubReader().open(new Uint8Array(await bombedEpub(4096)));
     expect(await book.sectionText(0)).toContain('A Hare one day ridiculed');
     book.close();
+  });
+});
+
+describe('a zip bomb whose sizes lie', () => {
+  it('is refused as unreadable the moment its chapter inflates past the size it says', async () => {
+    // It says 4 KB, too small to be judged a bomb by its sizes; it inflates to 8 MB.
+    const book = await foliateEpubReader().open(
+      new Uint8Array(await bombedEpub(8 * 1024 * 1024, 4096)),
+    );
+    await expect(book.sectionText(0)).rejects.toBeInstanceOf(EpubUnreadableError);
+    book.close();
+  });
+});
+
+describe('what an archive says of its sizes', () => {
+  const file = (uncompressedSize: number, compressedSize = uncompressedSize) => ({
+    filename: 'OEBPS/hare.xhtml',
+    compressedSize,
+    uncompressedSize,
+  });
+  const MB = 1024 * 1024;
+
+  it('is a bomb for one file past the most a file may inflate to, however it deflates', () => {
+    expect(bombReason([file(MOST_FILE_BYTES)])).toBeNull();
+    expect(bombReason([file(MOST_FILE_BYTES + 1)])).toMatch(/inflates past 64 MB/);
+  });
+
+  it('is a bomb for files that together pass the most a book may inflate to', () => {
+    const files = Array.from({ length: MOST_BOOK_BYTES / MOST_FILE_BYTES }, () =>
+      file(MOST_FILE_BYTES),
+    );
+    expect(bombReason(files)).toBeNull();
+    expect(bombReason([...files, file(1)])).toMatch(/inflates past 512 MB/);
+  });
+
+  it('is a bomb for a file of more than a megabyte that inflates more than a hundred times over', () => {
+    expect(bombReason([file(2 * MB, (2 * MB) / 100)])).toBeNull();
+    expect(bombReason([file(2 * MB, (2 * MB) / 100 - 1)])).toMatch(/more than 100 times/);
+    // A small file deflates as well as it likes: a page of spaces is no bomb.
+    expect(bombReason([file(MB, 1)])).toBeNull();
   });
 });

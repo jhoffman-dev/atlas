@@ -69,6 +69,15 @@ function frameWindow() {
     scrollTo: () => undefined,
   });
   Object.defineProperty(view, 'CSS', { value: { highlights, escape: (text: string) => text } });
+  const adopted = new WeakMap<Document, unknown>();
+  Object.defineProperty(view.Document.prototype, 'adoptedStyleSheets', {
+    get(this: Document) {
+      return adopted.get(this) ?? [];
+    },
+    set(this: Document, sheets: unknown) {
+      adopted.set(this, sheets);
+    },
+  });
   view.Range.prototype.getBoundingClientRect = () => new view.DOMRect(5, 6, 7, 8);
   view.postMessage = ((message: FromFrame) => void sent.push(message)) as Window['postMessage'];
   const say = (message: ToFrame | unknown, source: Window | null = view) =>
@@ -398,5 +407,80 @@ describe('the frame scrolls where the reader asks', () => {
     say({ kind: 'everything' });
     expect(highlights.size).toBe(0);
     expect(sent).toEqual([{ kind: 'ready' }]);
+  });
+});
+
+describe("a book's names do not stand in for the document's own members (regressions from the attack on PR #536)", () => {
+  const SHADOWING: FrameNode[] = [
+    [-1, 1, XHTML, 'html', []],
+    [0, 1, XHTML, 'body', []],
+    [1, 1, XHTML, 'img', ['', 'name', 'createRange', '', 'id', 'getElementById']],
+    [1, 1, XHTML, 'img', ['', 'name', 'querySelector']],
+    [1, 1, XHTML, 'form', ['', 'name', 'body']],
+    [4, 1, XHTML, 'input', ['', 'name', 'appendChild', '', 'id', 'nodeType']],
+    [4, 1, XHTML, 'p', ['', 'id', 'title']],
+    [6, 3, 'Slow and steady', 0],
+    [1, 1, XHTML, 'a', ['', 'name', 'top']],
+  ];
+
+  it('builds no name or id that would shadow a member of the document or a form, and keeps every other', () => {
+    const { doc, say, sent } = frameWindow();
+    say({ kind: 'chapter', nodes: SHADOWING, length: 15 });
+    expect(sent.at(-1)).toEqual({ kind: 'shown' });
+    const [first, second] = Array.from(doc.querySelectorAll('img'));
+    expect([first?.hasAttribute('name'), first?.hasAttribute('id')]).toEqual([false, false]);
+    expect(second?.hasAttribute('name')).toBe(false);
+    expect(doc.querySelector('form')?.hasAttribute('name')).toBe(false);
+    expect(doc.querySelector('input')?.attributes).toHaveLength(0);
+    // A paragraph's id and a link's name shadow nothing: they stay places a link can lead to.
+    expect(doc.querySelector('p')?.id).toBe('title');
+    expect(doc.querySelector('a')?.getAttribute('name')).toBe('top');
+    expect(doc.querySelector('p')?.textContent).toBe('Slow and steady');
+  });
+
+  it('builds, draws and scrolls through the DOM’s own members, whatever the document’s own properties say', () => {
+    const { view, doc, say, sent, highlights } = frameWindow();
+    const shadow = (target: object, names: readonly string[]) => {
+      for (const name of names) Object.defineProperty(target, name, { value: 'shadowed' });
+    };
+    // As a named property of the document would: an own property in front of the prototype's.
+    shadow(doc, [
+      'createTextNode',
+      'createElementNS',
+      'replaceChild',
+      'documentElement',
+      'createRange',
+      'getElementById',
+      'querySelector',
+      'adoptedStyleSheets',
+    ]);
+    say({ kind: 'chapter', nodes: CHAPTER, length: LENGTH });
+    expect(sent.at(-1)).toEqual({ kind: 'shown' });
+    say({
+      kind: 'paint',
+      clear: ['dfai-highlight-'],
+      groups: [{ name: 'dfai-highlight-green', priority: 0, ranges: [0, 5] }],
+    });
+    expect(highlights.get('dfai-highlight-green')?.ranges.map(String)).toEqual(['Hello']);
+    const into: string[] = [];
+    view.Element.prototype.scrollIntoView = function (this: Element) {
+      into.push(this.id || (this.getAttribute('name') ?? ''));
+    };
+    say({ kind: 'scroll-to-fragment', fragment: 'first' });
+    expect(into).toEqual(['first']);
+  });
+
+  it('builds and follows a link inside a form whose controls shadow its members', () => {
+    const { view, doc, say, sent } = frameWindow();
+    say({ kind: 'chapter', nodes: CHAPTER, length: LENGTH });
+    const link = doc.querySelector('a');
+    // As a form's named controls would: own properties in front of the element's prototype.
+    for (const name of ['closest', 'getAttribute']) {
+      Object.defineProperty(link as Element, name, { value: 'shadowed' });
+    }
+    link?.firstChild?.parentElement?.dispatchEvent(
+      new view.MouseEvent('click', { bubbles: true, cancelable: true }),
+    );
+    expect(sent.at(-1)).toEqual({ kind: 'link', path: 'OEBPS/two.xhtml', fragment: 'top' });
   });
 });

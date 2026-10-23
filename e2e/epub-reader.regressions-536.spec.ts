@@ -9,7 +9,7 @@ import {
 } from '../tools/epub/fixture-epub.ts';
 
 /*
- * Attack on PR #536 (#505, ADR-0045), end to end in WebKit. The frame runs
+ * Regressions from the attack on PR #536 (#505, ADR-0045), end to end in WebKit. The frame runs
  * only DFAI's script, but that script reads the frame's `document` — and an
  * HTML document's named properties shadow its own methods: `<img
  * name="createRange">` makes `document.createRange` that picture. The name
@@ -126,7 +126,49 @@ test('a picture the book names getElementById does not stop a link to a place in
     .toBeGreaterThan(1000);
 });
 
-test("the book's CSS spelled past the cleaning still asks nothing of another site", async ({
+test('names that shadow the body, querySelector and a form’s members stop neither a highlight nor a link by name', async ({
+  page,
+}) => {
+  const book = fixtureEpub({
+    chapters: [
+      {
+        ...HARE_AND_TORTOISE,
+        // The unclosed <br> is not well-formed XHTML: the reader parses this chapter as HTML.
+        body: `<p><a id="far-link" href="grasshopper.xhtml#far">To the far end</a><br></p>
+<img name="body" alt=""/><img name="querySelector" alt=""/>
+<form name="getElementsByTagName"><input name="appendChild"/><input name="childNodes"/><input id="nodeType"/>
+<p>The tortoise kept on, slow and steady.</p></form>
+${HARE_AND_TORTOISE.body}`,
+      },
+      {
+        ...ANT_AND_GRASSHOPPER,
+        body: `${ANT_AND_GRASSHOPPER.body}\n<img name="querySelector" alt=""/>\n<div style="height: 6000px"></div>\n<p><a name="far">The far end of the fable.</a></p>`,
+      },
+    ],
+  });
+  await openBook(page, book);
+  await expect(text(page)).toContainText('The tortoise kept on, slow and steady.');
+  await selectWords(await frameOf(page), 'The tortoise kept on, slow and steady.');
+  await page
+    .getByRole('toolbar', { name: 'Mark the selection' })
+    .getByRole('button', { name: 'Highlight Green' })
+    .click();
+  await expect
+    .poll(async () =>
+      (await frameOf(page)).evaluate(() => {
+        const highlight = CSS.highlights.get('dfai-highlight-green');
+        return highlight === undefined ? [] : [...highlight].map((range) => range.toString());
+      }),
+    )
+    .toEqual(['The tortoise kept on, slow and steady.']);
+  await (await frameOf(page)).locator('#far-link').click();
+  await expect(text(page)).toContainText('The far end of the fable.');
+  await expect
+    .poll(async () => (await frameOf(page)).evaluate(() => window.scrollY))
+    .toBeGreaterThan(1000);
+});
+
+test("the book's CSS, however it spells another site's address, asks nothing of it", async ({
   page,
 }) => {
   const book = fixtureEpub({
@@ -145,12 +187,12 @@ p { background-image: image-set("${HOSTILE_ORIGIN}/image-set.png" 1x); }
   const { hits } = await openBook(page, book);
   const frame = await frameOf(page);
   await expect(text(page)).toContainText('Slow but steady wins the race.');
-  // The cleaning let these through: only the frame's own policy stands in their way.
+  // The cleaning takes these away, however they are spelled; the frame's policy stands behind it.
   expect(
     await frame.evaluate(() =>
       [...document.querySelectorAll('style')].map((s) => s.textContent).join(''),
     ),
-  ).toContain('beacon.example.com');
+  ).not.toContain('beacon.example.com');
   await frame.locator('.moral').hover();
   await page.waitForLoadState('networkidle');
   expect(hits).toEqual([]);
