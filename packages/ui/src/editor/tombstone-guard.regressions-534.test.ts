@@ -10,7 +10,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
-import { TextSelection } from '@tiptap/pm/state';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { Slice } from '@tiptap/pm/model';
 import { createEditorExtensions } from './extensions.ts';
 
@@ -396,5 +396,119 @@ describe('a highlight, when it is copied and pasted', () => {
     expect(liveHighlights(other)).toEqual([]);
     expect(rawBlocks(other)).toEqual([{ markdown: QUOTE, anchor: null }]);
     expect(liveHighlights(from)).toHaveLength(1);
+  });
+});
+
+/*
+ * Regression (#534, fourth pass): the paste transform asks the drag whether it
+ * moves (`view.dragging.move`), decided as the drag began; ProseMirror decides
+ * again at the drop, from the copy key held then. A drag begun plain and
+ * dropped holding the copy key copies, and the copy kept its marker and id: a
+ * second live highlight. Begun holding it and dropped plain, the highlight is
+ * moved — taken from where it was — and lands as a plain quote: no highlight left.
+ */
+describe('a highlight dragged within its note, the copy key changed mid-drag', () => {
+  const MARKER =
+    '<!-- atlas:highlight {"v":1,"mark":"underline","color":"pink","kind":"kindle","location":41} -->';
+  const HIGHLIGHT = ['> The tide keeps its hours.', `> ${MARKER}`, '>', '> Lit by Mara.'].join(
+    '\n',
+  );
+
+  function literatureNote(): Editor {
+    return new Editor({
+      extensions: createEditorExtensions({
+        suggest: () => [],
+        onView: () => {},
+        onSlashView: () => {},
+        suggestTags: () => [],
+        onTagView: () => {},
+        onOpenTag: null,
+        offerLink: false,
+        loadImage: async () => null,
+        embedImage: null,
+      }),
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'My own paragraph.' }] },
+          { type: 'rawBlock', attrs: { markdown: HIGHLIGHT, anchor: 'kd0041' } },
+          { type: 'paragraph', content: [{ type: 'text', text: 'After.' }] },
+        ],
+      },
+    });
+  }
+
+  /**
+   * Drags the highlight block to the note's end through ProseMirror's own drop
+   * handler: the drag begun with `moveAtStart`, the drop made holding the copy
+   * key or not. jsdom lays nothing out, so the drop point is given.
+   */
+  function dragHighlightToEnd(
+    instance: Editor,
+    { moveAtStart, copyKeyAtDrop }: { moveAtStart: boolean; copyKeyAtDrop: boolean },
+  ): void {
+    let at = -1;
+    instance.state.doc.forEach((node, offset) => {
+      if (node.type.name === 'rawBlock') at = offset;
+    });
+    const node = instance.state.doc.nodeAt(at);
+    if (node === null) throw new Error('No highlight to drag.');
+    const { view } = instance;
+    const selection = NodeSelection.create(instance.state.doc, at);
+    view.dispatch(instance.state.tr.setSelection(selection));
+    const end = instance.state.doc.content.size;
+    view.posAtCoords = () => ({ pos: end, inside: -1 });
+    (view as unknown as { dragging: unknown }).dragging = {
+      slice: selection.content(),
+      move: moveAtStart,
+      node: selection,
+    };
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.assign(drop, {
+      clientX: 0,
+      clientY: 0,
+      // The copy key is Alt on a Mac, Ctrl elsewhere: jsdom is "elsewhere", so both are held.
+      altKey: copyKeyAtDrop,
+      ctrlKey: copyKeyAtDrop,
+      dataTransfer: { getData: () => '', types: [], files: [] },
+    });
+    view.dom.dispatchEvent(drop);
+  }
+
+  const liveHighlights = (instance: Editor) => {
+    const found: { markdown: string; anchor: unknown }[] = [];
+    instance.state.doc.descendants((node) => {
+      if (
+        node.type.name === 'rawBlock' &&
+        String(node.attrs['markdown']).includes('atlas:highlight ')
+      ) {
+        found.push({ markdown: String(node.attrs['markdown']), anchor: node.attrs['anchor'] });
+      }
+    });
+    return found;
+  };
+
+  it('dragged plain throughout, is moved and stays the one highlight (the drag as this file drives it)', () => {
+    const instance = literatureNote();
+    editor = instance;
+    dragHighlightToEnd(instance, { moveAtStart: true, copyKeyAtDrop: false });
+    const order: string[] = [];
+    instance.state.doc.forEach((node) => order.push(node.type.name));
+    expect(order.slice(0, 3)).toEqual(['paragraph', 'paragraph', 'rawBlock']);
+    expect(liveHighlights(instance)).toHaveLength(1);
+  });
+
+  it('begun plain and dropped holding the copy key, leaves one live highlight, not two', () => {
+    const instance = literatureNote();
+    editor = instance;
+    dragHighlightToEnd(instance, { moveAtStart: true, copyKeyAtDrop: true });
+    expect(liveHighlights(instance)).toEqual([{ markdown: HIGHLIGHT, anchor: 'kd0041' }]);
+  });
+
+  it('begun holding the copy key and dropped plain, is moved and still a highlight', () => {
+    const instance = literatureNote();
+    editor = instance;
+    dragHighlightToEnd(instance, { moveAtStart: false, copyKeyAtDrop: false });
+    expect(liveHighlights(instance)).toEqual([{ markdown: HIGHLIGHT, anchor: 'kd0041' }]);
   });
 });
