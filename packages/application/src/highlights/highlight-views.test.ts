@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { highlightMarker } from '@dfai/domain';
 import { lineNoteBlocks } from '@dfai/domain/testing';
-import { literatureHighlightReader } from './highlight-views.ts';
+import { createHighlightReadMemo, literatureHighlightReader } from './highlight-views.ts';
 
 /*
  * Which blocks of an open note the editor draws as highlights (#523): only a
@@ -53,5 +53,67 @@ describe('literatureHighlightReader', () => {
     ['a quote with two markers', `${BLOCK}\n> ${MARKER}`, 'k3x9q2'],
   ])('draws %s as its source', (_label, block, id) => {
     expect(reader()?.({ markdown: block, id })).toBeNull();
+  });
+});
+
+describe('the reading kept between one reading of a note and the next (#534)', () => {
+  const counting = () => {
+    let parses = 0;
+    return {
+      parses: () => parses,
+      markdown: {
+        noteBlocks: (text: string) => {
+          parses += 1;
+          return lineNoteBlocks(text);
+        },
+      },
+    };
+  };
+  const ask = (reader: ReturnType<typeof literatureHighlightReader>) =>
+    reader?.({ markdown: BLOCK, id: 'k3x9q2' });
+
+  it('reads nothing until a block asks', () => {
+    const { markdown: counted, parses } = counting();
+    literatureHighlightReader(counted, { properties: LITERATURE, text: TEXT });
+    expect(parses()).toBe(0);
+  });
+
+  it('parses a block once for the gate and the component that both ask', () => {
+    const { markdown: counted, parses } = counting();
+    const reader = literatureHighlightReader(counted, { properties: LITERATURE, text: TEXT });
+    ask(reader);
+    const afterFirst = parses();
+    expect(ask(reader)).toEqual(ask(reader));
+    expect(parses()).toBe(afterFirst);
+  });
+
+  it('does not read the note again for a save of its prose', () => {
+    const { markdown: counted, parses } = counting();
+    const memo = createHighlightReadMemo();
+    ask(literatureHighlightReader(counted, { properties: LITERATURE, text: TEXT }, memo));
+    const afterOpen = parses();
+    const edited = `${TEXT}\nMore of my own words.\n`;
+    ask(literatureHighlightReader(counted, { properties: LITERATURE, text: edited }, memo));
+    expect(parses()).toBe(afterOpen);
+  });
+
+  it('reads the note again when a highlight is added to it', () => {
+    const { markdown: counted, parses } = counting();
+    const memo = createHighlightReadMemo();
+    ask(literatureHighlightReader(counted, { properties: LITERATURE, text: TEXT }, memo));
+    const afterOpen = parses();
+    const more = `${TEXT}\n> Another.\n> ${MARKER}\n\n^zz9zz9\n`;
+    const reader = literatureHighlightReader(counted, { properties: LITERATURE, text: more }, memo);
+    expect(reader?.({ markdown: `> Another.\n> ${MARKER}`, id: 'zz9zz9' })?.words).toBe('Another.');
+    expect(parses()).toBeGreaterThan(afterOpen);
+  });
+
+  it('stops drawing a highlight a comment now hides', () => {
+    const memo = createHighlightReadMemo();
+    ask(literatureHighlightReader(markdown, { properties: LITERATURE, text: TEXT }, memo));
+    const hidden = `---\ntype: literature\n---\n%%\n${BLOCK}\n\n^k3x9q2\n%%\n`;
+    expect(
+      ask(literatureHighlightReader(markdown, { properties: LITERATURE, text: hidden }, memo)),
+    ).toBeNull();
   });
 });

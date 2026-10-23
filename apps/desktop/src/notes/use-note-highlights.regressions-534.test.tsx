@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 /**
- * Attack on PR #534 (#523): a comment typed in place is written by
+ * Regressions found in PR #534 (#523): a comment typed in place is written by
  * `editHighlightComment`, which replaces the highlight's whole comment with
  * what the field holds. The field was drawn from the note as it was read;
  * when the comment changed on disk since — Kindle sync adding the follow-up
  * note typed on the Kindle, an edit in Obsidian — before the pane read the
  * note again, the write must not throw that newer comment away.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
   appendHighlights,
@@ -15,7 +15,13 @@ import {
   literatureNoteText,
   readHighlights,
 } from '@dfai/domain';
-import { fakeVaultFs, openNote, type OpenNote, type OpenNotes } from '@dfai/application';
+import {
+  fakeVaultFs,
+  openNote,
+  UnsavedTypingError,
+  type OpenNote,
+  type OpenNotes,
+} from '@dfai/application';
 import { remarkMarkdown } from '@dfai/adapters';
 import { useNoteHighlights } from './use-note-highlights.ts';
 
@@ -69,13 +75,20 @@ function memoryVault() {
   return { files, fs, edit };
 }
 
+let paneState = () => 'clean';
 const openNotes = {
-  state: () => 'clean',
+  state: () => paneState(),
   setPropertiesIfOpen: async () => false,
   reload: () => {},
 } as unknown as OpenNotes;
 
-async function commenting() {
+async function commenting(
+  given: {
+    flush?: () => Promise<void>;
+    state?: () => string;
+    toasts?: { show: (toast: unknown) => number };
+  } = {},
+) {
   const vault = memoryVault();
   const open: OpenNote = await openNote({ fs: vault.fs, markdown: remarkMarkdown, path: BOOK });
   const hook = renderHook(() =>
@@ -83,10 +96,11 @@ async function commenting() {
       fs: vault.fs,
       markdown: remarkMarkdown,
       openNotes,
-      flush: async () => {},
+      flush: given.flush ?? (async () => {}),
       path: BOOK,
       open,
       onChanged: () => {},
+      ...(given.toasts !== undefined && { toasts: given.toasts }),
     }),
   );
   return { vault, hook };
@@ -106,7 +120,7 @@ describe('a comment written after the note changed on disk', () => {
     await act(async () => {
       // A refusal is an answer too: what is asserted is the file.
       await hook.result.current
-        ?.editComment({ id: ID, comment: 'Lit by Mara. Typed in DFAI.' })
+        ?.editComment({ id: ID, comment: 'Lit by Mara. Typed in DFAI.', base: 'Lit by Mara.' })
         .catch(() => {});
     });
     expect(vault.files.get(BOOK)?.text).toContain('From the Kindle.');
@@ -117,9 +131,84 @@ describe('a comment written after the note changed on disk', () => {
     vault.edit(TEXT.replace('> Lit by Mara.', '> Lit by Mara, at dusk (Obsidian).'));
     await act(async () => {
       await hook.result.current
-        ?.editComment({ id: ID, comment: 'Lit by Mara. Typed in DFAI.' })
+        ?.editComment({ id: ID, comment: 'Lit by Mara. Typed in DFAI.', base: 'Lit by Mara.' })
         .catch(() => {});
     });
     expect(vault.files.get(BOOK)?.text).toContain('at dusk (Obsidian)');
+  });
+});
+
+describe('a comment write, in order (#534)', () => {
+  it('writes the pane’s typing first, then reads the note and writes the comment', async () => {
+    const order: string[] = [];
+    const { vault, hook } = await commenting({
+      flush: async () => {
+        order.push('flush');
+      },
+    });
+    const read = vault.fs.readTextFile;
+    vault.fs.readTextFile = async (path) => {
+      order.push('read');
+      return read(path);
+    };
+    await act(async () => {
+      await hook.result.current?.editComment({ id: ID, comment: 'Typed.', base: 'Lit by Mara.' });
+    });
+    expect(order.slice(0, 2)).toEqual(['flush', 'read']);
+    expect(vault.files.get(BOOK)?.text).toContain('> Typed.');
+  });
+
+  it('refuses, keeping the note as it is, when typing begins between the flush and the write', async () => {
+    paneState = () => 'clean';
+    const { vault, hook } = await commenting({
+      flush: async () => {
+        // The person types in the pane as the flush settles.
+        paneState = () => 'dirty';
+      },
+    });
+    let refusal: unknown;
+    await act(async () => {
+      refusal = await hook.result.current
+        ?.editComment({ id: ID, comment: 'Typed.', base: 'Lit by Mara.' })
+        .catch((error: unknown) => error);
+    });
+    paneState = () => 'clean';
+    expect(refusal).toBeInstanceOf(UnsavedTypingError);
+    expect(vault.files.get(BOOK)?.text).toBe(TEXT);
+  });
+
+  it('refuses a comment that changed since the field began, naming the one now there', async () => {
+    const { vault, hook } = await commenting();
+    vault.edit(TEXT.replace('> Lit by Mara.\n', '> Lit by Mara.\n>\n> From the Kindle.\n'));
+    let refusal: unknown;
+    await act(async () => {
+      refusal = await hook.result.current
+        ?.editComment({ id: ID, comment: 'Typed.', base: 'Lit by Mara.' })
+        .catch((error: unknown) => error);
+    });
+    expect(refusal).toMatchObject({
+      name: 'HighlightCommentChangedError',
+      current: 'Lit by Mara.\n\nFrom the Kindle.',
+    });
+  });
+
+  it('is of the note it was made for', async () => {
+    const { hook } = await commenting();
+    expect(hook.result.current?.identity).toBe(BOOK);
+  });
+
+  it('tells, in a toast that stays and offers the words, of a comment that could not be written', async () => {
+    const show = vi.fn(() => 1);
+    const { hook } = await commenting({ toasts: { show } });
+    hook.result.current?.onUnwrittenComments?.([
+      { id: ID, comment: 'Typed, then ⌘W.', why: 'The note has unsaved typing.' },
+    ]);
+    expect(show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: 'error',
+        message: expect.stringContaining('Typed, then ⌘W.'),
+        action: expect.objectContaining({ label: 'Copy' }),
+      }),
+    );
   });
 });

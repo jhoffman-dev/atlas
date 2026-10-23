@@ -139,6 +139,7 @@ describe('a highlight in its literature note', () => {
     await waitFor(() =>
       expect(editComment).toHaveBeenCalledWith({
         id: 'k3x9q2',
+        base: 'Lit by Mara.',
         comment: 'Lit by Mara Quill.\nTwice.',
       }),
     );
@@ -162,7 +163,11 @@ describe('a highlight in its literature note', () => {
       fireEvent.keyDown(field(), { key: 'Enter', metaKey: true });
     });
     await waitFor(() =>
-      expect(editComment).toHaveBeenCalledWith({ id: 'k3x9q2', comment: 'Kept.' }),
+      expect(editComment).toHaveBeenCalledWith({
+        id: 'k3x9q2',
+        base: 'Lit by Mara.',
+        comment: 'Kept.',
+      }),
     );
   });
 

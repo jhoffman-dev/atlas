@@ -13,7 +13,7 @@ import {
 } from './host.ts';
 
 /*
- * Attack on PR #534 (#523), end to end in WebKit: what a person types in a
+ * Regressions found in PR #534 (#523), end to end in WebKit: what a person types in a
  * highlight's comment is theirs until it is written or put back with Escape;
  * a removed highlight's tombstone, hidden now, is not deleted by a key
  * pressed next to it; and the comment field is no way to change the note.
@@ -103,6 +103,38 @@ test("a comment left before the pane hears of a sync keeps the sync's words", as
   await page.keyboard.press('Tab');
   await expectFile(vault, 'Library/Brightwater.md').not.toBe(SYNCED);
   expect(await vault.read('Library/Brightwater.md')).toContain('From the Kindle.');
+});
+
+test('a comment left over one that changed shows the new one and lets the person choose', async ({
+  page,
+}) => {
+  const vault = await openBrightwater(page);
+  await comment(page).click();
+  await comment(page).fill('Typed while the sync ran.');
+  await vault.write('Library/Brightwater.md', SYNCED);
+  await page.keyboard.press('Tab');
+  const notice = page.getByRole('alert').filter({ hasText: 'From the Kindle.' });
+  await expect(notice).toBeVisible();
+  await expect(comment(page)).toHaveValue('Typed while the sync ran.');
+  // The sync's words are still on disk: nothing was written over them.
+  expect(await vault.read('Library/Brightwater.md')).toContain('From the Kindle.');
+  await notice.getByRole('button', { name: 'Use mine' }).click();
+  await expectFile(vault, 'Library/Brightwater.md').toContain('> Typed while the sync ran.');
+  expect(await vault.read('Library/Brightwater.md')).not.toContain('From the Kindle.');
+});
+
+test('a comment being typed keeps the focus when the note is read again under it', async ({
+  page,
+}) => {
+  const vault = await openBrightwater(page);
+  await comment(page).click();
+  await comment(page).fill('Typed while the sync ran.');
+  await vault.write('Library/Brightwater.md', SYNCED);
+  await emitVaultChanged(page, ['Library/Brightwater.md']);
+  await expect(
+    page.getByRole('article', { name: 'Brightwater' }).getByText('My own paragraph, synced.'),
+  ).toBeVisible();
+  await expect(comment(page)).toBeFocused();
 });
 
 test('Backspace at the start of the prose after a hidden tombstone keeps the tombstone', async ({

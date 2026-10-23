@@ -4,6 +4,7 @@ import {
   appendHighlights,
   BLOCK_ANCHOR_ATTR,
   commentLines,
+  undoCommentEscapes,
   HIGHLIGHT_COLORS,
   HighlightNotReadBackError,
   readHighlights,
@@ -209,7 +210,8 @@ function expectDrawnAsRead(text: string) {
   const read = readHighlights(text, noteBlocks);
   const views = drawn(text);
   expect([...views.keys()]).toEqual(read.map((block) => block.id));
-  for (const block of read) expect(views.get(block.id)?.comment).toBe(block.comment);
+  for (const block of read)
+    expect(views.get(block.id)?.comment).toBe(undoCommentEscapes(block.comment));
 }
 
 describe('generated literature notes in the editor', () => {
@@ -246,7 +248,9 @@ describe('generated literature notes in the editor', () => {
         expect(changed.endsWith(text.slice(target.quoteEnd))).toBe(true);
         expect(savedUnedited(changed)).toBe(changed);
         expectDrawnAsRead(changed);
-        expect(drawn(changed).get(target.id)?.comment).toBe(commentLines(comment).join('\n'));
+        expect(drawn(changed).get(target.id)?.comment).toBe(
+          undoCommentEscapes(commentLines(comment).join('\n')),
+        );
       }
       // Most runs write: the property is about edits, not refusals.
       expect(edited).toBeGreaterThan(RUNS * 0.8);

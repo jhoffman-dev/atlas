@@ -60,9 +60,11 @@ describe('highlightView', () => {
     expect(view.words).not.toBe('');
   });
 
-  it('keeps the comment as written, so one saved as it reads is the same bytes', () => {
-    const comment = 'Compare [[Larkspur Payroll]]. 50%\\% sure.\n\n**Second** thought.';
-    expect(highlightView(block({ comment })).comment).toBe(comment);
+  it('shows the comment as typed, the escapes the write put in taken off (#534)', () => {
+    const written = 'Compare [[Larkspur Payroll]]. 50%\\% sure.\n\n**Second** thought.';
+    expect(highlightView(block({ comment: written })).comment).toBe(
+      'Compare [[Larkspur Payroll]]. 50%% sure.\n\n**Second** thought.',
+    );
   });
 
   it('draws the mark and colour the marker gives', () => {

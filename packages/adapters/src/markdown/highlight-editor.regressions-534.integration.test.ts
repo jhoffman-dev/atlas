@@ -13,7 +13,7 @@ import { remarkMarkdown } from './markdown-port.ts';
 import { noteBlocks } from './note-blocks.ts';
 
 /*
- * Attack on PR #534 (#523): the comment field shows `HighlightView.comment`,
+ * Regressions found in PR #534 (#523): the comment field shows `HighlightView.comment`,
  * the comment's markdown as the file holds it, escapes and all. A person who
  * types `%%` in the field (an unbalanced one, which the write escapes so the
  * rest of the note is not hidden) then sees `%\%` in it — words they never

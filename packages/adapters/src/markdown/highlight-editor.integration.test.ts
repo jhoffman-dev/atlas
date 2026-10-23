@@ -5,6 +5,7 @@ import {
   areaHighlight,
   BLOCK_ANCHOR_ATTR,
   commentLines,
+  undoCommentEscapes,
   isTombstoneBlock,
   kindleHighlightKey,
   kindleNoteKey,
@@ -210,7 +211,7 @@ describe('a literature note opened and saved with no edits', () => {
       const shown = drawnBlocks(text).filter((block) => block.view !== null);
       expect(shown.map((block) => block.id)).toEqual(highlights.map((block) => block.id));
       for (const [at, block] of shown.entries()) {
-        expect(block.view?.comment).toBe(highlights[at]?.comment);
+        expect(block.view?.comment).toBe(undoCommentEscapes(highlights[at]?.comment ?? ''));
       }
     },
   );
@@ -261,7 +262,7 @@ describe('a comment edited in place', () => {
         const { body } = splitFrontmatter(changed);
         expect(save(body, remarkMarkdown.parseBody(body).doc)).toBe(body);
         const shown = drawnBlocks(changed).find((block) => block.id === target.id);
-        expect(shown?.view?.comment).toBe(commentLines(comment).join('\n'));
+        expect(shown?.view?.comment).toBe(undoCommentEscapes(commentLines(comment).join('\n')));
       }
     },
   );
