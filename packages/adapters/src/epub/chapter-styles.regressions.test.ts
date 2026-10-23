@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
+import { bookCss, MOST_IMPORTED_LENGTH, MOST_IMPORTS } from './book-styles.ts';
 import {
-  bookCss,
   bookDeclarations,
-  MOST_IMPORTED_LENGTH,
-  MOST_IMPORTS,
+  MOST_NESTING,
+  MOST_RULE_LENGTH,
   MOST_SHEET_LENGTH,
+  sheetMade,
 } from './chapter-styles.ts';
 
 /*
@@ -189,5 +190,50 @@ describe("a custom property in a book's CSS", () => {
     });
     expect(style).not.toContain(BEACON);
     expect(style).toContain('color: red');
+  });
+});
+
+// From the third verification of PR #536: CSS WebKit, or the cleaning, reads in more than linear time.
+describe("a book's CSS that would be slow to read", () => {
+  const own = async (css: string, most = 50_000) =>
+    (
+      await sheetMade({
+        css,
+        from: 'OEBPS/style.css',
+        address: async () => null,
+        budget: { lookups: 0, most },
+      })
+    ).own;
+
+  it(`drops a sheet nesting brackets more than ${MOST_NESTING} deep, and keeps one that does not`, async () => {
+    const deep = (n: number) =>
+      `p { color: red; } q { background: ${'('.repeat(n)}${')'.repeat(n)} }`;
+    expect(await own(deep(MOST_NESTING + 1))).toBe('');
+    expect(await own(deep(MOST_NESTING - 2))).toContain('color: red');
+    expect(
+      await bookDeclarations({
+        style: `color: red; background: ${'['.repeat(MOST_NESTING + 1)}`,
+        from: 'OEBPS/chapter.xhtml',
+        address: async () => null,
+      }),
+    ).toBe('');
+  });
+
+  it(`drops the declarations of a rule listing more than ${MOST_RULE_LENGTH}`, async () => {
+    const many = Array.from({ length: MOST_RULE_LENGTH + 1 }, (_, n) => `--v${n}: 1;`).join(' ');
+    const made = await own(`p { ${many} } q { color: red; }`);
+    expect(made).not.toContain('--v');
+    expect(made).toContain('color: red');
+  });
+
+  it('drops the declarations of every rule past the most a sheet may read', async () => {
+    const rules = Array.from({ length: 5 }, (_, n) => `p.r${n} { color: red; }`).join('\n');
+    expect((await own(rules, 3)).match(/color: red/g)).toHaveLength(3);
+  });
+
+  it('drops an all built from var(), and keeps the rest of its rule', async () => {
+    const made = await own('h1 { all: var(--unset) inherit; color: red; } h2 { all: inherit; }');
+    expect(made).not.toMatch(/all: var/);
+    expect(made).toContain('color: red');
   });
 });

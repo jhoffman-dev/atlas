@@ -65,3 +65,21 @@ describe("a chapter's names that shadow its document's members", () => {
     expect([kept?.getAttribute('name'), kept?.id]).toEqual(['hare', 'tortoise']);
   });
 });
+
+// From the third verification of PR #536: an SVG presentation attribute is read as CSS.
+describe("a chapter's SVG presentation attributes, read as CSS", () => {
+  it('keep a place in the chapter, and lose one that names anything else or builds one', () => {
+    const doc = new DOMParser().parseFromString(
+      `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title></head><body>
+<svg xmlns="http://www.w3.org/2000/svg"><rect fill="url( #grad ) red" filter="url(other.svg#f)"
+ mask="image-set(var(--m) 1x)" stroke="blue"/></svg></body></html>`,
+      'application/xhtml+xml',
+    );
+    makeChapterSafe(doc, 'OEBPS/chapter.xhtml');
+    const rect = doc.getElementsByTagNameNS('http://www.w3.org/2000/svg', 'rect')[0];
+    expect(rect?.getAttribute('fill')).toBe('url( #grad ) red');
+    expect(rect?.getAttribute('stroke')).toBe('blue');
+    expect(rect?.hasAttribute('filter')).toBe(false);
+    expect(rect?.hasAttribute('mask')).toBe(false);
+  });
+});

@@ -130,6 +130,56 @@ export function namesStringOrAddress(value: string): boolean {
   return false;
 }
 
+/** Whether `value` calls `var()`, `env()` or `attr()`: a value not known until the page is styled. */
+export function namesUnknownFunction(value: string): boolean {
+  let at = 0;
+  while (at < value.length) {
+    if (value.startsWith('/*', at)) {
+      const close = value.indexOf('*/', at + 2);
+      at = close === -1 ? value.length : close + 2;
+    } else if (isQuote(value[at])) {
+      at = stringAt(value, at).end;
+    } else if (startsName(value, at)) {
+      const name = nameAt(value, at);
+      at = name.end;
+      if (value[at] === '(' && UNKNOWN_FUNCTIONS.has(name.text.toLowerCase())) return true;
+    } else {
+      at += value[at] === '\\' ? 2 : 1;
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether `css` nests its brackets, `(`, `[` and `{`, more than `most` deep
+ * anywhere, outside strings and comments, read in one pass. WebKit's parser
+ * reads deeply nested blocks in time growing with the square of their depth.
+ */
+export function nestsDeeperThan(css: string, most: number): boolean {
+  let depth = 0;
+  let at = 0;
+  while (at < css.length) {
+    const character = css[at];
+    if (css.startsWith('/*', at)) {
+      const close = css.indexOf('*/', at + 2);
+      at = close === -1 ? css.length : close + 2;
+      continue;
+    }
+    if (isQuote(character)) {
+      at = stringAt(css, at).end;
+      continue;
+    }
+    if (character === '(' || character === '[' || character === '{') {
+      depth += 1;
+      if (depth > most) return true;
+    } else if ((character === ')' || character === ']' || character === '}') && depth > 0) {
+      depth -= 1;
+    }
+    at += character === '\\' ? 2 : 1;
+  }
+  return false;
+}
+
 /** One declaration as a rule writes it out: its name, its value, and its text. */
 export interface Declaration {
   readonly name: string;

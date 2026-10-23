@@ -132,11 +132,27 @@ cleaning misses.
      the parser drops them: each is put before the sheet's rules, made the same
      way; a spelling the scan misses is an import the parser drops, never one
      that loads. The scan reads comments and strings as CSS does in one pass
-     that never goes back. Imports are bounded per stylesheet made: each sheet
-     is inlined at most once (the sheet being made counts as seen), at most 64
-     sheets are read, 4 deep, and at most 4 MiB of imported CSS is inlined in
-     all; a sheet of more than 2 MiB, imported or not, is dropped whole before
-     it is read;
+     that never goes back. Each of the book's sheets is read and made once per
+     open book, whether a chapter links it or a sheet imports it
+     (`book-styles.ts`). Imports are bounded: a sheet is put in at most once in
+     one sheet written out (the sheet being made counts as seen), and one
+     chapter's `<style>`s together (or one linked sheet) put in at most 64
+     sheets, 4 deep, and at most 4 MiB of imported CSS;
+   - the cleaning runs in the app's own window, so the work one sheet costs is
+     bounded before it is read, and a book's CSS cannot freeze the app: a sheet
+     (or `style=`) of more than 2 MiB, or nesting `(`, `[` or `{` more than 32
+     deep (WebKit's parser reads nested blocks in quadratic time), is dropped
+     whole; a rule listing more than 1,024 longhands has its declarations
+     dropped (WebKit finds each by walking the rule's list); an `all` built
+     from `var()` is dropped before its 445 longhands are read; and once 50,000
+     longhands and rules have been read in a sheet, or 200,000 across one
+     chapter's own `<style>`s and `style=`s, every further rule's declarations
+     are dropped. A 2 MiB hostile sheet of any of these shapes shows its
+     chapter in under 10 s in the e2e suite;
+   - an attribute other than `style=` (an SVG presentation attribute such as
+     `fill`, `mask`, `filter` or `cursor` is read as CSS) is read with the same
+     tokenizing, and dropped if it names any address but a place in the
+     chapter (`url(#id)`), or builds one from `var()`;
    - the frame's own policy runs no other script and loads nothing;
    - `index.html`'s `frame-src 'none'` is inherited by the frame as one more
      layer. A comment there and `index-html.test.ts` keep it, but nothing relies

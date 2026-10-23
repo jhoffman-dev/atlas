@@ -4,116 +4,105 @@ import {
   importsIn,
   namesAddress,
   namesStringOrAddress,
+  namesUnknownFunction,
+  nestsDeeperThan,
   valueMade,
   type AddressMade,
   type Declaration,
 } from './css-references.ts';
 
 /*
- * A book's stylesheets, made to load only from the book (#505, ADR-0045 §5).
- * The CSS is read by the browser's own parser, into a constructed stylesheet
- * that is never adopted: it fetches nothing and ignores every `@import`.
- * Each rule is walked, into `@media`, `@supports`, `@layer`, `@keyframes`
- * and nested rules, and each declaration's addresses (`css-references.ts`)
- * are read against the file the CSS is written in: one of the book's files
- * becomes the address the frame loads it from, its `#place` kept; one
- * written in (`data:`) or a place in the chapter (`#id`) stays; and a
- * declaration naming anything else is dropped. A rule of another kind that
- * names an address it cannot keep as written is dropped whole. The sheet is
- * written out again as the parser serialises it, so what the frame is given
- * is what a browser read, not the book's spelling of it.
+ * One of a book's stylesheets, made to load only from the book (#505,
+ * ADR-0045 §5). The CSS is read by the browser's own parser, into a
+ * constructed stylesheet that is never adopted: it fetches nothing and
+ * ignores every `@import`. Each rule is walked, into `@media`, `@supports`,
+ * `@layer`, `@keyframes` and nested rules, and each declaration's addresses
+ * (`css-references.ts`) are read against the file the CSS is written in: one
+ * of the book's files becomes the address the frame loads it from, its
+ * `#place` kept; one written in (`data:`) or a place in the chapter (`#id`)
+ * stays; and a declaration naming anything else is dropped. A rule of another
+ * kind that names an address it cannot keep as written is dropped whole. The
+ * sheet is written out again as the parser serialises it, so what the frame
+ * is given is what a browser read, not the book's spelling of it.
  *
  * The parser drops `@import`, so the book's own imports are found in its
- * text first (`importsIn`) and put before its rules, made the same way. Only
- * the book's own files are followed: a spelling the scan misses is an import
- * the parser drops. Each is inlined at most once, within a budget, so a book
- * that imports itself over and over costs no more than one that does not.
- * The frame's policy still stands behind this.
+ * text first (`importsIn`), for `book-styles.ts` to put before its rules.
+ *
+ * This runs in the app's own window, so a sheet is bounded before it is
+ * read: one longer than `MOST_SHEET_LENGTH`, or nesting brackets deeper than
+ * `MOST_NESTING` (WebKit's parser reads those in quadratic time), is dropped
+ * whole; a rule listing more than `MOST_RULE_LENGTH` longhands has its
+ * declarations dropped (WebKit finds each by walking the list); and once
+ * `MOST_LOOKUPS` longhands and rules have been read in a sheet (or
+ * `MOST_CHAPTER_LOOKUPS` in a chapter's own CSS), every further rule's
+ * declarations are dropped.
  */
 
 /** How the frame loads a file of the book: its address, or null when the book has no such file. */
 export type FileAddress = (path: string) => Promise<string | null>;
 
-/** How deep `@import`s are followed. */
-const MOST_IMPORT_DEPTH = 4;
-/** The most stylesheets one sheet's `@import`s may read, however deep: a book has a handful. */
-export const MOST_IMPORTS = 64;
 /** The most one sheet may be, in characters; a longer one is dropped whole, before it is read. */
 export const MOST_SHEET_LENGTH = 2 * 1024 * 1024;
-/** The most all of one sheet's imported sheets may be together, in characters. */
-export const MOST_IMPORTED_LENGTH = 4 * 1024 * 1024;
+/** How deep a sheet may nest its brackets; a book nests a few deep. */
+export const MOST_NESTING = 32;
+/** The most longhands (and rules) read in one sheet: a long book's sheet has a few thousand. */
+export const MOST_LOOKUPS = 50_000;
+/** The most read in all of one chapter's own `<style>`s and `style=`s: one per element of a long chapter. */
+export const MOST_CHAPTER_LOOKUPS = 200_000;
+/** The most declarations one rule may list, as longhands: `all` is 445 of them. */
+export const MOST_RULE_LENGTH = 1_024;
 
-/** What one sheet's `@import`s have read so far: each sheet is inlined at most once. */
-interface ImportBudget {
-  readonly seen: Set<string>;
-  imports: number;
-  length: number;
+/** The longhands read so far, and the most that may be. */
+export interface LookupBudget {
+  lookups: number;
+  readonly most: number;
+}
+
+const sheetBudget = (): LookupBudget => ({ lookups: 0, most: MOST_LOOKUPS });
+
+/** One sheet of the book made: the book's files its `@import`s name, in order, and its own rules made. */
+export interface MadeSheet {
+  readonly imports: readonly string[];
+  readonly own: string;
+  /** How long the book's sheet was, as written. */
+  readonly length: number;
+}
+
+/** How a sheet is made: what each address becomes, and the longhands it may still read. */
+interface Making {
+  readonly made: AddressMade;
+  readonly budget: LookupBudget;
 }
 
 /**
- * `css`, written in the book's file at `from`, with every reference made
- * the book's own or dropped. `stylesheet` reads one of the book's
- * stylesheets for an `@import`.
+ * `css`, written in the book's file at `from`, made: its own rules with
+ * every reference made the book's own or dropped, and the paths of the
+ * book's own sheets it imports. Nothing at all of a sheet too long or too
+ * deeply nested.
  */
-export async function bookCss({
+export async function sheetMade({
   css,
   from,
   address,
-  stylesheet,
+  budget = sheetBudget(),
 }: {
   css: string;
   from: string;
   address: FileAddress;
-  stylesheet: (path: string) => Promise<string | null>;
-}): Promise<string> {
-  const budget: ImportBudget = { seen: new Set([from]), imports: 0, length: 0 };
-  return sheetMade({ css, from, address, stylesheet, depth: 0, budget });
-}
-
-async function sheetMade({
-  css,
-  from,
-  address,
-  stylesheet,
-  depth,
-  budget,
-}: {
-  css: string;
-  from: string;
-  address: FileAddress;
-  stylesheet: (path: string) => Promise<string | null>;
-  depth: number;
-  budget: ImportBudget;
-}): Promise<string> {
-  if (css.length > MOST_SHEET_LENGTH) return '';
+  budget?: LookupBudget | undefined;
+}): Promise<MadeSheet> {
+  if (css.length > MOST_SHEET_LENGTH || nestsDeeperThan(css, MOST_NESTING)) {
+    return { imports: [], own: '', length: css.length };
+  }
   const imports: string[] = [];
-  if (depth < MOST_IMPORT_DEPTH) {
-    for (const ref of importsIn(css)) {
-      const target = bookReference({ from, ref });
-      if (target.kind !== 'inside' || budget.seen.has(target.path)) continue;
-      if (budget.imports >= MOST_IMPORTS) break;
-      budget.seen.add(target.path);
-      budget.imports += 1;
-      const text = await stylesheet(target.path);
-      if (text === null || text.length > MOST_SHEET_LENGTH) continue;
-      if (budget.length + text.length > MOST_IMPORTED_LENGTH) continue;
-      budget.length += text.length;
-      imports.push(
-        await sheetMade({
-          css: text,
-          from: target.path,
-          address,
-          stylesheet,
-          depth: depth + 1,
-          budget,
-        }),
-      );
-    }
+  for (const ref of importsIn(css)) {
+    const target = bookReference({ from, ref });
+    if (target.kind === 'inside') imports.push(target.path);
   }
   const sheet = parsed(css);
-  await rulesMade(sheet, addressMade({ from, address }));
-  const own = Array.from(sheet.cssRules, (rule) => rule.cssText);
-  return [...imports, ...own].join('\n');
+  await rulesMade(sheet, { made: addressMade({ from, address }), budget });
+  const own = Array.from(sheet.cssRules, (rule) => rule.cssText).join('\n');
+  return { imports, own, length: css.length };
 }
 
 /** `style`, a `style=` written in the book's file at `from`, its declarations made the same way. */
@@ -121,16 +110,19 @@ export async function bookDeclarations({
   style,
   from,
   address,
+  budget = sheetBudget(),
 }: {
   style: string;
   from: string;
   address: FileAddress;
+  budget?: LookupBudget | undefined;
 }): Promise<string> {
+  if (style.length > MOST_SHEET_LENGTH || nestsDeeperThan(style, MOST_NESTING)) return '';
   // A rule around the declarations, read as a style attribute is; anything after a `}` that
   // closes it early is another rule, and is left out.
   const first = parsed(`*{${style}\n}`).cssRules[0];
   if (!(first instanceof CSSStyleRule)) return '';
-  await declarationsMade(first.style, addressMade({ from, address }));
+  await declarationsMade(first.style, { made: addressMade({ from, address }), budget });
   return first.style.cssText;
 }
 
@@ -162,7 +154,7 @@ interface RuleList {
 }
 
 /** Every rule in `list`, and the rules inside each, made the book's own; a rule that cannot be is taken out. */
-async function rulesMade(list: RuleList, made: AddressMade): Promise<void> {
+async function rulesMade(list: RuleList, making: Making): Promise<void> {
   for (let at = list.cssRules.length - 1; at >= 0; at -= 1) {
     const rule = list.cssRules[at];
     if (rule === undefined || rule instanceof CSSNamespaceRule) continue;
@@ -172,9 +164,9 @@ async function rulesMade(list: RuleList, made: AddressMade): Promise<void> {
     }
     const style = 'style' in rule ? (rule.style as CSSStyleDeclaration) : null;
     const inner = 'cssRules' in rule ? (rule as unknown as RuleList) : null;
-    if (style !== null) await declarationsMade(style, made);
-    if (inner !== null) await rulesMade(withDelete(inner), made);
-    if (style === null && inner === null && (await namesAddress(rule.cssText, made))) {
+    if (style !== null) await declarationsMade(style, making);
+    if (inner !== null) await rulesMade(withDelete(inner), making);
+    if (style === null && inner === null && (await namesAddress(rule.cssText, making.made))) {
       // An `@property`, an `@counter-style`: it holds no declarations to drop one of.
       takeOut(list, at);
     }
@@ -197,7 +189,23 @@ function withDelete(list: RuleList): RuleList {
 }
 
 /** Each declaration in `style` with its addresses made; one naming an address that may not stay is dropped. */
-async function declarationsMade(style: CSSStyleDeclaration, made: AddressMade): Promise<void> {
+async function declarationsMade(
+  style: CSSStyleDeclaration,
+  { made, budget }: Making,
+): Promise<void> {
+  // Each declaration of a rule is found by walking its list in WebKit, so a long one costs the
+  // square of its length: it, and every rule past the budget, is dropped before any is read.
+  const length = style.length;
+  budget.lookups += Math.max(length, 1);
+  if (length > MOST_RULE_LENGTH || budget.lookups > budget.most) {
+    style.cssText = '';
+    return;
+  }
+  dropUnknownAll(style);
+  // A custom property is read whole below, as the rule writes it out.
+  const names = Array.from({ length: style.length }, (_, at) => style.item(at)).filter(
+    (name) => !name.startsWith('--'),
+  );
   // The addresses given here are the book's own files: read again below, they stay.
   const given = new Set<string>();
   const giving: AddressMade = async (ref) => {
@@ -205,13 +213,32 @@ async function declarationsMade(style: CSSStyleDeclaration, made: AddressMade): 
     if (next !== null && next !== 'keep') given.add(next);
     return next;
   };
-  await longhandsMade(style, giving);
+  await longhandsMade(style, names, giving);
   await writtenOutMade(style, async (ref) => (given.has(ref) ? 'keep' : made(ref)));
 }
 
-/** Each declaration `style` lists, longhand by longhand, its addresses made. */
-async function longhandsMade(style: CSSStyleDeclaration, made: AddressMade): Promise<void> {
-  const names = Array.from({ length: style.length }, (_, at) => style.item(at));
+/**
+ * `style` without an `all` built from `var()`: it stands for every longhand
+ * there is, each one empty until the page is styled, and reading each costs
+ * time for nothing.
+ */
+function dropUnknownAll(style: CSSStyleDeclaration): void {
+  const written = declarationsIn(style.cssText);
+  const unknownAll = ({ name, value }: Declaration) =>
+    name.toLowerCase() === 'all' && namesUnknownFunction(value);
+  if (!written.some(unknownAll)) return;
+  style.cssText = written
+    .filter((declaration) => !unknownAll(declaration))
+    .map(({ text }) => text)
+    .join(' ');
+}
+
+/** Each of `names`, a longhand `style` lists, its addresses made. */
+async function longhandsMade(
+  style: CSSStyleDeclaration,
+  names: readonly string[],
+  made: AddressMade,
+): Promise<void> {
   for (const name of names) {
     const value = style.getPropertyValue(name);
     const next = await valueMade(value, made);

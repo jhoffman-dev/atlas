@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { bookFiles, mediaTypeOf } from './book-files.ts';
+import { MOST_IMPORTS, styleBudget } from './book-styles.ts';
 
 /*
  * A book's files as its chapters' frames are given them (#505, ADR-0045):
@@ -74,5 +75,33 @@ describe("a book's files, as its frame is given them", () => {
     expect(mediaTypeOf('OEBPS/x.woff2')).toBe('font/woff2');
     expect(mediaTypeOf('OEBPS/script.js')).toBe('application/octet-stream');
     expect(mediaTypeOf('OEBPS/noext')).toBe('application/octet-stream');
+  });
+});
+
+// From the third verification of PR #536: a sheet a chapter links and a sheet its `<style>`s
+// import are the same file, read once; and one chapter's `<style>`s share one import budget.
+describe("a book's stylesheets, linked and imported", () => {
+  it('reads a stylesheet once, whether a chapter links it or a <style> imports it', async () => {
+    const book = archive({ 'OEBPS/a.css': 'p { color: red; }' });
+    const files = bookFiles(book);
+    expect(await files.stylesheet('OEBPS/a.css')).toContain('color: red');
+    expect(await files.css('@import "a.css";', 'OEBPS/chapter.xhtml')).toContain('color: red');
+    expect(book.reads).toEqual(['OEBPS/a.css']);
+  });
+
+  it("puts in no more than MOST_IMPORTS sheets across one chapter's <style>s", async () => {
+    const sheets: Record<string, string> = {};
+    for (let n = 0; n <= MOST_IMPORTS; n += 1) sheets[`OEBPS/s${n}.css`] = `.s${n} { color: red; }`;
+    const files = bookFiles(archive(sheets));
+    const budget = styleBudget();
+    const made: string[] = [];
+    for (let n = 0; n <= MOST_IMPORTS; n += 1) {
+      made.push(await files.css(`@import "s${n}.css";`, 'OEBPS/chapter.xhtml', budget));
+    }
+    expect(made.filter((css) => css.includes('color: red'))).toHaveLength(MOST_IMPORTS);
+    // Another chapter, or the same one shown again, has a budget of its own.
+    expect(await files.css(`@import "s${MOST_IMPORTS}.css";`, 'OEBPS/chapter.xhtml')).toContain(
+      'color: red',
+    );
   });
 });

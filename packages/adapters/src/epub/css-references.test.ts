@@ -5,6 +5,8 @@ import {
   importsIn,
   namesAddress,
   namesStringOrAddress,
+  namesUnknownFunction,
+  nestsDeeperThan,
   valueMade,
   type AddressMade,
 } from './css-references.ts';
@@ -166,5 +168,19 @@ describe('reading CSS a book writes to be slow', () => {
     ]) {
       expect(quickly(() => importsIn(css))).toBeLessThan(2_000);
     }
+  });
+});
+
+describe('what a value calls, and how deep it nests', () => {
+  it('finds var(), env() or attr() however spelled, and none in a string or comment', () => {
+    expect(namesUnknownFunction('VAR(--x) inherit')).toBe(true);
+    expect(namesUnknownFunction('v\\61r(--x)')).toBe(true);
+    expect(namesUnknownFunction('"var(--x)" /* env(x) */ inherit')).toBe(false);
+  });
+
+  it('counts brackets of every kind, and none in a string or comment', () => {
+    expect(nestsDeeperThan('a { b: ([c]) }', 3)).toBe(false);
+    expect(nestsDeeperThan('a { b: ([{c}]) }', 3)).toBe(true);
+    expect(nestsDeeperThan(`"${'('.repeat(10)}" /* ${'['.repeat(10)} */`, 1)).toBe(false);
   });
 });

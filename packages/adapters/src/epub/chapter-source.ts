@@ -1,5 +1,6 @@
 import { LINK_FRAGMENT, LINK_PATH, resourceAttribute, STYLESHEET_PATH } from './chapter-safety.ts';
 import type { BookFiles } from './book-files.ts';
+import { styleBudget } from './book-styles.ts';
 import type { ChapterText } from './chapter-text.ts';
 import type { FrameNode } from './frame-protocol.ts';
 
@@ -75,6 +76,8 @@ async function madeFiles(chapter: Document, path: string, files: BookFiles): Pro
   const css = new Map<Element, string>();
   const inline = new Map<Element, string>();
   const work: Promise<void>[] = [];
+  // All of the chapter's own CSS shares one budget, however many `<style>`s and `style=`s it has.
+  const budget = styleBudget();
   for (const element of Array.from(chapter.getElementsByTagName('*'))) {
     for (const name of RESOURCES) {
       const kept = element.getAttribute(resourceAttribute(name));
@@ -87,12 +90,16 @@ async function madeFiles(chapter: Document, path: string, files: BookFiles): Pro
       work.push(files.stylesheet(sheet).then((made) => void css.set(element, made)));
     else if (element.localName.toLowerCase() === 'style') {
       work.push(
-        files.css(element.textContent ?? '', path).then((made) => void css.set(element, made)),
+        files
+          .css(element.textContent ?? '', path, budget)
+          .then((made) => void css.set(element, made)),
       );
     }
     const style = element.getAttribute('style');
     if (style !== null)
-      work.push(files.declarations(style, path).then((made) => void inline.set(element, made)));
+      work.push(
+        files.declarations(style, path, budget).then((made) => void inline.set(element, made)),
+      );
   }
   await Promise.all(work);
   return { addresses, css, inline };

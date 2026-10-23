@@ -1,4 +1,5 @@
 import { bookReference } from '@dfai/domain';
+import { addressesIn } from './css-references.ts';
 import {
   getAttribute,
   getElementsByTagName,
@@ -77,9 +78,6 @@ const SVG = 'http://www.w3.org/2000/svg';
 /** What DFAI writes on an element: a book's own attribute of the same name is dropped before. */
 const DFAI_ATTRIBUTE = 'data-dfai-';
 
-/** A `url(…)` in an SVG attribute (`fill`, `filter`, `mask`) that is not a place in the chapter itself (`url(#id)`). */
-const FOREIGN_URL = /url\(\s*(?!['"]?#)[^)]*\)/gi;
-
 /** Where a link or a file named in a chapter leads, kept on its element for the reader and the frame. */
 export const LINK_PATH = 'data-dfai-path';
 export const LINK_FRAGMENT = 'data-dfai-fragment';
@@ -148,11 +146,21 @@ function safeAttribute(element: Element, attribute: Attr, from: string): void {
     keepLink(element, attribute, from);
   } else if (RESOURCE_ATTRIBUTES.includes(name)) {
     keepResource(element, attribute, from);
-  } else if (name !== 'style') {
-    // A paint server or filter in another file is fetched like a picture; the chapter's own (`#id`) stay.
-    const local = attribute.value.replace(FOREIGN_URL, 'none');
-    if (local !== attribute.value) attribute.value = local;
+  } else if (name !== 'style' && namesOutsideAddress(attribute.value)) {
+    element.removeAttributeNode(attribute);
   }
+}
+
+/**
+ * Whether an attribute, read as CSS reads an SVG presentation attribute
+ * (`fill`, `filter`, `mask`, `cursor`), names an address other than a place
+ * in the chapter itself (`url(#id)`), or builds one from `var()`: a paint
+ * server, filter or picture in another file is fetched. Read with CSS's own
+ * tokenizing, so no spelling hides one.
+ */
+function namesOutsideAddress(value: string): boolean {
+  const found = addressesIn(value);
+  return found === null || found.some(({ ref }) => !ref.trim().startsWith('#'));
 }
 
 /**

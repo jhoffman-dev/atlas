@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { bookCss } from './chapter-styles.ts';
+import { bookCss } from './book-styles.ts';
 import { chapterText } from './chapter-text.ts';
 import { offsetAt, positionAt, rangeAt } from './text-positions.ts';
 

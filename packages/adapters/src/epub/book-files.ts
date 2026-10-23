@@ -1,4 +1,5 @@
-import { bookCss, bookDeclarations } from './chapter-styles.ts';
+import { bookStyles, type StyleBudget } from './book-styles.ts';
+import { bookDeclarations } from './chapter-styles.ts';
 import type { BookArchive } from './zip-loader.ts';
 
 /*
@@ -16,10 +17,10 @@ export interface BookFiles {
   address(path: string): Promise<string | null>;
   /** The book's stylesheet at `path`, its references made the book's own or nothing; empty when there is none. */
   stylesheet(path: string): Promise<string>;
-  /** `css`, a `<style>` written in the book's file at `from`, made the same way. */
-  css(css: string, from: string): Promise<string>;
-  /** `style`, a `style=` written in the book's file at `from`, made the same way. */
-  declarations(style: string, from: string): Promise<string>;
+  /** `css`, a `<style>` written in the book's file at `from`, made the same way, within its chapter's `budget`. */
+  css(css: string, from: string, budget?: StyleBudget): Promise<string>;
+  /** `style`, a `style=` written in the book's file at `from`, made the same way, within its chapter's `budget`. */
+  declarations(style: string, from: string, budget?: StyleBudget): Promise<string>;
 }
 
 export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): BookFiles {
@@ -30,14 +31,13 @@ export function bookFiles(archive: Pick<BookArchive, 'loadText' | 'loadBlob'>): 
       const blob = await archive.loadBlob(path, mediaTypeOf(path));
       return blob === null ? null : dataAddress(blob);
     });
-  const css = (text: string, from: string) =>
-    bookCss({ css: text, from, address, stylesheet: (path) => archive.loadText(path) });
+  // Each stylesheet is read and made once, whether a chapter links it or a sheet imports it.
+  const styles = bookStyles({ address, stylesheet: (path) => archive.loadText(path) });
   return {
     address,
-    css,
-    declarations: (style, from) => bookDeclarations({ style, from, address }),
-    stylesheet: (path) =>
-      held(sheets, path, async () => css((await archive.loadText(path)) ?? '', path)),
+    css: (css, from, budget) => styles.css(css, from, budget),
+    declarations: (style, from, budget) => bookDeclarations({ style, from, address, budget }),
+    stylesheet: (path) => held(sheets, path, () => styles.sheet(path)),
   };
 }
 
