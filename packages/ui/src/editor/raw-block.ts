@@ -1,5 +1,5 @@
 import { Node } from '@tiptap/core';
-import { BLOCK_ANCHOR_ATTR, isTombstoneBlock } from '@dfai/domain';
+import { BLOCK_ANCHOR_ATTR, withoutMarkerLines } from '@dfai/domain';
 
 /**
  * Which raw blocks offer to open their place elsewhere: a highlight in its
@@ -58,10 +58,9 @@ export const RawBlock = Node.create<RawBlockOptions>({
   },
 
   // A paste into another app gets the source: a raw block has no text of its own.
-  // A removed highlight's tombstone is a marker every reader hides, so it gets none.
+  // DFAI's marker lines, which every reader hides, are left out of it.
   renderText({ node }) {
-    const markdown = String(node.attrs['markdown'] ?? '');
-    return isTombstoneBlock(markdown) ? '' : markdown;
+    return withoutMarkerLines(String(node.attrs['markdown'] ?? ''));
   },
 
   renderHTML({ node }) {

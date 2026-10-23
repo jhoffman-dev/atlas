@@ -103,17 +103,6 @@ export function readKindleTombstone(line: string): KindleTombstone | null {
 }
 
 /**
- * Whether a block of a note is removed highlights' tombstones and nothing
- * else (ADR-0043 §5): every reader hides them, so the editor draws none
- * either (#523). Any version's counts — a tombstone a newer build wrote is
- * still a hidden comment — and so does one this build could not read.
- */
-export function isTombstoneBlock(markdown: string): boolean {
-  const lines = markdown.split('\n').filter((line) => line.trim() !== '');
-  return lines.length > 0 && lines.every((line) => TOMBSTONE.test(line.replace(/\r$/, '')));
-}
-
-/**
  * The highlight a line of text marks, or null when the line is not a marker
  * this build can read: not the comment, JSON that does not parse, another
  * version's, or an anchor the format would not write. Such a line is kept
