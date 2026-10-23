@@ -82,6 +82,13 @@ export interface EmbeddingHost {
   answer(command: string, args: unknown, root: string): unknown;
   /** Every passage the app sent to be embedded, in order. */
   passages(): readonly string[];
+  /**
+   * The bytes of `embedding_cache_load` for the vault open now. They are served
+   * to the page over HTTP (`host.ts`), not as numbers through `exposeFunction`:
+   * 77 MB of vectors as numbers would be a stand-in's long task in the page,
+   * not the app's.
+   */
+  loadBytes(root: string): Uint8Array;
 }
 
 /**
@@ -118,14 +125,15 @@ export function createEmbeddingHost({ msPerText = 0 }: { msPerText?: number } = 
       cache().clear();
       return null;
     },
-    // Bytes cannot cross `exposeFunction`: they go as numbers, made bytes again in the page.
-    embedding_cache_load: () => Array.from(loadBytes(cache())),
+    // Counted here; the bytes are fetched by the page (`loadBytes`).
+    embedding_cache_load: () => null,
     embedding_cache_excerpts: ({ keys }) =>
-      (keys as { path: string; ordinal: number }[]).map(
-        ({ path, ordinal }) =>
+      (keys as { path: string; ordinal: number; digest: string }[]).map(
+        ({ path, ordinal, digest }) =>
           cache()
             .get(path)
-            ?.blocks.find((block) => block.ordinal === ordinal)?.excerpt ?? '',
+            ?.blocks.find((block) => block.ordinal === ordinal && block.digest === digest)
+            ?.excerpt ?? '',
       ),
     embedding_cache_put: ({ vault, notes }) => {
       if (vault !== open) throw new Error('another vault was opened before this could be cached');
@@ -147,10 +155,15 @@ export function createEmbeddingHost({ msPerText = 0 }: { msPerText?: number } = 
         root,
       ),
     passages: () => passages,
+    loadBytes: (root) => loadBytes(caches.get(root) ?? new Map()),
   };
 }
 
-/** The load as `embedding_cache.rs` writes it: header length, JSON header, then little-endian f32s. */
+/**
+ * The load as `embedding_cache.rs` writes it: header length, the header as
+ * lines (notes and vector length, then blocks a thousand to a line), spaces to
+ * a multiple of 4, then little-endian f32s.
+ */
 function loadBytes(notes: ReadonlyMap<string, CachedNoteRow>): Uint8Array {
   const sorted = [...notes.values()].sort((left, right) => (left.path < right.path ? -1 : 1));
   const blocks = sorted.flatMap((note) =>
@@ -158,19 +171,29 @@ function loadBytes(notes: ReadonlyMap<string, CachedNoteRow>): Uint8Array {
       .sort((left, right) => left.ordinal - right.ordinal)
       .map((block) => ({ path: note.path, ...block })),
   );
-  const header = new TextEncoder().encode(
+  const listed = blocks.map(({ path, ordinal, digest, anchor, heading, vector }) => ({
+    path,
+    ordinal,
+    digest,
+    anchor,
+    heading,
+    embedded: vector !== null,
+  }));
+  const dimensions = blocks.find((block) => block.vector !== null)?.vector?.length ?? 0;
+  const lines = [
     JSON.stringify({
+      dimensions,
       notes: sorted.map(({ path, digest, title }) => ({ path, digest, title })),
-      blocks: blocks.map(({ path, ordinal, digest, anchor, heading, vector }) => ({
-        path,
-        ordinal,
-        digest,
-        anchor,
-        heading,
-        embedded: vector !== null,
-      })),
     }),
-  );
+  ];
+  for (let at = 0; at < listed.length; at += 1_000)
+    lines.push(JSON.stringify(listed.slice(at, at + 1_000)));
+  let text = lines.join('\n');
+  let header = new TextEncoder().encode(text);
+  while (header.length % 4 !== 0) {
+    text += ' ';
+    header = new TextEncoder().encode(text);
+  }
   const vectors = blocks.flatMap((block) => block.vector ?? []);
   const bytes = new Uint8Array(4 + header.length + vectors.length * 4);
   const view = new DataView(bytes.buffer);

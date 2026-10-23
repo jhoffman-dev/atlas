@@ -1943,6 +1943,12 @@ export async function installHost(
 
   /** Every command the app has asked the host for, by name. */
   const calls = new Map<string, number>();
+  await page.route('**/__atlas-embedding-load', (route) =>
+    route.fulfill({
+      body: Buffer.from(embeddings.loadBytes(openRoot())),
+      contentType: 'application/octet-stream',
+    }),
+  );
   await page.exposeFunction('__atlasInvoke', async (command: string, args: unknown) => {
     calls.set(command, (calls.get(command) ?? 0) + 1);
     const answered = await answer(command, args);
@@ -2083,8 +2089,11 @@ export async function installHost(
             ? Promise.reject((value as { __atlasReject: unknown }).__atlasReject)
             : value,
         );
+      // Counted by the host above; the bytes come over HTTP, as the real ones come as a binary response.
       if (command === 'embedding_cache_load')
-        return answer.then((numbers) => Uint8Array.from(numbers as number[]).buffer);
+        return answer
+          .then(() => fetch('/__atlas-embedding-load'))
+          .then((response) => response.arrayBuffer());
       return command === 'read_binary_file'
         ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
         : answer;

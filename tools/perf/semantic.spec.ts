@@ -5,8 +5,12 @@
  * - **The first build never freezes the window.** The cache is built from
  *   nothing while the window's frames are watched; the stand-in model takes
  *   as long as the real one (about 2.2 ms a passage, ADR-0031), off the page's
- *   thread as the host runs it. A frame over 50 ms once it is under way,
- *   or over 150 ms at all, fails the run.
+ *   thread as the host runs it. Four notes of 100 KB are among the 5,000: a
+ *   long note is parsed off the window's thread, not in it. No frame over
+ *   50 ms, ever, fails the run.
+ * - **A relaunch with the cache built never freezes the window.** The cache's
+ *   50,000 blocks are loaded and made searchable on launch (warm), and no
+ *   frame over 50 ms fails the run.
  * - **A search by meaning over 50,000 blocks** is timed from the key to the
  *   hits drawn, and the brute-force ranking alone is timed beside it.
  *
@@ -25,14 +29,15 @@ import { writeVault } from './session.ts';
 
 const NOTES = 5_000;
 const PARAGRAPHS = 10;
-const BLOCKS = NOTES * PARAGRAPHS;
+/** Long notes among the 5,000: about 100 KB each, as a pasted transcript or a long log is. */
+const LONG_NOTES = 4;
+const LONG_PARAGRAPHS = 900;
+const BLOCKS = (NOTES - LONG_NOTES) * PARAGRAPHS + LONG_NOTES * LONG_PARAGRAPHS;
 /** About what Arctic Embed XS takes a passage on this Mac, in calls of 32 (ADR-0031). */
 const MS_PER_PASSAGE = 2.2;
 /** A frame longer than this is a freeze a person feels. */
 const LONGEST_FRAME_MS = 50;
 const SEARCHES = 10;
-/** The build's first moments, when the window first parses a note for it. */
-const SETTLING_MS = 2_000;
 
 const WORDS = [
   'budget',
@@ -78,10 +83,13 @@ function paragraph(note: number, at: number): string {
 }
 
 function semanticFixture(): FixtureFile[] {
-  return Array.from({ length: NOTES }, (_, note) => ({
-    path: `Notes/${String(Math.floor(note / 500)).padStart(2, '0')}/Note ${note}.md`,
-    contents: Array.from({ length: PARAGRAPHS }, (__, at) => paragraph(note, at)).join('\n\n'),
-  }));
+  return Array.from({ length: NOTES }, (_, note) => {
+    const paragraphs = note < LONG_NOTES ? LONG_PARAGRAPHS : PARAGRAPHS;
+    return {
+      path: `Notes/${String(Math.floor(note / 500)).padStart(2, '0')}/Note ${note}.md`,
+      contents: Array.from({ length: paragraphs }, (__, at) => paragraph(note, at)).join('\n\n'),
+    };
+  });
 }
 
 /** Watches every frame from now on: the longest gap between two, and how many ran over the limit. */
@@ -210,16 +218,62 @@ test('the first build of 50,000 blocks never freezes the window, and a search is
   console.log(JSON.stringify(result, null, 2));
 
   expect(during.frames, 'frames were drawn while the cache was built').toBeGreaterThan(0);
-  // Measured twice on a loaded Mac: one frame of 98-104 ms in the build's first second — the
-  // first note parsed in the window, it seems — and none over 50 ms in the minutes after it.
-  // Held to that: nothing over the limit once the build is under way, nothing over 150 ms at all.
-  const pairs = during.late.flatMap((value, at) =>
-    at % 2 === 0 ? [[value, during.late[at + 1] ?? 0]] : [],
-  );
-  const underWay = pairs.filter(([when]) => (when as number) > SETTLING_MS);
   expect(
-    underWay,
-    `frames over ${LONGEST_FRAME_MS} ms once the build was under way ([ms in, ms long])`,
+    pairsOf(during.late),
+    `frames over ${LONGEST_FRAME_MS} ms while the cache was built ([ms in, ms long])`,
   ).toEqual([]);
-  expect(during.longest, 'the longest frame while building').toBeLessThan(150);
+});
+
+/** `[ms in, ms long]` of each frame the watch kept as over the limit. */
+const pairsOf = (late: readonly number[]) =>
+  late.flatMap((value, at) => (at % 2 === 0 ? [[value, late[at + 1] ?? 0]] : []));
+
+test('a relaunch with 50,000 cached blocks never freezes the window', async ({ page }) => {
+  test.setTimeout(1_200_000);
+  const vault = await writeVault(semanticFixture());
+  const host = await installHost(page, vault, { embedMsPerText: 0 });
+  await page.addInitScript(installFrameWatch, LONGEST_FRAME_MS);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/^5,\d{3} notes indexed/)).toBeVisible({ timeout: 300_000 });
+  const palette = await openPaletteByMeaning(page);
+  await page.getByRole('searchbox', { name: 'Search the vault' }).fill('payroll');
+  await expect(palette.getByRole('status')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect
+    .poll(() => host.embeddings.passages().length, { timeout: 1_000_000, intervals: [1_000] })
+    .toBe(BLOCKS);
+  // The last write lands a moment after the last passage is embedded.
+  await expect
+    .poll(() => host.callsTo('embedding_cache_put'), { intervals: [500] })
+    .toBeGreaterThan(0);
+  await page.waitForTimeout(5_000);
+
+  // The window is opened again: the cache is on disk, the vault was opted in, the index is kept.
+  const loadsBefore = host.callsTo('embedding_cache_load');
+  await page.reload();
+  await page.evaluate(() => (window as unknown as { __resetFrames: () => void }).__resetFrames());
+  await expect(page.getByText(/^5,\d{3} notes indexed/)).toBeVisible({ timeout: 300_000 });
+  await expect
+    .poll(() => host.callsTo('embedding_cache_load'), { intervals: [500] })
+    .toBeGreaterThan(loadsBefore);
+  // Long enough for the load to be read, and the notes compared with what it holds.
+  await page.waitForTimeout(10_000);
+  const warm = await frames(page);
+  expect(host.embeddings.passages(), 'nothing is embedded again on a relaunch').toHaveLength(
+    BLOCKS,
+  );
+
+  const result = { warmLaunchFrames: warm };
+  await mkdir(join('test-results', 'perf'), { recursive: true });
+  await writeFile(
+    join('test-results', 'perf', 'semantic-warm.json'),
+    `${JSON.stringify(result, null, 2)}\n`,
+  );
+  console.log(JSON.stringify(result, null, 2));
+  expect(warm.frames, 'frames were drawn on the relaunch').toBeGreaterThan(0);
+  expect(
+    pairsOf(warm.late),
+    `frames over ${LONGEST_FRAME_MS} ms on a relaunch ([ms in, ms long])`,
+  ).toEqual([]);
 });
