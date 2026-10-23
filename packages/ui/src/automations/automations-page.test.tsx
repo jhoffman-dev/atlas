@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AUTOMATION_PRESETS, BLANK_AUTOMATION, type AutomationDraft } from '@dfai/domain';
 import { AutomationEditor, type AutomationEditorProps } from './automation-editor.tsx';
@@ -208,6 +208,34 @@ describe('AutomationEditor', () => {
     expect(screen.getByLabelText('Hours between runs')).toBeTruthy();
     await userEvent.click(screen.getByRole('radio', { name: 'When DFAI opens' }));
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ when: { kind: 'open' } }));
+  });
+
+  it('edits a weekly schedule: a day of the week and a time (#40)', async () => {
+    const onChange = vi.fn();
+    render(<Editor onChange={onChange} />);
+    expect(screen.queryByLabelText('Day of the week')).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Weekly' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ when: { kind: 'weekly', day: 'friday', at: '15:00' } }),
+    );
+    const day = screen.getByLabelText('Day of the week') as HTMLSelectElement;
+    expect([...day.options].map((option) => option.textContent)).toEqual([
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ]);
+    await userEvent.selectOptions(day, 'monday');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ when: { kind: 'weekly', day: 'monday', at: '15:00' } }),
+    );
+    fireEvent.change(screen.getByLabelText('Time of day'), { target: { value: '08:30' } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ when: { kind: 'weekly', day: 'monday', at: '08:30' } }),
+    );
   });
 
   it('shows the note trigger: a type, and whether a note being created or changed sets it off', async () => {
@@ -492,6 +520,38 @@ describe('AutomationEditor', () => {
       expect(screen.queryByLabelText('What becomes a task')).toBeNull();
       await userEvent.selectOptions(writes, 'meeting-items');
       expect(screen.getByLabelText('What becomes a task')).toBeTruthy();
+    });
+  });
+  describe('the Friday review preset (#40)', () => {
+    const FRIDAY = AUTOMATION_PRESETS.find((each) => each.name === 'Friday review')!;
+
+    it('shows Fridays at 15:00, a note in Reviews, given the weekly review', () => {
+      render(<Editor start={FRIDAY} />);
+      expect(screen.getByRole('radio', { name: 'Weekly' }).getAttribute('aria-checked')).toBe(
+        'true',
+      );
+      expect((screen.getByLabelText('Day of the week') as HTMLSelectElement).value).toBe('friday');
+      expect((screen.getByLabelText('Time of day') as HTMLInputElement).value).toBe('15:00');
+      expect((screen.getByLabelText('Folder') as HTMLInputElement).value).toBe('Reviews');
+      const given = screen.getByLabelText('What DFAI hands Claude') as HTMLSelectElement;
+      expect(given.value).toBe('weekly-review');
+      expect([...given.options].map((option) => option.textContent)).toEqual([
+        'Only its notes',
+        'The weekly review',
+      ]);
+    });
+
+    it('takes the data off, and puts it back', async () => {
+      const onChange = vi.fn();
+      render(<Editor start={FRIDAY} onChange={onChange} />);
+      const given = screen.getByLabelText('What DFAI hands Claude');
+      await userEvent.selectOptions(given, '');
+      expect((onChange.mock.lastCall![0] as AutomationDraft).action).not.toHaveProperty('data');
+      await userEvent.selectOptions(given, 'weekly-review');
+      expect((onChange.mock.lastCall![0] as AutomationDraft).action).toMatchObject({
+        data: 'weekly-review',
+        output: { kind: 'note', folder: 'Reviews' },
+      });
     });
   });
 });

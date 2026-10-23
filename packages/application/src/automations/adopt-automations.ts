@@ -15,7 +15,7 @@ function adoptionsOf(listing: AutomationListing, now: LocalTime) {
 
 /** An enabled rule on a clock whose log has no mark to count its next run from. */
 function neverMarked({ rule, log }: LoadedAutomation, now: LocalTime): boolean {
-  const scheduled = rule.when.kind === 'daily' || rule.when.kind === 'hourly';
+  const scheduled = ['daily', 'weekly', 'hourly'].includes(rule.when.kind);
   return rule.enabled && scheduled && lastScheduleMark(log, now) === null;
 }
 
