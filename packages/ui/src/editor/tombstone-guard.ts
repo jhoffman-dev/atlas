@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
-import { liftTarget, Mapping } from '@tiptap/pm/transform';
+import { dropPoint, liftTarget, Mapping } from '@tiptap/pm/transform';
 import { Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { BLOCK_ANCHOR_ATTR, highlightAsPlainQuote, isTombstoneBlock } from '@dfai/domain';
@@ -32,7 +32,8 @@ import { READ_FROM_FILE } from './block-anchor.ts';
  * Nor is a highlight ever pasted as one: a copy holding its marker would be
  * a second live highlight of the passage, in its own note or another. Pasted,
  * it is a plain quote, its words and comment kept, its marker and id dropped.
- * A highlight dragged within its note is moved, not copied, and stays one.
+ * A highlight dragged within its note and moved stays one; dragged and
+ * copied, the copy is a plain quote, as a paste is.
  */
 
 const isTombstone = (node: ProseMirrorNode): boolean =>
@@ -166,18 +167,49 @@ function highlightsAsQuotes(content: Fragment): Fragment {
   return Fragment.from(kept);
 }
 
-/** A pasted slice: no tombstone, and no highlight but the ones moved by a drag within the note. */
-function pastedOff(slice: Slice, view: EditorView): Slice {
-  const clean = offTheClipboard(slice);
-  if (view.dragging?.move === true) return clean;
-  const content = highlightsAsQuotes(clean.content);
-  if (content.eq(clean.content)) return clean;
+/** `slice` with each highlight made a plain quote; the same slice when it holds none. */
+function quotedSlice(slice: Slice): Slice {
+  const content = highlightsAsQuotes(slice.content);
+  if (content.eq(slice.content)) return slice;
   const deepest = Slice.maxOpen(content);
   return new Slice(
     content,
-    Math.min(clean.openStart, deepest.openStart),
-    Math.min(clean.openEnd, deepest.openEnd),
+    Math.min(slice.openStart, deepest.openStart),
+    Math.min(slice.openEnd, deepest.openEnd),
   );
+}
+
+/**
+ * A pasted slice: no tombstone, and no highlight. A drag within the note keeps
+ * its highlights here: whether it moves or copies is decided only at the drop,
+ * from the copy key held then, so {@link dropAsCopy} decides it.
+ */
+function pastedOff(slice: Slice, view: EditorView): Slice {
+  const clean = offTheClipboard(slice);
+  return view.dragging === null ? quotedSlice(clean) : clean;
+}
+
+/**
+ * A drag within the note dropped as a copy: its highlights are dropped as
+ * plain quotes, as a paste is, so the passage keeps one live highlight. A move
+ * — or a copy holding no highlight — is left to ProseMirror's own drop.
+ */
+function dropAsCopy(view: EditorView, event: DragEvent, slice: Slice, moved: boolean): boolean {
+  if (moved) return false;
+  const quoted = quotedSlice(slice);
+  if (quoted === slice) return false;
+  const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
+  if (at === null) return false;
+  const insertAt = dropPoint(view.state.doc, at.pos, quoted) ?? at.pos;
+  const tr = view.state.tr;
+  const single = quoted.openStart === 0 && quoted.openEnd === 0 && quoted.content.childCount === 1;
+  const only = quoted.content.firstChild;
+  if (single && only !== null) tr.replaceRangeWith(insertAt, insertAt, only);
+  else tr.replaceRange(insertAt, insertAt, quoted);
+  event.preventDefault();
+  view.focus();
+  view.dispatch(tr.setMeta('uiEvent', 'drop'));
+  return true;
 }
 
 /** The tombstones the transactions took, put back at the block boundary nearest where they were. */
@@ -259,7 +291,11 @@ export const TombstoneGuard = Extension.create({
     return [
       new Plugin({
         appendTransaction: restoration,
-        props: { transformCopied: offTheClipboard, transformPasted: pastedOff },
+        props: {
+          transformCopied: offTheClipboard,
+          transformPasted: pastedOff,
+          handleDrop: dropAsCopy,
+        },
       }),
     ];
   },

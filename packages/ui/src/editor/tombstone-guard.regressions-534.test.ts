@@ -512,3 +512,63 @@ describe('a highlight dragged within its note, the copy key changed mid-drag', (
     expect(liveHighlights(instance)).toEqual([{ markdown: HIGHLIGHT, anchor: 'kd0041' }]);
   });
 });
+
+/*
+ * The drop decides, so a drag within the note keeps its block ids until then
+ * (block-anchor.ts): a block copied by a drop must still not be a second
+ * holder of the id its original keeps.
+ */
+describe('a block with an id, dragged within its note and dropped as a copy', () => {
+  it('leaves the id on one block', () => {
+    const instance = new Editor({
+      extensions: createEditorExtensions({
+        suggest: () => [],
+        onView: () => {},
+        onSlashView: () => {},
+        suggestTags: () => [],
+        onTagView: () => {},
+        onOpenTag: null,
+        offerLink: false,
+        loadImage: async () => null,
+        embedImage: null,
+      }),
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            attrs: { anchor: 'ab12cd' },
+            content: [{ type: 'text', text: 'Kept.' }],
+          },
+          { type: 'paragraph', content: [{ type: 'text', text: 'After.' }] },
+        ],
+      },
+    });
+    editor = instance;
+    const { view } = instance;
+    const selection = NodeSelection.create(instance.state.doc, 0);
+    view.dispatch(instance.state.tr.setSelection(selection));
+    const end = instance.state.doc.content.size;
+    view.posAtCoords = () => ({ pos: end, inside: -1 });
+    (view as unknown as { dragging: unknown }).dragging = {
+      slice: selection.content(),
+      move: true,
+      node: selection,
+    };
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.assign(drop, {
+      clientX: 0,
+      clientY: 0,
+      altKey: true,
+      ctrlKey: true,
+      dataTransfer: { getData: () => '', types: [], files: [] },
+    });
+    view.dom.dispatchEvent(drop);
+    const holders: string[] = [];
+    instance.state.doc.forEach((node) => {
+      if (node.attrs['anchor'] === 'ab12cd') holders.push(node.textContent);
+    });
+    expect(instance.state.doc.textContent).toBe('Kept.After.Kept.');
+    expect(holders).toEqual(['Kept.']);
+  });
+});
