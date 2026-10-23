@@ -97,7 +97,7 @@ import {
   NewTypeDialog,
   NewViewDialog,
   NewArtifactDialog,
-  AddPdfDialog,
+  AddDocumentDialog,
   NoteNamesProvider,
   Toast,
   type AppInfoState,
@@ -222,7 +222,7 @@ import { paletteEditTypeOffers, runPaletteEditTypeCommand } from './types/palett
 import { useTemplatesPage } from './templates/use-templates-page.ts';
 import { answersWrittenOrGivenUp, useAnswersWrittenBeforeClose } from './proposals/answer-queue.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
-import { useAddPdf } from './reader/use-add-pdf.ts';
+import { useAddToLibrary } from './reader/use-add-to-library.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
 import { createQueryTextStore, queryTextOf } from './query/query-text-store.ts';
 import { AppNotices } from './app-notices.tsx';
@@ -303,6 +303,7 @@ const OPEN_TERMS = 'open-terms';
 const OPEN_LIBRARY = 'open-library';
 const OPEN_HIGHLIGHTS = 'open-highlights';
 const ADD_PDF = 'add-pdf';
+const ADD_EPUB = 'add-epub';
 const FIND_DUPLICATE_PEOPLE = 'find-duplicate-people';
 const MERGE_SELECTED_PEOPLE = 'merge-selected-people';
 /** Why a merge was not worked out: links to the people might be missed. */
@@ -321,6 +322,7 @@ const PALETTE_COMMANDS = [
   { id: OPEN_TERMS, label: 'Terms', keywords: ['glossary', 'spelling', 'vocabulary', 'aliases'] },
   // No word with a "t" in it: the palette's work budget types "tobia" (tools/perf/budgets.spec.ts).
   { id: ADD_PDF, label: 'Add PDF…', keywords: ['pdf', 'book', 'paper', 'library', 'reader'] },
+  { id: ADD_EPUB, label: 'Add EPUB…', keywords: ['epub', 'ebook', 'book', 'library', 'reader'] },
   {
     id: OPEN_LIBRARY,
     label: 'Library',
@@ -1025,7 +1027,8 @@ function AppWindow({
     },
   });
   const { start: startArtifact } = newArtifact;
-  const addPdf = useAddPdf({
+  const addPdf = useAddToLibrary({
+    kind: 'pdf',
     fs: vault.fs,
     types,
     today: localToday,
@@ -1033,6 +1036,19 @@ function AppWindow({
       onChanged();
       if (!allAdded) return;
       hideOverlay('add-pdf');
+      const [first] = added;
+      if (first !== undefined) openNote(first.file);
+    },
+  });
+  const addEpub = useAddToLibrary({
+    kind: 'epub',
+    fs: vault.fs,
+    types,
+    today: localToday,
+    onAdded: ({ added, allAdded }) => {
+      onChanged();
+      if (!allAdded) return;
+      hideOverlay('add-epub');
       const [first] = added;
       if (first !== undefined) openNote(first.file);
     },
@@ -1843,6 +1859,9 @@ function AppWindow({
     else if (id === ADD_PDF) {
       addPdf.reset();
       showOverlay('add-pdf');
+    } else if (id === ADD_EPUB) {
+      addEpub.reset();
+      showOverlay('add-epub');
     } else if (id === FIND_DUPLICATE_PEOPLE) peopleMerge.commands.findDuplicates();
     else if (id === MERGE_SELECTED_PEOPLE)
       peopleMerge.commands.mergeChosen(activeTabOf(workspaceNow(workspace))?.id ?? '');
@@ -2390,12 +2409,23 @@ function AppWindow({
                 fallbackFocus={focusFallback}
               />
             ) : overlay === 'add-pdf' ? (
-              <AddPdfDialog
+              <AddDocumentDialog
+                kind="pdf"
                 folder={addPdf.folder}
                 adding={addPdf.adding}
                 error={addPdf.error}
                 onFiles={(files) => void addPdf.add(files)}
                 onClose={() => hideOverlay('add-pdf')}
+                fallbackFocus={focusFallback}
+              />
+            ) : overlay === 'add-epub' ? (
+              <AddDocumentDialog
+                kind="epub"
+                folder={addEpub.folder}
+                adding={addEpub.adding}
+                error={addEpub.error}
+                onFiles={(files) => void addEpub.add(files)}
+                onClose={() => hideOverlay('add-epub')}
                 fallbackFocus={focusFallback}
               />
             ) : overlay === 'new-artifact' ? (

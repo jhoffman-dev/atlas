@@ -161,6 +161,10 @@ export default defineConfig({
       '@dfai/adapters/pdf': fileURLToPath(
         new URL('../../packages/adapters/src/pdf/index.ts', import.meta.url),
       ),
+      // The same for foliate-js: it stays in the EPUB reader's chunk, loaded the first time a book opens.
+      '@dfai/adapters/epub': fileURLToPath(
+        new URL('../../packages/adapters/src/epub/index.ts', import.meta.url),
+      ),
       '@dfai/adapters': pkg('adapters'),
       '@dfai/ui': pkg('ui'),
     },

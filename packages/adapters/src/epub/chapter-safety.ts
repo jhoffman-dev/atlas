@@ -1,0 +1,141 @@
+import { bookReference } from '@dfai/domain';
+
+/*
+ * A chapter of a book made safe to show (#505). A book is untrusted, so
+ * before a chapter reaches its frame everything in it that could run,
+ * load from outside the book, or lead out of it is taken away: scripts,
+ * frames, plug-ins, `<base>`, `<meta>`, handlers, and references to other
+ * sites. The frame's own policy (`EPUB_FRAME_POLICY`) refuses the same
+ * again, so either one alone is enough. What is taken away is put back as
+ * an empty, hidden element of the same place, so the chapter keeps every
+ * node where it was: an EPUB CFI counts a chapter's elements, and one made
+ * here must name the same place in any other reader.
+ *
+ * Links and the book's own files are not followed here: a link inside the
+ * book is kept as where it leads (`data-dfai-path`, `data-dfai-fragment`),
+ * for the reader to go to; a picture, a stylesheet or a font of the book is
+ * kept as its path in the archive (`data-dfai-…`), for the frame to load
+ * from the book itself.
+ */
+
+const XHTML = 'http://www.w3.org/1999/xhtml';
+
+/** Elements that run, embed, or point the document elsewhere: replaced by an empty, hidden one. */
+const TAKEN_AWAY = new Set([
+  'applet',
+  'base',
+  'embed',
+  'frame',
+  'frameset',
+  'iframe',
+  'meta',
+  'object',
+  'portal',
+  'script',
+]);
+
+/** SVG animation, which can set a link's address after the chapter is made safe. */
+const ANIMATION = new Set(['animate', 'animatemotion', 'animatetransform', 'set']);
+
+/** Attributes that name a file the element loads: kept only when the file is the book's. */
+const RESOURCE_ATTRIBUTES = ['src', 'poster', 'background', 'data'];
+
+/** Attributes that send, open or load something no reader needs. */
+const DROPPED_ATTRIBUTES = new Set([
+  'action',
+  'formaction',
+  'http-equiv',
+  'manifest',
+  'ping',
+  'srcset',
+  'target',
+]);
+
+/** A `url(…)` in an SVG attribute (`fill`, `filter`, `mask`) that is not a place in the chapter itself (`url(#id)`). */
+const FOREIGN_URL = /url\(\s*(?!['"]?#)[^)]*\)/gi;
+
+/** Where a link or a file named in a chapter leads, kept on its element for the reader and the frame. */
+export const LINK_PATH = 'data-dfai-path';
+export const LINK_FRAGMENT = 'data-dfai-fragment';
+/** The book's file an element's `src` (and so on) names, by its path in the archive. */
+export const resourceAttribute = (attribute: string): string => `data-dfai-${attribute}`;
+/** A stylesheet `<link>` of the book: its path, to be put in the chapter as a `<style>`. */
+export const STYLESHEET_PATH = 'data-dfai-stylesheet';
+
+/** Makes the chapter at `path` in the archive, parsed as `doc`, safe to show, in place. */
+export function makeChapterSafe(doc: Document, path: string): void {
+  for (const element of Array.from(doc.getElementsByTagName('*'))) {
+    const name = element.localName.toLowerCase();
+    if (TAKEN_AWAY.has(name) || (ANIMATION.has(name) && element.namespaceURI !== XHTML)) {
+      element.replaceWith(emptyInPlaceOf(doc));
+      continue;
+    }
+    if (name === 'link') {
+      keepStylesheet(doc, element, path);
+      continue;
+    }
+    for (const attribute of Array.from(element.attributes)) safeAttribute(element, attribute, path);
+  }
+}
+
+/** An element that shows nothing and holds nothing: what is taken away leaves one behind. */
+function emptyInPlaceOf(doc: Document): Element {
+  const empty = doc.createElementNS(XHTML, 'span');
+  empty.setAttribute('hidden', '');
+  return empty;
+}
+
+/** A `<link>` to a stylesheet of the book is kept as its path; any other link is taken away. */
+function keepStylesheet(doc: Document, link: Element, from: string): void {
+  const rel = (link.getAttribute('rel') ?? '').toLowerCase().split(/\s+/);
+  const target = bookReference({ from, ref: link.getAttribute('href') ?? '' });
+  const empty = emptyInPlaceOf(doc);
+  if (rel.includes('stylesheet') && target.kind === 'inside') {
+    empty.setAttribute(STYLESHEET_PATH, target.path);
+  }
+  link.replaceWith(empty);
+}
+
+function safeAttribute(element: Element, attribute: Attr, from: string): void {
+  const name = attribute.localName.toLowerCase();
+  if (name.startsWith('on') || DROPPED_ATTRIBUTES.has(name)) {
+    element.removeAttributeNode(attribute);
+  } else if (name === 'href') {
+    keepLink(element, attribute, from);
+  } else if (RESOURCE_ATTRIBUTES.includes(name)) {
+    keepResource(element, attribute, from);
+  } else if (name !== 'style') {
+    // A paint server or filter in another file is fetched like a picture; the chapter's own (`#id`) stay.
+    const local = attribute.value.replace(FOREIGN_URL, 'none');
+    if (local !== attribute.value) attribute.value = local;
+  }
+}
+
+/**
+ * A link or an SVG picture's `href`. On a link (`<a>`, `<area>`) it is kept
+ * as where it leads inside the book, and points nowhere itself; on anything
+ * else it names a file to load, as `src` does.
+ */
+function keepLink(element: Element, attribute: Attr, from: string): void {
+  const name = element.localName.toLowerCase();
+  if (name !== 'a' && name !== 'area') {
+    keepResource(element, attribute, from);
+    return;
+  }
+  const target = bookReference({ from, ref: attribute.value });
+  element.removeAttributeNode(attribute);
+  // A link still reads and looks like one, and goes nowhere: the reader follows the book's own.
+  element.setAttribute('href', '#');
+  if (target.kind !== 'inside') return;
+  element.setAttribute(LINK_PATH, target.path);
+  if (target.fragment !== null) element.setAttribute(LINK_FRAGMENT, target.fragment);
+}
+
+/** A file the element loads: the book's own is kept by its path, one written in (`data:`) as it is, anything else dropped. */
+function keepResource(element: Element, attribute: Attr, from: string): void {
+  const target = bookReference({ from, ref: attribute.value });
+  if (target.kind === 'data') return;
+  const name = attribute.localName.toLowerCase();
+  element.removeAttributeNode(attribute);
+  if (target.kind === 'inside') element.setAttribute(resourceAttribute(name), target.path);
+}
