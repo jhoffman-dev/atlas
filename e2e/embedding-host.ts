@@ -89,6 +89,8 @@ export interface EmbeddingHost {
    * not the app's.
    */
   loadBytes(root: string): Uint8Array;
+  /** A slice of the bytes the last `embedding_cache_load` made, for the page to fetch a piece at a time. */
+  loadSlice(from: number, to: number): Uint8Array;
 }
 
 /**
@@ -102,6 +104,7 @@ export function createEmbeddingHost({ msPerText = 0 }: { msPerText?: number } = 
   const generations = new Map<string, string>();
   let open: string | null = null;
   const passages: string[] = [];
+  let lastLoad: Uint8Array = new Uint8Array(0);
   const cache = () => {
     if (open === null) throw new Error('the embeddings cache is not open');
     return caches.get(open) as Map<string, CachedNoteRow>;
@@ -125,8 +128,11 @@ export function createEmbeddingHost({ msPerText = 0 }: { msPerText?: number } = 
       cache().clear();
       return null;
     },
-    // Counted here; the bytes are fetched by the page (`loadBytes`).
-    embedding_cache_load: () => null,
+    // Counted here; the page fetches the bytes in pieces (`loadSlice`), as many as its length says.
+    embedding_cache_load: (_args, root) => {
+      lastLoad = loadBytes(caches.get(root) ?? new Map());
+      return lastLoad.length;
+    },
     embedding_cache_excerpts: ({ keys }) =>
       (keys as { path: string; ordinal: number; digest: string }[]).map(
         ({ path, ordinal, digest }) =>
@@ -156,6 +162,7 @@ export function createEmbeddingHost({ msPerText = 0 }: { msPerText?: number } = 
       ),
     passages: () => passages,
     loadBytes: (root) => loadBytes(caches.get(root) ?? new Map()),
+    loadSlice: (from, to) => lastLoad.subarray(from, to),
   };
 }
 

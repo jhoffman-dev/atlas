@@ -1943,12 +1943,11 @@ export async function installHost(
 
   /** Every command the app has asked the host for, by name. */
   const calls = new Map<string, number>();
-  await page.route('**/__atlas-embedding-load', (route) =>
-    route.fulfill({
-      body: Buffer.from(embeddings.loadBytes(openRoot())),
-      contentType: 'application/octet-stream',
-    }),
-  );
+  await page.route('**/__atlas-embedding-load*', (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const slice = embeddings.loadSlice(Number(params.get('from')), Number(params.get('to')));
+    return route.fulfill({ body: Buffer.from(slice), contentType: 'application/octet-stream' });
+  });
   await page.exposeFunction('__atlasInvoke', async (command: string, args: unknown) => {
     calls.set(command, (calls.get(command) ?? 0) + 1);
     const answered = await answer(command, args);
@@ -2091,9 +2090,17 @@ export async function installHost(
         );
       // Counted by the host above; the bytes come over HTTP, as the real ones come as a binary response.
       if (command === 'embedding_cache_load')
-        return answer
-          .then(() => fetch('/__atlas-embedding-load'))
-          .then((response) => response.arrayBuffer());
+        return answer.then(async (length) => {
+          // A piece at a time, so the stand-in's copy of 77 MB is not one long task in the page.
+          const PIECE = 1 << 20;
+          const bytes = new Uint8Array(length as number);
+          for (let from = 0; from < bytes.length; from += PIECE) {
+            const to = Math.min(from + PIECE, bytes.length);
+            const response = await fetch(`/__atlas-embedding-load?from=${from}&to=${to}`);
+            bytes.set(new Uint8Array(await response.arrayBuffer()), from);
+          }
+          return bytes.buffer;
+        });
       return command === 'read_binary_file'
         ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
         : answer;
