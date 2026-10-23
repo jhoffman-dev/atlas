@@ -98,7 +98,7 @@ test('Claude opens on the note, reads it, proposes an edit, and writes it only o
 test('a rejected edit leaves the note exactly as it was', async ({ page }) => {
   const { host, vault } = await openPlan(page);
   host.claude.reply(PROPOSE, 'Proposed.');
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await expect(chat(page)).toBeVisible();
 
   await ask(page, 'Change it');
@@ -110,7 +110,7 @@ test('a rejected edit leaves the note exactly as it was', async ({ page }) => {
   await expect(proposal.getByRole('button', { name: 'Accept' })).toHaveCount(0);
   expect(await vault.read('Plan.md')).toBe(PLAN);
 
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await expect(chat(page)).toHaveCount(0);
 });
 
@@ -121,7 +121,7 @@ test('a refused proposal says so, and why, in the pane and in the chat note', as
       '[{"find":"Not in the note.","replace":"x"}]}}</atlas_tool>',
     'That did not match.',
   );
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await ask(page, 'Change it');
 
   const line = chat(page).locator('.chat__tool[data-state="failed"]');
@@ -153,7 +153,7 @@ test("Claude finds a day's meeting from a guessed path, and by its day (#211)", 
     '<atlas_tool>{"name":"atlas_list_notes","input":{"date":"2026-10-14"}}</atlas_tool>',
     'Found it.',
   );
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await ask(page, "Read today's 1-1");
 
   await expect(chat(page).getByText('Found it.')).toBeVisible();
@@ -177,7 +177,7 @@ test('a reply still streaming when the window closes stops there, sending nothin
   const { host } = await openPlan(page);
   // About five hundred pieces: still arriving well after the first is drawn.
   host.claude.reply('Nimbus answer. '.repeat(400));
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await ask(page, 'Tell me everything');
   await expect(chat(page).getByText(/Nimbus answer\./)).toBeVisible();
 
@@ -301,7 +301,7 @@ test('a proposal to a note holding a block embed is drawn whole after a long ans
     .getByRole('treeitem', { name: 'Another Test Note', exact: true })
     .click();
   host.claude.reply(LONG_ANSWER, `I've proposed an addition.${EMBED_PROPOSE}`, LONG_ANSWER);
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await expect(chat(page)).toBeVisible();
 
   await ask(page, 'What does the note say?');
