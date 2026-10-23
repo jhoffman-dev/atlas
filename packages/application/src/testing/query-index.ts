@@ -43,6 +43,8 @@ export function atlasQueryIndex({
     CREATE INDEX relations_src ON relations(src, key);
     CREATE INDEX relations_dst ON relations(dst, src);
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
+    CREATE TABLE blocks (path TEXT NOT NULL, idx INTEGER NOT NULL, id TEXT NOT NULL, text TEXT NOT NULL);
+    CREATE INDEX blocks_path ON blocks(path);
     CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);
     CREATE INDEX links_src ON links(src);
     CREATE INDEX links_dst ON links(dst, src);`);
@@ -89,6 +91,7 @@ function addNote(
   const named = typeof properties['title'] === 'string' ? properties['title'] : null;
   const title = named ?? path.replace(/^.*\//, '').replace(/\.md$/i, '');
   database.prepare('INSERT INTO files VALUES (?, ?, ?, ?, 1)').run(path, title, '', modified);
+  addBlocks(database, path, document.body);
   for (const row of indexablePropertiesOf(properties)) {
     database
       .prepare('INSERT INTO props VALUES (?, ?, ?, ?, ?, ?, ?)')
@@ -113,4 +116,15 @@ function addNote(
       .prepare("INSERT INTO links VALUES (?, ?, ?, 'wikilink')")
       .run(path, resolve(piece.target), piece.target);
   }
+}
+
+/** The note's blocks that carry an id: a line ending in `^id` (the first of a repeated id is the one a link opens). */
+function addBlocks(database: DatabaseSync, path: string, body: string): void {
+  const seen = new Set<string>();
+  body.split('\n').forEach((line, idx) => {
+    const id = /\s\^([A-Za-z0-9-]+)\s*$/.exec(line)?.[1];
+    if (id === undefined || seen.has(id)) return;
+    seen.add(id);
+    database.prepare('INSERT INTO blocks VALUES (?, ?, ?, ?)').run(path, idx, id, line);
+  });
 }
