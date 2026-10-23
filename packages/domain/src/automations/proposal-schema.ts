@@ -56,6 +56,7 @@ import {
 } from './meeting-project-choice.ts';
 import { setKeyProblem } from './property-key.ts';
 import { remoteResourceProblem } from './remote-resources.ts';
+import type { SuggestionVocabulary } from '../terms/term-suggestion.ts';
 
 export type { AnsweredNote };
 
@@ -78,6 +79,11 @@ export interface AnswerVault {
   readonly notePaths: readonly VaultPath[];
   /** The right spellings the Terms page keeps. */
   readonly terms: readonly string[];
+  /**
+   * Every spelling the vault's terms, people and companies hold, right and
+   * misheard: what a suggested term is held to (#19). None when left out.
+   */
+  readonly vocabulary?: SuggestionVocabulary;
   /**
    * The open projects and areas a meeting with none may be filed under, for
    * a schema that chooses one ({@link ProposalSchema.choosesProject}); read

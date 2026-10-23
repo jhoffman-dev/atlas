@@ -144,7 +144,7 @@ export {
   MEETING_ITEMS,
   MEETING_ITEMS_OUTPUT,
 } from './meeting-items.ts';
-export { meetingReview } from './meeting-review.ts';
+export { meetingProposals, meetingReview } from './meeting-review.ts';
 export {
   CLEANUP_REASON_WORDS,
   MEETING_ITEM_KEPT_KEY,

@@ -1151,8 +1151,8 @@ async function missingRelations(
 }
 
 /**
- * What the run knows of the vault for an output that reads it: its people and
- * terms from the index, its notes, and its owner's name and addresses from
+ * What the run knows of the vault for an output that reads it: its people,
+ * terms and the vocabulary they make (what a suggested term is held to) from the index, its notes, and its owner's name and addresses from
  * the vault's settings.
  */
 async function readVault({
@@ -1165,7 +1165,7 @@ async function readVault({
   withProjects: boolean;
 }): Promise<AnswerVault> {
   const { people } = await loadLinkDirectory({ index });
-  const { terms } = await loadTerms({ index });
+  const { terms, vocabulary } = await loadTerms({ index });
   const projects = withProjects ? await loadProjectOptions({ index }) : null;
   return {
     selfName: ports.selfName(),
@@ -1173,6 +1173,7 @@ async function readVault({
     people,
     notePaths,
     terms: terms.map((term) => term.canonical),
+    vocabulary,
     ...(projects !== null && { projects }),
   };
 }
