@@ -31,6 +31,9 @@ export const BUDGETED_ACTIONS = [
   'Open All highlights (20,000)',
   'Open a 500-page PDF',
   'Scroll a 500-page PDF to its middle',
+  // On a literature note of 500 highlights, each drawn as its quote and a comment to type in (#534).
+  'Open a 500-highlight literature note',
+  'Save a comment in a 500-highlight note',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];

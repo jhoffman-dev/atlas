@@ -22,6 +22,7 @@ import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promise
 import { join } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '../../e2e/fixtures.ts';
 import { installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
+import { literatureNote } from '../../e2e/research-notes.ts';
 import { installRenderCounter } from '../../packages/ui/src/testing/render-counter.ts';
 import { BUDGETED_ACTIONS, type BudgetedAction } from './budgeted-actions.ts';
 import type { FixtureFile } from './fixture-vault.ts';
@@ -168,6 +169,7 @@ test('the app does no more work than its budget', async ({ browser }) => {
     await everyAction(pass);
     await pass.page.close();
     await everyResearchAction(await countedPass(browser, counted, RESEARCH));
+    await everyLongNoteAction(await countedPass(browser, counted, LONG_NOTE));
   });
   for (let again = 2; again <= COUNTED_RUNS; again += 1) {
     await test.step(`counted again (${again} of ${COUNTED_RUNS}), to show the counts repeat`, async () => {
@@ -176,6 +178,7 @@ test('the app does no more work than its budget', async ({ browser }) => {
       await everyAction(pass);
       await pass.page.close();
       await everyResearchAction(await countedPass(browser, recount, RESEARCH));
+      await everyLongNoteAction(await countedPass(browser, recount, LONG_NOTE));
       for (const action of BUDGETED_ACTIONS) {
         const [first, now] = [counted.get(action), recount.get(action)];
         expect.soft(first, `"${action}" was not counted on run 1`).toBeDefined();
@@ -200,6 +203,7 @@ test('the app does no more work than its budget', async ({ browser }) => {
       await everyAction(pass);
       await pass.page.close();
       await everyResearchAction(await timedPass(browser, RESEARCH));
+      await everyLongNoteAction(await timedPass(browser, LONG_NOTE));
     });
   } finally {
     await report(budgets);
@@ -220,6 +224,8 @@ function holdToBudget(action: BudgetedAction, budget: ActionBudget | undefined):
 interface PassFixture {
   readonly write: () => Promise<FakeVault>;
   readonly openIsBudgeted: boolean;
+  /** What the status reads once every note is indexed; the main fixture's by default. */
+  readonly indexed?: RegExp;
 }
 
 /** The 2,008-note fixture, with the project board the drag measures on and the long PDF the reader opens. */
@@ -234,6 +240,35 @@ const MAIN: PassFixture = {
 
 /** The research views' fixture (#507): its open is set-up; the views' opens are what is counted. */
 const RESEARCH: PassFixture = { write: () => writeVault(researchVault()), openIsBudgeted: false };
+
+/**
+ * One literature note of 500 highlights (#534): each is drawn as its quote with
+ * a comment to type in, so opening it and saving a comment in it are what is
+ * counted. Alone in its vault, so the other fixtures' counts do not move.
+ */
+const LONG_NOTE_TITLE = 'The Long Crossing';
+const LONG_NOTE_HIGHLIGHTS = 500;
+const LONG_NOTE: PassFixture = {
+  write: () =>
+    writeVault([
+      {
+        path: `Library/${LONG_NOTE_TITLE}.md`,
+        contents: literatureNote({
+          title: LONG_NOTE_TITLE,
+          author: 'Mara Quill',
+          kind: 'pdf',
+          highlights: Array.from({ length: LONG_NOTE_HIGHLIGHTS }, (_, at) => ({
+            id: `h${at.toString(36).padStart(5, '0')}`,
+            quote: `Passage ${at + 1} of the long crossing.`,
+            ...(at % 2 === 0 && { comment: `Comment ${at + 1}.` }),
+            at: at + 1,
+          })),
+        }),
+      },
+    ]),
+  openIsBudgeted: false,
+  indexed: /^\d+ notes? indexed/,
+};
 
 /** A fresh page on a fixture, its time and host held by the work clock from the first script. */
 async function countedPass(
@@ -283,7 +318,7 @@ async function countedPass(
   };
   // After the app has started and settled, so what its start does is not counted as the open.
   if (fixture.openIsBudgeted) await pass.budgeted('Open a vault', [OPEN_THE_VAULT(page)]);
-  else await pass.setUp(OPEN_THE_VAULT(page));
+  else await pass.setUp(OPEN_THE_VAULT(page, fixture.indexed));
   return pass;
 }
 
@@ -325,11 +360,11 @@ async function expectPointerAtRest(page: Page, action: BudgetedAction): Promise<
  * first count the status shows — and then the settle every action is given,
  * in which the Inbox's offers are read ahead (#130).
  */
-const OPEN_THE_VAULT = (page: Page): Phase =>
+const OPEN_THE_VAULT = (page: Page, indexed: RegExp = EVERY_NOTE_INDEXED): Phase =>
   phase(
     () => page.getByRole('button', { name: 'Choose folder…' }).click(),
     (source) => new RegExp(source, 'm').test(document.body.innerText),
-    EVERY_NOTE_INDEXED.source,
+    indexed.source,
   );
 
 /** A fresh page on a fixture in real time, with only its date fixed, for the times. */
@@ -358,7 +393,7 @@ async function timedPass(browser: Browser, fixture: PassFixture = MAIN): Promise
   };
   if (fixture.openIsBudgeted) await time('Open a vault', [OPEN_THE_VAULT(page)]);
   else {
-    const { act, ready, arg } = OPEN_THE_VAULT(page);
+    const { act, ready, arg } = OPEN_THE_VAULT(page, fixture.indexed);
     await act();
     await page.waitForFunction(ready, arg as never, { timeout: 180_000 });
   }
@@ -531,6 +566,37 @@ async function everyResearchAction(pass: Pass): Promise<void> {
     openResearchPage(pass, { row: 'All highlights', list: 'Highlights', count: HIGHLIGHTS_COUNT }),
   ]);
   await expectFewDrawn(page, 'Highlights');
+  await page.close();
+}
+
+/** Opening the literature note of 500 highlights, then saving a comment typed in the first. */
+async function everyLongNoteAction(pass: Pass): Promise<void> {
+  const { page } = pass;
+  await toggleFolder(pass, 'Library');
+  const fields = '[data-highlight-block] textarea';
+  await pass.budgeted('Open a 500-highlight literature note', [
+    phase(
+      () =>
+        sidebarSection(page, 'userSpace')
+          .getByRole('treeitem', { name: LONG_NOTE_TITLE, exact: true })
+          .click(),
+      (selector) => document.querySelectorAll(selector).length === 500,
+      fields,
+    ),
+  ]);
+  const comment = page.locator(fields).first();
+  await comment.click();
+  await comment.fill('Typed in place.');
+  await pass.budgeted('Save a comment in a 500-highlight note', [
+    phase(
+      () => page.keyboard.press('Meta+Enter'),
+      (selector) => {
+        const field = document.querySelector<HTMLTextAreaElement>(selector);
+        return field !== null && !field.readOnly && field.value === 'Typed in place.';
+      },
+      fields,
+    ),
+  ]);
   await page.close();
 }
 
