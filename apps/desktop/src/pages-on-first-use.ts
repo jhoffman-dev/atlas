@@ -78,11 +78,6 @@ export const activityScreen = laterPage(
 const researchScreens = chunk('research-screens', () => import('./research/research-screens.tsx'));
 export const libraryScreen = laterPage(researchScreens, (m) => m.LibraryScreen);
 export const highlightsScreen = laterPage(researchScreens, (m) => m.HighlightsScreen);
-/** Ask (#37): its own chunk, fetched the first time ⌘J is pressed. */
-export const askScreen = laterPage(
-  chunk('ask-screen', () => import('./ask/ask-screen.tsx')),
-  (m) => m.AskScreen,
-);
 // The PDF reader, with pdf.js, in a chunk of its own (#504): half a megabyte nobody pays for until a PDF opens.
 export const documentReader = laterPage(
   chunk('document-reader', () => import('./reader/document-reader.tsx')),
@@ -92,6 +87,13 @@ export const archivePage = laterPage(laterParts, (m) => m.ArchivePage);
 export const weeklyReviewPage = laterPage(laterParts, (m) => m.WeeklyReviewPage);
 export const templatesPage = laterPage(laterParts, (m) => m.TemplatesPage);
 export const termsPage = laterPage(laterParts, (m) => m.TermsPage);
+/**
+ * Ask (#37), in the chunk the sidebar chat is in: the two draw the same parts
+ * (the composer, a proposal), and a chunk of its own would split those into a
+ * third that both import — one a failed preload can leave broken under
+ * `later-parts`, past its Reload (#271).
+ */
+export const askScreen = laterPage(laterParts, (m) => m.AskScreen);
 
 // What a note pane draws for a dashboard, an artifact, or a view's rarer layouts: inline.
 export const dashboardView = later(laterParts, (m) => m.DashboardView);
