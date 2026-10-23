@@ -99,3 +99,19 @@ describe('the editor draws a highlight with those tokens', () => {
     expect(css).toMatch(/var\(--highlight-fill\) var\(--highlight-mix\)/);
   });
 });
+
+/*
+ * Verification pass 2 on ba80bef2: an empty comment field reads "Add a
+ * comment", the only words a highlight without a comment shows under it. With
+ * no `::placeholder` rule of its own (every other field here has one) it is
+ * drawn in WebKit's default grey, about 2.3:1 on the light page.
+ */
+describe.each(Object.entries(THEMES))('an empty comment field, %s', (_name, theme) => {
+  it('draws "Add a comment" in a token at 4.5:1 on the page', () => {
+    const rule = /\.highlight-quote__input::placeholder\s*\{([^}]*)\}/.exec(css);
+    const token = /color:\s*var\((--[\w-]+)\)/.exec(rule?.[1] ?? '')?.[1];
+    expect(token, 'the comment field styles its placeholder').toBeDefined();
+    const ink = rgb(resolved(theme, token ?? ''));
+    expect(contrast(ink, rgb(resolved(theme, '--surface')))).toBeGreaterThanOrEqual(4.5);
+  });
+});

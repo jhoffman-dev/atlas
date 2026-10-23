@@ -325,3 +325,75 @@ describe('a comment typed, when every pane writes its work (a vault switch, the 
     expect(handed.at(-1)).toBeNull();
   });
 });
+
+/*
+ * Verification pass 2 on ba80bef2: a sync writes every pane's work (sync-now
+ * `flushAll`), on its own timer, while the person may be typing in a comment
+ * field. A write the person did not start must not take the field from them:
+ * a read-only textarea drops every key pressed until the write settles.
+ */
+describe('a comment being typed, when a sync writes every pane’s work under it', () => {
+  it('stays a field the person can type in while that write is under way', async () => {
+    let settle: () => void = () => {};
+    const write = vi.fn<NoteHighlights['editComment']>(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const handed: ((() => Promise<void>) | null)[] = [];
+    renderNote(lamp('Lit by Mara.'), {
+      editComment: write,
+      onWritePending: (writePending) => handed.push(writePending),
+    });
+    await screen.findByText('The last lamp.');
+    type('Half a thought');
+    let written: Promise<void> | undefined;
+    act(() => {
+      written = handed.at(-1)?.();
+    });
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(field());
+    expect(field().readOnly).toBe(false);
+    await act(async () => {
+      settle();
+      await written;
+    });
+  });
+});
+
+/*
+ * Verification pass 2 on ba80bef2: the editor's drafts are written as it goes
+ * through the highlights as they are then (`latest`). A note read again with
+ * no highlights any more — its `type: literature` taken off in Obsidian, or by
+ * a sync, while the person was typing in a field — leaves `latest` null, and
+ * the words typed are let go with the editor, neither written nor told of.
+ */
+describe('a comment typed, when the note stops being a literature note before it closes', () => {
+  it('is written or told of as the editor goes, never dropped unsaid', async () => {
+    const write = vi.fn<NoteHighlights['editComment']>(async () => {});
+    const onUnwrittenComments = vi.fn();
+    const props = {
+      onChange: vi.fn(),
+      onFollowLink: vi.fn(),
+      suggestNotes: () => [],
+      loadImage: async () => null,
+    };
+    const view = render(
+      <NoteEditor
+        doc={lamp('Lit by Mara.')}
+        {...props}
+        highlights={{ viewOf, editComment: write, onUnwrittenComments }}
+      />,
+    );
+    await screen.findByText('The last lamp.');
+    type('Typed, then the note changed in Obsidian.');
+    // Read again from disk: no literature note now, so no highlights.
+    view.rerender(<NoteEditor doc={lamp('Lit by Mara.')} {...props} highlights={null} />);
+    view.unmount();
+    await act(async () => {
+      for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+    });
+    expect(write.mock.calls.length + onUnwrittenComments.mock.calls.length).toBeGreaterThan(0);
+  });
+});
