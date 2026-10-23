@@ -1,4 +1,4 @@
-export { EmbeddingError } from './ports.ts';
+export { CacheDamagedError, EmbeddingError } from './ports.ts';
 export type {
   BlockKey,
   CachedBlock,

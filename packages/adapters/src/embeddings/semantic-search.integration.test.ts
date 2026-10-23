@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -26,6 +26,7 @@ const { tauriEmbeddingCache } = await import('./tauri-embedding-cache.ts');
 const { tauriVaultFs } = await import('../vault/tauri-vault-fs.ts');
 const { remarkMarkdown } = await import('../markdown/markdown-port.ts');
 
+const SCHEMA_VERSION = 1;
 const TABLES = `
   CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS notes (path TEXT PRIMARY KEY, digest TEXT NOT NULL, title TEXT NOT NULL);
@@ -42,19 +43,55 @@ interface SentBlock {
   vector: number[] | null;
 }
 
+/** Removes a SQLite file and its journal files, as `discard` in `embedding_cache.rs` does. */
+function discard(file: string) {
+  for (const path of [file, `${file}-wal`, `${file}-shm`]) rmSync(path, { force: true });
+}
+
+/** Whether the file at `file` is a cache of this shape and generation; a file that is no database is not. */
+function matchesShape(file: string, generation: string): boolean {
+  if (!existsSync(file)) return false;
+  let database: DatabaseSync | null = null;
+  try {
+    database = new DatabaseSync(file);
+    const version = (database.prepare('PRAGMA user_version').get() as { user_version: number })
+      .user_version;
+    if (version !== SCHEMA_VERSION) return false;
+    const stored = database.prepare("SELECT value FROM meta WHERE key = 'generation'").get() as
+      { value: string } | undefined;
+    return stored?.value === generation;
+  } catch {
+    // A torn file, or a file of another shape: the host makes it again, as `open_database` does.
+    return false;
+  } finally {
+    database?.close();
+  }
+}
+
 /** The host's cache commands over a vault folder, as `embedding_cache.rs` runs them. */
 function hostFor(root: string) {
   const file = join(root, '.atlas-cache', 'embeddings.sqlite');
   let database: DatabaseSync | null = null;
+  let generation = '';
   const opened = () => {
     if (database === null) throw new Error('the embeddings cache is not open');
     return database;
   };
-  const generationOf = (db: DatabaseSync) =>
-    (
-      db.prepare("SELECT value FROM meta WHERE key = 'generation'").get() as
-        { value: string } | undefined
-    )?.value;
+  /** Opens the cache, throwing away a file of another shape or generation first (`open_database`). */
+  const openFile = (wanted: string) => {
+    const fresh = !matchesShape(file, wanted);
+    if (fresh) discard(file);
+    database = new DatabaseSync(file);
+    database.exec('PRAGMA busy_timeout = 2000; PRAGMA journal_mode = WAL;');
+    database.exec(TABLES);
+    if (fresh) {
+      database
+        .prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('generation', ?)")
+        .run(wanted);
+      database.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    }
+    return { fresh };
+  };
   const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     read_notes: async ({ paths }) =>
       (
@@ -67,64 +104,71 @@ function hostFor(root: string) {
           }),
         )
       ).filter((note) => note !== null),
-    embedding_cache_open: ({ generation }) => {
-      // Opening again replaces the connection; a file of another generation is made afresh.
+    embedding_cache_open: (args) => {
+      // Opening again replaces the connection.
       database?.close();
-      const wanted = `${String(generation)}+model`;
-      database = new DatabaseSync(file);
-      database.exec(TABLES);
-      const fresh = generationOf(database) !== wanted;
-      if (fresh) {
-        database.exec('DELETE FROM block_embeddings; DELETE FROM notes;');
-        database
-          .prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('generation', ?)")
-          .run(wanted);
-      }
-      return { fresh };
+      generation = `${String(args['generation'])}+model`;
+      return openFile(generation);
+    },
+    embedding_cache_clear: () => {
+      opened();
+      database?.close();
+      discard(file);
+      openFile(generation);
+      return null;
     },
     embedding_cache_load: () => load(opened()),
     embedding_cache_excerpts: ({ keys }) =>
-      (keys as { path: string; ordinal: number }[]).map(
-        ({ path, ordinal }) =>
+      (keys as { path: string; ordinal: number; digest: string }[]).map(
+        ({ path, ordinal, digest }) =>
           (
             opened()
-              .prepare('SELECT excerpt FROM block_embeddings WHERE path = ? AND ordinal = ?')
-              .get(path, ordinal) as { excerpt: string } | undefined
+              .prepare(
+                'SELECT excerpt FROM block_embeddings WHERE path = ? AND ordinal = ? AND digest = ?',
+              )
+              .get(path, ordinal, digest) as { excerpt: string } | undefined
           )?.excerpt ?? '',
       ),
     embedding_cache_put: ({ vault, notes }) => {
       if (vault !== root) throw 'another vault was opened before this could be cached';
       const db = opened();
       db.exec('BEGIN');
-      for (const note of notes as {
-        path: string;
-        digest: string;
-        title: string;
-        blocks: SentBlock[];
-      }[]) {
-        db.prepare('DELETE FROM block_embeddings WHERE path = ?').run(note.path);
-        for (const block of note.blocks) {
-          const bytes =
-            block.vector === null ? null : new Uint8Array(Float32Array.from(block.vector).buffer);
-          db.prepare(
-            'INSERT INTO block_embeddings (path, ordinal, digest, anchor, heading, excerpt, vector) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          ).run(
+      try {
+        for (const note of notes as { path: string }[])
+          db.prepare('DELETE FROM block_embeddings WHERE path = ?').run(note.path);
+        checkVectorLengths(db, notes as { blocks: SentBlock[] }[]);
+        for (const note of notes as {
+          path: string;
+          digest: string;
+          title: string;
+          blocks: SentBlock[];
+        }[]) {
+          for (const block of note.blocks) {
+            const bytes =
+              block.vector === null ? null : new Uint8Array(Float32Array.from(block.vector).buffer);
+            db.prepare(
+              'INSERT INTO block_embeddings (path, ordinal, digest, anchor, heading, excerpt, vector) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            ).run(
+              note.path,
+              block.ordinal,
+              block.digest,
+              block.anchor,
+              block.heading,
+              block.excerpt,
+              bytes,
+            );
+          }
+          db.prepare('INSERT OR REPLACE INTO notes (path, digest, title) VALUES (?, ?, ?)').run(
             note.path,
-            block.ordinal,
-            block.digest,
-            block.anchor,
-            block.heading,
-            block.excerpt,
-            bytes,
+            note.digest,
+            note.title,
           );
         }
-        db.prepare('INSERT OR REPLACE INTO notes (path, digest, title) VALUES (?, ?, ?)').run(
-          note.path,
-          note.digest,
-          note.title,
-        );
+        db.exec('COMMIT');
+      } catch (cause) {
+        db.exec('ROLLBACK');
+        throw String(cause instanceof Error ? cause.message : cause);
       }
-      db.exec('COMMIT');
       return null;
     },
     embedding_cache_remove: ({ paths }) => {
@@ -145,7 +189,29 @@ function hostFor(root: string) {
   };
 }
 
-/** The load's bytes, as `embedding_cache.rs` writes them: header length, JSON header, vectors. */
+/** `check_vector_lengths`: one length in a write, and the same beside what the cache already holds. */
+function checkVectorLengths(db: DatabaseSync, notes: { blocks: SentBlock[] }[]) {
+  const lengths = notes.flatMap((note) =>
+    note.blocks.flatMap((block) => (block.vector === null ? [] : [block.vector.length])),
+  );
+  const [first] = lengths;
+  if (first === undefined) return;
+  if (lengths.some((length) => length !== first))
+    throw new Error('vectors of different lengths cannot be cached together');
+  const stored = db
+    .prepare(
+      'SELECT length(vector) AS bytes FROM block_embeddings WHERE vector IS NOT NULL LIMIT 1',
+    )
+    .get() as { bytes: number } | undefined;
+  if (stored !== undefined && stored.bytes !== first * 4)
+    throw new Error('vectors cannot be cached beside vectors of another length');
+}
+
+/**
+ * The load's bytes, as `embedding_cache.rs` writes them: header length, the
+ * header as lines (notes and vector length, then blocks a thousand to a line),
+ * spaces to a multiple of 4, then the vectors.
+ */
 function load(db: DatabaseSync): ArrayBuffer {
   const notes = db.prepare('SELECT path, digest, title FROM notes ORDER BY path').all();
   const rows = db
@@ -160,12 +226,18 @@ function load(db: DatabaseSync): ArrayBuffer {
     heading: string | null;
     vector: Uint8Array | null;
   }[];
-  const header = new TextEncoder().encode(
-    JSON.stringify({
-      notes: notes.map((note) => ({ ...note })),
-      blocks: rows.map(({ vector, ...row }) => ({ ...row, embedded: vector !== null })),
-    }),
-  );
+  const lengths = new Set(rows.flatMap((row) => (row.vector === null ? [] : [row.vector.length])));
+  if (lengths.size > 1) throw 'the cache holds vectors of different lengths';
+  const [bytesPerVector = 0] = lengths;
+  const blocks = rows.map(({ vector, ...row }) => ({ ...row, embedded: vector !== null }));
+  const lines = [
+    JSON.stringify({ dimensions: bytesPerVector / 4, notes: notes.map((n) => ({ ...n })) }),
+  ];
+  for (let at = 0; at < blocks.length; at += 1_000)
+    lines.push(JSON.stringify(blocks.slice(at, at + 1_000)));
+  let text = lines.join('\n');
+  while (new TextEncoder().encode(text).length % 4 !== 0) text += ' ';
+  const header = new TextEncoder().encode(text);
   const vectors = rows.flatMap((row) => (row.vector === null ? [] : [...row.vector]));
   const bytes = new Uint8Array(4 + header.length + vectors.length);
   new DataView(bytes.buffer).setUint32(0, header.length, true);
@@ -302,5 +374,61 @@ describe('semantic search over a real folder and a real SQLite cache', () => {
     await engine.search({ query: 'bees' });
     await engine.settled();
     expect(engine.progress()).toEqual({ done: 0, total: 0, failure: null });
+  });
+
+  it('makes a file that is not a database again, and answers', async () => {
+    host.close();
+    await writeFile(join(root, '.atlas-cache', 'embeddings.sqlite'), 'not a database, cut short');
+    const { engine } = engineOver(NOTES);
+    await engine.start();
+    await engine.settled();
+    const { hits } = await engine.search({ query: 'when are wages paid' });
+    expect(hits[0]?.path).toBe('Meetings/Standup.md');
+  });
+
+  it('clears a cache that cannot be read back, builds it again, and still answers', async () => {
+    const first = engineOver(NOTES);
+    await first.engine.start();
+    await first.engine.settled();
+    host.close();
+    host = hostFor(root);
+    // Rows of different lengths, as a damaged file holds: the host refuses to load them.
+    const damaged = new DatabaseSync(join(root, '.atlas-cache', 'embeddings.sqlite'));
+    damaged
+      .prepare("UPDATE block_embeddings SET vector = x'0000803f' WHERE path = 'Home/Garden.md'")
+      .run();
+    damaged.close();
+    invoke.mockImplementation(host.invoke);
+    const again = engineOver(NOTES);
+    await expect(again.engine.search({ query: 'honey hive' })).resolves.toBeDefined();
+    await again.engine.settled();
+    const { hits } = await again.engine.search({ query: 'honey hive' });
+    expect(hits[0]?.path).toBe('Home/Garden.md');
+  });
+
+  it('refuses a note whose vectors are not the others’ length, whole', async () => {
+    const { engine } = engineOver(NOTES);
+    await engine.start();
+    await engine.settled();
+    await expect(
+      invoke('embedding_cache_put', {
+        vault: root,
+        notes: [
+          {
+            path: 'x.md',
+            digest: '1',
+            title: 'X',
+            blocks: [
+              { ordinal: 0, digest: 'a', anchor: null, heading: null, excerpt: 'x', vector: [1] },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toMatch(/beside vectors of another length/);
+    const database = new DatabaseSync(join(root, '.atlas-cache', 'embeddings.sqlite'));
+    expect(database.prepare("SELECT COUNT(*) AS n FROM notes WHERE path = 'x.md'").get()).toEqual({
+      n: 0,
+    });
+    database.close();
   });
 });

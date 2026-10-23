@@ -104,7 +104,7 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
   const open = async () => {
     const { fresh } = await deps.cache.open({ generation: EMBEDDING_GENERATION });
     const blocks = fresh ? createSemanticBlocks({ notes: [], blocks: [] }) : await loadedBlocks();
-    build = createEmbeddingBuild({ ...deps, chunker, blocks, onProgress });
+    build = createEmbeddingBuild({ ...deps, chunker, blocks, onProgress, onDamaged });
     if (stopped) build.stop();
     return { blocks, build };
   };
@@ -129,6 +129,14 @@ export function createSemanticEngine(deps: SemanticEngineDeps): SemanticEngine {
       throw cause;
     });
     return opened;
+  };
+  /** The cache was torn and made again behind the build's back: what the window holds of it is gone. */
+  const onDamaged = () => {
+    queueMicrotask(() => {
+      rebuild().catch((cause: unknown) => {
+        console.error('Semantic search could not start over:', cause);
+      });
+    });
   };
   /** Throws the cache away and starts over: its vectors are not the model's. */
   const rebuild = async () => {

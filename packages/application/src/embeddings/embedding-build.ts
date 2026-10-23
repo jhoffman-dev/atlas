@@ -17,7 +17,13 @@ import {
   type KnownVectors,
 } from './embed-passages.ts';
 import type { NotePassages } from './note-passages.ts';
-import type { EmbeddingCachePort, EmbeddingPort, IdlePort, NoteToCache } from './ports.ts';
+import {
+  CacheDamagedError,
+  type EmbeddingCachePort,
+  type EmbeddingPort,
+  type IdlePort,
+  type NoteToCache,
+} from './ports.ts';
 import type { HeldNote, SemanticBlocks } from './semantic-blocks.ts';
 
 /** The most notes read before what they need is embedded and written. */
@@ -71,6 +77,8 @@ export interface EmbeddingBuildDeps {
   readonly blocks: SemanticBlocks;
   /** Told each time the progress moves. */
   readonly onProgress?: (progress: BuildProgress) => void;
+  /** Told once the build stopped because the cache was damaged and made again: nothing it holds is cached. */
+  readonly onDamaged?: () => void;
 }
 
 /** A note file as its passages, wherever the parsing is done. */
@@ -93,6 +101,7 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
   let running: Promise<void> | null = null;
   // A resume asked for while a run is under way, which may yet fail: honoured once it ends.
   let resumeAsked = false;
+  let damaged = false;
 
   const progress = (): BuildProgress => ({ done, total: done + queue.size, failure });
   const tell = () => deps.onProgress?.(progress());
@@ -109,10 +118,12 @@ export function createEmbeddingBuild(deps: EmbeddingBuildDeps): EmbeddingBuild {
         await oneWrite({ deps, queue, session, isStopped: () => stopped, countDone });
     } catch (cause) {
       failure = messageWithoutPaths(cause);
+      damaged = cause instanceof CacheDamagedError;
     } finally {
       running = null;
       if (queue.size === 0) done = 0;
       tell();
+      if (damaged) deps.onDamaged?.();
       if (resumeAsked) {
         resumeAsked = false;
         failure = null;

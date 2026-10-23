@@ -130,7 +130,8 @@ export async function semanticSearch(
       includeArchived: asked.includeArchived === true,
     });
     // A block changed since it was ranked has another block's words under its place: ranked again.
-    const excerpts = await deps.cache.excerpts(found.map(({ block }) => block));
+    const keys = found.map(({ block: { path, ordinal, digest } }) => ({ path, ordinal, digest }));
+    const excerpts = await deps.cache.excerpts(keys);
     hits = found.flatMap(({ block, score }, at) => {
       const text = excerpts[at] ?? '';
       return text === '' ? [] : [hitOf(deps, { block, score, text })];

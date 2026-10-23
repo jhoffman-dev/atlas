@@ -9,7 +9,12 @@ import {
 } from '../testing/fake-embeddings.ts';
 import type { NoteChange } from '@dfai/domain';
 import { createSemanticEngine, type SemanticOptIn } from './semantic-engine.ts';
-import type { CachedEmbeddings, EmbeddingCachePort, IdlePort } from './ports.ts';
+import {
+  CacheDamagedError,
+  type CachedEmbeddings,
+  type EmbeddingCachePort,
+  type IdlePort,
+} from './ports.ts';
 
 /*
  * Regression tests for review and attack findings on the embeddings cache and semantic search (#33): the
@@ -356,6 +361,37 @@ describe('a chunk the model found too long is not sent whole again', () => {
     await engine.settled();
     const sent = embedder.passages().slice(before);
     expect(sent.some((text) => text.length > 150)).toBe(false);
+  });
+});
+
+describe('a cache the host found torn mid-session is started over from the notes', () => {
+  it('rebuilds when a write says the cache was made again, and search answers', async () => {
+    const inner = memoryEmbeddingCache({ vault: VAULT });
+    let tear = true;
+    const cache: EmbeddingCachePort = {
+      ...inner,
+      async put(notes, scope) {
+        if (tear) {
+          tear = false;
+          // The host emptied the file and says so; what the window holds of it is gone.
+          await inner.clear();
+          throw new CacheDamagedError('the embeddings cache was damaged and was made again');
+        }
+        await inner.put(notes, scope);
+      },
+    };
+    const { engine } = setUp(
+      { 'Meetings/Standup.md': STANDUP, 'Home/Garden.md': GARDEN },
+      { cache },
+    );
+    await engine.start();
+    await engine.settled();
+    // The rebuild runs behind the failure.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await engine.settled();
+    const { hits } = await engine.search({ query: 'honey hive', limit: 100 });
+    expect(hits.map((hit) => hit.path)).toContain('Home/Garden.md');
+    expect(engine.progress().failure).toBeNull();
   });
 });
 

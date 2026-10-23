@@ -55,6 +55,17 @@ export class EmbeddingError extends Error {
   }
 }
 
+/**
+ * Thrown by the cache when it found its file damaged and made it again, empty:
+ * whatever the window believes is cached is not, and it starts over from the notes.
+ */
+export class CacheDamagedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CacheDamagedError';
+  }
+}
+
 /** A note as the embeddings cache holds it: the digest of the text it was cut from, and its title. */
 export interface CachedNote {
   readonly path: string;
