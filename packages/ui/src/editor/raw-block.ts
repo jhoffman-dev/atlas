@@ -40,13 +40,33 @@ export const RawBlock = Node.create<RawBlockOptions>({
   },
 
   parseHTML() {
-    return [{ tag: 'pre[data-raw-block]' }];
+    return [
+      {
+        tag: 'pre[data-raw-block]',
+        // Above the code block's `pre` rule (priority 50), which would otherwise
+        // take a pasted raw block and save its source as a fenced block (#541).
+        priority: 60,
+        // The source is read from its attribute, not the element's text, which
+        // also holds the reader link's words. Without one, the rule passes and
+        // the code block keeps the text.
+        getAttrs: (element) => {
+          const markdown = element.getAttribute('data-markdown');
+          return markdown === null ? false : { markdown };
+        },
+      },
+    ];
+  },
+
+  // A paste into another app gets the source: a raw block has no text of its own.
+  renderText({ node }) {
+    return String(node.attrs['markdown'] ?? '');
   },
 
   renderHTML({ node }) {
     const markdown = String(node.attrs['markdown'] ?? '');
     const attributes = {
       'data-raw-block': '',
+      'data-markdown': markdown,
       class: isComment(markdown) ? 'raw-block raw-block--comment' : 'raw-block',
       title: 'Not editable yet — saved unchanged',
     };
