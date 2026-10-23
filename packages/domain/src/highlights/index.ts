@@ -30,6 +30,7 @@ export type {
 export {
   HIGHLIGHT_MARKER_VERSION,
   highlightMarker,
+  isTombstoneBlock,
   readHighlightMarker,
 } from './highlight-marker.ts';
 export type { HighlightMarker } from './highlight-marker.ts';
