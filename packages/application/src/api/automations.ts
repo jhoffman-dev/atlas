@@ -19,7 +19,12 @@ import {
   type SetValue,
   truncated,
 } from '@dfai/domain';
-import { loadAutomations, planRuleNow, type LoadedAutomation } from '../automations/index.ts';
+import {
+  loadAutomations,
+  planRuleNow,
+  withPeriodNote,
+  type LoadedAutomation,
+} from '../automations/index.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
@@ -98,7 +103,7 @@ export async function automationDryRunRoute(request: VaultRequest): Promise<Rout
     fs: request.fs,
     markdown: request.markdown,
   };
-  const { plan } = await planRuleNow({
+  const target = await planRuleNow({
     ports,
     rule,
     log,
@@ -110,6 +115,13 @@ export async function automationDryRunRoute(request: VaultRequest): Promise<Rout
       'query_failed',
       `This automation’s query could not run: ${messageWithoutPaths(error)}`,
     );
+  });
+  const plan = await withPeriodNote({
+    plan: target.plan,
+    rule,
+    log,
+    at: request.clock.localNow(),
+    ports,
   });
   // The index answers for the vault open now: a plan read after a switch would be the other vault's notes.
   request.assertStillOpen();
@@ -180,6 +192,7 @@ function claudeStepOf(action: Extract<AutomationAction, { kind: 'claude' }>): Ap
     tools: [...action.tools],
     output: output.kind === 'note' ? 'note' : output.schema,
     folder: output.kind === 'note' ? output.folder : null,
+    data: action.data ?? null,
   };
 }
 

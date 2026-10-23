@@ -251,7 +251,9 @@ describe('tools/list', () => {
     const { tools } = await mcp.listTools();
     const described = (name: string) => tools.find((t) => t.name === name)?.description ?? '';
 
-    expect(described('atlas_automations')).toContain('"claude" { prompt, tools, output, folder }');
+    expect(described('atlas_automations')).toContain(
+      '"claude" { prompt, tools, output, folder, data }',
+    );
     expect(described('atlas_automations')).toContain('A Claude step never edits a note.');
     expect(described('atlas_automation_log')).toContain('{ kind: "proposed" or "created", path }');
     expect(described('atlas_automation_log')).toContain('"claude" is { model, ms }');

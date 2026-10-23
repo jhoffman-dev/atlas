@@ -127,7 +127,7 @@ describe('GET /v1/automations', () => {
         path: '.atlas/automations/Broken.md',
         name: 'Broken',
         problem:
-          'Say when it runs: daily at 03:00, every 6 hours, on app open, manually, ' +
+          'Say when it runs: daily at 03:00, fridays at 15:00, every 6 hours, on app open, manually, ' +
           'or when a note appears, like a meeting is created or changed.',
       },
     ]);
@@ -662,6 +662,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     tools: ['atlas_read_note', 'atlas_search'],
     output: 'note',
     folder: 'Briefs',
+    data: null,
   };
 
   it('lists it with its prompt, its tools and what it writes', async () => {
@@ -676,6 +677,31 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     });
     expect(automations.find((automation) => automation['id'] === 'tidy')).toMatchObject({
       claude: null,
+    });
+  });
+
+  it('lists a step handed the weekly review with its data, its weekly schedule and no query (#40)', async () => {
+    const review = jsonNote({
+      atlas: 'automation',
+      id: 'friday',
+      name: 'Friday review',
+      enabled: true,
+      when: 'fridays at 15:00',
+      do: 'claude',
+      prompt: '.atlas/prompts/friday-review.md',
+      output: 'note',
+      folder: 'Reviews',
+      data: 'weekly-review',
+    });
+    const withReview = { ...files, '.atlas/automations/Friday review.md': review };
+    const { automations } = bodyOf(await list(vault(withReview))) as {
+      automations: Record<string, unknown>[];
+    };
+    expect(automations.find((automation) => automation['id'] === 'friday')).toMatchObject({
+      when: 'fridays at 15:00',
+      which: '',
+      schedule: 'Every Friday at 15:00',
+      claude: { output: 'note', folder: 'Reviews', data: 'weekly-review' },
     });
   });
 
@@ -716,6 +742,44 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     expect(new Map([...api.files].map(([path, note]) => [path, note.text]))).toEqual(before);
   });
 
+  describe('a step handed the weekly review, dry-run on a Tuesday (review of #539)', () => {
+    const REVIEW = rule({
+      id: 'friday',
+      name: 'Friday review',
+      when: 'fridays at 15:00',
+      do: 'claude',
+      prompt: '.atlas/prompts/friday-review.md',
+      output: 'note',
+      folder: 'Reviews',
+      data: 'weekly-review',
+    });
+    const reviewFiles = {
+      ...FILES,
+      '.atlas/automations/Friday review.md': REVIEW,
+      '.atlas/prompts/friday-review.md': 'Draft the review.\n',
+    };
+
+    it('says it would write its note, though it asks about no notes', async () => {
+      const api = apiFixture({ files: reviewFiles, markdown: jsonMarkdown() });
+      const response = await dryRun(api, 'friday');
+      expect(bodyOf(response)).toMatchObject({
+        plan: { do: 'claude', summary: 'Would write its note.', notes: [] },
+      });
+    });
+
+    it('says the week’s note is made already when a note in its folder carries the week', async () => {
+      const made = jsonNote({ atlas_period: '2026-09-25T15:00:00', atlas_period_rule: 'friday' });
+      const api = apiFixture({
+        files: { ...reviewFiles, 'Reviews/Weekly review.md': made },
+        markdown: jsonMarkdown(),
+      });
+      const response = await dryRun(api, 'friday');
+      expect(bodyOf(response)).toMatchObject({
+        plan: { summary: expect.stringContaining('made already') },
+      });
+    });
+  });
+
   it('lists and dry-runs a meeting extraction rule as output: meeting-items (P29-05)', async () => {
     const extraction = {
       ...files,
@@ -750,6 +814,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
       tools: [],
       output: 'meeting-items',
       folder: null,
+      data: null,
     };
 
     const { automations } = bodyOf(await list(api)) as { automations: Record<string, unknown>[] };
