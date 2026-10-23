@@ -191,9 +191,16 @@ export function useOpenEditors(): PaneEditors {
 /** The longest the window's close waits for the panes' writes: a hung disk must not keep it open. */
 export const EDITORS_CLOSE_WAIT_MS = 10_000;
 
-/** What the person is told when a vault switch or a sync stops waiting for the panes' writes. */
+/** What the person is told when a sync stops waiting for the panes' writes: the panes are still open. */
 export const PANES_WRITE_GAVE_UP =
   'Some open notes took more than 10 seconds to save, so DFAI went on without waiting. Their changes are still in their panes; check them before closing.';
+
+/**
+ * What the person is told when a vault switch stops waiting for the panes'
+ * writes: the panes are gone, and what they could not write is kept.
+ */
+export const SWITCH_WRITE_GAVE_UP =
+  'Some open notes took more than 10 seconds to save, so DFAI went on without waiting. Their saves carry on; whatever cannot be saved is kept, and offered back when its note is opened again.';
 
 /**
  * Every pane's work written, waited for no longer than the window's close

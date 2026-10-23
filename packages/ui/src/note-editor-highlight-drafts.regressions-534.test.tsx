@@ -529,4 +529,3 @@ describe('a comment typed, when its write hangs as the editor goes', () => {
     ]);
   });
 });
-

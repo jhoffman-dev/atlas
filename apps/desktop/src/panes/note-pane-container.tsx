@@ -1409,7 +1409,7 @@ function useKeptCommentsOf({
         : {
             offered,
             keep: (kept) => keep({ vault, ...kept }),
-            settle: (path) => settle({ vault, path }),
+            settle: (settled) => settle({ vault, ...settled }),
           },
     [vault, offered, keep, settle],
   );

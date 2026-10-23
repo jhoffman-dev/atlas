@@ -24,6 +24,8 @@ import { createEditorExtensions } from './editor/extensions.ts';
 import type { HighlightBlocks, ReaderLinks } from './editor/raw-block.ts';
 import {
   HighlightDrafts,
+  LEAVING_WRITE_WAIT_MS,
+  refusedAfter,
   type KeptComment,
   type LostDraft,
   type WriteComment,
@@ -576,7 +578,8 @@ function useHighlightBlocks(
 
 /** Writes every draft through `leaving`, and tells it of the words that could not be. */
 function writeAsLeaving(drafts: HighlightDrafts, leaving: NoteHighlights): void {
-  void drafts.flush(leaving.editComment).then((lost) => leaving.onUnwrittenComments?.(lost));
+  const write = refusedAfter(leaving.editComment, LEAVING_WRITE_WAIT_MS);
+  void drafts.flush(write).then((lost) => leaving.onUnwrittenComments?.(lost));
 }
 
 /** The write of the highlights as they are now: a note moved keeps its editor, and writes to where it is. */

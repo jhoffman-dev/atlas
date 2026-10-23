@@ -250,7 +250,7 @@ describe('a comment the closing note could not write', () => {
     const kept = keptFor([typed]);
     const { hook } = await commenting({ kept });
     hook.result.current?.onUnwrittenComments?.([]);
-    expect(kept.settle).toHaveBeenCalledWith(BOOK);
+    expect(kept.settle).toHaveBeenCalledWith({ path: BOOK, comments: [typed] });
     expect(kept.keep).not.toHaveBeenCalled();
   });
 });

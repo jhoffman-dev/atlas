@@ -1,4 +1,4 @@
-import { HighlightCommentChangedError } from '@dfai/domain';
+import { HighlightCommentChangedError, sameComment } from '@dfai/domain';
 
 /*
  * What a person has typed into highlights' comment fields and not yet had
@@ -15,6 +15,27 @@ export type WriteComment = (edit: {
   readonly comment: string;
   readonly base: string;
 }) => Promise<void>;
+
+/** The longest an editor going waits on a comment's write: the panes' own cap (#534). */
+export const LEAVING_WRITE_WAIT_MS = 10_000;
+
+/**
+ * `write`, refused once it has taken longer than `ms`, so a hung disk cannot
+ * keep the words from being handed back to be kept. The write itself carries
+ * on; landing later, the kept words find themselves already written.
+ */
+export function refusedAfter(write: WriteComment, ms: number): WriteComment {
+  return (edit) =>
+    new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`It did not finish saving within ${ms / 1000} seconds.`)),
+        ms,
+      );
+      void write(edit)
+        .then(resolve, reject)
+        .finally(() => clearTimeout(timer));
+    });
+}
 
 /** One field's words, and where they stand. */
 export interface CommentDraft {
@@ -189,7 +210,11 @@ export class HighlightDrafts {
         draft.base = comment;
       })
       .catch((error: unknown) => {
-        if (error instanceof HighlightCommentChangedError) draft.conflict = error.current;
+        // Refused because the note already holds these very words — another pane put them
+        // there — is written, not a conflict.
+        if (error instanceof HighlightCommentChangedError && sameComment(comment, error.current)) {
+          draft.base = comment;
+        } else if (error instanceof HighlightCommentChangedError) draft.conflict = error.current;
         else draft.problem = error instanceof Error ? error.message : String(error);
       })
       .finally(() => {
@@ -213,19 +238,22 @@ export class HighlightDrafts {
   /**
    * The note is closing, or another is taking its place: writes every draft
    * that holds words not yet written, and answers the ones that could not be.
-   * Each is the person's, so none is dropped without being said.
+   * Each is the person's, so none is dropped without being said. Only the
+   * drafts it wrote are let go of: one begun, put back or typed in while it
+   * was writing is still in its field, for a later write.
    */
   async flush(write: WriteComment): Promise<LostDraft[]> {
-    const pending = [...this.drafts.keys()];
-    await Promise.all(pending.map((id) => this.write(id, write)));
+    const begun = [...this.drafts].map(([id, draft]) => ({ id, draft, text: draft.text }));
+    await Promise.all(begun.map(({ id }) => this.write(id, write)));
     const lost: LostDraft[] = [];
-    for (const id of pending) {
-      const draft = this.drafts.get(id);
-      if (draft === undefined || draft.text === draft.base) continue;
-      lost.push({ id, comment: draft.text, base: draft.base, why: whyNotWritten(draft) });
+    for (const { id, draft, text } of begun) {
+      if (this.drafts.get(id) !== draft || draft.text !== text) continue;
+      this.drafts.delete(id);
+      if (draft.text !== draft.base) {
+        lost.push({ id, comment: draft.text, base: draft.base, why: whyNotWritten(draft) });
+      }
     }
-    this.drafts.clear();
-    this.focus = null;
+    if (this.focus !== null && !this.drafts.has(this.focus.id)) this.focus = null;
     return lost;
   }
 

@@ -40,8 +40,9 @@ export function AppNotices({
           </button>
         </div>
       )}
-      <KeptWork kept={stranded} discard="Discard kept changes to" />
-      {keptComments !== undefined && (
+      {/* Drawn only with something to say: an empty notice is no render on every app render. */}
+      {stranded.notice !== null && <KeptWork kept={stranded} discard="Discard kept changes to" />}
+      {keptComments !== undefined && keptComments.notice !== null && (
         <KeptWork kept={keptComments} discard="Discard kept comments on" />
       )}
     </>
@@ -56,7 +57,6 @@ interface KeptWorkNotice {
 
 /** Kept work that could not be saved, and a way to let go of each note's. */
 function KeptWork({ kept, discard }: { kept: KeptWorkNotice; discard: string }) {
-  if (kept.notice === null) return null;
   return (
     <div className="notice">
       <p role="alert">{kept.notice}</p>

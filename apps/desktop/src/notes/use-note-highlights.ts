@@ -80,7 +80,7 @@ export function useNoteHighlights({
       path === null || (toasts === undefined && kept === undefined)
         ? undefined
         : (lost: readonly LostComment[]) => {
-            keepOrSettle({ kept, path, lost });
+            keepOrSettle({ kept, path, lost, offered: recovered ?? [] });
             for (const each of lost) {
               toasts?.show({
                 message: `Your comment on a highlight in “${noteTitle(path)}” was not saved: ${each.why}${kept === undefined ? '' : ' It is kept: open the note again to get it back.'} It read: “${each.comment}”`,
@@ -92,7 +92,7 @@ export function useNoteHighlights({
               });
             }
           },
-    [path, toasts, kept],
+    [path, toasts, kept, recovered],
   );
   return useMemo(
     () =>
@@ -120,23 +120,30 @@ export interface KeptCommentsOfVault {
     comments: readonly StrandedComment[];
     reason: string;
   }) => void;
-  readonly settle: (path: VaultPath) => void;
+  /** Lets go of `comments`, the ones `offered` handed this note's fields, once they are written. */
+  readonly settle: (settled: { path: VaultPath; comments: readonly StrandedComment[] }) => void;
 }
 
-/** Keeps what the closing note could not write; lets go of what it was offered once all is written. */
+/**
+ * Keeps what the closing note could not write; lets go of what its fields were
+ * offered once all is written. Comments kept after its fields were drawn never
+ * reached them, so are not this note's to let go of.
+ */
 function keepOrSettle({
   kept,
   path,
   lost,
+  offered,
 }: {
   kept: KeptCommentsOfVault | undefined;
   path: VaultPath;
   lost: readonly LostComment[];
+  offered: readonly StrandedComment[];
 }): void {
   if (kept === undefined) return;
   const first = lost[0];
   if (first === undefined) {
-    if (kept.offered(path).length > 0) kept.settle(path);
+    if (offered.length > 0) kept.settle({ path, comments: offered });
     return;
   }
   kept.keep({

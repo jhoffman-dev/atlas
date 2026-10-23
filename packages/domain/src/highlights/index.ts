@@ -42,7 +42,13 @@ export type {
   ReadNoteBlocks,
   TextSpan,
 } from './highlight-block.ts';
-export { commentLines, plainQuote, quoteLines, undoCommentEscapes } from './highlight-text.ts';
+export {
+  commentLines,
+  plainQuote,
+  quoteLines,
+  sameComment,
+  undoCommentEscapes,
+} from './highlight-text.ts';
 export { highlightView } from './highlight-view.ts';
 export type { HighlightView } from './highlight-view.ts';
 export {

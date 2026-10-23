@@ -130,6 +130,7 @@ import { createBrowserLinkedRangeStore } from './linked-pages/browser-linked-ran
 import { useTemplates } from './types/use-templates.ts';
 import {
   PANES_WRITE_GAVE_UP,
+  SWITCH_WRITE_GAVE_UP,
   useEditorsWrittenBeforeClose,
   useOpenEditors,
   writtenWithin,
@@ -499,11 +500,19 @@ function AppWindow({
       }),
     [editors, toasts],
   );
+  const flushAllBeforeSwitch = useMemo(
+    () =>
+      writtenWithin({
+        flushAll: editors.flushAll,
+        onGaveUp: () => toasts.show({ message: SWITCH_WRITE_GAVE_UP, tone: 'error' }),
+      }),
+    [editors, toasts],
+  );
   const leaveVault = useCallback(async () => {
-    await flushAllWithin();
+    await flushAllBeforeSwitch();
     await answersWrittenOrGivenUp(pendingWrites.drained());
     await settleSync(syncStore);
-  }, [flushAllWithin, pendingWrites, syncStore]);
+  }, [flushAllBeforeSwitch, pendingWrites, syncStore]);
   // So is the window's close, whatever tab those pages are in, or were.
   useAnswersWrittenBeforeClose(pendingWrites, closing.writes);
   // And every pane's work, a comment typed in a highlight among it (#534), as leaving the vault does.
