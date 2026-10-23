@@ -6,9 +6,13 @@ import {
   movedHandledNotes,
   noteRunsHeldUntil,
   noteTriggerHears,
+  outputPeriod,
+  periodNoteMade,
+  readsData,
   storedAnswerFor,
   triggeringVersions,
   unhandledVersions,
+  writesOneNoteAPeriod,
   type AutomationPlan,
   type AutomationRule,
   type DoneAction,
@@ -18,6 +22,7 @@ import {
   type NoteChange,
   type NoteTrigger,
   type NoteVersionRef,
+  type OutputPeriod,
   type PassedOver,
   type RunTrigger,
   type StoredAnswerDraft,
@@ -351,7 +356,8 @@ async function runOnce({
     await recordGone(run, departed, trigger);
     return null;
   }
-  if (plan.action.kind === 'claude' && plan.paths.length > 0) {
+  // A step that reads its data runs with no notes; any other has nothing to ask about without one.
+  if (plan.action.kind === 'claude' && (plan.paths.length > 0 || readsData(plan.action))) {
     const asked = { run, ports, target, action: plan.action, at, trigger, departed, log, append };
     return askClaude(asked);
   }
@@ -397,6 +403,11 @@ async function runOnce({
  * before the first write, and again before it logs a failure that made
  * nothing: shut at any of these, it is held for the next pull with nothing
  * written. Once it has made something, what it made is logged regardless.
+ *
+ * A step that writes one note a period (#40) asks nothing when its log says
+ * this period's note is made: the run is logged, as one that found it made,
+ * and its schedule counts on from it. The run that makes the note says the
+ * period it made it for.
  */
 async function askClaude({
   run,
@@ -420,6 +431,12 @@ async function askClaude({
   append: (entry: LogEntry, stored?: readonly StoredAnswerDraft[]) => Promise<void>;
 }): Promise<LogEntry> {
   const { plan } = target;
+  const period = await periodToWrite(run.rule, ports.fs, at);
+  if (period?.made === true) {
+    const found = ranEmpty({ at, trigger, plan, period: period.period });
+    await log(found);
+    return found;
+  }
   const hold = () =>
     holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths: plan.paths });
   await hold();
@@ -454,6 +471,8 @@ async function askClaude({
       ...(target.versions !== null && { versions: askedAbout(target) }),
       ...departureFields(departed),
       claude,
+      ...(period !== null &&
+        done.some(({ kind }) => kind === 'created') && { period: period.period }),
     };
     await (done.length > 0 ? append(entry) : log(entry, plan.paths));
     return entry;
@@ -477,6 +496,37 @@ async function askClaude({
     if (cause.interruption !== undefined) throw cause.interruption;
     return failed;
   }
+}
+
+/**
+ * The period a run of a rule that writes one note a period writes for, and
+ * whether its log says that note is made; null for any other rule.
+ */
+async function periodToWrite(
+  rule: AutomationRule,
+  fs: AutomationPorts['fs'],
+  at: string,
+): Promise<{ period: OutputPeriod; made: boolean } | null> {
+  if (!writesOneNoteAPeriod(rule)) return null;
+  const period = outputPeriod({ schedule: rule.when, at });
+  if (period === null) return null;
+  const { entries } = await readRuleLog(fs, rule);
+  return { period, made: periodNoteMade(entries, period) !== null };
+}
+
+/** What a step whose period's note is made logs: a run that did nothing, for that period. */
+function ranEmpty({
+  at,
+  trigger,
+  plan,
+  period,
+}: {
+  at: string;
+  trigger: RunTrigger;
+  plan: AutomationPlan;
+  period: OutputPeriod;
+}): LogEntry {
+  return { kind: 'run', at, trigger, done: [], left: [...plan.passedOver], capped: false, period };
 }
 
 /**

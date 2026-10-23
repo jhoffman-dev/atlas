@@ -71,6 +71,15 @@
  * - meeting `"Inbox/Meetings/Standup.md"`: tasks `2`, proposals `1`
  * ```
  *
+ * A Claude step that writes one note a period (#40, ADR-0028) says which
+ * period the note is for — the time its schedule fell due, and the item it
+ * is about when there is one — so a second run in that period makes nothing:
+ *
+ * ```markdown
+ * - period `"2026-10-23T15:00:00"`
+ * - period `"2026-10-23T07:00:00"` for `"Meetings/2026-10-23 Standup.md"`
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
@@ -100,6 +109,7 @@ import type { DroppedItem } from './proposal-schema.ts';
 import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
 import type { NoteVersionRef } from './note-trigger.ts';
 import type { LocalTime } from './schedule.ts';
+import type { OutputPeriod } from './output-period.ts';
 
 export const MAX_LOG_ENTRIES = 100;
 export const LOG_MARKER_VALUE = 'automation-log';
@@ -247,6 +257,8 @@ export type LogEntry =
       readonly moved?: readonly MovedVersion[];
       /** For a Claude step: the model it asked. */
       readonly claude?: ClaudeRunInfo;
+      /** For a step that writes one note a period: the period it wrote it for, or found it written. */
+      readonly period?: OutputPeriod;
     }
   | {
       readonly kind: 'undo';
@@ -349,6 +361,9 @@ export function logEntrySummary(entry: LogEntry): string {
   // A failure's words can be a model's (a tool it named, a title it chose): bounded, as the log is.
   if (entry.kind === 'failed') return oneLine(truncated(entry.problem));
   if (entry.kind === 'letGo') return letGoWords(entry.count);
+  if (entry.kind === 'run' && entry.period !== undefined && !madeANote(entry)) {
+    return `Its note for ${shown(entry.period.slot)} is made already: nothing new.`;
+  }
   const askedForNothing =
     entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
   const meetings = 'claude' in entry ? (entry.claude?.meetings ?? []) : [];
@@ -369,6 +384,9 @@ export function logEntrySummary(entry: LogEntry): string {
   const claude = 'claude' in entry ? entry.claude : undefined;
   return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}${adjustedWords(claude?.adjusted ?? [])}${warningWords(claude?.warnings ?? [])}`;
 }
+
+const madeANote = (entry: Extract<LogEntry, { kind: 'run' }>): boolean =>
+  entry.done.some((action) => action.kind === 'created');
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -522,6 +540,9 @@ function claudeLines({
   ];
 }
 
+const periodLine = ({ slot, item }: OutputPeriod): string =>
+  `- period ${code(slot)}${item === undefined ? '' : ` for ${code(item)}`}`;
+
 const movedLine = ({ from, path, digest }: MovedVersion): string =>
   `- moved ${code(from)} to ${code(path)} at ${code(digest)}`;
 
@@ -543,10 +564,11 @@ export function formatLogEntry(entry: LogEntry): string {
   const moved = entry.kind === 'run' ? (entry.moved ?? []).map(movedLine) : [];
   const claude = 'claude' in entry && entry.claude !== undefined ? claudeLines(entry.claude) : [];
   const letGo = entry.kind === 'letGo' ? [`- let go ${code(entry.count)}`] : [];
+  const period =
+    entry.kind === 'run' && entry.period !== undefined ? [periodLine(entry.period)] : [];
   const memory = [...went, ...moved];
-  if (done.length + left.length + versions.length + memory.length + claude.length > 0) {
-    lines.push('', ...done, ...left, ...versions, ...memory, ...claude);
-  }
+  const said = [...done, ...left, ...versions, ...memory, ...claude, ...period];
+  if (said.length > 0) lines.push('', ...said);
   if (letGo.length > 0) lines.push('', ...letGo);
   return `${lines.join('\n')}\n`;
 }
@@ -739,6 +761,7 @@ const MEETING_LINE = new RegExp(
     `(?:, left out ${namedSpan('leftOut')})?$`,
 );
 const LET_GO_LINE = new RegExp(`^- let go ${JSON_SPAN}$`);
+const PERIOD_LINE = new RegExp(`^- period ${JSON_SPAN}(?: for ${JSON_SPAN})?$`);
 
 /**
  * Reads a log back into its entries, oldest first. A section or line that does
@@ -795,6 +818,7 @@ function parseSection(section: string): LogEntry | null {
     return path === null ? [] : [path];
   });
   const moved = body.flatMap((line) => readMoved(line) ?? []);
+  const period = periodOf(body);
   return {
     kind: 'run',
     at,
@@ -805,7 +829,26 @@ function parseSection(section: string): LogEntry | null {
     ...(went.length > 0 && { went }),
     ...(moved.length > 0 && { moved }),
     ...(claude !== null && { claude }),
+    ...(period !== null && { period }),
   };
+}
+
+/** The period a run's line says it wrote its note for; null when none reads. */
+function periodOf(body: readonly string[]): OutputPeriod | null {
+  for (const line of body) {
+    const match = PERIOD_LINE.exec(line);
+    if (match === null) continue;
+    try {
+      const slot = JSON.parse(match[1]!) as unknown;
+      const item = match[2] === undefined ? undefined : (JSON.parse(match[2]) as unknown);
+      if (typeof slot !== 'string' || (item !== undefined && typeof item !== 'string')) return null;
+      return item === undefined ? { slot } : { slot, item };
+    } catch {
+      // A line edited into JSON that does not read is left out, as any other line is.
+      return null;
+    }
+  }
+  return null;
 }
 
 /** The model a Claude step asked, from its line; null when there is none, or it does not read. */

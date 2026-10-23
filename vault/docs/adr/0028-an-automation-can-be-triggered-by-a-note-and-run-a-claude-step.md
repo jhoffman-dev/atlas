@@ -693,3 +693,63 @@ the rule never ran on and ran a `set` rule on it again.
   a path no note holds now: a move it never heard (news let go, a move while
   it was held). Taking a new meeting of that name for it skips a catch-up; it
   never runs a rule twice.
+
+## Amendment, 2026-10-23: a weekly schedule, one note a period, and cited items (#40)
+
+The Friday review draft (P32-09) needed three things the rules did not have:
+a schedule that runs on one day of the week, a note output that a second run
+cannot duplicate, and a way to hand a step data DFAI reads itself. Before
+this, a daily note-writing rule run twice in a day made `Morning brief 2.md`,
+which broke "never overwriting one" in spirit: two drafts of one brief.
+
+- **A weekly schedule.** `when: fridays at 15:00` (any weekday; the file also
+  reads `friday at 15:00`, `every friday at 15:00`, `weekly on fri at 15:00`,
+  and writes the first form). Like `daily at`, it is a time on the person's
+  wall clock, and the next run is counted in whole days of that clock, so a
+  clock change in between moves neither: 15:00 stays 15:00 across the night
+  the clocks go back. A time that never shows on the night they go forward
+  (02:30) is due the first moment the clock reads past it; one that shows
+  twice when they go back runs once, because the run is the mark the next is
+  counted from. A Friday missed while DFAI was closed is caught up once, on
+  opening.
+- **One note a period.** A Claude step whose output is a note, on a daily or
+  weekly clock, writes one note for each time its schedule falls due — the
+  period's `slot`, the latest due time at or before the run — however it runs:
+  on time, caught up, or by hand. A run by hand on Friday morning, before
+  15:00, is in the week of the Friday before. Which periods have their note
+  is read from the rule's log, never from the folder's file names (which a
+  person renames): the run that made the note writes
+  `` - period `"2026-10-23T15:00:00"` ``, and a later run in that period asks
+  Claude nothing and is logged as having found the note made, so its schedule
+  still counts on from it. A period whose run failed made nothing, so the next
+  run in it writes the note. Deleting the note does not free its period: the
+  log says it was made. The key can carry an item —
+  `` - period `"…"` for `"Meetings/2026-10-23 Standup.md"` `` — so a rule that
+  writes one note per item of a period (#39, a brief per meeting of the day)
+  uses the same record (`outputPeriod({ schedule, at, item })`,
+  `periodNoteMade(entries, period)`). Hourly, on-open, by-hand-only and
+  note-triggered rules have no periods and behave as before.
+- **Each period asks afresh.** A note-a-period step is not held to "never
+  asked again about a version it has answered": this week's draft is about
+  the week as it is, including notes last week's draft read.
+- **Data beside the notes.** `data: weekly-review` hands the step the weekly
+  review (P30-07) as `<vault_data about=…>` blocks — the tasks finished and
+  meetings held in the last 7 days, waiting-fors untouched for more than 7
+  days, overdue tasks, active projects with no next action, someday items
+  untouched for 30 days (at most 50 each), and the Inbox's count — each item
+  with its note's path. It goes with `output: note` only, and a step with data
+  may leave `which:` out: it reads its data alone, and runs with no notes. This
+  is a data input rather than a read tool because it is what the step is
+  about, not something it might look up, and a tool would be a new API route.
+- **Every item cites a note it was given.** In the note such a step writes,
+  each list item must link, by path, one of the notes in its data or among the
+  notes it read. An item that links none — no link, a link by bare title, a
+  link to a note it was not given, a link in code — is left out and the rest
+  kept, named in the log as `- dropped …` (`claude.dropped`), as a meeting's
+  uncited action item is. A note whose every item was left out is refused and
+  nothing is written. Headings and sentences (the Inbox's count) are the
+  draft's frame, not claims, and are not held to it. The check is the
+  domain's (`keepCitedItems`), whatever the prompt says.
+- **The Friday review preset** puts these together: `fridays at 15:00`, its
+  prompt `.atlas/prompts/friday-review.md` (written once, never over yours),
+  `output: note` into `Reviews/`, `data: weekly-review`, no query.

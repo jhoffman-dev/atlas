@@ -7,6 +7,8 @@ import { paraProjectSql } from '../types/para-value.ts';
 import { RECURRENCE_KEY } from '../query/repeating-task.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { userSpaceNoteSql } from '../vault/vault-visibility.ts';
+import { MEETING_TYPE } from '../meetings/meeting-header.ts';
+import type { ReviewSource } from './review-draft.ts';
 import { MOVING_STATUSES, type ReviewProject, type ReviewTask } from './weekly-review.ts';
 
 /** What the review's statements start with, so a log or a stand-in index can tell them apart. */
@@ -163,5 +165,64 @@ export function reviewProject(row: Readonly<Record<string, unknown>>): ReviewPro
     title: String(row['title'] ?? ''),
     status: textOrNull(row['status']),
     moving: Number(row['moving']) === 1,
+  };
+}
+
+/** What the Friday review draft's statements start with (#40). */
+export const REVIEW_DONE_QUERY_MARK = '/* weekly review: done */';
+export const REVIEW_MEETINGS_QUERY_MARK = '/* weekly review: meetings */';
+
+/** The key a meeting's day is kept under. */
+const MEETING_DATE_KEY = 'date';
+
+/**
+ * The tasks finished since `since` (milliseconds since the epoch), asked of
+ * the index: in the finished status, last changed since then — finishing a
+ * task is a change to it — and in user space, whether or not it has been
+ * moved into the Archive yet. Newest first.
+ */
+export function compileReviewDoneQuery(since: number): CompiledQuery {
+  return {
+    sql: [
+      `${REVIEW_DONE_QUERY_MARK} SELECT f.path AS "path", f.title AS "title", f.modified AS "modified"`,
+      `FROM files AS f`,
+      `WHERE EXISTS (SELECT 1 FROM props AS ty WHERE ty.path = f.path AND ty.key = 'type'`,
+      `    AND lower(trim(ty.value_text)) = ?)`,
+      `  AND ${userSpaceNoteSql('f.path')}`,
+      `  AND EXISTS (SELECT 1 FROM props AS s WHERE s.path = f.path AND s.key = '${TASK_KEYS.status}' AND +s.value_text = ?)`,
+      `  AND f.modified >= ?`,
+      `ORDER BY f.modified DESC, f.path`,
+    ].join('\n'),
+    parameters: [TASK_TYPE, FINISHED_TASK_STATUS, since],
+  };
+}
+
+/** The meetings held from `sinceDay` (`YYYY-MM-DD`) to `today`, asked of the index, by day. */
+export function compileReviewMeetingsQuery({
+  sinceDay,
+  today,
+}: {
+  sinceDay: string;
+  today: string;
+}): CompiledQuery {
+  return {
+    sql: [
+      `${REVIEW_MEETINGS_QUERY_MARK} SELECT f.path AS "path", f.title AS "title", ${firstDay(MEETING_DATE_KEY)} AS "date"`,
+      `FROM files AS f`,
+      `WHERE ${inUseOfTypeSql('f.path', '?')}`,
+      `  AND ${firstDay(MEETING_DATE_KEY)} BETWEEN ? AND ?`,
+      `ORDER BY "date", f.path`,
+    ].join('\n'),
+    parameters: [MEETING_TYPE, sinceDay, today],
+  };
+}
+
+/** A row of {@link compileReviewDoneQuery} or {@link compileReviewMeetingsQuery}. */
+export function reviewSource(row: Readonly<Record<string, unknown>>): ReviewSource {
+  const date = textOrNull(row['date']);
+  return {
+    path: createVaultPath(String(row['path'])),
+    title: String(row['title'] ?? ''),
+    ...(date !== null && { date }),
   };
 }

@@ -1,6 +1,7 @@
 import {
   answeredMeetingOf,
   askedTurnsDigest,
+  CITED_ITEMS_INSTRUCTIONS,
   CLAUDE_STEP_QUESTION,
   claudeAskRefusal,
   claudeAsks,
@@ -17,12 +18,14 @@ import {
   DIGEST_REDUCE_PROMPT,
   digestReduceData,
   isPromptPath,
+  keepCitedItems,
   MAX_PROPOSALS_PER_ANSWER,
   MEETING_TYPE,
   meetingSummaryOf,
   messageWithoutPaths,
   NOTE_ANSWER_INSTRUCTIONS,
   noteTitle,
+  nothingCitedProblem,
   partSummaries,
   proposalSchemaNamed,
   readDigestReduce,
@@ -51,6 +54,7 @@ import {
   type ProjectChoice,
   type PromptData,
   type RegisteredProposalSchema,
+  type ReviewDraftData,
   type StoredAnswer,
   type StoredAnswerDraft,
   type SummaryOutcome,
@@ -63,6 +67,7 @@ import type { ChatToolbox, Toolboxes } from '../chat/toolbox.ts';
 import { loadLinkDirectory } from '../meeting-links/link-directory.ts';
 import type { Clock } from '../ports.ts';
 import { loadTerms } from '../terms/terms.ts';
+import { readReviewDraft } from '../review/read-review-draft.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import type { NoteWritePorts } from '../proposals/proposal-writes.ts';
@@ -329,7 +334,7 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   try {
     const answered =
       output.kind === 'note'
-        ? await planNoteAnswer({ ...asking, output, notes, counted })
+        ? await planNoteAnswer({ ...asking, output, notes, counted, dropped })
         : await planProposalAnswers({
             ...asking,
             schema: output.schema,
@@ -598,9 +603,11 @@ function outputOf(action: ClaudeAction): StepOutput | string {
   if (output.kind === 'note') {
     const refusal = claudeWriteRefusal(output.folder);
     if (refusal !== null) return refusal;
+    // A step handed data writes a note whose every item cites one of its notes (#40).
+    const cites = action.data === undefined ? [] : [CITED_ITEMS_INSTRUCTIONS];
     return {
       kind: 'note',
-      instructions: NOTE_ANSWER_INSTRUCTIONS,
+      instructions: [NOTE_ANSWER_INSTRUCTIONS, ...cites].join('\n'),
       folder: createVaultPath(output.folder),
     };
   }
@@ -649,25 +656,56 @@ interface PlannedSummary {
   readonly project: PropertyChange | null;
 }
 
-/** Asks once for the rule's one new note, and plans it: nothing is written yet. */
+/**
+ * Asks once for the rule's one new note, and plans it: nothing is written
+ * yet. A step handed data (#40) is asked with it beside the notes, and its
+ * note keeps only the list items that link one of them or of its data's
+ * notes; the rest go in `dropped`, and a note that kept none is refused.
+ */
 async function planNoteAnswer({
   notes,
   counted,
+  dropped,
   ...asking
 }: Asking & {
   output: Extract<StepOutput, { kind: 'note' }>;
   notes: readonly AnsweredNote[];
   counted: () => void;
+  /** Gains the list items left out for citing nothing. */
+  dropped: DroppedItem[];
 }): Promise<AnswerPlanned> {
-  const note = readNoteAnswer(await askModel({ ...asking, notes, counted }));
+  const given = await readStepData(asking);
+  const data = given?.data ?? [];
+  const note = readNoteAnswer(await askModel({ ...asking, notes, counted, data }));
   if (!note.ok) return asking.fail(unreadWords(note.problem));
+  let { body } = note.value;
+  if (given !== null) {
+    const sources = new Set<string>([...given.sources, ...notes.map(({ path }) => path)]);
+    const cited = keepCitedItems({ body, sources });
+    const problem = nothingCitedProblem(cited);
+    if (problem !== null) return asking.fail(unreadWords(problem));
+    dropped.push(...cited.dropped);
+    body = cited.body;
+  }
   const planned = await planNote({
     ports: asking,
     notePaths: asking.notePaths,
     folder: asking.output.folder,
-    note: note.value,
+    note: { ...note.value, body },
   });
   return { planned: [planned], proposed: 0 };
+}
+
+/** What DFAI reads and hands the step beside its notes; null for a step handed none. */
+async function readStepData({
+  action,
+  index,
+  fs,
+  markdown,
+  ports,
+}: Asking): Promise<ReviewDraftData | null> {
+  if (action.data === undefined) return null;
+  return readReviewDraft({ index, fs, markdown, clock: ports.clock });
 }
 
 /** What every proposal answer of a run is read with. */

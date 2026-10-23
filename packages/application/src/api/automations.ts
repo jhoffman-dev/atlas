@@ -180,6 +180,7 @@ function claudeStepOf(action: Extract<AutomationAction, { kind: 'claude' }>): Ap
     tools: [...action.tools],
     output: output.kind === 'note' ? 'note' : output.schema,
     folder: output.kind === 'note' ? output.folder : null,
+    data: action.data ?? null,
   };
 }
 

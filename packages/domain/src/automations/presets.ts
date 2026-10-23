@@ -1,5 +1,9 @@
 import type { AutomationDraft } from './automation-rule.ts';
-import { AFTER_A_MEETING_PROMPT, MEETING_EXTRACTION_PROMPT } from './built-in-prompts.ts';
+import {
+  AFTER_A_MEETING_PROMPT,
+  FRIDAY_REVIEW_PROMPT,
+  MEETING_EXTRACTION_PROMPT,
+} from './built-in-prompts.ts';
 import { MEETING_DIGEST_OUTPUT } from './meeting-digest.ts';
 import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
 
@@ -19,6 +23,11 @@ import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
  * turning it on cannot reach back through every meeting the vault holds. Its
  * answer is a `meeting-digest` (#184): the summary written at the top of the
  * meeting with the action items.
+ *
+ * The fourth is the Friday review (#40): on Fridays at 15:00, one new note in
+ * `Reviews/` drafted from the weekly review DFAI hands it — no query, its
+ * data is what it reads — each item linking its task, project or meeting. It
+ * writes one a week however often it runs (`output-period.ts`).
  */
 export const AUTOMATION_PRESETS: readonly AutomationDraft[] = [
   {
@@ -54,6 +63,20 @@ export const AUTOMATION_PRESETS: readonly AutomationDraft[] = [
       tools: [],
       output: { kind: 'proposals', schema: MEETING_DIGEST_OUTPUT },
       apply: 'mine',
+    },
+  },
+  {
+    name: 'Friday review',
+    enabled: true,
+    when: { kind: 'weekly', day: 'friday', at: '15:00' },
+    which: '',
+    olderThanDays: null,
+    action: {
+      kind: 'claude',
+      prompt: FRIDAY_REVIEW_PROMPT,
+      tools: [],
+      output: { kind: 'note', folder: 'Reviews' },
+      data: 'weekly-review',
     },
   },
 ];

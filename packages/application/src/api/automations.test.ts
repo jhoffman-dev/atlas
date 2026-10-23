@@ -127,7 +127,7 @@ describe('GET /v1/automations', () => {
         path: '.atlas/automations/Broken.md',
         name: 'Broken',
         problem:
-          'Say when it runs: daily at 03:00, every 6 hours, on app open, manually, ' +
+          'Say when it runs: daily at 03:00, fridays at 15:00, every 6 hours, on app open, manually, ' +
           'or when a note appears, like a meeting is created or changed.',
       },
     ]);
@@ -662,6 +662,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     tools: ['atlas_read_note', 'atlas_search'],
     output: 'note',
     folder: 'Briefs',
+    data: null,
   };
 
   it('lists it with its prompt, its tools and what it writes', async () => {
@@ -676,6 +677,31 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     });
     expect(automations.find((automation) => automation['id'] === 'tidy')).toMatchObject({
       claude: null,
+    });
+  });
+
+  it('lists a step handed the weekly review with its data, its weekly schedule and no query (#40)', async () => {
+    const review = jsonNote({
+      atlas: 'automation',
+      id: 'friday',
+      name: 'Friday review',
+      enabled: true,
+      when: 'fridays at 15:00',
+      do: 'claude',
+      prompt: '.atlas/prompts/friday-review.md',
+      output: 'note',
+      folder: 'Reviews',
+      data: 'weekly-review',
+    });
+    const withReview = { ...files, '.atlas/automations/Friday review.md': review };
+    const { automations } = bodyOf(await list(vault(withReview))) as {
+      automations: Record<string, unknown>[];
+    };
+    expect(automations.find((automation) => automation['id'] === 'friday')).toMatchObject({
+      when: 'fridays at 15:00',
+      which: '',
+      schedule: 'Every Friday at 15:00',
+      claude: { output: 'note', folder: 'Reviews', data: 'weekly-review' },
     });
   });
 
@@ -750,6 +776,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
       tools: [],
       output: 'meeting-items',
       folder: null,
+      data: null,
     };
 
     const { automations } = bodyOf(await list(api)) as { automations: Record<string, unknown>[] };
