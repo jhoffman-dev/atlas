@@ -35,6 +35,7 @@ import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';
 import type { ScriptedRound } from '../testing/fake-model.ts';
 import { MEETING_HEADER } from '../testing/meeting-files.ts';
+import { VaultAccessError } from '../vault/ports.ts';
 import { runOnNoteChanges } from './run-automation.ts';
 import type { VaultGuard } from './vault-guard.ts';
 
@@ -244,6 +245,99 @@ describe('a term the "After a meeting" step suggests', () => {
     const arrived = vault.files.get(next)!;
     expect(arrived).toContain('The Brenwick renewal is due. ^t0001');
     expect(arrived).not.toContain('Bren Wick renewal');
+  });
+});
+
+describe('a term waiting in the Inbox when the next meeting suggests it', () => {
+  it('heard another way, is not proposed again, and the log says to add the spelling later', async () => {
+    const { arrive, termProposals, log } = await setUp([
+      BRENWICK,
+      says(term('Brenwick', 'Bren Wik')),
+    ]);
+    await arrive('Contracts');
+    await arrive('Renewal', 'The Bren Wik renewal is due.');
+
+    expect(termProposals()).toEqual(['Inbox/Proposals/Brenwick.md']);
+    expect(JSON.stringify(log())).toContain(
+      '“Brenwick” is proposed already, waiting in the Inbox; once it is a term, add “Bren Wik” to its misheard spellings on the Terms page.',
+    );
+  });
+
+  it('heard the same way for another name, is blocked, and the log says by which', async () => {
+    const { arrive, termProposals, log } = await setUp([
+      BRENWICK,
+      says(term('Brenwyck', 'Bren Wick')),
+    ]);
+    await arrive('Contracts');
+    await arrive('Renewal', 'The Bren Wick renewal is due.');
+
+    expect(termProposals()).toEqual(['Inbox/Proposals/Brenwick.md']);
+    expect(JSON.stringify(log())).toContain(
+      '“Bren Wick” is proposed already, as “Brenwick”, waiting in the Inbox.',
+    );
+  });
+});
+
+describe('accepting a term once the vault has moved on', () => {
+  it('is refused, saying why, when what it was heard as is another term’s now; the card stays open', async () => {
+    const { vault, arrive, propertiesOf } = await setUp([BRENWICK]);
+    await arrive('Contracts');
+    await vault.ports.fs.createNote({
+      path: createVaultPath('Terms/Brenwick Labs.md'),
+      contents: jsonNote({ type: 'term', variants: ['Bren Wick'] }, ''),
+    });
+
+    await expect(
+      acceptProposalNote({
+        ports: vault.ports,
+        path: createVaultPath('Inbox/Proposals/Brenwick.md'),
+        today: TODAY,
+      }),
+    ).rejects.toThrow(
+      '“Bren Wick” is now a misheard spelling of “Brenwick Labs”; accepted, neither would be put right.',
+    );
+    expect(vault.files.has('Terms/Brenwick.md')).toBe(false);
+    expect(propertiesOf(vault.files.get('Inbox/Proposals/Brenwick.md')!)).toMatchObject({
+      state: 'open',
+    });
+  });
+
+  it('is refused when a note of its name elsewhere would lose its links to it', async () => {
+    const { vault, arrive } = await setUp([BRENWICK]);
+    await vault.ports.fs.createNote({
+      path: createVaultPath('Clients/Northwind/Brenwick.md'),
+      contents: jsonNote({ type: 'project' }, ''),
+    });
+    await arrive('Contracts');
+
+    await expect(
+      acceptProposalNote({
+        ports: vault.ports,
+        path: createVaultPath('Inbox/Proposals/Brenwick.md'),
+        today: TODAY,
+      }),
+    ).rejects.toThrow(
+      '[[Brenwick]] already opens Clients/Northwind/Brenwick.md, and would open the new term instead. Rename one of them first.',
+    );
+  });
+});
+
+describe('two runs writing the same term at once', () => {
+  it('makes it once: the second finds it made at its path, and does not fail', async () => {
+    const { vault, arrive, termProposals, log } = await setUp([BRENWICK]);
+    const create = vault.ports.fs.createNote;
+    // Another rule's run writes the very proposal between this run's plan and its write.
+    vault.ports.fs.createNote = async (note) => {
+      if (note.path.startsWith('Inbox/Proposals/')) {
+        await create(note);
+        throw new VaultAccessError('something with that name is already there');
+      }
+      return create(note);
+    };
+    await arrive('Contracts');
+
+    expect(termProposals()).toEqual(['Inbox/Proposals/Brenwick.md']);
+    expect(log().at(-1)).toMatchObject({ kind: 'run' });
   });
 });
 

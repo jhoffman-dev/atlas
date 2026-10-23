@@ -8,6 +8,7 @@ import type {
   AnswerContext,
   AnswerVault,
   CheckedProposal,
+  PendingTerm,
 } from './proposal-schema.ts';
 import { proposalSchemaNamed } from './proposal-schemas.ts';
 
@@ -198,12 +199,13 @@ describe('what a suggested term is known by', () => {
     expect(idOf(checked({ heard: 'Purr' }))).toBe(first);
   });
 
-  it('is one whatever the case, accents or plural of the right spelling', () => {
+  it('is one whatever the case, Latin accents or possessive of the right spelling, never a plural', () => {
     const first = idOf(checked({}));
 
     expect(idOf(checked({ title: 'LARKSPUR' }))).toBe(first);
     expect(idOf(checked({ title: 'Lárkspur' }))).toBe(first);
-    expect(idOf(checked({ title: 'Larkspurs' }))).toBe(first);
+    expect(idOf(checked({ title: 'Larkspur’s' }))).toBe(first);
+    expect(idOf(checked({ title: 'Larkspurs' }))).not.toBe(first);
     expect(idOf(checked({ title: 'Larkspar' }))).not.toBe(first);
     expect(first).toMatch(/^claude-[0-9a-f]+$/);
   });
@@ -220,5 +222,116 @@ describe('what a suggested term is known by', () => {
     );
     if (!task.ok) throw new Error(task.problem);
     expect(idOf(task.value[0]!)).not.toBe(idOf(term));
+  });
+});
+
+describe('a term the general proposals schema proposes', () => {
+  const general = proposalSchemaNamed('proposals')!;
+  const proposedFrom = (note: AnsweredNote, block: string): CheckedProposal => {
+    const reading = general.read(
+      JSON.stringify({
+        proposals: [
+          {
+            kind: 'term',
+            title: 'Larkspur',
+            source: `[[${note.path.slice(note.path.lastIndexOf('/') + 1, -3)}#^${block}]]`,
+            confidence: 'high',
+            why: 'It is misheard.',
+          },
+        ],
+      }),
+      { notes: [note] },
+    );
+    if (!reading.ok || reading.value.length !== 1) throw new Error(JSON.stringify(reading));
+    return reading.value[0]!;
+  };
+
+  it('keeps the rule- and citation-scoped id: it is no meeting’s glossary suggestion', () => {
+    const first = claudeProposalId({ rule: 'Mine', proposal: proposedFrom(SYNC, 't0001') });
+
+    expect(claudeProposalId({ rule: 'Mine', proposal: proposedFrom(SYNC, 't0001') })).toBe(first);
+    expect(claudeProposalId({ rule: 'Other', proposal: proposedFrom(SYNC, 't0001') })).not.toBe(
+      first,
+    );
+    expect(claudeProposalId({ rule: 'Mine', proposal: proposedFrom(SYNC, 't0002') })).not.toBe(
+      first,
+    );
+    const meetings = schemaTerm();
+    expect(claudeProposalId({ rule: 'Mine', proposal: meetings })).not.toBe(first);
+  });
+
+  function schemaTerm(): CheckedProposal {
+    const reading = proposalSchemaNamed('meeting-items')!.read(
+      JSON.stringify({ items: [termItem()] }),
+      about(SYNC),
+    );
+    if (!reading.ok) throw new Error(reading.problem);
+    return reading.value[0]!;
+  }
+});
+
+describe('a term already waiting in the Inbox', () => {
+  const schema = proposalSchemaNamed('meeting-items')!;
+  const readWith = (pendingTerms: readonly PendingTerm[], fields = {}) => {
+    const reading = schema.read(JSON.stringify({ items: [termItem(fields)] }), {
+      notes: [SYNC],
+      vault: { ...vaultFor(SYNC), pendingTerms },
+    });
+    if (!reading.ok) throw new Error(reading.problem);
+    return reading;
+  };
+
+  it('is not proposed again, and the log says it waits', () => {
+    const reading = readWith([{ title: 'larkspur', variants: ['Larks Purr'] }]);
+
+    expect(reading.value).toEqual([]);
+    expect(reading.dropped.map((each) => each.reason)).toEqual([
+      '“larkspur” is proposed already, waiting in the Inbox.',
+    ]);
+  });
+
+  it('heard another way, says to add that spelling once the term is made', () => {
+    const reading = readWith([{ title: 'Larkspur', variants: ['Lark Spurr'] }]);
+
+    expect(reading.value).toEqual([]);
+    expect(reading.dropped.map((each) => each.reason)).toEqual([
+      '“Larkspur” is proposed already, waiting in the Inbox; once it is a term, add “Larks Purr” to its misheard spellings on the Terms page.',
+    ]);
+  });
+
+  it('blocks another term heard the same way, and says which', () => {
+    const reading = readWith([{ title: 'Larkspar', variants: ['Larks Purr'] }]);
+
+    expect(reading.value).toEqual([]);
+    expect(reading.dropped.map((each) => each.reason)).toEqual([
+      '“Larks Purr” is proposed already, as “Larkspar”, waiting in the Inbox.',
+    ]);
+  });
+
+  it('leaves a term with nothing in common with it to be proposed', () => {
+    expect(readWith([{ title: 'Brenwick', variants: ['Bren Wick'] }]).value).toHaveLength(1);
+  });
+});
+
+describe('one answer’s two terms heard the same way', () => {
+  it('keeps the first and says why the second is left out', () => {
+    const reading = proposalSchemaNamed('meeting-digest')!.read(
+      JSON.stringify({
+        summary: 'A sync.',
+        key_points: [],
+        open_questions: [],
+        items: [termItem(), termItem({ title: 'Larkspar' })],
+      }),
+      about(SYNC),
+    );
+    if (!reading.ok) throw new Error(reading.problem);
+
+    expect(reading.value.map((each) => each.payload.title)).toEqual(['Larkspur']);
+    expect(reading.dropped).toEqual([
+      {
+        title: 'Larkspar',
+        reason: '“Larks Purr” is heard for another term of this answer already.',
+      },
+    ]);
   });
 });

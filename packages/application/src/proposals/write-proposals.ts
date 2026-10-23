@@ -99,6 +99,12 @@ export async function planProposals({
  * Writes each proposal into `Inbox/Proposals/` as an open proposal note,
  * planned as {@link planProposals} says — so nothing is proposed twice. One
  * that cannot be written is said, and the rest are written.
+ *
+ * Each note is made only where nothing is (`createNote` never writes over a
+ * file), so two runs that planned the same proposal at once — two rules on
+ * one meeting — plan it at the same path, and the second finds it there: a
+ * note at its path holding its id is the same proposal, made already, and is
+ * neither written again nor said to have failed.
  */
 export async function writeProposals(
   args: ProposalWritePorts & { proposals: readonly NewProposal[] },
@@ -111,10 +117,22 @@ export async function writeProposals(
       await args.fs.createNote(note);
       written.push(note.path);
     } catch (cause) {
+      if (await proposalMadeAlready(args, note)) continue;
       left.push({ path: note.path, reason: messageWithoutPaths(cause) });
     }
   }
   return { written, left };
+}
+
+/** Whether the note at a planned proposal's path is that proposal: its id, written by a run alongside. */
+export async function proposalMadeAlready(
+  { fs, markdown }: Pick<ProposalWritePorts, 'fs' | 'markdown'>,
+  note: Pick<PlannedProposal, 'path' | 'id'>,
+): Promise<boolean> {
+  const [there] = await fs.readNotes([note.path]);
+  if (there === undefined) return false;
+  const properties = markdown.frontmatterProperties(splitFrontmatter(there.text).frontmatter);
+  return properties[PROPOSAL_ID_KEY] === note.id;
 }
 
 async function heldIds(

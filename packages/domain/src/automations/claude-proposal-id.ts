@@ -25,10 +25,12 @@ import type { CheckedProposal } from './proposal-schema.ts';
  * they concern) is part of it. Two hashes of the same text, so a collision (a 32-bit hash alone would meet
  * one in a large vault) needs both to meet.
  *
- * A suggested term (#19) is the glossary's, not a meeting's: it is known by
- * its right spelling alone, as the glossary compares spellings
- * (`glossaryKey`), so a term proposed once — and one rejected — is never
- * proposed again, by a re-run or by the next meeting that mishears it.
+ * A term a meeting schema suggests (#19, a schema whose proposals are shared
+ * across rules) is the glossary's, not a meeting's: it is known by its right
+ * spelling alone (`glossaryKey`: case, a possessive and Latin accents aside,
+ * never a plural), so a term proposed once — and one rejected — is never
+ * proposed again, by a re-run or by the next meeting that mishears it. A
+ * term any other schema proposes keeps the rule- and citation-scoped id.
  */
 export function claudeProposalId({
   rule,
@@ -37,7 +39,7 @@ export function claudeProposalId({
   rule: string;
   proposal: CheckedProposal;
 }): string {
-  if (proposal.kind === 'term') {
+  if (proposal.kind === 'term' && proposal.sharedAcrossRules) {
     return idOf(['', 'term', glossaryKey(proposal.payload.title)].join('\n'));
   }
   const title = proposal.payload.title.replace(/\s+/g, ' ').trim().toLowerCase();

@@ -41,8 +41,17 @@ const COMMON = new Set(WORDS.split(/\s+/).filter((word) => word !== ''));
 /** A plural or possessive ending a word may carry and still be the word: `files`, `team's`. */
 const ENDING = /(?:['’]s|s)$/u;
 
-/** Whether a word is an everyday one, in any case, as written or with a plural `s` or a `'s`. */
+/** The fewest letters a word keeps once its ending is dropped: `UPS` is not `up`, nor `Wes` `we`. */
+const MIN_BASE_LETTERS = 3;
+
+/**
+ * Whether a word is an everyday one, in any case: as written, or — when what
+ * is left has at least three letters and is everyday itself — with a plural
+ * `s` or a `'s` dropped.
+ */
 export function isCommonWord(word: string): boolean {
   const lower = word.toLowerCase();
-  return COMMON.has(lower) || (ENDING.test(lower) && COMMON.has(lower.replace(ENDING, '')));
+  if (COMMON.has(lower)) return true;
+  const base = lower.replace(ENDING, '');
+  return base !== lower && [...base].length >= MIN_BASE_LETTERS && COMMON.has(base);
 }

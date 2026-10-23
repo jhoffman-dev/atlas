@@ -137,6 +137,11 @@ test('a meeting suggests a term, accepting it adds the term, and the next meetin
   await expectFile(vault, 'Terms/Brenwick.md').toContain('type: term');
   expect(await vault.read('Terms/Brenwick.md')).toMatch(/variants:\n\s+- Bren Wick/);
   await expect(card).toBeHidden();
+  // The import reads the vocabulary from the index: wait until the Terms page, read from it too, lists the term.
+  await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Terms' }).click();
+  await expect(page.getByRole('textbox', { name: 'Misheard spellings of Brenwick' })).toHaveValue(
+    'Bren Wick',
+  );
 
   // The next meeting that mishears it arrives with the term put right.
   await arrive(page, vault, SECOND, SECOND_TEXT);

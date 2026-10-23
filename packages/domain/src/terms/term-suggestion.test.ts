@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { isCommonWord } from './common-words.ts';
 import {
+  acceptedTermRefusal,
   glossaryKey,
+  knownSpellingOf,
   MAX_HEARD_WORDS,
+  MIN_HEARD_LETTERS,
   MAX_SUGGESTED_SPELLING_CHARACTERS,
   suggestedTermRefusal,
 } from './term-suggestion.ts';
@@ -53,6 +56,13 @@ describe('everyday words', () => {
   it.each(['Larkspur', 'Brenwick', 'Quill', 'xs'])('does not know “%s”', (word) => {
     expect(isCommonWord(word)).toBe(false);
   });
+
+  it.each(['UPS', 'DOS', 'Wes', 'ins'])(
+    'does not take “%s” for a plural: what is left would be under three letters',
+    (word) => {
+      expect(isCommonWord(word)).toBe(false);
+    },
+  );
 });
 
 describe('the key the glossary compares spellings by', () => {
@@ -64,11 +74,25 @@ describe('the key the glossary compares spellings by', () => {
     expect(glossaryKey('Quillé')).toBe(glossaryKey('Quillé'));
   });
 
-  it('drops a plural or a possessive at the end, but not the ss of a name', () => {
-    expect(glossaryKey('Larkspurs')).toBe('larkspur');
+  it('drops a possessive at the end, of a name ending in s too, and never a plural', () => {
     expect(glossaryKey('Larkspur’s')).toBe('larkspur');
     expect(glossaryKey("Larkspur's")).toBe('larkspur');
+    expect(glossaryKey("Atlas's")).toBe(glossaryKey('Atlas'));
+    expect(glossaryKey('Atlas')).toBe('atlas');
+    expect(glossaryKey('Larkspurs')).toBe('larkspurs');
     expect(glossaryKey('Bross')).toBe('bross');
+  });
+
+  it('keeps names a plural would fold together apart: Luca and Lucas, Carlo and Carlos, Jen and Jens', () => {
+    expect(glossaryKey('Lucas')).not.toBe(glossaryKey('Luca'));
+    expect(glossaryKey('Carlos')).not.toBe(glossaryKey('Carlo'));
+    expect(glossaryKey('Jens')).not.toBe(glossaryKey('Jen'));
+  });
+
+  it('drops accents on Latin letters only: Cyrillic й is not и, and Greek keeps its tonos', () => {
+    expect(glossaryKey('José')).toBe('jose');
+    expect(glossaryKey('Майя')).not.toBe(glossaryKey('Маия'));
+    expect(glossaryKey('Σοφία')).not.toBe(glossaryKey('Σοφια'));
   });
 
   it('tells different names apart', () => {
@@ -134,12 +158,40 @@ describe('a suggested term that is no name', () => {
     );
   });
 
-  it('refuses what was heard when it is the right spelling in other capitals, accents or a plural', () => {
+  it('refuses what was heard when it is the right spelling in other capitals, as a plural or a possessive', () => {
     expect(refusal('larkspur', 'Larkspur', EMPTY)).toBe(
-      '“larkspur” is “Larkspur” in other capitals or accents, not a mishearing of it.',
+      '“larkspur” is “Larkspur” in other capitals or as a plural, not a mishearing of it.',
     );
-    expect(refusal('Ida Brenwíck', 'Ida Brenwick', EMPTY)).toMatch(/in other capitals or accents/);
-    expect(refusal('Larkspurs', 'Larkspur', EMPTY)).toMatch(/in other capitals or accents/);
+    expect(refusal('Larkspurs', 'Larkspur', EMPTY)).toMatch(/in other capitals or as a plural/);
+    expect(refusal('Larkspur’s', 'Larkspur', EMPTY)).toMatch(/in other capitals or as a plural/);
+  });
+
+  it.each([
+    ['Jose', 'José'],
+    ['Bjorn', 'Bjørn'],
+    ['Lukasz', 'Łukasz'],
+    ['Σοφια', 'Σοφία'],
+    ['Ida Brenwíck', 'Ida Brenwick'],
+  ])('allows an accent or a stroke put right: “%s” for “%s”', (heard, canonical) => {
+    expect(refusal(heard, canonical, EMPTY)).toBeNull();
+  });
+
+  it('refuses an accent put right when the vault has the right spelling already', () => {
+    const known = vocabulary({ terms: [term('José')], people: [], companies: [] });
+    expect(refusal('Jose', 'José', known)).toBe('“José” is already in the glossary, as “José”.');
+  });
+
+  it.each(['Q', 'PR', 'Q3', 'A.I.'])(
+    'refuses “%s”: fewer than three letters is too short to tell from everyday text',
+    (heard) => {
+      expect(refusal(heard, 'Kewbrick', EMPTY)).toBe(
+        `“${heard}” is too short to tell from everyday text: a misheard spelling has at least ${MIN_HEARD_LETTERS} letters.`,
+      );
+    },
+  );
+
+  it('allows a heard spelling of three letters', () => {
+    expect(refusal('Ida', 'Eida', EMPTY)).toBeNull();
   });
 
   it('refuses words out of the right spelling itself', () => {
@@ -157,9 +209,19 @@ describe('a suggested term made of everyday words', () => {
     expect(refusal('Files', 'Fyles', EMPTY)).toMatch(/is everyday words/);
   });
 
-  it('refuses a right spelling that is everyday words', () => {
-    expect(refusal('Mondai', 'Monday', EMPTY)).toBe(
-      '“Monday” is everyday words, and would be rewritten wherever anyone says it.',
+  it('allows a right spelling of everyday words: only what was heard is rewritten', () => {
+    expect(refusal('Teem Sink', 'Team Sync', EMPTY)).toBeNull();
+    expect(refusal('Mondai', 'Monday', EMPTY)).toBeNull();
+  });
+
+  it.each([
+    ['follow-up', 'Folloup'],
+    ['step 2', 'Steptoo'],
+    ['mark,', 'Marq'],
+    ["the team's", 'Theteam'],
+  ])('refuses everyday words whatever joins them: “%s”', (heard, canonical) => {
+    expect(refusal(heard, canonical, EMPTY)).toBe(
+      `“${heard}” is everyday words, and would be rewritten wherever anyone says it.`,
     );
   });
 
@@ -204,6 +266,32 @@ describe('a suggested term the glossary already has', () => {
     expect(refusal('Quill', 'Quillon')).toBe('“Quill” is part of the name “Mara Quill”.');
   });
 
+  it('refuses words out of a spelling notes disagree about, or out of what someone goes by', () => {
+    const disputed = vocabulary({
+      terms: [term('Larkspur', ['Lark Spur Pay']), term('Larkspar', ['Lark Spur Pay'])],
+      people: [named('People', 'Ida Brenwick', ['Dee Brenwick'])],
+      companies: [],
+    });
+    expect(refusal('Spur Pay', 'Spurpay', disputed)).toBe(
+      '“Spur Pay” is part of the name “Lark Spur Pay”.',
+    );
+    expect(refusal('Dee', 'Deebrick', disputed)).toBe('“Dee” is part of the name “dee brenwick”.');
+  });
+
+  it('folds a plural onto a spelling the vault has, and only onto one it has', () => {
+    const lucas = vocabulary({ terms: [term('Lucas')], people: [], companies: [] });
+    const luca = vocabulary({ terms: [term('Luca')], people: [], companies: [] });
+    expect(knownSpellingOf('Lucas', lucas)).toBe('Lucas');
+    // Lucas known: Luca is another name.
+    expect(knownSpellingOf('Luca', lucas)).toBeNull();
+    expect(refusal('Lukah', 'Luca', lucas)).toBeNull();
+    // Luca known: Lucas folds onto it, as Larkspurs does onto Larkspur.
+    expect(knownSpellingOf('Lucas', luca)).toBe('Luca');
+    expect(
+      knownSpellingOf('Glass', vocabulary({ terms: [term('Glas')], people: [], companies: [] })),
+    ).toBeNull();
+  });
+
   it('refuses a spelling two notes disagree about', () => {
     const disputed = vocabulary({
       terms: [term('Larkspur', ['Lark Spur']), term('Larkspar', ['Lark Spur'])],
@@ -212,5 +300,35 @@ describe('a suggested term the glossary already has', () => {
     });
     expect(disputed.conflicts.map((conflict) => conflict.form)).toEqual(['Lark Spur']);
     expect(refusal('Lark Spur', 'Larkspurr', disputed)).toMatch(/already knows/);
+  });
+});
+
+describe('a term proposal at Accept, once the vault has moved on', () => {
+  const accepted = (canonical: string, variants: string[]) =>
+    acceptedTermRefusal({ canonical, variants }, VOCABULARY);
+
+  it('is accepted while nothing it holds is claimed', () => {
+    expect(accepted('Brenwick', ['Bren Wick'])).toBeNull();
+  });
+
+  it('is refused when its spelling is in the glossary now, in any case or accent', () => {
+    expect(accepted('quille', ['Kwee'])).toBe('“quille” is already in the glossary, as “Quillé”.');
+  });
+
+  it('is refused when what it was heard as is another note’s misheard spelling now', () => {
+    expect(accepted('Larkspur Pay', ['Larkspur Payrol'])).toBe(
+      '“Larkspur Payrol” is now a misheard spelling of “Larkspur Payroll”; accepted, neither would be put right.',
+    );
+  });
+
+  it('is refused when what it was heard as is disputed by two notes', () => {
+    const disputed = vocabulary({
+      terms: [term('Larkspur', ['Lark Spur']), term('Larkspar', ['Lark Spur'])],
+      people: [],
+      companies: [],
+    });
+    expect(acceptedTermRefusal({ canonical: 'Larkspir', variants: ['Lark Spur'] }, disputed)).toBe(
+      '“Lark Spur” is already claimed by more than one note.',
+    );
   });
 });

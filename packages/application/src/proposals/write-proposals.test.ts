@@ -26,6 +26,38 @@ function vault(files: Record<string, string>, indexed: Record<string, string> = 
 }
 
 describe('writeProposals', () => {
+  /** A vault where another run writes `contents` at a proposal's path just before this run does. */
+  function racedBy(contents: (planned: string) => string) {
+    const { setup, ports } = vault({});
+    const create = ports.fs.createNote;
+    const fs = {
+      ...ports.fs,
+      createNote: async (note: { path: VaultPath; contents: string }) => {
+        await create({ path: note.path, contents: contents(note.contents) });
+        return create(note);
+      },
+    };
+    return { setup, ports: { ...ports, fs } };
+  }
+
+  it('writes a proposal two runs make at once only once, and the second says nothing failed', async () => {
+    const { setup, ports } = racedBy((planned) => planned);
+
+    const written = await writeProposals({ ...ports, proposals: [proposal('a', 'Brenwick')] });
+
+    expect(written).toEqual({ written: [], left: [] });
+    expect(setup.propertiesOf('Inbox/Proposals/Brenwick.md')).toMatchObject({ proposal_id: 'a' });
+  });
+
+  it('still says why when what took its path at that moment is another proposal', async () => {
+    const { ports } = racedBy(() => jsonLinesNote({ type: 'proposal', proposal_id: 'b' }));
+
+    const written = await writeProposals({ ...ports, proposals: [proposal('a', 'Brenwick')] });
+
+    expect(written.written).toEqual([]);
+    expect(written.left.map((each) => each.path)).toEqual(['Inbox/Proposals/Brenwick.md']);
+  });
+
   it('writes each as an open proposal, numbering a name another note has, making the folder', async () => {
     const { setup, ports } = vault({
       'Inbox/Proposals/Call Ada.md': jsonLinesNote({ type: 'task' }),

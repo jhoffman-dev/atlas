@@ -28,6 +28,7 @@ import {
   nothingCitedProblem,
   periodProperties,
   partSummaries,
+  pendingTermOf,
   proposalSchemaNamed,
   readDigestReduce,
   readNoteAnswer,
@@ -73,8 +74,13 @@ import { loadTerms } from '../terms/terms.ts';
 import { readReviewDraft } from '../review/read-review-draft.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
+import { listProposals } from '../proposals/list-proposals.ts';
 import type { NoteWritePorts } from '../proposals/proposal-writes.ts';
-import { planProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
+import {
+  planProposals,
+  proposalMadeAlready,
+  type ProposalWritePorts,
+} from '../proposals/write-proposals.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
 import { readMadeItems } from '../meetings/made-items.ts';
@@ -820,6 +826,7 @@ async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanne
       path,
       contents,
       made: { kind: 'proposed', path },
+      id,
       ...(declared && { meeting: meetingOf.get(id)! }),
     })),
     proposed,
@@ -1152,21 +1159,25 @@ async function missingRelations(
 
 /**
  * What the run knows of the vault for an output that reads it: its people,
- * terms and the vocabulary they make (what a suggested term is held to) from the index, its notes, and its owner's name and addresses from
- * the vault's settings.
+ * terms and the vocabulary they make from the index, the term proposals
+ * waiting in the Inbox (what a suggested term is held to, #19), its notes,
+ * and its owner's name and addresses from the vault's settings.
  */
 async function readVault({
   ports,
   index,
+  fs,
+  markdown,
   notePaths,
   withProjects,
-}: Pick<StepArgs, 'ports' | 'index' | 'notePaths'> & {
+}: Pick<StepArgs, 'ports' | 'index' | 'fs' | 'markdown' | 'notePaths'> & {
   /** Whether to read the projects a meeting may be filed under: only for the step that files it (#227). */
   withProjects: boolean;
 }): Promise<AnswerVault> {
   const { people } = await loadLinkDirectory({ index });
   const { terms, vocabulary } = await loadTerms({ index });
   const projects = withProjects ? await loadProjectOptions({ index }) : null;
+  const { open } = await listProposals({ fs, markdown });
   return {
     selfName: ports.selfName(),
     selfEmails: ports.selfEmails(),
@@ -1174,6 +1185,7 @@ async function readVault({
     notePaths,
     terms: terms.map((term) => term.canonical),
     vocabulary,
+    pendingTerms: open.flatMap(({ proposal }) => pendingTermOf(proposal) ?? []),
     ...(projects !== null && { projects }),
   };
 }
@@ -1238,6 +1250,13 @@ async function writeAll({
     try {
       await args.fs.createNote({ path: note.path, contents: note.contents });
     } catch (cause) {
+      // Two rules on one meeting at once: the other run made this very proposal a moment ago.
+      if (
+        note.id !== undefined &&
+        (await proposalMadeAlready(args, { path: note.path, id: note.id }))
+      ) {
+        continue;
+      }
       const notes = made.length - tasksMade;
       const said = `Made ${notes} of ${planned.length} notes, then the write failed: ${messageWithoutPaths(cause)}`;
       throw new ClaudeStepFailed(said, claudeRun(), { made, cause, stored });
