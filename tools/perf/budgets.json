@@ -200,8 +200,8 @@
       }
     },
     "⌘K + 5 keys over the table": {
-      "commits": 19,
-      "renders": 465,
+      "commits": 18,
+      "renders": 450,
       "calls": {
         "index_search": 7
       }
@@ -266,11 +266,11 @@
       "calls": {}
     },
     "⌘K by meaning + 5 keys": {
-      "commits": 12,
-      "renders": 392,
+      "commits": 8,
+      "renders": 180,
       "calls": {
-        "embed": 7,
-        "embedding_cache_excerpts": 7
+        "embed": 2,
+        "embedding_cache_excerpts": 2
       }
     }
   }
