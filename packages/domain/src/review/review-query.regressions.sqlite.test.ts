@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { indexablePropertiesOf } from '../index/property-value.ts';
 import { compileReviewDoneQuery, reviewSource } from './review-query.ts';
 
-/** Attack tests for PR #539 (#40): the week's wins, run for real against SQLite. */
+/** Regression tests from the review of PR #539 (#40): the week's wins, run for real against SQLite. */
 
 interface Fixture {
   readonly frontmatter: Readonly<Record<string, unknown>>;
@@ -43,7 +43,7 @@ function indexOf(notes: Readonly<Record<string, Fixture>>) {
 const DAY = 86_400_000;
 const NOW = Date.parse('2026-10-23T15:00:00Z');
 
-describe('the Friday review’s wins (attack #539)', () => {
+describe('the Friday review’s wins', () => {
   it('leaves out a task finished long ago that was only edited this week', () => {
     const { sql, parameters } = compileReviewDoneQuery(NOW - 7 * DAY);
     const rows = indexOf({
@@ -60,5 +60,48 @@ describe('the Friday review’s wins (attack #539)', () => {
       .prepare(sql)
       .all(...parameters) as Record<string, unknown>[];
     expect(rows.map(reviewSource).map(({ path }) => path)).toEqual(['Tasks/New win.md']);
+  });
+
+  it('counts a task with no completed day by when it was last changed, as before', () => {
+    const { sql, parameters } = compileReviewDoneQuery(NOW - 7 * DAY);
+    const rows = indexOf({
+      'Tasks/No day.md': {
+        frontmatter: { type: 'task', status: 'archive' },
+        modified: NOW - DAY,
+      },
+      'Tasks/No day, long ago.md': {
+        frontmatter: { type: 'task', status: 'archive' },
+        modified: NOW - 20 * DAY,
+      },
+    })
+      .prepare(sql)
+      .all(...parameters) as Record<string, unknown>[];
+    expect(rows.map(reviewSource).map(({ path }) => path)).toEqual(['Tasks/No day.md']);
+  });
+
+  it('stops at the end of the week it is asked for, so no win is counted in two reviews', () => {
+    const week = {
+      sinceDay: '2026-10-17',
+      until: NOW,
+      untilDay: '2026-10-23',
+    };
+    const { sql, parameters } = compileReviewDoneQuery(NOW - 7 * DAY, week);
+    const rows = indexOf({
+      'Tasks/This week.md': {
+        frontmatter: { type: 'task', status: 'archive', completed: '2026-10-23' },
+        modified: NOW - 1000,
+      },
+      'Tasks/Next week.md': {
+        frontmatter: { type: 'task', status: 'archive', completed: '2026-10-24' },
+        modified: NOW + DAY,
+      },
+      'Tasks/Last week.md': {
+        frontmatter: { type: 'task', status: 'archive', completed: '2026-10-16' },
+        modified: NOW - 6 * DAY,
+      },
+    })
+      .prepare(sql)
+      .all(...parameters) as Record<string, unknown>[];
+    expect(rows.map(reviewSource).map(({ path }) => path)).toEqual(['Tasks/This week.md']);
   });
 });

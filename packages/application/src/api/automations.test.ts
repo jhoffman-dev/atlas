@@ -742,6 +742,44 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     expect(new Map([...api.files].map(([path, note]) => [path, note.text]))).toEqual(before);
   });
 
+  describe('a step handed the weekly review, dry-run on a Tuesday (review of #539)', () => {
+    const REVIEW = rule({
+      id: 'friday',
+      name: 'Friday review',
+      when: 'fridays at 15:00',
+      do: 'claude',
+      prompt: '.atlas/prompts/friday-review.md',
+      output: 'note',
+      folder: 'Reviews',
+      data: 'weekly-review',
+    });
+    const reviewFiles = {
+      ...FILES,
+      '.atlas/automations/Friday review.md': REVIEW,
+      '.atlas/prompts/friday-review.md': 'Draft the review.\n',
+    };
+
+    it('says it would write its note, though it asks about no notes', async () => {
+      const api = apiFixture({ files: reviewFiles, markdown: jsonMarkdown() });
+      const response = await dryRun(api, 'friday');
+      expect(bodyOf(response)).toMatchObject({
+        plan: { do: 'claude', summary: 'Would write its note.', notes: [] },
+      });
+    });
+
+    it('says the week’s note is made already when a note in its folder carries the week', async () => {
+      const made = jsonNote({ atlas_period: '2026-09-25T15:00:00' });
+      const api = apiFixture({
+        files: { ...reviewFiles, 'Reviews/Weekly review.md': made },
+        markdown: jsonMarkdown(),
+      });
+      const response = await dryRun(api, 'friday');
+      expect(bodyOf(response)).toMatchObject({
+        plan: { summary: expect.stringContaining('made already') },
+      });
+    });
+  });
+
   it('lists and dry-runs a meeting extraction rule as output: meeting-items (P29-05)', async () => {
     const extraction = {
       ...files,

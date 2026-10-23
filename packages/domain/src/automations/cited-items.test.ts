@@ -16,7 +16,7 @@ describe('keepCitedItems', () => {
       '[[ Tasks/Send the file.md ]]',
     ]) {
       const body = `## Wins\n\n- Sent it: ${link}\n`;
-      expect(cite(body)).toEqual({ body, dropped: [], kept: 1 });
+      expect(cite(body)).toMatchObject({ body, dropped: [], stripped: [], kept: 1 });
     }
   });
 
@@ -84,7 +84,7 @@ describe('keepCitedItems', () => {
       '-not an item without a space',
       '',
     ].join('\n');
-    expect(cite(body)).toEqual({ body, dropped: [], kept: 0 });
+    expect(cite(body)).toMatchObject({ body, dropped: [], stripped: [], kept: 0 });
   });
 
   it('closes a fence only with its own marker', () => {
@@ -101,8 +101,9 @@ describe('nothingCitedProblem', () => {
     );
   });
 
-  it('lets a note with no items, or with one kept, through', () => {
-    expect(nothingCitedProblem(cite('Nothing this week.\n'))).toBeNull();
+  it('lets a note with one item kept through, and one with no items when it was given nothing to cite', () => {
+    const givenNothing = keepCitedItems({ body: 'Nothing this week.\n', sources: new Set() });
+    expect(nothingCitedProblem(givenNothing)).toBeNull();
     expect(nothingCitedProblem(cite('- [[Tasks/Send the file.md]]\n- none\n'))).toBeNull();
   });
 });

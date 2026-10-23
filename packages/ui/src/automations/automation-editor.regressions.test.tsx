@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Attack tests for PR #539 (#40): the editor's weekly schedule and the data a
+ * Regression tests from the review of PR #539 (#40): the editor's weekly schedule and the data a
  * Claude step is handed, carried through to the rule's file and back.
  */
 import { describe, expect, it, vi } from 'vitest';
@@ -47,7 +47,7 @@ function Editor({ onChange }: { onChange: (draft: AutomationDraft) => void }) {
   );
 }
 
-describe('the editor and the Friday review (attack #539)', () => {
+describe('the editor and the Friday review', () => {
   it('writes the weekly day and time it shows into the file, which reads back as them', async () => {
     const onChange = vi.fn();
     render(<Editor onChange={onChange} />);

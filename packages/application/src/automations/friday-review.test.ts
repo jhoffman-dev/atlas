@@ -106,7 +106,8 @@ describe('the Friday review preset', () => {
     await run({ time: '15:00:00' });
     const again = await run({ time: '16:30:00' });
     await run({ day: '2026-10-24', time: '09:00:00' }, 'hand');
-    await run({ day: '2026-10-30', time: '14:59:59' }, 'hand');
+    // Sunday is still the week of the Friday before; a run by hand then has nothing to make.
+    await run({ day: '2026-10-25', time: '23:59:59' }, 'hand');
 
     expect(reviews()).toEqual(['Reviews/Weekly review 2026-10-23.md']);
     expect(asked()).toBe(1);
@@ -211,8 +212,14 @@ describe('a daily note-writing step (#40: running twice creates nothing)', () =>
     expect(briefs()).toEqual(['Briefs/Morning brief.md']);
     expect(claude.fake.requests).toHaveLength(1);
 
-    // The next morning it asks about the same waiting task again: each day is a new brief.
+    // The next morning nothing it matches has changed since the brief: it asks no one (#539 review).
     at = '2026-10-24T07:00:00';
+    await run();
+    expect(claude.fake.requests).toHaveLength(1);
+
+    // Once the waiting task changes, the next morning asks afresh.
+    vault.files.set(QUOTE, jsonNote({ type: 'task', status: 'waiting', waiting_on: 'Tobias' }));
+    at = '2026-10-25T07:00:00';
     await run();
     expect(claude.fake.requests).toHaveLength(2);
     expect(claude.fake.requests[1]!.system).toContain(QUOTE);
