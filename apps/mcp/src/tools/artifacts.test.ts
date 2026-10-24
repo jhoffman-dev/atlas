@@ -26,6 +26,9 @@ const NOTE = {
 const NOTE_URL = '/v1/artifacts/artifacts%2FQ3%20Deck.md/files/';
 const THUMBNAIL_URL = '/v1/artifacts/artifacts%2FQ3%20Deck.md/thumbnail';
 
+/** DFAI's limit on one file of a copy (MAX_ARTIFACT_FILE_BYTES). */
+const MAX_FILE_BYTES = 32 * 1024 * 1024;
+
 let atlas: FakeAtlas;
 let mcp: Client;
 
@@ -180,6 +183,29 @@ describe('atlas_save_artifact', () => {
     expect(result).toEqual({ isError: true, text: 'a.png: base64 is not valid' });
     expect(errors).not.toHaveBeenCalled();
     expect(atlas.requests).toEqual([]);
+  });
+
+  it('refuses a base64 file one byte past 32 MB by its size, before saving anything', async () => {
+    const base64 = Buffer.alloc(MAX_FILE_BYTES + 1).toString('base64');
+
+    const result = await save({ title: 'Q3 Deck', files: [{ name: 'a.png', base64 }] });
+
+    expect(result).toEqual({
+      isError: true,
+      text: 'a.png is larger than the 32 MB a file of a copy can be.',
+    });
+    expect(atlas.requests).toEqual([]);
+  });
+
+  it('sends a base64 file of exactly 32 MB whole', async () => {
+    const base64 = Buffer.alloc(MAX_FILE_BYTES).toString('base64');
+
+    const result = await save({ title: 'Q3 Deck', files: [{ name: 'a.png', base64 }] });
+
+    expect(result.isError).toBe(false);
+    const sent = summary().filter(({ url }) => url === `${NOTE_URL}a.png`);
+    expect(sent).toHaveLength(MAX_FILE_BYTES / CHUNK_BYTES);
+    expect(sent.reduce((total, chunk) => total + (chunk.bytes ?? 0), 0)).toBe(MAX_FILE_BYTES);
   });
 
   it('says the note was saved when a file of it was refused', async () => {
