@@ -48,6 +48,7 @@ import {
   createRefreshSpacing,
   createSourceRefresher,
   createTagRenames,
+  createMeetingDrafts,
   createToolboxes,
   findTaskTemplate,
   getAppInfo,
@@ -211,6 +212,7 @@ import { useLocalApi, type LocalApiPorts } from './api/use-local-api.ts';
 import { useApiHost } from './api/use-api-host.ts';
 import { createAutomationRelay } from './api/automation-relay.ts';
 import { createOwnerNameRelay } from './api/owner-name-relay.ts';
+import { createClaudeStepRelay } from './api/claude-step-relay.ts';
 import { createMoveRelay } from './api/move-relay.ts';
 import { SettingsPanel } from './settings/settings-panel.tsx';
 import {
@@ -764,6 +766,8 @@ function AppWindow({
   );
   // The owner's name is read further down, from the profile; a request asks for it when it arrives.
   const apiOwner = useMemo(() => createOwnerNameRelay(), []);
+  const apiClaude = useMemo(() => createClaudeStepRelay(), []);
+  const meetingDrafts = useMemo(() => createMeetingDrafts(), []);
   const apiDeps = useMemo<ApiRouterDeps>(
     () => ({
       host: apiHost,
@@ -791,6 +795,10 @@ function AppWindow({
       googleCalendar,
       timeZone: localTimeZone,
       ownerName: apiOwner.name,
+      claudeStep: apiClaude.ports,
+      meetingDrafts,
+      // A draft that failed after the API answered is said in the window, where no caller is left.
+      notices: { warn: (message) => toasts.show({ message, tone: 'error' }) },
     }),
     [
       apiHost,
@@ -811,10 +819,15 @@ function AppWindow({
       activityLog,
       googleCalendar,
       apiOwner.name,
+      apiClaude.ports,
+      meetingDrafts,
+      toasts,
     ],
   );
   // A write from another tool shows up the way one made here does.
   useLocalApi({ bridge: api.bridge, deps: apiDeps, onWrote: onChanged });
+  // A chat's drafting tools write through the API's routes in-process; the vault catches up as after any API write.
+  const draftWrote = useSteadyCallback(() => onChanged());
   // One toolbox construction for the chat and for a rule's Claude step (P29-03).
   const toolboxes = useMemo(
     () =>
@@ -822,8 +835,9 @@ function AppWindow({
         api: apiDeps,
         markdown: notePorts.markdown,
         newId: () => crypto.randomUUID(),
+        onWrote: draftWrote,
       }),
-    [apiDeps, notePorts.markdown],
+    [apiDeps, notePorts.markdown, draftWrote],
   );
 
   useSqlViews({ index: index.index, types, ready: indexReady, status: indexStore });
@@ -1140,6 +1154,8 @@ function AppWindow({
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
+  // The assistant's propose-tasks route asks Claude as a rule's step does (P32-05).
+  useEffect(() => apiClaude.point(claudeStep), [apiClaude, claudeStep]);
   // The chat's seat is the aside's Claude tab (plan question 4): ⇧⌘J brings
   // the aside up on it. Its toggle and close are one function each for the
   // window's life — every page's bar is handed the toggle (#325) — reading
