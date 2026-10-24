@@ -537,12 +537,21 @@ async function everyAction(pass: Pass): Promise<void> {
   await runALongAtlasQuery(pass);
   await readALongPdf(pass);
   await openAsk(pass);
-  // ⌘J again is back to the PDF: the long EPUB is opened from where its budget was set.
+  // Back to the long PDF, whatever Ask left shown: a click on it in the tree shows it in place of
+  // Ask, and does nothing when it is shown already. The long EPUB is opened from there, where
+  // its budget was set.
   await pass.setUp(
     phase(
-      () => page.keyboard.press('Meta+j'),
-      (selector) => document.querySelector(selector) === null,
-      '.ask textarea',
+      () =>
+        sidebarSection(page, 'userSpace')
+          .getByRole('treeitem', { name: 'A Long Crossing.pdf', exact: true })
+          .click(),
+      ({ pdf, ask }) =>
+        document.querySelector(pdf) !== null && document.querySelector(ask) === null,
+      {
+        pdf: '.pane__tab:not([hidden]) [data-pdf-page] .pdf-text__run',
+        ask: '.pane__tab:not([hidden]) .ask',
+      },
     ),
   );
   await readALongEpub(pass);
