@@ -270,3 +270,37 @@ test('the "After a meeting" preset: its apply and model shown, written with its 
   await expectFile(vault, rule).toContain('\napply: mine\nmodel: claude-opus-5-5\n');
   await expectFile(vault, '.atlas/prompts/after-a-meeting.md').toContain('## Who owns an item');
 });
+
+test('the "Friday review" preset: weekly at 15:00, a note in Reviews from the weekly review (#40)', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await page.getByRole('button', { name: 'Automations', exact: true }).click();
+  const screen = page.getByRole('article', { name: 'Automations' });
+
+  await page.getByRole('button', { name: 'Friday review' }).click();
+  const editor = screen.getByRole('region', { name: 'Automation' });
+  await expect(editor.getByRole('radio', { name: 'Weekly' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await expect(editor.getByRole('combobox', { name: 'Day of the week' })).toHaveValue('friday');
+  await expect(editor.getByRole('textbox', { name: 'Folder' })).toHaveValue('Reviews');
+  await expect(editor.getByRole('combobox', { name: 'What DFAI hands Claude' })).toHaveValue(
+    'weekly-review',
+  );
+  await editor.getByRole('button', { name: 'Create automation' }).click();
+
+  const rule = '.atlas/automations/Friday review.md';
+  await expectFile(vault, rule).toContain('\nwhen: fridays at 15:00\n');
+  await expectFile(vault, rule).toContain('\noutput: note\nfolder: Reviews\n');
+  await expectFile(vault, rule).toContain('\ndata: weekly-review\n');
+  await expectFile(vault, '.atlas/prompts/friday-review.md').toContain('## What the draft holds');
+  // Listed with its schedule in words, and its next run on a Friday.
+  const list = screen.getByRole('list', { name: 'All automations' });
+  await expect(list.getByText(/Every Friday at 15:00/)).toBeVisible();
+});

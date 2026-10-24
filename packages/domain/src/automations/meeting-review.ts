@@ -63,6 +63,19 @@ export function meetingReview(items: readonly CheckedProposal[]): CheckedProposa
   };
 }
 
+/**
+ * What a meeting's items not made tasks are proposed as: one review of the
+ * items that may be the owner's, then each suggested glossary term on its
+ * own (#19). A term is no item to go through — accepting a review makes a
+ * task — and is the glossary's, known by its spelling, so it is proposed
+ * once whichever meeting suggests it.
+ */
+export function meetingProposals(items: readonly CheckedProposal[]): CheckedProposal[] {
+  const review = meetingReview(items.filter((item) => item.kind !== 'term'));
+  const terms = items.filter((item) => item.kind === 'term');
+  return [...(review === null ? [] : [review]), ...terms];
+}
+
 /** One checklist line: what kind of item it is, what, when, and the turn it came from. */
 function reviewLine(item: CheckedProposal): string {
   const { title, properties } = item.payload;

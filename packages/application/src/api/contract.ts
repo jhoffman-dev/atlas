@@ -1171,8 +1171,8 @@ export interface ApiAutomation {
   readonly path: string;
   readonly enabled: boolean;
   /**
-   * As its file writes it: `daily at 03:00`, `every 6 hours`, `on app open`,
-   * `manually`, or `a meeting is created or changed`.
+   * As its file writes it: `daily at 03:00`, `fridays at 15:00`, `every 6 hours`,
+   * `on app open`, `manually`, or `a meeting is created or changed`.
    */
   readonly when: string;
   /** The note that sets it off (P29-01), or null for a rule on a clock, on opening or by hand. */
@@ -1237,6 +1237,8 @@ export interface ApiClaudeStep {
   readonly output: string;
   /** Where its one new note goes, for `output: note`; null otherwise. */
   readonly folder: string | null;
+  /** What DFAI hands it beside its notes (#40): `weekly-review`, or null for its notes alone. */
+  readonly data: string | null;
 }
 
 /** One entry in a rule's log, as its file records it. */

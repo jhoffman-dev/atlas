@@ -34,9 +34,9 @@ export function ClaudeSettings({
   return (
     <SettingsSection section={SETTINGS_SECTIONS.claude}>
       <p className="settings__lede">
-        The chat (⌘J) talks to Claude through the Claude Code you installed and logged into, so DFAI
-        never holds your login. Or use an API key kept in the Keychain as the secret “anthropic”,
-        for the site api.anthropic.com.
+        Ask (⌘J) and the chat (⇧⌘J) talk to Claude through the Claude Code you installed and logged
+        into, so DFAI never holds your login. Or use an API key kept in the Keychain as the secret
+        “anthropic”, for the site api.anthropic.com.
       </p>
       <div className="settings__row">
         <span className="settings__row-text">

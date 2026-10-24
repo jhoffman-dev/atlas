@@ -1,7 +1,5 @@
 import {
   compileProposalsStampedQuery,
-  createVaultPath,
-  isMarkdownFile,
   isMeetingType,
   isProposalNote,
   MEETING_DIGEST_KEY,
@@ -9,7 +7,6 @@ import {
   meetingIdentityOf,
   sameMeetingIdentity,
   MEETING_EXTRACTION_PROMPT,
-  PROPOSALS_FOLDER,
   splitFrontmatter,
   type ClaudeAction,
   type MeetingIdentity,
@@ -25,6 +22,7 @@ import {
 import type { NoteWritePorts } from '../proposals/proposal-writes.ts';
 import type { ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
+import { readProposalsFolder } from '../proposals/proposals-folder.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { AssistantEntityError } from './read-entity.ts';
@@ -180,12 +178,9 @@ async function draftedFrom(ports: DraftPorts, digest: string): Promise<number> {
   const { sql, parameters } = compileProposalsStampedQuery(MEETING_DIGEST_KEY, digest);
   const indexed = await ports.index.query(sql, parameters);
   const found = new Set(indexed.rows.map((row) => String(row[0])));
-  const waiting = await ports.fs
-    .listDirectory(createVaultPath(PROPOSALS_FOLDER))
-    // No proposals folder yet is none waiting there; the index has answered for the rest.
-    .catch(() => []);
-  const read = await ports.fs.readNotes(waiting.filter(isMarkdownFile).map(({ path }) => path));
-  for (const note of read) {
+  // The folder as the disk spells it, read once; a vault with none reads as empty.
+  const { notes } = await readProposalsFolder(ports);
+  for (const note of notes) {
     const properties = ports.markdown.frontmatterProperties(
       splitFrontmatter(note.text).frontmatter,
     );

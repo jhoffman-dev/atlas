@@ -435,6 +435,7 @@ describe('the ready-made "After a meeting" rule', () => {
       'Archive done tasks after 30 days',
       'Pull actions and decisions out of a new meeting',
       'After a meeting',
+      'Friday review',
     ]);
     const extraction = AUTOMATION_PRESETS[1]!;
     expect(extraction.action).toEqual({

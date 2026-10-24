@@ -27,7 +27,13 @@ export interface StrandedEdit {
  */
 export const STRANDED_EDIT_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
-export function isStrandedEditExpired({ edit, now }: { edit: StrandedEdit; now: number }): boolean {
+export function isStrandedEditExpired({
+  edit,
+  now,
+}: {
+  edit: Pick<StrandedEdit, 'keptAt'>;
+  now: number;
+}): boolean {
   return now - edit.keptAt > STRANDED_EDIT_LIFETIME_MS;
 }
 
@@ -39,13 +45,13 @@ export function isStrandedEditExpired({ edit, now }: { edit: StrandedEdit; now: 
  * instead would lose work over a wrong clock. Dated now, it gets its whole
  * lifetime from the first moment the clock is right.
  */
-export function redateStrandedEdit({
+export function redateStrandedEdit<Kept extends Pick<StrandedEdit, 'keptAt'>>({
   edit,
   now,
 }: {
-  edit: StrandedEdit;
+  edit: Kept;
   now: number;
-}): StrandedEdit {
+}): Kept {
   return edit.keptAt > now ? { ...edit, keptAt: now } : edit;
 }
 
@@ -65,7 +71,7 @@ export function changedSinceStranded({
   return edit.modified !== modified;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function isEditorMark(value: unknown): value is EditorMark {
@@ -93,7 +99,8 @@ function readDoc(value: unknown): EditorDocument | null {
   return Array.isArray(content) && content.every(isEditorNode) ? { type: 'doc', content } : null;
 }
 
-function readPath(value: unknown): VaultPath | null {
+/** A kept path, or null when it names no note that could be opened. */
+export function readPath(value: unknown): VaultPath | null {
   if (typeof value !== 'string' || value === '') return null;
   try {
     return createVaultPath(value);

@@ -2,9 +2,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { indexablePropertiesOf } from '../index/property-value.ts';
 import {
+  compileReviewDoneQuery,
+  compileReviewMeetingsQuery,
   compileReviewProjectsQuery,
   compileReviewTasksQuery,
   reviewProject,
+  reviewSource,
   reviewTask,
 } from './review-query.ts';
 
@@ -280,5 +283,70 @@ describe('compileReviewProjectsQuery', () => {
       },
     });
     expect(atlas?.moving).toBe(false);
+  });
+});
+
+describe('the Friday review draft’s statements (#40)', () => {
+  const sourcesOf = (
+    notes: Readonly<Record<string, Fixture>>,
+    { sql, parameters }: { sql: string; parameters: readonly (string | number | null)[] },
+  ) =>
+    (
+      indexOf(notes)
+        .prepare(sql)
+        .all(...parameters) as Record<string, unknown>[]
+    ).map(reviewSource);
+
+  it('reads the tasks finished since a moment, newest first, and no other', () => {
+    const done = sourcesOf(
+      {
+        'Tasks/Shipped.md': { frontmatter: { type: 'task', status: 'archive' }, modified: 5_000 },
+        'Tasks/Just now.md': { frontmatter: { type: 'Task', status: 'archive' }, modified: 9_000 },
+        'Tasks/Long ago.md': { frontmatter: { type: 'task', status: 'archive' }, modified: 999 },
+        'Tasks/Open.md': { frontmatter: { type: 'task', status: 'next-action' }, modified: 9_000 },
+        'Notes/Done note.md': { frontmatter: { type: 'note', status: 'archive' }, modified: 9_000 },
+        // Finished this week and already filed away: still one of the week's wins.
+        'Archive/Tasks/Filed.md': {
+          frontmatter: { type: 'task', status: 'archive' },
+          modified: 7_000,
+        },
+        '.atlas/Tasks/Hidden.md': {
+          frontmatter: { type: 'task', status: 'archive' },
+          modified: 9_000,
+        },
+      },
+      compileReviewDoneQuery(1_000),
+    );
+    expect(done).toEqual([
+      { path: 'Tasks/Just now.md', title: 'Just now' },
+      { path: 'Archive/Tasks/Filed.md', title: 'Filed' },
+      { path: 'Tasks/Shipped.md', title: 'Shipped' },
+    ]);
+  });
+
+  it('counts a task finished at the moment itself as finished since it', () => {
+    const done = sourcesOf(
+      { 'Tasks/Edge.md': { frontmatter: { type: 'task', status: 'archive' }, modified: 1_000 } },
+      compileReviewDoneQuery(1_000),
+    );
+    expect(done.map(({ path }) => path)).toEqual(['Tasks/Edge.md']);
+  });
+
+  it('reads the meetings held from a day to today, by day, each with its day', () => {
+    const meetings = sourcesOf(
+      {
+        'Meetings/Standup.md': { frontmatter: { type: 'meeting', date: '2026-10-21' } },
+        'Meetings/Kickoff.md': { frontmatter: { type: 'Meeting', date: '2026-10-16T09:30' } },
+        'Meetings/Old.md': { frontmatter: { type: 'meeting', date: '2026-10-15' } },
+        'Meetings/Next week.md': { frontmatter: { type: 'meeting', date: '2026-10-26' } },
+        'Meetings/Undated.md': { frontmatter: { type: 'meeting' } },
+        'Notes/Dated.md': { frontmatter: { type: 'note', date: '2026-10-20' } },
+      },
+      compileReviewMeetingsQuery({ sinceDay: '2026-10-16', untilDay: '2026-10-23' }),
+    );
+    expect(meetings).toEqual([
+      { path: 'Meetings/Kickoff.md', title: 'Kickoff', date: '2026-10-16' },
+      { path: 'Meetings/Standup.md', title: 'Standup', date: '2026-10-21' },
+    ]);
   });
 });

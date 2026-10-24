@@ -7,6 +7,7 @@ import {
   missedArrivals,
   noteRunsCappedProblem,
   unhandledVersions,
+  writesOneNoteAPeriod,
   type AutomationPlan,
   type AutomationRule,
   type ClaudeStepBudget,
@@ -64,7 +65,12 @@ export async function planRuleNow({
   ledger?: HandledLedger | null | undefined;
   today: string;
 }): Promise<RuleTarget> {
-  if (rule.when.kind !== 'note' && rule.action.kind !== 'claude') {
+  // A note a period asks afresh each period (#40): what it answered last week is this week's too —
+  // unless none of the notes it reads changed since, which its versions say (see `askClaude`).
+  if (rule.when.kind !== 'note' && writesOneNoteAPeriod(rule) && rule.which.trim() !== '') {
+    return planWithVersions({ ports, rule, today });
+  }
+  if (rule.when.kind !== 'note' && (rule.action.kind !== 'claude' || writesOneNoteAPeriod(rule))) {
     return { plan: await planRun({ ports, rule, today }), versions: null };
   }
   const matched = await matchedPaths({ ports, rule, today });
@@ -82,6 +88,22 @@ export async function planRuleNow({
     action: rule.action,
     matched: versions.map((version) => version.path),
   });
+  return { plan, versions };
+}
+
+/** A rule on a clock planned over every note its query matches, with the version each has now. */
+async function planWithVersions({
+  ports,
+  rule,
+  today,
+}: {
+  ports: RuleQueryPorts;
+  rule: PlanRule;
+  today: string;
+}): Promise<RuleTarget> {
+  const matched = await matchedPaths({ ports, rule, today });
+  const plan = await planMatched({ ports, action: rule.action, matched });
+  const versions = versionsNow(await heldEntries(ports.index), matched);
   return { plan, versions };
 }
 

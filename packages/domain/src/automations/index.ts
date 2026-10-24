@@ -36,8 +36,26 @@ export {
   nextRunAfter,
   parseSchedule,
   printSchedule,
+  slotAtOrBefore,
+  WEEKDAYS,
 } from './schedule.ts';
-export type { LocalTime, Schedule } from './schedule.ts';
+export type { LocalTime, Schedule, Weekday } from './schedule.ts';
+export {
+  currentPeriod,
+  notePeriod,
+  outputPeriod,
+  periodKey,
+  periodNoteMade,
+  periodNoteOf,
+  periodProperties,
+  periodRecorded,
+  PERIOD_ITEM_KEY,
+  PERIOD_KEY,
+  PERIOD_RULE_KEY,
+  samePeriod,
+  writesOneNoteAPeriod,
+} from './output-period.ts';
+export type { OutputPeriod, PeriodNote } from './output-period.ts';
 export {
   appendEntryToLog,
   appendLogEntry,
@@ -69,6 +87,7 @@ export type {
   RunTrigger,
 } from './run-log.ts';
 export {
+  CLAUDE_DATA,
   CLAUDE_NOTES_PER_RUN,
   claudeActionFields,
   isPromptPath,
@@ -76,9 +95,11 @@ export {
   outputHasItems,
   PROMPTS_DIRECTORY,
   readClaudeAction,
+  readsData,
   withClaudeChoices,
+  withClaudeData,
 } from './claude-step.ts';
-export type { ClaudeAction, ClaudeApply, ClaudeOutput } from './claude-step.ts';
+export type { ClaudeAction, ClaudeApply, ClaudeData, ClaudeOutput } from './claude-step.ts';
 export {
   claudeAskRefusal,
   claudeRunAsks,
@@ -108,6 +129,7 @@ export type {
   AnswerSummarySchema,
   SummaryReading,
   AnswerVault,
+  PendingTerm,
   CheckedProposal,
   DroppedItem,
   PromptData,
@@ -123,7 +145,8 @@ export {
   MEETING_ITEMS,
   MEETING_ITEMS_OUTPUT,
 } from './meeting-items.ts';
-export { meetingReview } from './meeting-review.ts';
+export { meetingProposals, meetingReview } from './meeting-review.ts';
+export { pendingTermOf } from './meeting-term-items.ts';
 export {
   CLEANUP_REASON_WORDS,
   MEETING_ITEM_KEPT_KEY,
@@ -196,6 +219,7 @@ export {
   AFTER_A_MEETING_PROMPT,
   BUILT_IN_PROMPTS,
   builtInPromptAt,
+  FRIDAY_REVIEW_PROMPT,
   outdatedBuiltInPrompt,
   promptDigest,
   MEETING_EXTRACTION_PROMPT,
@@ -279,3 +303,10 @@ export {
   unarchiveProblem,
 } from './undo-check.ts';
 export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';
+export {
+  CITED_ITEMS_INSTRUCTIONS,
+  keepCitedItems,
+  nothingCitedProblem,
+  UNCITED_REASON,
+} from './cited-items.ts';
+export type { CitedBody } from './cited-items.ts';

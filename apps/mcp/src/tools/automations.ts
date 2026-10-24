@@ -28,14 +28,16 @@ export const automations = defineTool({
     'Automations page lists it: { automations: [{ id, name, path, enabled, when, note, which, ' +
     'olderThanDays, do, set, claude, schedule, action, lastRun, nextRun, paused }], broken: [{ ' +
     'path, name, problem }] }. "when" ' +
-    'is as the rule\'s file writes it ("daily at 03:00", "a meeting is created or changed"); ' +
+    'is as the rule\'s file writes it ("daily at 03:00", "fridays at 15:00", "a meeting is created or changed"); ' +
     '"note" is { type, on: ["created" and/or "changed"] } for a rule a note sets off, which runs ' +
     'once per version of each note of that type its query matches, or null. "which" is the ' +
     'DFAI query naming its notes; "do" is "archive", "set" or "claude", with "set" the values ' +
-    'it writes, and "claude" { prompt, tools, output, folder }: the prompt note, the read tools ' +
+    'it writes, and "claude" { prompt, tools, output, folder, data }: the prompt note, the read tools ' +
     'Claude may call, and what it writes — "proposals" or "meeting-items" (a meeting\'s action ' +
-    'items, decisions and follow-ups, each citing a transcript turn) waiting in the Inbox, or ' +
-    '"note", one new note in "folder". A Claude step never edits a note. ' +
+    'items, decisions, follow-ups and suggested glossary terms, each citing a transcript turn) waiting in the Inbox, or ' +
+    '"note", one new note in "folder"; "data" is "weekly-review" for a step handed the weekly review, ' +
+    'whose note is written once a period and keeps only list items linking a note it was given, ' +
+    'or null. A Claude step never edits a note. ' +
     '"lastRun" is { at, kind, trigger, summary } or null, "trigger" "note" for a run a note set ' +
     'off; "nextRun" is a local time or null; "paused" says why the app is holding it back. A ' +
     `rule under "broken" cannot be read and never runs. ${IN_THE_APP}`,

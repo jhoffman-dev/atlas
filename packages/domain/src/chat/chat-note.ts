@@ -1,3 +1,4 @@
+import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
@@ -58,6 +59,23 @@ export function chatNoteName(firstMessage: string): string {
   const words = cleanEntryName(firstMessage.replace(/[#[\]]/g, ' ')).split(' ');
   const name = words.slice(0, NAME_WORDS).join(' ');
   return name === '' ? 'Chat' : name;
+}
+
+/**
+ * `type: chat` as YAML reads it: bare or quoted, and an unquoted ` #` and
+ * what follows it a comment, as `type: chat # kept by Ask` is.
+ */
+const CHAT_TYPE_LINE = /^type:\s*(["']?)chat\1(?:\s+#.*)?\s*$/;
+
+/**
+ * Whether a note's text is a chat's (#37): its frontmatter says
+ * `type: chat`, as `newChatNoteText` writes it. A note filed in `Chats/` by
+ * hand, with another type or none, is not a chat.
+ */
+export function isChatNoteText(text: string): boolean {
+  const { frontmatter } = splitFrontmatter(text);
+  if (frontmatter === null) return false;
+  return frontmatter.split(/\r?\n/).some((line) => CHAT_TYPE_LINE.test(line));
 }
 
 /** The text a chat note starts as: its properties, and nothing said yet. */

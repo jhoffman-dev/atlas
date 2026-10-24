@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type VaultEntry, type VaultPath } from '@dfai/domain';
 import {
@@ -21,6 +21,7 @@ import {
   type VaultLocation,
   type VaultLocationStore,
   type VaultPickerPort,
+  type WindowClosingPort,
 } from '@dfai/application';
 import { remarkMarkdown } from '@dfai/adapters';
 import { App, localToday } from './app.tsx';
@@ -2702,6 +2703,165 @@ describe('each pane reads what it shows, and nothing for a note saved elsewhere 
     await waitFor(() => expect(edited.calls.today).toBe(read + 1));
     await untilQuiet();
     expect(edited.calls.today).toBe(read + 1);
+  });
+});
+
+/*
+ * Regressions found in PR #534 (verification pass on 510eced0): a comment typed
+ * in a highlight's field and not yet left is the person's work as much as the
+ * note's own typing. It is written, over the comment it started from, when every
+ * pane's work is — as the window closes here; before another vault opens in
+ * e2e/highlight-node.regressions-534.spec.ts, whose host moves to the next
+ * vault only once the last is settled, as Tauri's does (this fake's picker
+ * moves it as the folder is picked).
+ */
+describe("a highlight's comment typed, then the window closed (#534)", () => {
+  const BOOK = 'Brightwater.md';
+  const MARKER =
+    '<!-- atlas:highlight {"v":1,"mark":"underline","color":"pink","kind":"kindle","location":41,"locationEnd":44} -->';
+  const TEXT = [
+    '---',
+    'type: literature',
+    'kind: kindle',
+    'title: "Brightwater"',
+    'author: "Tobias Fenn"',
+    '---',
+    'My own paragraph.',
+    '',
+    '> The tide keeps its own hours.',
+    `> ${MARKER}`,
+    '>',
+    '> Lit by Mara.',
+    '',
+    '^kd0041',
+    '',
+  ].join('\n');
+  /** The window's close, pressed by the test: the stages the app registered run, as the host runs them. */
+  function closeButton() {
+    const tasks: (() => Promise<void>)[] = [];
+    const closing: WindowClosingPort = {
+      beforeClose: async (task) => {
+        tasks.push(task);
+        return () => void tasks.splice(tasks.indexOf(task), 1);
+      },
+    };
+    const press = async () => {
+      for (const task of [...tasks]) await task();
+    };
+    return { closing, press };
+  }
+
+  function renderBook(closing: WindowClosingPort) {
+    const files = { [BOOK]: TEXT };
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry(BOOK, 'file')] },
+      files,
+    });
+    render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={fakeIndexPorts(vault)}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={{ store: memoryActivityStore(), closing }}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    return { files };
+  }
+
+  /** Types in the comment field and stays in it: no blur, so nothing but the close writes it. */
+  async function typeComment(words: string) {
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    const field = await screen.findByRole('textbox', { name: 'Comment on this highlight' });
+    act(() => {
+      field.focus();
+      fireEvent.change(field, { target: { value: words } });
+    });
+  }
+
+  it('is written as the window closes', async () => {
+    const close = closeButton();
+    const { files } = renderBook(close.closing);
+    await typeComment('Typed, then the window closed.');
+    await act(async () => {
+      await close.press();
+    });
+    expect(files[BOOK]).toContain('> Typed, then the window closed.');
+    expect(files[BOOK]).not.toContain('Lit by Mara.');
+  });
+
+  /*
+   * Regression (#534, found on f4c54b6b): comments kept from the last close are
+   * offered back through `offered`, read while the pane renders; the store is
+   * read into memory only in an effect after it. A pane drawn as the vault
+   * opens — the tab DFAI restores at start — asks before they are read, and
+   * its answer is memoised, so the field never gets them back.
+   */
+  const KEPT = 'Kept from the last close.';
+  function keepComment() {
+    window.localStorage.setItem(
+      `atlas.stranded-comments:${JSON.stringify(location.absolutePath)}:${BOOK}`,
+      JSON.stringify({
+        path: BOOK,
+        comments: [{ id: 'kd0041', comment: KEPT, base: 'Lit by Mara.' }],
+        reason: 'It was not written.',
+        keptAt: Date.now(),
+      }),
+    );
+  }
+  const commentField = async () =>
+    (await screen.findByRole('textbox', {
+      name: 'Comment on this highlight',
+    })) as HTMLTextAreaElement;
+
+  it('puts a kept comment back in its field when the note is opened again', async () => {
+    keepComment();
+    renderBook(closeButton().closing);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    await waitFor(async () => expect((await commentField()).value).toBe(KEPT));
+  });
+
+  it('puts a kept comment back in its field when its tab is restored at start', async () => {
+    renderBook(closeButton().closing);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    await commentField();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    // DFAI quits with the note's tab open, its comment kept; then starts again.
+    cleanup();
+    keepComment();
+    renderBook(closeButton().closing);
+    // The kept comment was read: the notice tells of it.
+    expect(await screen.findByText(new RegExp(KEPT))).toBeDefined();
+    await waitFor(async () => expect((await commentField()).value).toBe(KEPT));
+  });
+
+  it('does not let go of a kept comment its restored tab has not written', async () => {
+    renderBook(closeButton().closing);
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'Brightwater' }));
+    await commentField();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    cleanup();
+    keepComment();
+    const { files } = renderBook(closeButton().closing);
+    expect(await screen.findByText(new RegExp(KEPT))).toBeDefined();
+    await commentField();
+    // The note closes with nothing typed in it: the kept comment is let go of only once written.
+    cleanup();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    const stored = window.localStorage.getItem(
+      `atlas.stranded-comments:${JSON.stringify(location.absolutePath)}:${BOOK}`,
+    );
+    expect(`${files[BOOK]}\n${stored ?? ''}`).toContain(KEPT);
   });
 });
 

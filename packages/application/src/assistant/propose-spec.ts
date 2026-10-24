@@ -3,15 +3,14 @@ import {
   checkSpec,
   compileProposalIdsQuery,
   createVaultPath,
-  isMarkdownFile,
   PROPOSAL_ID_KEY,
-  PROPOSALS_FOLDER,
   specProposalFor,
   splitFrontmatter,
   type SpecProblem,
   type SpecProposalKind,
   type VaultPath,
 } from '@dfai/domain';
+import { readProposalsFolder } from '../proposals/proposals-folder.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { writeProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
 
@@ -82,15 +81,12 @@ export async function proposeSpec({
 async function proposedBefore(ports: ProposalWritePorts, id: string): Promise<SpecNotProposed> {
   const { sql, parameters } = compileProposalIdsQuery([id]);
   const indexed = await ports.index.query(sql, parameters);
-  const waiting = await ports.fs
-    .listDirectory(createVaultPath(PROPOSALS_FOLDER))
-    // No proposals folder is none waiting there; the index has answered for the Archive.
-    .catch(() => []);
-  const paths = [
-    ...waiting.filter(isMarkdownFile).map(({ path }) => path),
-    ...indexed.rows.map((row) => createVaultPath(String(row[0]))),
-  ];
-  for (const note of await ports.fs.readNotes(paths)) {
+  // The folder as the disk spells it, read once (the index lags a write); then the Archive's.
+  const { notes: waiting } = await readProposalsFolder(ports);
+  const archived = await ports.fs.readNotes(
+    indexed.rows.map((row) => createVaultPath(String(row[0]))),
+  );
+  for (const note of [...waiting, ...archived]) {
     const properties = ports.markdown.frontmatterProperties(
       splitFrontmatter(note.text).frontmatter,
     );

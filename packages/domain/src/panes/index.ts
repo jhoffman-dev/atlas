@@ -42,7 +42,7 @@ export {
   tabPlace,
   unpinTab,
 } from './workspace.ts';
-export type { Pane, Tab, TabId, Workspace } from './workspace.ts';
+export type { AskReturn, Pane, Tab, TabId, Workspace } from './workspace.ts';
 export {
   parseRememberedWorkspace,
   rememberWorkspace,
@@ -50,3 +50,4 @@ export {
 } from './remember-workspace.ts';
 export type { RememberedWorkspace } from './remember-workspace.ts';
 export { HIDDEN_EDITOR_LIMIT, keepMounted } from './mounted-tabs.ts';
+export { ASK_PLACE, askShortcut } from './ask-shortcut.ts';

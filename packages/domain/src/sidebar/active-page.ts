@@ -20,6 +20,7 @@ export type ActiveSidebarPage =
   | { readonly kind: 'terms' }
   | { readonly kind: 'library' }
   | { readonly kind: 'highlights' }
+  | { readonly kind: 'ask' }
   | null;
 
 /**
@@ -59,6 +60,7 @@ export function activeSidebarPageOf(
     case 'terms':
     case 'library':
     case 'highlights':
+    case 'ask':
       return { kind: place.kind };
   }
 }

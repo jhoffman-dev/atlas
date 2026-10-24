@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeAttributes, Node, type AnyExtension } from '@tiptap/core';
 import {
   EditorContent,
@@ -12,6 +12,7 @@ import {
   linkOfNode,
   type EditorDocument,
   type HighlightChip,
+  type HighlightView,
   type Transclusion,
   type WikiLink,
 } from '@dfai/domain';
@@ -19,6 +20,7 @@ import { Icon } from '../icon.tsx';
 import { linkAttributes } from './link-attributes.ts';
 import { showAsRead } from './block-anchor.ts';
 import { blockEmbedDrop } from './block-embed-drop.ts';
+import { HighlightComment, HighlightQuote } from './highlight-quote.tsx';
 
 /** Where a shown block comes from: the note it names, read by the page. */
 export interface TransclusionSource {
@@ -167,11 +169,37 @@ function EmbedBody({
   options: BlockEmbedOptions;
 }) {
   const { source, reading } = options;
+  // A shown highlight is drawn as in its own note, its marker hidden (#523), and read-only.
+  if (state.kind === 'block' && source !== null && state.highlightView !== null) {
+    return <ShownHighlight view={state.highlightView} path={state.path} source={source} />;
+  }
   if (state.kind === 'block' && source !== null && reading !== null) {
     return <EmbedContent doc={state.content} path={state.path} source={source} reading={reading} />;
   }
   if (state.kind === 'loading') return <p className="block-embed__note">Loading…</p>;
   return <p className="block-embed__note block-embed__note--warn">{problemOf(state, link)}</p>;
+}
+
+/** A shown highlight: its quote and its comment, as its own note draws them, read-only. */
+function ShownHighlight({
+  view,
+  path,
+  source,
+}: {
+  view: HighlightView;
+  path: string;
+  source: TransclusionSource;
+}) {
+  const loadImage = useCallback((src: string) => source.loadImage({ path, src }), [source, path]);
+  return (
+    <div className="block-embed__body block-embed__highlight">
+      <HighlightQuote
+        view={view}
+        loadImage={loadImage}
+        comment={<HighlightComment comment={view.comment} />}
+      />
+    </div>
+  );
 }
 
 /** Why an embed shows nothing, in a sentence. */

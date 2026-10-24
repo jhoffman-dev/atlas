@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
-import { meetingReview } from './meeting-review.ts';
+import { meetingProposals, meetingReview } from './meeting-review.ts';
 import type { CheckedProposal } from './proposal-schema.ts';
 
 /** #226: what the owner should still see of a meeting is one proposal, never one per item. */
@@ -107,5 +107,27 @@ describe('meetingReview', () => {
     expect(() =>
       meetingReview([SEND, proposal({ title: 'x', block: 't0001', note: 'Meetings/Other.md' })]),
     ).toThrow('A meeting review lists the items of one meeting.');
+  });
+});
+
+describe('meetingProposals (#19)', () => {
+  const BRENWICK = proposal({
+    kind: 'term',
+    title: 'Brenwick',
+    block: 't0002',
+    properties: { variants: ['Bren Wick'] },
+  });
+
+  it('keeps a suggested term out of the review, as a proposal of its own', () => {
+    const [review, ...rest] = meetingProposals([SEND, BRENWICK, WAIT]);
+
+    expect(review).toEqual(meetingReview([SEND, WAIT]));
+    expect(review!.payload.body).not.toContain('Brenwick');
+    expect(rest).toEqual([BRENWICK]);
+  });
+
+  it('makes no review of a meeting whose only items are terms', () => {
+    expect(meetingProposals([BRENWICK])).toEqual([BRENWICK]);
+    expect(meetingProposals([])).toEqual([]);
   });
 });

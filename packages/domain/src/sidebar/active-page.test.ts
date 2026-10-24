@@ -48,6 +48,7 @@ describe('activeSidebarPageOf', () => {
       [{ kind: 'activity' }, 'activity'],
       [{ kind: 'templates' }, 'templates'],
       [{ kind: 'terms' }, 'terms'],
+      [{ kind: 'ask' }, 'ask'],
     ];
     for (const [place, kind] of pages) {
       expect(activeSidebarPageOf(place, viewOwner)).toEqual({ kind });

@@ -84,6 +84,7 @@ describe('transclusionOf', () => {
       fragment: { kind: 'block', id: 'p1' },
       content: { type: 'doc', content: [SOURCE.content[1]] },
       highlight: null,
+      highlightView: null,
     });
   });
 
@@ -133,6 +134,25 @@ describe('transclusionOf', () => {
       expect(block.kind === 'block' ? block.highlight : 'not shown').toBeNull();
       const heading = shown('![[Plans#Plans]]');
       expect(heading.kind === 'block' ? heading.highlight : 'not shown').toBeNull();
+    });
+
+    it('is drawn as its quote and comment, its marker hidden (#523)', () => {
+      const card = shown('![[Plans#^q1]]');
+      expect(card.kind === 'block' ? card.highlightView : 'not shown').toEqual({
+        id: 'q1',
+        words: 'Quoted.',
+        picture: null,
+        comment: '',
+        mark: 'highlight',
+        color: 'yellow',
+      });
+    });
+
+    it('draws no quote for a block that is no highlight, nor for a heading', () => {
+      const block = shown('![[Plans#^p1]]');
+      expect(block.kind === 'block' ? block.highlightView : 'not shown').toBeNull();
+      const heading = shown('![[Plans#Plans]]');
+      expect(heading.kind === 'block' ? heading.highlightView : 'not shown').toBeNull();
     });
   });
 

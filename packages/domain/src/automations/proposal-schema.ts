@@ -34,6 +34,7 @@ import {
   type ProposalConfidence,
 } from '../proposals/proposal.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
+import type { SuggestionVocabulary } from '../terms/term-suggestion.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
@@ -79,11 +80,27 @@ export interface AnswerVault {
   /** The right spellings the Terms page keeps. */
   readonly terms: readonly string[];
   /**
+   * Every spelling the vault's terms, people and companies hold, right and
+   * misheard: what a suggested term is held to (#19). None when left out.
+   */
+  readonly vocabulary?: SuggestionVocabulary;
+  /**
+   * The suggested terms waiting in the Inbox, open (#19): a suggestion for one
+   * of them, or for what one was heard as, is not proposed again.
+   */
+  readonly pendingTerms?: readonly PendingTerm[];
+  /**
    * The open projects and areas a meeting with none may be filed under, for
    * a schema that chooses one ({@link ProposalSchema.choosesProject}); read
    * only for the step that acts on the choice (#227).
    */
   readonly projects?: readonly ProjectOption[];
+}
+
+/** A term proposal waiting in the Inbox: its right spelling and what it was heard as. */
+export interface PendingTerm {
+  readonly title: string;
+  readonly variants: readonly string[];
 }
 
 /** What an answer is checked against. */
@@ -173,6 +190,13 @@ export interface ProposalDraft {
    * decision has one.
    */
   readonly meetingDecision?: MeetingDecisionClaim;
+  /**
+   * What only one draft of an answer may hold: a suggested term's heard
+   * spelling, which two terms cannot both correct, and the term itself (#19).
+   * A later draft holding a key an earlier one claimed is left out, saying
+   * that claim's `why`.
+   */
+  readonly claims?: readonly { readonly key: string; readonly why: string }[];
 }
 
 /**
@@ -427,6 +451,7 @@ function readAnswer<Item>({
   const checked: CheckedProposal[] = [];
   const dropped: DroppedItem[] = [];
   const adjusted: DroppedItem[] = [];
+  const claimed = new Set<string>();
   for (const [at, value] of list.entries()) {
     const item = itemDrafts({ schema, value, context });
     if (!item.ok) return refused(`Item ${at + 1}: ${item.problem}`);
@@ -436,6 +461,12 @@ function readAnswer<Item>({
     }
     if (item.adjusted !== undefined) adjusted.push(item.adjusted);
     for (const draft of item.drafts) {
+      const taken = draft.claims?.find(({ key }) => claimed.has(key));
+      if (taken !== undefined) {
+        dropped.push({ title: titleOf(value), reason: taken.why });
+        continue;
+      }
+      for (const { key } of draft.claims ?? []) claimed.add(key);
       const proposal = checkDraft(draft, context, schema.meetingRelations);
       if (!proposal.ok) return refused(`Item ${at + 1}: ${proposal.problem}`);
       checked.push({ ...proposal.value, sharedAcrossRules: schema.sharedAcrossRules === true });
