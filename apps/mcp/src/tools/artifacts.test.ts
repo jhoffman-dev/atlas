@@ -50,6 +50,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await mcp.close();
   await atlas.close();
 });
@@ -167,6 +168,17 @@ describe('atlas_save_artifact', () => {
       expect(result.isError).toBe(true);
       expect(result.text).toMatch(/a\.(png|css)/);
     }
+    expect(atlas.requests).toEqual([]);
+  });
+
+  it('refuses a large file that is not valid base64 as invalid, without logging a crash', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const base64 = `${'A'.repeat(28 * 1024 * 1024)}!`;
+
+    const result = await save({ title: 'Q3 Deck', files: [{ name: 'a.png', base64 }] });
+
+    expect(result).toEqual({ isError: true, text: 'a.png: base64 is not valid' });
+    expect(errors).not.toHaveBeenCalled();
     expect(atlas.requests).toEqual([]);
   });
 

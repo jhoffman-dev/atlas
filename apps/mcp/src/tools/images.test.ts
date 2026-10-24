@@ -70,6 +70,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await mcp.close();
   await atlas.close();
   await rm(folder, { recursive: true, force: true });
@@ -146,6 +147,20 @@ describe('atlas_add_image', () => {
   ])('refuses %s before any request is made', async (_why, args) => {
     const result = await addImage({ path: 'Work/Plan.md', ...args });
     expect(result.isError).toBe(true);
+    expect(atlas.requests).toEqual([]);
+  });
+
+  it('refuses base64 past 20 MB by its size, without reading it through or logging a crash', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const base64 = Buffer.alloc(20 * 1024 * 1024 + 3).toString('base64');
+
+    const result = await addImage({ path: 'Work/Plan.md', base64, name: 'a.png' });
+
+    expect(result).toEqual({
+      isError: true,
+      text: 'a.png is larger than the 20 MB an image in a note can be.',
+    });
+    expect(errors).not.toHaveBeenCalled();
     expect(atlas.requests).toEqual([]);
   });
 
