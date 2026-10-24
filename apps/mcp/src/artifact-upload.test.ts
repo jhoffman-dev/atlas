@@ -8,6 +8,10 @@ import { bytesFromBase64 } from './artifact-upload.ts';
 const LIMIT = { bytes: 5, refusal: 'x.bin is too large' };
 
 describe('bytesFromBase64', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it.each([
     ['no padding', 'eHl6', 'xyz'],
     ['one =', 'eHk=', 'xy'],
@@ -37,6 +41,19 @@ describe('bytesFromBase64', () => {
   it('refuses one byte past the limit with its own refusal', () => {
     const text = Buffer.from('abcdef').toString('base64');
     expect(() => bytesFromBase64('x.bin', text, LIMIT)).toThrow('x.bin is too large');
+  });
+
+  it('refuses by size without copying the text to strip its whitespace', () => {
+    const replace = vi.spyOn(String.prototype, 'replace');
+    const text = 'eHl6\r\n'.repeat(8);
+
+    expect(() => bytesFromBase64('x.bin', text, LIMIT)).toThrow('x.bin is too large');
+    // Vitest itself calls replace while it checks; only a call on this text is a copy of it.
+    expect(replace.mock.contexts).not.toContain(text);
+  });
+
+  it('counts padding before trailing whitespace, taking bytes exactly at the limit', () => {
+    expect(bytesFromBase64('x.bin', 'YWJj\nZGU=\n \t', LIMIT).toString('utf8')).toBe('abcde');
   });
 
   it('refuses by size before it looks at the characters', () => {
