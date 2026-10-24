@@ -32,7 +32,7 @@ export function chatToggleButton(toggle: ChatToggle): ReactNode {
       type="button"
       aria-label="Claude"
       aria-pressed={toggle.open}
-      title={toggle.open ? 'Close Claude (⌘J)' : 'Ask Claude (⌘J)'}
+      title={toggle.open ? 'Close Claude (⇧⌘J)' : 'Claude beside the page (⇧⌘J)'}
       onClick={toggle.onToggle}
     >
       <Icon name="spark" size={17} />

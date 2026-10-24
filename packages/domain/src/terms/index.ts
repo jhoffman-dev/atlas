@@ -5,6 +5,7 @@ export {
   TERM_KIND_KEY,
   TERM_KINDS,
   TERM_TYPE,
+  TERMS_FOLDER,
   termKindOf,
   VARIANTS_KEY,
 } from './term.ts';
@@ -34,3 +35,15 @@ export { listedTerms } from './listed-terms.ts';
 export type { ListedTerm } from './listed-terms.ts';
 export { canCorrect, correctTerms } from './correct-terms.ts';
 export type { CorrectedText, TermChange } from './correct-terms.ts';
+export { isCommonWord } from './common-words.ts';
+export {
+  acceptedTermRefusal,
+  knownSpellingOf,
+  MAX_HEARD_WORDS,
+  MAX_SUGGESTED_SPELLING_CHARACTERS,
+  MIN_HEARD_HANGUL_SYLLABLES,
+  MIN_HEARD_LETTERS,
+  suggestedTermRefusal,
+} from './term-suggestion.ts';
+export type { SuggestedTerm, SuggestionVocabulary } from './term-suggestion.ts';
+export { glossaryKey, withoutDiacritics } from './spelling-folds.ts';

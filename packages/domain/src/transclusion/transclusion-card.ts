@@ -1,5 +1,6 @@
 import { isArchivedPath } from '../archive/archive.ts';
 import type { HighlightBlock } from '../highlights/highlight-block.ts';
+import { highlightView, type HighlightView } from '../highlights/highlight-view.ts';
 import type { LiteratureNote } from '../highlights/literature-note.ts';
 import { fragmentContent } from '../markdown/block-outline.ts';
 import type { EditorNode, EditorDocument } from '../markdown/editor-node.ts';
@@ -39,6 +40,8 @@ export type Transclusion =
       readonly content: EditorDocument;
       /** Where a highlight shown is from (#506): its source and page; null for any other block. */
       readonly highlight: HighlightChip | null;
+      /** How a shown highlight is drawn (#523): its quote and comment, never its marker; null for any other block. */
+      readonly highlightView: HighlightView | null;
     };
 
 /** A literature note's source and highlights, read for the embeds of its highlights (#506). */
@@ -79,6 +82,7 @@ export function transclusionOf({
   if (fragment === null || nodes === null) {
     return { kind: 'missing-block', path, title, archived, fragment };
   }
+  const shown = shownHighlight(literature, fragment);
   return {
     kind: 'block',
     path,
@@ -86,15 +90,19 @@ export function transclusionOf({
     archived,
     fragment,
     content: { type: 'doc', content: nodes.map(oneLevel) },
-    highlight: chipOf(literature, fragment),
+    highlight:
+      literature === null || shown === null ? null : highlightChip(literature.source, shown),
+    highlightView: shown === null ? null : highlightView(shown),
   };
 }
 
-/** The source chip of the highlight a fragment names, or null when it names none. */
-function chipOf(literature: ShownLiterature | null, fragment: LinkFragment): HighlightChip | null {
+/** The highlight a fragment names, or null when it names none. */
+function shownHighlight(
+  literature: ShownLiterature | null,
+  fragment: LinkFragment,
+): HighlightBlock | null {
   if (literature === null || fragment.kind !== 'block') return null;
-  const shown = literature.highlights.find((highlight) => highlight.id === fragment.id);
-  return shown === undefined ? null : highlightChip(literature.source, shown);
+  return literature.highlights.find((highlight) => highlight.id === fragment.id) ?? null;
 }
 
 /** A block with every shown block inside it made its link again. */

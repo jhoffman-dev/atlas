@@ -98,6 +98,7 @@ export function Sidebar({
   onSearch,
   onOpenGraph,
   onOpenTags,
+  onOpenAsk,
   onOpenLibrary,
   onOpenHighlights,
   onOpenAutomations,
@@ -132,6 +133,8 @@ export function Sidebar({
   /** Opens the tags page; its row sits under the graph's when given. */
   onOpenTags?: () => void;
   /** Opens the Library of literature notes (#507); its row sits under the tags' when given. */
+  /** Opens Ask, where a question starts (#37). Steady, so its row is not drawn with every window render. */
+  onOpenAsk?: () => void;
   onOpenLibrary?: () => void;
   /** Opens All highlights (#507); its row sits under the Library's when given. */
   onOpenHighlights?: () => void;
@@ -259,6 +262,7 @@ export function Sidebar({
         open={open}
         graphOn={active?.kind === 'graph'}
         tagsOn={active?.kind === 'tags'}
+        askOn={active?.kind === 'ask'}
         libraryOn={active?.kind === 'library'}
         highlightsOn={active?.kind === 'highlights'}
         automationsOn={active?.kind === 'automations'}
@@ -272,6 +276,7 @@ export function Sidebar({
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
         {...(onOpenTags !== undefined && { onOpenTags })}
+        {...(onOpenAsk !== undefined && { onOpenAsk })}
         {...(onOpenLibrary !== undefined && { onOpenLibrary })}
         {...(onOpenHighlights !== undefined && { onOpenHighlights })}
         {...(onOpenAutomations !== undefined && { onOpenAutomations })}
@@ -321,6 +326,7 @@ function QuickRows({
   open,
   graphOn,
   tagsOn,
+  askOn,
   libraryOn,
   highlightsOn,
   automationsOn,
@@ -333,6 +339,7 @@ function QuickRows({
   onSearch,
   onOpenGraph,
   onOpenTags,
+  onOpenAsk,
   onOpenLibrary,
   onOpenHighlights,
   onOpenAutomations,
@@ -348,6 +355,7 @@ function QuickRows({
   open: ReadonlySet<string>;
   graphOn: boolean;
   tagsOn: boolean;
+  askOn: boolean;
   libraryOn: boolean;
   highlightsOn: boolean;
   automationsOn: boolean;
@@ -360,6 +368,8 @@ function QuickRows({
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
+  /** Opens Ask, where a question starts (#37). */
+  onOpenAsk?: () => void;
   onOpenLibrary?: () => void;
   onOpenHighlights?: () => void;
   onOpenAutomations?: () => void;
@@ -379,7 +389,10 @@ function QuickRows({
   );
   return (
     <ul className="sidebar__list sidebar__quick" aria-label="Go to">
-      <li className="sidebar__item">
+      {/* Search and Ask share a row: where to look something up, and where to ask (#37). */}
+      <li
+        className={onOpenAsk === undefined ? 'sidebar__item' : 'sidebar__item sidebar__item--pair'}
+      >
         <button type="button" className="sidebar__row" onClick={onSearch} title="Search (⌘K)">
           <Icon name="search" className="sidebar__icon" />
           <span className="sidebar__name">Search</span>
@@ -387,6 +400,7 @@ function QuickRows({
             ⌘K
           </kbd>
         </button>
+        {onOpenAsk !== undefined && <AskQuickButton on={askOn} onOpen={onOpenAsk} />}
       </li>
       {onOpenToday !== undefined && (
         <li className={todayOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
@@ -588,6 +602,35 @@ function useSameSet(paths: readonly string[]): ReadonlySet<string> {
 }
 
 /** Drawn again only for a change of its own: its types, the one open, or its handlers' presence. */
+/**
+ * Ask, beside Search on its row (#37): no row of its own, so the sidebar's
+ * sections keep their height. Its own memo: the sidebar is drawn again with
+ * the window, and a button handed a steady `onOpen` need not be drawn with it.
+ */
+const AskQuickButton = memo(function AskQuickButton({
+  on,
+  onOpen,
+}: {
+  on: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={on ? 'sidebar__row sidebar__row--on' : 'sidebar__row'}
+      aria-current={on ? 'page' : undefined}
+      onClick={onOpen}
+      title="Ask (⌘J)"
+    >
+      <Icon name="spark" className="sidebar__icon" />
+      <span className="sidebar__name">Ask</span>
+      <kbd className="sidebar__key" aria-hidden="true">
+        ⌘J
+      </kbd>
+    </button>
+  );
+});
+
 const TypeList = memo(function TypeList({
   types,
   openTypeName,

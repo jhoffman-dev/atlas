@@ -38,6 +38,7 @@ const shown = (highlight: HighlightChip | null): Transclusion => ({
   fragment: { kind: 'block', id: 'k3x9q2' },
   content: doc({ type: 'paragraph', content: [{ type: 'text', text: 'The last lamp' }] }),
   highlight,
+  highlightView: null,
 });
 
 const EMBED = doc({

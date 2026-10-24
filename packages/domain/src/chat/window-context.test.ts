@@ -89,6 +89,13 @@ describe('chatSystemPrompt', () => {
     expect(prompt).toContain('call atlas_list_notes with that date');
   });
 
+  it('tells the model to cite each paragraph with the link a tool gave (#37)', () => {
+    const prompt = chatSystemPrompt({ today: '2026-10-23', context: null, profile: EMPTY_PROFILE });
+    expect(prompt).toContain('every paragraph, list item and quote of an');
+    expect(prompt).toContain('[[Note#^id]]');
+    expect(prompt).toContain('marked "not cited"');
+  });
+
   it('carries the context when there is one', () => {
     const prompt = chatSystemPrompt({
       today: '2026-09-27',

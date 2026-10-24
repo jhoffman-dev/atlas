@@ -26,6 +26,8 @@ export const BUDGETED_ACTIONS = [
   'Drag a board card',
   'Run a 2,000-row SQL query',
   'Run a 920-row DFAI query',
+  // Ask (#37), from the PDF the pass left open: the page, its chunk, and the recent questions.
+  'Open Ask (⌘J)',
   // On the research fixture (#507): 2,000 literature notes holding 20,000 highlights.
   'Open the Library (2,000 sources)',
   'Open All highlights (20,000)',
@@ -35,6 +37,9 @@ export const BUDGETED_ACTIONS = [
   'Open a 1,000-chapter EPUB',
   'Turn a chapter of a 1,000-chapter EPUB',
   'Find in a 1,000-chapter EPUB',
+  // On a literature note of 500 highlights, each drawn as its quote and a comment to type in (#534).
+  'Open a 500-highlight literature note',
+  'Save a comment in a 500-highlight note',
 ] as const;
 
 export type BudgetedAction = (typeof BUDGETED_ACTIONS)[number];

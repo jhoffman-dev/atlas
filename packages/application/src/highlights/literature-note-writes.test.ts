@@ -230,6 +230,22 @@ describe("editing a highlight's comment and removing a highlight", () => {
     });
   });
 
+  it('refuses a comment changed on disk since the writer started from it, writing nothing (#534)', async () => {
+    const { ports: given, writes, first } = await noteWithTwo();
+    await expect(
+      editHighlightComment(given, { path: PATH, id: first, comment: 'Mine.', base: 'Older.' }),
+    ).rejects.toMatchObject({ name: 'HighlightCommentChangedError', current: 'First.' });
+    expect(writes).toEqual([]);
+  });
+
+  it('writes from a base that is the comment on disk (#534)', async () => {
+    const { ports: given, file, first } = await noteWithTwo();
+    await editHighlightComment(given, { path: PATH, id: first, comment: 'Mine.', base: 'First.' });
+    expect(readHighlights(file.text, noteBlocks).find((block) => block.id === first)?.comment).toBe(
+      'Mine.',
+    );
+  });
+
   it('writes nothing when the comment is what it was', async () => {
     const { ports: given, writes, first } = await noteWithTwo();
     await editHighlightComment(given, { path: PATH, id: first, comment: 'First.' });

@@ -12,11 +12,11 @@ import {
   resolveWikiLinkTarget,
   splitFrontmatter,
   TERM_TYPE,
+  TERMS_FOLDER,
   tidySpelling,
   VARIANTS_KEY,
   TITLE_KEY,
   VAULT_ROOT,
-  createVaultPath,
   variantsFromInput,
   vocabulary,
   VOCABULARY_PAGE_SIZE,
@@ -92,7 +92,7 @@ export class TermRefusedError extends Error {
 }
 
 /** Where terms added from the Terms page are filed, made when the vault has no such folder. */
-export const TERMS_FOLDER = createVaultPath('Terms');
+export { TERMS_FOLDER };
 
 /** Where a term's misheard spellings went once added. */
 export interface AddedTerm {

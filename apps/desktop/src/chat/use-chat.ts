@@ -103,6 +103,7 @@ export function useChat({
   seat,
   activity,
   profile,
+  askShown = false,
 }: {
   ports: ChatPorts;
   store: ChatSettingsStore;
@@ -120,6 +121,8 @@ export function useChat({
    * Whether it is on screen, and the way to bring it up or put it away.
    */
   seat: ChatSeat;
+  /** Ask (#37) is on screen: it draws the chat too, and says when Claude cannot be reached. */
+  askShown?: boolean;
 }): ChatController {
   const { open } = seat;
   const [draftText, setDraftText] = useState('');
@@ -182,7 +185,11 @@ export function useChat({
   useEffect(() => session.newChat(), [session, vault.vaultKey]);
 
   useWindowContext({ session, open, shown, api: vault.api, asked: state.items.length > 0 });
-  const problem = useProviderProblem({ asking: open || settingsOpen, provider, settings });
+  const problem = useProviderProblem({
+    asking: open || askShown || settingsOpen,
+    provider,
+    settings,
+  });
   const history = useChatHistory({ session, fs: vault.fs, chatPath: state.chatPath });
 
   const setSettings = useCallback(

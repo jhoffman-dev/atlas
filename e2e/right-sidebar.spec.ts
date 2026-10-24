@@ -245,10 +245,10 @@ test('a row focused in a view’s table gives way once the focus returns to the 
   await expect(panel.getByText('Task · selected row')).toHaveCount(0);
 });
 
-test('⌘J seats Claude in the aside’s Claude tab, and closes it from there', async ({ page }) => {
+test('⇧⌘J seats Claude in the aside’s Claude tab, and closes it from there', async ({ page }) => {
   await openVault(page);
   await openNote(page, 'Ship it');
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   const panel = aside(page);
   await expect(panel.getByRole('tab', { name: 'Claude' })).toHaveAttribute('aria-selected', 'true');
   await expect(panel.getByRole('complementary', { name: 'Claude' })).toBeVisible();
@@ -257,12 +257,12 @@ test('⌘J seats Claude in the aside’s Claude tab, and closes it from there', 
     'true',
   );
 
-  // Another tab keeps the aside up; ⌘J then brings Claude back rather than closing.
+  // Another tab keeps the aside up; ⇧⌘J then brings Claude back rather than closing.
   await panel.getByRole('tab', { name: 'Properties' }).click();
   await expect(panel.getByRole('complementary', { name: 'Claude' })).toHaveCount(0);
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await expect(panel.getByRole('complementary', { name: 'Claude' })).toBeVisible();
-  await page.keyboard.press('Meta+j');
+  await page.keyboard.press('Meta+Shift+KeyJ');
   await expect(aside(page)).toHaveCount(0);
 });
 
@@ -304,10 +304,10 @@ test('Escape in the aside returns the focus to the work', async ({ page }) => {
 test.describe('a narrow window, asked for the aside twice (#387 verification)', () => {
   const chat = (page: Page) => page.getByRole('complementary', { name: 'Claude' });
 
-  test('⌘J, then ⌘\\ bringing the sidebar back, then ⌘J again shows Claude', async ({ page }) => {
+  test('⇧⌘J, then ⌘\\ bringing the sidebar back, then ⇧⌘J again shows Claude', async ({ page }) => {
     await openVault(page, { width: 1000 });
     await openNote(page, 'Ship it');
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     await expect(chat(page)).toBeVisible();
     await expect(leftSidebar(page)).toHaveCount(0);
     // The sidebar back: the window is too narrow for both, so the aside folds.
@@ -315,7 +315,7 @@ test.describe('a narrow window, asked for the aside twice (#387 verification)', 
     await expect(leftSidebar(page)).toBeVisible();
     await expect(chat(page)).toHaveCount(0);
     // Asked for again, Claude comes back on screen: one press, not three.
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     await expect(chat(page)).toBeVisible();
     await expect(leftSidebar(page)).toHaveCount(0);
   });
@@ -349,12 +349,12 @@ test.describe('a narrow window, asked for the aside twice (#387 verification)', 
     await expect(aside(page)).toBeVisible();
   });
 
-  test('at 750px, where hiding the sidebar would make no room, ⌘J leaves it as it was', async ({
+  test('at 750px, where hiding the sidebar would make no room, ⇧⌘J leaves it as it was', async ({
     page,
   }) => {
     await openVault(page, { width: 750 });
     await openNote(page, 'Ship it');
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     await expect(leftSidebar(page)).toBeVisible();
     await expect(chat(page)).toHaveCount(0);
   });

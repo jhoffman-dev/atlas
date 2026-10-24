@@ -129,6 +129,7 @@ export type {
   AnswerSummarySchema,
   SummaryReading,
   AnswerVault,
+  PendingTerm,
   CheckedProposal,
   DroppedItem,
   PromptData,
@@ -144,7 +145,8 @@ export {
   MEETING_ITEMS,
   MEETING_ITEMS_OUTPUT,
 } from './meeting-items.ts';
-export { meetingReview } from './meeting-review.ts';
+export { meetingProposals, meetingReview } from './meeting-review.ts';
+export { pendingTermOf } from './meeting-term-items.ts';
 export {
   CLEANUP_REASON_WORDS,
   MEETING_ITEM_KEPT_KEY,

@@ -92,6 +92,13 @@ export const archivePage = laterPage(laterParts, (m) => m.ArchivePage);
 export const weeklyReviewPage = laterPage(laterParts, (m) => m.WeeklyReviewPage);
 export const templatesPage = laterPage(laterParts, (m) => m.TemplatesPage);
 export const termsPage = laterPage(laterParts, (m) => m.TermsPage);
+/**
+ * Ask (#37), in the chunk the sidebar chat is in: the two draw the same parts
+ * (the composer, a proposal), and a chunk of its own would split those into a
+ * third that both import — one a failed preload can leave broken under
+ * `later-parts`, past its Reload (#271).
+ */
+export const askScreen = laterPage(laterParts, (m) => m.AskScreen);
 
 // What a note pane draws for a dashboard, an artifact, or a view's rarer layouts: inline.
 export const dashboardView = later(laterParts, (m) => m.DashboardView);
