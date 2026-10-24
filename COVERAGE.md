@@ -44,6 +44,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/assistant`     | Answers what Claude tells James about a person or a meeting; a wrong read is a wrong answer.  | #35     |
 | `application/reader`        | Copies a PDF into the vault with its literature note; writes the reader's highlights.         | #504    |
 | `application/meeting-links` | Writes a meeting's people and companies, and proposals, by itself; undone.                    | 29      |
+| `application/embeddings`    | The cache of meanings: a block stale or missing answers a question silently wrong.            | 32      |
 | `application/profile`       | Reads who the vault's owner is, by name and address: whose a meeting's tasks are.             | #173    |
 | `*/google-calendar`         | Connects your Google account and reads its answers; tokens stay in Rust.                      | 31      |
 | `domain/granola`            | Granola's watermark, pacing and backoff: a wrong rule drops meetings.                         | 28      |
