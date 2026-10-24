@@ -537,6 +537,14 @@ async function everyAction(pass: Pass): Promise<void> {
   await runALongAtlasQuery(pass);
   await readALongPdf(pass);
   await openAsk(pass);
+  // ⌘J again is back to the PDF: the long EPUB is opened from where its budget was set.
+  await pass.setUp(
+    phase(
+      () => page.keyboard.press('Meta+j'),
+      (selector) => document.querySelector(selector) === null,
+      '.ask textarea',
+    ),
+  );
   await readALongEpub(pass);
 }
 
