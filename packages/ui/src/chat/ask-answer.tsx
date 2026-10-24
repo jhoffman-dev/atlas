@@ -202,8 +202,15 @@ function Piece({ piece, links }: { piece: AnswerInline; links: AnswerLinks }) {
             links.onOpenWeb(piece.url);
           }}
         >
-          {piece.label}
-          {piece.host !== null && <span className="ask__host"> ({piece.host})</span>}
+          {/* Each isolated, so neither the label nor the host can reorder the other. */}
+          <bdi>{piece.label}</bdi>
+          {piece.host !== null && (
+            <span className="ask__host">
+              {' ('}
+              <bdi>{piece.host}</bdi>
+              {')'}
+            </span>
+          )}
         </a>
       );
   }

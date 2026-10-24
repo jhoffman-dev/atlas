@@ -44,8 +44,13 @@ async function ask(page: Page, question: string): Promise<void> {
 
 test('Past chats says so when the list of chats cannot be read', async ({ page }) => {
   const host = await openPlan(page);
+  const toggle = chat(page).getByRole('button', { name: 'Past chats' });
+  // Read once first: start-up lists the vault's root too, and would take the failure meant here.
+  await toggle.click();
+  await expect(pastChats(page).getByRole('button', { name: 'Quill rollout' })).toBeVisible();
+  await toggle.click();
   host.failNext('list_directory', 'Operation not permitted (os error 1)');
-  await chat(page).getByRole('button', { name: 'Past chats' }).click();
+  await toggle.click();
 
   // An unreadable Chats/ is not "No chats yet": the person's chats are there.
   await expect(pastChats(page).getByRole('alert')).toBeVisible();

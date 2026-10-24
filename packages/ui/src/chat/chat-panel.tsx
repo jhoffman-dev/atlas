@@ -62,7 +62,7 @@ export function ChatPanel({
   return (
     <aside className="chat" aria-label="Claude">
       <ChatBar model={model} history={history} actions={actions} />
-      {history.open && <ChatHistory history={history} />}
+      {history.open && <ChatHistory history={history} busy={state.busy} />}
       {problem !== null && <ProblemNotice problem={problem} onCopy={actions.onCopy} />}
       <div className="chat__log" role="log" aria-label="Conversation">
         {state.items.length === 0 && (
@@ -156,7 +156,10 @@ function ChatBar({
   );
 }
 
-function ChatHistory({ history }: { history: ChatHistoryView }) {
+/** Why a past chat cannot be picked now: opening one would leave the answer arriving. */
+const WAIT_FOR_ANSWER = 'Wait for the answer to finish';
+
+function ChatHistory({ history, busy }: { history: ChatHistoryView; busy: boolean }) {
   return (
     <nav className="chat__history" aria-label="Past chats">
       {history.problem !== null && (
@@ -165,12 +168,20 @@ function ChatHistory({ history }: { history: ChatHistoryView }) {
         </p>
       )}
       {history.chats.length === 0 ? (
-        <p className="chat__history-empty">No chats yet. Each one is kept as a note in Chats/.</p>
+        // A list that could not be read is not an empty one.
+        history.problem === null && (
+          <p className="chat__history-empty">No chats yet. Each one is kept as a note in Chats/.</p>
+        )
       ) : (
         <ul>
           {history.chats.map((chat) => (
             <li key={chat.path}>
-              <button type="button" onClick={() => history.onPick(chat.path)}>
+              <button
+                type="button"
+                disabled={busy}
+                title={busy ? WAIT_FOR_ANSWER : undefined}
+                onClick={() => history.onPick(chat.path)}
+              >
                 {chat.title}
               </button>
             </li>

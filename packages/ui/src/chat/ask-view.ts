@@ -1,10 +1,7 @@
 import type { AskAnswerView, ChatActions, ChatEntryView, ChatProblemView } from './chat-view.ts';
 
-/** One entry of Ask's conversation (#37): the chat's, each answer read for its citations. */
-export type AskEntryView = ChatEntryView;
-
 export interface AskState {
-  readonly entries: readonly AskEntryView[];
+  readonly entries: readonly ChatEntryView[];
   readonly busy: boolean;
   readonly error: { readonly message: string } | null;
   readonly notice: string | null;

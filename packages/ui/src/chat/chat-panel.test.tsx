@@ -297,6 +297,51 @@ describe('ChatPanel, Past chats', () => {
   });
 });
 
+describe('ChatPanel, Past chats while an answer arrives (#548)', () => {
+  it('cannot be picked from, and says why, until the answer is finished', async () => {
+    const onPick = vi.fn();
+    const history = {
+      chats: [{ path: 'Chats/Payroll cutover.md', title: 'Payroll cutover' }],
+      open: true,
+      onOpenChange: vi.fn(),
+      onPick,
+      problem: null,
+    };
+    panel({ busy: true }, { history });
+    const row = within(screen.getByRole('navigation', { name: 'Past chats' })).getByRole('button', {
+      name: 'Payroll cutover',
+    });
+    expect(row).toHaveProperty('disabled', true);
+    expect(row.getAttribute('title')).toBe('Wait for the answer to finish');
+    await userEvent.click(row);
+    expect(onPick).not.toHaveBeenCalled();
+
+    cleanup();
+    panel({ busy: false }, { history });
+    const idle = screen.getByRole('button', { name: 'Payroll cutover' });
+    expect(idle).toHaveProperty('disabled', false);
+    expect(idle.getAttribute('title')).toBeNull();
+  });
+
+  it('says a list that could not be read, never that there are no chats', () => {
+    panel(
+      {},
+      {
+        history: {
+          chats: [],
+          open: true,
+          onOpenChange: vi.fn(),
+          onPick: vi.fn(),
+          problem: 'Past chats could not be read: Operation not permitted (os error 1)',
+        },
+      },
+    );
+    const list = screen.getByRole('navigation', { name: 'Past chats' });
+    expect(within(list).getByRole('alert').textContent).toContain('could not be read');
+    expect(list.textContent).not.toContain('No chats yet');
+  });
+});
+
 describe('a proposed change', () => {
   it('is drawn as blocks, removed and added, with its property changes, and waits for Accept', async () => {
     const user = userEvent.setup();

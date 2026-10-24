@@ -31,10 +31,11 @@ export type AnswerInline =
 /**
  * Characters that draw nothing, or reorder what is drawn: zero-width spaces
  * and joiners, the word joiner, the byte-order mark, the soft hyphen, and the
- * bidi marks, embeddings, overrides and isolates (U+202E would draw a name
- * backwards, as another note's).
+ * bidi marks (the Arabic letter mark too), embeddings, overrides and
+ * isolates (U+202E would draw a name backwards, as another note's, or the
+ * host beside a web link's label).
  */
-const INVISIBLE = /[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+const INVISIBLE = /[\u00AD\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
 const WEB_SCHEME = 'https://';
 /** What ends a sentence rather than an address: left out of a bare one. */
 const TRAILING = /[.,;:!?'"]+$/;
@@ -217,15 +218,17 @@ function bareAddressAt(
 }
 
 /**
- * A web link, with its host shown beside the label unless the label is that
+ * A web link, its label without what reorders or hides text, with its host
+ * shown beside the label unless the label is that
  * host or that address, exactly: `mybank.example` naming `k.example`, or
  * `example.com.attacker.example` naming `example.com`, shows the host.
  */
 function webPiece({ url, label }: { url: string; label: string }): AnswerInline {
   const host = new URL(url).host;
-  const shown = label.trim();
+  // What the model wrote may not reorder the host drawn after it (#557).
+  const shown = visible(label) === '' ? url : visible(label);
   const named = shown.toLowerCase() === host || shown === url;
-  return { kind: 'web', url, label, host: named ? null : host };
+  return { kind: 'web', url, label: shown, host: named ? null : host };
 }
 
 /** Neighbouring text pieces as one, so a link that was not read leaves no seam. */

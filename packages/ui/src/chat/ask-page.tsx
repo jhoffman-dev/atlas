@@ -3,9 +3,9 @@ import { Icon } from '../icon.tsx';
 import { PageAction, PageBar, type PageHistory } from '../page-bar.tsx';
 import { HiddenTitle } from '../page-head.tsx';
 import { AskAnswer, UncitedCount } from './ask-answer.tsx';
-import type { AskActions, AskEntryView, AskRecent, AskState } from './ask-view.ts';
+import type { AskActions, AskRecent, AskState } from './ask-view.ts';
 import { Composer, ProblemNotice, type ChatDraft } from './chat-panel.tsx';
-import type { ChatProblemView } from './chat-view.ts';
+import type { ChatEntryView, ChatProblemView } from './chat-view.ts';
 import { ProposalCard } from './proposal-card.tsx';
 
 export interface AskPageProps {
@@ -204,7 +204,7 @@ function Entry({
   links,
   loadImage,
 }: {
-  entry: AskEntryView;
+  entry: ChatEntryView;
   isLastAnswer: boolean;
   actions: AskActions;
   links: Parameters<typeof AskAnswer>[0]['links'];
@@ -247,7 +247,7 @@ function AnswerFoot({
   isLastAnswer,
   actions,
 }: {
-  entry: Extract<AskEntryView, { kind: 'answer' }>;
+  entry: Extract<ChatEntryView, { kind: 'answer' }>;
   isLastAnswer: boolean;
   actions: AskActions;
 }) {

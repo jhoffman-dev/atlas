@@ -89,7 +89,12 @@
   width: 100%;
 }
 
-.chat__history button:hover {
+.chat__history button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.chat__history button:hover:not(:disabled) {
   background: var(--hover);
   color: var(--ink);
 }
@@ -205,6 +210,7 @@
 
 .chat__you {
   background: var(--well);
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
