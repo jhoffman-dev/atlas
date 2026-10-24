@@ -29,13 +29,16 @@ export type AnswerInline =
     };
 
 /**
- * Characters that draw nothing, or reorder what is drawn: zero-width spaces
- * and joiners, the word joiner, the byte-order mark, the soft hyphen, and the
- * bidi marks (the Arabic letter mark too), embeddings, overrides and
- * isolates (U+202E would draw a name backwards, as another note's, or the
- * host beside a web link's label).
+ * Characters that draw nothing, or reorder what is drawn: zero-width spaces,
+ * the word joiner, the byte-order mark, the soft hyphen, and the bidi marks
+ * (the Arabic letter mark too), embeddings, overrides and isolates (U+202E
+ * would draw a name backwards, as another note's, or the host beside a web
+ * link's label). The zero-width joiner and non-joiner are kept: they shape
+ * Persian words and join emoji, and reorder nothing.
  */
-const INVISIBLE = /[\u00AD\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+const INVISIBLE = /[\u00AD\u061C\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+/** Joiners and space only: nothing anyone could read. */
+const ONLY_JOINERS = /^[\u200C\u200D\s]*$/;
 const WEB_SCHEME = 'https://';
 /** What ends a sentence rather than an address: left out of a bare one. */
 const TRAILING = /[.,;:!?'"]+$/;
@@ -82,9 +85,10 @@ function citeOf(written: string, link: WikiLinkOrEmbed): AnswerInline | null {
   };
 }
 
-/** Text without what draws nothing or reorders the rest, trimmed. */
+/** Text without what draws nothing or reorders the rest, trimmed; empty when only joiners are left. */
 function visible(text: string): string {
-  return text.replace(INVISIBLE, '').trim();
+  const shown = text.replace(INVISIBLE, '').trim();
+  return ONLY_JOINERS.test(shown) ? '' : shown;
 }
 
 /**

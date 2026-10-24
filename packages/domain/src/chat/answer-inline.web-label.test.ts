@@ -43,4 +43,25 @@ describe('a web link label', () => {
   it('keeps a citation clear of the Arabic letter mark too', () => {
     expect(answerInline('[[Kickoff؜]]')).toMatchObject([{ kind: 'cite', label: 'Kickoff' }]);
   });
+
+  // Joiners reorder nothing: they shape Persian words and join emoji, and are kept.
+  const PERSIAN = '\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645'; // «می‌خواهم»
+  const FAMILY = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+
+  it.each([
+    ['a Persian word', PERSIAN],
+    ['a family emoji', FAMILY],
+  ])('keeps the joiners of %s', (_, words) => {
+    expect(answerInline(`[${words}](https://pay.example.com/x)`)).toMatchObject([
+      { kind: 'web', label: words, host: 'pay.example.com' },
+    ]);
+    expect(answerInline(`[[Kickoff|${words}]]`)).toMatchObject([{ kind: 'cite', label: words }]);
+  });
+
+  it('that is only joiners is drawn as its address, as a chip of only joiners is its note', () => {
+    expect(answerInline('[\u200C\u200D](https://pay.example.com/x)')).toMatchObject([
+      { kind: 'web', label: 'https://pay.example.com/x', host: null },
+    ]);
+    expect(answerInline('[[Kickoff|\u200D]]')).toMatchObject([{ kind: 'cite', label: 'Kickoff' }]);
+  });
 });

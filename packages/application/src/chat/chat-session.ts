@@ -3,6 +3,7 @@ import {
   chatSystemPrompt,
   type ChatContext,
   type ChatNoteEntry,
+  type ChatNoteMessage,
   type ModelMessage,
   type ProfileState,
   type VaultPath,
@@ -203,6 +204,26 @@ export function createChatSession(ports: ChatSessionPorts): ChatSession {
     } finally {
       if (controller === own) controller = null;
     }
+  }
+
+  /** A past chat, read from its note, as the conversation now showing. */
+  function showChat(path: VaultPath, read: readonly ChatNoteMessage[]): void {
+    generation += 1;
+    questionKept = true;
+    messages = read.map((message) =>
+      message.role === 'user'
+        ? { role: 'user', text: message.text }
+        : { role: 'assistant', text: message.text, toolCalls: [] },
+    );
+    decisions = [];
+    record = { path };
+    contextRemoved = true;
+    applied.clear();
+    set({
+      ...EMPTY,
+      chatPath: path,
+      items: read.map((message) => ({ kind: message.role, id: ports.newId(), text: message.text })),
+    });
   }
 
   function show(event: ChatTurnEvent, turn: Turn): void {
@@ -422,28 +443,16 @@ export function createChatSession(ports: ChatSessionPorts): ChatSession {
       const pick = (picks += 1);
       const began = generation;
       const asked = turnsBegun;
-      const read = await readChat({ fs: vault.fs, path });
-      if (pick !== picks || began !== generation || asked !== turnsBegun) return;
-      generation += 1;
-      questionKept = true;
-      messages = read.map((message) =>
-        message.role === 'user'
-          ? { role: 'user', text: message.text }
-          : { role: 'assistant', text: message.text, toolCalls: [] },
-      );
-      decisions = [];
-      record = { path };
-      contextRemoved = true;
-      applied.clear();
-      set({
-        ...EMPTY,
-        chatPath: path,
-        items: read.map((message) => ({
-          kind: message.role,
-          id: ports.newId(),
-          text: message.text,
-        })),
-      });
+      const current = () => pick === picks && began === generation && asked === turnsBegun;
+      let read: ChatNoteMessage[];
+      try {
+        read = await readChat({ fs: vault.fs, path });
+      } catch (error) {
+        // A pick the person has moved on from fails unsaid: nobody is waiting on it.
+        if (current()) throw error;
+        return;
+      }
+      if (current()) showChat(path, read);
     },
   };
 }
