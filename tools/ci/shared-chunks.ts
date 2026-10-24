@@ -25,7 +25,11 @@ export type ManifestChunk = {
 
 export type Manifest = Readonly<Record<string, ManifestChunk>>;
 
-/** A static import a part is known to make, by chunk name, that the check lets through. */
+/**
+ * A static import of one part by another that the check lets through, by both
+ * modules' paths in the manifest (`src`): a name alone could match a chunk of
+ * the same name in another folder.
+ */
 export type KnownImport = { part: string; imports: string };
 
 export type SharedChunk = {
@@ -44,7 +48,7 @@ export type SharedChunk = {
  * else that appears fails.
  */
 export const KNOWN_IMPORTS: readonly KnownImport[] = [
-  { part: 'document-reader', imports: 'app-pdf-reader' },
+  { part: 'src/reader/document-reader.tsx', imports: 'src/reader/app-pdf-reader.ts' },
 ];
 
 const nameOf = (key: string, chunk: ManifestChunk | undefined) => chunk?.name ?? chunk?.file ?? key;
@@ -56,6 +60,10 @@ function importersOf(manifest: Manifest, key: string): string[] {
     .sort();
 }
 
+/** Only while the import is still a part: a chunk it became, shared, is the hazard itself. */
+const isKnown = (k: KnownImport, part: ManifestChunk, imported: ManifestChunk | undefined) =>
+  part.src === k.part && imported?.src === k.imports && imported.isDynamicEntry === true;
+
 /** Every static import of a part's chunk that is not the entry chunk, nor a known one. */
 export function sharedChunks(
   manifest: Manifest,
@@ -66,10 +74,7 @@ export function sharedChunks(
     .flatMap((part) =>
       (part.imports ?? [])
         .filter((key) => manifest[key]?.isEntry !== true)
-        .filter((key) => {
-          const imported = nameOf(key, manifest[key]);
-          return !known.some((k) => k.part === part.name && k.imports === imported);
-        })
+        .filter((key) => !known.some((k) => isKnown(k, part, manifest[key])))
         .map((key) => ({
           part: nameOf(part.file, part),
           chunk: manifest[key]?.file ?? key,
@@ -85,4 +90,20 @@ export function describeSharedChunk({ part, chunk, importedBy }: SharedChunk): s
     `  Pulled in by: ${importedBy.join(', ')}`,
     `  Fix: draw those parts from one chunk (as Ask is drawn from later-parts), or move the shared code into the entry.`,
   ].join('\n');
+}
+
+/** The known imports that no longer let anything through, so the list cannot outlive its reason. */
+export function staleKnownImports(
+  manifest: Manifest,
+  known: readonly KnownImport[] = KNOWN_IMPORTS,
+): KnownImport[] {
+  const parts = Object.values(manifest).filter((chunk) => chunk.isDynamicEntry === true);
+  return known.filter(
+    (k) =>
+      !parts.some((part) => (part.imports ?? []).some((key) => isKnown(k, part, manifest[key]))),
+  );
+}
+
+export function describeStaleImport({ part, imports }: KnownImport): string {
+  return `Stale exception, remove it: ${part} -> ${imports} matches nothing in the build (KNOWN_IMPORTS, tools/ci/shared-chunks.ts).`;
 }

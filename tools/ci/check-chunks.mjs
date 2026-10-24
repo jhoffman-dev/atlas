@@ -4,7 +4,13 @@
 // shared-chunks.ts; this only reads the build's manifest and prints. A
 // manifest's path as the argument checks that one instead.
 import { readFileSync } from 'node:fs';
-import { KNOWN_IMPORTS, describeSharedChunk, sharedChunks } from './shared-chunks.ts';
+import {
+  KNOWN_IMPORTS,
+  describeSharedChunk,
+  describeStaleImport,
+  sharedChunks,
+  staleKnownImports,
+} from './shared-chunks.ts';
 
 const BUILT = new URL('../../apps/desktop/dist/.vite/manifest.json', import.meta.url);
 const path = process.argv[2] ?? BUILT;
@@ -17,9 +23,12 @@ try {
   process.exit(1);
 }
 
-const shared = sharedChunks(manifest);
-if (shared.length > 0) {
-  console.error(shared.map(describeSharedChunk).join('\n\n'));
+const problems = [
+  ...sharedChunks(manifest).map(describeSharedChunk),
+  ...staleKnownImports(manifest).map(describeStaleImport),
+];
+if (problems.length > 0) {
+  console.error(problems.join('\n\n'));
   process.exit(1);
 }
 const parts = Object.values(manifest).filter((chunk) => chunk.isDynamicEntry).length;
