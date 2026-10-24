@@ -229,6 +229,7 @@ function readPlace(value: unknown): NavigationPlace | null {
     case 'terms':
     case 'library':
     case 'highlights':
+    case 'ask':
       return { kind: value.kind };
     default:
       return null;

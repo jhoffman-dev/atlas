@@ -11,6 +11,7 @@ import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   activeNotePaths,
   activeTabOf,
+  ASK_PLACE,
   tabPlace,
   createVaultPath,
   favoriteValue,
@@ -128,9 +129,19 @@ import { browserSectionStore } from './sidebar/browser-section-store.ts';
 import { createBrowserGroupFoldStore } from './query/browser-group-fold-store.ts';
 import { createBrowserLinkedRangeStore } from './linked-pages/browser-linked-range-store.ts';
 import { useTemplates } from './types/use-templates.ts';
-import { useOpenEditors } from './panes/open-editors.ts';
+import {
+  PANES_WRITE_GAVE_UP,
+  SWITCH_WRITE_GAVE_UP,
+  useEditorsWrittenBeforeClose,
+  useOpenEditors,
+  writtenWithin,
+} from './panes/open-editors.ts';
 import { useStrandedEdits } from './notes/stranded-edits.ts';
-import { browserStrandedStore } from './notes/browser-stranded-store.ts';
+import {
+  browserStrandedCommentStore,
+  browserStrandedStore,
+} from './notes/browser-stranded-store.ts';
+import { useStrandedComments } from './notes/stranded-comments.ts';
 import { placeName } from './panes/place-name.ts';
 import type { PaneContext } from './panes/note-pane-container.tsx';
 import { createRevealStore } from './panes/reveals.ts';
@@ -138,9 +149,12 @@ import { ActiveSidebar } from './workspace/active-sidebar.tsx';
 import { browserWorkspaceStore } from './workspace/browser-workspace-store.ts';
 import { followLink, openNote as openNotePlace, openNoteAtBlock } from './workspace/open-place.ts';
 import { PanesContainer } from './workspace/panes-container.tsx';
+import { createAskFocus } from './ask/ask-focus.ts';
+import { AskSeatProvider, type AskSeat } from './ask/ask-seat.tsx';
 import {
   closeActiveTab,
   openPlace,
+  toggleAsk,
   usePageShown,
   closeNotes as closeNotesIn,
   activePlace,
@@ -484,13 +498,34 @@ function AppWindow({
   // waits for the clarifications and answers still being written behind those
   // pages, which the host would refuse once another vault is open (#217, #166).
   const [pendingWrites] = useState(createPendingWrites);
+  // The window's toasts: a change said with its Undo, held outside the pages (#320).
+  const [toasts] = useState(createToasts);
+  // A switch and a sync wait for every pane's work, but not forever: a hung write is said, not waited out (#534).
+  const flushAllWithin = useMemo(
+    () =>
+      writtenWithin({
+        flushAll: editors.flushAll,
+        onGaveUp: () => toasts.show({ message: PANES_WRITE_GAVE_UP, tone: 'error' }),
+      }),
+    [editors, toasts],
+  );
+  const flushAllBeforeSwitch = useMemo(
+    () =>
+      writtenWithin({
+        flushAll: editors.flushAll,
+        onGaveUp: () => toasts.show({ message: SWITCH_WRITE_GAVE_UP, tone: 'error' }),
+      }),
+    [editors, toasts],
+  );
   const leaveVault = useCallback(async () => {
-    await editors.flushAll();
+    await flushAllBeforeSwitch();
     await answersWrittenOrGivenUp(pendingWrites.drained());
     await settleSync(syncStore);
-  }, [editors, pendingWrites, syncStore]);
+  }, [flushAllBeforeSwitch, pendingWrites, syncStore]);
   // So is the window's close, whatever tab those pages are in, or were.
   useAnswersWrittenBeforeClose(pendingWrites, closing.writes);
+  // And every pane's work, a comment typed in a highlight among it (#534), as leaving the vault does.
+  useEditorsWrittenBeforeClose(editors, closing.writes);
   // Every pane's unsaved work is written before the host moves to another vault,
   // while its paths still mean the vault it was typed in.
   // Choosing and listing a vault come before there is one to bind writes to,
@@ -529,8 +564,6 @@ function AppWindow({
     vaultKey,
     closing: closing.last,
   });
-  // The window's toasts: a change said with its Undo, held outside the pages (#320).
-  const [toasts] = useState(createToasts);
   // One feed for the window: every refresh of the index says here which notes changed (P28-03).
   const [noteChanges] = useState(() =>
     createNoteChanges({
@@ -876,8 +909,14 @@ function AppWindow({
     (place: PagePlace) => openPlace(workspace, place, 'here'),
     [workspace],
   );
+  // Ask is asked for the keys only by ⌘J and the sidebar's Ask, in the pane they land in (#37).
+  const [askFocus] = useState(createAskFocus);
+  const openAsk = useCallback(() => {
+    openPlace(workspace, ASK_PLACE, 'here');
+    askFocus.request(workspaceNow(workspace).focused);
+  }, [workspace, askFocus]);
   // The aside folds where the window is too narrow for it beside the left
-  // sidebar (collapse.ts). Asking for it there — ⌘J, the bar's button, ⌥⌘\ —
+  // sidebar (collapse.ts). Asking for it there — ⇧⌘J, the bar's button, ⌥⌘\ —
   // hides the left sidebar instead, where that makes room (not under 796px,
   // where the aside folds on its own: the sidebar then stays), so Claude is
   // reachable in a 1000px window; ⌘\ brings the sidebar back. The store is
@@ -1007,6 +1046,12 @@ function AppWindow({
     vaultKey: location?.absolutePath ?? null,
     now: Date.now,
   });
+  // Comments typed in a literature note's highlights that it could not write as it closed (#534).
+  const strandedComments = useStrandedComments({
+    store: browserStrandedCommentStore,
+    vaultKey: location?.absolutePath ?? null,
+    now: Date.now,
+  });
 
   const { onTypeSaved, newType, newNoteOfType } = useTypeCommands({
     ports: { fs: vault.fs, markdown: notes.markdown },
@@ -1113,7 +1158,7 @@ function AppWindow({
       }),
     [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
-  // The chat's seat is the aside's Claude tab (plan question 4): ⌘J brings
+  // The chat's seat is the aside's Claude tab (plan question 4): ⇧⌘J brings
   // the aside up on it. Its toggle and close are one function each for the
   // window's life — every page's bar is handed the toggle (#325) — reading
   // the store at the press rather than closing over what was shown.
@@ -1131,10 +1176,13 @@ function AppWindow({
     () => ({ open: claudeShown, asked: claudeAsked, toggle: toggleChatSeat, close: closeChatSeat }),
     [claudeShown, claudeAsked, toggleChatSeat, closeChatSeat],
   );
+  // Ask (#37) is the chat's other seat: whether Claude can be reached is asked while it shows too.
+  const askShown = usePageShown(workspace, 'ask');
   const chat = useChat({
     ports: chatPorts,
     store: browserChatSettingsStore,
     seat: chatSeat,
+    askShown,
     vault: {
       api: apiDeps,
       fs: location === null ? null : vault.fs,
@@ -1617,16 +1665,19 @@ function AppWindow({
   );
   /** Follows a wiki link in the pane it was clicked in — a link opens where you are reading. */
   const followLinkInPane = useCallback(
-    (link: { pane: number; target: string; heading?: string | null }) =>
+    (link: { pane: number; target: string; heading?: string | null; how?: OpenHow }) =>
       followLink(
         { store: workspace, reveals, notePaths, onProblem: setLinkError, places: linkPlaces },
         link,
       ),
     [workspace, reveals, notePaths, linkPlaces],
   );
-  /** Opens the line a proposal cites — `[[2026-10-01 Standup#^t0003]]` — in the focused pane. */
+  /**
+   * Opens the line a proposal or an answer cites — `[[2026-10-01 Standup#^t0003]]` —
+   * in the focused pane, or where the click asked (⌘-click: a new tab).
+   */
   const followSource = useCallback(
-    (link: string) => {
+    (link: string, how: OpenHow = 'here') => {
       const read = readWikiLink(link.trim());
       if (read === null) {
         setLinkError(`${link} is not a link to a note`);
@@ -1636,9 +1687,19 @@ function AppWindow({
         pane: workspaceNow(workspace).focused,
         target: read.target,
         heading: read.heading,
+        how,
       });
     },
     [followLinkInPane, workspace],
+  );
+  /** A web address an answer gives, opened in the browser: the window never navigates. */
+  const openWebLink = useCallback(
+    (url: string) => {
+      links.open(url).catch((cause: unknown) => {
+        setLinkError(`${url} could not be opened: ${String(cause)}`);
+      });
+    },
+    [links],
   );
 
   const paneOpenNotes = useMemo(() => openNotesIn(editors), [editors]);
@@ -1664,6 +1725,7 @@ function AppWindow({
       openTag,
       editors,
       stranded,
+      strandedComments,
       activity: activityLog,
       toasts,
       savedViews: catalog.savedViews,
@@ -1706,6 +1768,7 @@ function AppWindow({
       openTag,
       editors,
       stranded,
+      strandedComments,
       activityLog,
       toasts,
       catalog.savedViews,
@@ -1758,6 +1821,9 @@ function AppWindow({
     forward: () => goForward(workspace),
     show: showOverlay,
     capture: askForCapture,
+    ask: () => {
+      if (toggleAsk(workspace)) askFocus.request(workspaceNow(workspace).focused);
+    },
     toggleChat: chat.toggle,
     toggleAside: () =>
       asideShownNow(asideStore.getState()) ? hideAside(asideStore) : askForAside(toggleAsideIn),
@@ -1828,7 +1894,10 @@ function AppWindow({
   // it. Nor is the sidebar's order, whose setting records it. Nor is the offer
   // to update links, which is a question, not a failure; edits kept for later
   // are a warning.
-  useNoticeActivity({ errors: noticeMessages, warnings: [stranded.notice] }, activityLog);
+  useNoticeActivity(
+    { errors: noticeMessages, warnings: [stranded.notice, strandedComments.notice] },
+    activityLog,
+  );
   const notices = (
     <AppNotices
       messages={[
@@ -1840,6 +1909,7 @@ function AppWindow({
       ]}
       links={entries.links}
       stranded={stranded}
+      keptComments={strandedComments}
     />
   );
   /** Writes what was typed in the peek, closes it, then runs `act`; at once with no peek up. */
@@ -1963,6 +2033,21 @@ function AppWindow({
     () => (location === null ? null : { open: chat.open, onToggle: chat.toggle }),
     [location, chat.open, chat.toggle],
   );
+  // Ask's tab reads the chat through its own context (#37), drawn again with each streamed word.
+  const followInFocusedPane = useCallback(
+    (target: string) => followLinkInPane({ pane: workspaceNow(workspace).focused, target }),
+    [followLinkInPane, workspace],
+  );
+  const askSeat = useMemo<AskSeat>(
+    () => ({
+      chat,
+      onFollowCitation: followSource,
+      onOpenWeb: openWebLink,
+      onFollowLink: followInFocusedPane,
+      focus: askFocus,
+    }),
+    [chat, followSource, openWebLink, followInFocusedPane, askFocus],
+  );
   const inboxWiring = useMemo(
     () => ({
       closing: closing.writes,
@@ -2024,7 +2109,7 @@ function AppWindow({
           edits={syncEdits}
           clock={localClock}
           activity={activityLog}
-          flushAll={editors.flushAll}
+          flushAll={flushAllWithin}
           closing={closing.first}
           onPulled={onChanged}
         />
@@ -2131,6 +2216,7 @@ function AppWindow({
                     onSearch={() => showOverlay('search')}
                     onOpenGraph={() => openGraph({ kind: 'vault' })}
                     onOpenTags={() => openTags(null)}
+                    onOpenAsk={openAsk}
                     onOpenLibrary={() => openPage({ kind: 'library' })}
                     onOpenHighlights={() => openPage({ kind: 'highlights' })}
                     onOpenAutomations={() => openPage({ kind: 'automations' })}
@@ -2234,7 +2320,9 @@ function AppWindow({
                   {/* Keyed by vault: its editors, and what each pane keeps mounted, are that vault's (R14-01). */}
                   <AsideToggleProvider value={asideToggle}>
                     <Fragment key={vaultKey ?? ''}>
-                      <PanesContainer />
+                      <AskSeatProvider value={askSeat}>
+                        <PanesContainer />
+                      </AskSeatProvider>
                       {/* The peek over the panes: its editor is the vault's too. */}
                       <PeekLayer />
                     </Fragment>

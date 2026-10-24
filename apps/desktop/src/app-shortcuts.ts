@@ -35,7 +35,9 @@ export interface AppShortcuts {
   readonly show: (overlay: Overlay) => void;
   /** Asks for capture: put up when a vault is open, said to need one when none is. */
   readonly capture: () => void;
-  /** Opens or closes Claude, beside the work. */
+  /** ⌘J: Ask, or back from it to where you were (#37). */
+  readonly ask: () => void;
+  /** ⇧⌘J: opens or closes Claude, beside the work. */
   readonly toggleChat: () => void;
   /** Shows or hides the right sidebar: Alt+Cmd+\ (UI v2 plan, question 2). */
   readonly toggleAside: () => void;
@@ -188,16 +190,15 @@ export function useAppShortcuts(
         event.preventDefault();
         if (!held) dailyNote();
       }
-      // Cmd+J opens and closes Claude, as it asks Notion's AI. Not while a
-      // dialog holds the screen: the chat opens beside the work, not over it.
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        !event.shiftKey &&
-        !event.altKey &&
-        event.key.toLowerCase() === 'j'
-      ) {
+      // Cmd+J opens Ask, where a question starts, as it asks Notion's AI;
+      // on Ask it goes back to where you were (#37). Shift+Cmd+J opens and
+      // closes Claude beside the work, in the right sidebar. Neither while a
+      // dialog holds the screen.
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'j') {
         event.preventDefault();
-        if (!held) latest.current.toggleChat();
+        if (held) return;
+        if (event.shiftKey) latest.current.toggleChat();
+        else latest.current.ask();
       }
       // Cmd+, opens Settings, as it does in every Mac app.
       if ((event.metaKey || event.ctrlKey) && event.key === ',') {

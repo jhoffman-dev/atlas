@@ -21,7 +21,7 @@ import {
   looksLikeHighlightMarker,
   readHighlightMarker,
 } from './highlight-marker.ts';
-import { commentLines, plainQuote, quoteLines } from './highlight-text.ts';
+import { commentLines, plainQuote, quoteLines, sameComment } from './highlight-text.ts';
 import { UnsafeSourceFileError } from './literature-note.ts';
 import { matchPassages, type PassageMatch } from './passage-match.ts';
 
@@ -74,6 +74,21 @@ export class UnreadableHighlightMarkerError extends Error {
         "(a newer version's, or one edited by hand). Highlights are not added until it is fixed or removed.",
     );
     this.name = 'UnreadableHighlightMarkerError';
+  }
+}
+
+/**
+ * A comment was changed on disk since the person's field started from it — a
+ * Kindle sync adding its follow-up note, an edit in Obsidian. `current` is the
+ * comment now in the note, as the field shows it. Nothing was written.
+ */
+export class HighlightCommentChangedError extends Error {
+  constructor(
+    readonly id: string,
+    readonly current: string,
+  ) {
+    super(`The comment on highlight ^${id} changed in the note meanwhile. Nothing was written.`);
+    this.name = 'HighlightCommentChangedError';
   }
 }
 
@@ -270,15 +285,25 @@ export function withHighlightComment({
   text,
   id,
   comment,
+  base,
   noteBlocks,
 }: {
   text: string;
   id: string;
   comment: string;
+  /**
+   * The comment the writer started from, as the editor shows it. When given,
+   * a comment in the note that is not this one is not overwritten: throws
+   * `HighlightCommentChangedError` instead. Left out, the write is unconditional.
+   */
+  base?: string;
   noteBlocks: ReadNoteBlocks;
 }): string {
   const before = readHighlights(text, noteBlocks);
   const block = namedIn(before, id);
+  if (base !== undefined && !sameComment(base, block.comment)) {
+    throw new HighlightCommentChangedError(id, block.comment);
+  }
   const lines = commentBlockText(commentLines(comment), lineEndingOf(text));
   const written = text.slice(0, block.markerEnd) + lines + text.slice(block.quoteEnd);
   assertReadBack({ before, after: readHighlights(written, noteBlocks), added: [], removed: null });

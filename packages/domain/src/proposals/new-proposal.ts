@@ -1,4 +1,5 @@
 import type { CompiledQuery } from '../query/view-query.ts';
+import { withoutLatinAccents } from '../terms/spelling-folds.ts';
 import { fitFileNameStem } from '../vault/file-name-bytes.ts';
 import { cleanEntryName, NUMBERED_NOTE_ENDING } from '../vault/new-note.ts';
 import { joinVaultPath, createVaultPath, type VaultPath } from '../vault/vault-path.ts';
@@ -41,10 +42,14 @@ export interface NewProposalFile {
 /**
  * The note a new proposal is written as, open and waiting in the Inbox
  * (ADR-0028). Its name leaves room for the number a name already taken is
- * given, so the numbered name fits a disk too.
+ * given, so the numbered name fits a disk too. The name is spelt without
+ * accents on Latin letters, as a suggested term's id compares titles (#19):
+ * two runs naming one term `José` and `Jose` at once plan one path, and the
+ * disk's exclusive create makes it once. The proposal's title keeps them.
  */
 export function proposalFileFor(proposal: NewProposal): NewProposalFile {
-  const stem = fitFileNameStem(cleanEntryName(proposal.name) || 'Proposal', NUMBERED_NOTE_ENDING);
+  const name = cleanEntryName(withoutLatinAccents(proposal.name));
+  const stem = fitFileNameStem(name || 'Proposal', NUMBERED_NOTE_ENDING);
   return {
     path: joinVaultPath(createVaultPath(PROPOSALS_FOLDER), `${stem}.md`),
     properties: {

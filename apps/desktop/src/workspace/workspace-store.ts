@@ -3,6 +3,7 @@ import {
   activateNth,
   activateTab as activateTabIn,
   activeTabOf,
+  askShortcut,
   closePaneInWorkspace,
   closeTab as closeTabIn,
   EMPTY_WORKSPACE,
@@ -328,6 +329,15 @@ export function toggleSplit(store: WorkspaceStore): void {
 
 export function focusPane(store: WorkspaceStore, pane: number): void {
   change(store, (ws) => focusPaneInWorkspace(ws, pane));
+}
+
+/**
+ * ⌘J (#37): Ask, or back from it to where you were. True when Ask is what
+ * the focused pane shows after it, where the question box takes the keys.
+ */
+export function toggleAsk(store: WorkspaceStore): boolean {
+  change(store, askShortcut);
+  return activePlace(workspaceNow(store))?.kind === 'ask';
 }
 
 /** Back in the focused pane's shown tab: ⌘[ and the mouse's back button. */

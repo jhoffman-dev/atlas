@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { movedPath, type EntryMove, type TabId, type VaultPath } from '@dfai/domain';
-import type { OpenNoteState, PropertyChanges } from '@dfai/application';
+import type { OpenNoteState, PropertyChanges, WindowClosingPort } from '@dfai/application';
 
 /**
  * One tab's live editor, as the rest of the app needs to reach it.
@@ -186,4 +186,79 @@ export function useOpenEditors(): PaneEditors {
       dirtyPaths,
     ],
   );
+}
+
+/** The longest the window's close waits for the panes' writes: a hung disk must not keep it open. */
+export const EDITORS_CLOSE_WAIT_MS = 10_000;
+
+/** What the person is told when a sync stops waiting for the panes' writes: the panes are still open. */
+export const PANES_WRITE_GAVE_UP =
+  'Some open notes took more than 10 seconds to save, so DFAI went on without waiting. Their changes are still in their panes; check them before closing.';
+
+/**
+ * What the person is told when a vault switch stops waiting for the panes'
+ * writes: the panes are gone, and what they could not write is kept.
+ */
+export const SWITCH_WRITE_GAVE_UP =
+  'Some open notes took more than 10 seconds to save, so DFAI went on without waiting. Their saves carry on; whatever cannot be saved is kept, and offered back when its note is opened again.';
+
+/**
+ * Every pane's work written, waited for no longer than the window's close
+ * waits: a hung write must not hold a vault switch or a sync forever (#534).
+ * On giving up, `onGaveUp` is told; the panes keep their work, and their
+ * writes carry on. A write that fails says so to whoever waited.
+ */
+export function writtenWithin({
+  flushAll,
+  onGaveUp,
+}: {
+  flushAll: () => Promise<void>;
+  onGaveUp: () => void;
+}): () => Promise<void> {
+  return async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const gaveUp = new Promise<'gave up'>((resolve) => {
+      timer = setTimeout(() => resolve('gave up'), EDITORS_CLOSE_WAIT_MS);
+    });
+    try {
+      const outcome = await Promise.race([flushAll().then(() => 'written' as const), gaveUp]);
+      if (outcome === 'gave up') onGaveUp();
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+/**
+ * Holds the window's close until every pane's work is written — its typing,
+ * and the comments typed in a literature note's highlights (#534) — as
+ * leaving a vault does, so what was typed just before closing is on disk.
+ */
+export function useEditorsWrittenBeforeClose(
+  editors: Pick<PaneEditors, 'flushAll'>,
+  closing: WindowClosingPort,
+) {
+  useEffect(() => {
+    let stop: (() => void) | null = null;
+    let live = true;
+    void closing
+      .beforeClose(() =>
+        Promise.race([
+          editors.flushAll(),
+          new Promise<void>((resolve) => void window.setTimeout(resolve, EDITORS_CLOSE_WAIT_MS)),
+        ]),
+      )
+      .then(
+        (stopListening) => {
+          if (live) stop = stopListening;
+          else stopListening();
+        },
+        // Without the close watched, a pane's work typed just before closing may be cut short; say so.
+        (cause: unknown) => console.error("The window's close cannot be watched:", cause),
+      );
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, [editors, closing]);
 }

@@ -13,6 +13,7 @@ import type { Editor } from '@tiptap/core';
 import {
   IMAGE_PICKER_ACCEPT,
   type EditorDocument,
+  type HighlightView,
   type LinkFragment,
   type MentionSuggestion,
   type NoteSuggestion,
@@ -20,7 +21,16 @@ import {
   type TagSuggestion,
 } from '@dfai/domain';
 import { createEditorExtensions } from './editor/extensions.ts';
-import type { ReaderLinks } from './editor/raw-block.ts';
+import type { HighlightBlocks, ReaderLinks } from './editor/raw-block.ts';
+import {
+  HighlightDrafts,
+  LEAVING_WRITE_WAIT_MS,
+  refusedAfter,
+  type KeptComment,
+  type LostDraft,
+  type WriteComment,
+} from './editor/highlight-drafts.ts';
+import { redrawHighlightBlocks } from './editor/raw-block.ts';
 import { showAsRead } from './editor/block-anchor.ts';
 import type { LinkedNoteMaker, WikiSuggestionView } from './editor/wiki-link-suggestion.ts';
 import { IMAGE_REQUEST, LINK_REQUEST, type SlashCommandView } from './editor/slash-commands.ts';
@@ -106,6 +116,7 @@ export function NoteEditor({
   onPromoteLine,
   onCreateNote,
   highlightLinks,
+  highlights,
   ref,
 }: {
   doc: EditorDocument;
@@ -144,6 +155,8 @@ export function NoteEditor({
   onCreateNote?: LinkedNoteMaker;
   /** The highlights of a literature note that open in a reader, and the words that offer it (#506). */
   highlightLinks?: HighlightLinks | null;
+  /** A literature note's highlights, drawn as quotes with comments to type in (#523); left out, as source. */
+  highlights?: NoteHighlights | null;
   ref?: Ref<NoteEditorHandle>;
 }) {
   const [links, setLinks] = useState<WikiSuggestionView | null>(null);
@@ -211,6 +224,7 @@ export function NoteEditor({
   );
 
   const readerLinks = useReaderLinks(highlightLinks ?? null);
+  const highlightBlocks = useHighlightBlocks(highlights ?? null, loadImage);
   const bookmarkSource = useBookmarkSource(bookmarks);
   const transclusionSource = useTransclusionSource(transclusions);
   const queryBlockSource = useQueryBlockSource(queries);
@@ -236,9 +250,11 @@ export function NoteEditor({
         promoteLine: promotes ? stablePromote : null,
         createNote: creates ? stableCreate : null,
         readerLinks,
+        highlights: highlightBlocks,
       }),
     [
       readerLinks,
+      highlightBlocks,
       promotes,
       stablePromote,
       creates,
@@ -290,6 +306,14 @@ export function NoteEditor({
   useEffect(() => {
     if (editor !== null && personFor !== undefined) redrawPersonChips(editor);
   }, [editor, personFor]);
+
+  // Which quotes are highlights can change with no change to their own bytes.
+  const highlightReading = highlights?.viewOf;
+  useEffect(() => {
+    if (editor !== null && highlightReading !== undefined) {
+      redrawHighlightBlocks(editor, highlightBlocks);
+    }
+  }, [editor, highlightReading, highlightBlocks]);
 
   useEffect(() => {
     if (editor === null || onRequestLink === undefined) return;
@@ -460,3 +484,107 @@ function useReaderLinks(links: HighlightLinks | null): ReaderLinks | null {
     [offers, latest],
   );
 }
+
+/** A literature note's highlights as its editor draws them (#523), and the write of a comment. */
+export interface NoteHighlights {
+  /** The highlight a block of the note is — its markdown and `^id` — or null when it is none. */
+  readonly viewOf: (block: {
+    readonly markdown: string;
+    readonly id: string;
+  }) => HighlightView | null;
+  /**
+   * Writes a highlight's comment over `base`, the comment its field started
+   * from; rejects with why it could not, `HighlightCommentChangedError` when the
+   * note's comment is not `base` any more.
+   */
+  readonly editComment: WriteComment;
+  /**
+   * Told, as the editor goes, of the words typed in comments that could not be
+   * written, each with the comment it was typed over: none when every one was.
+   */
+  readonly onUnwrittenComments?: (lost: readonly LostDraft[]) => void;
+  /** Comments kept from the last time the note closed unwritten, put back in their fields. */
+  readonly recovered?: readonly KeptComment[];
+  /**
+   * Handed, while the editor is open, the write of every comment typed and not
+   * yet written, over the comment it started from — for when every pane's work
+   * is written (another vault opening, the window closing). The fields keep
+   * their words. Handed null as the editor goes.
+   */
+  readonly onWritePending?: (writePending: (() => Promise<void>) | null) => void;
+}
+
+/**
+ * The raw blocks' highlights, read through refs as the reader links are: a
+ * note saved hands over a new reading, and a new object each time would
+ * rebuild the editor. Comments typed and not written when the editor goes are
+ * written to the note they were typed in. Another note is another editor (the
+ * pane keys its page by note); one moved under the pane keeps this editor, and
+ * its drafts are written to where it is now, through the latest write.
+ */
+function useHighlightBlocks(
+  highlights: NoteHighlights | null,
+  loadImage: (src: string) => Promise<string | null>,
+): HighlightBlocks | null {
+  const latest = useLatest(highlights);
+  const images = useLatest(loadImage);
+  const [drafts] = useState(() => {
+    const made = new HighlightDrafts();
+    made.restore(highlights?.recovered ?? []);
+    return made;
+  });
+  const recovered = highlights?.recovered;
+  useEffect(() => {
+    if (recovered !== undefined) drafts.restore(recovered);
+  }, [drafts, recovered]);
+  const offers = highlights !== null;
+  // The last highlights the note had: a note read again as no literature note
+  // any more still has the words typed in its fields, and they go through these.
+  const lastHeld = useRef(highlights);
+  useEffect(() => {
+    if (highlights !== null) lastHeld.current = highlights;
+    else if (lastHeld.current !== null) {
+      writeAsLeaving(drafts, lastHeld.current);
+      // Written and told of: the editor going after this has nothing more to say.
+      lastHeld.current = null;
+    }
+  }, [highlights, drafts]);
+  useEffect(
+    () => () => {
+      const leaving = latest.current ?? lastHeld.current;
+      if (leaving !== null) writeAsLeaving(drafts, leaving);
+    },
+    [drafts, latest],
+  );
+  const handOver = highlights?.onWritePending;
+  useEffect(() => {
+    if (handOver === undefined) return;
+    handOver(() => drafts.writeUnwritten(writeThrough(latest)));
+    return () => handOver(null);
+  }, [handOver, drafts, latest]);
+  return useMemo(
+    () =>
+      offers
+        ? {
+            viewOf: (block) => latest.current?.viewOf(block) ?? null,
+            editComment: writeThrough(latest),
+            drafts,
+            loadImage: (src) => images.current(src),
+          }
+        : null,
+    [offers, latest, images, drafts],
+  );
+}
+
+/** Writes every draft through `leaving`, and tells it of the words that could not be. */
+function writeAsLeaving(drafts: HighlightDrafts, leaving: NoteHighlights): void {
+  const write = refusedAfter(leaving.editComment, LEAVING_WRITE_WAIT_MS);
+  void drafts.flush(write).then((lost) => leaving.onUnwrittenComments?.(lost));
+}
+
+/** The write of the highlights as they are now: a note moved keeps its editor, and writes to where it is. */
+const writeThrough =
+  (latest: { readonly current: NoteHighlights | null }): WriteComment =>
+  (edit) =>
+    latest.current?.editComment(edit) ??
+    Promise.reject(new Error('This note holds no highlights now.'));

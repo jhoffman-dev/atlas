@@ -51,6 +51,26 @@ export function commentLines(comment: string): string[] {
   );
 }
 
+/** One quote line's `>`, and the space after it. */
+const QUOTE_MARK = /^ {0,3}>[ \t]?/;
+
+/**
+ * A highlight block's markdown as a plain quote (#534): its words and its
+ * comment as they are written, its marker line taken out, and the blank
+ * quote lines that leaves at either edge. A copy pasted is no second
+ * highlight of the passage. `''` when nothing is left to show; null when the
+ * block holds no marker, so is no highlight.
+ */
+export function highlightAsPlainQuote(markdown: string): string | null {
+  const lines = markdown.split('\n');
+  const shown = (line: string) => line.replace(/\r$/, '').replace(QUOTE_MARK, '');
+  const kept = lines.filter((line) => !looksLikeHighlightMarker(shown(line)));
+  if (kept.length === lines.length) return null;
+  while (kept.length > 0 && shown(kept[0] ?? '').trim() === '') kept.shift();
+  while (kept.length > 0 && shown(kept.at(-1) ?? '').trim() === '') kept.pop();
+  return kept.join('\n');
+}
+
 /**
  * A comment as it was before {@link commentLines} escaped it: the `%\%` it
  * wrote for an unbalanced `%%` made `%%` again, and the `\<` it put before a
@@ -66,6 +86,16 @@ export function undoCommentEscapes(comment: string): string {
       return looksLikeHighlightMarker(unescaped) ? unescaped : line;
     })
     .join('\n');
+}
+
+/**
+ * Whether a comment the editor started from is the one the file holds: both
+ * as the file would hold them, so a comment typed with a new `%%` matches the
+ * `%\%` written from it, and one shown as written (escapes visible) matches
+ * itself — `commentLines` leaves a comment it wrote as it is.
+ */
+export function sameComment(typed: string, written: string): boolean {
+  return commentLines(typed).join('\n') === commentLines(written).join('\n');
 }
 
 function paragraphsOf(words: string): string[] {

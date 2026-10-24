@@ -167,6 +167,16 @@
   --mark-purple-line: #6b5bb5;
   --mark-orange: #f9cfac;
   --mark-orange-line: #b0602a;
+  /* A highlight drawn in the editor (#534): its rule and underline, and how much of the
+     fill shows under its words. In light the PDF line colours hold 3:1 on the page; in dark
+     the pastels themselves do, and a quarter of one keeps the words' ink above 4.5:1. */
+  --mark-yellow-edge: var(--mark-yellow-line);
+  --mark-green-edge: var(--mark-green-line);
+  --mark-blue-edge: var(--mark-blue-line);
+  --mark-pink-edge: var(--mark-pink-line);
+  --mark-purple-edge: var(--mark-purple-line);
+  --mark-orange-edge: var(--mark-orange-line);
+  --highlight-mix: 45%;
   --paper: #ffffff; /* a PDF's page, white in every theme */
 
   /* Buttons: fill, text, border. Pastel, but Accept and Reject must differ. */
@@ -299,6 +309,16 @@
     --mark-purple-line: #6b5bb5;
     --mark-orange: #f9cfac;
     --mark-orange-line: #b0602a;
+    /* A highlight drawn in the editor (#534): its rule and underline, and how much of the
+       fill shows under its words. In light the PDF line colours hold 3:1 on the page; in dark
+       the pastels themselves do, and a quarter of one keeps the words' ink above 4.5:1. */
+    --mark-yellow-edge: var(--mark-yellow);
+    --mark-green-edge: var(--mark-green);
+    --mark-blue-edge: var(--mark-blue);
+    --mark-pink-edge: var(--mark-pink);
+    --mark-purple-edge: var(--mark-purple);
+    --mark-orange-edge: var(--mark-orange);
+    --highlight-mix: 25%;
     --paper: #ffffff; /* a PDF's page, white in every theme */
 
     --btn-primary-bg: rgba(126, 162, 221, 0.18);
@@ -419,6 +439,16 @@
   --mark-purple-line: #6b5bb5;
   --mark-orange: #f9cfac;
   --mark-orange-line: #b0602a;
+  /* A highlight drawn in the editor (#534): its rule and underline, and how much of the
+     fill shows under its words. In light the PDF line colours hold 3:1 on the page; in dark
+     the pastels themselves do, and a quarter of one keeps the words' ink above 4.5:1. */
+  --mark-yellow-edge: var(--mark-yellow);
+  --mark-green-edge: var(--mark-green);
+  --mark-blue-edge: var(--mark-blue);
+  --mark-pink-edge: var(--mark-pink);
+  --mark-purple-edge: var(--mark-purple);
+  --mark-orange-edge: var(--mark-orange);
+  --highlight-mix: 25%;
   --paper: #ffffff; /* a PDF's page, white in every theme */
 
   --btn-primary-bg: rgba(126, 162, 221, 0.18);

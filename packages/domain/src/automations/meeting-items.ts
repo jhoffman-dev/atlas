@@ -39,6 +39,7 @@ import { ownerNotAGroup, sameName } from '../meeting-links/vault-owner.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
 import { itemOwner, type ItemOwner, type OwnerDirectory } from './meeting-item-owner.ts';
 import { projectChoiceData } from './meeting-project-choice.ts';
+import { termDraft, termItemRefusal } from './meeting-term-items.ts';
 import type {
   MeetingDecisionClaim,
   MeetingItemCap,
@@ -63,7 +64,7 @@ export const MEETING_ITEMS_OUTPUT = 'meeting-items';
 /** The tag a follow-up's task carries, so follow-ups can be listed apart from tasks. */
 export const FOLLOW_UP_TAG = 'follow-up';
 
-const ITEM_KINDS = ['task', 'waiting', 'decision', 'follow-up'] as const;
+const ITEM_KINDS = ['task', 'waiting', 'decision', 'follow-up', 'term'] as const;
 type ItemKind = (typeof ITEM_KINDS)[number];
 
 /** An owner is a name, not a sentence. */
@@ -93,6 +94,8 @@ interface MeetingItem {
   readonly confidence: ProposalConfidence;
   /** The model says the owner asked for it: what keeps a waiting-for of someone else's. */
   readonly askedByOwner: boolean;
+  /** A term's words as the transcript has them (#19); blank for any other kind. */
+  readonly heard: string;
 }
 
 const dropped = (problem: string): { ok: false; problem: string; drop: true } => ({
@@ -112,8 +115,10 @@ function readMeetingItem(value: unknown, context: AnswerContext): ItemReading<Me
   const kind = ITEM_KINDS.find((known) => known === value['kind']);
   if (kind === undefined) return dropped(`Its kind is not one of ${ITEM_KINDS.join(', ')}.`);
   const { title, owner = '', due = null, source_block: sourceBlock } = value;
-  const { asked_by_owner: askedByOwner = false } = value;
+  const { asked_by_owner: askedByOwner = false, heard = '' } = value;
   if (typeof title !== 'string' || title.trim() === '') return dropped('It has no "title".');
+  if (typeof heard !== 'string') return dropped('Its "heard" is not text.');
+  if (kind === 'term' && heard.trim() === '') return dropped('It is a term with no "heard".');
   if (typeof askedByOwner !== 'boolean')
     return dropped('Its "asked_by_owner" is not true or false.');
   if (owner !== null && typeof owner !== 'string') return dropped('Its "owner" is not text.');
@@ -126,7 +131,7 @@ function readMeetingItem(value: unknown, context: AnswerContext): ItemReading<Me
     return dropped(`Its confidence is not one of ${PROPOSAL_CONFIDENCES.join(', ')}.`);
   }
   const day = readDue(due, meetingDateOf(context));
-  const item = { kind, title: title.trim(), owner: owner ?? '', sourceBlock, askedByOwner };
+  const item = { kind, title: title.trim(), owner: owner ?? '', sourceBlock, askedByOwner, heard };
   if (day.ok) return { ok: true, value: { ...item, due: day.value, confidence } };
   return {
     ok: true,
@@ -252,7 +257,9 @@ function linkTarget(meeting: AnsweredNote, { vault }: AnswerContext): string {
 
 function droppedItem(item: MeetingItem, context: AnswerContext): DroppedItem | null {
   const cited = citedTurn(item, context);
-  return cited.ok ? null : { title: item.title, reason: cited.reason };
+  if (!cited.ok) return { title: item.title, reason: cited.reason };
+  const refusal = item.kind === 'term' ? termItemRefusal(item, cited.turn, context) : null;
+  return refusal === null ? null : { title: item.title, reason: refusal };
 }
 
 type FoundTurn = Extract<CitedTurn, { ok: true }>;
@@ -277,6 +284,7 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
   // An item that cites no turn was left out before this is asked.
   if (!cited.ok) return [];
   const from = noteTitle(cited.meeting.path);
+  if (item.kind === 'term') return [termDraft({ item, source: cited.source, from })];
   const unnamed = cited.turn.speaker.kind === 'unknown';
   const join = meetingJoin(cited.meeting);
   const directory = directoryOf(cited, context);
@@ -647,8 +655,20 @@ export const MEETING_ITEMS: ProposalSchema<MeetingItem> = {
     `{ "kind": one of ${ITEM_KINDS.join(', ')}; "title": what is to be done, or what was decided, in a few words; ` +
     '"owner": who took it on, named as the attendees are — "You" for the vault’s owner, "" when nobody can be named; ' +
     '"due": optional, a date as YYYY-MM-DD, only when one was said; "source_block": the turn it came from; ' +
-    '"confidence": high, medium or low; "asked_by_owner": optional, true only for a waiting item the vault’s owner asked that person for in the meeting }.',
-  itemKeys: ['kind', 'title', 'owner', 'due', 'source_block', 'confidence', 'asked_by_owner'],
+    '"confidence": high, medium or low; "asked_by_owner": optional, true only for a waiting item the vault’s owner asked that person for in the meeting; ' +
+    '"heard": only for a term, the words exactly as the turn has them }. ' +
+    `A "term" item is a name, product or piece of jargon the transcript seems to have misheard: "title" is its right spelling, "heard" the transcript's words, "owner" "". ` +
+    'Suggest one only when the turn plainly garbles a name, never for everyday words or a spelling the vocabulary already has.',
+  itemKeys: [
+    'kind',
+    'title',
+    'owner',
+    'due',
+    'source_block',
+    'confidence',
+    'asked_by_owner',
+    'heard',
+  ],
   citation:
     '"source_block" is the id at the end of the one transcript turn the item came from, as written there without its ^: "t0004". ' +
     'Only a turn of the Transcript you were shown counts — never the summary, the notes or the provider’s next steps. ' +

@@ -237,6 +237,14 @@
         "index_query": 3
       }
     },
+    "Open Ask (⌘J)": {
+      "commits": 5,
+      "renders": 186,
+      "calls": {
+        "list_directory": 3,
+        "model_process_start": 3
+      }
+    },
     "Open the Library (2,000 sources)": {
       "commits": 6,
       "renders": 165,
@@ -271,6 +279,28 @@
       "calls": {
         "embed": 2,
         "embedding_cache_excerpts": 2
+      }
+    },
+    "Open a 500-highlight literature note": {
+      "commits": 9,
+      "renders": 1695,
+      "calls": {
+        "read_text_file": 3
+      }
+    },
+    "Save a comment in a 500-highlight note": {
+      "commits": 12,
+      "renders": 319,
+      "calls": {
+        "index_manifest": 3,
+        "index_put": 3,
+        "index_query": 8,
+        "index_stats": 3,
+        "list_directory": 5,
+        "list_notes": 4,
+        "read_notes": 5,
+        "read_text_file": 4,
+        "write_text_file": 3
       }
     }
   }

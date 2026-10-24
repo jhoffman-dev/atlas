@@ -68,12 +68,12 @@ const altCmdBackslash = async (page: Page) => {
 };
 
 test.describe('narrow windows (attack #387)', () => {
-  test('⌘J in a 1000px window puts Claude on screen, as it did before the chat moved into the aside', async ({
+  test('⇧⌘J in a 1000px window puts Claude on screen, as it did before the chat moved into the aside', async ({
     page,
   }) => {
     await openVault(page, { width: 1000 });
     await openNote(page, 'Ship it');
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     await expect(chat(page)).toBeVisible();
   });
 
@@ -203,15 +203,15 @@ test.describe('the Claude tab (attack #387)', () => {
       'Let me read it.<atlas_tool>{"name":"atlas_read_note","input":{"path":"Ship it.md"}}</atlas_tool>',
       'Ship it is owned by Mara Quill.',
     );
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     const box = chat(page).getByRole('textbox', { name: 'Ask Claude' });
     await box.fill('Who owns this?');
     await box.press('Enter');
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     await expect(aside(page)).toHaveCount(0);
     await host.claude.delivered();
 
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     await expect(chat(page).getByText('Who owns this?')).toBeVisible();
     await expect(chat(page).getByText('Ship it is owned by Mara Quill.')).toBeVisible();
   });
@@ -220,7 +220,7 @@ test.describe('the Claude tab (attack #387)', () => {
     const { host } = await openVault(page);
     await openNote(page, 'Ship it');
     host.claude.reply('Plan comes first.');
-    await page.keyboard.press('Meta+j');
+    await page.keyboard.press('Meta+Shift+KeyJ');
     const box = chat(page).getByRole('textbox', { name: 'Ask Claude' });
     await box.fill('What first?');
     await box.press('Enter');

@@ -1,14 +1,28 @@
-import { parseStrandedEdit, type StrandedEdit, type VaultPath } from '@dfai/domain';
-import type { StrandedEditStore } from './stranded-edits.ts';
+import {
+  parseStrandedComments,
+  parseStrandedEdit,
+  type StrandedComments,
+  type StrandedEdit,
+  type VaultPath,
+} from '@dfai/domain';
+import type { KeptWorkStore } from './stranded-edits.ts';
 
-const PREFIX = 'atlas.stranded:';
+/** What is kept: one entry per note, read back by `parse`. */
+interface KeptKind<Entry> {
+  readonly prefix: string;
+  readonly parse: (stored: unknown) => Entry | null;
+}
+
+type Kept = { readonly path: VaultPath; readonly keptAt: number };
 
 /**
  * One entry per note, under its vault. The vault is quoted, so one vault's key
  * can never be the start of another's: `"/a":` is not a prefix of `"/a:b":`.
  */
-const vaultPrefix = (vaultKey: string): string => `${PREFIX}${JSON.stringify(vaultKey)}:`;
-const entryKey = (vaultKey: string, path: VaultPath): string => `${vaultPrefix(vaultKey)}${path}`;
+const vaultPrefix = (prefix: string, vaultKey: string): string =>
+  `${prefix}${JSON.stringify(vaultKey)}:`;
+const entryKey = (prefix: string, vaultKey: string, path: VaultPath): string =>
+  `${vaultPrefix(prefix, vaultKey)}${path}`;
 
 function keysUnder(storage: Storage, prefix: string): string[] {
   const keys: string[] = [];
@@ -19,18 +33,22 @@ function keysUnder(storage: Storage, prefix: string): string[] {
   return keys;
 }
 
-function parseEntry(stored: string | null): StrandedEdit | null {
+function parseEntry<Entry>(kind: KeptKind<Entry>, stored: string | null): Entry | null {
   try {
-    return parseStrandedEdit(JSON.parse(stored ?? 'null'));
+    return kind.parse(JSON.parse(stored ?? 'null'));
   } catch {
     // Not JSON reads the same as JSON of the wrong shape: nothing kept.
     return null;
   }
 }
 
-function readEntry(storage: Storage, { key, vaultKey }: { key: string; vaultKey: string }) {
-  const edit = parseEntry(storage.getItem(key));
-  if (edit !== null && entryKey(vaultKey, edit.path) === key) return edit;
+function readEntry<Entry extends Kept>(
+  kind: KeptKind<Entry>,
+  storage: Storage,
+  { key, vaultKey }: { key: string; vaultKey: string },
+): Entry | null {
+  const edit = parseEntry(kind, storage.getItem(key));
+  if (edit !== null && entryKey(kind.prefix, vaultKey, edit.path) === key) return edit;
   // Nothing can ever be handed back from an entry that does not read, so it is
   // cleared rather than left to be skipped on every start.
   try {
@@ -53,20 +71,20 @@ function readEntry(storage: Storage, { key, vaultKey }: { key: string; vaultKey:
  * the work is still held in memory, and whoever is watching is told it will
  * not outlast a quit.
  */
-export const browserStrandedStore: StrandedEditStore = {
+const browserKeptStore = <Entry extends Kept>(kind: KeptKind<Entry>): KeptWorkStore<Entry> => ({
   read: (vaultKey) => {
     try {
       const storage = window.localStorage;
-      return keysUnder(storage, vaultPrefix(vaultKey))
-        .map((key) => readEntry(storage, { key, vaultKey }))
-        .filter((edit): edit is StrandedEdit => edit !== null)
+      return keysUnder(storage, vaultPrefix(kind.prefix, vaultKey))
+        .map((key) => readEntry(kind, storage, { key, vaultKey }))
+        .filter((edit): edit is Entry => edit !== null)
         .sort((a, b) => a.keptAt - b.keptAt);
     } catch {
       return [];
     }
   },
   put: ({ vaultKey, edit }) => {
-    const key = entryKey(vaultKey, edit.path);
+    const key = entryKey(kind.prefix, vaultKey, edit.path);
     try {
       window.localStorage.setItem(key, JSON.stringify(edit));
       return true;
@@ -84,11 +102,22 @@ export const browserStrandedStore: StrandedEditStore = {
   },
   remove: ({ vaultKey, path }) => {
     try {
-      window.localStorage.removeItem(entryKey(vaultKey, path));
+      window.localStorage.removeItem(entryKey(kind.prefix, vaultKey, path));
     } catch {
       // Safe to ignore: work handed back twice is caught when it comes back —
       // the note will have been saved since, so its modification time has
       // moved and the pane asks before writing it over the file.
     }
   },
-};
+});
+
+export const browserStrandedStore = browserKeptStore<StrandedEdit>({
+  prefix: 'atlas.stranded:',
+  parse: parseStrandedEdit,
+});
+
+/** Comments typed in a closing note's highlights and not written (#534), beside its typing. */
+export const browserStrandedCommentStore = browserKeptStore<StrandedComments>({
+  prefix: 'atlas.stranded-comments:',
+  parse: parseStrandedComments,
+});
