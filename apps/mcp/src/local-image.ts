@@ -18,10 +18,11 @@
 import { open, realpath, stat } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, extname, isAbsolute, join, sep } from 'node:path';
+import type { ApiMaxImageBytes } from '@dfai/application';
 import { AtlasCallError } from './client.ts';
 
-/** Settings → Images' limit, as DFAI sets it (MAX_IMAGE_BYTES). */
-export const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+/** Settings → Images' limit, 20 MiB, as DFAI sets it; the type fails the build if they drift. */
+export const MAX_IMAGE_BYTES: ApiMaxImageBytes = 20_971_520;
 
 /** The environment variable naming the folders images may be read from. */
 export const IMAGE_DIRS_VARIABLE = 'ATLAS_MCP_IMAGE_DIRS';

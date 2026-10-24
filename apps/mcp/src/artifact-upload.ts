@@ -10,11 +10,19 @@
  * nothing about artifacts; it only cuts bytes to fit the pipe.
  */
 
-import type { ApiArtifactFile, ApiNote, ApiSaveArtifactBody } from '@dfai/application';
+import type {
+  ApiArtifactFile,
+  ApiMaxArtifactFileBytes,
+  ApiNote,
+  ApiSaveArtifactBody,
+} from '@dfai/application';
 import { AtlasCallError, type AtlasClient } from './client.ts';
 
 /** Raw bytes per chunk: as base64 in JSON, well under the host's 1 MiB cap. */
 export const CHUNK_BYTES = 512 * 1024;
+
+/** The largest file a copy may hold, 32 MiB, as DFAI sets it; the type fails the build if they drift. */
+export const MAX_ARTIFACT_FILE_BYTES: ApiMaxArtifactFileBytes = 33_554_432;
 
 /** A page this size or smaller rides along with the note; larger ones are chunked. */
 export const INLINE_PAGE_BYTES = 640 * 1024;
@@ -99,7 +107,10 @@ function bytesOf(file: ArtifactFileInput): Buffer {
     throw new AtlasCallError(`${file.name}: give exactly one of text and base64`);
   }
   if (file.text !== undefined) return Buffer.from(file.text, 'utf8');
-  return bytesFromBase64(file.name, file.base64 ?? '');
+  return bytesFromBase64(file.name, file.base64 ?? '', {
+    bytes: MAX_ARTIFACT_FILE_BYTES,
+    refusal: `${file.name} is larger than the 32 MB a file of a copy can be.`,
+  });
 }
 
 /**
