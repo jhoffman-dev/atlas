@@ -4,7 +4,7 @@ import {
   linkedTaskOwner,
   linkTargets,
   MEETING_TASKS_KEY,
-  meetingReview,
+  meetingProposals,
   messageWithoutPaths,
   resolveWikiLinkTarget,
   sameItemTitle,
@@ -67,9 +67,10 @@ export interface MeetingDecided {
 
 /**
  * Decides what becomes of one meeting's items (`decideMeetingItems`, #178):
- * the owner's tasks to make, and the rest the owner should see gathered into
- * the meeting's one review (`meetingReview`, #226). What the run knows beyond
- * the answer is read from the meeting as it is now — its `tasks`, and when
+ * the owner's tasks to make, and the rest the owner should see: the
+ * meeting's one review, and its suggested terms on their own
+ * (`meetingProposals`, #226, #19). What the run knows beyond the answer is
+ * read from the meeting as it is now — its `tasks`, and when
  * it arrived — never from the model.
  */
 export async function decideForMeeting({
@@ -142,12 +143,11 @@ export async function decideForMeeting({
       },
     });
   }
-  const review = meetingReview(rest);
   const { actionItems, decisions } = summaryListing(decision.items);
   return {
     meeting,
     tasks,
-    proposals: review === null ? [] : [review],
+    proposals: meetingProposals(rest),
     leftOut,
     noTasksBecause: decision.noTasksBecause,
     listed: actionItems,

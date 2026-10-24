@@ -1,11 +1,14 @@
 import { TITLE_KEY } from '../page/page-title.ts';
-import type { VaultPath } from '../vault/vault-path.ts';
+import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { tidySpelling } from './spelling.ts';
 
 export { variantsFromInput } from './variants-input.ts';
 
 /** The `type:` a term's note declares. */
 export const TERM_TYPE = 'term';
+
+/** Where a term added from the Terms page, or accepted from a proposal, is made. */
+export const TERMS_FOLDER = createVaultPath('Terms');
 
 /** The misheard spellings of a term, as a list in its frontmatter. */
 export const VARIANTS_KEY = 'variants';
