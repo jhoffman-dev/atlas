@@ -86,7 +86,9 @@ async function withThumbnail(
   }
 }
 
-const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const IN_ALPHABET = new Uint8Array(128);
+for (const char of BASE64_ALPHABET) IN_ALPHABET[char.charCodeAt(0)] = 1;
 
 /**
  * A file's bytes, checked before anything is sent: Node decodes bad base64
@@ -100,11 +102,41 @@ function bytesOf(file: ArtifactFileInput): Buffer {
   return bytesFromBase64(file.name, file.base64 ?? '');
 }
 
-/** Base64 as bytes, refused rather than decoded loosely as Node would; `label` names it in the error. */
-export function bytesFromBase64(label: string, text: string): Buffer {
+/**
+ * Base64 as bytes, refused rather than decoded loosely as Node would; `label`
+ * names it in the error. Past `limit.bytes` it is refused with
+ * `limit.refusal` from its length alone, before it is read through.
+ */
+export function bytesFromBase64(
+  label: string,
+  text: string,
+  limit?: { bytes: number; refusal: string },
+): Buffer {
   const base64 = text.replace(/\s+/g, '');
-  if (!BASE64.test(base64)) throw new AtlasCallError(`${label}: base64 is not valid`);
+  const padding = paddingOf(base64);
+  if (limit !== undefined && Math.ceil(base64.length / 4) * 3 - padding > limit.bytes) {
+    throw new AtlasCallError(limit.refusal);
+  }
+  if (!isBase64(base64, padding)) throw new AtlasCallError(`${label}: base64 is not valid`);
   return Buffer.from(base64, 'base64');
+}
+
+/** How many `=` end it, up to the two base64 allows. */
+function paddingOf(base64: string): number {
+  if (base64.endsWith('==')) return 2;
+  return base64.endsWith('=') ? 1 : 0;
+}
+
+/**
+ * Whole groups of four, every character but the padding in the alphabet.
+ * Checked in one pass: a regex over megabytes of it overflows the stack.
+ */
+function isBase64(base64: string, padding: number): boolean {
+  if (base64.length % 4 !== 0) return false;
+  for (let at = 0; at < base64.length - padding; at += 1) {
+    if (IN_ALPHABET[base64.charCodeAt(at)] !== 1) return false;
+  }
+  return true;
 }
 
 async function sendInChunks(

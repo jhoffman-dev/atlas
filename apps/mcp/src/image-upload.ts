@@ -67,10 +67,10 @@ async function imageOf(upload: ImageUpload): Promise<{ name: string; bytes: Buff
     return { name, bytes: await readLocalImage(upload.file) };
   }
   if (upload.name === undefined) throw new AtlasCallError('name is required with base64');
-  const bytes = bytesFromBase64(upload.name, upload.base64 ?? '');
-  if (bytes.byteLength > MAX_IMAGE_BYTES) {
-    throw new AtlasCallError(`${upload.name} is larger than the 20 MB an image in a note can be.`);
-  }
+  const bytes = bytesFromBase64(upload.name, upload.base64 ?? '', {
+    bytes: MAX_IMAGE_BYTES,
+    refusal: `${upload.name} is larger than the 20 MB an image in a note can be.`,
+  });
   return { name: upload.name, bytes };
 }
 
