@@ -12,16 +12,18 @@ import { UnstoredWork } from './unstored-work.ts';
  * Where kept work waits between runs of the app, one vault at a time: paths are
  * relative to a vault, and `notes.md` in one is not `notes.md` in another.
  */
-export interface StrandedEditStore {
+export interface KeptWorkStore<Kept> {
   /** Everything kept for this vault. Nothing kept, or nothing readable, is none. */
-  read: (vaultKey: string) => readonly StrandedEdit[];
+  read: (vaultKey: string) => readonly Kept[];
   /**
    * Keeps one note's work, replacing what was kept for it before. `false` when
    * it could not be stored, and so lasts only as long as the app is running.
    */
-  put: (args: { vaultKey: string; edit: StrandedEdit }) => boolean;
+  put: (args: { vaultKey: string; edit: Kept }) => boolean;
   remove: (args: { vaultKey: string; path: VaultPath }) => void;
 }
+
+export type StrandedEditStore = KeptWorkStore<StrandedEdit>;
 
 /**
  * What a closing pane hands over: the work, before it is dated, and the vault it
