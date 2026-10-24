@@ -56,6 +56,12 @@ describe('bytesFromBase64', () => {
     expect(bytesFromBase64('x.bin', 'YWJj\nZGU=\n \t', LIMIT).toString('utf8')).toBe('abcde');
   });
 
+  it('refuses megabytes of base64 that are not valid as invalid, rather than overflowing', () => {
+    // Whole groups of four, so it is refused by reading every character, not by its length.
+    const text = `${'A'.repeat(28 * 1024 * 1024 - 1)}!`;
+    expect(() => bytesFromBase64('x.bin', text)).toThrow('x.bin: base64 is not valid');
+  });
+
   it('refuses by size before it looks at the characters', () => {
     expect(() => bytesFromBase64('x.bin', '!!!!!!!!!!!!', LIMIT)).toThrow('x.bin is too large');
   });

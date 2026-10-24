@@ -49,13 +49,14 @@ export interface UploadedArtifact {
 export async function uploadArtifact(
   client: AtlasClient,
   { html, files = [], ...fields }: ArtifactUpload,
+  maxFileBytes: number,
 ): Promise<UploadedArtifact> {
   const page = html === undefined ? null : Buffer.from(html, 'utf8');
   const inline = page !== null && page.byteLength <= INLINE_PAGE_BYTES;
   // Every file is decoded before anything is sent, so bad input saves nothing.
   const toSend: { name: string; bytes: Buffer }[] = [];
   if (page !== null && !inline) toSend.push({ name: 'index.html', bytes: page });
-  for (const file of files) toSend.push({ name: file.name, bytes: bytesOf(file) });
+  for (const file of files) toSend.push({ name: file.name, bytes: bytesOf(file, maxFileBytes) });
 
   const { note } = await client.saveArtifact({
     ...fields,
@@ -106,13 +107,13 @@ for (const char of ' \t\n\v\f\r') IS_ASCII_SPACE[char.charCodeAt(0)] = 1;
  * A file's bytes, checked before anything is sent: Node decodes bad base64
  * without complaint, and the note would then be saved with a broken file.
  */
-function bytesOf(file: ArtifactFileInput): Buffer {
+function bytesOf(file: ArtifactFileInput, maxBytes: number): Buffer {
   if ((file.text === undefined) === (file.base64 === undefined)) {
     throw new AtlasCallError(`${file.name}: give exactly one of text and base64`);
   }
   if (file.text !== undefined) return Buffer.from(file.text, 'utf8');
   return bytesFromBase64(file.name, file.base64 ?? '', {
-    bytes: MAX_ARTIFACT_FILE_BYTES,
+    bytes: maxBytes,
     refusal: `${file.name} is larger than the 32 MB a file of a copy can be.`,
   });
 }
