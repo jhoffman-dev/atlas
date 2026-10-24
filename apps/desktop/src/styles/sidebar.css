@@ -203,6 +203,25 @@ ul.sidebar__sections {
   background: var(--hover);
 }
 
+/* Two places on one row, Search and Ask (#37): each lights on its own. */
+.sidebar__item--pair:hover {
+  background: none;
+}
+
+.sidebar__item--pair .sidebar__row:hover {
+  background: var(--hover);
+}
+
+.sidebar__row--on,
+.sidebar__row--on:hover {
+  background: var(--selected);
+}
+
+.sidebar__row--on,
+.sidebar__row--on .sidebar__icon {
+  color: var(--ink);
+}
+
 /* The row you are on: the selected fill, the full ink, a touch of weight. */
 .sidebar__item--on,
 .sidebar__item--on:hover,

@@ -22,6 +22,7 @@ function listenTo(layers: AppShortcuts['layers'], onMac = true): AppShortcuts {
     forward: vi.fn(),
     show: vi.fn(),
     capture: vi.fn(),
+    ask: vi.fn(),
     toggleChat: vi.fn(),
     toggleAside: vi.fn(),
     tabs: {
@@ -144,23 +145,33 @@ describe('the shortcuts behind the peek (slice 6b, Q6)', () => {
   });
 });
 
-describe('Cmd+J, Claude', () => {
+describe('Cmd+J, Ask, and Shift+Cmd+J, Claude beside the work (#37)', () => {
   const cmd = (init: KeyboardEventInit) =>
     window.dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, ...init }));
 
-  it('opens and closes the chat', () => {
+  it('opens Ask, and not the sidebar chat', () => {
     const shortcuts = listen();
     cmd({ key: 'j' });
-    expect(shortcuts.toggleChat).toHaveBeenCalledTimes(1);
+    expect(shortcuts.ask).toHaveBeenCalledTimes(1);
+    expect(shortcuts.toggleChat).not.toHaveBeenCalled();
   });
 
-  it('is left alone while a dialog holds the screen, or with Shift or Alt held', () => {
+  it('opens and closes the sidebar chat with Shift, and not Ask', () => {
+    const shortcuts = listen();
+    cmd({ key: 'J', shiftKey: true });
+    expect(shortcuts.toggleChat).toHaveBeenCalledTimes(1);
+    expect(shortcuts.ask).not.toHaveBeenCalled();
+  });
+
+  it('is left alone while a dialog holds the screen, or with Alt held', () => {
     const shortcuts = listen('settings');
     cmd({ key: 'j' });
+    cmd({ key: 'J', shiftKey: true });
+    expect(shortcuts.ask).not.toHaveBeenCalled();
     expect(shortcuts.toggleChat).not.toHaveBeenCalled();
     const free = listen();
-    cmd({ key: 'J', shiftKey: true });
     cmd({ key: 'j', altKey: true });
+    expect(free.ask).not.toHaveBeenCalled();
     expect(free.toggleChat).not.toHaveBeenCalled();
   });
 });

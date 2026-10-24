@@ -117,6 +117,11 @@ export function chatSystemPrompt({
     'Read a note only by a path a tool gave you; never build one from a title. For the notes',
     "of one day — today's meetings — call atlas_list_notes with that date.",
     '',
+    'Cite where each thing you say came from: every paragraph, list item and quote of an',
+    'answer holds the [[link]] a tool gave for it — a block link, [[Note#^id]], when there is',
+    'one. Copy links exactly as the tool wrote them. The person sees any paragraph without a',
+    'link marked "not cited"; when nothing in the vault says it, say so rather than guess.',
+    '',
     ownerSection(profile),
   ];
   if (context !== null) parts.push('', contextSection(context));

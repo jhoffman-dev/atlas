@@ -37,7 +37,7 @@ export interface AsideState {
   /** Folded by a narrow window (collapse.ts), whatever `open` remembers. */
   readonly folded: boolean;
   /**
-   * Whether Claude's tab was asked for in this session — ⌘J, the spark, its
+   * Whether Claude's tab was asked for in this session — ⇧⌘J, the spark, its
    * tab — as against remembered across a launch: only an ask hands the chat
    * the keys.
    */
@@ -182,7 +182,7 @@ export function selectAsideTab(store: AsideStore, tab: AsideTab): void {
   if (tab === 'claude') asked(store);
 }
 
-/** ⌘J: Claude comes up in the aside, or the aside goes when Claude is on screen. */
+/** ⇧⌘J: Claude comes up in the aside, or the aside goes when Claude is on screen. */
 export function toggleClaude(store: AsideStore): void {
   if (claudeShown(store.getState())) hideAside(store);
   else showAsideTab(store, 'claude');

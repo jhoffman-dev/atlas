@@ -237,6 +237,14 @@
         "index_query": 3
       }
     },
+    "Open Ask (⌘J)": {
+      "commits": 5,
+      "renders": 186,
+      "calls": {
+        "list_directory": 3,
+        "model_process_start": 3
+      }
+    },
     "Open the Library (2,000 sources)": {
       "commits": 6,
       "renders": 165,

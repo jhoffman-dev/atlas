@@ -268,6 +268,15 @@ export * from './proposals/index.ts';
 export * from './linked-pages/index.ts';
 export * from './activity/index.ts';
 export type { Choice } from './choice-select.tsx';
+export { AskPage } from './chat/ask-page.tsx';
+export type { AskPageProps } from './chat/ask-page.tsx';
+export type {
+  AskActions,
+  AskAnswerView,
+  AskEntryView,
+  AskRecent,
+  AskState,
+} from './chat/ask-view.ts';
 export { ChatPanel } from './chat/chat-panel.tsx';
 export type { ChatDraft, ChatNameHint } from './chat/chat-panel.tsx';
 export { ChatToggleProvider, useChatToggle } from './chat/chat-toggle.tsx';

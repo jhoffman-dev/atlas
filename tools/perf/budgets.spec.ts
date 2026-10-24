@@ -491,6 +491,7 @@ async function everyAction(pass: Pass): Promise<void> {
   await runALongSqlQuery(pass);
   await runALongAtlasQuery(pass);
   await readALongPdf(pass);
+  await openAsk(pass);
 }
 
 const sidebarButton = (page: Page, name: RegExp) => page.getByRole('button', { name }).first();
@@ -971,6 +972,17 @@ async function readALongPdf(pass: Pass): Promise<void> {
   const drawn = await page.locator('.pdf-page').count();
   expect(drawn, `${drawn} of ${LONG_PDF_PAGES} pages drawn`).toBeGreaterThan(0);
   expect(drawn, `${drawn} of ${LONG_PDF_PAGES} pages drawn`).toBeLessThanOrEqual(PDF_MOST_DRAWN);
+}
+
+/** ⌘J (#37): Ask, until its question box holds the keys. */
+async function openAsk(pass: Pass): Promise<void> {
+  await pass.budgeted('Open Ask (⌘J)', [
+    phase(
+      () => pass.page.keyboard.press('Meta+j'),
+      (selector) => document.activeElement?.matches(selector) === true,
+      '.ask textarea',
+    ),
+  ]);
 }
 
 async function centreOf(target: Locator): Promise<{ x: number; y: number }> {

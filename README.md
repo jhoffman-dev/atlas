@@ -86,7 +86,7 @@ it → **Open** → **Open** (or allow it in System Settings → Privacy & Secur
 
 ## Optional: Claude
 
-**Claude in DFAI** (the chat, ⌘J) runs through Claude Code by default. Install
+**Claude in DFAI** (Ask, ⌘J, and the chat beside the page, ⇧⌘J) runs through Claude Code by default. Install
 [Claude Code](https://docs.claude.com/en/docs/claude-code) and log in once with `claude`;
 DFAI finds it in `~/.local/bin`, `~/.claude/local` or `/opt/homebrew/bin` and never sees
 your login. Settings → Claude can use an Anthropic API key (kept in the Keychain) instead.
