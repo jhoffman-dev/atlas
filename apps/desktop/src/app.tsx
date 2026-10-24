@@ -2325,6 +2325,8 @@ function AppWindow({
                         onFollowLink={(target) =>
                           followLinkInPane({ pane: workspaceNow(workspace).focused, target })
                         }
+                        onFollowCitation={followSource}
+                        onOpenWeb={openWebLink}
                         loadImage={noImages}
                         nameHint={
                           profileSetting.profile !== 'unknown' &&

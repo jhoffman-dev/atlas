@@ -17,18 +17,14 @@ import {
   type Toolboxes,
   type VaultFsPort,
 } from '@dfai/application';
-import {
-  chatModelOrDefault,
-  createVaultPath,
-  type ProfileState,
-  type VaultPath,
-} from '@dfai/domain';
+import { chatModelOrDefault, type ProfileState, type VaultPath } from '@dfai/domain';
 import type { ChatDraft, ChatProblemView } from '@dfai/ui';
 import { localClock } from '../today.ts';
 import type { ClipboardWriter } from '../settings/clipboard.ts';
 import type { ChatSettings, ChatSettingsStore } from './chat-settings-store.ts';
 import { chosenProvider } from './claude-step-ports.ts';
 import { profileWhenKnown } from './profile-when-known.ts';
+import { usePickChat } from './use-pick-chat.ts';
 
 /** How long the first question waits for the settings note to be read before going without a name. */
 const PROFILE_WAIT_MS = 1500;
@@ -82,6 +78,7 @@ export interface ChatController {
     readonly open: boolean;
     readonly onOpenChange: (open: boolean) => void;
     readonly onPick: (path: string) => void;
+    readonly problem: string | null;
   };
   readonly settings: ChatSettings;
   readonly setSettings: (settings: ChatSettings) => void;
@@ -292,6 +289,10 @@ function useProviderProblem({
   return status === null || status.ready ? null : { message: status.message, fix: status.fix };
 }
 
+/**
+ * The sidebar's Past chats. A pick that cannot be opened — its note deleted
+ * underneath — opens the list again with why, read afresh so the row goes.
+ */
 function useChatHistory({
   session,
   fs,
@@ -303,6 +304,12 @@ function useChatHistory({
 }) {
   const [open, setOpen] = useState(false);
   const [chats, setChats] = useState<readonly ChatSummary[]>([]);
+  const [reads, setReads] = useState(0);
+  const refresh = useCallback(() => {
+    setOpen(true);
+    setReads((count) => count + 1);
+  }, []);
+  const pick = usePickChat({ open: session.open, refresh });
   useEffect(() => {
     if (!open || fs === null) return;
     let current = true;
@@ -312,14 +319,18 @@ function useChatHistory({
     return () => {
       current = false;
     };
-  }, [open, fs, chatPath]);
+  }, [open, fs, chatPath, reads]);
   return {
     chats,
     open,
-    onOpenChange: setOpen,
+    problem: pick.problem,
+    onOpenChange: (next: boolean) => {
+      setOpen(next);
+      if (!next) pick.clear();
+    },
     onPick: (path: string) => {
       setOpen(false);
-      void session.open(createVaultPath(path));
+      pick.onPick(path);
     },
   };
 }

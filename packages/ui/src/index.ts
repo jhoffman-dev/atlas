@@ -284,6 +284,7 @@ export { ChatToggleProvider, useChatToggle } from './chat/chat-toggle.tsx';
 export type { ChatToggle } from './chat/chat-toggle.tsx';
 export type {
   ChatActions,
+  ChatEntryView,
   ChatHistoryView,
   ChatItemView,
   ChatPanelState,

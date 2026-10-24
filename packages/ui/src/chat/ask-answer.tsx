@@ -1,15 +1,16 @@
 import { Fragment, memo, type ReactNode } from 'react';
 import type { AnswerBlock, AnswerInline } from '@dfai/domain';
 import { openHowFrom, type OpenHow } from '../open-how.ts';
-import type { AskAnswerView } from './ask-view.ts';
+import type { AskAnswerView } from './chat-view.ts';
 
-interface AnswerLinks {
+/** Where an answer's citations and web links go. */
+export interface AnswerLinks {
   readonly onFollowCitation: (link: string, how: OpenHow) => void;
   readonly onOpenWeb: (url: string) => void;
 }
 
 /**
- * An answer on Ask (#37), drawn from its blocks: never as HTML. A citation is
+ * An answer on Ask (#37) and in the chat beside the page (#548), drawn from its blocks: never as HTML. A citation is
  * a chip that opens its note at the block; a paragraph that cites nothing is
  * kept in full and marked "not cited" once the answer is finished.
  */
@@ -206,4 +207,30 @@ function Piece({ piece, links }: { piece: AnswerInline; links: AnswerLinks }) {
         </a>
       );
   }
+}
+
+/** The answer's foot says how many of its parts cite nothing, once it is finished. */
+export function UncitedCount({ answer }: { answer: AskAnswerView }) {
+  if (!answer.checked || answer.uncited === 0) return null;
+  return <span className="ask__uncited-count">{uncitedSaying(answer)}</span>;
+}
+
+/** What a block of each kind is called in the answer's foot, one and many. */
+const BLOCK_NAMES: Readonly<Record<string, readonly [string, string]>> = {
+  paragraph: ['paragraph', 'paragraphs'],
+  item: ['list item', 'list items'],
+  quote: ['quote', 'quotes'],
+  table: ['table', 'tables'],
+};
+
+/** "1 paragraph not cited", "2 list items not cited", or "3 parts not cited" for a mix. */
+function uncitedSaying(entry: AskAnswerView): string {
+  const kinds = new Set(
+    entry.blocks.filter((block) => block.citation === 'uncited').map((block) => block.kind),
+  );
+  const [one, many] = (kinds.size === 1 ? BLOCK_NAMES[[...kinds][0] ?? ''] : undefined) ?? [
+    'part',
+    'parts',
+  ];
+  return `${entry.uncited} ${entry.uncited === 1 ? one : many} not cited`;
 }
