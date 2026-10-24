@@ -97,6 +97,10 @@ async function withThumbnail(
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const IN_ALPHABET = new Uint8Array(128);
 for (const char of BASE64_ALPHABET) IN_ALPHABET[char.charCodeAt(0)] = 1;
+const EQUALS = '='.charCodeAt(0);
+const WHITESPACE = /\s/;
+const IS_ASCII_SPACE = new Uint8Array(128);
+for (const char of ' \t\n\v\f\r') IS_ASCII_SPACE[char.charCodeAt(0)] = 1;
 
 /**
  * A file's bytes, checked before anything is sent: Node decodes bad base64
@@ -116,20 +120,46 @@ function bytesOf(file: ArtifactFileInput): Buffer {
 /**
  * Base64 as bytes, refused rather than decoded loosely as Node would; `label`
  * names it in the error. Past `limit.bytes` it is refused with
- * `limit.refusal` from its length alone, before it is read through.
+ * `limit.refusal` from a count of its characters, before it is copied.
  */
 export function bytesFromBase64(
   label: string,
   text: string,
   limit?: { bytes: number; refusal: string },
 ): Buffer {
-  const base64 = text.replace(/\s+/g, '');
-  const padding = paddingOf(base64);
-  if (limit !== undefined && Math.ceil(base64.length / 4) * 3 - padding > limit.bytes) {
+  if (limit !== undefined && decodedSizeOf(text) > limit.bytes) {
     throw new AtlasCallError(limit.refusal);
   }
-  if (!isBase64(base64, padding)) throw new AtlasCallError(`${label}: base64 is not valid`);
+  const base64 = text.replace(/\s+/g, '');
+  if (!isBase64(base64, paddingOf(base64))) {
+    throw new AtlasCallError(`${label}: base64 is not valid`);
+  }
   return Buffer.from(base64, 'base64');
+}
+
+/**
+ * The bytes `text` decodes to, if it is valid, counted in place: stripping
+ * its whitespace first would copy all of it, however far past a limit it is.
+ */
+function decodedSizeOf(text: string): number {
+  let length = 0;
+  for (let at = 0; at < text.length; at += 1) {
+    if (!isWhitespace(text.charCodeAt(at))) length += 1;
+  }
+  let padding = 0;
+  for (let at = text.length - 1; at >= 0 && padding < 2; at -= 1) {
+    const code = text.charCodeAt(at);
+    if (isWhitespace(code)) continue;
+    if (code !== EQUALS) break;
+    padding += 1;
+  }
+  return Math.ceil(length / 4) * 3 - padding;
+}
+
+/** Whether `\s`, as the strip in bytesFromBase64 sees it, matches this character. */
+function isWhitespace(code: number): boolean {
+  if (code < 128) return IS_ASCII_SPACE[code] === 1;
+  return WHITESPACE.test(String.fromCharCode(code));
 }
 
 /** How many `=` end it, up to the two base64 allows. */
